@@ -1357,15 +1357,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if err != nil {
 			return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
 		}
-		// we don't pass in the list of local snaps here because they are
-		// already represented by snapSetupTasks
-
-		snapsupTaskIDs, compsupTaskIDs, err := setupTaskIDsForCreatingRecoverySystem(tss)
-		if err != nil {
-			return nil, err
-		}
-
-		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, compsupTaskIDs, CreateRecoverySystemOptions{
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, CreateRecoverySystemOptions{
 			TestSystem: true,
 		})
 		if err != nil {
@@ -1735,17 +1727,9 @@ type recoverySystemSetup struct {
 	// are kept, typically /run/mnt/ubuntu-seed/systems/<label>, set when
 	// tasks are created
 	Directory string `json:"directory"`
-	// SnapSetupTasks is a list of task IDs that carry snap setup information.
-	// Tasks could come from a remodel, or from downloading snaps that were
-	// required by a validation set.
-	SnapSetupTasks []string `json:"snap-setup-tasks,omitempty"`
 	// LocalSnaps is a list of snaps that should be used to create the recovery
 	// system.
 	LocalSnaps []snapstate.PathSnap `json:"local-snaps,omitempty"`
-	// ComponentSetupTasks is a list of task IDs that carry component setup
-	// information. Tasks could come from a remodel, or from downloading
-	// components that were required by a validation set.
-	ComponentSetupTasks []string `json:"component-setup-tasks,omitempty"`
 	// LocalComponents is a list of components that should be used to create the
 	// recovery system.
 	LocalComponents []snapstate.PathComponent `json:"local-components,omitempty"`
@@ -1804,20 +1788,19 @@ func removeRecoverySystemTask(st *state.State, label string) *state.Task {
 }
 
 // SeedRefreshTasks returns a [snapstate.SeedRefreshTaskSet] that carries the
-// tasks needed to refresh the seed managed by seed-refresh mode. The caller
-// must provide the tasks IDs that can be used by the seed creation tasks to
-// find the new snaps to include in the seed. Otherwise, already installed snaps
-// will be used to create the seed. Older seed-refresh systems are removed so
-// that, after finalize records the new system, the two most recently created
-// seed-refresh systems remain tracked.
-func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+// tasks needed to refresh the seed managed by seed-refresh mode. Seed creation
+// discovers in-flight snap and component setup tasks directly from the change.
+// Older seed-refresh systems are removed so that, after finalize records the
+// new system, the two most recently created seed-refresh systems remain
+// tracked.
+func SeedRefreshTasks(st *state.State) (*snapstate.SeedRefreshTaskSet, error) {
 	labelBase := timeNow().Format("20060102")
 	label, err := pickRecoverySystemLabel(labelBase)
 	if err != nil {
 		return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
 	}
 
-	ts, err := createRecoverySystemTasks(st, label, snapSetupTasks, compSetupTasks, CreateRecoverySystemOptions{
+	ts, err := createRecoverySystemTasks(st, label, CreateRecoverySystemOptions{
 		TestSystem:  true,
 		MarkDefault: true,
 		SeedRefresh: true,
@@ -1892,7 +1875,7 @@ func seedRefreshLabelsToRemove(st *state.State) ([]string, error) {
 	return removals, nil
 }
 
-func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, compSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
+func createRecoverySystemTasks(st *state.State, label string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
 	// precondition check, the directory should not exist yet
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
@@ -1906,16 +1889,13 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, co
 	create := st.NewTask("create-recovery-system", fmt.Sprintf("Create recovery system with label %q", label))
 	// the label we want
 	create.Set("recovery-system-setup", &recoverySystemSetup{
-		Label:     label,
-		Directory: systemDirectory,
-		// IDs of the tasks carrying snap-setup
-		SnapSetupTasks:      snapSetupTasks,
-		ComponentSetupTasks: compSetupTasks,
-		LocalSnaps:          opts.LocalSnaps,
-		LocalComponents:     opts.LocalComponents,
-		TestSystem:          opts.TestSystem,
-		MarkDefault:         opts.MarkDefault,
-		SeedRefresh:         opts.SeedRefresh,
+		Label:           label,
+		Directory:       systemDirectory,
+		LocalSnaps:      opts.LocalSnaps,
+		LocalComponents: opts.LocalComponents,
+		TestSystem:      opts.TestSystem,
+		MarkDefault:     opts.MarkDefault,
+		SeedRefresh:     opts.SeedRefresh,
 	})
 
 	ts := state.NewTaskSet(create)
@@ -2272,18 +2252,13 @@ func CreateRecoverySystem(st *state.State, label string, opts CreateRecoverySyst
 		return nil, errors.New(builder.String())
 	}
 
-	snapsupTaskIDs, compsupTaskIDs, err := setupTaskIDsForCreatingRecoverySystem(downloadTSS)
-	if err != nil {
-		return nil, err
-	}
-
 	// here we make sure that we only include the local snaps/components that
 	// are actually required.
 	opts.LocalComponents = usedLocalComps
 	opts.LocalSnaps = usedLocalSnaps
 
 	chg := st.NewChange(createRecoverySystemChangeKind, fmt.Sprintf("Create new recovery system with label %q", label))
-	createTS, err := createRecoverySystemTasks(st, label, snapsupTaskIDs, compsupTaskIDs, opts)
+	createTS, err := createRecoverySystemTasks(st, label, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -2395,45 +2370,6 @@ func installedComponentRevision(st *state.State, snapName, compName string) (boo
 		return false, snap.Revision{}, nil
 	}
 	return true, csi.Revision, nil
-}
-
-func setupTaskIDsForCreatingRecoverySystem(tss []*state.TaskSet) (snapsupTaskIDs, compsupTaskIDs []string, err error) {
-	for _, ts := range tss {
-		t := ts.MaybeEdge(snapstate.SnapSetupEdge)
-		if t == nil {
-			continue
-		}
-
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// task sets that come from non-component-exclusive operations that
-		// don't introduce any local modifications don't need to be considered,
-		// since they won't impact how the recovery system is created.
-		//
-		// TODO: should snapstate.InstallComponents put a
-		// LastBeforeLocalModificationsEdge on the task set that sets up all of
-		// the profiles for the components? would eliminate the second half of
-		// this check.
-		if ts.MaybeEdge(snapstate.LastBeforeLocalModificationsEdge) == nil && !snapsup.ComponentExclusiveOperation {
-			continue
-		}
-
-		if !snapsup.ComponentExclusiveOperation {
-			snapsupTaskIDs = append(snapsupTaskIDs, t.ID())
-		}
-
-		var compsups []string
-		if err := t.Get("component-setup-tasks", &compsups); err != nil && !errors.Is(err, state.ErrNoState) {
-			return nil, nil, err
-		}
-
-		compsupTaskIDs = append(compsupTaskIDs, compsups...)
-	}
-
-	return snapsupTaskIDs, compsupTaskIDs, nil
 }
 
 // OptionalContainers is used to define the snaps and components that are

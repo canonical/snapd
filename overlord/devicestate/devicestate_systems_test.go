@@ -1843,34 +1843,47 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
-	fooSnap := snaptest.MakeTestSnapWithFiles(c, "name: foo\nversion: 1.0\nbase: core20", nil)
-	barSnap := snaptest.MakeTestSnapWithFiles(c, "name: bar\nversion: 1.0\nbase: core20", nil)
-	s.state.Lock()
-	// fake downloads are a nop
-	tSnapsup1 := s.state.NewTask("fake-download", "test task carrying snap setup")
-	tSnapsup2 := s.state.NewTask("fake-download", "test task carrying snap setup")
-	// both snaps are asserted
-	snapsupFoo := snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: snap.R(99)},
-		SnapPath: fooSnap,
-	}
-	s.setupSnapDeclForNameAndID(c, "foo", s.ss.AssertedSnapID("foo"), "canonical")
-	s.setupSnapRevisionForFileAndID(c, fooSnap, s.ss.AssertedSnapID("foo"), "canonical", snap.R(99))
-	snapsupBar := snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "bar", SnapID: s.ss.AssertedSnapID("bar"), Revision: snap.R(100)},
-		SnapPath: barSnap,
-	}
-	s.setupSnapDeclForNameAndID(c, "bar", s.ss.AssertedSnapID("bar"), "canonical")
-	s.setupSnapRevisionForFileAndID(c, barSnap, s.ss.AssertedSnapID("bar"), "canonical", snap.R(100))
-	// when download completes, the files will be at /var/lib/snapd/snap
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.BlobPath()), 0755), IsNil)
-	c.Assert(os.Rename(fooSnap, snapsupFoo.BlobPath()), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.BlobPath()), 0755), IsNil)
-	c.Assert(os.Rename(barSnap, snapsupBar.BlobPath()), IsNil)
-	tSnapsup1.Set("snap-setup", snapsupFoo)
-	tSnapsup2.Set("snap-setup", snapsupBar)
+	fooSnapRev := snap.R(99)
+	barSnapRev := snap.R(100)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, nil, devicestate.CreateRecoverySystemOptions{
+	// create snap blobs when the downloads run so recovery creation can
+	// discover them from the change.
+	s.o.TaskRunner().AddHandler("download-snap", func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+
+		path := snaptest.MakeTestSnapWithFiles(c,
+			fmt.Sprintf("name: %s\nversion: 1.0\nbase: core20", snapsup.SideInfo.RealName), nil)
+		c.Assert(os.MkdirAll(filepath.Dir(snapsup.BlobPath()), 0755), IsNil)
+		c.Assert(os.Rename(path, snapsup.BlobPath()), IsNil)
+
+		s.setupSnapDeclForNameAndID(c, snapsup.SideInfo.RealName, snapsup.SideInfo.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(c, snapsup.BlobPath(), snapsup.SideInfo.SnapID, "canonical", snapsup.Revision())
+
+		return nil
+	}, nil)
+
+	s.state.Lock()
+
+	tDownloadFoo := s.state.NewTask("download-snap", `Download "foo"`)
+	tDownloadFoo.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: fooSnapRev},
+		SnapPath: filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("foo_%s.snap", fooSnapRev)),
+		Base:     "core20",
+	})
+
+	tDownloadBar := s.state.NewTask("download-snap", `Download "bar"`)
+	tDownloadBar.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "bar", SnapID: s.ss.AssertedSnapID("bar"), Revision: barSnapRev},
+		SnapPath: filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("bar_%s.snap", barSnapRev)),
+		Base:     "core20",
+	})
+
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 	})
 	c.Assert(err, IsNil)
@@ -1884,17 +1897,17 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            "1234",
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
-		"snap-setup-tasks": []any{tSnapsup1.ID(), tSnapsup2.ID()},
-		"test-system":      true,
+		"label":       "1234",
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
+		"test-system": true,
 	})
-	tss.WaitFor(tSnapsup1)
-	tss.WaitFor(tSnapsup2)
-	// add the test tasks to the change
+	tss.WaitFor(tDownloadFoo)
+	tss.WaitFor(tDownloadBar)
+	// Add the downloads to the change so create-recovery-system can
+	// discover them there.
 	chg := s.state.NewChange("create-recovery-system", "create recovery system")
-	chg.AddTask(tSnapsup1)
-	chg.AddTask(tSnapsup2)
+	chg.AddTask(tDownloadFoo)
+	chg.AddTask(tDownloadBar)
 	chg.AddAll(tss)
 
 	// downloads are only accepted if the tasks are executed as part of
@@ -1971,7 +1984,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	// new snap files are logged in this order
 	for _, fname := range []string{
 		"snapd_4.snap", "pc-kernel_2.snap", "core20_3.snap", "pc_1.snap",
-		"foo_99.snap", "bar_100.snap",
+		fmt.Sprintf("foo_%s.snap", fooSnapRev), fmt.Sprintf("bar_%s.snap", barSnapRev),
 	} {
 		fmt.Fprintln(expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
 	}
@@ -2036,7 +2049,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	s.state.Lock()
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", nil, nil, devicestate.CreateRecoverySystemOptions{
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 	})
 	c.Assert(err, IsNil)
@@ -2239,19 +2252,39 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
 
-	fooSnap := snaptest.MakeTestSnapWithFiles(c, "name: foo\nversion: 1.0\nbase: core20", nil)
-	s.state.Lock()
-	defer s.state.Unlock()
-	// fake downloads are a nop
-	tSnapsup1 := s.state.NewTask("fake-download", "test task carrying snap setup")
-	// both snaps are asserted
-	snapsupFoo := snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: snap.R(99)},
-		SnapPath: fooSnap,
-	}
-	tSnapsup1.Set("snap-setup", snapsupFoo)
+	fooSnapRev := snap.R(99)
 
-	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()}, nil, devicestate.CreateRecoverySystemOptions{
+	// create snap blobs when the downloads run so recovery creation can
+	// discover them from the change.
+	s.o.TaskRunner().AddHandler("download-snap", func(task *state.Task, _ *tomb.Tomb) error {
+		st := task.State()
+		st.Lock()
+		defer st.Unlock()
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+
+		path := snaptest.MakeTestSnapWithFiles(c,
+			fmt.Sprintf("name: %s\nversion: 1.0\nbase: core20", snapsup.SideInfo.RealName), nil)
+		c.Assert(os.MkdirAll(filepath.Dir(snapsup.BlobPath()), 0755), IsNil)
+		c.Assert(os.Rename(path, snapsup.BlobPath()), IsNil)
+
+		s.setupSnapDeclForNameAndID(c, snapsup.SideInfo.RealName, snapsup.SideInfo.SnapID, "canonical")
+		s.setupSnapRevisionForFileAndID(c, snapsup.BlobPath(), snapsup.SideInfo.SnapID, "canonical", snapsup.Revision())
+
+		return nil
+	}, nil)
+
+	s.state.Lock()
+
+	tDownloadFoo := s.state.NewTask("download-snap", `Download "foo"`)
+	tDownloadFoo.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: fooSnapRev},
+		SnapPath: filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("foo_%s.snap", fooSnapRev)),
+		Base:     "core20",
+	})
+
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
 	})
 	c.Assert(err, IsNil)
@@ -2265,15 +2298,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            "1234missingdownload",
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"),
-		"snap-setup-tasks": []any{tSnapsup1.ID()},
-		"test-system":      true,
+		"label":       "1234missingdownload",
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"),
+		"test-system": true,
 	})
-	tss.WaitFor(tSnapsup1)
-	// add the test task to the change
+	tss.WaitFor(tDownloadFoo)
+	// add the test task to the change so create-recovery-system can discover
+	// it there
 	chg := s.state.NewChange("create-recovery-system", "create recovery system")
-	chg.AddTask(tSnapsup1)
+	chg.AddTask(tDownloadFoo)
 	chg.AddAll(tss)
 
 	// downloads are only accepted if the tasks are executed as part of
@@ -2311,11 +2344,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot create a recovery system.*internal error: non-essential but required snap "bar" not present.`)
 	c.Assert(tskCreate.Status(), Equals, state.ErrorStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.HoldStatus)
-	// a reboot is expected
+	// the change fails before the reboot boundary is reached
 	c.Check(s.restartRequests, HasLen, 0)
 	// single bootloader call to clear any recovery system variables
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
@@ -2326,7 +2360,83 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		"recovery_system_status": "",
 	})
 	// system directory was removed
-	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"), testutil.FileAbsent)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234missingdownload"), testutil.FileAbsent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) testCreateRecoverySystemUsesPrepareSnapTask(c *C, label string, taskCarriesSnapPath bool) {
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	prepareRev := snap.R(99)
+	si, path := createLocalSnap(c, "pc-kernel", fakeSnapID("pc-kernel"), prepareRev.N, string(snap.TypeKernel), "", nil)
+	pathWithAssertedRevision := path
+	if !taskCarriesSnapPath {
+		pathWithAssertedRevision = snap.MountFile(si.RealName, prepareRev)
+		c.Assert(os.MkdirAll(filepath.Dir(pathWithAssertedRevision), 0755), IsNil)
+		c.Assert(osutil.CopyFile(path, pathWithAssertedRevision, 0), IsNil)
+	}
+	s.setupSnapDeclForNameAndID(c, si.RealName, si.SnapID, "canonical")
+	s.setupSnapRevisionForFileAndID(c, pathWithAssertedRevision, si.SnapID, "canonical", prepareRev)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, label, devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	create, finalize := tsks[0], tsks[1]
+
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeKernel,
+	}
+	if taskCarriesSnapPath {
+		snapsup.SnapPath = path
+	}
+
+	prepare := s.state.NewTask("prepare-snap", `Prepare "pc-kernel"`)
+	prepare.Set("snap-setup", snapsup)
+	prepare.SetStatus(state.DoneStatus)
+	chg.AddTask(prepare)
+	create.WaitFor(prepare)
+
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(create.Status(), Equals, state.WaitStatus)
+	c.Assert(finalize.Status(), Equals, state.DoStatus)
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	// recovery creation should work whether the prepare-snap task carries
+	// snap-path or recovery falls back to the mounted revision.
+	validateCore20Seed(c, label, s.model, s.storeSigning.Trusted)
+
+	var expectedFilesLog bytes.Buffer
+	for _, fname := range []string{"snapd_4.snap", "pc-kernel_99.snap", "core20_3.snap", "pc_1.snap"} {
+		fmt.Fprintln(&expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
+	}
+	// the seed should use the kernel revision from the prepare-snap task, not
+	// the installed one.
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label, "snapd-new-file-log"),
+		testutil.FileEquals, expectedFilesLog.String())
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUsesSnapFromPrepareTaskSnapPath(c *C) {
+	s.testCreateRecoverySystemUsesPrepareSnapTask(c, "1234preparesnap", true)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUsesSnapFromMountedRevisionWhenPrepareTaskLacksSnapPath(c *C) {
+	s.testCreateRecoverySystemUsesPrepareSnapTask(c, "1234preparedmountedsnap", false)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndoNoTestSystem(c *C) {
@@ -2755,7 +2865,7 @@ func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRes
 	}
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{keepSeededSystem, removeSeededSystem})
 
-	seedTS, err := devicestate.SeedRefreshTasks(s.state, nil, nil)
+	seedTS, err := devicestate.SeedRefreshTasks(s.state)
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
 	c.Assert(seedTS.Remove, HasLen, 1)
@@ -4367,7 +4477,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		return nil
 	}, nil)
 
-	s.o.TaskRunner().AddHandler("mock-download", func(task *state.Task, _ *tomb.Tomb) error {
+	s.o.TaskRunner().AddHandler("download-snap", func(task *state.Task, _ *tomb.Tomb) error {
 		st := task.State()
 		st.Lock()
 		defer st.Unlock()
@@ -4403,8 +4513,11 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			)
 		}
 
-		err = os.Rename(path, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapsup.SideInfo.RealName, snapsup.Revision().String())))
+		target := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapsup.SideInfo.RealName, snapsup.Revision().String()))
+		err = os.Rename(path, target)
 		c.Assert(err, IsNil)
+		snapsup.SnapPath = target
+		task.Set("snap-setup", snapsup)
 		return nil
 	}, nil)
 
@@ -4418,7 +4531,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 		c.Check(revOpts.Revision.Unset(), Equals, true)
 
-		tDownload := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
+		tDownload := s.state.NewTask("download-snap", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 
 		si := &snap.SideInfo{
 			RealName: name,
@@ -4866,7 +4979,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		return nil
 	}, nil)
 
-	s.o.TaskRunner().AddHandler("mock-download", func(task *state.Task, _ *tomb.Tomb) error {
+	s.o.TaskRunner().AddHandler("download-snap", func(task *state.Task, _ *tomb.Tomb) error {
 		st := task.State()
 		st.Lock()
 		defer st.Unlock()
@@ -4908,8 +5021,11 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			)
 		}
 
-		err = os.Rename(path, filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapsup.SideInfo.RealName, snapsup.Revision().String())))
+		target := filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", snapsup.SideInfo.RealName, snapsup.Revision().String()))
+		err = os.Rename(path, target)
 		c.Assert(err, IsNil)
+		snapsup.SnapPath = target
+		task.Set("snap-setup", snapsup)
 		return nil
 	}, nil)
 
@@ -4946,7 +5062,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		return nil
 	}, nil)
 
-	s.o.TaskRunner().AddHandler("mock-download-component", func(task *state.Task, _ *tomb.Tomb) error {
+	s.o.TaskRunner().AddHandler("download-component", func(task *state.Task, _ *tomb.Tomb) error {
 		st := task.State()
 		st.Lock()
 		defer st.Unlock()
@@ -4959,8 +5075,12 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			compsup.CompType,
 		))
 
-		err = os.Rename(path, compsup.BlobPath(snapsup.InstanceName()))
+		target := compsup.BlobPath(snapsup.InstanceName())
+		err = os.Rename(path, target)
 		c.Assert(err, IsNil)
+
+		compsup.CompPath = target
+		task.Set("component-setup", compsup)
 
 		return nil
 	}, nil)
@@ -5001,7 +5121,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		for _, comp := range components {
 			cref := naming.NewComponentRef(name, comp)
 
-			download := s.state.NewTask("mock-download-component", fmt.Sprintf("Download component %q", cref))
+			download := s.state.NewTask("download-component", fmt.Sprintf("Download component %q", cref))
 			download.Set("component-setup", &snapstate.ComponentSetup{
 				CompSideInfo: &snap.ComponentSideInfo{
 					Component: cref,
@@ -5036,7 +5156,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			SnapID:   fakeSnapID(name),
 		}
 
-		download := s.state.NewTask("mock-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
+		download := s.state.NewTask("download-snap", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
 		download.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: si,
 			Base:     "core20",
@@ -5061,7 +5181,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		for _, comp := range components {
 			cref := naming.NewComponentRef(name, comp)
 
-			download := s.state.NewTask("mock-download-component", fmt.Sprintf("Download component %q", cref))
+			download := s.state.NewTask("download-component", fmt.Sprintf("Download component %q", cref))
 			download.Set("component-setup", &snapstate.ComponentSetup{
 				CompSideInfo: &snap.ComponentSideInfo{
 					Component: cref,
@@ -5425,6 +5545,132 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	c.Assert(defaultSystem.System, Equals, "1234")
 	c.Assert(defaultSystem.Model, Equals, s.model.Model())
 	c.Assert(defaultSystem.BrandID, Equals, s.model.BrandID())
+}
+
+func (s *deviceMgrSystemsCreateSuite) testCreateRecoverySystemUsesPrepareComponentTask(c *C, label string, taskCarriesCompPath bool) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(22),
+	})
+
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]any{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"revision":     "2",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel-with-kmods",
+				"id":              s.ss.AssertedSnapID("pc-kernel-with-kmods"),
+				"type":            "kernel",
+				"default-channel": "20",
+				"components": map[string]any{
+					"kmod": map[string]any{
+						"presence": "required",
+					},
+				},
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]any{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	cref := naming.NewComponentRef("pc-kernel-with-kmods", "kmod")
+	prepareCompRev := snap.R(33)
+	compPath := snaptest.MakeTestComponent(c, fmt.Sprintf("component: %s\nversion: 1.0\ntype: %s\n", cref, snap.KernelModulesComponent))
+	pathWithAssertedRevision := compPath
+	if !taskCarriesCompPath {
+		cpi := snap.MinimalComponentContainerPlaceInfo(cref.ComponentName, prepareCompRev, cref.SnapName)
+		pathWithAssertedRevision = cpi.MountFile()
+		c.Assert(os.MkdirAll(filepath.Dir(pathWithAssertedRevision), 0755), IsNil)
+		c.Assert(osutil.CopyFile(compPath, pathWithAssertedRevision, 0), IsNil)
+	}
+	s.setupSnapResourceRevision(c, pathWithAssertedRevision, cref.ComponentName, fakeSnapID(cref.SnapName), "canonical", prepareCompRev)
+	s.setupSnapResourcePair(c, cref.ComponentName, fakeSnapID(cref.SnapName), "canonical", prepareCompRev, snap.R(11))
+
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, label, devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	create, finalize := tsks[0], tsks[1]
+
+	prepare := s.state.NewTask("prepare-component", fmt.Sprintf("Prepare component %q", cref))
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: cref.SnapName,
+			SnapID:   fakeSnapID(cref.SnapName),
+			Revision: snap.R(11),
+		},
+		Type: snap.TypeKernel,
+	}
+	compsup := &snapstate.ComponentSetup{
+		CompSideInfo: snap.NewComponentSideInfo(cref, prepareCompRev),
+		CompType:     snap.KernelModulesComponent,
+	}
+	if taskCarriesCompPath {
+		compsup.CompPath = compPath
+	}
+	prepare.Set("snap-setup", snapsup)
+	prepare.Set("component-setup", compsup)
+	prepare.SetStatus(state.DoneStatus)
+	chg.AddTask(prepare)
+	create.WaitFor(prepare)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(create.Status(), Equals, state.WaitStatus)
+	c.Assert(finalize.Status(), Equals, state.DoStatus)
+	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+
+	// recovery creation should work whether the prepare-component task carries
+	// comp-path or recovery falls back to the mounted component revision.
+	validateCore20Seed(c, label, s.model, s.storeSigning.Trusted)
+
+	var expectedFilesLog bytes.Buffer
+	for _, fname := range []string{"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_33.comp", "core20_3.snap", "pc_1.snap"} {
+		fmt.Fprintln(&expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
+	}
+	// the seed should use the component revision from the prepare-component
+	// task, not the installed one.
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label, "snapd-new-file-log"),
+		testutil.FileEquals, expectedFilesLog.String())
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUsesComponentFromPrepareTaskCompPath(c *C) {
+	s.testCreateRecoverySystemUsesPrepareComponentTask(c, "1234preparecomponent", true)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUsesComponentFromMountedRevisionWhenPrepareTaskLacksCompPath(c *C) {
+	s.testCreateRecoverySystemUsesPrepareComponentTask(c, "1234preparedmountedcomponent", false)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemOnlineWithLocalError(c *C) {

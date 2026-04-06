@@ -2200,11 +2200,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 	})
 	defer restore()
 
-	tSnap1 := s.state.NewTask("fake-download", "...")
-	tSnap2 := s.state.NewTask("fake-download", "...")
-	tComp1 := s.state.NewTask("fake-download-component", "...")
-
-	seedTS, err := devicestate.SeedRefreshTasks(s.state, []string{tSnap1.ID(), tSnap2.ID()}, []string{tComp1.ID()})
+	seedTS, err := devicestate.SeedRefreshTasks(s.state)
 	c.Assert(err, IsNil)
 
 	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
@@ -2216,13 +2212,11 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 	var systemSetupData map[string]any
 	c.Assert(seedTS.Create.Get("recovery-system-setup", &systemSetupData), IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":                 expectedLabel,
-		"directory":             filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks":      []any{tSnap1.ID(), tSnap2.ID()},
-		"component-setup-tasks": []any{tComp1.ID()},
-		"mark-default":          true,
-		"seed-refresh":          true,
-		"test-system":           true,
+		"label":        expectedLabel,
+		"directory":    filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"mark-default": true,
+		"seed-refresh": true,
+		"test-system":  true,
 	})
 
 	var setupTaskID string
@@ -2249,9 +2243,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 	c.Assert(os.MkdirAll(filepath.Join(systemsDir, labelBase+"-1"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(systemsDir, labelBase+"-2"), 0755), IsNil)
 
-	tSnap := s.state.NewTask("fake-download", "...")
-
-	seedTS, err := devicestate.SeedRefreshTasks(s.state, []string{tSnap.ID()}, nil)
+	seedTS, err := devicestate.SeedRefreshTasks(s.state)
 	c.Assert(err, IsNil)
 
 	c.Assert(seedTS.Create.Kind(), Equals, "create-recovery-system")
@@ -2264,7 +2256,6 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 	c.Assert(seedTS.Create.Get("recovery-system-setup", &systemSetupData), IsNil)
 	c.Check(systemSetupData["label"], Equals, expectedLabel)
 	c.Check(systemSetupData["directory"], Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel))
-	c.Check(systemSetupData["snap-setup-tasks"], DeepEquals, []any{tSnap.ID()})
 	c.Check(systemSetupData["mark-default"], Equals, true)
 	c.Check(systemSetupData["seed-refresh"], Equals, true)
 	c.Check(systemSetupData["test-system"], Equals, true)
@@ -2286,7 +2277,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
 		{System: "old-seed-refresh-2", SeedRefresh: true},
 	})
 
-	seedTS, err := devicestate.SeedRefreshTasks(s.state, []string{s.state.NewTask("fake-download", "...").ID()}, nil)
+	seedTS, err := devicestate.SeedRefreshTasks(s.state)
 	c.Assert(err, IsNil)
 	c.Assert(seedTS.Remove, HasLen, 2)
 	c.Check(seedTS.Remove[0].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})

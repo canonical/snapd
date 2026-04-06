@@ -20,8 +20,6 @@
 package snapstate
 
 import (
-	"errors"
-
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,7 +34,7 @@ type SeedRefreshTaskSet struct {
 
 // SeedRefreshTasks is set by devicestate to avoid an import cycle. See
 // devicestate.SeedRefreshTasks.
-var SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*SeedRefreshTaskSet, error) {
+var SeedRefreshTasks = func(st *state.State) (*SeedRefreshTaskSet, error) {
 	panic("internal error: snapstate.SeedRefreshTasks is unset")
 }
 
@@ -76,46 +74,12 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 		return nil, nil, nil
 	}
 
-	snapsupIDs, compsupIDs, err := setupTaskIDsForSeedCreation(seedSnapTaskSets)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	seedTS, err := SeedRefreshTasks(st, snapsupIDs, compsupIDs)
+	seedTS, err := SeedRefreshTasks(st)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	return seedTS, seedSnapTaskSets, nil
-}
-
-// setupTaskIDsForSeedCreation collects the snap and component setup task IDs
-// that seed creation should consume.
-func setupTaskIDsForSeedCreation(seedSnapUpdates map[string]snapInstallTaskSet) (snapsupIDs, compsupIDs []string, err error) {
-	for _, sts := range seedSnapUpdates {
-		t, err := sts.ts.Edge(SnapSetupEdge)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		snapsup, err := TaskSnapSetup(t)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if !snapsup.ComponentExclusiveOperation {
-			snapsupIDs = append(snapsupIDs, t.ID())
-		}
-
-		var compsups []string
-		if err := t.Get("component-setup-tasks", &compsups); err != nil && !errors.Is(err, state.ErrNoState) {
-			return nil, nil, err
-		}
-
-		compsupIDs = append(compsupIDs, compsups...)
-	}
-
-	return snapsupIDs, compsupIDs, nil
 }
 
 // taskSetsForSeedSnaps returns the selected refresh task sets keyed by

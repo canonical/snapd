@@ -2686,10 +2686,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []any{tDownloadSnap1.ID(), tDownloadSnap2.ID(), tDownloadSnap3.ID()},
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 	// cross references of to recovery system setup data
 	for _, tsk := range []*state.Task{tFinalizeRecovery, tSetModel} {
@@ -3023,10 +3022,9 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelGadgetBaseSnaps(c *C,
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []any{tDownloadKernel.ID(), tDownloadBase.ID(), tDownloadGadget.ID()},
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 }
 
@@ -3287,17 +3285,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 		tUpdateCertDB,
 	})
 
-	snapsups := []any{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID(), tValidateApp.ID()}
-
 	// verify recovery system setup data on appropriate tasks
 	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": snapsups,
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 }
 
@@ -3561,17 +3556,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 		tUpdateCertDB,
 	})
 
-	snapsups := []any{tSwitchKernel.ID(), tPrepareBase.ID(), tSwitchGadget.ID(), tValidateApp.ID()}
-
 	// verify recovery system setup data on appropriate tasks
 	var systemSetupData map[string]any
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": snapsups,
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 }
 
@@ -3827,10 +3819,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []any{tPrepareKernel.ID(), tPrepareBase.ID(), tPrepareGadget.ID()},
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 }
 
@@ -4182,14 +4173,8 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":     expectedLabel,
-		"directory": filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		// tasks carrying snap-setup are tracked
-		"snap-setup-tasks": []any{
-			tSwitchChannelKernel.ID(),
-			tSwitchChannelBase.ID(),
-			tSwitchChannelGadget.ID(),
-		},
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"test-system": true,
 	})
 }
@@ -4443,10 +4428,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]any{
-		"label":            expectedLabel,
-		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
-		"snap-setup-tasks": []any{tDownloadKernel.ID(), tDownloadBase.ID()},
-		"test-system":      true,
+		"label":       expectedLabel,
+		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"test-system": true,
 	})
 }
 
@@ -6925,7 +6909,7 @@ func mockSnapstateUpdateOne(c *C, snaps map[string]expectedSnap) (restore func()
 		expected, ok := snaps[name]
 		c.Assert(ok, Equals, true, Commentf("unexpected snap update: %q", name))
 
-		download := st.NewTask("fake-download", "download snap")
+		download := st.NewTask("download-snap", "download snap")
 
 		si := snap.SideInfo{
 			RealName: expected.name,
@@ -6962,7 +6946,7 @@ func mockSnapstateUpdateOne(c *C, snaps map[string]expectedSnap) (restore func()
 
 			cref := naming.NewComponentRef(name, comp)
 
-			download := st.NewTask("mock-download-component", "download component")
+			download := st.NewTask("download-component", "download component")
 			download.Set("component-setup", &snapstate.ComponentSetup{
 				CompSideInfo: &snap.ComponentSideInfo{
 					Component: cref,
@@ -7072,7 +7056,7 @@ func mockSnapstateInstallOneFromFile(c *C, snaps map[string]expectedSnap) (resto
 			expectedComp, ok := expected.components[compName]
 			c.Assert(ok, Equals, true)
 
-			prepare := st.NewTask("mock-prepare-component", "prepare component")
+			prepare := st.NewTask("prepare-component", "prepare component")
 			prepare.Set("component-setup", &snapstate.ComponentSetup{
 				CompSideInfo: comp.SideInfo,
 				CompPath:     comp.Path,
@@ -7191,7 +7175,7 @@ func mockSnapstateUpdateOneFromFile(c *C, snaps map[string]expectedSnap) (restor
 				c.Assert(comp.Path, Equals, expectedComp.path)
 			}
 
-			prepare := st.NewTask("mock-prepare-component", "prepare component")
+			prepare := st.NewTask("prepare-component", "prepare component")
 			prepare.Set("component-setup", &snapstate.ComponentSetup{
 				CompSideInfo: comp.SideInfo,
 				CompPath:     comp.Path,
@@ -7259,7 +7243,7 @@ func mockSnapstateInstallComponentPath(c *C, snaps map[string]expectedSnap) (res
 		expected, ok := sn.components[csi.Component.ComponentName]
 		c.Assert(ok, Equals, true, Commentf("unexpected component installation for snap %q: %q", info.InstanceName(), csi.Component.ComponentName))
 
-		prepare := st.NewTask("mock-prepare-component", "prepare component")
+		prepare := st.NewTask("prepare-component", "prepare component")
 		prepare.Set("snap-setup", snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
 				RealName: sn.name,
@@ -7320,7 +7304,7 @@ func mockSnapstateInstallOne(c *C, snaps map[string]expectedSnap) (restore func(
 		expected, ok := snaps[name]
 		c.Assert(ok, Equals, true, Commentf("unexpected snap installation: %q", name))
 
-		download := st.NewTask("fake-download", "download snap")
+		download := st.NewTask("download-snap", "download snap")
 
 		si := snap.SideInfo{
 			RealName: expected.name,
@@ -7356,7 +7340,7 @@ func mockSnapstateInstallOne(c *C, snaps map[string]expectedSnap) (restore func(
 
 			cref := naming.NewComponentRef(name, comp)
 
-			download := st.NewTask("mock-download-component", "download component")
+			download := st.NewTask("download-component", "download component")
 			download.Set("component-setup", &snapstate.ComponentSetup{
 				CompSideInfo: &snap.ComponentSideInfo{
 					Component: cref,
@@ -7445,7 +7429,7 @@ func mockSnapstateInstallComponents(c *C, snaps map[string]expectedSnap) (restor
 
 			cref := naming.NewComponentRef(info.SnapName(), name)
 
-			download := st.NewTask("mock-download-component", "download component")
+			download := st.NewTask("download-component", "download component")
 			download.Set("component-setup", &snapstate.ComponentSetup{
 				CompSideInfo: &snap.ComponentSideInfo{
 					Component: cref,
@@ -7627,9 +7611,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 
 	updateTS := tss[0]
 	checkTaskSetKinds(c, updateTS, []string{
-		"fake-download",
+		"download-snap",
 		"validate-snap",
-		"mock-download-component",
+		"download-component",
 		"mock-validate-component",
 		"link-snap",
 		"link-component",
@@ -7637,7 +7621,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponents(c *C) {
 
 	installTS := tss[1]
 	checkTaskSetKinds(c, installTS, []string{
-		"fake-download",
+		"download-snap",
 		"validate-snap",
 		"link-snap",
 	})
@@ -7989,9 +7973,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewComponentSwitchSnap(
 
 	updateTS := tss[0]
 	checkTaskSetKinds(c, updateTS, []string{
-		"fake-download",
+		"download-snap",
 		"validate-snap",
-		"mock-download-component",
+		"download-component",
 		"mock-validate-component",
 		"link-snap",
 		"link-component",
@@ -8168,12 +8152,6 @@ func checkRecoverySystemSetup(t *state.Task, c *C, now time.Time, snapsups, comp
 		"directory":   filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label),
 		"test-system": true,
 	}
-	if snapsups != nil {
-		expected["snap-setup-tasks"] = snapsups
-	}
-	if compsups != nil {
-		expected["component-setup-tasks"] = compsups
-	}
 
 	c.Assert(data, DeepEquals, expected)
 }
@@ -8319,9 +8297,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsNewSnapAndComponent(c *
 
 	updateTS := tss[0]
 	checkTaskSetKinds(c, updateTS, []string{
-		"fake-download",
+		"download-snap",
 		"validate-snap",
-		"mock-download-component",
+		"download-component",
 		"mock-validate-component",
 		"link-snap",
 		"link-component",
@@ -8488,14 +8466,14 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsAddComponentsToSnap(c *
 
 	installTS := tss[0]
 	checkTaskSetKinds(c, installTS, []string{
-		"mock-download-component",
+		"download-component",
 		"mock-validate-component",
 		"link-component",
 	})
 
 	installTS = tss[1]
 	checkTaskSetKinds(c, installTS, []string{
-		"mock-download-component",
+		"download-component",
 		"mock-validate-component",
 		"link-component",
 	})
@@ -8838,7 +8816,7 @@ func (s *deviceMgrRemodelSuite) testRemodelWithComponentsChangeBecauseOfValidati
 
 	installTS := tss[0]
 	checkTaskSetKinds(c, installTS, []string{
-		"mock-download-component",
+		"download-component",
 		"mock-validate-component",
 		"link-component",
 	})
@@ -9109,7 +9087,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 	checkTaskSetKinds(c, updateTS, []string{
 		"prepare-snap",
 		"validate-snap",
-		"mock-prepare-component",
+		"prepare-component",
 		"mock-validate-component",
 		"link-snap",
 		"link-component",
@@ -9119,7 +9097,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 	checkTaskSetKinds(c, installTS, []string{
 		"prepare-snap",
 		"validate-snap",
-		"mock-prepare-component",
+		"prepare-component",
 		"mock-validate-component",
 		"link-snap",
 		"link-component",
@@ -9127,7 +9105,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelWithComponentsOffline(c *C) {
 
 	componentInstallTS := tss[2]
 	checkTaskSetKinds(c, componentInstallTS, []string{
-		"mock-prepare-component",
+		"prepare-component",
 		"mock-validate-component",
 		"setup-profiles",
 		"link-component",
@@ -10490,7 +10468,7 @@ func (s *deviceMgrRemodelSuite) TestOfflineRemodelPreinstalledUseOldRevisionWith
 	c.Check(kinds, DeepEquals, []string{
 		"prepare-snap",
 		"validate-snap",
-		"mock-prepare-component",
+		"prepare-component",
 		"mock-validate-component",
 		"link-snap",
 		"link-component",

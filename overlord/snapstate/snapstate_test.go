@@ -234,18 +234,12 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
-	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+	snapstate.SeedRefreshTasks = func(st *state.State) (*snapstate.SeedRefreshTaskSet, error) {
 		create := st.NewTask("create-recovery-system", "Create recovery system")
-		create.Set("recovery-system-setup", map[string]any{
-			"snap-setup-tasks":      snapSetupTasks,
-			"component-setup-tasks": compSetupTasks,
-		})
-
 		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
 
 		finalize := st.NewTask("finalize-recovery-system", "Finalize recovery system")
 		finalize.WaitFor(create)
-		finalize.Set("recovery-system-setup-task", create.ID())
 
 		return &snapstate.SeedRefreshTaskSet{
 			Create:   create,

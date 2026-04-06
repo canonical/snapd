@@ -309,7 +309,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	label := setup.Label
 	systemDirectory := setup.Directory
 
-	infoGetter := setupInfoGetter{setup: setup}
+	infoGetter := setupInfoGetter{setup: setup, chg: t.Change()}
 
 	observeSnapFileWrite := func(recoverySystemDir, where string) error {
 		if recoverySystemDir != systemDirectory {

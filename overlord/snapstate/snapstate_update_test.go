@@ -166,11 +166,6 @@ func findSeedRefreshTaskSet(tss []*state.TaskSet) *state.TaskSet {
 	return nil
 }
 
-type recoverySystemSetupForTest struct {
-	SnapSetupTasks      []string `json:"snap-setup-tasks,omitempty"`
-	ComponentSetupTasks []string `json:"component-setup-tasks,omitempty"`
-}
-
 func hasDoRestartBoundary(task *state.Task) bool {
 	var boundary restart.RestartBoundaryDirection
 	if err := task.Get("restart-boundary", &boundary); err != nil {
@@ -19730,14 +19725,6 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 	lastBeforeLocalKernel, err := kernelTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 
-	var seedSetup recoverySystemSetupForTest
-	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
-	for _, ts := range []*state.TaskSet{baseTS, kernelTS} {
-		t, err := ts.Edge(snapstate.SnapSetupEdge)
-		c.Assert(err, IsNil)
-		c.Check(seedSetup.SnapSetupTasks, testutil.Contains, t.ID())
-	}
-
 	for _, t := range []*state.Task{lastBeforeLocalBase, lastBeforeLocalKernel} {
 		c.Check(waitsOnTransitively(seedCreate, t), Equals, true)
 	}
@@ -19886,14 +19873,6 @@ func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(baseTS))
 
 	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
-
-	var seedSetup recoverySystemSetupForTest
-	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
-	for _, ts := range []*state.TaskSet{baseTS, kernelTS, appTS} {
-		t, err := ts.Edge(snapstate.SnapSetupEdge)
-		c.Assert(err, IsNil)
-		c.Check(seedSetup.SnapSetupTasks, testutil.Contains, t.ID())
-	}
 
 	kernelLinkTask, err := kernelTS.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
@@ -20252,14 +20231,6 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c
 
 	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
 
-	var seedSetup recoverySystemSetupForTest
-	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
-	for _, ts := range []*state.TaskSet{snapdTS, baseTS, kernelTS, appTS} {
-		t, err := ts.Edge(snapstate.SnapSetupEdge)
-		c.Assert(err, IsNil)
-		c.Check(seedSetup.SnapSetupTasks, testutil.Contains, t.ID())
-	}
-
 	kernelLinkTask, err := kernelTS.Edge(snapstate.MaybeRebootEdge)
 	c.Assert(err, IsNil)
 	c.Check(kernelLinkTask.HaltTasks(), testutil.Contains, seedCreate)
@@ -20459,7 +20430,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 	defer s.state.Unlock()
 
 	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
-	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+	snapstate.SeedRefreshTasks = func(st *state.State) (*snapstate.SeedRefreshTaskSet, error) {
 		create := st.NewTask("create-recovery-system", "Create recovery system")
 		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
 
@@ -20734,10 +20705,6 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 	c.Assert(appSnapSetupTask.Get("component-setup-tasks", &appCompSetupTaskIDs), IsNil)
 	c.Assert(appCompSetupTaskIDs, HasLen, 1)
 
-	var seedSetup recoverySystemSetupForTest
-	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
-	c.Check(seedSetup.SnapSetupTasks, testutil.Contains, appSnapSetupTask.ID())
-	c.Check(seedSetup.ComponentSetupTasks, DeepEquals, appCompSetupTaskIDs)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBlockedByOtherChanges(c *C) {

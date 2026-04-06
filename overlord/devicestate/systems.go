@@ -233,13 +233,125 @@ type infoGetter interface {
 // recovery system.
 type setupInfoGetter struct {
 	setup *recoverySystemSetup
+	chg   *state.Change
+}
+
+// snapSetupPathForRecovery returns the snap file create-recovery-system should
+// include in the seed, as indicated by the completed prepare-snap or
+// download-snap task.
+func snapSetupPathForRecovery(task *state.Task, snapsup *snapstate.SnapSetup) (string, error) {
+	switch task.Kind() {
+	case "download-snap":
+		// download-snap persists the fetched blob path in SnapPath.
+		if snapsup.SnapPath == "" {
+			return "", fmt.Errorf("internal error: completed download-snap task %q for %q is missing snap path", task.ID(), snapsup.InstanceName())
+		}
+		return snapsup.SnapPath, nil
+	case "prepare-snap":
+		if snapsup.SnapPath != "" {
+			// prepare-snap carries SnapPath for by-path inputs.
+			return snapsup.SnapPath, nil
+		}
+		// otherwise use the mounted revision.
+		return snap.MountFile(snapsup.InstanceName(), snapsup.Revision()), nil
+	default:
+		return "", fmt.Errorf("internal error: unexpected snap setup task kind %q", task.Kind())
+	}
+}
+
+// componentSetupPathForRecovery returns the component file
+// create-recovery-system should include in the seed, as indicated by the
+// completed prepare-component or download-component task.
+func componentSetupPathForRecovery(task *state.Task, compsup *snapstate.ComponentSetup, snapsup *snapstate.SnapSetup) (string, error) {
+	switch task.Kind() {
+	case "download-component":
+		// download-component persists the fetched blob path in CompPath.
+		if compsup.CompPath == "" {
+			return "", fmt.Errorf("internal error: completed download-component task %q for %q is missing component path", task.ID(), compsup.CompSideInfo.Component)
+		}
+		return compsup.CompPath, nil
+	case "prepare-component":
+		if compsup.CompPath != "" {
+			// prepare-component carries CompPath for by-path inputs.
+			return compsup.CompPath, nil
+		}
+		// otherwise use the mounted revision.
+		cpi := snap.MinimalComponentContainerPlaceInfo(
+			compsup.CompSideInfo.Component.ComponentName,
+			compsup.CompSideInfo.Revision,
+			snapsup.InstanceName(),
+		)
+		return cpi.MountFile(), nil
+	default:
+		return "", fmt.Errorf("internal error: unexpected component setup task kind %q", task.Kind())
+	}
+}
+
+func findInFlightSnapTask(chg *state.Change, name string) (*state.Task, error) {
+	var match *state.Task
+	for _, task := range chg.Tasks() {
+		switch task.Kind() {
+		// only tasks that can introduce a different snap into the recovery
+		// system should be considered as in-flight sources
+		case "prepare-snap", "download-snap":
+		default:
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		if err != nil {
+			return nil, err
+		}
+		if snapsup.SnapName() != name {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("internal error: multiple in-flight snap tasks found for %q (%s and %s)", name, match.ID(), task.ID())
+		}
+		match = task
+	}
+
+	if match != nil && match.Status() != state.DoneStatus {
+		return nil, fmt.Errorf("internal error: create-recovery-system ran before in-flight %q task %q for %q completed", match.Kind(), match.ID(), name)
+	}
+	return match, nil
+}
+
+func findInFlightComponentTask(chg *state.Change, cref naming.ComponentRef) (*state.Task, error) {
+	var match *state.Task
+	for _, task := range chg.Tasks() {
+		switch task.Kind() {
+		case "prepare-component", "download-component":
+		default:
+			continue
+		}
+
+		compsup, _, err := snapstate.TaskComponentSetup(task)
+		if err != nil {
+			return nil, err
+		}
+		if compsup.CompSideInfo.Component != cref {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("internal error: multiple in-flight component tasks found for %q (%s and %s)", cref, match.ID(), task.ID())
+		}
+		match = task
+	}
+
+	if match != nil && match.Status() != state.DoneStatus {
+		return nil, fmt.Errorf(
+			"internal error: create-recovery-system ran before in-flight %q task %q for %q completed", match.Kind(), match.ID(), cref.ComponentName,
+		)
+	}
+	return match, nil
 }
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
 	// components will come from one of these places:
 	//   * passed into the task via a list of side infos (these would have
 	//     come from a user posting snaps via the API)
-	//   * have just been downloaded by a task in setup.ComponentSetupTasks
+	//   * have just been prepared or downloaded by a task in the same change
 	//   * already installed on the system
 
 	logger.Debugf("requested info for component %q being installed during remodel", cref)
@@ -263,20 +375,23 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 
 	// in a remodel scenario, the components may need to be fetched and thus
 	// their content can be different from what we have already installed, so we
-	// should first check the download tasks before consulting snapstate
-	for _, tskID := range ig.setup.ComponentSetupTasks {
-		taskWithComponentSetup := st.Task(tskID)
+	// should first check in-flight setup tasks before consulting snapstate
+	taskWithComponentSetup, err := findInFlightComponentTask(ig.chg, cref)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if taskWithComponentSetup != nil {
 		compsup, snapsup, err := snapstate.TaskComponentSetup(taskWithComponentSetup)
 		if err != nil {
 			return nil, "", false, err
 		}
-		if compsup.CompSideInfo.Component != cref {
-			continue
+
+		componentPath, err := componentSetupPathForRecovery(taskWithComponentSetup, compsup, snapsup)
+		if err != nil {
+			return nil, "", false, err
 		}
 
-		mountFile := compsup.BlobPath(snapsup.InstanceName())
-
-		f, err := snapfile.Open(mountFile)
+		f, err := snapfile.Open(componentPath)
 		if err != nil {
 			return nil, "", false, err
 		}
@@ -286,7 +401,7 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 			return nil, "", false, err
 		}
 
-		return info, mountFile, true, nil
+		return info, componentPath, true, nil
 	}
 
 	// either a remodel scenario, in which case the component is not among the
@@ -322,7 +437,7 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 	// snaps will come from one of these places:
 	//   * passed into the task via a list of side infos (these would have
 	//     come from a user posting snaps via the API)
-	//   * have just been downloaded by a task in setup.SnapSetupTasks
+	//   * have just been prepared or downloaded by a task in the same change
 	//   * already installed on the system
 
 	for _, l := range ig.setup.LocalSnaps {
@@ -343,23 +458,25 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 		return info, l.Path, true, nil
 	}
 
-	// in a remodel scenario, the snaps may need to be fetched and thus
-	// their content can be different from what we have in already installed
-	// snaps, so we should first check the download tasks before consulting
-	// snapstate
+	// in a remodel scenario, the snaps may need to be fetched and thus their
+	// content can be different from what we have in already installed snaps, so
+	// we should first check in-flight setup tasks before consulting snapstate
 	logger.Debugf("requested info for snap %q being installed during remodel", name)
-	for _, tskID := range ig.setup.SnapSetupTasks {
-		taskWithSnapSetup := st.Task(tskID)
+	taskWithSnapSetup, err := findInFlightSnapTask(ig.chg, name)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	if taskWithSnapSetup != nil {
 		snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
 		if err != nil {
 			return nil, "", false, err
 		}
-		if snapsup.SnapName() != name {
-			continue
+		snapPath, err := snapSetupPathForRecovery(taskWithSnapSetup, snapsup)
+		if err != nil {
+			return nil, "", false, err
 		}
-		// by the time this task runs, the file has already been
-		// downloaded and validated
-		snapFile, err := snapfile.Open(snapsup.BlobPath())
+		snapFile, err := snapfile.Open(snapPath)
 		if err != nil {
 			return nil, "", false, err
 		}
@@ -368,7 +485,7 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 			return nil, "", false, err
 		}
 
-		return info, info.MountFile(), true, nil
+		return info, snapPath, true, nil
 	}
 
 	// either a remodel scenario, in which case the snap is not
