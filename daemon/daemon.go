@@ -612,7 +612,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			// the process is shutting down anyway, so we may just
 			// as well close the active connections right now
 			d.serve.Close()
-		} else {
+		} else if !errors.Is(err, net.ErrClosed) {
+			// serve.Shutdown could have returned net.ErrClosed as
+			// we are closing the listeners before the server -
+			// ignore that error.
+
 			// do not stop the shutdown even if the tomb errors
 			// because we already scheduled a slow shutdown and
 			// exiting here will just restart snapd (via systemd)
