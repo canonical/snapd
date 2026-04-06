@@ -25,8 +25,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gorilla/mux"
-
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/httputil"
@@ -45,10 +43,6 @@ var (
 )
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
 	query := r.URL.Query()
 	q := query.Get("q")
 	commonID := query.Get("common-id")
@@ -157,7 +151,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		SuggestedCurrency: theStore.SuggestedCurrency(),
 	}
 
-	return sendStorePackages(route, found, fresp)
+	return sendStorePackages(found, fresp)
 }
 
 func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
@@ -196,11 +190,6 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 }
 
 func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
-	}
-
 	var userID int
 	if user != nil {
 		userID = user.ID
@@ -222,10 +211,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list updates: %v", err)
 	}
 
-	return sendStorePackages(route, updates, nil)
+	return sendStorePackages(updates, nil)
 }
 
-func sendStorePackages(route *mux.Route, found []*snap.Info, resp *findResponse) StructuredResponse {
+func sendStorePackages(found []*snap.Info, resp *findResponse) StructuredResponse {
 	results := make([]*json.RawMessage, 0, len(found))
 	for _, x := range found {
 		data, err := json.Marshal(injectSnapIconURL(mapRemote(x)))
