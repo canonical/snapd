@@ -47,187 +47,25 @@ func (s *isReadySuite) SetUpTest(c *C) {
 	s.mockHandler = hooktest.NewMockHandler()
 }
 
-type changeSetupOpts struct {
-	withInitiator    bool
-	initiatorSnap    string
-	withLastAccessed bool
-	lastAccessedTime string
-}
-
-// changeIDPlaceholder is substituted with the real change ID at runtime.
-const changeIDPlaceholder = "<change-id>"
-
+// isReadyTestCase describes a single is-ready invocation for the logic tests.
 type isReadyTestCase struct {
-	desc           string
-	nilContext     bool
-	taskStatus     state.Status
-	setupOpts      changeSetupOpts
-	args           []string // args after "is-ready"; use changeIDPlaceholder for the real change ID
-	errPattern     string   // if set, expect err to match this regexp
-	errValue       error    // if set, expect err to deep equal this value
-	expectedOut    string
-	expectedStderr string // if set, checked as regexp match against stderr
-	checkSleep     bool
+	desc            string
+	nilContext      bool
+	taskStatus      state.Status
+	initiatorSnap   string   // empty = don't set initiated-by-snap on the change
+	appendChangeID bool     // if true, the real change ID is prepended to args
+	args            []string // args after "is-ready" (and optional change ID)
+	errPattern      string   // if set, expect err to match this regexp
+	errValue        error    // if set, expect err to deep equal this value
+	expectedOut     string
+	expectedStderr  string // if set, checked as regexp match against stderr
 }
 
-// logicTests covers argument validation, access-control, and change-status logic.
-var logicTests = []isReadyTestCase{
-	{
-		desc:       "no context",
-		nilContext: true,
-		args:       []string{"1"},
-		errPattern: `cannot invoke snapctl operation commands.*from outside of a snap`,
-	},
-	{
-		desc:       "too few args",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args:       []string{},
-		errPattern: `invalid number of arguments: expected 1, got 0`,
-	},
-	{
-		desc:       "too many args",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args:       []string{changeIDPlaceholder, "extra-arg"},
-		errPattern: `invalid number of arguments: expected 1, got 2`,
-	},
-	{
-		desc:           "change not found",
-		taskStatus:     state.DoneStatus,
-		setupOpts:      changeSetupOpts{},
-		args:           []string{"nonexistent-id"},
-		errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-		expectedStderr: `change "nonexistent-id" not found`,
-	},
-	{
-		desc:       "missing initiator attribute",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args:           []string{changeIDPlaceholder},
-		errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-		expectedStderr: `could not find initiator attribute for change .*`,
-	},
-	{
-		desc:       "wrong initiator",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "other-snap", // different from context snap "test-snap"
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args:           []string{changeIDPlaceholder},
-		errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-		expectedStderr: `change .* was initiated by another snap`,
-	},
-	{
-		desc:       "done status",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args: []string{changeIDPlaceholder},
-	},
-	{
-		desc:       "doing status",
-		taskStatus: state.DoingStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args:     []string{changeIDPlaceholder},
-		errValue: &ctlcmd.UnsuccessfulError{ExitCode: 1},
-	},
-	{
-		desc:       "error status",
-		taskStatus: state.ErrorStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args:     []string{changeIDPlaceholder},
-		errValue: &ctlcmd.UnsuccessfulError{ExitCode: 2},
-	},
-	{
-		desc:       "hold status",
-		taskStatus: state.HoldStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			lastAccessedTime: time.Now().Add(-time.Second).Format(time.RFC3339),
-		},
-		args:     []string{changeIDPlaceholder},
-		errValue: &ctlcmd.UnsuccessfulError{ExitCode: 2},
-	},
-}
-
-// rateLimitTests covers the debounce/rate-limiting behaviour guarded by the
-// last-accessed cache entry.
-var rateLimitTests = []isReadyTestCase{
-	{
-		desc:       "missing last accessed attribute",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator: true,
-			initiatorSnap: "test-snap",
-		},
-		args:           []string{changeIDPlaceholder},
-		errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-		expectedStderr: `could not find last accessed attribute for change .*`,
-	},
-	{
-		desc:       "invalid last accessed format",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			lastAccessedTime: "not-a-valid-time",
-		},
-		args:           []string{changeIDPlaceholder},
-		errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-		expectedStderr: `invalid last accessed time format for change .*`,
-	},
-	{
-		desc:       "recent access triggers sleep",
-		taskStatus: state.DoneStatus,
-		setupOpts: changeSetupOpts{
-			withInitiator:    true,
-			initiatorSnap:    "test-snap",
-			withLastAccessed: true,
-			// Use a timestamp in the future to guarantee since < 200ms.
-			lastAccessedTime: time.Now().Add(time.Second).Format(time.RFC3339),
-		},
-		args:       []string{changeIDPlaceholder},
-		checkSleep: true,
-	},
-}
-
-// setupChangeAndContext creates a state, a change (with configurable attributes),
+// setupChangeAndContext creates a state, a change (with an optional initiator),
 // and a non-ephemeral hook context for "test-snap".
-func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, opts changeSetupOpts) (*state.State, *hookstate.Context, string) {
+// The last-accessed cache is always pre-set to one second in the past so that
+// the rate-limiter does not interfere with logic tests.
+func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, initiatorSnap string) (*state.State, *hookstate.Context, string) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -236,12 +74,13 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, opts
 	task := st.NewTask("test-task", "test task")
 	chg.AddTask(task)
 
-	if opts.withInitiator {
-		chg.Set("initiated-by-snap", opts.initiatorSnap)
+	if initiatorSnap != "" {
+		chg.Set("initiated-by-snap", initiatorSnap)
 	}
-	if opts.withLastAccessed {
-		st.Cache("snapctl-test-snap-last-accessed", opts.lastAccessedTime)
-	}
+
+	// Pre-set a past last-accessed timestamp so the rate-limiter never fires
+	// during logic tests.
+	st.Cache("snapctl-test-snap-last-accessed", time.Now().Add(-time.Second).UnixNano())
 
 	task.SetStatus(taskStatus)
 
@@ -256,33 +95,16 @@ func (s *isReadySuite) runIsReadyTest(c *C, tt isReadyTestCase) {
 	var ctx *hookstate.Context
 	var changeID string
 	if !tt.nilContext {
-		_, ctx, changeID = s.setupChangeAndContext(c, tt.taskStatus, tt.setupOpts)
+		_, ctx, changeID = s.setupChangeAndContext(c, tt.taskStatus, tt.initiatorSnap)
 	}
 
-	args := make([]string, 0, len(tt.args)+1)
-	args = append(args, "is-ready")
-	for _, a := range tt.args {
-		if a == changeIDPlaceholder {
-			args = append(args, changeID)
-		} else {
-			args = append(args, a)
-		}
+	args := []string{"is-ready"}
+	if tt.appendChangeID {
+		args = append(args, changeID)
 	}
-
-	var waitedFor time.Duration
-	var restore func()
-	if tt.checkSleep {
-		restore = ctlcmd.MockTimeAfter(func(d time.Duration) <-chan time.Time {
-			waitedFor = d
-			return make(chan time.Time) // never fires; chg.Ready() wins
-		})
-	}
+	args = append(args, tt.args...)
 
 	stdout, stderr, err := ctlcmd.Run(ctx, args, 0, nil)
-
-	if restore != nil {
-		restore()
-	}
 
 	switch {
 	case tt.errPattern != "":
@@ -298,28 +120,176 @@ func (s *isReadySuite) runIsReadyTest(c *C, tt isReadyTestCase) {
 		c.Check(stderr, IsNil)
 	} else {
 		c.Check(string(stdout), Equals, tt.expectedOut)
-		if tt.expectedStderr != "" {
-			c.Check(string(stderr), Matches, tt.expectedStderr)
-		} else {
-			c.Check(string(stderr), Equals, "")
-		}
-	}
-
-	if tt.checkSleep {
-		c.Check(waitedFor > 0, Equals, true)
+		c.Check(string(stderr), Matches, tt.expectedStderr)
 	}
 }
 
 func (s *isReadySuite) TestIsReadyLogic(c *C) {
+	var logicTests = []isReadyTestCase{
+		{
+			desc:       "no context",
+			nilContext: true,
+			args:       []string{"1"},
+			errPattern: `cannot invoke snapctl operation commands.*from outside of a snap`,
+		},
+		{
+			desc:          "too few args",
+			taskStatus:    state.DoneStatus,
+			initiatorSnap: "test-snap",
+			args:          []string{},
+			errPattern:    `invalid number of arguments: expected 1, got 0`,
+		},
+		{
+			desc:            "too many args",
+			taskStatus:      state.DoneStatus,
+			initiatorSnap:   "test-snap",
+			appendChangeID: true,
+			args:            []string{"extra-arg"},
+			errPattern:      `invalid number of arguments: expected 1, got 2`,
+		},
+		{
+			desc:           "change not found",
+			taskStatus:     state.DoneStatus,
+			args:           []string{"nonexistent-id"},
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr: `change "nonexistent-id" not found`,
+		},
+		{
+			desc:            "missing initiator attribute",
+			taskStatus:      state.DoneStatus,
+			appendChangeID: true,
+			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr:  `could not find initiator attribute for change .*`,
+		},
+		{
+			desc:            "wrong initiator",
+			taskStatus:      state.DoneStatus,
+			initiatorSnap:   "other-snap", // different from context snap "test-snap"
+			appendChangeID: true,
+			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr:  `change .* was initiated by another snap`,
+		},
+		{
+			desc:            "done status",
+			taskStatus:      state.DoneStatus,
+			initiatorSnap:   "test-snap",
+			appendChangeID: true,
+		},
+		{
+			desc:            "doing status",
+			taskStatus:      state.DoingStatus,
+			initiatorSnap:   "test-snap",
+			appendChangeID: true,
+			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 1},
+		},
+		{
+			desc:            "error status",
+			taskStatus:      state.ErrorStatus,
+			initiatorSnap:   "test-snap",
+			appendChangeID: true,
+			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 2},
+		},
+		{
+			desc:            "hold status",
+			taskStatus:      state.HoldStatus,
+			initiatorSnap:   "test-snap",
+			appendChangeID: true,
+			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 2},
+		},
+	}
+	
 	for _, tt := range logicTests {
 		c.Log("test case: ", tt.desc)
 		s.runIsReadyTest(c, tt)
 	}
 }
 
-func (s *isReadySuite) TestIsReadyRateLimit(c *C) {
-	for _, tt := range rateLimitTests {
-		c.Log("test case: ", tt.desc)
-		s.runIsReadyTest(c, tt)
+// Rate-limiting tests
+func (s *isReadySuite) rateLimitSetup(c *C, lastAccessedTime any) (*hookstate.Context, string) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("snapctl-install", "install via snapctl")
+	task := st.NewTask("test-task", "test task")
+	chg.AddTask(task)
+	chg.Set("initiated-by-snap", "test-snap")
+
+	if lastAccessedTime != nil {
+		st.Cache("snapctl-test-snap-last-accessed", lastAccessedTime)
 	}
+
+	task.SetStatus(state.DoneStatus)
+
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "install"}
+	ctx, err := hookstate.NewContext(task, st, setup, s.mockHandler, "")
+	c.Assert(err, IsNil)
+
+	return ctx, chg.ID()
+}
+
+// TestIsReadyMissingLastAccessed verifies that is-ready returns exit code 3
+// when no last-accessed cache entry exists for the calling snap.
+func (s *isReadySuite) TestIsReadyMissingLastAccessed(c *C) {
+	ctx, changeID := s.rateLimitSetup(c, nil)
+
+	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+
+	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
+	c.Check(string(stderr), Matches, `could not find last accessed attribute for change .*`)
+}
+
+// TestIsReadyInvalidLastAccessedFormat verifies that is-ready returns exit
+// code 3 when the last-accessed cache entry cannot be parsed as RFC 3339.
+func (s *isReadySuite) TestIsReadyInvalidLastAccessedFormat(c *C) {
+	ctx, changeID := s.rateLimitSetup(c, "not-a-valid-time") // string triggers int64 type-assertion failure
+
+	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+
+	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
+	c.Check(string(stderr), Matches, `invalid last accessed time format for change .*`)
+}
+
+// TestIsReadyRateLimitDelaysPolling verifies that when a snap polls within the
+// 200 ms debounce window, is-ready sleeps for the remaining window duration
+// before checking the change status.
+func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
+	// A last-accessed time in the future guarantees we are within the debounce
+	// window, ensuring timeAfter is called with a positive duration.
+	ctx, changeID := s.rateLimitSetup(c, time.Now().Add(time.Second).UnixNano())
+
+	var waitedFor time.Duration
+	restore := ctlcmd.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+		waitedFor = d
+		return make(chan time.Time) // never fires; chg.Ready() wins
+	})
+	defer restore()
+
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+
+	c.Assert(err, IsNil)
+	c.Check(waitedFor > 0, Equals, true)
+}
+
+// TestIsReadyExpiredWindowSkipsTimeAfter verifies that when the debounce window
+// has already elapsed, is-ready returns the change status directly from the
+// non-blocking select without ever calling timeAfter. Without the st.Lock +
+// return in the first select's ready case, the code falls through to the second
+// select where timeAfter(-duration) fires immediately, creating a race that can
+// return DoingStatus instead of the real status.
+func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
+	// A last-accessed time sufficiently in the past guarantees toWait <= 0.
+	ctx, changeID := s.rateLimitSetup(c, time.Now().Add(-time.Second).UnixNano())
+
+	called := false
+	restore := ctlcmd.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+		called = true
+		return make(chan time.Time)
+	})
+	defer restore()
+
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
 }

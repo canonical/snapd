@@ -454,7 +454,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
 	chg.Set("initiated-by-snap", hctx.InstanceName())
-	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().Format(time.RFC3339))
+	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().UnixNano())
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
@@ -524,10 +524,11 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		return state.DefaultStatus, fmt.Errorf("could not find last accessed attribute for change %q", changeID)
 	}
 
-	accessedTime, err := time.Parse(time.RFC3339, lastAccess.(string))
-	if err != nil {
-		return state.DefaultStatus, fmt.Errorf("invalid last accessed time format for change %q: %v", changeID, err)
+	lastAccessNano, ok := lastAccess.(int64)
+	if !ok {
+		return state.DefaultStatus, fmt.Errorf("invalid last accessed time format for change %q", changeID)
 	}
+	accessedTime := time.Unix(0, lastAccessNano)
 
 	st.Unlock()
 
@@ -538,6 +539,8 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	if toWait <= 0 {
 		select {
 		case <-ready:
+			st.Lock()
+			return chg.Status(), chg.Err()
 		default:
 			st.Lock()
 			return state.DoingStatus, nil
