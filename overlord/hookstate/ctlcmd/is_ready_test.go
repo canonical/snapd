@@ -152,7 +152,7 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 }
 
 // Rate-limiting tests
-func (s *isReadySuite) rateLimitSetup(c *C, lastAccessedTime any) (*hookstate.Context, string) {
+func (s *isReadySuite) rateLimitSetup(c *C, taskStatus state.Status, lastAccessedTime any) (*hookstate.Context, string) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -166,7 +166,7 @@ func (s *isReadySuite) rateLimitSetup(c *C, lastAccessedTime any) (*hookstate.Co
 		st.Cache("snapctl-test-snap-last-accessed", lastAccessedTime)
 	}
 
-	task.SetStatus(state.DoneStatus)
+	task.SetStatus(taskStatus)
 
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "install"}
 	ctx, err := hookstate.NewContext(task, st, setup, s.mockHandler, "")
@@ -179,7 +179,7 @@ func (s *isReadySuite) rateLimitSetup(c *C, lastAccessedTime any) (*hookstate.Co
 // last-accessed cache entry (e.g. after a snapd restart) as a first access and
 // proceeds to report the real change status rather than returning an error.
 func (s *isReadySuite) TestIsReadyMissingLastAccessed(c *C) {
-	ctx, changeID := s.rateLimitSetup(c, nil)
+	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, nil)
 
 	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
@@ -192,7 +192,7 @@ func (s *isReadySuite) TestIsReadyMissingLastAccessed(c *C) {
 func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
 	// A last-accessed time in the future guarantees we are within the debounce
 	// window, ensuring timeAfter is called with a positive duration.
-	ctx, changeID := s.rateLimitSetup(c, time.Now().Add(time.Second).UnixNano())
+	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, time.Now().Add(time.Second).UnixNano())
 
 	var waitedFor time.Duration
 	restore := ctlcmd.MockTimeAfter(func(d time.Duration) <-chan time.Time {
@@ -212,7 +212,9 @@ func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
 // channel is drained.
 func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
 	// A last-accessed time in the future puts us inside the debounce window.
-	ctx, changeID := s.rateLimitSetup(c, time.Now().Add(time.Second).UnixNano())
+	// The task is left in DoingStatus so chg.Ready() never fires, ensuring
+	// the timer case is the only one that can win the select.
+	ctx, changeID := s.rateLimitSetup(c, state.DoingStatus, time.Now().Add(time.Second).UnixNano())
 
 	timerCh := make(chan time.Time, 1)
 	timerCh <- time.Now() // pre-fill so the timer fires immediately
@@ -231,7 +233,7 @@ func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
 // has already elapsed, is-ready returns the change status directly
 func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
 	// A last-accessed time sufficiently in the past guarantees toWait <= 0.
-	ctx, changeID := s.rateLimitSetup(c, time.Now().Add(-time.Second).UnixNano())
+	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, time.Now().Add(-time.Second).UnixNano())
 
 	called := false
 	restore := ctlcmd.MockTimeAfter(func(d time.Duration) <-chan time.Time {
