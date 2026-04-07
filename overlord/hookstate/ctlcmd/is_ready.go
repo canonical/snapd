@@ -32,9 +32,9 @@ type isReadyCommand struct {
 }
 
 const (
-	changeNotReadyExitCode = 1
+	changeNotReadyExitCode     = 1
 	changeUnsuccessfulExitCode = 2
-	otherErrorExitCode = 3
+	otherErrorExitCode         = 3
 )
 
 var shortIsReadyHelp = i18n.G(`Return the status of the associated change id.`)
@@ -71,15 +71,18 @@ func (c *isReadyCommand) Execute(args []string) error {
 
 	ready, err := isReady(ctx, c.changeID)
 
-	switch ready {
-	default:
-		return nil
-	case state.DoingStatus:
-		return &UnsuccessfulError{ExitCode: changeNotReadyExitCode}
-	case state.ErrorStatus, state.UndoneStatus, state.HoldStatus:
-		return &UnsuccessfulError{ExitCode: changeUnsuccessfulExitCode}
-	case state.DefaultStatus:
-		fmt.Fprintf(c.stderr, "%s", err.Error())
+	if err != nil {
+		fmt.Fprintf(c.stderr, err.Error())
 		return &UnsuccessfulError{ExitCode: otherErrorExitCode}
 	}
+
+	if !ready.Ready() {
+		return &UnsuccessfulError{ExitCode: changeNotReadyExitCode}
+	}
+
+	if ready != state.DoneStatus {
+		return &UnsuccessfulError{ExitCode: changeUnsuccessfulExitCode}
+	}
+
+	return nil
 }

@@ -454,7 +454,6 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
 	chg.Set("initiated-by-snap", hctx.InstanceName())
-	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().UnixNano())
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
@@ -520,19 +519,21 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	}
 
 	lastAccess := st.Cached(fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName))
-	if lastAccess == nil {
-		return state.DefaultStatus, fmt.Errorf("could not find last accessed attribute for change %q", changeID)
-	}
+	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().UnixNano())
 
-	lastAccessNano, ok := lastAccess.(int64)
-	if !ok {
-		return state.DefaultStatus, fmt.Errorf("invalid last accessed time format for change %q", changeID)
+	// Compute how long to wait before checking the change status. If there is
+	// no previous access recorded (first call, or after a snapd restart that
+	// wiped the in-memory cache), toWait stays zero and we proceed immediately.
+	var toWait time.Duration
+	if lastAccess != nil {
+		lastAccessNano, ok := lastAccess.(int64)
+		if !ok {
+			return state.DefaultStatus, fmt.Errorf("invalid last accessed time format for change %q", changeID)
+		}
+		toWait = 200*time.Millisecond - time.Since(time.Unix(0, lastAccessNano))
 	}
-	accessedTime := time.Unix(0, lastAccessNano)
 
 	st.Unlock()
-
-	toWait := 200*time.Millisecond - time.Since(accessedTime)
 
 	ready := chg.Ready()
 
@@ -540,7 +541,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		select {
 		case <-ready:
 			st.Lock()
-			return chg.Status(), chg.Err()
+			return chg.Status(), nil
 		default:
 			st.Lock()
 			return state.DoingStatus, nil
@@ -550,7 +551,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	select {
 	case <-ready:
 		st.Lock()
-		return chg.Status(), chg.Err()
+		return chg.Status(), nil
 	case <-timeAfter(toWait):
 		st.Lock()
 		return state.DoingStatus, nil

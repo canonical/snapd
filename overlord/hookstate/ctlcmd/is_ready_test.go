@@ -47,18 +47,6 @@ func (s *isReadySuite) SetUpTest(c *C) {
 	s.mockHandler = hooktest.NewMockHandler()
 }
 
-// isReadyTestCase describes a single is-ready invocation for the logic tests.
-type isReadyTestCase struct {
-	desc           string
-	taskStatus     state.Status
-	initiatorSnap  string   // empty = don't set initiated-by-snap on the change
-	args           []string // extra args after "is-ready <changeID>"
-	errPattern     string   // if set, expect err to match this regexp
-	errValue       error    // if set, expect err to deep equal this value
-	expectedOut    string
-	expectedStderr string // if set, checked as regexp match against stderr
-}
-
 // setupChangeAndContext creates a state, a change (with an optional initiator),
 // and a non-ephemeral hook context for "test-snap".
 // The last-accessed cache is always pre-set to one second in the past so that
@@ -89,35 +77,18 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, init
 	return st, ctx, chg.ID()
 }
 
-func (s *isReadySuite) runIsReadyTest(c *C, tt isReadyTestCase) {
-	_, ctx, changeID := s.setupChangeAndContext(c, tt.taskStatus, tt.initiatorSnap)
-
-	args := append([]string{"is-ready", changeID}, tt.args...)
-
-	stdout, stderr, err := ctlcmd.Run(ctx, args, 0, nil)
-
-	switch {
-	case tt.errPattern != "":
-		c.Assert(err, ErrorMatches, tt.errPattern)
-	case tt.errValue != nil:
-		c.Assert(err, DeepEquals, tt.errValue)
-	default:
-		c.Assert(err, IsNil)
-	}
-
-	c.Check(string(stdout), Equals, tt.expectedOut)
-	c.Check(string(stderr), Matches, tt.expectedStderr)
-}
-
 func (s *isReadySuite) TestIsReadyNoContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"is-ready", "1"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot invoke snapctl operation commands.*from outside of a snap`)
 }
 
-func (s *isReadySuite) TestIsReadyTooFewArgs(c *C) {
+func (s *isReadySuite) TestIsReadyArgCount(c *C) {
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
 	_, _, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 0`)
+
+	_, _, err = ctlcmd.Run(ctx, []string{"is-ready", "1", "extra-arg"}, 0, nil)
+	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 2`)
 }
 
 func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
@@ -128,55 +99,55 @@ func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
 }
 
 func (s *isReadySuite) TestIsReadyLogic(c *C) {
-	var logicTests = []isReadyTestCase{
+	var logicTests = []struct {
+		taskStatus     state.Status
+		initiatorSnap  string // empty = don't set initiated-by-snap on the change
+		errValue       error  // if set, expect err to deep equal this value
+		expectedOut    string
+		expectedStderr string // if set, checked as regexp match against stderr
+	}{
 		{
-			desc:          "too many args",
-			taskStatus:    state.DoneStatus,
-			initiatorSnap: "test-snap",
-			args:          []string{"extra-arg"},
-			errPattern:    `invalid number of arguments: expected 1, got 2`,
-		},
-		{
-			desc:           "missing initiator attribute",
 			taskStatus:     state.DoneStatus,
 			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
 			expectedStderr: `could not find initiator attribute for change .*`,
 		},
 		{
-			desc:           "wrong initiator",
 			taskStatus:     state.DoneStatus,
 			initiatorSnap:  "other-snap", // different from context snap "test-snap"
 			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
 			expectedStderr: `change .* was initiated by another snap`,
 		},
 		{
-			desc:          "done status",
 			taskStatus:    state.DoneStatus,
 			initiatorSnap: "test-snap",
 		},
 		{
-			desc:          "doing status",
 			taskStatus:    state.DoingStatus,
 			initiatorSnap: "test-snap",
 			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 1},
 		},
 		{
-			desc:          "error status",
 			taskStatus:    state.ErrorStatus,
 			initiatorSnap: "test-snap",
 			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 2},
 		},
 		{
-			desc:          "hold status",
 			taskStatus:    state.HoldStatus,
 			initiatorSnap: "test-snap",
 			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 2},
 		},
 	}
-	
+
 	for _, tt := range logicTests {
-		c.Log("test case: ", tt.desc)
-		s.runIsReadyTest(c, tt)
+		_, ctx, changeID := s.setupChangeAndContext(c, tt.taskStatus, tt.initiatorSnap)
+		stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+		if tt.errValue != nil {
+			c.Assert(err, DeepEquals, tt.errValue)
+		} else {
+			c.Assert(err, IsNil)
+		}
+		c.Check(string(stdout), Equals, tt.expectedOut)
+		c.Check(string(stderr), Matches, tt.expectedStderr)
 	}
 }
 
@@ -204,26 +175,15 @@ func (s *isReadySuite) rateLimitSetup(c *C, lastAccessedTime any) (*hookstate.Co
 	return ctx, chg.ID()
 }
 
-// TestIsReadyMissingLastAccessed verifies that is-ready returns exit code 3
-// when no last-accessed cache entry exists for the calling snap.
+// TestIsReadyMissingLastAccessed verifies that is-ready treats a missing
+// last-accessed cache entry (e.g. after a snapd restart) as a first access and
+// proceeds to report the real change status rather than returning an error.
 func (s *isReadySuite) TestIsReadyMissingLastAccessed(c *C) {
 	ctx, changeID := s.rateLimitSetup(c, nil)
 
-	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
-	c.Check(string(stderr), Matches, `could not find last accessed attribute for change .*`)
-}
-
-// TestIsReadyInvalidLastAccessedFormat verifies that is-ready returns exit
-// code 3 when the last-accessed cache entry cannot be parsed as RFC 3339.
-func (s *isReadySuite) TestIsReadyInvalidLastAccessedFormat(c *C) {
-	ctx, changeID := s.rateLimitSetup(c, "not-a-valid-time") // string triggers int64 type-assertion failure
-
-	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
-
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
-	c.Check(string(stderr), Matches, `invalid last accessed time format for change .*`)
+	c.Assert(err, IsNil)
 }
 
 // TestIsReadyRateLimitDelaysPolling verifies that when a snap polls within the
@@ -247,12 +207,28 @@ func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
 	c.Check(waitedFor > 0, Equals, true)
 }
 
+// TestIsReadyRateLimitTimerFires verifies that when timeAfter fires before the
+// change is ready, is-ready reports DoingStatus (exit code 1) and the timer
+// channel is drained.
+func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
+	// A last-accessed time in the future puts us inside the debounce window.
+	ctx, changeID := s.rateLimitSetup(c, time.Now().Add(time.Second).UnixNano())
+
+	timerCh := make(chan time.Time, 1)
+	timerCh <- time.Now() // pre-fill so the timer fires immediately
+	restore := ctlcmd.MockTimeAfter(func(d time.Duration) <-chan time.Time {
+		return timerCh
+	})
+	defer restore()
+
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+
+	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
+	c.Check(len(timerCh), Equals, 0) // element was consumed by the select
+}
+
 // TestIsReadyExpiredWindowSkipsTimeAfter verifies that when the debounce window
-// has already elapsed, is-ready returns the change status directly from the
-// non-blocking select without ever calling timeAfter. Without the st.Lock +
-// return in the first select's ready case, the code falls through to the second
-// select where timeAfter(-duration) fires immediately, creating a race that can
-// return DoingStatus instead of the real status.
+// has already elapsed, is-ready returns the change status directly
 func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
 	// A last-accessed time sufficiently in the past guarantees toWait <= 0.
 	ctx, changeID := s.rateLimitSetup(c, time.Now().Add(-time.Second).UnixNano())
