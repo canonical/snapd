@@ -12595,6 +12595,37 @@ func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
 	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
 }
 
+func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {
+	modelBaseCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18")}
+	remodelCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: ModelWithBase("core18"), Remodeling: true}
+	classicCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModelClassicWithModes("pc", nil)}
+
+	tests := []struct {
+		name         string
+		ctx          snapstate.DeviceContext
+		snapType     snap.Type
+		instanceName string
+		expected     bool
+	}{
+		{name: "nil device context", ctx: nil, snapType: snap.TypeBase, instanceName: "core18", expected: false},
+		{name: "base-snap refresh", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+		{name: "remodel refresh path", ctx: remodelCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+		{name: "remodel install path", ctx: remodelCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+		{name: "non-base snap", ctx: modelBaseCtx, snapType: snap.TypeApp, instanceName: "core18", expected: false},
+		{name: "classic model", ctx: classicCtx, snapType: snap.TypeBase, instanceName: "core22", expected: false},
+		{name: "non-model base", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "some-base", expected: false},
+		{name: "model base", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+	}
+
+	for _, tc := range tests {
+		c.Check(snapstate.ShouldScheduleUpdateCertDBForRefresh(snapstate.UpdateCertDBForRefreshOptions{
+			DeviceCtx:    tc.ctx,
+			SnapType:     tc.snapType,
+			InstanceName: tc.instanceName,
+		}), Equals, tc.expected, Commentf(tc.name))
+	}
+}
+
 func verifyDelayedEffectsTasks(c *C, ts *state.TaskSet, expectedLanes []int, expectedJoinLane int) {
 	c.Assert(ts.Tasks(), HasLen, 1)
 	c.Check(taskKinds(ts.Tasks()), DeepEquals, []string{"mock-process-delayed-security-backend-effects"})

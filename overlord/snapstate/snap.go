@@ -367,6 +367,31 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	return unlinkTasks, discardTasks, nil
 }
 
+type updateCertDBForRefreshOptions struct {
+	DeviceCtx    DeviceContext
+	SnapType     snap.Type
+	InstanceName string
+}
+
+// shouldScheduleUpdateCertDBForRefresh reports whether a snap operation
+// should inject an update-cert-db task.
+func shouldScheduleUpdateCertDBForRefresh(opts updateCertDBForRefreshOptions) bool {
+	if opts.DeviceCtx == nil {
+		return false
+	}
+
+	if opts.SnapType != snap.TypeBase {
+		return false
+	}
+
+	model := opts.DeviceCtx.Model()
+	if model.Classic() {
+		return false
+	}
+
+	return opts.InstanceName == model.Base()
+}
+
 func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
 	if !sc.requiresKmodSetup() {
 		// Let tasks know if they have to do something about restarts
@@ -394,15 +419,12 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	// Refreshing the model base may bring updated system certificates.
 	// Regenerate the managed certificate database as part of the post-reboot
 	// refresh stage for that base.
-	// OBS: Remodel handling is a bit special, since we may be switching the model base,
-	// we let the remodel code determine when to add this task.
-	opts := UpdateCertDBForRefreshOptions{
+	opts := updateCertDBForRefreshOptions{
 		DeviceCtx:    ic.DeviceCtx,
-		IsRefresh:    sc.snapst.IsInstalled(),
 		SnapType:     sc.snapsup.Type,
 		InstanceName: sc.snapsup.InstanceName(),
 	}
-	if ShouldScheduleUpdateCertDBForRefresh(opts) {
+	if shouldScheduleUpdateCertDBForRefresh(opts) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		s.Append(updateCertDB)
 	}

@@ -1113,10 +1113,6 @@ func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*as
 	return sorted
 }
 
-func shouldRegenerateCertificateDatabase(current, new *asserts.Model) bool {
-	return snapstate.ShouldScheduleUpdateCertDBForModelChange(current, new)
-}
-
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
 	deviceCtx snapstate.DeviceContext, fromChange string, opts RemodelOptions) ([]*state.TaskSet, error) {
 
@@ -1354,16 +1350,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		tss = append(tss, createRecoveryTasks)
 		recoverySetupTaskID = createRecoveryTasks.Tasks()[0].ID()
-	}
-
-	// When the base of the model is changing, refresh the certificate database managed by
-	// snapd as the new base will likely carry newer certificates.
-	if shouldRegenerateCertificateDatabase(current, new) {
-		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
-		for _, tsPrev := range tss {
-			updateCertDB.WaitAll(tsPrev)
-		}
-		tss = append(tss, state.NewTaskSet(updateCertDB))
 	}
 
 	// Set the new model assertion - this *must* be the last thing done
