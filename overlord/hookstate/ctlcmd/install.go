@@ -41,7 +41,7 @@ type installCommand struct {
 	Positional struct {
 		Names []string `positional-arg-name:"<snap|snap+comp|+comp>" required:"yes" description:"Components to be installed (snap must be the caller snap if specified)."`
 	} `positional-args:"yes"`
-	noWait bool `long:"no-wait" description:"Run the command in asynchronous mode, returning a change id that can be used to determine if the change is ready using the is-ready command."`
+	NoWait bool `long:"no-wait" description:"Run the command in asynchronous mode, returning a change id that can be used to determine if the change is ready using the is-ready command."`
 }
 
 func (c *installCommand) Execute([]string) error {
@@ -55,7 +55,7 @@ func (c *installCommand) Execute([]string) error {
 		return err
 	}
 
-	id, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: c.noWait})
+	id, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: c.NoWait})
 
 	if err != nil {
 		return err

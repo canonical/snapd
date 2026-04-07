@@ -448,7 +448,13 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	if !hctx.IsEphemeral() {
 		// Differently to service control commands, we always queue the
 		// management tasks if run from a hook.
-		return "", queueCommand(hctx, tss)
+		if err := queueCommand(hctx, tss); err != nil {
+			return "", err
+		}
+		if cmd.async {
+			return hctx.ChangeID(), nil
+		}
+		return "", nil
 	}
 
 	st.Lock()
