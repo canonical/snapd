@@ -19,7 +19,8 @@ license=('GPL3')
 makedepends=('git' 'go' 'go-tools' 'libseccomp' 'libcap' 'systemd' 'xfsprogs' 'python-docutils' 'apparmor' 'autoconf-archive' 'm4')
 # the following checkdepends are only required for static checks and unit tests,
 # unit tests are currently enabled
-checkdepends=('python' 'squashfs-tools' 'shellcheck')
+checkdepends=('python' 'squashfs-tools' 'shellcheck' 'openssh')
+checkdepends_x86_64=('lib32-glibc')
 conflicts=('snap-confine')
 options=('!strip' 'emptydirs')
 install=snapd.install
