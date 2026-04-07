@@ -59,15 +59,15 @@ execute: |
   CHANGE_ID_1=$(snap run --shell test-snapctl-no-wait.app -c 'snapctl remove +comp1 --no-wait')
   test -n "$CHANGE_ID_1"
 
+  echo "Poll is-ready for comp1 removal change ($CHANGE_ID_1)"
+  wait_for_change "$CHANGE_ID_1"
+
   echo "Remove comp2 via snapctl --no-wait, capturing change ID from stdout"
   CHANGE_ID_2=$(snap run --shell test-snapctl-no-wait.app -c 'snapctl remove +comp2 --no-wait')
   test -n "$CHANGE_ID_2"
 
   echo "Change IDs are distinct"
   test "$CHANGE_ID_1" != "$CHANGE_ID_2"
-
-  echo "Poll is-ready for comp1 removal change ($CHANGE_ID_1)"
-  wait_for_change "$CHANGE_ID_1"
 
   echo "Poll is-ready for comp2 removal change ($CHANGE_ID_2)"
   wait_for_change "$CHANGE_ID_2"
