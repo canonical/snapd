@@ -381,7 +381,7 @@ const (
 type managementCommand struct {
 	operation  managementCommandOp
 	components []string
-	async bool
+	async      bool
 }
 
 func changeIDIfNotEphemeral(hctx *hookstate.Context) string {
