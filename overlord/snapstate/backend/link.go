@@ -39,6 +39,8 @@ import (
 )
 
 var wrappersAddSnapdSnapServices = wrappers.AddSnapdSnapServices
+var wrappersStartServices = wrappers.StartServices
+var wrappersStopServices = wrappers.StopServices
 var cgroupKillSnapProcesses = cgroup.KillSnapProcesses
 
 // LinkContext carries additional information about the current or the previous
@@ -244,7 +246,7 @@ func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revisio
 
 func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
 	opts := &wrappers.StartServicesOptions{Enable: true}
-	return wrappers.StartServices(apps, disabledSvcs, opts, meter, tm)
+	return wrappersStartServices(apps, disabledSvcs, opts, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, undoer Undoer, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
@@ -263,7 +265,7 @@ func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap
 			return b.StartServices(startupOrdered, disabledSvcs, meter, tm)
 		})
 	}
-	return wrappers.StopServices(apps, removedSvcs, nil, reason, meter, tm)
+	return wrappersStopServices(apps, removedSvcs, nil, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
