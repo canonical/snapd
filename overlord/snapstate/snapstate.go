@@ -28,7 +28,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -4230,19 +4229,26 @@ var cleanSnapDownloads = func(st *state.State, snapName string) error {
 		return err
 	}
 
-	regex := regexp.MustCompile(fmt.Sprintf("^%s_x?[0-9]+\\.snap$", snapName))
-
 	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_*.snap", snapName)))
 	if err != nil {
 		return err
 	}
-	for _, file := range matches {
-		if !regex.MatchString(filepath.Base(file)) {
-			continue
-		}
+	partial, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_*.snap.partial", snapName)))
+	if err != nil {
+		return err
+	}
+	for _, file := range append(matches, partial...) {
 		if keep[filepath.Base(file)] {
 			continue
 		}
+
+		if targetFile, _, partial := strings.Cut(file, ".partial"); partial {
+			if keep[filepath.Base(targetFile)] && !osutil.FileExists(targetFile) {
+				// only keep the partial file if the target does not exist yet
+				continue
+			}
+		}
+
 		if rmErr := maybeRemoveSnapDownload(file); rmErr != nil {
 			// continue deletion, report error in the end
 			err = rmErr

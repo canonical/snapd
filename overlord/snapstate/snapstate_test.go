@@ -11873,6 +11873,7 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsSequences(c *C) {
 	defer restore()
 
 	initSnapDownloads(c, []snap.Revision{snap.R(1), snap.R(1111), snap.R(2), snap.R(3)})
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_5.snap.partial"), nil, 0644), IsNil)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -11888,12 +11889,14 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsSequences(c *C) {
 
 	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
 	c.Check(err, IsNil)
-	// revision not in sequence should be removed
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1111.snap"), testutil.FileAbsent)
-	// revisions in sequence should be kept
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FilePresent)
+
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	// revisions not in sequence or partial downloads should be removed
+	c.Check(matches, DeepEquals, []string{
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"),
+	})
 }
 
 func (s *snapmgrTestSuite) TestCleanSnapDownloadsRefreshHint(c *C) {
@@ -11904,6 +11907,9 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsRefreshHint(c *C) {
 	defer restore()
 
 	initSnapDownloads(c, []snap.Revision{snap.R(1), snap.R(11111), snap.R(2), snap.R(3), snap.R(4)})
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "other-snap_4.snap"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "other-snap_5.snap.partial"), nil, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "other-snap_6.snap.partial"), nil, 0644), IsNil)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -11913,6 +11919,16 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsRefreshHint(c *C) {
 			},
 		},
 		Current:  snap.R(3),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				{Snap: &snap.SideInfo{RealName: "other-snap", SnapID: "other-snap-id", Revision: snap.R(4)}},
+			},
+		},
+		Current:  snap.R(4),
 		SnapType: "app",
 	})
 	refreshHints := map[string]*snapstate.RefreshCandidate{
@@ -11925,19 +11941,52 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsRefreshHint(c *C) {
 				},
 			},
 		},
+		"other-snap": {
+			SnapSetup: snapstate.SnapSetup{
+				Type: "app",
+				SideInfo: &snap.SideInfo{
+					RealName: "other-snap",
+					Revision: snap.R(5),
+				},
+			},
+		},
 	}
 	s.state.Set("refresh-candidates", refreshHints)
 
+	// check the first snap
 	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
 	c.Check(err, IsNil)
-	// revisions not in refresh hint or sequence should be removed
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_11111.snap"), testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FileAbsent)
-	// revisions in sequence should be kept
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FilePresent)
-	// revisions in refresh hint should be kept
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_4.snap"), testutil.FilePresent)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	// revisions of some-snap not in refresh hint or sequence should be removed
+	c.Check(matches, DeepEquals, []string{
+		// other snaps are untouched
+		filepath.Join(dirs.SnapBlobDir, "other-snap_4.snap"),
+		filepath.Join(dirs.SnapBlobDir, "other-snap_5.snap.partial"),
+		filepath.Join(dirs.SnapBlobDir, "other-snap_6.snap.partial"),
+
+		// exists in sequence
+		filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"),
+		// fully downloaded revision in refresh hint
+		filepath.Join(dirs.SnapBlobDir, "some-snap_4.snap"),
+	})
+
+	// and now the other snap
+	err = snapstate.CleanSnapDownloads(s.state, "other-snap")
+	c.Check(err, IsNil)
+	matches, err = filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	// revisions of other-snap not in refresh hint or sequence should be removed
+	c.Check(matches, DeepEquals, []string{
+		// revisions in sequence should be kept
+		filepath.Join(dirs.SnapBlobDir, "other-snap_4.snap"),
+		// as well as partial downloads of snaps in refresh hints
+		filepath.Join(dirs.SnapBlobDir, "other-snap_5.snap.partial"),
+
+		// other snaps are untouched
+		filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_4.snap"),
+	})
 }
 
 func (s *snapmgrTestSuite) TestCleanSnapDownloadsOngoingChange(c *C) {
@@ -11983,14 +12032,15 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsOngoingChange(c *C) {
 
 	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
 	c.Check(err, IsNil)
-	// revisions in a finished change should be removed
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FileAbsent)
-	// revisions pointed to by a pre-download task don't count and should be removed
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FileAbsent)
-	// revisions in sequence should be kept
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), testutil.FilePresent)
-	// revisions pointed to by a download task in an ongoing change should be kept
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_4.snap"), testutil.FilePresent)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	// revisions in a finished change, or pointed to by a pre-download task should be removed
+	c.Check(matches, DeepEquals, []string{
+		// revisions in sequence should be kept
+		filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"),
+		// revisions pointed to by a download task in an ongoing change should be kept
+		filepath.Join(dirs.SnapBlobDir, "some-snap_4.snap"),
+	})
 }
 
 func (s *snapmgrTestSuite) TestCleanSnapDownloadsLocalRevisions(c *C) {
@@ -12016,11 +12066,13 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsLocalRevisions(c *C) {
 
 	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
 	c.Check(err, IsNil)
-	// revision not in sequence should be removed
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_x1.snap"), testutil.FileAbsent)
-	// revisions in sequence should be kept
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_x2.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_x3.snap"), testutil.FilePresent)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(matches, DeepEquals, []string{
+		// revisions in sequence should be kept
+		filepath.Join(dirs.SnapBlobDir, "some-snap_x2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_x3.snap"),
+	})
 }
 
 func (s *snapmgrTestSuite) TestCleanSnapDownloadsParallelInstalls(c *C) {
@@ -12033,7 +12085,6 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsParallelInstalls(c *C) {
 	// parallel install downloads
 	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_1_1.snap"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_2_2.snap"), nil, 0644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapBlobDir, "some-snap_3_x3.snap"), nil, 0644), IsNil)
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -12046,13 +12097,38 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsParallelInstalls(c *C) {
 		Current:  snap.R(4),
 		SnapType: "app",
 	})
+	snapstate.Set(s.state, "some-snap_1", &snapstate.SnapState{
+		Active: true,
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}},
+			},
+		},
+		Current:     snap.R(1),
+		SnapType:    "app",
+		InstanceKey: "1",
+	})
+	snapstate.Set(s.state, "some-snap_3", &snapstate.SnapState{
+		Active: true,
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				{Snap: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(-3)}},
+			},
+		},
+		Current:     snap.R(-3),
+		SnapType:    "app",
+		InstanceKey: "3",
+	})
 
 	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
 	c.Check(err, IsNil)
-	// parallel installs should not be affected
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1_1.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2_2.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3_x3.snap"), testutil.FilePresent)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(matches, DeepEquals, []string{
+		// parallel installs should not be affected
+		filepath.Join(dirs.SnapBlobDir, "some-snap_1_1.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_3_x3.snap"),
+	})
 }
 
 func (s *snapmgrTestSuite) TestCleanSnapDownloadsKeepsNewDownloads(c *C) {
@@ -12079,10 +12155,14 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsKeepsNewDownloads(c *C) {
 	err := snapstate.CleanSnapDownloads(s.state, "some-snap")
 	c.Check(err, IsNil)
 	// all snaps will be kept because retention period is still going
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1111.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FilePresent)
+	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(matches, DeepEquals, []string{
+		filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_1111.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"),
+	})
 
 	// simulate retention period passed
 	restore = snapstate.MockMaxUnusedDownloadRetention(0)
@@ -12090,12 +12170,13 @@ func (s *snapmgrTestSuite) TestCleanSnapDownloadsKeepsNewDownloads(c *C) {
 
 	err = snapstate.CleanSnapDownloads(s.state, "some-snap")
 	c.Check(err, IsNil)
-	// revision not in sequence should be removed
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1.snap"), testutil.FileAbsent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_1111.snap"), testutil.FileAbsent)
-	// revisions in sequence should be kept
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"), testutil.FilePresent)
+	matches, err = filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*"))
+	c.Assert(err, IsNil)
+	c.Check(matches, DeepEquals, []string{
+		// parallel installs should not be affected
+		filepath.Join(dirs.SnapBlobDir, "some-snap_2.snap"),
+		filepath.Join(dirs.SnapBlobDir, "some-snap_3.snap"),
+	})
 }
 
 func (s *snapmgrTestSuite) TestCleanDownloads(c *C) {
