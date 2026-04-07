@@ -1858,7 +1858,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	select {
 	case <-mgr.Ready():
 		c.Errorf("manager unexpectedly readied even though other requests were outstanding, even before listener signalled ready")
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(100 * time.Millisecond):
 		// all good
 	}
 
@@ -1869,7 +1869,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	select {
 	case <-mgr.Ready():
 		c.Errorf("manager unexpectedly readied even though other requests were outstanding")
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(100 * time.Millisecond):
 		// all good
 	}
 
