@@ -36,7 +36,7 @@ execute: |
     fi
 
     echo "Install points to sudo when not authenticated"
-    if su - -c "snap install $SNAP_NAME" test 2>install.output; then
+    if su -c "snap install $SNAP_NAME" - test 2>install.output; then
         echo "Unauthenticated install should fail"
         exit 1
     fi
