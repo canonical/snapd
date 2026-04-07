@@ -4,8 +4,6 @@ details: |
     Ensure that refreshing a base snap that is not the current model base does
     not inject the "Update certificate database" task.
 
-systems: [ubuntu-core-18-*, ubuntu-core-2*]
-
 prepare: |
     . /etc/os-release
     core_snap="core${VERSION_ID}"
