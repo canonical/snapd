@@ -49,16 +49,14 @@ func (s *isReadySuite) SetUpTest(c *C) {
 
 // isReadyTestCase describes a single is-ready invocation for the logic tests.
 type isReadyTestCase struct {
-	desc            string
-	nilContext      bool
-	taskStatus      state.Status
-	initiatorSnap   string   // empty = don't set initiated-by-snap on the change
-	appendChangeID bool     // if true, the real change ID is prepended to args
-	args            []string // args after "is-ready" (and optional change ID)
-	errPattern      string   // if set, expect err to match this regexp
-	errValue        error    // if set, expect err to deep equal this value
-	expectedOut     string
-	expectedStderr  string // if set, checked as regexp match against stderr
+	desc           string
+	taskStatus     state.Status
+	initiatorSnap  string   // empty = don't set initiated-by-snap on the change
+	args           []string // extra args after "is-ready <changeID>"
+	errPattern     string   // if set, expect err to match this regexp
+	errValue       error    // if set, expect err to deep equal this value
+	expectedOut    string
+	expectedStderr string // if set, checked as regexp match against stderr
 }
 
 // setupChangeAndContext creates a state, a change (with an optional initiator),
@@ -92,17 +90,9 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, init
 }
 
 func (s *isReadySuite) runIsReadyTest(c *C, tt isReadyTestCase) {
-	var ctx *hookstate.Context
-	var changeID string
-	if !tt.nilContext {
-		_, ctx, changeID = s.setupChangeAndContext(c, tt.taskStatus, tt.initiatorSnap)
-	}
+	_, ctx, changeID := s.setupChangeAndContext(c, tt.taskStatus, tt.initiatorSnap)
 
-	args := []string{"is-ready"}
-	if tt.appendChangeID {
-		args = append(args, changeID)
-	}
-	args = append(args, tt.args...)
+	args := append([]string{"is-ready", changeID}, tt.args...)
 
 	stdout, stderr, err := ctlcmd.Run(ctx, args, 0, nil)
 
@@ -115,86 +105,72 @@ func (s *isReadySuite) runIsReadyTest(c *C, tt isReadyTestCase) {
 		c.Assert(err, IsNil)
 	}
 
-	if tt.nilContext {
-		c.Check(stdout, IsNil)
-		c.Check(stderr, IsNil)
-	} else {
-		c.Check(string(stdout), Equals, tt.expectedOut)
-		c.Check(string(stderr), Matches, tt.expectedStderr)
-	}
+	c.Check(string(stdout), Equals, tt.expectedOut)
+	c.Check(string(stderr), Matches, tt.expectedStderr)
+}
+
+func (s *isReadySuite) TestIsReadyNoContext(c *C) {
+	_, _, err := ctlcmd.Run(nil, []string{"is-ready", "1"}, 0, nil)
+	c.Assert(err, ErrorMatches, `cannot invoke snapctl operation commands.*from outside of a snap`)
+}
+
+func (s *isReadySuite) TestIsReadyTooFewArgs(c *C) {
+	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
+	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 0`)
+}
+
+func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
+	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "")
+	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
+	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
+	c.Check(string(stderr), Matches, `change "nonexistent-id" not found`)
 }
 
 func (s *isReadySuite) TestIsReadyLogic(c *C) {
 	var logicTests = []isReadyTestCase{
 		{
-			desc:       "no context",
-			nilContext: true,
-			args:       []string{"1"},
-			errPattern: `cannot invoke snapctl operation commands.*from outside of a snap`,
-		},
-		{
-			desc:          "too few args",
+			desc:          "too many args",
 			taskStatus:    state.DoneStatus,
 			initiatorSnap: "test-snap",
-			args:          []string{},
-			errPattern:    `invalid number of arguments: expected 1, got 0`,
+			args:          []string{"extra-arg"},
+			errPattern:    `invalid number of arguments: expected 1, got 2`,
 		},
 		{
-			desc:            "too many args",
-			taskStatus:      state.DoneStatus,
-			initiatorSnap:   "test-snap",
-			appendChangeID: true,
-			args:            []string{"extra-arg"},
-			errPattern:      `invalid number of arguments: expected 1, got 2`,
-		},
-		{
-			desc:           "change not found",
+			desc:           "missing initiator attribute",
 			taskStatus:     state.DoneStatus,
-			args:           []string{"nonexistent-id"},
 			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr: `change "nonexistent-id" not found`,
+			expectedStderr: `could not find initiator attribute for change .*`,
 		},
 		{
-			desc:            "missing initiator attribute",
-			taskStatus:      state.DoneStatus,
-			appendChangeID: true,
-			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr:  `could not find initiator attribute for change .*`,
+			desc:           "wrong initiator",
+			taskStatus:     state.DoneStatus,
+			initiatorSnap:  "other-snap", // different from context snap "test-snap"
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
+			expectedStderr: `change .* was initiated by another snap`,
 		},
 		{
-			desc:            "wrong initiator",
-			taskStatus:      state.DoneStatus,
-			initiatorSnap:   "other-snap", // different from context snap "test-snap"
-			appendChangeID: true,
-			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr:  `change .* was initiated by another snap`,
+			desc:          "done status",
+			taskStatus:    state.DoneStatus,
+			initiatorSnap: "test-snap",
 		},
 		{
-			desc:            "done status",
-			taskStatus:      state.DoneStatus,
-			initiatorSnap:   "test-snap",
-			appendChangeID: true,
+			desc:          "doing status",
+			taskStatus:    state.DoingStatus,
+			initiatorSnap: "test-snap",
+			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 1},
 		},
 		{
-			desc:            "doing status",
-			taskStatus:      state.DoingStatus,
-			initiatorSnap:   "test-snap",
-			appendChangeID: true,
-			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 1},
+			desc:          "error status",
+			taskStatus:    state.ErrorStatus,
+			initiatorSnap: "test-snap",
+			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 2},
 		},
 		{
-			desc:            "error status",
-			taskStatus:      state.ErrorStatus,
-			initiatorSnap:   "test-snap",
-			appendChangeID: true,
-			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 2},
-		},
-		{
-			desc:            "hold status",
-			taskStatus:      state.HoldStatus,
-			initiatorSnap:   "test-snap",
-			appendChangeID: true,
-			errValue:        &ctlcmd.UnsuccessfulError{ExitCode: 2},
+			desc:          "hold status",
+			taskStatus:    state.HoldStatus,
+			initiatorSnap: "test-snap",
+			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 2},
 		},
 	}
 	
