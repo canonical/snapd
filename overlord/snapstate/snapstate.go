@@ -4206,7 +4206,8 @@ var cleanDownloads = func(st *state.State) error {
 		}
 
 		if targetFile, _, partial := strings.Cut(file, ".partial"); partial {
-			if keep[filepath.Base(targetFile)] {
+			if keep[filepath.Base(targetFile)] && !osutil.FileExists(targetFile) {
+				// only keep the partial file if the target does not exist yet
 				continue
 			}
 		}
