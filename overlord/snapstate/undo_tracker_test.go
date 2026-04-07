@@ -62,7 +62,7 @@ func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnNoError(c *C) {
 	defer s.st.Unlock()
 
 	called := false
-	s.ut.Add(func() error {
+	s.ut.AddUndo(func() error {
 		called = true
 		return nil
 	})
@@ -79,7 +79,7 @@ func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnWaitError(c *C) {
 	defer s.st.Unlock()
 
 	called := false
-	s.ut.Add(func() error {
+	s.ut.AddUndo(func() error {
 		called = true
 		return nil
 	})
@@ -107,7 +107,7 @@ func (s *undoTrackerSuite) TestRunOnErrorRunsUndoesInReverseOrder(c *C) {
 	var order []int
 	for i := 1; i <= 3; i++ {
 		i := i // capture loop variable
-		s.ut.Add(func() error {
+		s.ut.AddUndo(func() error {
 			order = append(order, i)
 			return nil
 		})
@@ -127,7 +127,7 @@ func (s *undoTrackerSuite) TestRunOnErrorContinuesAfterUndoFailure(c *C) {
 	var order []int
 	for i := 1; i <= 3; i++ {
 		i := i // capture loop variable
-		s.ut.Add(func() error {
+		s.ut.AddUndo(func() error {
 			order = append(order, i)
 			if i == 2 {
 				return errors.New("undo 2 failed")
@@ -152,8 +152,8 @@ func (s *undoTrackerSuite) TestAddUnlockedReleasesStateLock(c *C) {
 	defer s.st.Unlock()
 
 	called := false
-	s.ut.AddUnlocked(func() error {
-		// try to lock the state. If AddUnlocked correctly
+	s.ut.AddUnlockedUndo(func() error {
+		// try to lock the state. If AddUnlockedUndo correctly
 		// released the lock, this will succeed, otherwise
 		// it will deadlock and the test will fail
 		s.st.Lock()
@@ -175,13 +175,13 @@ func (s *undoTrackerSuite) TestAddUnlockedMixedWithAdd(c *C) {
 
 	var order []int
 
-	s.ut.Add(func() error {
+	s.ut.AddUndo(func() error {
 		order = append(order, 1)
 		return nil
 	})
 
-	s.ut.AddUnlocked(func() error {
-		// try to lock the state. If AddUnlocked correctly
+	s.ut.AddUnlockedUndo(func() error {
+		// try to lock the state. If AddUnlockedUndo correctly
 		// released the lock, this will succeed, otherwise
 		// it will deadlock and the test will fail
 		s.st.Lock()
@@ -190,7 +190,7 @@ func (s *undoTrackerSuite) TestAddUnlockedMixedWithAdd(c *C) {
 		return nil
 	})
 
-	s.ut.Add(func() error {
+	s.ut.AddUndo(func() error {
 		order = append(order, 3)
 		return nil
 	})

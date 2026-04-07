@@ -47,19 +47,19 @@ func NewUndoTracker(t *state.Task) *UndoTracker {
 	return &UndoTracker{t: t}
 }
 
-// Add registers an undo closure to be executed if the handler returns an error.
+// AddUndo registers an undo closure to be executed if the handler returns an error.
 // The closure should reverse a change to the system and return an error if the
 // undo action itself fails. The closure runs with the state lock held.
-func (ut *UndoTracker) Add(f func() error) {
+func (ut *UndoTracker) AddUndo(f func() error) {
 	taskNotNil(ut.t)
 	ut.undoes = append(ut.undoes, f)
 }
 
-// AddUnlocked registers an undo closure to be executed if the handler returns an error.
+// AddUnlockedUndo registers an undo closure to be executed if the handler returns an error.
 // The closure should reverse a change to the system and return an error if the
 // undo action itself fails. The closure runs with the state lock released, i.e.,
 // the state is unlocked before calling the closure and re-locked after it returns.
-func (ut *UndoTracker) AddUnlocked(f func() error) {
+func (ut *UndoTracker) AddUnlockedUndo(f func() error) {
 	taskNotNil(ut.t)
 	st := ut.t.State()
 	ut.undoes = append(ut.undoes, func() error {
