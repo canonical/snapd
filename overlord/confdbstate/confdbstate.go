@@ -271,7 +271,7 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 
 		updateTxs(txs)
 
-		return waitID, fmt.Errorf("cannot %s %s: timed out waiting for access", access, view.ID())
+		return "", fmt.Errorf("cannot %s %s: timed out waiting for access", access, view.ID())
 	}
 
 	return waitID, nil

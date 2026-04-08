@@ -402,7 +402,7 @@ func maybeUnblockAccesses(txs *confdbTransactions) error {
 		upTo = i
 	}
 
-	txs.Processing = txs.Pending[:upTo+1]
+	txs.Processing = append([]pendingAccess{}, txs.Pending[:upTo+1]...)
 	txs.Pending = txs.Pending[upTo+1:]
 
 	return nil
