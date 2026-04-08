@@ -84,6 +84,9 @@ BASH_XTRACEFD= dnf --assumeyes install --setopt=install_weak_deps=False --setopt
     bash coreutils findutils gawk git gzip make rpm-build \
     rpm-devel systemd-rpm-macros tar xz golang
 
+# Copy packaging files to the build directory.
+install -t /build/SPECS/ /src/packaging/fedora/snapd.spec
+
 # Determine the version of the package.
 version=$(rpmspec -q --qf "%{VERSION}\n" /build/SPECS/snapd.spec | head -n1)
 
@@ -105,10 +108,6 @@ tar -C /src -c \
 
 # Create the no-vendor and only-vendor source archives.
 ( cd /src-rw && ./packaging/pack-source -v "$version" -o /build/SOURCES )
-
-# Copy packaging files to the build directory.
-ls -lh /build
-install -t /build/SPECS/ /src/packaging/fedora/snapd.spec
 
 # Discover and install build dependencies.
 rpmspec -q --buildrequires /build/SPECS/snapd.spec >/tmp/buildreqs.txt
