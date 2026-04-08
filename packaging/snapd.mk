@@ -315,7 +315,7 @@ clean:
 check-trusted-account-keys:
 	@echo "Checking trusted account keys in snapd and related binaries..."
 	@# Check snapd binary (2 keys expected)
-	@if [ -f "$(builddir)/snapd" ]; then \
+	@if true; then \
 		count=$$(strings $(builddir)/snapd | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
 		if [ "$$count" -ne 2 ]; then \
 			echo "ERROR: Expected 2 public keys in snapd, found $$count"; \
@@ -328,7 +328,7 @@ check-trusted-account-keys:
 		echo "  snapd: OK (2 keys)"; \
 	fi
 	@# Check snap binary (2 keys expected)
-	@if [ -f "$(builddir)/snap" ]; then \
+	@if true; then \
 		count=$$(strings $(builddir)/snap | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
 		if [ "$$count" -ne 2 ]; then \
 			echo "ERROR: Expected 2 public keys in snap, found $$count"; \
