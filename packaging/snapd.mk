@@ -101,6 +101,11 @@ EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG
 # For Debian/dh-golang, this would be: sourcedir=_build/src/github.com/snapcore/snapd
 sourcedir ?= $(CURDIR)
 
+# NOTE: This *depends* on building out of tree. Some of the built binaries
+# conflict with directory names in the tree.
+.PHONY: all
+all: $(go_binaries)
+
 # Prepare the build tree by removing code that is not used in non-embedded builds.
 # This removes snap-bootstrap, snap-fde-keymgr, and secboot-related code that
 # is only needed for embedded systems and UC20+ builds. This could be somewhat
@@ -119,11 +124,6 @@ prepare-debian-build-tree:
 	if [ -f $(sourcedir)/secboot/keys/plainkey_test.go ]; then mv $(sourcedir)/secboot/keys/plainkey_test.go $(sourcedir)/secboot/keys/plainkey_sb_test.go; fi
 	find $(sourcedir)/secboot/keys/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs -r rm -f
 	find $(sourcedir)/boot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs -r rm -f
-
-# NOTE: This *depends* on building out of tree. Some of the built binaries
-# conflict with directory names in the tree.
-.PHONY: all
-all: $(go_binaries)
 
 # FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
 # random GNU build ID with something more predictable, use something similar to
