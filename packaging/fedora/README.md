@@ -80,7 +80,7 @@ chmod 1777 /var/cache/gomod
 export GOMODCACHE=/var/cache/gomod
 
 # Install bootstrap packages.
-dnf --assumeyes install --setopt=install_weak_deps=False --setopt=keepcache=True \
+BASH_XTRACEFD= dnf --assumeyes install --setopt=install_weak_deps=False --setopt=keepcache=True \
     bash coreutils findutils gawk git gzip make rpm-build \
     rpm-devel systemd-rpm-macros tar xz golang
 
@@ -112,7 +112,7 @@ install -t /build/SPECS/ /src/packaging/fedora/snapd.spec
 
 # Discover and install build dependencies.
 rpmspec -q --buildrequires /build/SPECS/snapd.spec >/tmp/buildreqs.txt
-xargs -r -d "\n" dnf --assumeyes install --setopt=keepcache=True </tmp/buildreqs.txt
+BASH_XTRACEFD= xargs -r -d "\n" dnf --assumeyes install --setopt=keepcache=True </tmp/buildreqs.txt
 
 # Create a non-root build user.
 useradd -m builder
