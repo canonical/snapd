@@ -144,6 +144,7 @@ localstatedir = /var
 sharedstatedir = /var/lib
 unitdir = $(shell pkg-config --variable=systemdsystemunitdir systemd)
 # Build configuration
+builddir=$(CURDIR)/_build/bin
 with_core_bits = 0
 with_alt_snap_mount_dir = 0
 with_apparmor = 1
@@ -165,16 +166,14 @@ override_dh_auto_build: snapd.defines.mk
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
 	# Prepare the build tree by removing code not used for Debian builds
-	$(MAKE) -f packaging/snapd.mk prepare-debian-build-tree sourcedir=_build/src/$(DH_GOPKG) \
-		SNAPD_DEFINES_DIR=$(CURDIR) builddir=$(CURDIR)/_build/bin
+	$(MAKE) -f packaging/snapd.mk prepare-debian-build-tree sourcedir=_build/src/$(DH_GOPKG) SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# and build, we cannot use modules as packaging on Debian requires us to use
 	# dependencies from the distro, and this would require further updates to the
 	# go.mod file
 	GO111MODULE=off dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
-	GO111MODULE=off $(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snap \
-		SNAPD_DEFINES_DIR=$(CURDIR) builddir=$(CURDIR)/_build/bin
+	GO111MODULE=off $(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snap SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
@@ -186,8 +185,7 @@ ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	(cd _build/bin && GO111MODULE=off GOPATH=$$(pwd)/.. go build -tags "$(TAGS)" --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
-	$(MAKE) -f packaging/snapd.mk check-static-binaries builddir=$(CURDIR)/_build/bin \
-		SNAPD_DEFINES_DIR=$(CURDIR)
+	$(MAKE) -f packaging/snapd.mk check-static-binaries SNAPD_DEFINES_DIR=$(CURDIR)
 endif
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
@@ -217,8 +215,7 @@ override_dh_auto_test:
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
-	$(MAKE) -f packaging/snapd.mk check-trusted-account-keys builddir=$(CURDIR)/_build/bin \
-		SNAPD_DEFINES_DIR=$(CURDIR)
+	$(MAKE) -f packaging/snapd.mk check-trusted-account-keys SNAPD_DEFINES_DIR=$(CURDIR)
 	# run the snap-confine tests
 	$(MAKE) -C cmd check
 endif
