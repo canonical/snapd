@@ -306,6 +306,7 @@ func (rdb *RuleDB) load() (retErr error) {
 
 	if errInvalid != nil {
 		// The DB on disk was invalid, so drop every rule and start over
+		logger.Debug("WARNING: rule DB invalid, so dropping every rule")
 		data := map[string]string{"removed": "dropped"}
 		for _, rule := range wrapped.Rules {
 			rdb.notifyRule(rule.User, rule.ID, data)
@@ -749,21 +750,26 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			continue
 		}
 		if !maybeExpired.expired(at) {
+			// This should not occur during load since expired permissions are
+			// pruned when the rule is unmarshalled. Thus, it should only occur
+			// when adding a new rule which overlaps with another rule which
+			// has partially expired.
+
 			// Previously removed the rule's permission entry from the tree for
 			// this permission, now let's remove it from the rule as well.
 			delete(maybeExpired.Constraints.Permissions, permission)
 
-			// This should not occur during load since it calls rule.validate()
-			// which calls RuleConstraints.ValidateForInterface, which prunes
-			// any expired permissions. Thus, it should only occur when adding
-			// a new rule which overlaps with another rule which has partially
-			// expired.
+			logger.Debugf("expired permission %q was pruned from partially-expired rule because it conflicted with new rule %q: %q", permission, ruleID, maybeExpired.ID)
+			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, nil)
 			continue
 		}
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
+			logger.Debugf("rule was expired when new rule %q was added: %q", ruleID, maybeExpired.ID)
 			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, expiredData)
+		} else {
+			logger.Debugf("WARNING: error occurred when trying to remove expired rule %q: %v", maybeExpired.ID, err)
 		}
 	}
 
@@ -1046,6 +1052,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
 
+	logger.Debugf("new rule added: %q", newRule.ID)
 	rdb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
 }
@@ -1291,6 +1298,7 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// rule was affected. We want the rule fully removed, so this is fine.
 
 	data := map[string]string{"removed": "removed"}
+	logger.Debugf("rule was removed: %q", id)
 	rdb.notifyRule(user, id, data)
 	return rule, nil
 }
@@ -1323,12 +1331,14 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 		return nil
 	}
 
+	removedRuleIDs := make([]string, 0, len(rules))
 	for _, rule := range rules {
 		// Remove rule from the rules list. Caller should ensure that the rule
 		// exists, and thus this should not error. We don't want to return any
 		// error here, because that would leave some of the given rules removed
 		// and others not, and the caller can ensure that this will not happen.
 		rdb.removeRuleByIDFromRulesList(rule.ID)
+		removedRuleIDs = append(removedRuleIDs, rule.ID.String())
 	}
 
 	// Now that rules have been removed from rules list, attempt to save
@@ -1341,6 +1351,7 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	}
 
 	// Save successful, now remove rules' variants from tree
+	logger.Debugf("removed rules: %q", removedRuleIDs)
 	data := map[string]string{"removed": "removed"}
 	for _, rule := range rules {
 		rdb.removeRuleFromTree(rule)
@@ -1474,6 +1485,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 		return nil, err
 	}
 
+	logger.Debugf("rule was patched: %q", newRule.ID)
 	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
 }

@@ -259,7 +259,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	return nil
 }
 
-// searchExistingNotice looks up the list of existing notices for the given
+// searchExistingNotices looks up the list of existing notices for the given
 // userID and checks whether a notice with the given noticeID already exists.
 //
 // Returns the slice of existing notices for the given userID. If the notice

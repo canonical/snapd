@@ -434,6 +434,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// expiration timer when the DB has been closed, since the timer will fire
 	// and do nothing.
 	if pdb.isClosed() {
+		logger.Debug("prompt timeout callback triggered; returning early because prompt DB is closed")
 		pdb.mutex.Unlock()
 		return
 	}
@@ -447,6 +448,7 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 		// and the lock being released and subsequently acquired by this
 		// function. So reset the timer to activityTimeout, and do not
 		// purge prompts.
+		logger.Debug("prompt timeout callback triggered; returning early because the timeout was reset before the callback acquired the DB lock")
 		udb.activityResetExpiration()
 		pdb.mutex.Unlock()
 		return
@@ -467,9 +469,16 @@ func (udb *userPromptDB) timeoutCallback(pdb *PromptDB, user uint32) {
 	// Unlock now so we can record notices without holding the prompt DB lock
 	pdb.mutex.Unlock()
 	data := map[string]string{"resolved": "expired"}
+	expiredPromptIDs := make([]string, 0, len(expiredPrompts))
 	for _, p := range expiredPrompts {
+		expiredPromptIDs = append(expiredPromptIDs, p.ID.String())
 		pdb.notifyPrompt(user, p.ID, data)
 		p.sendReply(prompting.OutcomeDeny) // ignore any error, should not occur
+	}
+	if len(expiredPromptIDs) > 0 {
+		logger.Debugf("prompt timeout callback triggered; prompts expired: %q", expiredPromptIDs)
+	} else {
+		logger.Debug("prompt timeout callback triggered; no prompts expired")
 	}
 }
 
@@ -722,18 +731,32 @@ func (pdb *PromptDB) HandleReadying(keyNamespace string) []string {
 		requestsToPrune[requestKey] = entry
 	}
 
+	// Now collect prompt IDs and user IDs we didn't see so we can record a
+	// single notice for each expired prompt.
+	nonexistentPrompts := make(map[prompting.IDType]uint32)
+
 	requestKeysPruned := make([]string, 0, len(requestsToPrune))
-	data := map[string]string{"resolved": "expired"}
 	for requestKey, entry := range requestsToPrune {
 		requestKeysPruned = append(requestKeysPruned, requestKey)
 		delete(pdb.requestMap, requestKey)
 		delete(pdb.pendingUnreceivedRequests, requestKey)
 		if !existingPrompts[entry.PromptID] {
-			pdb.notifyPrompt(entry.UserID, entry.PromptID, data)
+			nonexistentPrompts[entry.PromptID] = entry.UserID
 		}
 		// No need to send a reply to the request originator, since the request
 		// is gone. Also we can't, since there's no request to call Reply() on.
 	}
+
+	if len(nonexistentPrompts) > 0 {
+		logger.Debugf("prompts were dropped because requests were not re-received before readying with namespace %q: %q", keyNamespace, nonexistentPrompts)
+		data := map[string]string{"resolved": "expired"}
+		for promptID, userID := range nonexistentPrompts {
+			pdb.notifyPrompt(userID, promptID, data)
+		}
+	} else {
+		logger.Debugf("no prompts dropped when readying with namespace %q", keyNamespace)
+	}
+
 	pdb.saveRequestMap()
 
 	pdb.readyIfPendingAllReceived()
@@ -843,6 +866,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		existingPrompt.addRequest(request)
 		// Although the prompt itself has not changed from client POV,
 		// re-record a notice to re-notify clients to respond to this request.
+		logger.Debugf("new request %q matches existing prompt: %q", request.Key, existingPrompt.ID)
 		pdb.notifyPrompt(metadata.User, existingPrompt.ID, nil)
 		return existingPrompt, true, nil
 	}
@@ -885,6 +909,7 @@ func (pdb *PromptDB) AddOrMerge(metadata *prompting.Metadata, path string, reque
 		requests:    []*prompting.Request{request},
 	}
 	userEntry.add(prompt)
+	logger.Debugf("created new prompt for request %q: %q", request.Key, promptID)
 	pdb.notifyPrompt(metadata.User, promptID, nil)
 	return prompt, false, nil
 }
@@ -1056,6 +1081,7 @@ func (pdb *PromptDB) Reply(user uint32, id prompting.IDType, outcome prompting.O
 	userEntry.remove(id)
 
 	data := map[string]string{"resolved": "replied"}
+	logger.Debugf("received reply for prompt: %q", id)
 	pdb.notifyPrompt(user, id, data)
 	return prompt, nil
 }
@@ -1118,6 +1144,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		if !respond {
 			// No response necessary, though the prompt constraints were
 			// modified, so just record a notice for the prompt.
+			logger.Debugf("prompt partially handled by new rule, but not resolved: %q", prompt.ID)
 			pdb.notifyPrompt(metadata.User, prompt.ID, nil)
 			continue
 		}
@@ -1156,6 +1183,7 @@ func (pdb *PromptDB) HandleNewRule(metadata *prompting.Metadata, constraints *pr
 		needToSave = true
 
 		satisfiedPromptIDs = append(satisfiedPromptIDs, prompt.ID)
+		logger.Debugf("new rule satisfied prompt: %q", prompt.ID)
 		data := map[string]string{"resolved": "satisfied"}
 		pdb.notifyPrompt(metadata.User, prompt.ID, data)
 	}
