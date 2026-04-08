@@ -91,7 +91,9 @@ endif
 EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG)" $(EXTRA_GO_LDFLAGS)
 
 # sourcedir is the path to the source directory tree (where the go source files are).
-# This is used by prepare-debian-build-tree to remove unnecessary code.
+# This is used by prepare-debian-build-tree to remove unnecessary code, and by
+# check-static-binaries to locate C binaries built by the autotools cmd/ build.
+# Can be set in snapd.defines.mk or on the make command line; defaults to $(CURDIR).
 # For Debian/dh-golang, this would be: sourcedir=_build/src/github.com/snapcore/snapd
 sourcedir ?= $(CURDIR)
 
@@ -144,7 +146,8 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 
 # Check that critical binaries are statically linked.
 # These binaries execute inside mount namespaces and cannot depend on external libraries.
-# builddir: the directory containing the built binaries (e.g., _build/bin)
+# builddir: the directory containing the built Go binaries (e.g., _build/bin)
+# sourcedir: the root of the snapd source tree (used to locate C binaries built by autotools)
 .PHONY: check-static-binaries
 check-static-binaries:
 	@echo "Checking that critical binaries are statically linked..."
@@ -162,6 +165,29 @@ check-static-binaries:
 			echo "  $$binary: OK (static)"; \
 		fi; \
 	done
+	@# snap-gdbserver-shim is a C binary built by the autotools cmd/ build, not by the Go
+	@# build rules, so it will not appear in $(builddir). Search several well-known locations
+	@# in order: the Go output dir (unlikely but harmless), the autotools in-tree build
+	@# directory, and the installed location when DESTDIR is set.
+	@shim=""; \
+	for candidate in \
+		"$(builddir)/snap-gdbserver-shim" \
+		"$(sourcedir)/cmd/snap-gdb-shim/snap-gdbserver-shim" \
+		"$(DESTDIR)$(libexecdir)/snapd/snap-gdbserver-shim"; do \
+		if [ -f "$$candidate" ]; then shim="$$candidate"; break; fi; \
+	done; \
+	if [ -n "$$shim" ]; then \
+		if ! file "$$shim" | grep -q -F static; then \
+			echo "ERROR: snap-gdbserver-shim is dynamically linked, must be static"; \
+			ldd "$$shim"; \
+			exit 1; \
+		fi; \
+		if [ "$(with_static_pie)" = 1 ] && ! file "$$shim" | grep -q -F pie; then \
+			echo "ERROR: snap-gdbserver-shim is not a static PIE"; \
+			exit 1; \
+		fi; \
+		echo "  snap-gdbserver-shim: OK (static) [$$shim]"; \
+	fi
 	@echo "All static binary checks passed."
 
 # XXX see the note about build ID in rule for building 'snap'

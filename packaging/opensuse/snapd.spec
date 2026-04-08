@@ -260,6 +260,7 @@ localstatedir = %{_localstatedir}
 sharedstatedir = %{_sharedstatedir}
 unitdir = %{_unitdir}
 builddir = %{_builddir}
+sourcedir = %{indigo_srcdir}
 # Build configuration
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
