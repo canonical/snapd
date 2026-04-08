@@ -3054,15 +3054,23 @@ func (s *confdbTestSuite) TestAPIBlockingAccessTimedOutRacesWithUnblock(c *C) {
 	s.state.Lock()
 	cancel()
 	waitChan := make(chan struct{}, 1)
-	s.endOngoingAccess(c, &confdbstate.PendingAccess{
+	// in order to mock a race, we need to cancel the context and mock that another
+	// goroutine unblocked the channel and removed it. We won't actually unblock
+	// the channel otherwise we couldn't be sure which case the select would pick
+	txs, updateFunc, err := confdbstate.GetOngoingTxs(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+	c.Assert(txs.Pending, HasLen, 1)
+	c.Assert(txs.Pending[0].AccessType, Equals, confdbstate.AccessType("write"))
+
+	// mock another goroutine unblocking the pending write
+	txs.WriteTxID = ""
+	txs.Processing = txs.Pending
+	txs.Pending = []confdbstate.PendingAccess{{
 		ID:         "next-read",
 		AccessType: confdbstate.AccessType("read"),
 		WaitChan:   waitChan,
-	})
-
-	cached := s.state.Cached("processing-confdb-" + ref).([]confdbstate.PendingAccess)
-	c.Assert(cached, HasLen, 1)
-	c.Assert(cached[0].AccessType, Equals, confdbstate.AccessType("write"))
+	}}
+	updateFunc(txs)
 	s.state.Unlock()
 
 	select {
@@ -3074,7 +3082,7 @@ func (s *confdbTestSuite) TestAPIBlockingAccessTimedOutRacesWithUnblock(c *C) {
 
 	// even though the pending access was already unblocked, the time out/cancel
 	// still cleaned up its state and unblocked the next access
-	cached = s.state.Cached("processing-confdb-" + ref).([]confdbstate.PendingAccess)
+	cached := s.state.Cached("processing-confdb-" + ref).([]confdbstate.PendingAccess)
 	c.Assert(cached, HasLen, 1)
 	c.Assert(cached[0].AccessType, Equals, confdbstate.AccessType("read"))
 
