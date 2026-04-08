@@ -212,6 +212,7 @@ localstatedir = /var
 sharedstatedir = /var/lib
 unitdir = $(shell pkg-config --variable=systemdsystemunitdir systemd)
 # Build configuration
+builddir=$(CURDIR)/_build/bin
 with_core_bits = 0
 with_alt_snap_mount_dir = 0
 with_apparmor = 1
@@ -261,8 +262,7 @@ endif
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
-	$(MAKE) -f packaging/snapd.mk check-static-binaries builddir=$(CURDIR)/_build/bin \
-		SNAPD_DEFINES_DIR=$(CURDIR)
+	$(MAKE) -f packaging/snapd.mk check-static-binaries SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
@@ -297,7 +297,7 @@ endif
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
-	$(MAKE) -f packaging/snapd.mk check-trusted-account-keys builddir=$(CURDIR)/_build/bin \
+	$(MAKE) -f packaging/snapd.mk check-trusted-account-keys \
 		SNAPD_DEFINES_DIR=$(CURDIR)
 endif
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
