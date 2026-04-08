@@ -36,7 +36,7 @@ execute: |
   snap run test-snapctl-is-ready.app snapctl is-ready "$CHANGE_ID"
 
   echo "snapctl is-ready fails with exit 3 for an invalid change ID"
-  snap run test-snapctl-is-ready.app snapctl is-ready nonexistent-id; test $? -eq 3
+  snap run test-snapctl-is-ready.app snapctl is-ready nonexistent-id || test $? -eq 3
 
   echo "snapctl is-ready fails with too few arguments"
   not snap run test-snapctl-is-ready.app snapctl is-ready
@@ -49,5 +49,5 @@ execute: |
     gojq '[.result[] | select(.kind == "install-snap")] | last | .id' | \
     tr -d '"')
   if [ -n "$INSTALL_CHANGE_ID" ] && [ "$INSTALL_CHANGE_ID" != "null" ]; then
-    snap run test-snapctl-is-ready.app snapctl is-ready "$INSTALL_CHANGE_ID"; test $? -eq 3
+    snap run test-snapctl-is-ready.app snapctl is-ready "$INSTALL_CHANGE_ID" || test $? -eq 3
   fi

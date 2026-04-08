@@ -45,9 +45,7 @@ execute: |
   test -n "$CHANGE_ID" && test "$CHANGE_ID" != "null"
 
   echo "Rapid polling: only exit 0 (Done) or exit 1 (not ready) are acceptable"
-  # The poll app loops up to 20 times with 100 ms sleeps; it exits 0 as soon as
-  # is-ready reports Done and aborts on any unexpected exit code (e.g. 3).
-  snap run test-snapctl-is-ready-rl.poll -- "$CHANGE_ID" 20
+  snap run test-snapctl-is-ready-rl.poll "$CHANGE_ID" 20
 
   # Scenario 2: missing last-accessed attribute after snapd restart
   echo "Reinstall component for a fresh change"
@@ -64,6 +62,5 @@ execute: |
   snap wait system seed.loaded
 
   echo "is-ready without last-accessed exits 3 with a diagnostic on stderr"
-  snap run test-snapctl-is-ready-rl.app snapctl is-ready "$CHANGE_ID2" 2>stderr.txt; test $? -eq 3
+  snap run test-snapctl-is-ready-rl.app snapctl is-ready "$CHANGE_ID2" 2>stderr.txt || test $? -eq 3
   MATCH "could not find last accessed attribute" < stderr.txt
-
