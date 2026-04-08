@@ -707,6 +707,7 @@ pkg_dependencies_ubuntu_classic(){
                 net-tools
                 packagekit
                 sbuild
+                sbuild-schroot
                 schroot
                 strace
                 systemd-timesyncd
