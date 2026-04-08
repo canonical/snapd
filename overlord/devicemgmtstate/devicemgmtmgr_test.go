@@ -22,6 +22,7 @@ package devicemgmtstate_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -55,6 +56,32 @@ type mockStore struct {
 
 func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 	return s.exchangeMessages(ctx, req)
+}
+
+type mockMessageHandler struct {
+	validate      func(st *state.State, msg *devicemgmtstate.RequestMessage) error
+	apply         func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error)
+	buildResponse func(chg *state.Change) (map[string]any, asserts.MessageStatus)
+}
+
+func (h *mockMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) error {
+	return h.validate(st, msg)
+}
+
+func (h *mockMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+	return h.apply(st, msg)
+}
+
+func (h *mockMessageHandler) BuildResponse(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+	return h.buildResponse(chg)
+}
+
+type mockSigner struct {
+	sign func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
+}
+
+func (s *mockSigner) SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+	return s.sign(accountID, messageID, status, body)
 }
 
 func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
@@ -201,8 +228,10 @@ func (s *deviceMgmtMgrSuite) TestShouldExchangeMessages(c *C) {
 		cmt := Commentf("%s test", tt.name)
 
 		ms := &devicemgmtstate.DeviceMgmtState{
-			LastExchangeTime: tt.lastExchangeTime,
+			PendingRequests:  make(map[string]*devicemgmtstate.RequestMessage),
+			Sequences:        devicemgmtstate.NewSequenceCache(),
 			ReadyResponses:   tt.readyResponses,
+			LastExchangeTime: tt.lastExchangeTime,
 		}
 
 		setRemoteMgmtFeatureFlag(c, s.st, tt.flag)
@@ -250,6 +279,9 @@ func (s *deviceMgmtMgrSuite) TestEnsureChangeAlreadyInFlight(c *C) {
 
 	expired := time.Now().Add(-(devicemgmtstate.DefaultExchangeInterval + time.Minute))
 	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests:  make(map[string]*devicemgmtstate.RequestMessage),
+		Sequences:        devicemgmtstate.NewSequenceCache(),
+		ReadyResponses:   make(map[string]store.Message),
 		LastExchangeTime: expired,
 	}
 	s.mgr.SetState(ms)
@@ -364,10 +396,12 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	})
 
 	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests:   make(map[string]*devicemgmtstate.RequestMessage),
+		Sequences:         devicemgmtstate.NewSequenceCache(),
+		LastReceivedToken: "token-123",
 		ReadyResponses: map[string]store.Message{
 			"someId": {Format: "assertion", Data: "response-data"},
 		},
-		LastReceivedToken: "token-123",
 	}
 	s.mgr.SetState(ms)
 
@@ -466,6 +500,242 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {
 	c.Assert(err, ErrorMatches, "network timeout")
 }
 
+func (s *deviceMgmtMgrSuite) TestDoQueueResponse(c *C) {
+	type test struct {
+		name           string
+		msg            func() *devicemgmtstate.RequestMessage
+		buildResponse  func(chg *state.Change) (map[string]any, asserts.MessageStatus)
+		expectedStatus asserts.MessageStatus
+		expectedBody   map[string]any
+	}
+
+	tests := []test{
+		{
+			name: "success",
+			msg: func() *devicemgmtstate.RequestMessage {
+				change := s.st.NewChange("subsys-op", "subsystem operation")
+				change.SetStatus(state.DoneStatus)
+
+				return makeRequestMessage("mesg", 1, "test-kind", change.ID())
+			},
+			buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+				return map[string]any{"values": "ok"}, asserts.MessageStatusSuccess
+			},
+			expectedStatus: asserts.MessageStatusSuccess,
+			expectedBody:   map[string]any{"values": "ok"},
+		},
+		{
+			name: "error",
+			msg: func() *devicemgmtstate.RequestMessage {
+				change := s.st.NewChange("subsys-op", "subsystem operation")
+				change.SetStatus(state.ErrorStatus)
+
+				return makeRequestMessage("mesg", 1, "test-kind", change.ID())
+			},
+			buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+				return map[string]any{"message": "cannot process message: operation failed"}, asserts.MessageStatusError
+			},
+			expectedStatus: asserts.MessageStatusError,
+			expectedBody:   map[string]any{"message": "cannot process message: operation failed"},
+		},
+		{
+			name: "rejected",
+			msg: func() *devicemgmtstate.RequestMessage {
+				msg := makeRequestMessage("mesg", 1, "test-kind", "")
+				msg.Status = asserts.MessageStatusRejected
+				msg.Error = "cannot parse payload: missing required field"
+				return msg
+			},
+			buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+				c.Log("buildResponse call not expected")
+				c.Fail()
+
+				return nil, ""
+			},
+			expectedStatus: asserts.MessageStatusRejected,
+			expectedBody:   map[string]any{"message": "cannot parse payload: missing required field"},
+		},
+	}
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	for _, tt := range tests {
+		cmt := Commentf("%s status test", tt.name)
+
+		msg := tt.msg()
+
+		ms := &devicemgmtstate.DeviceMgmtState{
+			PendingRequests: map[string]*devicemgmtstate.RequestMessage{"mesg-1": msg},
+			Sequences:       devicemgmtstate.NewSequenceCache(),
+			ReadyResponses:  make(map[string]store.Message),
+		}
+		s.mgr.SetState(ms)
+
+		handler := &mockMessageHandler{
+			buildResponse: tt.buildResponse,
+		}
+		s.mgr.MockHandler("test-kind", handler)
+
+		signer := &mockSigner{
+			sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+				c.Check(status, Equals, tt.expectedStatus, cmt)
+				var bodyMap map[string]any
+				c.Assert(json.Unmarshal(body, &bodyMap), IsNil, cmt)
+				c.Check(bodyMap, DeepEquals, tt.expectedBody, cmt)
+
+				return assertstest.FakeAssertionWithBody(
+					body,
+					map[string]any{
+						"type":        "response-message",
+						"account-id":  accountID,
+						"message-id":  messageID,
+						"device":      "serial-1.my-model.my-brand",
+						"status":      string(status),
+						"body-length": fmt.Sprintf("%d", len(body)),
+					},
+				).(*asserts.ResponseMessage), nil
+			},
+		}
+		s.mgr.MockSigner(signer)
+
+		t := s.st.NewTask("queue-mgmt-response", "test queue-mgmt-response task")
+		t.Set("id", "mesg-1")
+
+		s.st.Unlock()
+		err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+		s.st.Lock()
+		c.Assert(err, IsNil)
+
+		ms, err = s.mgr.GetState()
+		c.Assert(err, IsNil)
+		c.Check(ms.PendingRequests, HasLen, 0)
+		c.Assert(ms.ReadyResponses, HasLen, 1)
+		c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
+		c.Check(ms.Sequences.Applied["mesg"], Equals, 1)
+	}
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	subsysChg := s.st.NewChange("subsys-op", "subsystem operation")
+	subsysChg.SetStatus(state.DoingStatus)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{
+			"mesg-1": makeRequestMessage("mesg", 1, "test-kind", subsysChg.ID()),
+		},
+		Sequences:      devicemgmtstate.NewSequenceCache(),
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	handler := &mockMessageHandler{
+		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+			c.Log("call not expected")
+			c.Fail()
+
+			return nil, ""
+		},
+	}
+	s.mgr.MockHandler("test-kind", handler)
+
+	t := s.st.NewTask("queue-mgmt-response", "test queue-mgmt-response task")
+	t.Set("id", "mesg-1")
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, FitsTypeOf, &state.Retry{})
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{
+			"mesg-1": makeRequestMessage("mesg", 1, "test-kind", "16384"),
+		},
+		Sequences:      devicemgmtstate.NewSequenceCache(),
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	handler := &mockMessageHandler{
+		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+			c.Log("call not expected")
+			c.Fail()
+
+			return nil, ""
+		},
+	}
+	s.mgr.MockHandler("test-kind", handler)
+
+	t := s.st.NewTask("queue-mgmt-response", "test queue-mgmt-response task")
+	t.Set("id", "mesg-1")
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, ErrorMatches, `cannot find subsystem change "\d+"`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseMessageNotFound(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("queue-mgmt-response", "test queue-mgmt-response task")
+	t.Set("id", "mesg-1")
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, ErrorMatches, `cannot find message with id "mesg-1"`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	handler := &mockMessageHandler{
+		buildResponse: func(chg *state.Change) (map[string]any, asserts.MessageStatus) {
+			c.Log("call not expected")
+			c.Fail()
+
+			return nil, ""
+		},
+	}
+	s.mgr.MockHandler("test-kind", handler)
+
+	signer := &mockSigner{
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return nil, fmt.Errorf("signing key not available")
+		},
+	}
+	s.mgr.MockSigner(signer)
+
+	msg := makeRequestMessage("mesg", 1, "test-kind", "")
+	msg.Status = asserts.MessageStatusRejected
+	msg.Error = "cannot parse payload: missing required field"
+	ms := &devicemgmtstate.DeviceMgmtState{
+		PendingRequests: map[string]*devicemgmtstate.RequestMessage{"mesg-1": msg},
+		Sequences:       devicemgmtstate.NewSequenceCache(),
+		ReadyResponses:  make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	t := s.st.NewTask("queue-mgmt-response", "test queue-mgmt-response task")
+	t.Set("id", "mesg-1")
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, ErrorMatches, "cannot sign response message: signing key not available")
+}
+
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 	type test struct {
 		name        string
@@ -506,5 +776,23 @@ func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 		msg, err := devicemgmtstate.ParseRequestMessage(tt.message)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 		c.Check(msg, IsNil, cmt)
+	}
+}
+
+func makeRequestMessage(baseID string, seqNum int, kind string, changeID string) *devicemgmtstate.RequestMessage {
+	wayback := time.Date(2025, 7, 29, 12, 0, 0, 0, time.UTC)
+
+	return &devicemgmtstate.RequestMessage{
+		AccountID:   "my-brand",
+		AuthorityID: "my-brand",
+		BaseID:      baseID,
+		SeqNum:      seqNum,
+		Kind:        kind,
+		Devices:     []string{"serial-1.my-model.my-brand"},
+		ValidSince:  wayback,
+		ValidUntil:  wayback.Add(24 * time.Hour),
+		Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+		ReceiveTime: wayback.Add(6 * time.Hour),
+		ChangeID:    changeID,
 	}
 }

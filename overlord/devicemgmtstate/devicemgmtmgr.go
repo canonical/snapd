@@ -25,6 +25,7 @@
 package devicemgmtstate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -45,6 +46,8 @@ const (
 
 	defaultExchangeLimit    = 10
 	defaultExchangeInterval = 6 * time.Hour
+
+	awaitSubsystemRetryInterval = 30 * time.Second
 )
 
 var (
@@ -85,7 +88,11 @@ type RequestMessage struct {
 	ValidUntil  time.Time `json:"valid-until"`
 	Body        string    `json:"body"`
 
-	ReceiveTime time.Time `json:"receive-time"`
+	ReceiveTime time.Time             `json:"receive-time"`
+	Status      asserts.MessageStatus `json:"status,omitempty"`
+	Error       string                `json:"error,omitempty"`
+	// Subsystem change applying this message.
+	ChangeID string `json:"change-id,omitempty"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -95,6 +102,16 @@ func (msg *RequestMessage) ID() string {
 	}
 
 	return msg.BaseID
+}
+
+// sequenceCache is the LRU-bounded cache of tracked message sequences.
+type sequenceCache struct {
+	// Applied tracks how far each sequence has progressed. A sequenced
+	// message can only be applied once its predecessor has been applied.
+	Applied map[string]int `json:"applied,omitempty"`
+
+	// LRU determines eviction order when the cache is full.
+	LRU []string `json:"lru,omitempty"`
 }
 
 // deviceMgmtState holds the persistent state for device management operations.
@@ -108,12 +125,31 @@ type deviceMgmtState struct {
 	// up to this point.
 	LastReceivedToken string `json:"last-received-token"`
 
+	// Sequences is the LRU-bounded cache of tracked message sequences.
+	Sequences *sequenceCache `json:"sequences"`
+
 	// ReadyResponses are response messages ready to send in the next exchange.
 	// Cleared after successful transmission.
 	ReadyResponses map[string]store.Message `json:"ready-responses"`
 
 	// LastExchangeTime is the timestamp of the last message exchange.
 	LastExchangeTime time.Time `json:"last-exchange-time"`
+}
+
+// getMessage retrieves a request message from pending requests.
+func (ms *deviceMgmtState) getMessage(t *state.Task) (*RequestMessage, error) {
+	var id string
+	err := t.Get("id", &id)
+	if err != nil {
+		return nil, err
+	}
+
+	msg, ok := ms.PendingRequests[id]
+	if !ok {
+		return nil, fmt.Errorf("cannot find message with id %q", id)
+	}
+
+	return msg, nil
 }
 
 // enqueueRequests queues incoming request messages for processing
@@ -177,11 +213,19 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 		if errors.Is(err, state.ErrNoState) {
 			return &deviceMgmtState{
 				PendingRequests: make(map[string]*RequestMessage),
-				ReadyResponses:  make(map[string]store.Message),
+				Sequences: &sequenceCache{
+					Applied: make(map[string]int),
+					LRU:     make([]string, 0),
+				},
+				ReadyResponses: make(map[string]store.Message),
 			}, nil
 		}
 
 		return nil, err
+	}
+
+	if ms.Sequences.Applied == nil {
+		ms.Sequences.Applied = make(map[string]int)
 	}
 
 	return &ms, nil
@@ -318,9 +362,66 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // doQueueResponse builds a response, signs it, and queues it for transmission on the next exchange.
-// Retries until subsystem change completes.
+// For messages with a subsystem change, the task retries until the change completes.
 func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	msg, err := ms.getMessage(t)
+	if err != nil {
+		return err
+	}
+
+	var body map[string]any
+	var status asserts.MessageStatus
+	if msg.ChangeID != "" {
+		handler, ok := m.handlers[msg.Kind]
+		if !ok {
+			return fmt.Errorf("cannot find handler for message kind %q", msg.Kind)
+		}
+
+		change := m.state.Change(msg.ChangeID)
+		if change == nil {
+			return fmt.Errorf("cannot find subsystem change %q", msg.ChangeID)
+		}
+
+		if !change.Status().Ready() {
+			return &state.Retry{After: awaitSubsystemRetryInterval}
+		}
+
+		body, status = handler.BuildResponse(change)
+	} else {
+		status = msg.Status
+		body = map[string]any{"message": msg.Error}
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("cannot marshal response body: %w", err)
+	}
+
+	resAs, err := m.signer.SignResponseMessage(msg.AccountID, msg.ID(), status, bodyBytes)
+	if err != nil {
+		return fmt.Errorf("cannot sign response message: %w", err)
+	}
+
+	ms.ReadyResponses[msg.ID()] = store.Message{
+		Format: "assertion",
+		Data:   string(asserts.Encode(resAs)),
+	}
+
+	if msg.SeqNum > 0 {
+		ms.Sequences.Applied[msg.BaseID] = msg.SeqNum
+	}
+	delete(ms.PendingRequests, msg.ID())
+
+	m.setState(ms)
+
 	return nil
 }
 
