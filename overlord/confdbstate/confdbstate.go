@@ -214,7 +214,10 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 	}
 	waitID = randutil.RandomString(20)
 
-	wait := make(chan struct{})
+	// AFAICT a buffer isn't strictly necessary here because if a writer sends to
+	// the channel, this goroutine will already have unlocked state and will eventually
+	// read from the channel, unblocking the lock holding goroutine. But let's be extra safe
+	wait := make(chan struct{}, 2)
 	txs.Pending = append(txs.Pending, pendingAccess{
 		AccessType: access,
 		WaitChan:   wait,
@@ -445,12 +448,7 @@ func getTransactionToSet(hookCtx *hookstate.Context, view *confdb.View) (*Transa
 			chg = task.Change()
 		}
 
-		var callingSnap string
-		if hookCtx != nil {
-			callingSnap = hookCtx.InstanceName()
-		}
-
-		ts, err := createChangeConfdbTasks(st, tx, view, callingSnap)
+		ts, err := createChangeConfdbTasks(st, tx, view, hookCtx.InstanceName())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -908,7 +906,6 @@ func cleanupAccess(st *state.State, chg *state.Change, waitID, account, schema s
 // ReadConfdb schedules a change to load a confdb, running any appropriate
 // hooks and fulfilling the requests by reading the view and placing the
 // resulting data in the change's data (so it can be read by the client).
-
 func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, requests []string, constraints map[string]any, userAccess confdb.Access) (changeID string, err error) {
 	waitID, err := waitForAccess(ctx, st, view, readAccess)
 	if err != nil {

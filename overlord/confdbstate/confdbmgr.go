@@ -385,28 +385,20 @@ func maybeUnblockAccesses(txs *confdbTransactions) error {
 		return nil
 	}
 
-	unblock := func(acc pendingAccess) {
-		// we shouldn't unblock the same access more than once but let's be robust
-		select {
-		case acc.WaitChan <- struct{}{}:
-			logger.Debugf("unblocking pending %s access %s", acc.AccessType, acc.ID)
-		default:
-			logger.Noticef("%s access %s has already been unblocked", acc.AccessType, acc.ID)
-		}
-	}
-
 	var upTo int
 	for i, acc := range txs.Pending {
 		if acc.AccessType == writeAccess {
 			if i == 0 {
-				unblock(acc)
+				acc.WaitChan <- struct{}{}
+				logger.Debugf("unblocking pending %s access %s", acc.AccessType, acc.ID)
 				upTo = i
 			}
 
 			break
 		}
 
-		unblock(acc)
+		acc.WaitChan <- struct{}{}
+		logger.Debugf("unblocking pending %s access %s", acc.AccessType, acc.ID)
 		upTo = i
 	}
 

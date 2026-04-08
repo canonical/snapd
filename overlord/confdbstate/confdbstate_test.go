@@ -1888,8 +1888,6 @@ func (s *confdbTestSuite) TestReadConfdbNoHooksUnblocksNextPendingAccess(c *C) {
 	c.Assert(accs, HasLen, 1)
 	c.Assert(accs[0].AccessType, Equals, confdbstate.AccessType("read"))
 
-	// queue another pending access (must use buffered channel) and unblock the
-	// waiting read; the read path with no hooks should then unblock this next pending access.
 	nextWaitChan := make(chan struct{}, 1)
 	s.endOngoingAccess(c, &confdbstate.PendingAccess{
 		ID:         "next-write",
@@ -2300,8 +2298,6 @@ func (s *confdbTestSuite) TestAPIMultipleConcurrentReads(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(secondChgID, Not(Equals), "")
 
-	// mock a pending write; use a buffered channel because the otherwise the send
-	// might not actually send if the test hasn't reached the received
 	waitChan := make(chan struct{}, 1)
 	s.state.Cache("pending-confdb-"+view.Schema().Account+"/network", []confdbstate.PendingAccess{{
 		ID:         "foo",
@@ -2317,7 +2313,7 @@ func (s *confdbTestSuite) TestAPIMultipleConcurrentReads(c *C) {
 	select {
 	case <-waitChan:
 		// only one read tx close this otherwise the other would panic
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 		c.Fatal("expected write to be unblocked but timed out")
 	}
 
@@ -2470,7 +2466,7 @@ func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
 
 		select {
 		case <-blockingChan:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 			c.Fatal("expected access to block but timed out")
 		}
 
@@ -2492,14 +2488,14 @@ func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
 		// the access we mocked should be unblocked
 		select {
 		case <-waitChan:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 			c.Fatal("expected next access to be unblocked but timed out")
 		}
 
 		// the access failed with the expected error
 		select {
 		case <-accDone:
-		case <-time.After(2 * time.Second):
+		case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 			c.Fatal("expected failed access to return but timed out")
 		}
 		c.Assert(accErr, ErrorMatches, ".*: no custodian snap connected")
@@ -2640,7 +2636,7 @@ func (s *confdbTestSuite) TestReadWithOngoingReadBlocksIfWriteIsPending(c *C) {
 
 	select {
 	case <-blockingChan:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 		c.Fatal("expected access to block but timed out")
 	}
 
@@ -2659,7 +2655,7 @@ func (s *confdbTestSuite) TestReadWithOngoingReadBlocksIfWriteIsPending(c *C) {
 	select {
 	case <-readDone:
 		// at this point the read returned and the state was re-locked
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 		c.Fatal("expected access to block but timed out")
 	}
 
@@ -2716,9 +2712,6 @@ func (s *confdbTestSuite) TestOngoingTxUnblocksMultiplePendingReads(c *C) {
 	chgID, err := confdbstate.WriteConfdb(ctx, s.state, view, map[string]any{"ssid": "foo"})
 	c.Assert(err, IsNil)
 
-	// these have to be buffered (unlike the production channels) because we might
-	// trigger the send before the test has reached the receive which would prevent
-	// the send (see maybeUnblockAccesses()). So this actually preserves the normal behaviour
 	readOneChan, readTwoChan, writeChan := make(chan struct{}, 1), make(chan struct{}, 1), make(chan struct{}, 1)
 	s.state.Cache("pending-confdb-"+view.Schema().Account+"/network", []confdbstate.PendingAccess{
 		{
@@ -2749,13 +2742,13 @@ func (s *confdbTestSuite) TestOngoingTxUnblocksMultiplePendingReads(c *C) {
 	// the running transaction unblocked the reads
 	select {
 	case <-readOneChan:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 		c.Fatal("expected 1st read to be unblocked but timed out")
 	}
 
 	select {
 	case <-readTwoChan:
-	case <-time.After(2 * time.Second):
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 		c.Fatal("expected 2nd read to be unblocked but timed out")
 	}
 
@@ -2763,7 +2756,7 @@ func (s *confdbTestSuite) TestOngoingTxUnblocksMultiplePendingReads(c *C) {
 	select {
 	case <-writeChan:
 		c.Fatal("expected write not to have been unblocked")
-	case <-time.After(time.Millisecond):
+	case <-time.After(testutil.HostScaledTimeout(time.Millisecond)):
 	}
 }
 
@@ -2784,7 +2777,7 @@ func (s *confdbTestSuite) TestAPIConfdbErrorUnblocksNextAccess(c *C) {
 		func() { _, accErr = confdbstate.ReadConfdb(ctx, s.state, view, []string{"nonexistent"}, nil, 0) },
 	} {
 		s.state.Lock()
-		// mock an ongoing write transaction so the next WriteConfdb blocks
+		// mock an ongoing write transaction so the next access blocks
 		s.state.Set("confdb-ongoing-txs", map[string]*confdbstate.ConfdbTransactions{
 			ref: {WriteTxID: "10"},
 		})
@@ -2823,7 +2816,7 @@ func (s *confdbTestSuite) TestAPIConfdbErrorUnblocksNextAccess(c *C) {
 		})
 		s.state.Unlock()
 
-		// the write should fail and unblock the next pending access
+		// the access should fail and unblock the next pending access
 		select {
 		case <-nextWaitChan:
 		case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
@@ -2855,7 +2848,7 @@ func (s *confdbTestSuite) endOngoingAccess(c *C, newPending *confdbstate.Pending
 	c.Assert(err, IsNil)
 
 	if newPending != nil {
-		txs.Pending = []confdbstate.PendingAccess{*newPending}
+		txs.Pending = append(txs.Pending, *newPending)
 	}
 }
 
@@ -2988,8 +2981,7 @@ func (s *confdbTestSuite) TestReadConfdbFromSnapNoHooksToRun(c *C) {
 		c.Fatal("expected access to block but timed out")
 	}
 
-	// clear the ongoing tx, queue another pending access (must use buffered
-	// channel because test might reach received after send), then unblock
+	// clear the ongoing tx, queue another pending access, then unblock
 	nextWaitChan := make(chan struct{}, 1)
 	s.state.Lock()
 	s.endOngoingAccess(c, &confdbstate.PendingAccess{
