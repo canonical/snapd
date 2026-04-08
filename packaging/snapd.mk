@@ -73,9 +73,13 @@ endif
 # Any additional tags common to all targets
 GO_TAGS += $(EXTRA_GO_BUILD_TAGS)
 
+ifeq ($(GO111MODULE),off)
+GO_MOD=
+else
 GO_MOD=-mod=vendor
 ifeq ($(with_vendor),0)
 GO_MOD=-mod=readonly
+endif
 endif
 
 GO_STATIC_BUILDMODE = default
