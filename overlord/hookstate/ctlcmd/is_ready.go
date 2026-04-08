@@ -28,7 +28,6 @@ import (
 
 type isReadyCommand struct {
 	baseCommand
-	changeID string
 }
 
 const (
@@ -67,9 +66,9 @@ func (c *isReadyCommand) Execute(args []string) error {
 		return fmt.Errorf("invalid number of arguments: expected 1, got %d", len(args))
 	}
 
-	c.changeID = args[0]
+	changeID := args[0]
 
-	ready, err := isReady(ctx, c.changeID)
+	ready, err := isReady(ctx, changeID)
 
 	if err != nil {
 		fmt.Fprintf(c.stderr, err.Error())

@@ -518,8 +518,10 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		return state.DefaultStatus, fmt.Errorf("change %q was initiated by another snap", changeID)
 	}
 
-	lastAccess := st.Cached(fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName))
-	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().UnixNano())
+	key := fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName)
+
+	lastAccess := st.Cached(key)
+	st.Cache(key, time.Now().UnixNano())
 
 	// Compute how long to wait before checking the change status. If there is
 	// no previous access recorded (first call, or after a snapd restart that
@@ -528,7 +530,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	if lastAccess != nil {
 		lastAccessNano, ok := lastAccess.(int64)
 		if !ok {
-			return state.DefaultStatus, fmt.Errorf("invalid last accessed time format for change %q", changeID)
+			return state.DefaultStatus, fmt.Errorf("unexpected type (%T) for last accessed time on change %q", lastAccess, changeID)
 		}
 		toWait = 200*time.Millisecond - time.Since(time.Unix(0, lastAccessNano))
 	}
@@ -550,12 +552,14 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 
 	select {
 	case <-ready:
-		st.Lock()
-		return chg.Status(), nil
 	case <-timeAfter(toWait):
 		st.Lock()
 		return state.DoingStatus, nil
 	}
+
+	st.Lock()
+	return chg.Status(), nil
+
 }
 
 // getAttribute unmarshals into result the value of the provided key from attributes map.

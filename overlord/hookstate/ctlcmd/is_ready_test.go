@@ -49,8 +49,6 @@ func (s *isReadySuite) SetUpTest(c *C) {
 
 // setupChangeAndContext creates a state, a change (with an optional initiator),
 // and a non-ephemeral hook context for "test-snap".
-// The last-accessed cache is always pre-set to one second in the past so that
-// the rate-limiter does not interfere with logic tests.
 func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, initiatorSnap string) (*state.State, *hookstate.Context, string) {
 	st := state.New(nil)
 	st.Lock()
@@ -63,10 +61,6 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, init
 	if initiatorSnap != "" {
 		chg.Set("initiated-by-snap", initiatorSnap)
 	}
-
-	// Pre-set a past last-accessed timestamp so the rate-limiter never fires
-	// during logic tests.
-	st.Cache("snapctl-test-snap-last-accessed", time.Now().Add(-time.Second).UnixNano())
 
 	task.SetStatus(taskStatus)
 

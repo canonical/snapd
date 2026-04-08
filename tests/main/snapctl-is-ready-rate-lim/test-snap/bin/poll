@@ -22,7 +22,6 @@ while [ "$i" -lt "$MAX" ]; do
         *) echo "unexpected exit code $rc from snapctl is-ready" >&2; exit "$rc" ;;
     esac
     i=$((i + 1))
-    sleep 0.1
 done
 
 echo "change $CHANGE_ID not done after $MAX attempts" >&2
