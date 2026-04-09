@@ -241,19 +241,34 @@ func MockSnapWithFiles(c *check.C, yamlText string, si *snap.SideInfo, files [][
 	return info
 }
 
-// PopulateDir populates the directory with files specified as pairs of relative file path and its content. Useful to add extra files to a snap.
+// PopulateDir populates the directory with files specified as pairs of relative
+// file path and its content. Useful to add extra files to a snap. A path entry
+// ending with "/" indicates a directory, in which case there should be no
+// associated content element or it should be empty.
 func PopulateDir(dir string, files [][]string) {
 	for _, filenameAndContent := range files {
 		filename := filenameAndContent[0]
-		content := filenameAndContent[1]
 		fpath := filepath.Join(dir, filename)
-		err := os.MkdirAll(filepath.Dir(fpath), 0755)
-		if err != nil {
-			panic(err)
-		}
-		err = os.WriteFile(fpath, []byte(content), 0755)
-		if err != nil {
-			panic(err)
+		if strings.HasSuffix(filename, "/") {
+			if len(filenameAndContent) > 1 && filenameAndContent[1] != "" {
+				panic(fmt.Sprintf("unexpected cotnent for directory entry %q", filename))
+			}
+			// actually it's a directory
+			err := os.MkdirAll(fpath, 0755)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			content := filenameAndContent[1]
+			fpath := filepath.Join(dir, filename)
+			err := os.MkdirAll(filepath.Dir(fpath), 0755)
+			if err != nil {
+				panic(err)
+			}
+			err = os.WriteFile(fpath, []byte(content), 0755)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 }

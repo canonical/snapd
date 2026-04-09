@@ -250,6 +250,8 @@ func (s *snapTestSuite) TestMakeSnapFileAndDir(c *C) {
 	files := [][]string{
 		{"canary", "canary"},
 		{"foo", "foo"},
+		{"bar/", ""},
+		{"no-content-bar/"},
 	}
 	info := snaptest.MakeSnapFileAndDir(c, sampleYaml, files, &snap.SideInfo{
 		Revision: snap.R(3),
@@ -262,4 +264,10 @@ func (s *snapTestSuite) TestMakeSnapFileAndDir(c *C) {
 	can, err := f.ReadFile("canary")
 	c.Assert(err, IsNil)
 	c.Check(can, DeepEquals, []byte("canary"))
+	fi, err := f.Lstat("bar")
+	c.Check(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
+	fi, err = f.Lstat("no-content-bar")
+	c.Check(err, IsNil)
+	c.Check(fi.IsDir(), Equals, true)
 }
