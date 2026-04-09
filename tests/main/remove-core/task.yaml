@@ -10,7 +10,12 @@ details: |
     If snapd is not installed as a snap, then we can't remove the core snap
     since it might be providing snapd.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-24.04-64]
+
+skip:
+    - reason: This tests needs the modified core snap when snapd is not from the archive
+      if: |
+        [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = "0" ] && ! tests.info is-snapd-from-archive
 
 execute: |
     # ensure snapd snap is installed
