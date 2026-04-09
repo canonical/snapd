@@ -49,7 +49,7 @@ podman run \
     -v "snapd-gomod-cache:/var/cache/gomod" \
     -w /build \
     docker.io/archlinux/archlinux:latest \
-    /bin/bash -x -u
+    /bin/bash -x -e -u
 ```
 
 ## Host Script

@@ -49,7 +49,7 @@ podman run \
     -v "snapd-gomod-cache:/var/cache/gomod:Z" \
     -w /build \
     registry.fedoraproject.org/fedora:latest \
-    /bin/bash -x -u
+    /bin/bash -x -e -u
 ```
 
 ## Host Script

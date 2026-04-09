@@ -50,7 +50,7 @@ podman run \
     -v "snapd-gomod-cache:/var/cache/gomod" \
     -w /build \
     registry.opensuse.org/opensuse/tumbleweed:latest \
-    /bin/bash -x -u
+    /bin/bash -x -e -u
 ```
 
 ## Host Script
