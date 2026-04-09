@@ -2547,6 +2547,15 @@ func (s *confdbTestSuite) testSnapctlConcurrentAccess(c *C, firstAccess accessFu
 		c.Fatal("expected second access to block while change runs but timed out")
 	}
 
+	// when the second access is ongoing and waiting for the change to end, the
+	// queues are empty
+	s.state.Lock()
+	txs, _, err := confdbstate.GetOngoingTxs(s.state, s.devAccID, "network")
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+	c.Assert(txs.Pending, IsNil)
+	c.Assert(txs.Processing, IsNil)
+
 	err = s.o.Settle(5 * time.Second)
 	c.Assert(err, IsNil)
 

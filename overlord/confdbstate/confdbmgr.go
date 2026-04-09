@@ -243,10 +243,17 @@ func (txs *confdbTransactions) CanStartWriteTx() bool {
 
 // addReadTransaction adds a read transaction for the specified confdb, if no
 // write transactions is ongoing. The state must be locked by the caller.
-func addReadTransaction(st *state.State, account, confdbName, id string) error {
+func addReadTransaction(st *state.State, account, confdbName, id, waitID string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, confdbName)
 	if err != nil {
 		return err
+	}
+
+	for i, acc := range txs.Processing {
+		if acc.ID == waitID {
+			txs.Processing = append(txs.Processing[:i], txs.Processing[i+1:]...)
+			break
+		}
 	}
 
 	if txs.WriteTxID != "" {
@@ -261,10 +268,17 @@ func addReadTransaction(st *state.State, account, confdbName, id string) error {
 // setWriteTransaction sets a write transaction for the specified confdb schema,
 // if no other transactions (read or write) are ongoing. The state must be locked
 // by the caller.
-func setWriteTransaction(st *state.State, account, schemaName, id string) error {
+func setWriteTransaction(st *state.State, account, schemaName, id, waitID string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
 	if err != nil {
 		return err
+	}
+
+	for i, acc := range txs.Processing {
+		if acc.ID == waitID {
+			txs.Processing = append(txs.Processing[:i], txs.Processing[i+1:]...)
+			break
+		}
 	}
 
 	if txs.WriteTxID != "" || len(txs.ReadTxIDs) != 0 {

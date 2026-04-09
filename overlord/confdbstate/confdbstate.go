@@ -320,7 +320,7 @@ func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values
 		return "", err
 	}
 
-	err = setWriteTransaction(st, account, schema, commitTask.ID())
+	err = setWriteTransaction(st, account, schema, commitTask.ID(), waitID)
 	if err != nil {
 		return "", err
 	}
@@ -464,7 +464,7 @@ func getTransactionToSet(hookCtx *hookstate.Context, view *confdb.View) (*Transa
 			return nil, chg, err
 		}
 
-		err = setWriteTransaction(st, account, schema, commitTask.ID())
+		err = setWriteTransaction(st, account, schema, commitTask.ID(), waitID)
 		if err != nil {
 			return nil, chg, err
 		}
@@ -824,7 +824,7 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 		return false
 	})
 
-	err = addReadTransaction(st, account, schema, clearTxTask.ID())
+	err = addReadTransaction(st, account, schema, clearTxTask.ID(), waitID)
 	if err != nil {
 		return nil, err
 	}
@@ -878,18 +878,12 @@ func cleanupAccess(st *state.State, chg *state.Change, waitID, account, schema s
 	}
 	defer updateTxStateFunc(txs)
 
-	// remove this pending access from the processing list
-	accIndex := -1
+	// remove this access from the processing list, if we haven't yet
 	for i, acc := range txs.Processing {
 		if acc.ID == waitID {
-			accIndex = i
+			txs.Processing = append(txs.Processing[:i], txs.Processing[i+1:]...)
+			break
 		}
-	}
-
-	if accIndex == -1 {
-		logger.Noticef("cannot find access id %s when updating processing accesses", waitID)
-	} else {
-		txs.Processing = append(txs.Processing[:accIndex], txs.Processing[accIndex+1:]...)
 	}
 
 	if chg != nil && len(chg.Tasks()) > 0 {
@@ -950,7 +944,7 @@ func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, request
 		loadConfdbTask.WaitFor(clearTxTask)
 		chg.AddAll(ts)
 
-		err = addReadTransaction(st, account, schema, clearTxTask.ID())
+		err = addReadTransaction(st, account, schema, clearTxTask.ID(), waitID)
 		if err != nil {
 			return "", err
 		}
