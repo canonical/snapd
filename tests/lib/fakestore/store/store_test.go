@@ -1393,3 +1393,42 @@ func (s *storeTestSuite) TestDebugEndpointMethodNotAllowed(c *C) {
 
 	c.Assert(resp.StatusCode, Equals, 405)
 }
+
+func (s *storeTestSuite) TestDebugActionReset(c *C) {
+	// Set a rule for endpoint connection interrupt
+	resp, err := s.StorePostJSON("/debug", []byte(`{
+		"action": "kill-request",
+		"kill-path": "/foo/bar",
+		"kill-after": 123
+	}`))
+	c.Assert(err, IsNil)
+	resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, 200)
+
+	resp, err = s.StoreGet("/debug")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	var buf bytes.Buffer
+	c.Assert(resp.StatusCode, Equals, 200)
+	_, err = io.Copy(&buf, resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `{"kill-after":{"/foo/bar":123}}`)
+
+	// Clear it by setting kill-after to 0
+	resp, err = s.StorePostJSON("/debug", []byte(`{
+		"action": "reset"
+	}`))
+	c.Assert(err, IsNil)
+	resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, 200)
+
+	resp, err = s.StoreGet("/debug")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	buf.Reset()
+	_, err = io.Copy(&buf, resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `{"kill-after":{}}`)
+}

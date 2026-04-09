@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -67,6 +68,8 @@ type snapCachedInfo struct {
 
 // Store is our snappy software store implementation
 type Store struct {
+	lock sync.Mutex
+
 	url       string
 	blobDir   string
 	assertDir string
@@ -80,6 +83,9 @@ type Store struct {
 
 	snapsCache map[string]snapCachedInfo
 
+	// endpoint -> quota value, note this is stateful, i.e. the quota is counted
+	// for all requests to a given endpoint and after exceeding it, all
+	// subsequent requests will fail until it is reset though a request
 	killAfter map[string]int64
 }
 
@@ -397,12 +403,16 @@ type debugResultJSON struct {
 
 func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
 	if req.Method == http.MethodGet {
-		res := debugResultJSON{
-			KillAfter: s.killAfter,
-		}
-		out, err := json.MarshalIndent(res, "", "    ")
+		out, err := func() ([]byte, error) {
+			s.lock.Lock()
+			defer s.lock.Unlock()
+			res := debugResultJSON{
+				KillAfter: s.killAfter,
+			}
+			return json.Marshal(res)
+		}()
 		if err != nil {
-			http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", res, err), 500)
+			http.Error(w, fmt.Sprintf("cannot marshal: %v", err), 500)
 			return
 		}
 		w.Write(out)
@@ -421,21 +431,46 @@ func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	var err error
 	switch debugReq.Action {
 	case "kill-request":
-		s.debugActionKillDownload(debugReq)
+		err = s.debugActionKillDownload(debugReq)
+	case "reset":
+		s.debugActionReset(debugReq)
 	default:
+		err = fmt.Errorf("unexpected debug action %q", debugReq.Action)
+	}
+	if err != nil {
 		w.WriteHeader(400)
-		fmt.Fprintf(w, "unexpected debug action %q", debugReq.Action)
+		fmt.Fprint(w, err.Error())
 	}
 }
 
-func (s *Store) debugActionKillDownload(debugReq *debugRequestJSON) {
+func (s *Store) debugActionKillDownload(debugReq *debugRequestJSON) error {
+	if debugReq.KillPath == "" {
+		return fmt.Errorf("kill-path cannot be empty")
+	}
+
+	if strings.HasPrefix(debugReq.KillPath, "/debug/") {
+		return fmt.Errorf("kill-path cannot be applied to /debug/ endpoints")
+	}
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	if debugReq.KillAfter == 0 {
 		delete(s.killAfter, debugReq.KillPath)
-		return
+	} else {
+		s.killAfter[debugReq.KillPath] = debugReq.KillAfter
 	}
-	s.killAfter[debugReq.KillPath] = debugReq.KillAfter
+	return nil
+}
+
+func (s *Store) debugActionReset(debugReq *debugRequestJSON) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.killAfter = map[string]int64{}
 }
 
 func logRangeHeader(handler http.HandlerFunc) http.HandlerFunc {
@@ -451,7 +486,14 @@ func logRangeHeader(handler http.HandlerFunc) http.HandlerFunc {
 func (s *Store) applyKillAfter(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		path := req.URL.Path
-		killAfter, exists := s.killAfter[path]
+
+		killAfter, exists := func() (int64, bool) {
+			s.lock.Lock()
+			defer s.lock.Unlock()
+			v, ok := s.killAfter[path]
+			return v, ok
+		}()
+
 		if !exists {
 			handler(w, req)
 			return
@@ -468,7 +510,11 @@ func (s *Store) applyKillAfter(handler http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// update killAfter for path after write finishes
-		s.killAfter[path] = kaw.killAfter
+		func() {
+			s.lock.Lock()
+			defer s.lock.Unlock()
+			s.killAfter[path] = kaw.killAfter
+		}()
 	}
 }
 
