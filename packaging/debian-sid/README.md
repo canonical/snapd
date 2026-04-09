@@ -116,7 +116,9 @@ tar -C /src -c \
 
 # Copy packaging files to the build directory.
 tar -Jxf /build/snapd_"$version".no-vendor.tar.xz -C /build
-cp -a /src/packaging/debian-sid /build/snapd-"$version"/debian
+# The debian-sid directory contains .build/ which would be copied recursively, exclude it by using a glob.
+mkdir /build/snapd-"$version"/debian
+cp -a /src/packaging/debian-sid/* /build/snapd-"$version"/debian
 
 # Discover and install build dependencies.
 apt-get --yes build-dep /build/snapd-"$version"
