@@ -1,0 +1,66 @@
+summary: Ensure that the snap-seccomp blocks chmod setuid/setgid bits
+
+details: |
+    Check that it is not allowed to chmod a file to give it user or group +s bits (setuid and setgid).
+    Check that setting the sticky bit is allowed.
+    All four syscalls are exercised via raw syscall() invocations: chmod, fchmod,
+    fchmodat and fchmodat2.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test-chmod
+
+execute: |
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-chmod \$SNAP_COMMON" > output.txt
+    cat output.txt
+
+    # chmod setuid/setgid must be denied; sticky and normal must succeed
+    # (skipped gracefully on architectures that don't have SYS_chmod, e.g. arm64)
+    if grep -qE 'chmod setuid: skipped' output.txt; then
+        echo "SYS_chmod is not available, all chmod tests should be skipped"
+        MATCH 'chmod setuid: skipped' < output.txt
+        MATCH 'chmod setgid: skipped' < output.txt
+        MATCH 'chmod sticky: skipped' < output.txt
+        MATCH 'chmod normal: skipped' < output.txt
+    else
+        MATCH 'chmod setuid: EACCES' < output.txt
+        MATCH 'chmod setgid: EACCES' < output.txt
+        MATCH 'chmod sticky: succeeded' < output.txt
+        MATCH 'chmod normal: succeeded' < output.txt
+    fi
+
+    # fchmod setuid/setgid must be denied; sticky and normal must succeed
+    MATCH 'fchmod setuid: EACCES' < output.txt
+    MATCH 'fchmod setgid: EACCES' < output.txt
+    MATCH 'fchmod sticky: succeeded' < output.txt
+    MATCH 'fchmod normal: succeeded' < output.txt
+
+    # fchmodat setuid/setgid must be denied; sticky and normal must succeed
+    MATCH 'fchmodat setuid: EACCES' < output.txt
+    MATCH 'fchmodat setgid: EACCES' < output.txt
+    MATCH 'fchmodat sticky: succeeded' < output.txt
+    MATCH 'fchmodat normal: succeeded' < output.txt
+
+    # fchmodat2 setuid/setgid must be denied; sticky and normal must succeed
+    # (skipped gracefully on kernels that don't have SYS_fchmodat2)
+    if grep -qE 'fchmodat2 setuid: skipped' output.txt; then
+        MATCH 'fchmodat2 setuid: skipped' < output.txt
+        MATCH 'fchmodat2 setgid: skipped' < output.txt
+        MATCH 'fchmodat2 sticky: skipped' < output.txt
+        MATCH 'fchmodat2 normal: skipped' < output.txt
+    else
+        MATCH 'fchmodat2 setuid: EACCES' < output.txt
+        MATCH 'fchmodat2 setgid: EACCES' < output.txt
+        MATCH 'fchmodat2 sticky: succeeded' < output.txt
+        MATCH 'fchmodat2 normal: succeeded' < output.txt
+    fi
