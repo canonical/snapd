@@ -603,7 +603,7 @@ func (g *grub) getGrubRunModeTrustedAssets() ([][]taggedPath, error) {
 }
 
 // TrustedAssets returns the map of relative paths to asset
-// identifers. The relative paths are relative to the bootloader's
+// identifiers. The relative paths are relative to the bootloader's
 // rootdir. The asset identifiers correspond to the backward
 // compatible names recorded in the modeenv (CurrentTrustedBootAssets
 // and CurrentTrustedRecoveryBootAssets).

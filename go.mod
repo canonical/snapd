@@ -5,6 +5,9 @@ go 1.18
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
 
+// local development: use local secboot with CheckImageSignatureIsValidForHost
+replace github.com/snapcore/secboot => ../secboot
+
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/canonical/go-efilib v1.7.1-0.20260310185303-7166aa858b24
