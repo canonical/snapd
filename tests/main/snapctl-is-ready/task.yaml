@@ -45,9 +45,5 @@ execute: |
   not snap run test-snapctl-is-ready.app snapctl is-ready "$CHANGE_ID" extra-arg
 
   echo "snapctl is-ready fails for a change not initiated by the snap"
-  INSTALL_CHANGE_ID=$(snap debug api /v2/changes?select=all | \
-    gojq '[.result[] | select(.kind == "install-snap")] | last | .id' | \
-    tr -d '"')
-  if [ -n "$INSTALL_CHANGE_ID" ] && [ "$INSTALL_CHANGE_ID" != "null" ]; then
-    snap run test-snapctl-is-ready.app snapctl is-ready "$INSTALL_CHANGE_ID" || test $? -eq 3
-  fi
+  INSTALL_CHANGE_ID=$(snap install --no-wait test-snapd-tools)
+  snap run test-snapctl-is-ready.app snapctl is-ready "$INSTALL_CHANGE_ID" || test $? -eq 3

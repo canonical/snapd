@@ -494,7 +494,7 @@ func jsonRaw(v any) *json.RawMessage {
 	return &raw
 }
 
-// isReady checks if the change is ready, if it is, it returns the status, otherwise st.Doing.
+// isReady checks if the change is ready, if it is, it returns the status, otherwise state.DoingStatus.
 func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	callerSnapName := hctx.InstanceName()
 
@@ -511,11 +511,11 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	var initiatorSnapName string
 	err := chg.Get("initiated-by-snap", &initiatorSnapName)
 	if err != nil {
-		return state.DefaultStatus, fmt.Errorf("could not find initiator attribute for change %q", changeID)
+		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return state.DefaultStatus, fmt.Errorf("change %q was initiated by another snap", changeID)
+		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
 	}
 
 	key := fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName)
@@ -530,7 +530,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	if lastAccess != nil {
 		lastAccessNano, ok := lastAccess.(int64)
 		if !ok {
-			return state.DefaultStatus, fmt.Errorf("unexpected type (%T) for last accessed time on change %q", lastAccess, changeID)
+			return state.DefaultStatus, fmt.Errorf("internal error: unexpected type (%T) for last accessed time on change %q", lastAccess, changeID)
 		}
 		toWait = 200*time.Millisecond - time.Since(time.Unix(0, lastAccessNano))
 	}

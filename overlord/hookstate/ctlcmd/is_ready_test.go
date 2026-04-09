@@ -103,13 +103,13 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 		{
 			taskStatus:     state.DoneStatus,
 			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr: `could not find initiator attribute for change .*`,
+			expectedStderr: `change .* not found`,
 		},
 		{
 			taskStatus:     state.DoneStatus,
 			initiatorSnap:  "other-snap", // different from context snap "test-snap"
 			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr: `change .* was initiated by another snap`,
+			expectedStderr: `change .* not found`,
 		},
 		{
 			taskStatus:    state.DoneStatus,
