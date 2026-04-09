@@ -105,6 +105,46 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 	}
 	schema := confdbAssert.Schema().DatabagSchema
 
+	hasSaveViewHook := false
+	for _, task := range t.Change().Tasks() {
+		if task.Kind() != "run-hook" {
+			continue
+		}
+
+		var hooksup hookstate.HookSetup
+		err := task.Get("hook-setup", &hooksup)
+		if err != nil {
+			return fmt.Errorf(`internal error: cannot get "hook-setup" from run-hook task: %w`, err)
+		}
+
+		if strings.HasPrefix(hooksup.Hook, "save-view-") {
+			hasSaveViewHook = true
+			break
+		}
+	}
+
+	// we error early if a write may affect ephemeral data but no save-view hook
+	// is present. However, a change-view hook may have written to an ephemeral
+	// path after that so we have to check again
+	if !hasSaveViewHook {
+		var viewName string
+		err = t.Get("view", &viewName)
+		if err != nil {
+			return fmt.Errorf(`internal error: cannot get "view" from task: %w`, err)
+		}
+
+		view := confdbAssert.Schema().View(viewName)
+		paths := tx.AlteredPaths()
+		mightAffectEph, err := view.WriteAffectsEphemeral(paths)
+		if err != nil {
+			return fmt.Errorf("cannot commit transaction: cannot check for ephemeral paths: %v", err)
+		}
+
+		if mightAffectEph {
+			return fmt.Errorf("cannot commit transaction: write may affect ephemeral data but no save-view hook is present")
+		}
+	}
+
 	return tx.Commit(st, schema)
 }
 

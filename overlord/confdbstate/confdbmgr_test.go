@@ -19,6 +19,7 @@
 package confdbstate_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
+	"gopkg.in/tomb.v2"
 
 	. "gopkg.in/check.v1"
 )
@@ -442,6 +444,7 @@ func (s *confdbTestSuite) TestCommitTransaction(c *C) {
 	c.Assert(err, IsNil)
 
 	setTransaction(t, tx)
+	t.Set("view", "setup-wifi")
 
 	s.state.Unlock()
 	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
@@ -518,6 +521,7 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	err = tx.Set(parsePath(c, "foo"), "bar")
 	c.Assert(err, IsNil)
 	setTransaction(commitTask, tx)
+	commitTask.Set("view", "setup-wifi")
 
 	// add this transaction to the state
 	err = confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", commitTask.ID())
@@ -531,10 +535,68 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Assert(commitTask.Status(), Equals, state.ErrorStatus)
 	c.Assert(clearTask.Status(), Equals, state.UndoneStatus)
-	c.Assert(strings.Join(commitTask.Log(), "\n"), Matches, ".*ERROR cannot accept top level element: map contains unexpected key \"foo\"")
+	c.Assert(strings.Join(commitTask.Log(), "\n"), Matches, ".*ERROR cannot commit transaction: cannot check for ephemeral paths: cannot check if write affects ephemeral data: cannot use \"foo\" as key in map")
 
 	// no ongoing confdb transaction
 	var ongoingTxs map[string]*confdbstate.ConfdbTransactions
 	err = s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
+}
+
+func (s *confdbTestSuite) TestCommitTransactionEphemeralCheckWithoutSaveViewHooks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the custodian has a change-view hook but no save-view
+	custodians := map[string]confdbHooks{"custodian-snap": changeView}
+	s.setupConfdbScenario(c, custodians, nil)
+
+	// mock a change-view hook that writes to ephemeral data
+	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		t, _ := ctx.Task()
+		ctx.State().Lock()
+		defer ctx.State().Unlock()
+
+		var hooksup *hookstate.HookSetup
+		err := t.Get("hook-setup", &hooksup)
+		if err != nil {
+			return nil, err
+		}
+		c.Assert(strings.HasPrefix(hooksup.Hook, "change-view-"), Equals, true)
+
+		tx, _, saveChanges, err := confdbstate.GetStoredTransaction(t)
+		if err != nil {
+			return nil, err
+		}
+
+		err = tx.Set(parsePath(c, "wifi.eph"), "ephemeral-from-hook")
+		if err != nil {
+			return nil, err
+		}
+		saveChanges()
+
+		return nil, nil
+	})
+	defer restore()
+
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"ssid": "my-wifi"})
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// commit fails because change-view hook wrote ephemeral data but no save-view hooks exist
+	c.Assert(chg.Status(), Equals, state.ErrorStatus)
+
+	commitTask := findTask(chg, "commit-confdb-tx")
+	c.Assert(commitTask, NotNil)
+	c.Assert(strings.Join(commitTask.Log(), "\n"), Matches, `.*ERROR cannot commit transaction: write may affect ephemeral data but no save-view hook is present.*`)
 }

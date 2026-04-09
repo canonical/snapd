@@ -525,6 +525,8 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 	// commit after custodians save ephemeral data
 	commitTask := st.NewTask("commit-confdb-tx", fmt.Sprintf("Commit changes to confdb (%s)", view.ID()))
 	commitTask.Set("confdb-transaction", tx)
+	commitTask.Set("view", view.Name)
+
 	// link all previous tasks to the commit task that carries the transaction
 	for _, t := range ts.Tasks() {
 		t.Set("tx-task", commitTask.ID())
