@@ -243,6 +243,9 @@ endif
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
+	# Copy test-data manually for old dh-golang.
+	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/testdata
+	cp -a cmd/snap/testdata/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/testdata/
 	# this is the main go build
 
 	# note that dh-golang invokes go generate as the first step, which may invoke
