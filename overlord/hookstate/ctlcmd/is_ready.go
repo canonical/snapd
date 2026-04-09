@@ -71,7 +71,7 @@ func (c *isReadyCommand) Execute(args []string) error {
 	ready, err := isReady(ctx, changeID)
 
 	if err != nil {
-		fmt.Fprintf(c.stderr, err.Error())
+		fmt.Fprint(c.stderr, err.Error())
 		return &UnsuccessfulError{ExitCode: otherErrorExitCode}
 	}
 
