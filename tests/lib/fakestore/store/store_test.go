@@ -1391,5 +1391,5 @@ func (s *storeTestSuite) TestDebugEndpointMethodNotAllowed(c *C) {
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
-	c.Assert(resp.StatusCode, Equals, http.StatusMethodNotAllowed)
+	c.Assert(resp.StatusCode, Equals, 405)
 }

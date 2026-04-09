@@ -410,7 +410,7 @@ func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if req.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		w.WriteHeader(405) // Method Not Allowed
 		return
 	}
 
