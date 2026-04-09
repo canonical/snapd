@@ -986,7 +986,7 @@ func remodelEssentialSnapTasks(
 		if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
 			return snapstate.SwitchToNewGadget(st, name, fromChange)
 		}
-		return snapstate.LinkNewBaseOrKernel(st, name, fromChange)
+		return snapstate.LinkNewBaseOrKernel(st, name, fromChange, rm.deviceCtx)
 	}
 
 	// as a bit of a special case, we support adding the needed tasks that make
@@ -1000,7 +1000,7 @@ func remodelEssentialSnapTasks(
 		if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
 			return snapstate.AddGadgetAssetsTasks(st, tss[0])
 		}
-		return snapstate.AddLinkNewBaseOrKernel(st, tss[0])
+		return snapstate.AddLinkNewBaseOrKernel(st, tss[0], rm.deviceCtx)
 	}
 
 	switch action {

@@ -445,7 +445,6 @@ func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision,
 }
 
 type HoldState = holdState
-type UpdateCertDBForRefreshOptions = updateCertDBForRefreshOptions
 
 var (
 	HoldDurationLeft                     = holdDurationLeft

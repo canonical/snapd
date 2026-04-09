@@ -8609,7 +8609,8 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	const withComponents = false
 	s.addSnapsForRemodel(c, withComponents)
 
-	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "", deviceCtx)
 	c.Assert(err, IsNil)
 
 	tasks := ts.Tasks()
@@ -8630,7 +8631,7 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	c.Assert(tLink.WaitTasks(), DeepEquals, []*state.Task{tUpdateGadgetAssets})
 	c.Assert(ts.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
 
-	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "")
+	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-base", "", deviceCtx)
 	c.Assert(err, IsNil)
 	tasks = ts.Tasks()
 	c.Check(taskKinds(tasks), DeepEquals, expectedDoInstallTasks(snap.TypeBase, 0, 0, 0, []string{"prepare-snap"}, nil, kindsToSet(nonReLinkKinds)))
@@ -8643,6 +8644,41 @@ func (s *snapmgrTestSuite) testRemodelLinkNewBaseOrKernelHappy(c *C, model *asse
 	c.Assert(tLink.Kind(), Equals, "link-snap")
 	c.Assert(tLink.Summary(), Equals, `Make snap "some-base" (1) available to the system during remodel`)
 	c.Assert(ts.MaybeEdge(snapstate.MaybeRebootEdge), Equals, tLink)
+}
+
+func (s *snapmgrTestSuite) TestRemodelLinkNewBaseUpdatesCertDB(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.BaseTest.AddCleanup(snapstate.MockSnapReadInfo(snap.ReadInfo))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Use a model whose base matches the installed "some-base" snap, so
+	// that shouldScheduleUpdateCertDBForRefresh returns true.
+	model := MakeModel20("brand-gadget", map[string]any{"base": "some-base"})
+	defer snapstatetest.MockDeviceModel(model)()
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	const withComponents = false
+	s.addSnapsForRemodel(c, withComponents)
+
+	// Linking the model base injects an update-cert-db task.
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-base", "", deviceCtx)
+	c.Assert(err, IsNil)
+	tasks := ts.Tasks()
+	c.Assert(tasks, HasLen, 3)
+	c.Assert(tasks[0].Kind(), Equals, "prepare-snap")
+	c.Assert(tasks[1].Kind(), Equals, "link-snap")
+	c.Assert(tasks[2].Kind(), Equals, "update-cert-db")
+	c.Assert(tasks[2].Summary(), Equals, "Update certificate database")
+
+	// Linking a kernel does not inject update-cert-db.
+	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "", deviceCtx)
+	c.Assert(err, IsNil)
+	for _, t := range ts.Tasks() {
+		c.Assert(t.Kind(), Not(Equals), "update-cert-db")
+	}
 }
 
 func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelWithComponent(c *C) {
@@ -8660,7 +8696,8 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelWithComponent(c *C) {
 	const withComponents = true
 	s.addSnapsForRemodel(c, withComponents)
 
-	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "")
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-kernel", "", deviceCtx)
 	c.Assert(err, IsNil)
 
 	comps := []string{"comp-1", "comp-2"}
@@ -8710,7 +8747,8 @@ func (s *snapmgrTestSuite) TestRemodelAddLinkNewBaseOrKernelWithComponent(c *C) 
 
 	ts := state.NewTaskSet(switchSnap)
 
-	ts, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	ts, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts, deviceCtx)
 	c.Assert(err, IsNil)
 
 	comps := []string{"comp-1", "comp-2"}
@@ -8750,11 +8788,12 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelBadType(c *C) {
 		Current:  si.Revision,
 		SnapType: "app",
 	})
-	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-snap", "")
+
+	ts, err := snapstate.LinkNewBaseOrKernel(s.state, "some-snap", "", nil)
 	c.Assert(err, ErrorMatches, `internal error: cannot link type app`)
 	c.Assert(ts, IsNil)
 
-	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-gadget", "")
+	ts, err = snapstate.LinkNewBaseOrKernel(s.state, "some-gadget", "", nil)
 	c.Assert(err, ErrorMatches, `internal error: cannot link type gadget`)
 	c.Assert(ts, IsNil)
 }
@@ -8774,7 +8813,8 @@ func (s *snapmgrTestSuite) TestRemodelLinkNewBaseOrKernelNoRemodelConflict(c *C)
 	chg := s.state.NewChange("remodel", "remodel")
 	chg.AddTask(tugc)
 
-	_, err := snapstate.LinkNewBaseOrKernel(s.state, "some-base", chg.ID())
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
+	_, err := snapstate.LinkNewBaseOrKernel(s.state, "some-base", chg.ID(), deviceCtx)
 	c.Assert(err, IsNil)
 }
 
@@ -8816,7 +8856,8 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 	testTask := s.state.NewTask("test-task", "test task")
 	ts := state.NewTaskSet(tPrepare, testTask)
 
-	tsNew, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	tsNew, err := snapstate.AddLinkNewBaseOrKernel(s.state, ts, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks := tsNew.Tasks()
@@ -8848,7 +8889,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 		Type:     "base",
 	})
 	ts = state.NewTaskSet(tPrepare)
-	tsNew, err = snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	tsNew, err = snapstate.AddLinkNewBaseOrKernel(s.state, ts, deviceCtx)
 	c.Assert(err, IsNil)
 	c.Assert(tsNew, NotNil)
 	tasks = tsNew.Tasks()
@@ -8865,7 +8906,7 @@ func (s *snapmgrTestSuite) testRemodelAddLinkNewBaseOrKernel(c *C, model *assert
 
 	// but bails when there is no task with snap setup
 	ts = state.NewTaskSet()
-	tsNew, err = snapstate.AddLinkNewBaseOrKernel(s.state, ts)
+	tsNew, err = snapstate.AddLinkNewBaseOrKernel(s.state, ts, deviceCtx)
 	c.Assert(err, ErrorMatches, `internal error: cannot identify task with snap-setup`)
 	c.Assert(tsNew, IsNil)
 }
@@ -12601,28 +12642,24 @@ func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {
 	classicCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModelClassicWithModes("pc", nil)}
 
 	tests := []struct {
-		name         string
-		ctx          snapstate.DeviceContext
-		snapType     snap.Type
-		instanceName string
-		expected     bool
+		name     string
+		ctx      snapstate.DeviceContext
+		snapType snap.Type
+		snapName string
+		expected bool
 	}{
-		{name: "nil device context", ctx: nil, snapType: snap.TypeBase, instanceName: "core18", expected: false},
-		{name: "base-snap refresh", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
-		{name: "remodel refresh path", ctx: remodelCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
-		{name: "remodel install path", ctx: remodelCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
-		{name: "non-base snap", ctx: modelBaseCtx, snapType: snap.TypeApp, instanceName: "core18", expected: false},
-		{name: "classic model", ctx: classicCtx, snapType: snap.TypeBase, instanceName: "core22", expected: false},
-		{name: "non-model base", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "some-base", expected: false},
-		{name: "model base", ctx: modelBaseCtx, snapType: snap.TypeBase, instanceName: "core18", expected: true},
+		{name: "base-snap refresh", ctx: modelBaseCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
+		{name: "remodel refresh path", ctx: remodelCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
+		{name: "remodel install path", ctx: remodelCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
+		{name: "non-base snap", ctx: modelBaseCtx, snapType: snap.TypeApp, snapName: "core18", expected: false},
+		{name: "classic model", ctx: classicCtx, snapType: snap.TypeBase, snapName: "core22", expected: false},
+		{name: "non-model base", ctx: modelBaseCtx, snapType: snap.TypeBase, snapName: "some-base", expected: false},
+		{name: "model base", ctx: modelBaseCtx, snapType: snap.TypeBase, snapName: "core18", expected: true},
 	}
 
 	for _, tc := range tests {
-		c.Check(snapstate.ShouldScheduleUpdateCertDBForRefresh(snapstate.UpdateCertDBForRefreshOptions{
-			DeviceCtx:    tc.ctx,
-			SnapType:     tc.snapType,
-			InstanceName: tc.instanceName,
-		}), Equals, tc.expected, Commentf(tc.name))
+		c.Check(snapstate.ShouldScheduleUpdateCertDBForRefresh(
+			tc.snapName, tc.snapType, tc.ctx), Equals, tc.expected, Commentf(tc.name))
 	}
 }
 

@@ -74,7 +74,7 @@ func (m *CertManager) Ensure() error {
 	}
 
 	// If the ssl certs directory is missing, nothing to do.
-	if exists, isDir, err := osutil.DirExists(dirs.SystemCertsDir); !exists || !isDir || err != nil {
+	if !hasSystemCertsDir() {
 		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
 		return nil
 	}
@@ -90,7 +90,7 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 	st.Lock()
 	defer st.Unlock()
 
-	if exists, isDir, err := osutil.DirExists(dirs.SystemCertsDir); !exists || !isDir || err != nil {
+	if !hasSystemCertsDir() {
 		t.Logf("/etc/ssl/certs is not available on this system, skipping certificate database update")
 		return nil
 	}
@@ -109,4 +109,11 @@ func (m *CertManager) undoUpdateCertificateDatabase(_ *state.Task, _ *tomb.Tomb)
 		return err
 	}
 	return nil
+}
+
+func hasSystemCertsDir() bool {
+	if exists, isDir, err := osutil.DirExists(dirs.SystemCertsDir); !exists || !isDir || err != nil {
+		return false
+	}
+	return true
 }

@@ -3101,8 +3101,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 		c.Logf("%s: %s", t.Kind(), t.Summary())
 	}
 
-	// 3 snaps (2 tasks for each) + assets update + gadget (3 tasks) + recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 3*2+1+3+2+1)
+	// 3 snaps (2 tasks for each) + assets update + update cert db + gadget (3 tasks) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 3*2+1+1+3+2+1)
 
 	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
@@ -3120,14 +3120,15 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	tLinkKernel := tl[2]
 	tPrepareBase := tl[3]
 	tLinkBase := tl[4]
-	tPrepareGadget := tl[5]
-	tUpdateAssets := tl[6]
-	tUpdateCmdline := tl[7]
-	tValidateApp := tl[8]
-	tInstallApp := tl[9]
-	tCreateRecovery := tl[10]
-	tFinalizeRecovery := tl[11]
-	tSetModel := tl[12]
+	tUpdateCertDB := tl[5]
+	tPrepareGadget := tl[6]
+	tUpdateAssets := tl[7]
+	tUpdateCmdline := tl[8]
+	tValidateApp := tl[9]
+	tInstallApp := tl[10]
+	tCreateRecovery := tl[11]
+	tFinalizeRecovery := tl[12]
+	tSetModel := tl[13]
 
 	// check the tasks
 	c.Assert(tPrepareKernel.Kind(), Equals, "prepare-snap")
@@ -3185,7 +3186,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	})
 	c.Assert(tUpdateAssets.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareGadget,
-		tLinkBase,
+		tUpdateCertDB,
 	})
 	c.Assert(tUpdateCmdline.WaitTasks(), DeepEquals, []*state.Task{
 		tUpdateAssets,
@@ -3205,6 +3206,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnaps(c *C) {
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel, tUpdateAssetsKernel,
 		tLinkKernel, tPrepareBase, tLinkBase,
+		tUpdateCertDB,
 		tPrepareGadget, tUpdateAssets, tUpdateCmdline,
 		tValidateApp, tInstallApp,
 		tCreateRecovery, tFinalizeRecovery,
@@ -3364,8 +3366,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 		c.Logf("%s: %s", t.Kind(), t.Summary())
 	}
 
-	// 3 snaps (2 tasks for each) + assets update from kernel + gadget (3 tasks) + recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 3*2+1+3+2+1)
+	// 3 snaps (2 tasks for each) + assets update from kernel + update cert db + gadget (3 tasks) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 3*2+1+1+3+2+1)
 
 	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
@@ -3383,14 +3385,15 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	tLinkKernel := tl[2]
 	tPrepareBase := tl[3]
 	tLinkBase := tl[4]
-	tSwitchGadget := tl[5]
-	tUpdateAssets := tl[6]
-	tUpdateCmdline := tl[7]
-	tValidateApp := tl[8]
-	tInstallApp := tl[9]
-	tCreateRecovery := tl[10]
-	tFinalizeRecovery := tl[11]
-	tSetModel := tl[12]
+	tUpdateCertDB := tl[5]
+	tSwitchGadget := tl[6]
+	tUpdateAssets := tl[7]
+	tUpdateCmdline := tl[8]
+	tValidateApp := tl[9]
+	tInstallApp := tl[10]
+	tCreateRecovery := tl[11]
+	tFinalizeRecovery := tl[12]
+	tSetModel := tl[13]
 
 	// check the tasks
 	c.Assert(tSwitchKernel.Kind(), Equals, "switch-snap")
@@ -3448,7 +3451,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	})
 	c.Assert(tUpdateAssets.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchGadget,
-		tLinkBase,
+		tUpdateCertDB,
 	})
 	c.Assert(tUpdateCmdline.WaitTasks(), DeepEquals, []*state.Task{
 		tUpdateAssets,
@@ -3468,6 +3471,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelOfflineUseInstalledSnapsChannelSwitch
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchKernel, tUpdateAssetsKernel,
 		tLinkKernel, tPrepareBase, tLinkBase,
+		tUpdateCertDB,
 		tSwitchGadget, tUpdateAssets, tUpdateCmdline,
 		tValidateApp, tInstallApp,
 		tCreateRecovery, tFinalizeRecovery,
@@ -3623,8 +3627,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
 
 	tl := chg.Tasks()
-	// 2 snaps (2 tasks for each) + assets update and setup from kernel + gadget (3 tasks) + recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 2*2+1+3+2+1)
+	// 2 snaps (2 tasks for each) + assets update and setup from kernel + update cert db + gadget (3 tasks) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 2*2+1+1+3+2+1)
 
 	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
@@ -3642,12 +3646,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	tLinkKernel := tl[2]
 	tPrepareBase := tl[3]
 	tLinkBase := tl[4]
-	tPrepareGadget := tl[5]
-	tUpdateAssets := tl[6]
-	tUpdateCmdline := tl[7]
-	tCreateRecovery := tl[8]
-	tFinalizeRecovery := tl[9]
-	tSetModel := tl[10]
+	tUpdateCertDB := tl[5]
+	tPrepareGadget := tl[6]
+	tUpdateAssets := tl[7]
+	tUpdateCmdline := tl[8]
+	tCreateRecovery := tl[9]
+	tFinalizeRecovery := tl[10]
+	tSetModel := tl[11]
 
 	// check the tasks
 	c.Assert(tPrepareKernel.Kind(), Equals, "prepare-snap")
@@ -3701,7 +3706,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	})
 	c.Assert(tUpdateAssets.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareGadget,
-		tLinkBase,
+		tUpdateCertDB,
 	})
 	c.Assert(tUpdateCmdline.WaitTasks(), DeepEquals, []*state.Task{
 		tUpdateAssets,
@@ -3721,6 +3726,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
 		tPrepareKernel, tUpdateAssetsKernel,
 		tLinkKernel, tPrepareBase, tLinkBase,
+		tUpdateCertDB,
 		tPrepareGadget, tUpdateAssets, tUpdateCmdline,
 		tCreateRecovery, tFinalizeRecovery,
 	})
@@ -3984,9 +3990,9 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 
 	tl := chg.Tasks()
 	// 2 snaps with (snap switch channel + link snap) + assets update for the
-	// kernel snap + gadget snap (switch channel, assets update, cmdline update)
+	// kernel snap + update cert db + gadget snap (switch channel, assets update, cmdline update)
 	// + recovery system (2 tasks) + set-model
-	c.Assert(tl, HasLen, 2*2+1+3+2+1)
+	c.Assert(tl, HasLen, 2*2+1+1+3+2+1)
 
 	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
 	c.Assert(err, IsNil)
@@ -4004,12 +4010,13 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	tLinkKernel := tl[2]
 	tSwitchChannelBase := tl[3]
 	tLinkBase := tl[4]
-	tSwitchChannelGadget := tl[5]
-	tUpdateAssetsFromGadget := tl[6]
-	tUpdateCmdlineFromGadget := tl[7]
-	tCreateRecovery := tl[8]
-	tFinalizeRecovery := tl[9]
-	tSetModel := tl[10]
+	tUpdateCertDB := tl[5]
+	tSwitchChannelGadget := tl[6]
+	tUpdateAssetsFromGadget := tl[7]
+	tUpdateCmdlineFromGadget := tl[8]
+	tCreateRecovery := tl[9]
+	tFinalizeRecovery := tl[10]
+	tSetModel := tl[11]
 
 	// check the tasks
 	c.Assert(tSwitchChannelKernel.Kind(), Equals, "switch-snap-channel")
@@ -4066,6 +4073,7 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20SwitchKernelBaseGadgetSnapsInstal
 	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
 		tSwitchChannelKernel, tUpdateAssetsFromKernel,
 		tLinkKernel, tSwitchChannelBase, tLinkBase,
+		tUpdateCertDB,
 		tSwitchChannelGadget, tUpdateAssetsFromGadget, tUpdateCmdlineFromGadget,
 		tCreateRecovery, tFinalizeRecovery,
 	})

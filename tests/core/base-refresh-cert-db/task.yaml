@@ -54,24 +54,19 @@ execute: |
     }
 
     # Refreshing a non-model base should not request update-cert-db.
-    if [ "$SPREAD_REBOOT" -eq 0 ]; then
-        snap download "$other_base" --edge --basename "$other_base"
+    snap download "$other_base" --edge --basename "$other_base"
 
-        # Create two distinct unasserted payloads to force an update.
-        printf '\0' >> "${other_base}.snap"
+    # Create two distinct unasserted payloads to force an update.
+    printf '\0' >> "${other_base}.snap"
 
-        # Refresh the snap
-        snap install "${other_base}.snap" --dangerous --no-wait > install-change-id
-        change_id="$(cat install-change-id)"
-        test -n "$change_id"
-        wait_and_verify_change "$change_id"
+    # Refresh the snap
+    snap install "${other_base}.snap" --dangerous --no-wait > install-change-id
+    change_id="$(cat install-change-id)"
+    test -n "$change_id"
+    wait_and_verify_change "$change_id"
 
-        # Verify that refresh of non-model base does not inject cert DB update.
-        NOMATCH 'Update certificate database' < tasks.done
+    # Verify that refresh of non-model base does not inject cert DB update.
+    NOMATCH 'Update certificate database' < tasks.done
 
-        # Ensure we did not change the model base.
-        test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
-    else
-        echo "unexpected reboot"
-        exit 1
-    fi
+    # Ensure we did not change the model base.
+    test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
