@@ -649,7 +649,22 @@ plugs:
 `)
 	var buf bytes.Buffer
 	err := pack.CheckSkeleton(&buf, sourceDir)
-	c.Assert(err, ErrorMatches, `content interface plug "shared-data" has target "\$SNAP/import" which does not exist`)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target "\$SNAP/import" does not exist`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetNotDirectory(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "import"), []byte(""), 0644), IsNil)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target "\$SNAP/import" must be a directory`)
 }
 
 func (s *packSuite) TestCheckSkeletonContentPlugTargetOldBaseSkipped(c *C) {
@@ -710,7 +725,7 @@ plugs:
 `)
 	var buf bytes.Buffer
 	err := pack.CheckSkeleton(&buf, sourceDir)
-	c.Assert(err, ErrorMatches, `content interface plug "shared-data" has target "import" which does not exist`)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target "import" does not exist`)
 }
 
 func (s *packSuite) TestCheckSkeletonContentPlugTargetMultiplePlugs(c *C) {
@@ -728,5 +743,5 @@ plugs:
 	c.Assert(os.Mkdir(filepath.Join(sourceDir, "existing"), 0755), IsNil)
 	var buf bytes.Buffer
 	err := pack.CheckSkeleton(&buf, sourceDir)
-	c.Assert(err, ErrorMatches, `content interface plug "plug-missing" has target "\$SNAP/missing" which does not exist`)
+	c.Assert(err, ErrorMatches, `content interface plug "plug-missing" target "\$SNAP/missing" does not exist`)
 }

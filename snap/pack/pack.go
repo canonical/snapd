@@ -131,8 +131,12 @@ func validateContentPlugTargets(container snap.Container, info *snap.Info) error
 		if relPath == "" {
 			continue
 		}
-		if _, err := container.Lstat(relPath); err != nil {
-			return fmt.Errorf("content interface plug %q has target %q which does not exist", plugName, target)
+		fi, err := container.Lstat(relPath)
+		if err != nil {
+			return fmt.Errorf("content interface plug %q target %q does not exist", plugName, target)
+		}
+		if !fi.IsDir() {
+			return fmt.Errorf("content interface plug %q target %q must be a directory", plugName, target)
 		}
 	}
 	return nil
