@@ -15,6 +15,7 @@ details: |
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 prepare: |
+  "$TESTSTOOLS"/snaps-state install-local test-snapctl-is-ready
   "$TESTSTOOLS"/snaps-state install-local test-snapctl-is-ready+comp_1.0.comp
 
 execute: |
