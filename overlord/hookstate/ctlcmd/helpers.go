@@ -534,11 +534,10 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		toWait = 200*time.Millisecond - time.Since(time.Unix(0, lastAccessNano))
 	}
 
+	st.Cache(key, time.Now().UnixNano())
 	st.Unlock()
 
 	ready := chg.Ready()
-
-	st.Cache(key, time.Now().UnixNano())
 
 	if toWait <= 0 {
 		select {
