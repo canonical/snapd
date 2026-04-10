@@ -373,21 +373,42 @@ type killAfterWriter struct {
 }
 
 func (kaw *killAfterWriter) Write(p []byte) (int, error) {
-	if kaw.killAfter >= 0 {
-		kaw.killAfter -= int64(len(p))
-	}
-
 	if kaw.killAfter < 0 {
-		// hijack the connection to force a hard drop
-		hj, ok := kaw.ResponseWriter.(http.Hijacker)
-		if ok {
-			conn, _, _ := hj.Hijack()
-			conn.Close() // hard close the TCP connection
-		}
+		// already exceeded the quota, kill immediately
+		kaw.hijackAndClose()
 		return 0, fmt.Errorf("connection killed")
 	}
 
-	return kaw.ResponseWriter.Write(p)
+	toWrite := p
+	shouldKill := false
+	if int64(len(p)) > kaw.killAfter {
+		// write only up to the remaining quota
+		toWrite = p[:kaw.killAfter]
+		shouldKill = true
+	}
+
+	n, err := kaw.ResponseWriter.Write(toWrite)
+	kaw.killAfter -= int64(n)
+
+	if shouldKill {
+		kaw.hijackAndClose()
+		return n, fmt.Errorf("connection killed")
+	}
+
+	return n, err
+}
+
+func (kaw *killAfterWriter) hijackAndClose() {
+	// flush any buffered data before closing
+	if f, ok := kaw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+	// and proceed to close
+	hj, ok := kaw.ResponseWriter.(http.Hijacker)
+	if ok {
+		conn, _, _ := hj.Hijack()
+		conn.Close()
+	}
 }
 
 type debugRequestJSON struct {

@@ -1340,8 +1340,8 @@ func (s *storeTestSuite) TestDebugEndpointKillAfter(c *C) {
 	defer resp.Body.Close()
 
 	got, _ := io.ReadAll(resp.Body)
-	// Connection forcefully closed mid-transfer
-	c.Check(int64(len(got)) < snapInfo.Size(), Equals, true)
+	// Connection forcefully closed mid-transfer, exactly killAfter bytes received
+	c.Check(int64(len(got)), Equals, killAfter)
 
 	// Clear it by setting kill-after to 0
 	resp, err = s.StorePostJSON("/debug", []byte(fmt.Sprintf(`{
