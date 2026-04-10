@@ -177,6 +177,9 @@ func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
 	if err := validateContentPlugTargets(container, info); err != nil {
 		return nil, err
 	}
+	// TODO: validate content interface slot source (read/write) paths
+	// exist in the snap source tree, see validateContentPlugTargets.
+
 	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
 		return nil, err
 	}
