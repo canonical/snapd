@@ -18,21 +18,25 @@ environment:
     SNAP_USER_COMMON: /root/snap/$SNAP_NAME/common
     SNAP_USER_DATA: /root/snap/$SNAP_NAME/x1
     # what: /var/tmp/** | where: $SNAP_<COMMON|DATA>/target1 | options: [rw, bind]
+    # mount-control interface does not allow mounts under snap's
+    # user directories (SNAP_USER_COMMON, SNAP_USER_DATA)
     MOUNT_SRC: /var/tmp/$SNAP_NAME
     MOUNT_DEST_GLOBAL_COMMON: $SNAP_COMMON/target1
     MOUNT_DEST_GLOBAL_DATA: $SNAP_DATA/target1
     MOUNT_DEST_USER_COMMON: $SNAP_USER_COMMON/target1
     MOUNT_DEST_USER_DATA: $SNAP_USER_DATA/target1
-    VARIANT/remove_succeeds_when_slave_mount_in_snap_ns_under_global_common: v1
-    VARIANT/remove_succeeds_when_slave_mount_in_snap_ns_under_global_data: v2
-    VARIANT/remove_currently_fails_when_snapctl_mount_in_host_ns_under_global_common: v3
-    VARIANT/remove_currently_fails_when_snapctl_mount_in_host_ns_under_global_data: v4
-    VARIANT/remove_currently_fails_when_user_mount_in_host_ns_under_user_common: v5
-    VARIANT/remove_currently_fails_when_user_mount_in_host_ns_under_user_data: v6
+    # each test variant will execute:
+    #   test_$CASE $MOUNT_DEST
+    CASE/v1,v2: remove_succeeds_when_slave_mount_in_snap_ns_under
+    CASE/v3,v4: remove_currently_fails_when_snapctl_mount_in_host_ns_under
+    CASE/v5,v6: remove_currently_fails_when_user_mount_in_host_ns_under
+    MOUNT_DEST/v1,v3: $MOUNT_DEST_GLOBAL_COMMON
+    MOUNT_DEST/v2,v4: $MOUNT_DEST_GLOBAL_DATA
+    MOUNT_DEST/v5: $MOUNT_DEST_USER_COMMON
+    MOUNT_DEST/v6: $MOUNT_DEST_USER_DATA
 
 restore: |
-    rm -rf "$MOUNT_SRC"
-    rm -rf "$MOUNT_DEST_GLOBAL_COMMON" "$MOUNT_DEST_GLOBAL_DATA" "$MOUNT_DEST_USER_COMMON" "$MOUNT_DEST_USER_DATA"
+    rm -rf "$MOUNT_SRC" "$MOUNT_DEST"
 
 execute: |
     setup_src_data() {
@@ -161,14 +165,6 @@ execute: |
         echo
     }
 
-    # mount-control interface does not allow mounts under snap's
-    # user directories (SNAP_USER_COMMON, SNAP_USER_DATA)
-    case "$VARIANT" in
-        v1) test_remove_succeeds_when_slave_mount_in_snap_ns_under "$MOUNT_DEST_GLOBAL_COMMON" ;;
-        v2) test_remove_succeeds_when_slave_mount_in_snap_ns_under "$MOUNT_DEST_GLOBAL_DATA" ;;
-        v3) test_remove_currently_fails_when_snapctl_mount_in_host_ns_under "$MOUNT_DEST_GLOBAL_COMMON" ;;
-        v4) test_remove_currently_fails_when_snapctl_mount_in_host_ns_under "$MOUNT_DEST_GLOBAL_DATA" ;;
-        v5) test_remove_currently_fails_when_user_mount_in_host_ns_under "$MOUNT_DEST_USER_COMMON" ;;
-        v6) test_remove_currently_fails_when_user_mount_in_host_ns_under "$MOUNT_DEST_USER_DATA" ;;
-        *) echo "Invalid VARIANT: $VARIANT" ; exit 1 ;;
-    esac
+    echo
+    echo "Executing test_$CASE $MOUNT_DEST"
+    test_$CASE $MOUNT_DEST
