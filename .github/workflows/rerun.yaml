@@ -55,7 +55,7 @@ jobs:
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
-            } while (response.data.artifacts.length === per_page);
+            } while (allArtifacts.length < response.data.total_count);
             let matchArtifact = allArtifacts.filter((artifact) => {
               return artifact.name == "pr_number"
             })[0];

@@ -36,7 +36,7 @@ jobs:
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
-            } while (response.data.artifacts.length === per_page);
+            } while (allArtifacts.length < response.data.total_count);
             let matchArtifact = allArtifacts.filter((artifact) => {
               return artifact.name == "pr_number"
             })[0];
@@ -70,7 +70,7 @@ jobs:
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
-            } while (response.data.artifacts.length === per_page);
+            } while (allArtifacts.length < response.data.total_count);
 
             let matchingArtifacts = allArtifacts.filter((artifact) => {
               return artifact.name.startsWith(`spread-results-${context.payload.workflow_run.id}-${context.payload.workflow_run.run_attempt}`);
