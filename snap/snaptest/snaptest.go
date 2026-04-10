@@ -246,6 +246,8 @@ func MockSnapWithFiles(c *check.C, yamlText string, si *snap.SideInfo, files [][
 // ending with "/" indicates a directory, in which case there should be no
 // associated content element or it should be empty.
 func PopulateDir(dir string, files [][]string) {
+	// TODO: tweak the API to take a list of interfaces, each one with its
+	// own creation method
 	for _, filenameAndContent := range files {
 		filename := filenameAndContent[0]
 		fpath := filepath.Join(dir, filename)
