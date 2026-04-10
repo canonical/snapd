@@ -253,7 +253,7 @@ func PopulateDir(dir string, files [][]string) {
 		fpath := filepath.Join(dir, filename)
 		if strings.HasSuffix(filename, "/") {
 			if len(filenameAndContent) > 1 && filenameAndContent[1] != "" {
-				panic(fmt.Sprintf("unexpected cotnent for directory entry %q", filename))
+				panic(fmt.Sprintf("unexpected content for directory entry %q", filename))
 			}
 			// actually it's a directory
 			err := os.MkdirAll(fpath, 0755)
