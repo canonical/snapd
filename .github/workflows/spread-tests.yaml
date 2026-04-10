@@ -395,7 +395,7 @@ jobs:
             });
             allArtifacts = allArtifacts.concat(response.data.artifacts);
             page++;
-          } while (response.data.artifacts.length === per_page);
+          } while (allArtifacts.length < response.data.total_count);
           
           for (let system of systems) {
             let artifactName = `package-${system}`;
@@ -405,7 +405,7 @@ jobs:
               const arch = match[2] || '';
               artifactName = `package-ubuntu-${version}.04${arch}-64`;
             }
-            let artifact = allArtifacts.data.artifacts.find(a => a.name === artifactName);
+            let artifact = allArtifacts.find(a => a.name === artifactName);
             if (!artifact) {
               console.log(`Artifact not found for system: ${system}`);
               continue;
