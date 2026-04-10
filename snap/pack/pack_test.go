@@ -676,12 +676,26 @@ plugs:
   interface: content
   target: $SNAP/import
 `
-	for _, base := range []string{"bare", "core", "core18", "core20", "core22", "core24"} {
+	for _, base := range []string{"core", "core18", "core20", "core22", "core24"} {
 		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, base))
 		var buf bytes.Buffer
 		err := pack.CheckSkeleton(&buf, sourceDir)
 		c.Assert(err, IsNil, Commentf("base: %s", base))
 	}
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetBareBase(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: bare
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target "\$SNAP/import" does not exist`)
 }
 
 func (s *packSuite) TestCheckSkeletonContentPlugTargetEmptyBase(c *C) {

@@ -106,7 +106,7 @@ func validateContentPlugTargets(container snap.Container, info *snap.Info) error
 	// Content plug target validation does not apply to bases
 	// before core26.
 	excluded := []string{
-		"bare", "core", "core18", "core20", "core22", "core24",
+		"core", "core18", "core20", "core22", "core24",
 	}
 	if strutil.ListContains(excluded, base) {
 		return nil
