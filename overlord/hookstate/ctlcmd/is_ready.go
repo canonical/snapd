@@ -31,9 +31,10 @@ type isReadyCommand struct {
 }
 
 const (
-	changeNotReadyExitCode     = 1
-	changeUnsuccessfulExitCode = 2
-	otherErrorExitCode         = 3
+	changeReadyExitCode = iota
+	changeNotReadyExitCode
+	changeUnsuccessfulExitCode
+	otherErrorExitCode
 )
 
 var shortIsReadyHelp = i18n.G(`Return the status of the associated change id.`)

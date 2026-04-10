@@ -15,22 +15,17 @@ details: |
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 prepare: |
-  snap pack test-snap/
-  snap pack test-comp/
-  snap install --dangerous test-snapctl-is-ready_1.0_all.snap
-  snap install --dangerous test-snapctl-is-ready+comp_1.0.comp
-
-restore: |
-  snap remove --purge test-snapctl-is-ready || true
+  "$TESTSTOOLS"/snaps-state install-local test-snapctl-is-ready+comp_1.0.comp
 
 execute: |
   echo "Remove component via snapctl to create a snapctl-remove change"
   snap run test-snapctl-is-ready.app snapctl remove +comp
 
   CHANGE_ID=$(snap debug api /v2/changes?select=all | \
-    gojq '[.result[] | select(.kind == "snapctl-remove")] | last | .id' | \
-    tr -d '"')
-  test -n "$CHANGE_ID" && test "$CHANGE_ID" != "null"
+    gojq --raw-output '[.result[] | select(.kind == "snapctl-remove")] | last | .id')
+
+  test -n "$CHANGE_ID"
+  test "$CHANGE_ID" != "null"
 
   echo "snapctl is-ready exits 0 for a completed change (stdout is empty; exit code conveys status)"
   snap run test-snapctl-is-ready.app snapctl is-ready "$CHANGE_ID"

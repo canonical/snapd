@@ -521,8 +521,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	key := fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName)
 
 	lastAccess := st.Cached(key)
-	st.Cache(key, time.Now().UnixNano())
-
+	
 	// Compute how long to wait before checking the change status. If there is
 	// no previous access recorded (first call, or after a snapd restart that
 	// wiped the in-memory cache), toWait stays zero and we proceed immediately.
@@ -538,6 +537,8 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	st.Unlock()
 
 	ready := chg.Ready()
+
+	st.Cache(key, time.Now().UnixNano())
 
 	if toWait <= 0 {
 		select {
