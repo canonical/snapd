@@ -23,12 +23,12 @@ environment:
     MOUNT_DEST_GLOBAL_DATA: $SNAP_DATA/target1
     MOUNT_DEST_USER_COMMON: $SNAP_USER_COMMON/target1
     MOUNT_DEST_USER_DATA: $SNAP_USER_DATA/target1
-    VARIANT/v1: v1
-    VARIANT/v2: v2
-    VARIANT/v3: v3
-    VARIANT/v4: v4
-    VARIANT/v5: v5
-    VARIANT/v6: v6
+    VARIANT/remove_succeeds_when_slave_mount_in_snap_ns_under_global_common: v1
+    VARIANT/remove_succeeds_when_slave_mount_in_snap_ns_under_global_data: v2
+    VARIANT/remove_currently_fails_when_snapctl_mount_in_host_ns_under_global_common: v3
+    VARIANT/remove_currently_fails_when_snapctl_mount_in_host_ns_under_global_data: v4
+    VARIANT/remove_currently_fails_when_user_mount_in_host_ns_under_user_common: v5
+    VARIANT/remove_currently_fails_when_user_mount_in_host_ns_under_user_data: v6
 
 restore: |
     rm -rf "$MOUNT_SRC"
