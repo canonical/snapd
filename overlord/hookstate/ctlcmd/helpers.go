@@ -535,7 +535,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		toWait = 200*time.Millisecond - now.Sub(time.Unix(0, lastAccessNano))
 	}
 
-	st.Cache(key, now.UnixNano())
+	st.Cache(key, now.UnixNano() + toWait.Nanoseconds())
 	st.Unlock()
 
 	ready := chg.Ready()
