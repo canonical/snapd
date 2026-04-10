@@ -494,6 +494,10 @@ func jsonRaw(v any) *json.RawMessage {
 	return &raw
 }
 
+type changeRateLimitKey struct {
+	ChangeID string
+}
+
 // isReady checks if the change is ready, if it is, it returns the status, otherwise state.DoingStatus.
 func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	callerSnapName := hctx.InstanceName()
@@ -518,8 +522,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
 	}
 
-	key := fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName)
-
+	key := changeRateLimitKey{ChangeID: changeID}
 	lastAccess := st.Cached(key)
 	now := time.Now()
 
@@ -535,7 +538,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		toWait = 200*time.Millisecond - now.Sub(time.Unix(0, lastAccessNano))
 	}
 
-	st.Cache(key, now.UnixNano() + toWait.Nanoseconds())
+	st.Cache(key, now.UnixNano()+toWait.Nanoseconds())
 	st.Unlock()
 
 	ready := chg.Ready()

@@ -53,6 +53,7 @@ var (
 
 type KmodCommand = kmodCommand
 type IsReadyCommand = isReadyCommand
+type ChangeRateLimitKey = changeRateLimitKey
 
 func MockKmodCheckConnection(f func(*hookstate.Context, string, []string) error) (restore func()) {
 	r := testutil.Backup(&kmodCheckConnection)

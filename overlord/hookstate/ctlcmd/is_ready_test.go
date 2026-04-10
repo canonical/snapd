@@ -157,7 +157,7 @@ func (s *isReadySuite) rateLimitSetup(c *C, taskStatus state.Status, lastAccesse
 	chg.Set("initiated-by-snap", "test-snap")
 
 	if lastAccessedTime != nil {
-		st.Cache("snapctl-test-snap-last-accessed", lastAccessedTime)
+		st.Cache(ctlcmd.ChangeRateLimitKey{ChangeID: chg.ID()}, lastAccessedTime)
 	}
 
 	task.SetStatus(taskStatus)
