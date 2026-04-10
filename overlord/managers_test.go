@@ -9068,7 +9068,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 	})
 
 	snapPath, _ := s.makeStoreTestSnapWithFiles(c, prereqSnapYaml, "1", [][]string{
-		// using non-standard base, the cotnent target needs to be pre-created
+		// using non-standard base, the content target needs to be pre-created
 		{"data-dir/"},
 	})
 	s.serveSnap(snapPath, "1")
