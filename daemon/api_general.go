@@ -454,7 +454,14 @@ func sysInfoStorageEnc(c *Command, r *http.Request, user *auth.UserState) Respon
 	st.Lock()
 	defer st.Unlock()
 
-	state, err := fdestateSystemState(st)
+	devmgr := c.d.overlord.DeviceManager()
+
+	model, err := devmgr.Model()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return InternalError("cannot find model: %v", err)
+	}
+
+	state, err := fdestateSystemState(st, model)
 	if err != nil {
 		return InternalError("cannot determine system encrypted state: %s", err)
 	}
