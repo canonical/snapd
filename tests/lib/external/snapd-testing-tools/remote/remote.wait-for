@@ -138,7 +138,22 @@ wait_for_device_initialized() {
 
     echo "remote.wait-for: waiting for device initialized"
 
-    while ! remote.exec "snap changes" | grep -Eq "Done.*Initialize device"; do
+    while true; do
+        if remote.exec "snap changes" 2>/dev/null | grep -Eq "Done.*Initialize device"; then
+            echo ""
+            echo "remote.wait-for: device initialized"
+            return 0
+        fi
+
+        # Check if SSH is still available; if not, wait for reconnection
+        if ! remote.exec "true" &>/dev/null; then
+            echo ""
+            echo "remote.wait-for: SSH connection lost during device initialization, waiting for reconnection"
+            wait_for_reconnect_ssh
+            echo "remote.wait-for: SSH reconnected, resuming device initialization check"
+            continue
+        fi
+
         echo -n '.'
         attempts=$(( attempts - 1 ))
         if [ $attempts -le 0 ]; then
@@ -148,8 +163,8 @@ wait_for_device_initialized() {
         fi
         sleep "$wait"
     done
-    echo ""
-    echo "remote.wait-for: device initialized"
+    echo "remote.wait-for: reached unexpected point during device initialization. Failing"
+    return 1
 }
 
 wait_for_refresh_reboot() {
