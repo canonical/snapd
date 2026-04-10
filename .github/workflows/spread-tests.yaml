@@ -381,11 +381,21 @@ jobs:
           let child_process = require('child_process');
           let systems = process.env.SYSTEMS.split(' ');
 
-          let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            run_id: context.runId,
-          });
+          let page = 1;
+          let per_page = 100;
+          let allArtifacts = [];
+          let response;
+          do {
+            response = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+              per_page: per_page,
+              page: page
+            });
+            allArtifacts = allArtifacts.concat(response.data.artifacts);
+            page++;
+          } while (response.data.artifacts.length === per_page);
           
           for (let system of systems) {
             let artifactName = `package-${system}`;
