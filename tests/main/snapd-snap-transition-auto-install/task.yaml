@@ -33,14 +33,17 @@ prepare: |
 
     # Install deb + core before introduction of snapd auto-install
     # on classic systems, which was introduced in 2.65
-    # deb:  snapd | 2.62+24.04build1
+    # deb:  snapd | Mar 2024 | 2.62+24.04build1
     # snap: core  | Jun 2024 | 16-2.61.4-20240607 (rev 17200) | https://snapcraft.io/core/releases
     
     # 'deb' : transition snapd deb to re-exec from snapd snap
     # 'core': transition re-exec from snapd in core snap to re-exec from snapd snap
     # core => deb, re-exec snapd from core snap
-    apt install -y --allow-downgrades snapd="2.62+24.04build1"
-    tests.cleanup defer sudo dpkg -i "${GOHOME}"/snapd_*.deb
+    if [ "$SNAPD_SRC" = "core" ]; then
+        # core => deb, re-exec snapd from core snap
+        apt install -y --allow-downgrades snapd="2.62+24.04build1"
+        tests.cleanup defer sudo dpkg -i "${GOHOME}"/snapd_*.deb
+    fi
 
     snap install core --revision=17200 # 16-2.61.4-20240607
 
