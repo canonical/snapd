@@ -373,7 +373,7 @@ type killAfterWriter struct {
 }
 
 func (kaw *killAfterWriter) Write(p []byte) (int, error) {
-	if kaw.killAfter < 0 {
+	if kaw.killAfter <= 0 {
 		// already exceeded the quota, kill immediately
 		kaw.hijackAndClose()
 		return 0, fmt.Errorf("connection killed")

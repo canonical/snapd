@@ -1343,6 +1343,16 @@ func (s *storeTestSuite) TestDebugEndpointKillAfter(c *C) {
 	// Connection forcefully closed mid-transfer, exactly killAfter bytes received
 	c.Check(int64(len(got)), Equals, killAfter)
 
+	// Retry the request, which should be killed after receiving 0 bytes because
+	// the killAfter effect is stateful.
+	resp, err = s.StoreGet(downloadPath)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	got, _ = io.ReadAll(resp.Body)
+	// Connection forcefully closed mid-transfer, exactly killAfter bytes received
+	c.Check(int64(len(got)), Equals, int64(0))
+
 	// Clear it by setting kill-after to 0
 	resp, err = s.StorePostJSON("/debug", []byte(fmt.Sprintf(`{
 		"action": "kill-request",
