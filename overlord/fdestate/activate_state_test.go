@@ -29,6 +29,7 @@ import (
 
 	sb "github.com/snapcore/secboot"
 
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -93,7 +94,7 @@ func (s *activateStateSuite) TestActivateStateHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	systemState, err := fdestate.SystemState(st)
+	systemState, err := fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
@@ -102,7 +103,7 @@ func (s *activateStateSuite) TestActivateStateHappy(c *C) {
 	})
 
 	// Let's check the file is cached
-	_, err = fdestate.SystemState(st)
+	_, err = fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 	c.Check(calls, Equals, 1)
 }
@@ -133,7 +134,7 @@ func (s *activateStateSuite) TestActivateStateHappyWithAutoRepairState(c *C) {
 
 	fdestate.SetRepairAttemptResult(st, &fdestate.RepairState{Result: fdestate.AutoRepairSuccess})
 
-	systemState, err := fdestate.SystemState(st)
+	systemState, err := fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
@@ -142,7 +143,7 @@ func (s *activateStateSuite) TestActivateStateHappyWithAutoRepairState(c *C) {
 	})
 
 	// Let's check the file is cached
-	_, err = fdestate.SystemState(st)
+	_, err = fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 	c.Check(calls, Equals, 1)
 }
@@ -174,7 +175,7 @@ func (s *activateStateSuite) TestActivateStateDegraded(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	systemState, err := fdestate.SystemState(st)
+	systemState, err := fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
@@ -183,7 +184,7 @@ func (s *activateStateSuite) TestActivateStateDegraded(c *C) {
 	})
 
 	// Let's check the file is cached
-	_, err = fdestate.SystemState(st)
+	_, err = fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 	c.Check(calls, Equals, 1)
 }
@@ -203,7 +204,7 @@ func (s *activateStateSuite) TestActivateStateInactive(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	systemState, err := fdestate.SystemState(st)
+	systemState, err := fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
@@ -234,7 +235,7 @@ func (s *activateStateSuite) TestActivateStateRecovery(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	systemState, err := fdestate.SystemState(st)
+	systemState, err := fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
@@ -253,7 +254,7 @@ func (s *activateStateSuite) TestActivateStateNoActivateState(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	systemState, err := fdestate.SystemState(st)
+	systemState, err := fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
@@ -262,7 +263,85 @@ func (s *activateStateSuite) TestActivateStateNoActivateState(c *C) {
 	})
 }
 
-func (s *activateStateSuite) TestActivateStateNoUnlockedJSON(c *C) {
+func (s *activateStateSuite) TestActivateStateNoUnlockedJSONStateHybridModel(c *C) {
+	defer fdestate.MockBootLoadDiskUnlockState(func(name string) (*boot.DiskUnlockState, error) {
+		c.Check(name, Equals, "unlocked.json")
+		return nil, os.ErrNotExist
+	})()
+
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	store := assertstest.NewStoreStack("canonical", nil)
+	brands := assertstest.NewSigningAccounts(store)
+	brands.Register("my-brand", brandPrivKey, nil)
+	m := brands.Model("my-brand", "my-model", map[string]any{
+		"architecture": "amd64",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"base":         "core26",
+		"snaps": []any{
+			map[string]any{
+				"name":     "kernel",
+				"type":     "kernel",
+				"id":       "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
+				"revision": "1",
+			},
+			map[string]any{
+				"name":     "gadget",
+				"type":     "gadget",
+				"id":       "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
+				"revision": "1",
+			},
+			map[string]any{
+				"name":     "core26",
+				"type":     "base",
+				"id":       "cUqM61hRuZAJYmIS898Ux66VY61gBbZf",
+				"revision": "1",
+			},
+		},
+	})
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	systemState, err := fdestate.SystemState(st, m)
+	c.Assert(err, IsNil)
+
+	c.Check(systemState, SerializesTo, map[string]any{
+		"status":             "indeterminate",
+		"auto-repair-result": "not-initialized",
+	})
+}
+
+func (s *activateStateSuite) TestActivateStateNoUnlockedJSONClassicModel(c *C) {
+	defer fdestate.MockBootLoadDiskUnlockState(func(name string) (*boot.DiskUnlockState, error) {
+		c.Check(name, Equals, "unlocked.json")
+		return nil, os.ErrNotExist
+	})()
+
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	store := assertstest.NewStoreStack("canonical", nil)
+	brands := assertstest.NewSigningAccounts(store)
+	brands.Register("my-brand", brandPrivKey, nil)
+	m := brands.Model("my-brand", "my-model", map[string]any{
+		"architecture": "amd64",
+		"classic":      "true",
+	})
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	systemState, err := fdestate.SystemState(st, m)
+	c.Assert(err, IsNil)
+
+	c.Check(systemState, SerializesTo, map[string]any{
+		"status":             "inactive",
+		"auto-repair-result": "not-initialized",
+	})
+}
+
+func (s *activateStateSuite) TestActivateStateNoUnlockedJSONNoModel(c *C) {
 	defer fdestate.MockBootLoadDiskUnlockState(func(name string) (*boot.DiskUnlockState, error) {
 		c.Check(name, Equals, "unlocked.json")
 		return nil, os.ErrNotExist
@@ -272,7 +351,7 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSON(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	systemState, err := fdestate.SystemState(st)
+	systemState, err := fdestate.SystemState(st, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
@@ -291,6 +370,6 @@ func (s *activateStateSuite) TestActivateStateErrorUnlockedJSON(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := fdestate.SystemState(st)
+	_, err := fdestate.SystemState(st, nil)
 	c.Assert(err, ErrorMatches, `some error`)
 }
