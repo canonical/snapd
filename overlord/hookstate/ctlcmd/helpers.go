@@ -793,6 +793,68 @@ func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
 	st.Cache(key, accessed.UnixNano())
 }
 
+// changeStatus checks if the change is ready, if it is, it returns the status, otherwise st.Doing.
+func changeStatus(hctx *hookstate.Context, changeID string) (state.Change, error) {
+	callerSnapName := hctx.InstanceName()
+
+	st := hctx.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(changeID)
+
+	if chg == nil {
+		return state.Change{}, fmt.Errorf("change %q not found", changeID)
+	}
+
+	var initiatorSnapName string
+	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	if err != nil {
+		return state.Change{}, fmt.Errorf("could not find initiator attribute for change %q", changeID)
+	}
+
+	if initiatorSnapName != callerSnapName {
+		return state.Change{}, fmt.Errorf("change %q was initiated by another snap", changeID)
+	}
+
+	lastAccess := st.Cached(fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName))
+	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().UnixNano())
+
+	// Compute how long to wait before checking the change status.
+	var toWait time.Duration
+	if lastAccess != nil {
+		lastAccessNano, ok := lastAccess.(int64)
+		if !ok {
+			return state.Change{}, fmt.Errorf("invalid last accessed time format for change %q", changeID)
+		}
+		toWait = 200*time.Millisecond - time.Since(time.Unix(0, lastAccessNano))
+	}
+
+	st.Unlock()
+
+	ready := chg.Ready()
+
+	if toWait <= 0 {
+		select {
+		case <-ready:
+			st.Lock()
+			return *chg, nil
+		default:
+			st.Lock()
+			return state.Change{}, nil
+		}
+	}
+
+	select {
+	case <-ready:
+		st.Lock()
+		return *chg, nil
+	case <-timeAfter(toWait):
+		st.Lock()
+		return state.Change{}, nil
+	}
+}
+
 // getAttribute unmarshals into result the value of the provided key from attributes map.
 // If the key does not exist, an error of type *NoAttributeError is returned.
 // The provided key may be formed as a dotted key path through nested maps.
