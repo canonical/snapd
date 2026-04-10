@@ -85,7 +85,7 @@ type Store struct {
 
 	// endpoint -> quota value, note this is stateful, i.e. the quota is counted
 	// for all requests to a given endpoint and after exceeding it, all
-	// subsequent requests will fail until it is reset though a request
+	// subsequent requests will fail until it is reset through a request
 	killAfter map[string]int64
 }
 
