@@ -521,6 +521,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	key := fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName)
 
 	lastAccess := st.Cached(key)
+	now := time.Now()
 	
 	// Compute how long to wait before checking the change status. If there is
 	// no previous access recorded (first call, or after a snapd restart that
@@ -531,10 +532,10 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		if !ok {
 			return state.DefaultStatus, fmt.Errorf("internal error: unexpected type (%T) for last accessed time on change %q", lastAccess, changeID)
 		}
-		toWait = 200*time.Millisecond - time.Since(time.Unix(0, lastAccessNano))
+		toWait = 200*time.Millisecond - now.Sub(time.Unix(0, lastAccessNano))
 	}
 
-	st.Cache(key, time.Now().UnixNano())
+	st.Cache(key, now.UnixNano())
 	st.Unlock()
 
 	ready := chg.Ready()
