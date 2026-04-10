@@ -25,8 +25,7 @@ environment:
     MOUNT_DEST_GLOBAL_DATA: $SNAP_DATA/target1
     MOUNT_DEST_USER_COMMON: $SNAP_USER_COMMON/target1
     MOUNT_DEST_USER_DATA: $SNAP_USER_DATA/target1
-    # each test variant will execute:
-    #   test_$CASE $MOUNT_DEST
+    # each test variant will execute: test_$CASE $MOUNT_DEST
     CASE/v1,v2: remove_succeeds_when_slave_mount_in_snap_ns_under
     CASE/v3,v4: remove_currently_fails_when_snapctl_mount_in_host_ns_under
     CASE/v5,v6: remove_currently_fails_when_user_mount_in_host_ns_under
