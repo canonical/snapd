@@ -263,6 +263,10 @@ func MockProcessAutoImportAssertion(f func(*state.State, seed.Seed, asserts.RODa
 	}
 }
 
+func EnsureFDE(m *DeviceManager) error {
+	return m.ensureFDE()
+}
+
 func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
@@ -745,4 +749,8 @@ func MockSnapstateGadgetInfo(f func(st *state.State, deviceCtx snapstate.DeviceC
 
 func MockOsutilBootID(bootID string) (restore func()) {
 	return testutil.Mock(&osutilBootID, func() (string, error) { return bootID, nil })
+}
+
+func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error) error) (restore func()) {
+	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
 }

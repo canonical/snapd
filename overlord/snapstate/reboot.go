@@ -161,17 +161,13 @@ func waitForIfNeeded(waiter, target *state.Task) {
 }
 
 // addEarlyDownloadDeps sets up dependencies so that all early-download snaps'
-// beforeLocalSystemModificationsTasks complete before any snap's
-// upToLinkSnapAndBeforeReboot tasks begin. The head of each snap's
-// upToLinkSnapAndBeforeReboot chain waits on the tail of each early-download
-// snap's beforeLocalSystemModificationsTasks chain.
+// beforeLocalSystemModificationsTasks complete before any snap's first local
+// system modification begins. That first local-modification task is either the
+// explicit mount-snap task or, when no mount is needed, the head of the
+// upToLinkSnapAndBeforeReboot chain.
 func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]bool) error {
 	if len(earlyDownloads) == 0 {
 		return nil
-	}
-
-	head := func(tasks []*state.Task) *state.Task {
-		return tasks[0]
 	}
 
 	tail := func(tasks []*state.Task) *state.Task {
@@ -181,7 +177,7 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 	downloadTails := make(map[string]*state.Task, len(earlyDownloads))
 	for _, sts := range stss {
 		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
-			len(sts.upToLinkSnapAndBeforeReboot) == 0 {
+			sts.firstLocalMod() == nil {
 			return errors.New("internal error: snap install task set has empty slices")
 		}
 
@@ -192,7 +188,7 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 	}
 
 	for _, sts := range stss {
-		firstLocalMod := head(sts.upToLinkSnapAndBeforeReboot)
+		firstLocalMod := sts.firstLocalMod()
 		for name, tail := range downloadTails {
 			if name == sts.snapsup.InstanceName() {
 				continue
@@ -220,7 +216,9 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 //	|
 //	snapd (all tasks)
 //	|
-//	boot-base -> gadget -> kernel (pre-reboot tasks, up to and including link-snap)
+//	boot-base -> gadget -> kernel (mount-snap, when present)
+//	|
+//	boot-base -> gadget -> kernel (remaining pre-reboot tasks, up to and including link-snap)
 //	|
 //	create-recovery-system (if required)
 //	|
@@ -354,7 +352,21 @@ func arrangeRebootAndUpdateSeed(
 	// snapd, if we have one. might be nil!
 	finalSnapdTask := prev
 
-	// then all the pre-reboot tasks for essential snaps, in order
+	// then all the mount-snap tasks for essential snaps, in order. this applies
+	// only to single-reboot systems where mount-snap is orchestrated separately
+	// from the rest of the pre-reboot work.
+	if !isUC16 {
+		for _, t := range essentialSnapsRestartOrder {
+			sts, ok := essentials[t]
+			if !ok || sts.mountSnap == nil {
+				continue
+			}
+
+			chain(sts.mountSnap, sts.mountSnap)
+		}
+	}
+
+	// then all the remaining pre-reboot tasks for essential snaps, in order
 	for _, t := range essentialSnapsRestartOrder {
 		sts, ok := essentials[t]
 		if !ok {
@@ -488,7 +500,7 @@ func arrangeRebootAndUpdateSeed(
 	// than their first download task.
 	nonEssentialWaitHead := func(sts snapInstallTaskSet) *state.Task {
 		if earlyDownloads[sts.snapsup.InstanceName()] {
-			return head(sts.upToLinkSnapAndBeforeReboot)
+			return sts.firstLocalMod()
 		}
 		return head(sts.beforeLocalSystemModificationsTasks)
 	}

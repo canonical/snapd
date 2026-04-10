@@ -463,6 +463,106 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestDoPrereqRetryWhenDifferentLaneWaitsOnBaseInFlight(c *C) {
+	restore := snapstate.MockPrerequisitesRetryTimeout(1 * time.Millisecond)
+	defer restore()
+
+	var prereqTask *state.Task
+
+	calls := 0
+	s.runner.AddHandler("link-snap",
+		func(task *state.Task, _ *tomb.Tomb) error {
+			st := task.State()
+			st.Lock()
+			defer st.Unlock()
+
+			calls += 1
+			if calls == 1 {
+				// retry again later, this forces taskrunner
+				// to pick prequisites task.
+				return &state.Retry{After: 1 * time.Millisecond}
+			}
+
+			// setup everything as if the snap is installed
+			snapsup, _ := snapstate.TaskSnapSetup(task)
+			var snapst snapstate.SnapState
+			snapstate.Get(st, snapsup.InstanceName(), &snapst)
+			snapst.Current = snapsup.Revision()
+			snapst.Sequence.Revisions = append(snapst.Sequence.Revisions, sequence.NewRevisionSideState(snapsup.SideInfo, nil))
+			snapstate.Set(st, snapsup.InstanceName(), &snapst)
+
+			// prerequisites must still retry when only another lane for the same
+			// snap is already waiting on the base link-snap.
+			c.Check(prereqTask.Status(), Equals, state.DoingStatus)
+
+			return nil
+		}, nil)
+	s.runner.AddHandler("test-task", func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
+
+	s.state.Lock()
+	tBase := s.state.NewTask("link-snap", "Pretend core18 gets installed")
+	tBase.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core18",
+			Revision: snap.R(11),
+		},
+		Type: snap.TypeBase,
+	})
+
+	// install snapd so that prerequisites handler won't try to install it
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		}),
+		Current: snap.R(1),
+	})
+
+	prereqTask = s.state.NewTask("prerequisites", "foo")
+	prereqTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+		Base: "core18",
+	})
+	prereqTask.JoinLane(s.state.NewLane())
+
+	// this task belongs to the same snap and waits on the base link-snap, but
+	// it is in a different lane from prerequisites, so we do not expect to
+	// consider it evidence that the snap and base tasks are already properly
+	// ordered.
+	differentLaneTask := s.state.NewTask("test-task", "foo later task")
+	differentLaneTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+	})
+	differentLaneTask.JoinLane(s.state.NewLane())
+	differentLaneTask.WaitFor(tBase)
+
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(prereqTask)
+	chg.AddTask(tBase)
+	chg.AddTask(differentLaneTask)
+
+	for i := 0; i < 500; i++ {
+		time.Sleep(1 * time.Millisecond)
+		s.state.Unlock()
+		s.se.Ensure()
+		s.se.Wait()
+		s.state.Lock()
+		if prereqTask.Status() == state.DoneStatus {
+			break
+		}
+	}
+
+	c.Check(calls, Equals, 2)
+	c.Check(tBase.Status(), Equals, state.DoneStatus)
+	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
+	s.state.Unlock()
+}
+
 func (s *prereqSuite) TestDoPrereqFailWhenCircularDependencyDetected(c *C) {
 	s.runner.AddHandler("link-snap",
 		func(task *state.Task, _ *tomb.Tomb) error {

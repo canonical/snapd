@@ -16,7 +16,8 @@ if [ "${mode}" = "run" ]; then
         echo '/run/mnt/ubuntu-boot/EFI/ubuntu /boot/grub none bind 0 0' >> /run/image.fstab
         # ensure ESP efi dir is available for fwupdate (LP: 1892392)
         echo '/run/mnt/ubuntu-seed/ /boot/efi none bind 0 0' >> /run/image.fstab
-    elif [ -f /run/mnt/ubuntu-boot/uboot/ubuntu/boot.sel ]; then
+    elif [ -d /run/mnt/ubuntu-boot/uboot/ubuntu ]; then
+        # uboot and ubootpart bootloaders
         echo '/run/mnt/ubuntu-boot/uboot/ubuntu /boot/uboot none bind 0 0' >> /run/image.fstab
     elif [ -f /run/mnt/ubuntu-seed/piboot/ubuntu/piboot.conf ]; then
         echo '/run/mnt/ubuntu-seed/piboot/ubuntu /boot/piboot none bind 0 0' >> /run/image.fstab

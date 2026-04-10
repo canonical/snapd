@@ -576,6 +576,7 @@ with_alt_snap_mount_dir = 1
 with_apparmor = 1
 with_testkeys = %{with_test_keys}
 with_vendor = %{with_bundled}
+with_static_pie = 0
 # follow what %%gobuild does
 EXTRA_GO_BUILD_FLAGS = -v -x -compiler gc
 EXTRA_GO_LDFLAGS = -linkmode external -extldflags '%__global_ldflags'
@@ -776,11 +777,14 @@ for file in $(find . -iname "*_test.go"); do
     cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
     echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
 done
-
-# Install additional testdata
-install -d %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/test-data/
-cp -pav cmd/snap/test-data/* %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/test-data/
-echo "%%{gopath}/src/%%{import_path}/cmd/snap/test-data" >> unit-test-devel.file-list
+if [ -d cmd/snap/testdata ]; then
+    echo "%%dir %%{gopath}/src/%%{import_path}/cmd/snap/testdata" >> devel.file-list
+    install -d -p %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/testdata
+    for file in cmd/snap/testdata/*; do
+        cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
+        echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
+    done
+fi
 %endif
 
 %if 0%{?with_devel}
