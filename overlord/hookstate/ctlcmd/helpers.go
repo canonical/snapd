@@ -522,7 +522,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 
 	lastAccess := st.Cached(key)
 	now := time.Now()
-	
+
 	// Compute how long to wait before checking the change status. If there is
 	// no previous access recorded (first call, or after a snapd restart that
 	// wiped the in-memory cache), toWait stays zero and we proceed immediately.
