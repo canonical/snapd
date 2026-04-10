@@ -369,28 +369,25 @@ type detailsReplyJSON struct {
 
 type killAfterWriter struct {
 	http.ResponseWriter
-	killAfter int64
+	path         string
+	consumeQuota func(want int) int
 }
 
 func (kaw *killAfterWriter) Write(p []byte) (int, error) {
-	if kaw.killAfter <= 0 {
-		// already exceeded the quota, kill immediately
-		kaw.hijackAndClose()
-		return 0, fmt.Errorf("connection killed")
-	}
-
 	toWrite := p
 	shouldKill := false
-	if int64(len(p)) > kaw.killAfter {
+
+	got := kaw.consumeQuota(len(toWrite))
+	if len(p) > got {
 		// write only up to the remaining quota
-		toWrite = p[:kaw.killAfter]
+		toWrite = p[:got]
 		shouldKill = true
 	}
 
 	n, err := kaw.ResponseWriter.Write(toWrite)
-	kaw.killAfter -= int64(n)
 
 	if shouldKill {
+		logger.Noticef("request to %s was force killed, quota exceeded", kaw.path)
 		kaw.hijackAndClose()
 		return n, fmt.Errorf("connection killed")
 	}
@@ -508,11 +505,11 @@ func (s *Store) applyKillAfter(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		path := req.URL.Path
 
-		killAfter, exists := func() (int64, bool) {
+		exists := func() bool {
 			s.lock.Lock()
 			defer s.lock.Unlock()
-			v, ok := s.killAfter[path]
-			return v, ok
+			_, ok := s.killAfter[path]
+			return ok
 		}()
 
 		if !exists {
@@ -522,20 +519,34 @@ func (s *Store) applyKillAfter(handler http.HandlerFunc) http.HandlerFunc {
 
 		kaw := &killAfterWriter{
 			ResponseWriter: w,
-			killAfter:      killAfter,
+			path:           path,
+			consumeQuota: func(want int) int {
+				s.lock.Lock()
+				defer s.lock.Unlock()
+
+				v, ok := s.killAfter[path]
+				if !ok {
+					// no quota set
+					return want
+				}
+
+				left := int(v)
+
+				var got int
+				if want > left {
+					got = left
+					left = 0
+				} else {
+					got = want
+					left -= want
+				}
+				s.killAfter[path] = int64(left)
+
+				return got
+			},
 		}
 		handler(kaw, req)
 
-		if kaw.killAfter < 0 {
-			logger.Noticef("%s was force killed, quota exceeded", path)
-		}
-
-		// update killAfter for path after write finishes
-		func() {
-			s.lock.Lock()
-			defer s.lock.Unlock()
-			s.killAfter[path] = kaw.killAfter
-		}()
 	}
 }
 
