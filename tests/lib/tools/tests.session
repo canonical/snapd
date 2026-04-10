@@ -286,7 +286,7 @@ main() {
 		--setenv TERM=xterm-256color \
 		--property "Environment=SNAPD_DEBUG=$SNAPD_DEBUG SNAP_REEXEC=$SNAP_REEXEC SNAP_CONFINE_DEBUG=$SNAP_CONFINE_DEBUG" \
 		$selinux_context_arg \
-		"$(command -v runuser)" -l "$user" $runuser_env_arg - -c "exec $tmp_dir/exec" || true
+		"$(command -v runuser)" $runuser_env_arg -l "$user" -c "exec $tmp_dir/exec" || true
 
 		# Prevent accumulation of failed sessions.
 		if systemctl cat "$unit_name" &>/dev/null; then

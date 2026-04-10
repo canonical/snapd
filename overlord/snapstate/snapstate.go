@@ -1312,8 +1312,8 @@ func canSplitRefresh(st *state.State, deviceCtx DeviceContext, updates []update)
 		return nil, nil, false, err
 	}
 
-	// TODO: teach split refresh to keep all seed snaps on the essential
-	// side so seed creation can still happen in one pass.
+	// TODO:SEEDREFRESH: teach split refresh to keep all seed snaps on the
+	// essential side so seed creation can still happen in one pass.
 	if seedRefresh {
 		return nil, nil, false, nil
 	}

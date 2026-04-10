@@ -10,4 +10,4 @@ execute: |
   snap debug stacktraces | MATCH 'github.com/snapcore/snapd/daemon'
 
   echo "Ensure that stacktrace is not available to non-root users"
-  su - test /bin/sh -c "snap debug stacktraces 2>&1" | MATCH "error: access denied"
+  su -c "snap debug stacktraces 2>&1" - test /bin/sh | MATCH "error: access denied"

@@ -1,0 +1,196 @@
+#!/bin/bash
+set -euo pipefail
+
+# mdsh_echo - extract shell code blocks from README.md based on markdown structure.
+mdsh_echo() {
+	# Read the README.md file.
+	exec {fd}<README.md
+
+	# Preserve whitespace.
+	local IFS=''
+
+	# Process each positional argument to discover markdown structure elements.
+	while [ $# -gt 0 ]; do
+		while read -r line <&"$fd"; do
+			if [ "$line" = "$1" ]; then
+				shift
+				continue 2
+			fi
+		done
+
+		echo "cannot find in README.md: $1" 1>&2
+		exit 1
+	done
+
+	# Find the first shell block.
+	while read -r line <&"$fd"; do
+		case "$line" in
+		\#*)
+			echo "cannot find in README.md: shell block in requested section" 1>&2
+			return 1
+			;;
+		esac
+
+		if [ "$line" = '```sh' ]; then
+			break
+		fi
+	done
+
+	# Output the shell block until we find the closing backticks.
+	while read -r line <&"$fd"; do
+		if [ "$line" = '```' ]; then
+			return 0
+		fi
+
+		echo "$line"
+	done
+
+	# If we reach this point, we didn't find a closing backticks.
+	echo "cannot find in README.md: closing backticks" 1>&2
+	return 1
+}
+
+half_margin() {
+	cat && echo
+}
+
+margin() {
+	echo && cat && echo
+}
+
+line_buffered() {
+	if command -v stdbuf >/dev/null 2>&1; then
+		stdbuf -oL "$@"
+	else
+		"$@"
+	fi
+}
+
+indent() {
+	line_buffered sed 's/^/    /'
+}
+
+dim() {
+	while IFS= read -r line; do
+		printf '\033[2m%s\033[0m\n' "$line"
+	done
+}
+
+bright() {
+	while IFS= read -r line; do
+		printf '\033[1m%s\033[0m\n' "$line"
+	done
+}
+
+yellow() {
+	while IFS= read -r line; do
+		printf '\033[33m%s\033[0m\n' "$line"
+	done
+}
+
+mdsh_bash() {
+	container_cmd=$(mdsh_echo "$@")
+	# Run the script with stdout, stderr, and trace all prefixed and sent to the co-process
+	local fd="${FORMATTER[1]}"
+	BASH_XTRACEFD=23 bash -x -u -c -- "$container_cmd" \
+		> >(line_buffered sed 's/^/O/' >&"$fd") \
+		2> >(line_buffered sed 's/^/E/' >&"$fd") \
+		23> >(line_buffered sed 's/^/+/' >&"$fd")
+}
+
+kulturysta() {
+	local skip_tests=false
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--no-tests)
+			skip_tests=true
+			shift
+			;;
+		*)
+			echo "kulturysta: unknown option: $1" 1>&2
+			return 1
+			;;
+		esac
+	done
+
+	# Export SKIP_TESTS for use in container scripts via -e SKIP_TESTS.
+	if "$skip_tests"; then
+		export SKIP_TESTS=1
+	else
+		export SKIP_TESTS=
+	fi
+
+	local podman_version podman_major
+	podman_version=$(podman --version | awk '/podman version/ { if (match($0, /([0-9]+.?)+/) != 0) { print substr($0, RSTART, RLENGTH); exit } }')
+	podman_major=${podman_version%%.*}
+	case "$podman_major" in
+	'' | *[!0-9]*)
+		echo "podman 5 or later is required" 1>&2
+		return 1
+		;;
+	esac
+	if [ "$podman_major" -lt 5 ]; then
+		echo "podman 5 or later is required" 1>&2
+		return 1
+	fi
+
+	if [ ! -f README.md ]; then
+		echo "kulturysta: README.md not found, call me from a sub-directory" 1>&2
+		return 1
+	fi
+
+	# Preserve terminal stdio for formatter output.
+	exec {term_stdout}>&1
+	exec {term_stderr}>&2
+
+	# Start the output formatter co-process.
+	# Named co-process creates FORMATTER array with FORMATTER[0]=read_fd, FORMATTER[1]=write_fd
+	coproc FORMATTER {
+		while IFS= read -r line; do
+			case "${line:0:1}" in
+			O)
+				printf "%s\n" "${line:1}" | indent >&"$term_stdout"
+				;;
+			E)
+				printf "%s\n" "${line:1}" | indent | yellow >&"$term_stderr"
+				;;
+			+)
+				printf "%s\n" "${line:1}" | indent | dim >&"$term_stderr"
+				;;
+			esac
+		done
+	}
+
+	# Formatter output is written directly to terminal fds, so we never read this end.
+	local formatter_0
+	formatter_0=${FORMATTER[0]}
+	exec {formatter_0}<&-
+
+	echo "I will run the following script on the host:" | half_margin | bright
+
+	mdsh_echo "## Host Script" | indent | dim
+
+	echo "I will run the following script in a container:" | margin | bright
+
+	mdsh_echo "## Container Script" | indent | dim
+
+	echo "I will run a container using the following command" | margin | bright
+
+	mdsh_echo "## Build Container" | indent | dim
+
+	echo "Running host commands..." | margin | bright
+
+	mdsh_bash "## Host Script"
+
+	echo "Running container commands..." | margin | bright
+
+	mdsh_bash "## Build Container" < <(mdsh_echo "## Container Script")
+
+	# Close the write end of the co-process and wait for it to finish
+	local formatter_1
+	formatter_1=${FORMATTER[1]}
+	exec {formatter_1}>&-
+	wait "$FORMATTER_PID" 2>/dev/null || true
+}
+
+kulturysta "$@"

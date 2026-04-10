@@ -154,7 +154,8 @@ execute: |
 
         not mountpoint /run/mnt/base
         loop="$(findmnt -o source / -n)"
-        losetup -O back-file -n --raw "$loop" | MATCH "/run/mnt/data/.*/${base_snap}_.*"
+        # Might be in /run/mnt/ubuntu-seed/ on first 26+ boot or in /run/mnt/data/
+        losetup -O back-file -n --raw "$loop" | MATCH "/run/mnt/.*/${base_snap}_.*"
     fi
 
     # make sure that ubuntu-{seed,save} is mounted with appropriate flags

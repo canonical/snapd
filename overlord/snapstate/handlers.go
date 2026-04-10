@@ -347,6 +347,75 @@ func willWaitOn(graph *state.Task, target *state.Task) bool {
 	return false
 }
 
+// tasksShareLane reports whether the two tasks share at least one lane.
+func tasksShareLane(t, other *state.Task) bool {
+	lanes := make(map[int]bool, len(t.Lanes()))
+	for _, lane := range t.Lanes() {
+		lanes[lane] = true
+	}
+
+	for _, lane := range other.Lanes() {
+		if lanes[lane] {
+			return true
+		}
+	}
+
+	return false
+}
+
+// snapWaitsForBaseLinkInSameLane reports whether another task for the same snap
+// in the same lane is already ordered behind the base's link-snap task.
+func snapWaitsForBaseLinkInSameLane(prereqs *state.Task, baseLink *state.Task) (bool, error) {
+	// if they don't share a change, then there won't be dependencies already
+	// established
+	if prereqs.Change().ID() != baseLink.Change().ID() {
+		return false, nil
+	}
+
+	chg := prereqs.Change()
+
+	instanceName, ok := instanceNameFromTask(prereqs)
+	if !ok {
+		return false, errors.New("internal error: cannot find instance name on prerequisites task")
+	}
+
+	for _, t := range chg.Tasks() {
+		if t.ID() == prereqs.ID() {
+			continue
+		}
+
+		if !tasksShareLane(prereqs, t) {
+			continue
+		}
+
+		other, ok := instanceNameFromTask(t)
+		if !ok || other != instanceName {
+			continue
+		}
+
+		// this check could be made stronger by enforcing that the first local
+		// modification task for the snap waits on the base's link-snap task,
+		// but we don't have a great way to find that task at this point in
+		// time, since we don't have access to edges any more.
+		//
+		// in short, this is somewhat of a heuristic. we'd need to enumerate all
+		// before-local-modification tasks if we want to make this check better.
+		if willWaitOn(t, baseLink) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func instanceNameFromTask(t *state.Task) (string, bool) {
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return "", false
+	}
+	return snapsup.InstanceName(), true
+}
+
 func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []string, requireTypeBase bool, channel string, onInFlight error, userID int, flags Flags) (*state.TaskSet, error) {
 	st := t.State()
 
@@ -370,7 +439,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		return nil, err
 	}
 
-	inProgress := func(snapName string) (bool, error) {
+	shouldWaitForInFlightInstall := func(snapName string) (bool, error) {
 		linkTask, err := findLinkSnapTaskForSnap(st, snapName)
 		if err != nil {
 			return false, err
@@ -379,6 +448,20 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		if linkTask == nil {
 			// snap is not being installed
 			return false, nil
+		}
+
+		if requireTypeBase {
+			// if this snap is already ordered behind the in-flight base refresh
+			// prerequisites does not need to wait for that base out-of-band as
+			// well.
+			alreadyOrdered, err := snapWaitsForBaseLinkInSameLane(t, linkTask)
+			if err != nil {
+				return false, err
+			}
+
+			if alreadyOrdered {
+				return false, nil
+			}
 		}
 
 		if onInFlight != nil && willWaitOn(linkTask, t) {
@@ -408,7 +491,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 		}
 
 		// other kind of dependency, check if it's in progress
-		if ok, err := inProgress(snapName); err != nil {
+		if ok, err := shouldWaitForInFlightInstall(snapName); err != nil {
 			return nil, err
 		} else if ok {
 			return nil, onInFlight
@@ -418,7 +501,7 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 	}
 
 	// not installed, wait for it if it is. If not, we'll install it
-	if ok, err := inProgress(snapName); err != nil {
+	if ok, err := shouldWaitForInFlightInstall(snapName); err != nil {
 		return nil, err
 	} else if ok {
 		return nil, onInFlight
@@ -473,6 +556,19 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// TODO:SEEDREFRESH: lift this restriction. this can currently be avoided by
+	// ensuring that the content-provider prereq is a part of the original
+	// refresh. without this guard, the create-recovery-system task will not
+	// know about this incoming snap, and the seed won't end up using this new
+	// revision of the content-provider.
+	if changeCreatesRecoverySystem(t.Change()) {
+		for _, sn := range deviceCtx.Model().AllSnaps() {
+			if snapName == sn.Name {
+				return nil, errors.New("cannot update seed while also automatically updating content provider")
+			}
+		}
 	}
 
 	// TODO: as a temporary workaround for a bug that occurs when a snap updates
@@ -2296,10 +2392,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// find if the snap is already installed before we modify snapst below
 	isInstalled := snapst.IsInstalled()
 
-	cand := sequence.NewRevisionSideState(snapsup.SideInfo, nil)
-	m.backend.Candidate(cand.Snap)
+	oldCandidateIndex := snapst.LastIndex(snapsup.SideInfo.Revision)
 
-	oldCandidateIndex := snapst.LastIndex(cand.Snap.Revision)
+	var candidateComponents []*sequence.ComponentState
+	if oldCandidateIndex >= 0 {
+		candidateComponents = snapst.Sequence.Revisions[oldCandidateIndex].Components
+	}
+
+	cand := sequence.NewRevisionSideState(snapsup.SideInfo, candidateComponents)
+	m.backend.Candidate(cand.Snap)
 
 	var oldRevsBeforeCand []snap.Revision
 	if oldCandidateIndex < 0 {

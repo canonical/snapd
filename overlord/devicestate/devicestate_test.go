@@ -650,70 +650,6 @@ func (s *deviceMgrSuite) switchDevManagerToClassicWithModes(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOnClassicWithModes(c *C) {
-	s.switchDevManagerToClassicWithModes(c)
-	s.setPCModelInState(c)
-
-	secbootMarkSuccessfulCalled := 0
-	r := devicestate.MockSecbootMarkSuccessful(func() error {
-		secbootMarkSuccessfulCalled++
-		return nil
-	})
-	defer r()
-
-	err := devicestate.EnsureBootOk(s.mgr)
-	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
-}
-
-func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkRunsOncePerBoot(c *C) {
-	s.setPCModelInState(c)
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	restore = devicestate.MockOsutilBootID("boot-id-1")
-	defer restore()
-
-	secbootMarkSuccessfulCalled := 0
-	r := devicestate.MockSecbootMarkSuccessful(func() error {
-		secbootMarkSuccessfulCalled++
-		return nil
-	})
-	defer r()
-
-	var lastBootID string
-	s.state.Lock()
-	err := s.state.Get("ensure-boot-ok-boot-id", &lastBootID)
-	s.state.Unlock()
-	// ensure-boot-ok-boot-id is unset
-	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
-
-	// last reseal boot ID does not match current boot id so a reseal
-	// is expected
-	err = devicestate.EnsureBootOk(s.mgr)
-	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
-	c.Check(logbuf.String(), Equals, "")
-	logbuf.Reset()
-
-	s.state.Lock()
-	err = s.state.Get("ensure-boot-ok-boot-id", &lastBootID)
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-	c.Check(lastBootID, Equals, "boot-id-1")
-
-	// mimic a snapd restart
-	devicestate.SetEnsureBootOkRan(s.mgr, false)
-
-	// now last reseal boot ID matches current boot id so no reseal
-	// is expected
-	err = devicestate.EnsureBootOk(s.mgr)
-	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1) // unchanged
-	c.Check(logbuf.String(), testutil.Contains, `skipping boot ok check since it already ran for boot-id "boot-id-1"`)
-}
-
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	n := 0
 
@@ -753,13 +689,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
-	secbootMarkSuccessfulCalled := 0
-	r := devicestate.MockSecbootMarkSuccessful(func() error {
-		secbootMarkSuccessfulCalled++
-		return nil
-	})
-	defer r()
-
 	s.bootloader.SetBootVars(map[string]string{
 		"snap_mode":     boot.TryingStatus,
 		"snap_try_core": "core_1.snap",
@@ -779,7 +708,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	err := devicestate.EnsureBootOk(s.mgr)
 	s.state.Lock()
 	c.Assert(err, IsNil)
-	c.Check(secbootMarkSuccessfulCalled, Equals, 1)
 
 	m, err := s.bootloader.GetBootVars("snap_mode")
 	c.Assert(err, IsNil)
@@ -3442,4 +3370,38 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupCallbacks(c *C) {
 
 	c.Check(callA.called, Equals, 1)
 	c.Check(callB.called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDE(c *C) {
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		return fmt.Errorf("MarkSuccessful did not work")
+	})()
+
+	called := 0
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
+		c.Check(lockoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
+		called++
+		return nil
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "run")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEInstall(c *C) {
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
+		c.Errorf("unexpected call")
+		return fmt.Errorf("unexpected call")
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "install")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
 }

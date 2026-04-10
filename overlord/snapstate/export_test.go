@@ -625,12 +625,15 @@ type SnapInstallTaskSet = snapInstallTaskSet
 func NewSnapInstallTaskSetForTest(
 	snapsup *SnapSetup,
 	ts *state.TaskSet,
-	beforeLocalSystemModificationsTasks, upToLinkSnapAndBeforeReboot, afterLinkSnapAndPostReboot []*state.Task,
+	beforeLocalSystemModificationsTasks []*state.Task,
+	mountSnap *state.Task,
+	upToLinkSnapAndBeforeReboot, afterLinkSnapAndPostReboot []*state.Task,
 ) SnapInstallTaskSet {
 	return SnapInstallTaskSet{
 		ts:                                  ts,
 		snapsup:                             snapsup,
 		beforeLocalSystemModificationsTasks: beforeLocalSystemModificationsTasks,
+		mountSnap:                           mountSnap,
 		upToLinkSnapAndBeforeReboot:         upToLinkSnapAndBeforeReboot,
 		afterLinkSnapAndPostReboot:          afterLinkSnapAndPostReboot,
 	}

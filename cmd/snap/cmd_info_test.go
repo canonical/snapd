@@ -97,33 +97,86 @@ func (s *infoSuite) TestMaybePrintServicesNoServices(c *check.C) {
 	}
 }
 
-func (s *infoSuite) TestMaybePrintComponents(c *check.C) {
+func (s *infoSuite) TestMaybePrintComponentsNoneInstalled(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
 
-	// c1 is "installed" (revision != 0), c2 is "not installed" (revision == 0)
-	c1 := client.Component{Name: "comp-1", Revision: snaplib.R(10)}
-	c2 := client.Component{Name: "comp-2", Revision: snaplib.R(0)}
+	// both components available in the store but not installed (revision unset)
+	c1 := client.Component{Name: "comp-1", Type: "standard"}
+	c2 := client.Component{Name: "comp-2", Type: "standard"}
 
-	remoteSnap := &client.Snap{Components: []client.Component{c1, c2}}
-	snap.SetupSnap(iw, nil, remoteSnap, nil)
-
+	snap.SetupSnap(iw, nil, &client.Snap{
+		Name:       "foo",
+		Components: []client.Component{c1, c2},
+	}, nil)
 	snap.MaybePrintComponents(iw)
 
-	c.Check(buf.String(), check.Equals, "components: 0/2\n")
+	c.Check(buf.String(), check.Equals, "components:\n"+
+		"  +comp-1:\t--\t--\t--\t--\tnot installed\n"+
+		"  +comp-2:\t--\t--\t--\t--\tnot installed\n")
+}
 
-	buf.Reset()
+func (s *infoSuite) TestMaybePrintComponentsMixedInstall(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+
+	// c1 is installed with revision, c2 is not installed (revision unset)
+	c1 := client.Component{
+		Name:          "comp-1",
+		Type:          "standard",
+		Version:       "1.0",
+		Revision:      snaplib.R(10),
+		InstalledSize: 1024,
+		InstallDate:   func() *time.Time { t := time.Date(2022, time.August, 19, 12, 34, 56, 0, time.UTC); return &t }(),
+	}
+	c2 := client.Component{Name: "comp-2", Type: "standard"}
 
 	snap.SetupSnap(iw, &client.Snap{
 		Name:       "foo",
 		Components: []client.Component{c1, c2},
-	}, remoteSnap, nil)
-
+	}, nil, nil)
 	snap.MaybePrintComponents(iw)
 
-	c.Check(buf.String(), check.Equals, "components: 1/2\n")
+	c.Check(buf.String(), check.Equals, "components:\n"+
+		"  +comp-1:\t1.0\t2022-08-19\t(10)\t1024B\t--\n"+
+		"  +comp-2:\t--\t--\t--\t--\tnot installed\n")
+}
 
-	buf.Reset()
+func (s *infoSuite) TestMaybePrintComponentsBothInstalled(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
+
+	c1 := client.Component{
+		Name:          "comp-1",
+		Type:          "standard",
+		Version:       "1.0",
+		Revision:      snaplib.R(10),
+		InstalledSize: 1024,
+		InstallDate:   func() *time.Time { t := time.Date(2022, time.August, 19, 12, 34, 56, 0, time.UTC); return &t }(),
+	}
+	c2 := client.Component{
+		Name:          "comp-2",
+		Type:          "kernel-modules",
+		Version:       "2.0",
+		Revision:      snaplib.R(20),
+		InstalledSize: 65536,
+		InstallDate:   func() *time.Time { t := time.Date(2022, time.August, 19, 12, 34, 56, 0, time.UTC); return &t }(),
+	}
+
+	snap.SetupSnap(iw, &client.Snap{
+		Name:       "foo",
+		Components: []client.Component{c1, c2},
+	}, nil, nil)
+	snap.MaybePrintComponents(iw)
+
+	c.Check(buf.String(), check.Equals, "components:\n"+
+		"  +comp-1:\t1.0\t2022-08-19\t(10)\t1024B\t--\n"+
+		"  +comp-2:\t2.0\t2022-08-19\t(20)\t65.5kB\tkernel-modules\n")
+}
+
+func (s *infoSuite) TestMaybePrintComponentsEmpty(c *check.C) {
+	var buf flushBuffer
+	iw := snap.NewInfoWriter(&buf)
 
 	snap.SetupSnap(iw, nil, &client.Snap{Components: []client.Component{}}, nil)
 	snap.MaybePrintComponents(iw)
@@ -131,26 +184,15 @@ func (s *infoSuite) TestMaybePrintComponents(c *check.C) {
 	c.Check(buf.String(), check.Equals, "")
 }
 
-func (s *infoSuite) TestMaybePrintComponentsBothInstalled(c *check.C) {
+func (s *infoSuite) TestMaybePrintComponents(c *check.C) {
+	// Keep a variant that exercises theSnap == nil path (no snap set up yet)
+	// which is covered by SetupSnap leaving theSnap as nil when both snaps are nil.
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
 
-	c1 := client.Component{Name: "comp-1", Revision: snaplib.R(10)}
-	c2 := client.Component{Name: "comp-2", Revision: snaplib.R(20)}
-
-	remoteSnap := &client.Snap{Components: []client.Component{c1, c2}}
-	snap.SetupSnap(iw, nil, remoteSnap, nil)
-
-	snap.SetupSnap(iw, &client.Snap{
-		Name:       "foo",
-		Components: []client.Component{c1, c2},
-	}, remoteSnap, nil)
-
 	snap.MaybePrintComponents(iw)
 
-	c.Check(buf.String(), check.Equals, "components: 2/2\n")
-
-	buf.Reset()
+	c.Check(buf.String(), check.Equals, "")
 }
 
 func (s *infoSuite) TestMaybePrintCommands(c *check.C) {

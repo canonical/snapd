@@ -97,7 +97,48 @@ func (s *activateStateSuite) TestActivateStateHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status": "active",
+		"status":             "active",
+		"auto-repair-result": "not-initialized",
+	})
+
+	// Let's check the file is cached
+	_, err = fdestate.SystemState(st)
+	c.Assert(err, IsNil)
+	c.Check(calls, Equals, 1)
+}
+
+func (s *activateStateSuite) TestActivateStateHappyWithAutoRepairState(c *C) {
+	calls := 0
+	defer fdestate.MockBootLoadDiskUnlockState(func(name string) (*boot.DiskUnlockState, error) {
+		calls += 1
+		c.Check(name, Equals, "unlocked.json")
+
+		s := &secboot.ActivateState{}
+		s.Activations = map[string]*sb.ContainerActivateState{
+			"data-cred-id": {
+				Status: sb.ActivationSucceededWithPlatformKey,
+			},
+			"save-cred-id": {
+				Status: sb.ActivationSucceededWithPlatformKey,
+			},
+		}
+		return &boot.DiskUnlockState{
+			State: s,
+		}, nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	fdestate.SetRepairAttemptResult(st, &fdestate.RepairState{Result: fdestate.AutoRepairSuccess})
+
+	systemState, err := fdestate.SystemState(st)
+	c.Assert(err, IsNil)
+
+	c.Check(systemState, SerializesTo, map[string]any{
+		"status":             "active",
+		"auto-repair-result": "success",
 	})
 
 	// Let's check the file is cached
@@ -137,7 +178,8 @@ func (s *activateStateSuite) TestActivateStateDegraded(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status": "degraded",
+		"status":             "degraded",
+		"auto-repair-result": "not-initialized",
 	})
 
 	// Let's check the file is cached
@@ -165,7 +207,8 @@ func (s *activateStateSuite) TestActivateStateInactive(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status": "inactive",
+		"status":             "inactive",
+		"auto-repair-result": "not-initialized",
 	})
 }
 
@@ -195,7 +238,8 @@ func (s *activateStateSuite) TestActivateStateRecovery(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status": "recovery",
+		"status":             "recovery",
+		"auto-repair-result": "not-initialized",
 	})
 }
 
@@ -213,7 +257,8 @@ func (s *activateStateSuite) TestActivateStateNoActivateState(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status": "indeterminate",
+		"status":             "indeterminate",
+		"auto-repair-result": "not-initialized",
 	})
 }
 
@@ -231,7 +276,8 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSON(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(systemState, SerializesTo, map[string]any{
-		"status": "indeterminate",
+		"status":             "indeterminate",
+		"auto-repair-result": "not-initialized",
 	})
 }
 
