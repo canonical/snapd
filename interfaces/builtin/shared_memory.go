@@ -348,7 +348,16 @@ func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification
 }
 
 func (iface *sharedMemoryInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
-	// allow what declarations allowed
+	var private bool
+	if err := plug.Attr("private", &private); err != nil && !errors.Is(err, snap.AttributeNotFoundError{}) {
+		return false
+	}
+
+	if private {
+		return implicitSystemPermanentSlot(slot)
+	}
+
+	// otherwise, allow what declarations allowed
 	return true
 }
 

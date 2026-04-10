@@ -40,19 +40,21 @@ import (
 type SharedMemoryInterfaceSuite struct {
 	testutil.BaseTest
 
-	iface            interfaces.Interface
-	slotInfo         *snap.SlotInfo
-	slot             *interfaces.ConnectedSlot
-	plugInfo         *snap.PlugInfo
-	plug             *interfaces.ConnectedPlug
-	wildcardPlugInfo *snap.PlugInfo
-	wildcardPlug     *interfaces.ConnectedPlug
-	wildcardSlotInfo *snap.SlotInfo
-	wildcardSlot     *interfaces.ConnectedSlot
-	privatePlugInfo  *snap.PlugInfo
-	privatePlug      *interfaces.ConnectedPlug
-	privateSlotInfo  *snap.SlotInfo
-	privateSlot      *interfaces.ConnectedSlot
+	iface                interfaces.Interface
+	slotInfo             *snap.SlotInfo
+	slot                 *interfaces.ConnectedSlot
+	plugInfo             *snap.PlugInfo
+	plug                 *interfaces.ConnectedPlug
+	wildcardPlugInfo     *snap.PlugInfo
+	wildcardPlug         *interfaces.ConnectedPlug
+	wildcardSlotInfo     *snap.SlotInfo
+	wildcardSlot         *interfaces.ConnectedSlot
+	privatePlugInfo      *snap.PlugInfo
+	privatePlug          *interfaces.ConnectedPlug
+	privateSlotInfo      *snap.SlotInfo
+	privateSlot          *interfaces.ConnectedSlot
+	privateSnapdSlotInfo *snap.SlotInfo
+	privateSnapdSlot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&SharedMemoryInterfaceSuite{
@@ -108,6 +110,16 @@ apps:
  app:
 `
 
+const sharedMemorySnapdYaml = `name: snapd
+version: 0
+type: snapd
+slots:
+ shared-memory:
+  interface: shared-memory
+apps:
+ app:
+`
+
 func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -119,6 +131,7 @@ func (s *SharedMemoryInterfaceSuite) SetUpTest(c *C) {
 
 	s.privatePlug, s.privatePlugInfo = MockConnectedPlug(c, sharedMemoryConsumerYaml, nil, "shmem-private")
 	s.privateSlot, s.privateSlotInfo = MockConnectedSlot(c, sharedMemoryCoreYaml, nil, "shared-memory")
+	s.privateSnapdSlot, s.privateSnapdSlotInfo = MockConnectedSlot(c, sharedMemorySnapdYaml, nil, "shared-memory")
 }
 
 func (s *SharedMemoryInterfaceSuite) TestName(c *C) {
@@ -485,6 +498,8 @@ func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
 
 func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
+	c.Assert(s.iface.AutoConnect(s.privatePlugInfo, s.slotInfo), Equals, false)
+	c.Assert(s.iface.AutoConnect(s.privatePlugInfo, s.privateSnapdSlotInfo), Equals, true)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {
