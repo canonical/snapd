@@ -697,10 +697,6 @@ prepare_suite() {
         snap set system journal.persistent=true
     fi
 
-    if [ "$SNAPD_SKIP_STATE_RESET" = "true" ]; then
-        return
-    fi
-
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
@@ -840,10 +836,6 @@ restore_suite_each() {
             systemctl reset-failed snapd.failure.service
         fi
     fi
-    if [[ "$variant" = full ]] && [ "$SNAPD_SKIP_STATE_RESET" != "true" ]; then
-        # shellcheck source=tests/lib/reset.sh
-        "$TESTSLIB"/reset.sh --reuse-core
-    fi
 
     # Check for invariants late, in order to detect any bugs in the code above.
     if [[ "$variant" = full ]]; then
@@ -855,10 +847,6 @@ restore_suite_each() {
 }
 
 restore_suite() {
-    if [ "$SNAPD_SKIP_STATE_RESET" = "true" ]; then
-        return
-    fi
-
     # shellcheck source=tests/lib/reset.sh
     if [ "$REMOTE_STORE" = staging ]; then
         "$TESTSTOOLS"/store-state teardown-staging-store
