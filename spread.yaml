@@ -143,6 +143,7 @@ environment:
     # When this is set to true, the test will be executed as a single run and snapd state won't be reset between test cases.
     # This is useful to speed up debugging when you want to run a single test case or a subset of test cases.
     SNAPD_SKIP_STATE_RESET: '$(HOST: echo "${SPREAD_SNAPD_SKIP_STATE_RESET:-}")'
+    SNAPD_SUPPORT_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SUPPORT_EARLY_REFRESH:-}")'
 
 backends:
     google:

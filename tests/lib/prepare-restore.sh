@@ -227,6 +227,20 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if [ "$SNAPD_SUPPORT_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
+        echo "Setting up early refresh hold for snapd to prevent automatic refreshes during tests"
+        if snap changes | MATCH '.*(Do|Doing).*Auto-refresh'; then
+            if retry -n 30 --wait 2 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'; then
+                echo "Snapd is waiting for system reboot, rebooting now..."
+                REBOOT
+            else
+                echo "Snapd is not waiting for system reboot"
+            fi
+        else
+            snap set system refresh.hold="$(date --date='7 days' --iso-8601=seconds)"
+        fi
+    fi
+
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
