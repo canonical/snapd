@@ -976,25 +976,65 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 	// if the error is transient so we also don't want to infinitely loop trying
 	// to add a connected plug that will never work.
 
-	// slot side
-	for _, slotInfo := range r.slots[snapName] {
+	// slot side — sort slot names for deterministic snippet ordering
+	slotNames := make([]string, 0, len(r.slots[snapName]))
+	for name := range r.slots[snapName] {
+		slotNames = append(slotNames, name)
+	}
+	sort.Strings(slotNames)
+	for _, slotName := range slotNames {
+		slotInfo := r.slots[snapName][slotName]
 		iface := r.ifaces[slotInfo.Interface]
 		if err := spec.AddPermanentSlot(iface, slotInfo); err != nil {
 			return nil, err
 		}
-		for _, conn := range r.slotPlugs[slotInfo] {
+		// sort connected plugs for deterministic ordering
+		connectedPlugs := make([]*snap.PlugInfo, 0, len(r.slotPlugs[slotInfo]))
+		for plugInfo := range r.slotPlugs[slotInfo] {
+			connectedPlugs = append(connectedPlugs, plugInfo)
+		}
+		sort.Slice(connectedPlugs, func(i, j int) bool {
+			si := connectedPlugs[i].Snap.InstanceName()
+			sj := connectedPlugs[j].Snap.InstanceName()
+			if si != sj {
+				return si < sj
+			}
+			return connectedPlugs[i].Name < connectedPlugs[j].Name
+		})
+		for _, plugInfo := range connectedPlugs {
+			conn := r.slotPlugs[slotInfo][plugInfo]
 			if err := spec.AddConnectedSlot(iface, conn.Plug, conn.Slot); err != nil {
 				return nil, err
 			}
 		}
 	}
-	// plug side
-	for _, plugInfo := range r.plugs[snapName] {
+	// plug side — sort plug names for deterministic snippet ordering
+	plugNames := make([]string, 0, len(r.plugs[snapName]))
+	for name := range r.plugs[snapName] {
+		plugNames = append(plugNames, name)
+	}
+	sort.Strings(plugNames)
+	for _, plugName := range plugNames {
+		plugInfo := r.plugs[snapName][plugName]
 		iface := r.ifaces[plugInfo.Interface]
 		if err := spec.AddPermanentPlug(iface, plugInfo); err != nil {
 			return nil, err
 		}
-		for _, conn := range r.plugSlots[plugInfo] {
+		// sort connected slots for deterministic ordering
+		connectedSlots := make([]*snap.SlotInfo, 0, len(r.plugSlots[plugInfo]))
+		for slotInfo := range r.plugSlots[plugInfo] {
+			connectedSlots = append(connectedSlots, slotInfo)
+		}
+		sort.Slice(connectedSlots, func(i, j int) bool {
+			si := connectedSlots[i].Snap.InstanceName()
+			sj := connectedSlots[j].Snap.InstanceName()
+			if si != sj {
+				return si < sj
+			}
+			return connectedSlots[i].Name < connectedSlots[j].Name
+		})
+		for _, slotInfo := range connectedSlots {
+			conn := r.plugSlots[plugInfo][slotInfo]
 			if err := spec.AddConnectedPlug(iface, conn.Plug, conn.Slot); err != nil {
 				return nil, err
 			}
