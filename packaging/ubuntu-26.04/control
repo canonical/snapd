@@ -45,9 +45,9 @@ Build-Depends: autoconf,
                systemd-dev | systemd (<< 255),
                xfslibs-dev
 Standards-Version: 3.9.7
-Homepage: https://github.com/snapcore/snapd
-Vcs-Browser: https://github.com/snapcore/snapd
-Vcs-Git: https://github.com/snapcore/snapd.git
+Homepage: https://github.com/canonical/snapd
+Vcs-Browser: https://github.com/canonical/snapd
+Vcs-Git: https://github.com/canonical/snapd.git
 
 Package: golang-github-snapcore-snapd-dev
 Architecture: all

@@ -109,12 +109,12 @@ ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
     # libudev and udevd so we need to link with it dynamically.
     VENDOR_ARGS=--enable-nvidia-multiarch --enable-static-libcap --enable-static-libapparmor --with-host-arch-triplet=$(DEB_HOST_MULTIARCH)
 ifeq ($(shell dpkg-architecture -qDEB_HOST_ARCH),amd64)
-		VENDOR_ARGS+= --with-host-arch-32bit-triplet=$(shell dpkg-architecture -f -ai386 -qDEB_HOST_MULTIARCH)
+    VENDOR_ARGS+= --with-host-arch-32bit-triplet=$(shell dpkg-architecture -f -ai386 -qDEB_HOST_MULTIARCH)
 endif
     BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
 ifeq ($(shell dpkg-vendor --query Vendor),Debian)
-    BUILT_USING_PACKAGES=libcap-dev
+    BUILT_USING_PACKAGES=libcap-dev libapparmor-dev libseccomp-dev
 else
     VENDOR_ARGS=--disable-apparmor
 endif
@@ -122,24 +122,7 @@ endif
 BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
-ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
-	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
-else
-	# "powerpc" is not supported unfortunately, do nothing here
-	# See https://github.com/tianon/debian-runc/compare/70957b315f82170dc2ab7085d39c23835c0fa996...xenial for a more elaborate version of this idea.
-	# Note that snapd never really worked on powerpc (we never had a core
-	# snap there) so we don't need to show anything to the user
-	if [ "$@" = "clean" ]; then \
-		rm -rf debian/snapd; \
-	fi; \
-	if [ "$@" = "binary" ] || [ "$@" = "binary-arch" ]; then \
-		install -m755 -d debian/snapd/usr/share/doc/snapd/; \
-		cp debian/README.powerpc debian/snapd/usr/share/doc/snapd/; \
-		dh_installdeb; \
-		dh_gencontrol; \
-		dh_builddeb; \
-	fi;
-endif
+	dh $@ --buildsystem=golang --with=golang --fail-missing --builddirectory=_build
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
@@ -157,19 +140,19 @@ override_dh_installsystemd:
 	# We need run dh_apparmor *before* dh_installsystemd to ensure the postinst
 	# snippets are added in the right order (first the new apparmor profile
 	# is loaded, then we restart the service).
-        dh_apparmor --profile-name=usr.lib.snapd.snap-confine.real -psnapd
+	dh_apparmor --profile-name=usr.lib.snapd.snap-confine.real -psnapd
 
 	# Due to https://github.com/systemd/systemd/issues/8102
-        # debhelper supporting --remaining like behaviour here would
-        # have been useful
+	# debhelper supporting --remaining like behaviour here would
+	# have been useful
 	# (Re-)start socket first
-        dh_installsystemd $(DH_SYSTEMD_START_OPTS) snapd.socket
-        # Then service
-        dh_installsystemd $(DH_SYSTEMD_START_OPTS) snapd.service
-        # Then the rest
-        dh_installsystemd $(DH_SYSTEMD_START_OPTS) \
-                $(filter-out snapd.socket snapd.service snapd.mounts-pre.target, \
-                $(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
+	dh_installsystemd $(DH_SYSTEMD_START_OPTS) snapd.socket
+	# Then service
+	dh_installsystemd $(DH_SYSTEMD_START_OPTS) snapd.service
+	# Then the rest
+	dh_installsystemd $(DH_SYSTEMD_START_OPTS) \
+	$(filter-out snapd.socket snapd.service snapd.mounts-pre.target, \
+	$(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
 
 override_dh_clean:
 	dh_clean
