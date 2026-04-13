@@ -56,7 +56,7 @@ prepare: |
 
   image_dir=$(tests.nested get images-path)
   image_name=$(tests.nested get image-name core)
-  cp ./pc.img "${image_dir}/${image_name}"
+  mv ./pc.img "${image_dir}/${image_name}"
   tests.nested configure-default-user
 
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
@@ -122,12 +122,13 @@ execute: |
       "${snap_id}"
   }
 
-  # capture seeded system state from state.json
+  # capture seeded system state and the on-disk recovery systems
   capture_seed_state() {
     local suffix="$1"
 
     remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > "seeded-systems-${suffix}.json"
     remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["default-recovery-system"]' > "default-recovery-system-${suffix}.json"
+    remote.exec 'find /run/mnt/ubuntu-seed/systems -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort' > "seed-system-labels-${suffix}.txt"
   }
 
   echo "Capture the initial seeded system state"
@@ -170,10 +171,11 @@ execute: |
   remote.exec "snap list ${base_snap}" | awk 'NR != 1 { print $3 }' | MATCH '^1$'
   remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $3 }' | MATCH '^1$'
 
-  echo "Verify seed state and recovery metadata were restored"
+  echo "Verify seed state, recovery metadata, and recovery systems were restored"
   capture_seed_state after
   cmp -s seeded-systems-before.json seeded-systems-after.json
   cmp -s default-recovery-system-before.json default-recovery-system-after.json
+  cmp -s seed-system-labels-before.txt seed-system-labels-after.txt
 
   echo "Verify the failed candidate seed was cleaned up"
   remote.exec "test ! -d /run/mnt/ubuntu-seed/systems/${candidate_label}"

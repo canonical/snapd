@@ -71,7 +71,7 @@ prepare: |
 
   image_dir=$(tests.nested get images-path)
   image_name=$(tests.nested get image-name core)
-  cp ./pc.img "${image_dir}/${image_name}"
+  mv ./pc.img "${image_dir}/${image_name}"
   tests.nested configure-default-user
 
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
