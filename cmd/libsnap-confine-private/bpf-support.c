@@ -197,8 +197,11 @@ bool bpf_path_is_bpffs(const char *path) {
 void bpf_mount_bpffs(const char *path) {
     /* systemd and bpftool disagree as to the propagation mode of bpffs mounts,
      * so go with the default which is a shared propagation and matches the
-     * state of a freshly booted system */
-    int res = mount("bpf", path, "bpf", 0, "mode=0700");
+     * state of a freshly booted system.
+     * MS_NOSUID|MS_NODEV|MS_NOEXEC are included as a defense-in-depth measure:
+     * bpffs only contains BPF maps and programs, so no executables, device
+     * nodes, or setuid binaries should ever appear there. */
+    int res = mount("bpf", path, "bpf", MS_NOSUID | MS_NODEV | MS_NOEXEC, "mode=0700");
     if (res < 0) {
         die("cannot mount bpf filesystem under %s", path);
     }
