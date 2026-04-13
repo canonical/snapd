@@ -222,6 +222,14 @@ static void test_parse_mountinfo_entry__partial_escape_oob(void) {
     const char *line;
     struct sc_mountinfo_entry *entry;
 
+    // Lone trailing backslash at end of string.
+    line = "2074 27 0:54 / /tmp/dir rw - tmpfs source rw\\";
+    entry = sc_parse_mountinfo_entry(line);
+    g_assert_nonnull(entry);
+    g_test_queue_destroy((GDestroyNotify)sc_free_mountinfo_entry, entry);
+    g_assert_cmpstr(entry->mount_source, ==, "source");
+    g_assert_cmpstr(entry->super_opts, ==, "rw\\");
+
     // Backslash followed by one octal digit at end of string.
     line = "2074 27 0:54 / /tmp/dir rw - tmpfs source rw\\0";
     entry = sc_parse_mountinfo_entry(line);
