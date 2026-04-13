@@ -29,25 +29,25 @@ var Version = "unknown"
 
 // VersionDistroPatch is the distribution-specific patch level (release number
 // or revision) appended to the upstream version by distribution packaging.
-// For example "0.fc42" for Fedora, "1" for a Debian revision, "1" for an Arch
-// pkgrel. It is empty for unpackaged (development) builds and native Debian
-// packages. The value is written by packaging scripts into version_generated.go
-// (sourced from the upstream source tarball) and into data/info.
+// The value includes any separator character, for example "~0.fc42" for Fedora,
+// "~1" for an Arch pkgrel, or "-1" for a Debian revision. It is empty for
+// unpackaged (development) builds and native Debian packages. The value is
+// written by packaging scripts into version_generated.go (sourced from the
+// upstream source tarball) and into data/info.
 var VersionDistroPatch = ""
 
 // FullVersion returns the full version string for display and version-tracking
 // purposes, combining the upstream Version with the distribution-specific
 // VersionDistroPatch (if set). When VersionDistroPatch is empty, it returns
-// Version unchanged.
+// Version unchanged. VersionDistroPatch includes any separator character so
+// that each distribution controls comparison order (e.g. "~0.fc42", "-1",
+// "+b1").
 //
 // Note: use Version (not FullVersion) when comparing against snap package
 // version strings (assumes assertions, info file, etc.) since those always carry
 // only the upstream version component.
 func FullVersion() string {
-	if VersionDistroPatch == "" {
-		return Version
-	}
-	return Version + "~" + VersionDistroPatch
+	return Version + VersionDistroPatch
 }
 
 func MockVersion(version string) (restore func()) {

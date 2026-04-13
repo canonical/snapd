@@ -82,7 +82,7 @@ func (s *versionSuite) TestFullVersionNoDistroPatch(c *C) {
 func (s *versionSuite) TestFullVersionWithDistroPatch(c *C) {
 	restore := snapdtool.MockVersion("2.75.2")
 	defer restore()
-	restorePatch := snapdtool.MockVersionDistroPatch("0.fc42")
+	restorePatch := snapdtool.MockVersionDistroPatch("~0.fc42")
 	defer restorePatch()
 	c.Check(snapdtool.FullVersion(), Equals, "2.75.2~0.fc42")
 }

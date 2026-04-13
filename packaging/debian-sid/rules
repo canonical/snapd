@@ -140,8 +140,8 @@ deb_revision := $(shell dpkg-parsechangelog --show-field Version | cut -d- -f2-)
 override_dh_auto_build: snapd.defines.mk
 	# Patch the Debian revision into the version files that arrived in the source
 	# tarball with empty placeholders.
-	sed -i "s|^VERSION_DISTRO_PATCH=.*|VERSION_DISTRO_PATCH=$(deb_revision)|" data/info
-	sed -i "s|VersionDistroPatch = \"\"|VersionDistroPatch = \"$(deb_revision)\"|" \
+	sed -i "s|^VERSION_DISTRO_PATCH=.*|VERSION_DISTRO_PATCH=-$(deb_revision)|" data/info
+	sed -i "s|VersionDistroPatch = \"\"|VersionDistroPatch = \"-$(deb_revision)\"|" \
 		_build/src/$(DH_GOPKG)/snapdtool/version_generated.go
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets

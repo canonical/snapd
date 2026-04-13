@@ -71,8 +71,8 @@ __DEFINES__
 
   # Patch the distribution-specific release into the version files that arrived
   # in the source tarball with empty placeholders.
-  sed -i "s|^VERSION_DISTRO_PATCH=.*|VERSION_DISTRO_PATCH=$pkgrel|" data/info
-  sed -i "s|VersionDistroPatch = \"\"|VersionDistroPatch = \"$pkgrel\"|" snapdtool/version_generated.go
+  sed -i "s|^VERSION_DISTRO_PATCH=.*|VERSION_DISTRO_PATCH=~$pkgrel|" data/info
+  sed -i "s|VersionDistroPatch = \"\"|VersionDistroPatch = \"~$pkgrel\"|" snapdtool/version_generated.go
 
   make -f packaging/snapd.mk \
        SNAPD_DEFINES_DIR="$srcdir"

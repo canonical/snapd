@@ -275,8 +275,8 @@ __DEFINES__
 
 # Patch the distribution-specific release into the version files that arrived
 # in the source tarball with empty placeholders.
-sed -i "s|^VERSION_DISTRO_PATCH=.*|VERSION_DISTRO_PATCH=%{release}|" %{indigo_srcdir}/data/info
-sed -i "s|VersionDistroPatch = \"\"|VersionDistroPatch = \"%{release}\"|" %{indigo_srcdir}/snapdtool/version_generated.go
+sed -i "s|^VERSION_DISTRO_PATCH=.*|VERSION_DISTRO_PATCH=~%{release}|" %{indigo_srcdir}/data/info
+sed -i "s|VersionDistroPatch = \"\"|VersionDistroPatch = \"~%{release}\"|" %{indigo_srcdir}/snapdtool/version_generated.go
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
