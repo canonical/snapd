@@ -63,6 +63,9 @@ trap 'rm -rf "$gendir" "$tmpdir"' EXIT
 # Generate the version-dependent files that are not tracked by git.
 mkdir -p "$gendir/data" "$gendir/cmd" "$gendir/snapdtool"
 
+# SNAPD_APPARMOR_REEXEC is set to 0 (disabled) by default. AppArmor
+# re-execution is a distribution policy choice; distributions that support it
+# (e.g. Debian, Ubuntu) patch this to 1 using sed in their build rules.
 printf 'VERSION=%s\nVERSION_DISTRO_PATCH=\nSNAPD_APPARMOR_REEXEC=0\n%s\n' "$version" "$asserts_formats" \
     >"$gendir/data/info"
 
