@@ -3624,7 +3624,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	}
 
 	// stop the services
-	err = m.backend.StopServices(svcs, rmSvcs, stopReason, undoer, disabledServices, pb, perfTimings)
+	err = m.backend.StopServices(svcs, rmSvcs, stopReason, undoer.Unlocked(), disabledServices, pb, perfTimings)
 	if err != nil {
 		return err
 	}

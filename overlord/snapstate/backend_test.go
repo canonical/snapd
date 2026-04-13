@@ -1506,7 +1506,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string
 
 	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
 	if undoer != nil && !skipUndo {
-		undoer.AddUnlockedUndo(func() error {
+		undoer.AddUndo(func() error {
 			startupOrdered, err := snap.SortServices(svcs)
 			if err != nil {
 				return fmt.Errorf("cannot sort services for undo: %v", err)

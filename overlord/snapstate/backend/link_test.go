@@ -1251,18 +1251,10 @@ func (s *linkSuite) TestStopServices(c *C) {
 }
 
 type fakeUndoer struct {
-	undoFuncs         []func() error
-	lockedUndoCount   int
-	unlockedUndoCount int
+	undoFuncs []func() error
 }
 
 func (u *fakeUndoer) AddUndo(f func() error) {
-	u.lockedUndoCount++
-	u.undoFuncs = append(u.undoFuncs, f)
-}
-
-func (u *fakeUndoer) AddUnlockedUndo(f func() error) {
-	u.unlockedUndoCount++
 	u.undoFuncs = append(u.undoFuncs, f)
 }
 
@@ -1278,7 +1270,6 @@ func (s *linkSuite) TestStopServicesForRefreshRegistersUndo(c *C) {
 	apps := []*snap.AppInfo{{Name: "svc"}}
 	err := s.be.StopServices(apps, nil, snap.StopReasonRefresh, undoer, nil, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "mock StopServices error")
-	c.Assert(undoer.unlockedUndoCount, Equals, 1)
 	c.Assert(undoer.undoFuncs, HasLen, 1)
 }
 
@@ -1294,7 +1285,6 @@ func (s *linkSuite) TestStopServicesForRemoveDoesNotRegisterUndo(c *C) {
 	apps := []*snap.AppInfo{{Name: "svc"}}
 	err := s.be.StopServices(apps, nil, snap.StopReasonRemove, undoer, nil, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "mock StopServices error")
-	c.Assert(undoer.unlockedUndoCount, Equals, 0)
 	c.Assert(undoer.undoFuncs, HasLen, 0)
 }
 

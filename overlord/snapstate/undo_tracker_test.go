@@ -147,14 +147,15 @@ func (s *undoTrackerSuite) TestRunOnErrorContinuesAfterUndoFailure(c *C) {
 	c.Check(s.t.Log()[0], Matches, `.*cannot undo: undo 2 failed`)
 }
 
-func (s *undoTrackerSuite) TestAddUnlockedReleasesStateLock(c *C) {
+func (s *undoTrackerSuite) TestUnlockedUndoRunsWithStateUnlocked(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	called := false
-	s.ut.AddUnlockedUndo(func() error {
-		// try to lock the state. If AddUnlockedUndo correctly
-		// released the lock, this will succeed, otherwise
+	s.ut.Unlocked().AddUndo(func() error {
+		// try to lock the state. If Unlocked() correctly tags this
+		// undo for unlocked execution, RunOnError will release the
+		// lock before calling it, and this will succeed. Otherwise
 		// it will deadlock and the test will fail
 		s.st.Lock()
 		defer s.st.Unlock()
@@ -169,7 +170,7 @@ func (s *undoTrackerSuite) TestAddUnlockedReleasesStateLock(c *C) {
 	c.Check(called, Equals, true)
 }
 
-func (s *undoTrackerSuite) TestAddUnlockedMixedWithAdd(c *C) {
+func (s *undoTrackerSuite) TestUnlockedMixedWithLockedUndoes(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -180,9 +181,10 @@ func (s *undoTrackerSuite) TestAddUnlockedMixedWithAdd(c *C) {
 		return nil
 	})
 
-	s.ut.AddUnlockedUndo(func() error {
-		// try to lock the state. If AddUnlockedUndo correctly
-		// released the lock, this will succeed, otherwise
+	s.ut.Unlocked().AddUndo(func() error {
+		// try to lock the state. If Unlocked() correctly tags this
+		// undo for unlocked execution, RunOnError will release the
+		// lock before calling it, and this will succeed. Otherwise
 		// it will deadlock and the test will fail
 		s.st.Lock()
 		defer s.st.Unlock()
@@ -200,4 +202,25 @@ func (s *undoTrackerSuite) TestAddUnlockedMixedWithAdd(c *C) {
 
 	// undoes called in reverse order
 	c.Check(order, DeepEquals, []int{3, 2, 1})
+}
+
+func (s *undoTrackerSuite) TestRunOnErrorCollectsAndLogsAllErrors(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.ut.AddUndo(func() error {
+		return errors.New("locked undo failed")
+	})
+
+	s.ut.Unlocked().AddUndo(func() error {
+		return errors.New("unlocked undo failed")
+	})
+
+	retErr := errors.New("task failed")
+	s.ut.RunOnError(&retErr)
+
+	// both errors logged (in reverse registration order)
+	c.Check(s.t.Log(), HasLen, 2)
+	c.Check(s.t.Log()[0], Matches, `.*cannot undo: unlocked undo failed`)
+	c.Check(s.t.Log()[1], Matches, `.*cannot undo: locked undo failed`)
 }
