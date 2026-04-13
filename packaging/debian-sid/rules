@@ -135,7 +135,11 @@ endef
 snapd.defines.mk:
 	$(file >$@,$(snapd_defines_mk_content))
 
-deb_revision := $(shell dpkg-parsechangelog --show-field Version | cut -d- -f2-)
+# Extract the Debian revision (the part after the last dash in the version string).
+# Per Debian policy §5.6.12 (https://www.debian.org/doc/debian-policy/ch-controlfields.html#version),
+# the upstream version may itself contain dashes, so only the suffix after the
+# *last* dash is the Debian revision.
+deb_revision := $(shell dpkg-parsechangelog --show-field Version | sed 's/^.*-//')
 
 override_dh_auto_build: snapd.defines.mk
 	# Patch the Debian revision into the version files that arrived in the source

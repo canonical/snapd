@@ -318,7 +318,8 @@ func (s *patchSuite) TestError(c *C) {
 func (s *patchSuite) testMaybeResetPatchLevel6(c *C, snapdVersion, lastVersion string, expectedPatches []int) {
 	var sequence []int
 
-	snapdtool.MockVersion(snapdVersion, "")
+	restoreVersion := snapdtool.MockVersion(snapdVersion, "")
+	defer restoreVersion()
 
 	p60 := generatePatchFunc(60, &sequence)
 	p61 := generatePatchFunc(61, &sequence)
