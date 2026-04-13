@@ -1133,7 +1133,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesConcurrent(c *C) {
 		close(done)
 	}()
 	select {
-	case <-time.After(testutil.HostScaledTimeout(15*time.Second)):
+	case <-time.After(testutil.HostScaledTimeout(15 * time.Second)):
 		c.Fatalf("timed out waiting for BackendWaitNotices goroutines to finish")
 	case <-done:
 	}
