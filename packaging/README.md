@@ -282,3 +282,62 @@ A support script which can be invoked from the snapd SELinux policy subpackage.
 Its purpose is to patch snap mount units to use a dedicated SELinux context for
 all snap mounts. The script is only relevant if there is possibility that the
 users, on a SELinux enabled system, may be updating from snapd older than 2.39.
+
+## Creating Source Tarballs
+
+The source tarballs can be created by invoking the `kulturysta` script from this
+directory. The tarballs are written to `.build/` and can then be used by the
+per-distribution packaging scripts.
+
+```sh
+./kulturysta
+```
+
+## Build Container
+
+```sh
+podman run \
+    --rm \
+    --interactive \
+    --attach stdin \
+    --attach stdout \
+    --attach stderr \
+    --preserve-fd="${BASH_XTRACEFD-}" \
+    --userns host \
+    -e BASH_XTRACEFD="${BASH_XTRACEFD-}" \
+    -v "../:/src:ro" \
+    -v ".build/:/build" \
+    -w /build \
+    docker.io/ubuntu:noble \
+    /bin/bash -x -e -u
+```
+
+## Host Script
+
+```sh
+rm -rf .build
+mkdir -p .build
+```
+
+## Container Script
+
+```sh
+# Install required tools: git for git archive, golang for go mod vendor and
+# asserts/info, and ca-certificates for module downloads.
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
+    git golang ca-certificates
+
+# Determine the version from the ubuntu-16.04 changelog.
+version=$(dpkg-parsechangelog --file /src/packaging/ubuntu-16.04/changelog --show-field Version)
+
+# Copy the source tree to a writable location so that go mod vendor can run.
+# The .git directory is included so that git archive works inside the copy.
+cp -a /src /src-rw
+
+# Vendor Go modules.
+( cd /src-rw && go mod vendor )
+
+# Create the source tarballs in /build (mapped to packaging/.build/ on the host).
+( cd /src-rw && ./packaging/pack-source -v "$version" -o /build )
+```

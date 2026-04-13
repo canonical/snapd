@@ -108,27 +108,6 @@ override_dh_clean:
 	$(MAKE) -C cmd distclean || true
 	rm -f snapd.defines.mk
 
-version_from_changelog := $(shell dpkg-parsechangelog --show-field Version)
-$(info version_from_changelog is $(version_from_changelog))
-
-# Generate version files
-define snapdtool__version_generated.go
-package snapdtool
-func init() {
-	Version = "$(version_from_changelog)"
-}
-endef
-
-define cmd__VERSION
-$(version_from_changelog)
-endef
-
-define data__info
-VERSION=$(version_from_changelog)
-SNAPD_APPARMOR_REEXEC=0
-SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
-endef
-
 # Generate snapd.defines.mk for use by snapd.mk makefile targets.
 # This file contains variable definitions that match Debian's FHS conventions.
 define snapd_defines_mk_content
@@ -157,11 +136,6 @@ snapd.defines.mk:
 	$(file >$@,$(snapd_defines_mk_content))
 
 override_dh_auto_build: snapd.defines.mk
-	# We used to call mkversion.sh, but since it builds and executes go code
-	# from this package it is significantly easier to do by hand.
-	$(file >_build/src/$(DH_GOPKG)/snapdtool/version_generated.go,$(snapdtool__version_generated.go))
-	$(file >cmd/VERSION,$(cmd__VERSION))
-	$(file >data/info,$(data__info))
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 

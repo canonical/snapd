@@ -273,11 +273,6 @@ EXTRA_GO_BUILD_FLAGS = -v -x
 EXTRA_GO_LDFLAGS = -compressdwarf=false
 __DEFINES__
 
-# Set the version and configuration that is compiled into the various executables/
-pushd %{indigo_srcdir}
-./mkversion.sh %{version}
-popd
-
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
   echo "pkg-config and rpm macros disagree about the location of systemd system generator directory"

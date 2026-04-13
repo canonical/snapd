@@ -584,9 +584,6 @@ EXTRA_GO_STATIC_LDFLAGS = -linkmode external -extldflags '%__global_ldflags -sta
 EXTRA_GO_BUILD_TAGS = rpm_crashtraceback $EXTRA_TAGS
 __DEFINES__
 
-# Generate version files
-DPKG_PARSECHANGELOG="" ./mkversion.sh "%{version}-%{release}"
-
 # Build SELinux policy module
 %if 0%{?with_selinux}
 (

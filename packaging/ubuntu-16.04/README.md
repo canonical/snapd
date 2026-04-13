@@ -74,13 +74,9 @@ mkdir -p .build
 
 ## Container Script
 
-The build script has several sections. The source tree is copied to a writable
-location, the `debian/` directory is populated from `packaging/ubuntu-16.04/`,
-Go modules are vendored, and then `dpkg-buildpackage` is invoked.
-
-This is a native package (`3.0 (native)` format), so the version has no
-upstream/revision split and there is only a single source archive. In the
-future this will go away, but for now let's go with the status quo.
+The build script has several sections. The pre-created source tarballs from
+`packaging/.build/` are extracted and the `debian/` directory is populated from
+`packaging/ubuntu-16.04/`, then `dpkg-buildpackage` is invoked.
 
 ```sh
 # Show the sizes of persistent caches to verify volumes are populated across runs.
@@ -95,44 +91,20 @@ export GOMODCACHE=/var/cache/gomod
 # .deb files after every dpkg run. Remove it so the archive cache is preserved.
 rm -f /etc/apt/apt.conf.d/docker-clean
 
-# Install the base build-dependencies as well as golang, git and ca-certificates
-# needed to export the source tarball with vendored packages.
+# Install the base build-dependencies.
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
-    devscripts build-essential golang ca-certificates git
+    devscripts build-essential
 
 # Determine the version of the package.
 # Native package: no upstream/revision split, use the full version as-is.
 version=$(dpkg-parsechangelog --file /src/packaging/ubuntu-16.04/changelog --show-field Version)
 
-# Copy the source tree to a temporary location, so that we can call go mod vendor.
-mkdir -p /src-rw
-tar -C /src -c \
-    --exclude='./vendor/*' \
-    --exclude='./c-vendor/squashfuse' \
-    --exclude='.git' \
-    --exclude='.git/*' \
-    --exclude='.image-garden/*' \
-    --exclude='./packaging/*/.build/*' \
-    --exclude='./built-snap/*' \
-    --exclude='./*.snap' \
-. | tar -C /src-rw -x
+# Extract the pre-created source tarballs from the packaging directory.
+tar -Jxf /src/packaging/.build/snapd_"$version".no-vendor.tar.xz -C /build
+tar -Jxf /src/packaging/.build/snapd_"$version".only-vendor.tar.xz -C /build
 
-# Vendor Go modules that are needed.
-( cd /src-rw && go mod vendor )
-
-# Vendor C pieces that are needed.
-# Note that we run this from the /src directory so that it doesn't have
-# to be copied into the build tree as an exception.
-( cd /src-rw/c-vendor && /src/c-vendor/vendor.sh )
-
-# Create a source archive with bundled vendored sources.
-# NOTE: This is still online and is not cached anywhere.
-( cd /src-rw && ./packaging/pack-source -v "$version" -o /build )
-
-# Unpack the source archive and install the packaging directory.
-tar -Jxf /build/snapd_"$version".no-vendor.tar.xz -C /build
-tar -Jxf /build/snapd_"$version".only-vendor.tar.xz -C /build
+# Install the packaging directory.
 # The ubuntu-16.04 directory contains .build/ which would be copied recursively, exclude it by using a glob.
 mkdir /build/snapd-"$version"/debian
 cp -a /src/packaging/ubuntu-16.04/* /build/snapd-"$version"/debian

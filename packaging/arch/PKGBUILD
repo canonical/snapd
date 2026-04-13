@@ -69,8 +69,6 @@ EXTRA_GO_BUILD_FLAGS = -trimpath
 EXTRA_GO_LDFLAGS = -w -s
 __DEFINES__
 
-  ./mkversion.sh $pkgver-$pkgrel
-
   make -f packaging/snapd.mk \
        SNAPD_DEFINES_DIR="$srcdir"
 
