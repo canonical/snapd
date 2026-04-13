@@ -311,7 +311,7 @@ podman run \
     --preserve-fd="${BASH_XTRACEFD-}" \
     --userns host \
     -e BASH_XTRACEFD="${BASH_XTRACEFD-}" \
-    -v "../:/src:ro" \
+    -v "../:/src:ro,Z" \
     -v ".build/:/build" \
     -w /build \
     docker.io/ubuntu:noble \
