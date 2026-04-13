@@ -329,6 +329,12 @@ DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
     git golang ca-certificates
 
 # Determine the version from the ubuntu-16.04 changelog.
+# TODO: The ubuntu-16.04 package is currently a native Debian package (3.0
+# (native) format) so the version string doubles as both the upstream version
+# and the distro packaging version. Once we move to a non-native package for
+# ubuntu-26.10 (and beyond), the upstream version will need to be determined
+# by a different mechanism, e.g. from the latest git tag, so that the two parts
+# of the version (upstream version and distro revision) remain separate.
 version=$(dpkg-parsechangelog --file /src/packaging/ubuntu-16.04/changelog --show-field Version)
 
 # Copy the source tree to a writable location so that go mod vendor can run.

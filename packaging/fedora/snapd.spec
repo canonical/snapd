@@ -584,6 +584,11 @@ EXTRA_GO_STATIC_LDFLAGS = -linkmode external -extldflags '%__global_ldflags -sta
 EXTRA_GO_BUILD_TAGS = rpm_crashtraceback $EXTRA_TAGS
 __DEFINES__
 
+# Patch the distribution-specific release into the version files that arrived
+# in the source tarball with empty placeholders.
+sed -i "s|^VERSION_DISTRO_PATCH=.*|VERSION_DISTRO_PATCH=%{release}|" data/info
+sed -i "s|VersionDistroPatch = \"\"|VersionDistroPatch = \"%{release}\"|" snapdtool/version_generated.go
+
 # Build SELinux policy module
 %if 0%{?with_selinux}
 (

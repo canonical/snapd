@@ -27,6 +27,14 @@ package snapdtool
 // Version will be overwritten at build-time via mkversion.sh
 var Version = "unknown"
 
+// VersionDistroPatch is the distribution-specific patch level (release number
+// or revision) appended to the upstream version by distribution packaging.
+// For example "0.fc42" for Fedora, "1" for a Debian revision, "1" for an Arch
+// pkgrel. It is empty for unpackaged (development) builds and native Debian
+// packages. The value is written by packaging scripts into version_generated.go
+// (sourced from the upstream source tarball) and into data/info.
+var VersionDistroPatch = ""
+
 func MockVersion(version string) (restore func()) {
 	old := Version
 	Version = version
