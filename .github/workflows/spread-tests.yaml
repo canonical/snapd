@@ -372,7 +372,7 @@ jobs:
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
       env:
         SYSTEMS: ${{ inputs.systems }}
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         script: |
           let fs = require('fs');
