@@ -10,7 +10,9 @@ details: |
     simulating a network interruption during download.
 
 # ubuntu-14.04: systemd-run not supported
-systems: [-ubuntu-14.04*]
+# ubuntu-core: needs curl
+# TODO implement fakestore CLI for debug API calls
+systems: [-ubuntu-14.04*, -ubuntu-core-*]
 
 kill-timeout: 5m
 
