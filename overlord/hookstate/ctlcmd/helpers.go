@@ -63,6 +63,8 @@ func init() {
 	}
 }
 
+const snapctlDebounceWindow = 200 * time.Millisecond
+
 // finalSeedTask is the last task that should run during seeding. This is used
 // in the special handling of the "seed" change, which requires that we
 // introspect the change for this specific task. Finding this task allows us to
@@ -522,7 +524,7 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
 	}
 
-	wait, err := rateLimit(st, changeID, 200*time.Millisecond)
+	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
 	if err != nil {
 		return state.DefaultStatus, err
 	}
@@ -608,7 +610,7 @@ func changeAccessedAt(st *state.State, changeID string) (time.Time, error) {
 
 	accessedNano, ok := accessedAt.(int64)
 	if !ok {
-		return time.Time{}, errors.New("error")
+		return time.Time{}, fmt.Errorf("error: invalid type (%T) for access time", accessedAt)
 	}
 
 	return time.Unix(0, accessedNano), nil
