@@ -332,7 +332,7 @@ mkdir -p .build
 # asserts/info, and ca-certificates for module downloads.
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
-    git golang ca-certificates
+    dpkg-dev git golang ca-certificates
 
 # Determine the version from the ubuntu-16.04 changelog.
 # TODO: The ubuntu-16.04 package is currently a native Debian package (3.0
