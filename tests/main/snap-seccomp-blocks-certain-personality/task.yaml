@@ -23,5 +23,9 @@ prepare: |
     gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test
 
 execute: |
-    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test" 2>&1 | MATCH 'personality\(ADDR_NO_RANDOMIZE\): -1 \(Permission denied\)'
-    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test" 2>&1 | MATCH 'personality\(READ_IMPLIES_EXEC\): -1 \(Permission denied\)'
+    # Run the test binary once and verify both dangerous personality flags are
+    # blocked. We capture output so it can be matched for both patterns without
+    # running the program twice.
+    output=$(snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test" 2>&1)
+    echo "$output" | MATCH 'personality\(ADDR_NO_RANDOMIZE\): -1 \(Permission denied\)'
+    echo "$output" | MATCH 'personality\(READ_IMPLIES_EXEC\): -1 \(Permission denied\)'
