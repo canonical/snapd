@@ -6,7 +6,7 @@ details: |
     ASLR for the process and its children) and READ_IMPLIES_EXEC (which causes
     every PROT_READ mapping to also be PROT_EXEC, defeating NX/W^X enforcement)
     must be denied. Verify that snap-seccomp generated a profile which results in
-    EACCES (Permission denied) when either dangerous flag is used.
+    EACCES when either dangerous flag is used.
 
 # ubuntu-core: excluded because there is no gcc there
 systems: [-ubuntu-core-*]
@@ -27,5 +27,5 @@ execute: |
     # blocked. We capture output so it can be matched for both patterns without
     # running the program twice.
     output=$(snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test" 2>&1)
-    echo "$output" | MATCH 'personality\(ADDR_NO_RANDOMIZE\): -1 \(Permission denied\)'
-    echo "$output" | MATCH 'personality\(READ_IMPLIES_EXEC\): -1 \(Permission denied\)'
+    echo "$output" | MATCH 'personality\(ADDR_NO_RANDOMIZE\): -1 \(EACCES\)'
+    echo "$output" | MATCH 'personality\(READ_IMPLIES_EXEC\): -1 \(EACCES\)'
