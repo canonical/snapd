@@ -1,0 +1,27 @@
+summary: Ensure that the snap-seccomp blocks dangerous personality flags
+
+details: |
+    Check that the seccomp profile blocks personality() calls with flags that
+    weaken security mitigations. Specifically, ADDR_NO_RANDOMIZE (which disables
+    ASLR for the process and its children) and READ_IMPLIES_EXEC (which causes
+    every PROT_READ mapping to also be PROT_EXEC, defeating NX/W^X enforcement)
+    must be denied. Verify that snap-seccomp generated a profile which results in
+    "Permission denied" when either dangerous flag is used.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test
+
+execute: |
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test" 2>&1 | MATCH 'personality\(ADDR_NO_RANDOMIZE\): -1 \(Permission denied\)'
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test" 2>&1 | MATCH 'personality\(READ_IMPLIES_EXEC\): -1 \(Permission denied\)'

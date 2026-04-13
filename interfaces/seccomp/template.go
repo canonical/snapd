@@ -326,6 +326,12 @@ open
 
 openat
 pause
+# deny personality flags that weaken security mitigations; allow the rest
+# ADDR_NO_RANDOMIZE disables ASLR for the process and all its children
+~personality |ADDR_NO_RANDOMIZE
+# READ_IMPLIES_EXEC causes every PROT_READ mapping to also be PROT_EXEC,
+# effectively disabling NX/W^X enforcement
+~personality |READ_IMPLIES_EXEC
 personality
 pipe
 ~pipe2 - |O_NOTIFICATION_PIPE
