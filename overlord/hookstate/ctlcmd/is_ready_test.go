@@ -121,14 +121,16 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 1},
 		},
 		{
-			taskStatus:    state.ErrorStatus,
-			initiatorSnap: "test-snap",
-			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 2},
+			taskStatus:     state.ErrorStatus,
+			initiatorSnap:  "test-snap",
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 2},
+			expectedStderr: `change finished with status Error`,
 		},
 		{
-			taskStatus:    state.HoldStatus,
-			initiatorSnap: "test-snap",
-			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 2},
+			taskStatus:     state.HoldStatus,
+			initiatorSnap:  "test-snap",
+			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 2},
+			expectedStderr: `change finished with status Hold`,
 		},
 	}
 
@@ -141,7 +143,11 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 			c.Assert(err, IsNil)
 		}
 		c.Check(string(stdout), Equals, tt.expectedOut)
-		c.Check(string(stderr), Matches, tt.expectedStderr)
+		if tt.expectedStderr != "" {
+			c.Check(string(stderr), Matches, tt.expectedStderr)
+		} else {
+			c.Check(string(stderr), Equals, "")
+		}
 	}
 }
 

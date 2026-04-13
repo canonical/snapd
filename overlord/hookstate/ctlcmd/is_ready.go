@@ -81,6 +81,7 @@ func (c *isReadyCommand) Execute(args []string) error {
 	}
 
 	if ready != state.DoneStatus {
+		fmt.Fprintf(c.stderr, "change finished with status %s", ready)
 		return &UnsuccessfulError{ExitCode: changeUnsuccessfulExitCode}
 	}
 

@@ -4,10 +4,11 @@ details: |
   Verifies that the snapctl is-ready command correctly reports the status of a
   change initiated by a snap via snapctl. A test snap with a component is
   installed locally. The component is then removed via snapctl (from within the
-  snap's app context using snap run --shell), which creates a snapctl-initiated
-  change with the required snapctl-initiated-by and snapctl-last-accessed
-  attributes. is-ready is then called against that change ID to verify it
-  reports Done and exits successfully.
+  snap's app context using snap run --shell), which creates a snapctl-remove
+  change marked with the initiated-by-snap change key for the calling snap.
+  The implementation also tracks last-access information in the in-memory state
+  cache rather than as a change attribute. is-ready is then called against that
+  change ID to verify it reports Done and exits successfully.
 
   Also verifies that is-ready fails appropriately for invalid change IDs, wrong
   argument counts, and changes not initiated by the calling snap.
