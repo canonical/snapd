@@ -24,7 +24,23 @@ package snapdtool
 
 //go:generate mkversion.sh
 
-// Version will be overwritten at build-time via mkversion.sh
+// Version and VersionDistroPatch are set at build time through one of two
+// workflows:
+//
+//   - snapd.git → source tarball → downstream distro packaging:
+//     packaging/pack-source generates snapdtool/version_generated.go (included
+//     in the source tarball) with Version set to the upstream release version
+//     and VersionDistroPatch = "". Each distribution's build rules then use sed
+//     to patch VersionDistroPatch with the distro-specific suffix (e.g.
+//     "~0.fc42", "~1", "-1"). mkversion.sh is not used in this path.
+//
+//   - snapd.git → snapcraft (upstream snap build):
+//     build-aux/snap/snapcraft.yaml calls mkversion.sh during the build, which
+//     generates version_generated.go from git history. VersionDistroPatch is
+//     not set in this path.
+//
+// For developer (unpackaged) builds, running `go generate ./snapdtool` also
+// calls mkversion.sh to produce version_generated.go locally.
 var Version = "unknown"
 
 // VersionDistroPatch is the distribution-specific patch level (release number
