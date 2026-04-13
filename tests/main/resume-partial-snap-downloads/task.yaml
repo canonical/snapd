@@ -79,7 +79,7 @@ execute: |
     test "$partial_size" -gt 0
     test "$partial_size" -lt "$snap_size"
     echo "Partial download preserved: $partial_size bytes of $snap_size total"
-    birth_time="$(stat -c '%w' "$partial_path")"
+    partial_inode="$(stat -c '%i' "$partial_path")"
     mod_time="$(stat -c '%y' "$partial_path")"
 
     # Reset error injection
@@ -102,7 +102,8 @@ execute: |
 
     complete_path="/var/lib/snapd/snaps/test-snap-resume_1.snap"
     test -f "$complete_path"
-    complete_birth_time="$(stat -c '%w' "$complete_path")"
+    complete_inode="$(stat -c '%i' "$complete_path")"
     complete_mod_time="$(stat -c '%y' "$complete_path")"
-    test "$birth_time" = "$complete_birth_time"
+    # same inode proves, file was renamed, not removed an recreated
+    test "$partial_inode" = "$complete_inode"
     test "$mod_time" != "$complete_mod_time"
