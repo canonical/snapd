@@ -41,7 +41,7 @@ var VersionDistroPatch = ""
 // Version unchanged.
 //
 // Note: use Version (not FullVersion) when comparing against snap package
-// version strings (assumes fields, info file, etc.) since those always carry
+// version strings (assumes assertions, info file, etc.) since those always carry
 // only the upstream version component.
 func FullVersion() string {
 	if VersionDistroPatch == "" {
