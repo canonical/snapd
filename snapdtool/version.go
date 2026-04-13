@@ -35,8 +35,29 @@ var Version = "unknown"
 // (sourced from the upstream source tarball) and into data/info.
 var VersionDistroPatch = ""
 
+// FullVersion returns the full version string for display and version-tracking
+// purposes, combining the upstream Version with the distribution-specific
+// VersionDistroPatch (if set). When VersionDistroPatch is empty, it returns
+// Version unchanged.
+//
+// Note: use Version (not FullVersion) when comparing against snap package
+// version strings (assumes fields, info file, etc.) since those always carry
+// only the upstream version component.
+func FullVersion() string {
+	if VersionDistroPatch == "" {
+		return Version
+	}
+	return Version + "~" + VersionDistroPatch
+}
+
 func MockVersion(version string) (restore func()) {
 	old := Version
 	Version = version
 	return func() { Version = old }
+}
+
+func MockVersionDistroPatch(patch string) (restore func()) {
+	old := VersionDistroPatch
+	VersionDistroPatch = patch
+	return func() { VersionDistroPatch = old }
 }
