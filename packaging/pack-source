@@ -47,11 +47,11 @@ if [ -z "$version" ]; then
 fi
 
 # Determine SNAPD_ASSERTS_FORMATS by running asserts/info from the source tree.
-MOD_FLAG="-mod=vendor"
-if [ ! -d "vendor/github.com" ]; then
-    MOD_FLAG=""
+go_mod_flags=()
+if [ -d "vendor/github.com" ]; then
+    go_mod_flags=("-mod=vendor")
 fi
-asserts_formats=$(go run $MOD_FLAG ./asserts/info)
+asserts_formats=$(go run "${go_mod_flags[@]}" ./asserts/info)
 
 set -x
 

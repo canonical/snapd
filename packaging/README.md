@@ -322,7 +322,7 @@ mkdir -p .build
 ## Container Script
 
 ```sh
-# Install required tools: git for git archive, golang for go mod vendor and
+# Install required tools: git for git archive, Go for go mod vendor and
 # asserts/info, and ca-certificates for module downloads.
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
