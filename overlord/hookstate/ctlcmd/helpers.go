@@ -532,15 +532,20 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	return unlockAndWaitForStatus(st, chg, wait), nil
 }
 
+// This function unlocks the state and waits for the change to be ready. The lock must be held prior to calling,
+// and will be re-acquired before returning. Returns doingStatus if the change is still in progress, otherwise
+// returns the final status of the change.
 func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Duration) state.Status {
 	st.Unlock()
-	// note: we cannot defer the unlock, since we must relock prior to
+	// note: we cannot defer the re-lock, since we must re-lock prior to
 	// calculating the return value in some branches.
 
 	ready := chg.Ready()
 
+	
 	if wait <= 0 {
 		select {
+		// use default so the channel is prioritized.
 		case <-ready:
 			st.Lock()
 			return chg.Status()
@@ -550,6 +555,8 @@ func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Durati
 		}
 	}
 
+	// The check above ensures that both aren't true immediately, because the wait is > 0.
+	// Otherwise a race condition is possible.
 	select {
 	case <-ready:
 	case <-timeAfter(wait):
@@ -564,6 +571,7 @@ func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Durati
 // rateLimit returns the amount of time that should be waited before accessing
 // this change via snapctl. Internally, data associated with the change is
 // cached so that all access to the change shares the same rate limit.
+// The lock must be acquired before calling, as it modifies the state object.
 func rateLimit(st *state.State, changeID string, rate time.Duration) (wait time.Duration, err error) {
 	now := time.Now()
 

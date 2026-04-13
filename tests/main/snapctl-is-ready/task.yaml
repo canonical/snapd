@@ -16,8 +16,10 @@ details: |
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
 prepare: |
-  "$TESTSTOOLS"/snaps-state install-local test-snapctl-is-ready
-  "$TESTSTOOLS"/snaps-state install-local test-snapctl-is-ready+comp_1.0.comp
+  snap pack test-snap/
+  snap pack test-comp/
+  snap install --dangerous test-snapctl-is-ready_1.0_all.snap
+  snap install --dangerous test-snapctl-is-ready+comp_1.0.comp
 
 execute: |
   echo "Remove component via snapctl to create a snapctl-remove change"
