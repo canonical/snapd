@@ -20,11 +20,21 @@ int main(void) {
 
     /* Call personality() directly via syscall to bypass any libc wrapper.
      * The seccomp deny rule (~) always returns EACCES. */
+    errno = 0;
     res = syscall(__NR_personality, ADDR_NO_RANDOMIZE);
-    printf("personality(ADDR_NO_RANDOMIZE): %ld (%s)\n", res, errno_name(errno));
+    if (res == -1) {
+        printf("personality(ADDR_NO_RANDOMIZE): %ld (%s)\n", res, errno_name(errno));
+    } else {
+        printf("personality(ADDR_NO_RANDOMIZE): %ld (success)\n", res);
+    }
 
+    errno = 0;
     res = syscall(__NR_personality, READ_IMPLIES_EXEC);
-    printf("personality(READ_IMPLIES_EXEC): %ld (%s)\n", res, errno_name(errno));
+    if (res == -1) {
+        printf("personality(READ_IMPLIES_EXEC): %ld (%s)\n", res, errno_name(errno));
+    } else {
+        printf("personality(READ_IMPLIES_EXEC): %ld (success)\n", res);
+    }
 
     return 0;
 }
