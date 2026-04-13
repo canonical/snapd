@@ -112,7 +112,7 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 	},
 	}
 
-	restore := snapdtool.MockVersion("2.15")
+	restore := snapdtool.MockVersion("2.15", "")
 	defer restore()
 
 	restore = release.MockOnClassic(false)

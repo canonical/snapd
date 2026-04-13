@@ -63,7 +63,7 @@ trap 'rm -rf "$gendir" "$tmpdir"' EXIT
 # Generate the version-dependent files that are not tracked by git.
 mkdir -p "$gendir/data" "$gendir/cmd" "$gendir/snapdtool"
 
-printf 'VERSION=%s\nVERSION_DISTRO_PATCH=\nSNAPD_APPARMOR_REEXEC=1\n%s\n' "$version" "$asserts_formats" \
+printf 'VERSION=%s\nVERSION_DISTRO_PATCH=\nSNAPD_APPARMOR_REEXEC=0\n%s\n' "$version" "$asserts_formats" \
     >"$gendir/data/info"
 
 printf '%s\n' "$version" >"$gendir/cmd/VERSION"

@@ -74,15 +74,13 @@ type versionSuite struct{}
 var _ = Suite(&versionSuite{})
 
 func (s *versionSuite) TestFullVersionNoDistroPatch(c *C) {
-	restore := snapdtool.MockVersion("2.75.2")
+	restore := snapdtool.MockVersion("2.75.2", "")
 	defer restore()
 	c.Check(snapdtool.FullVersion(), Equals, "2.75.2")
 }
 
 func (s *versionSuite) TestFullVersionWithDistroPatch(c *C) {
-	restore := snapdtool.MockVersion("2.75.2")
+	restore := snapdtool.MockVersion("2.75.2", "~0.fc42")
 	defer restore()
-	restorePatch := snapdtool.MockVersionDistroPatch("~0.fc42")
-	defer restorePatch()
 	c.Check(snapdtool.FullVersion(), Equals, "2.75.2~0.fc42")
 }

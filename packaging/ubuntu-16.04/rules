@@ -225,6 +225,8 @@ snapd.defines.mk:
 	$(file >$@,$(snapd_defines_mk_content))
 
 override_dh_auto_build: snapd.defines.mk
+	# Opt in to AppArmor re-execution on Ubuntu (the tarball ships SNAPD_APPARMOR_REEXEC=0).
+	sed -i "s|^SNAPD_APPARMOR_REEXEC=.*|SNAPD_APPARMOR_REEXEC=1|" data/info
 	# very ugly test for FIPS variant of a toolchain
 	# see https://warthogs.atlassian.net/browse/FR-8860
 ifeq (${FIPSBUILD},1)

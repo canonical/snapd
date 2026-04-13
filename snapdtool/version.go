@@ -50,14 +50,13 @@ func FullVersion() string {
 	return Version + VersionDistroPatch
 }
 
-func MockVersion(version string) (restore func()) {
-	old := Version
+func MockVersion(version, patch string) (restore func()) {
+	oldVersion := Version
+	oldPatch := VersionDistroPatch
 	Version = version
-	return func() { Version = old }
-}
-
-func MockVersionDistroPatch(patch string) (restore func()) {
-	old := VersionDistroPatch
 	VersionDistroPatch = patch
-	return func() { VersionDistroPatch = old }
+	return func() {
+		Version = oldVersion
+		VersionDistroPatch = oldPatch
+	}
 }
