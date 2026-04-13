@@ -61,7 +61,7 @@ execute: |
     # This ensures some successful write chunks are delivered before the
     # connection is severed, leaving a meaningful partial file.
     kill_after=20971520
-    curl -s -X POST http://localhost:11028/debug \
+    curl --fail -s -X POST http://localhost:11028/debug \
         -d "{\"action\":\"kill-request\",\"kill-path\":\"/download/$snap_file\",\"kill-after\":$kill_after}"
 
     echo "First install attempt: expect failure due to interrupted download"
@@ -79,15 +79,16 @@ execute: |
     test "$partial_size" -gt 0
     test "$partial_size" -lt "$snap_size"
     echo "Partial download preserved: $partial_size bytes of $snap_size total"
+    birth_time="$(stat -c '%w' "$partial_path")"
+    mod_time="$(stat -c '%y' "$partial_path")"
+
+    # Reset error injection
+    curl --fail -s -X POST http://localhost:11028/debug \
+        -d "{\"action\":\"reset\"}"
 
     # Make sure the logs for the fakestore are not polluted by previous snapd download
     # retries starting from last cursor.
     cursor=$("$TESTSTOOLS"/journal-state get-last-cursor)
-    not "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u fakestore | MATCH "requested range for /download/$snap_file"
-
-    # Clear the kill rule so the next download completes fully
-    curl -s -X POST http://localhost:11028/debug \
-        -d "{\"action\":\"kill-request\",\"kill-path\":\"/download/$snap_file\",\"kill-after\":0}"
 
     echo "Second install attempt: expect success with resumed download"
     snap install test-snap-resume
@@ -98,3 +99,10 @@ execute: |
 
     # Verify snap is installed
     snap list test-snap-resume
+
+    complete_path="/var/lib/snapd/snaps/test-snap-resume_1.snap"
+    test -f "$complete_path"
+    complete_birth_time="$(stat -c '%w' "$complete_path")"
+    complete_mod_time="$(stat -c '%y' "$complete_path")"
+    test "$birth_time" = "$complete_birth_time"
+    test "$mod_time" != "$complete_mod_time"
