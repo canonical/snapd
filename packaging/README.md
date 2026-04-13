@@ -350,6 +350,9 @@ cp -a /src /src-rw
 # Vendor Go modules.
 ( cd /src-rw && go mod vendor )
 
+# Vendor C dependencies (squashfuse and friends).
+( cd /src-rw/c-vendor && sh vendor.sh )
+
 # Create the source tarballs in /build (mapped to packaging/.build/ on the host).
 ( cd /src-rw && ./packaging/pack-source -v "$version" -o /build )
 ```
