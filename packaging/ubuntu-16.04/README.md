@@ -1,24 +1,18 @@
-# Ubuntu 16.04 (not really) Packaging
+# Ubuntu 16.04 Packaging
 
 This directory contains packaging for the Ubuntu distribution.
 
 ## Build Container
 
-The package can be built using a rootless podman container.
-
-The entire snapd tree is exposed as `/src` inside the container, this is done
-with the first `-v` switch. The `.build` directory is exposed as the `/build`
-directory. This is where most of the build actually happens. This is where we
-copy the built packages from the container back to the container host.
+The package can be built using a rootless podman container. The source tarballs
+are pre-created by `packaging/kulturysta` (in a separate `ubuntu:noble`
+container) and consumed here. This container uses `ubuntu:xenial` so that the
+package is built in a genuine Ubuntu 16.04 environment.
 
 The `--rm` switch removes the container so that it doesn't linger after each
-build.  The `--interactive` switch allows us to pass a script to bash on stdin.
+build. The `--interactive` switch allows us to pass a script to bash on stdin.
 The `--userns host` option maps the ID of the calling user to root inside the
 container.
-
-We are using a Ubuntu 24.04 container (noble) for the build. The repository is
-not really compatible with ancient Go that is in Ubuntu 16.04 anymore. The name
-is just stale.
 
 The `BASH_XTRACEFD` environment variable is preserved, along with the file
 descriptor. This allows the outer script to differentiate trace output from
@@ -57,7 +51,7 @@ podman run \
     -v "snapd-ubuntu-apt-lists:/var/lib/apt/lists" \
     -v "snapd-gomod-cache:/var/cache/gomod" \
     -w /build \
-    docker.io/ubuntu:noble \
+    docker.io/ubuntu:bionic \
     /bin/bash -x -e -u
 ```
 

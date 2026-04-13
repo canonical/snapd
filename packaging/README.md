@@ -295,6 +295,12 @@ per-distribution packaging scripts.
 
 ## Build Container
 
+The choice of container image (`ubuntu:noble` below) determines the version of
+Go available inside the container. This Go is used to run `go run ./asserts/info`
+(which computes supported assertion formats) and to run `go mod vendor`. It is
+**not** the version of Go used to actually build snapd; that is determined by
+each distribution's own build environment.
+
 ```sh
 podman run \
     --rm \

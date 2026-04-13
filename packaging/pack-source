@@ -78,6 +78,8 @@ package snapdtool
 
 func init() {
 	Version = "$version"
+	// VersionDistroPatch is empty in the upstream tarball.
+	// Distributors are expected to patch this line in their build scripts.
 	VersionDistroPatch = ""
 }
 EOF
