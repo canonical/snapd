@@ -126,7 +126,10 @@ func (s *specSuite) TestSnippetPriorityOrdering(c *C) {
 	spec := dbus.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
 
-	// Snippets should be sorted by priority ascending: 1, 5, 10.
+	// Snippets are sorted by priority ascending (1, 5, 10), so "high-priority"
+	// appears last in the combined output. In DBus XML policy files the last
+	// matching rule wins, so a higher priority number means both a later
+	// position in the file and stronger precedence at runtime.
 	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals,
 		"low-priority\nmid-priority\nhigh-priority\n")
 	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
