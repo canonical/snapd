@@ -23,9 +23,6 @@ skip:
 
 prepare: |
   if [ "$SPREAD_REBOOT" = 0 ]; then
-    # Set a far future date to prevent automatic refreshes during the test execution.
-    snap set system refresh.hold="2040-01-01T00:00:00Z"
-
     # In uc20 the refresh is triggering a reboot because of the kernel command lines is updated.
     # This is expected when running in images with older snapd versions.
     snap refresh snapd --revision 25202 --no-wait   # this is the revision 2.71 amd64

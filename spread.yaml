@@ -140,8 +140,8 @@ environment:
     SNAPD_LOG_SNAP_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAPD_LOG_SNAP_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
     SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
 
-    # Whether snapd should support early refreshes.
-    SNAPD_SUPPORT_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SUPPORT_EARLY_REFRESH:-}")'
+    # Whether snapd should skip early refreshes.
+    SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
 backends:
     google:
