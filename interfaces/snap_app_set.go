@@ -183,6 +183,10 @@ func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) ([]string, error) 
 
 // Runnables returns a list of all runnables known by the app set, in a stable
 // sorted order (app names first, then hook names, then component hook names).
+// We intentionally sort here and disregard the YAML declaration order, because
+// the position of an entry can affect the resulting security policy (e.g. dbus
+// rules use last-wins semantics), and we must not let arbitrary snap.yaml
+// authoring choices silently influence sandbox policy.
 func (a *SnapAppSet) Runnables() []snap.Runnable {
 	var runnables []snap.Runnable
 
