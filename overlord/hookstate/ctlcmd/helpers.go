@@ -532,9 +532,10 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	return unlockAndWaitForStatus(st, chg, wait), nil
 }
 
-// This function unlocks the state and waits for the change to be ready. The lock must be held prior to calling,
-// and will be re-acquired before returning. Returns doingStatus if the change is still in progress, otherwise
-// returns the final status of the change.
+// unlockAndWaitForStatus unlocks the state and waits for the change to be ready.
+// The lock must be held prior to calling, and will be re-acquired before returning.
+// Returns doingStatus if the change is still in progress, otherwise returns the final
+// status of the change.
 func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Duration) state.Status {
 	st.Unlock()
 	// note: we cannot defer the re-lock, since we must re-lock prior to
@@ -542,7 +543,7 @@ func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Durati
 
 	ready := chg.Ready()
 
-	
+	// The check ensures that both select cases aren't true immediately. 
 	if wait <= 0 {
 		select {
 		// use default so the channel is prioritized.
@@ -555,8 +556,8 @@ func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Durati
 		}
 	}
 
-	// The check above ensures that both aren't true immediately, because the wait is > 0.
-	// Otherwise a race condition is possible.
+	// Because the wait could've been > 0, the last select between a closed ready channel
+	// and a timer.After channel would've be racy.
 	select {
 	case <-ready:
 	case <-timeAfter(wait):
