@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"runtime"
-	unix "syscall"
 
 	"github.com/coreos/go-systemd/activation"
 
@@ -52,12 +50,16 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 		return nil, err
 	}
 
-	runtime.LockOSThread()
-	oldmask := unix.Umask(0111)
 	listener, err := net.ListenUnix("unix", address)
-	unix.Umask(oldmask)
-	runtime.UnlockOSThread()
 	if err != nil {
+		return nil, err
+	}
+	// if we reached here, the socket was clearly not in the set passed as
+	// activation sockets, so make sure it has the same mode as systemd's
+	// default (0666). The caller knows the path and can adjust the mode to
+	// their liking.
+	if err := os.Chmod(socketPath, 0666); err != nil {
+		listener.Close()
 		return nil, err
 	}
 
