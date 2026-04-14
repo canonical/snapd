@@ -3,6 +3,8 @@ version: 1.0
 summary: Test snap for snapctl is-ready
 components:
   comp:
+    summary: test component
+    description: test component
     type: standard
 apps:
   app:
