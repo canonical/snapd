@@ -139,11 +139,11 @@ execute: |
   .[0].kind == "tpm-pcr-unusable" and
   (
     .[0].message
-    | test("^error with secure boot policy \\(PCR7\\) measurements: OS-present EV_EFI_BOOT_SERVICES_APPLICATION event for .*shimx64\\.efi is not associated with the initial boot loader image$")
+    | test("^error with secure boot policy \\(PCR7\\) measurements: OS-present EV_EFI_BOOT_SERVICES_APPLICATION event for .*shim.*\\.efi is not associated with the initial boot loader image$")
   )
   EOF
 
-  jq -e -f availability-check-errors.reference.jq availability-check-errors >/dev/null
+  gojq -e -f availability-check-errors.reference.jq availability-check-errors >/dev/null
 
   # Check that the basic availability check that do not consider shim, grub and kernel still works
   remote.exec "sudo cp /etc/os-release /etc/os-release.orig"
@@ -215,10 +215,10 @@ execute: |
   api_get_v2_systems_classic | gojq '.result["storage-encryption"].support' | MATCH "unavailable"
   api_get_v2_systems_classic | gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
 
-  jq -e -f availability-check-errors.reference.jq availability-check-errors >/dev/null
+  gojq -e -f availability-check-errors.reference.jq availability-check-errors >/dev/null
 
   # - Then request an action
   echo '{"action": "fix-encryption-support", "fix-action": ""}' | api_post_v2_systems_classic |
   gojq '.result["storage-encryption"]."availability-check-errors"' > availability-check-errors
 
-  jq -e -f availability-check-errors.reference.jq availability-check-errors >/dev/null
+  gojq -e -f availability-check-errors.reference.jq availability-check-errors >/dev/null
