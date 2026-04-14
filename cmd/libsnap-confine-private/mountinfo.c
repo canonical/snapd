@@ -170,8 +170,8 @@ static char *parse_next_string_field_ex(sc_mountinfo_entry *entry, const char *l
             break;
         } else if (c == '\\') {
             // Three *more* octal digits required for the escape
-            // sequence.  For reference see mangle_path() in
-            // fs/seq_file.c.  We explicitly verify that at least 3
+            // sequence. For reference see mangle_path() in
+            // fs/seq_file.c. We explicitly verify that at least 3
             // more bytes remain before the end of the string to
             // prevent out-of-bounds reads when the input contains
             // fewer than 3 bytes after the backslash.
