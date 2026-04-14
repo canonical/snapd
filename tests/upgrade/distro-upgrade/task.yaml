@@ -59,15 +59,15 @@ execute: |
         SPREAD_REBOOT=0
     done
 
-    if ! [ -f lts-upgrade-done ]; then
+    if not [ -f lts-upgrade-done ]; then
         echo "We should have done an LTS upgrade but didn't"
         exit 1
     fi
-    if ! [ -f interim-upgrade-done ]; then
+    if not [ -f interim-upgrade-done ]; then
         echo "We should have done an interim upgrade but didn't"
         exit 1
     fi
-    if ! [ -f devel-upgrade-done ]; then
+    if not [ -f devel-upgrade-done ]; then
         echo "We should have done a devel upgrade but didn't"
         exit 1
     fi
