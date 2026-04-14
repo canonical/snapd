@@ -505,16 +505,6 @@ func CheckExpectedRestart(st *state.State) error {
 	return ErrUnexpectedRuntimeRestart
 }
 
-// IsErrAndNotWait returns true if err is not nil and neither state.Wait, it is
-// useful for code using FinishTaskWithRestart to not undo work in the presence
-// of a state.Wait return.
-func IsErrAndNotWait(err error) bool {
-	if _, ok := err.(*state.Wait); err == nil || ok {
-		return false
-	}
-	return true
-}
-
 // defaultProviderContentAttrs takes a snap.Info and returns a map of
 // default providers to the value of content attributes they should
 // provide. Content attributes already provided by a snap in the system are omitted. What is returned depends on the behavior of the passed PrereqTracker.

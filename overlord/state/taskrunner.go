@@ -63,6 +63,15 @@ func (r *Wait) Error() string {
 	return "task set to wait, manual action required"
 }
 
+// IsErrAndNotWait returns true if err is neither nil nor a *Wait. It is
+// useful to not undo work in the presence of a *Wait return.
+func IsErrAndNotWait(err error) bool {
+	if _, ok := err.(*Wait); err == nil || ok {
+		return false
+	}
+	return true
+}
+
 type blockedFunc func(t *Task, running []*Task) bool
 
 // TaskRunner controls the running of goroutines to execute known task kinds.

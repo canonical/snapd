@@ -2520,7 +2520,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	defer func() {
 		// if link snap fails and this is a first install, then we need to clean up
 		// the sequence file
-		if IsErrAndNotWait(retErr) && firstInstall {
+		if state.IsErrAndNotWait(retErr) && firstInstall {
 			snapst.MigratedHidden = false
 			snapst.MigratedToExposedHome = false
 			if err := writeSeqFile(snapsup.InstanceName(), snapst); err != nil {
@@ -2543,7 +2543,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
 	defer func() {
-		if !IsErrAndNotWait(retErr) {
+		if !state.IsErrAndNotWait(retErr) {
 			return
 		}
 		// retErr is not nil, we need to try and unlink the snap to cleanup after
@@ -2665,7 +2665,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 		return err
 	}
 	defer func() {
-		if IsErrAndNotWait(retErr) {
+		if state.IsErrAndNotWait(retErr) {
 			undo()
 		}
 	}()
