@@ -543,7 +543,7 @@ func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Durati
 
 	ready := chg.Ready()
 
-	// The check ensures that both select cases aren't true immediately. 
+	// The check ensures that both select cases aren't true immediately.
 	if wait <= 0 {
 		select {
 		// use default so the channel is prioritized.
