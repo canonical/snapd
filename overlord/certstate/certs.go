@@ -19,6 +19,7 @@
 package certstate
 
 import (
+	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
@@ -43,6 +44,7 @@ const (
 type CertificateData struct {
 	Raw    *x509.Certificate
 	Digest string
+	Sha1   string
 }
 
 type certificate struct {
@@ -50,10 +52,20 @@ type certificate struct {
 	Path     string
 	RealPath string
 	Digest   string
+	Sha1     string
 }
 
-func digestHexForChain(chainDER [][]byte) string {
+func digest224HexForChain(chainDER [][]byte) string {
 	h := sha256.New224()
+	for _, der := range chainDER {
+		// Hash the DER bytes as-is (in file order).
+		_, _ = h.Write(der)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func digest1HexForChain(chainDER [][]byte) string {
+	h := sha1.New()
 	for _, der := range chainDER {
 		// Hash the DER bytes as-is (in file order).
 		_, _ = h.Write(der)
@@ -96,7 +108,8 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 		}
 		return &CertificateData{
 			Raw:    first,
-			Digest: digestHexForChain(chainDER),
+			Digest: digest224HexForChain(chainDER),
+			Sha1:   digest1HexForChain(chainDER),
 		}, nil
 	}
 
@@ -108,7 +121,8 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 	}
 	return &CertificateData{
 		Raw:    cert,
-		Digest: digestHexForChain([][]byte{cert.Raw}),
+		Digest: digest224HexForChain([][]byte{cert.Raw}),
+		Sha1:   digest1HexForChain([][]byte{cert.Raw}),
 	}, nil
 }
 
@@ -184,6 +198,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			Path:     filepath.Join(certsPath, caFile.Name()),
 			RealPath: certRealPath,
 			Digest:   cert.Digest,
+			Sha1:     cert.Sha1,
 		}
 		certsObjects = append(certsObjects, certObject)
 	}
@@ -237,6 +252,20 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		return nil
 	}
 
+	sha1Link := func(cert certificate) error {
+		// Emulate https://docs.openssl.org/1.0.2/man1/c_rehash/ behaviour
+		// for creating a hash lookup. It must be in SHA-1.
+		hash := cert.Sha1[:8]
+
+		// TODO: Should be done in a loop with incrementing suffixes '
+		// if there are hash collisions.
+		linkName := filepath.Join(certsDir, hash+".0")
+		if err := os.Link(cert.RealPath, linkName); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	// avoid adding digests twice
 	digests := make(map[string]bool)
 
@@ -247,6 +276,9 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy certificate %q: %v", cert.Name, err)
 		}
+		if err := sha1Link(cert); err != nil {
+			return fmt.Errorf("cannot create hash link for certificate %q: %v", cert.Name, err)
+		}
 		digests[cert.Digest] = true
 	}
 
@@ -256,6 +288,9 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		}
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy extra certificate %q: %v", cert.Name, err)
+		}
+		if err := sha1Link(cert); err != nil {
+			return fmt.Errorf("cannot create hash link for extra certificate %q: %v", cert.Name, err)
 		}
 		digests[cert.Digest] = true
 	}
