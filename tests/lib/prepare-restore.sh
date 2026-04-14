@@ -830,6 +830,11 @@ restore_suite_each() {
         fi
     fi
 
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
+    fi
+
     # Check for invariants late, in order to detect any bugs in the code above.
     if [[ "$variant" = full ]]; then
         "$TESTSTOOLS"/cleanup-state pre-invariant
