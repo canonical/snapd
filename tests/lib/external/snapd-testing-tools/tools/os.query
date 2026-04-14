@@ -113,6 +113,18 @@ is_resolute() {
     grep -qFx 'UBUNTU_CODENAME=resolute' /etc/os-release
 }
 
+is_ubuntu_latest_lts() {
+    grep -qFx 'ID=ubuntu' /etc/os-release && [[ "$(lsb_release -c -s)" = "$(ubuntu-distro-info --lts)" ]]
+}
+
+is_ubuntu_interim() {
+    grep -qFx 'ID=ubuntu' /etc/os-release && [[ "$(lsb_release -c -s)" = "$(ubuntu-distro-info --stable)" ]]
+}
+
+is_ubuntu_devel() {
+    grep -qFx 'ID=ubuntu' /etc/os-release && [[ "$(lsb_release -c -s)" = "$(ubuntu-distro-info --devel)" ]]
+}
+
 is_ubuntu() {
     VERSION=$1
     if [ -z "$VERSION" ]; then
