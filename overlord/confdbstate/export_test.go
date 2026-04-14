@@ -43,14 +43,7 @@ type (
 	AccessType         = accessType
 )
 
-const (
-	CommitEdge  = commitEdge
-	ClearTxEdge = clearTxEdge
-)
-
-func GetTransactionToSet(ctx *hookstate.Context, view *confdb.View) (*Transaction, CommitTxFunc, string, error) {
-	return getTransactionToSet(ctx, view)
-}
+const ClearTxEdge = clearTxEdge
 
 func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
 	return &changeViewHandler{ctx: ctx}

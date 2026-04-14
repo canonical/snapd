@@ -612,18 +612,12 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 	chg := s.state.NewChange("modify-confdb", "")
 
 	// a user (not a snap) changes a confdb
-	ts, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "")
-	c.Assert(err, IsNil)
-	chg.AddAll(ts)
-
-	// there are two edges in the taskset
-	commitTask, err := ts.Edge(confdbstate.CommitEdge)
+	ts, commitTask, clearTask, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "")
 	c.Assert(err, IsNil)
 	c.Assert(commitTask.Kind(), Equals, "commit-confdb-tx")
+	c.Assert(clearTask.Kind(), Equals, "clear-confdb-tx")
 
-	cleanupTask, err := ts.Edge(confdbstate.ClearTxEdge)
-	c.Assert(err, IsNil)
-	c.Assert(cleanupTask.Kind(), Equals, "clear-confdb-tx")
+	chg.AddAll(ts)
 
 	// the custodian snap's hooks are run
 	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "run-hook", "commit-confdb-tx", "clear-confdb-tx"}
@@ -669,7 +663,7 @@ func (s *confdbTestSuite) TestConfdbTasksCustodianSnapSet(c *C) {
 	chg := s.state.NewChange("set-confdb", "")
 
 	// a user (not a snap) changes a confdb
-	ts, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "custodian-snap")
+	ts, _, _, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "custodian-snap")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -712,7 +706,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 	chg := s.state.NewChange("modify-confdb", "")
 
 	// a non-custodian snap modifies a confdb
-	ts, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
+	ts, _, _, err := confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -783,7 +777,7 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 
 	// a non-custodian snap modifies a confdb
-	_, err = confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
+	_, _, _, err = confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap connected", s.devAccID, view.Name))
 }
 
@@ -1533,9 +1527,7 @@ func (s *confdbTestSuite) testReadConfdbFromSnap(c *C, ctx *hookstate.Context) *
 
 	restore = confdbstate.MockEnsureNow(func(*state.State) {
 		s.checkOngoingReadConfdbTx(c, s.devAccID, "network")
-		go func() {
-			s.o.Settle(5 * time.Second)
-		}()
+		go s.o.Settle(5 * time.Second)
 	})
 	defer restore()
 
@@ -1991,6 +1983,13 @@ func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C
 	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": hooks}, nil)
 	s.state.Unlock()
 
+	restore := confdbstate.MockEnsureNow(func(*state.State) {
+		s.checkOngoingWriteConfdbTx(c, s.devAccID, "network")
+
+		go s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	})
+	defer restore()
+
 	mockHandler := hooktest.NewMockHandler()
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1)}
 	ctx, err := hookstate.NewContext(nil, s.state, setup, mockHandler, "")
@@ -2007,13 +2006,9 @@ func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access %s/network/setup-wifi: write might change ephemeral data but no custodians has a save-view hook", s.devAccID))
 
 	// but we can if the path can't touch any ephemeral data
-	tx, commitTx, _, err := confdbstate.GetTransactionToSet(ctx, view)
-	c.Assert(err, IsNil)
-
-	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
-	c.Assert(err, IsNil)
-
-	_, _, err = commitTx()
+	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{
+		"ssid": "foo",
+	})
 	c.Assert(err, IsNil)
 }
 
