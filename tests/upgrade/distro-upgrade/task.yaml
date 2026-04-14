@@ -1,0 +1,72 @@
+summary: Check that with the new snapd installed, we can upgrade the distro without issues.
+
+details: |
+    This test performs a series of distro upgrades until it reaches the latest devel verison.
+    After each upgrade, it checks that snapd is still working correctly and performs some simple smoke checks.
+    It expects to have done an upgrade to the latest LTS, the latest interim release and the latest devel release.
+
+# This test should only be run on the lowest supported version of ubuntu for a given release
+systems:
+    - ubuntu-*
+
+manual: true
+
+prepare: |
+    snap install go-example-webserver
+    snap install test-snapd-sh
+    snap install test-snapd-auto-aliases
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
+
+    snap connections go-example-webserver > webserver-connections.txt
+    snap version | grep snap > snap-version.txt
+    snap list > snap-list.txt
+    sed -i 's/Prompt=never/Prompt=normal/' /etc/update-manager/release-upgrades
+
+restore: |
+    snap remove --purge go-example-webserver
+    snap remove --purge test-snapd-sh
+    snap remove --purge test-snapd-auto-aliases
+    snap remove --purge test-snapd-classic-confinement
+    sed -i 's/Prompt=normal/Prompt=never/' /etc/update-manager/release-upgrades
+
+execute: |
+    while ! os.query is-ubuntu-devel; do
+        # We can only upgrade the distro if we have all upgrades installed
+        apt update
+        apt upgrade -y
+        if [[ "$SPREAD_REBOOT" = 0 ]]; then
+            REBOOT
+        fi
+
+        devel_option=
+        if os.query is-ubuntu-interim; then
+            devel_option="-d"
+        fi
+
+        echo "Upgrading $(grep -oP 'CODENAME=\K.*' /etc/os-release | head -1)"
+        sudo do-release-upgrade "$devel_option" -f DistUpgradeViewNonInteractive
+
+        ./check-snapd.sh
+
+        if os.query is-ubuntu-latest-lts; then
+            touch lts-upgrade-done
+        elif os.query is-ubuntu-interim; then
+            touch interim-upgrade-done
+        elif os.query is-ubuntu-devel; then
+            touch devel-upgrade-done
+        fi
+        SPREAD_REBOOT=0
+    done
+
+    if ! [ -f lts-upgrade-done ]; then
+        echo "We should have done an LTS upgrade but didn't"
+        exit 1
+    fi
+    if ! [ -f interim-upgrade-done ]; then
+        echo "We should have done an interim upgrade but didn't"
+        exit 1
+    fi
+    if ! [ -f devel-upgrade-done ]; then
+        echo "We should have done a devel upgrade but didn't"
+        exit 1
+    fi
