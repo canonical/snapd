@@ -50,7 +50,12 @@ jobs:
                 ln -sfn packaging/debian-sid debian
                 ;;
             ubuntu-*)
-                ln -sfn packaging/ubuntu-16.04 debian
+                version="${target_system#ubuntu-}"
+                if dpkg --compare-versions "$version" ge 26.04; then
+                    ln -sfn packaging/ubuntu-26.04 debian
+                else
+                    ln -sfn packaging/ubuntu-16.04 debian
+                fi
                 ;;
             *)
                 echo "unsupported deb packaging for $target_system"

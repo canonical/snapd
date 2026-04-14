@@ -63,26 +63,26 @@ groupadd --gid 12345 test
 adduser --uid 12345 --gid 12345 --disabled-password --gecos '' test
 
 # we build our own minimal spread.yaml
-cat > spread.yaml <<'EOF'
+cat > spread.yaml <<EOF
 project: snapd
 path: /home/gopath/src/github.com/snapcore/snapd
 environment:
     PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
-    TESTSLIB: $PROJECT_PATH/tests/lib
-    TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
+    TESTSLIB: \$PROJECT_PATH/tests/lib
+    TESTSTOOLS: \$PROJECT_PATH/tests/lib/tools
     SNAPPY_TESTING: 1
-    PATH: $PATH:$PROJECT_PATH/tests/bin
+    PATH: \$PATH:\$PROJECT_PATH/tests/bin
 backends:
     autopkgtest:
         type: adhoc
         allocate: ADDRESS localhost:22
         systems:
         - adt-local:
-            username: ubuntu
-            password: ubuntu
+            username: ${AUTOPKGTEST_NORMAL_USER:-user}
+            password: ${AUTOPKGTEST_NORMAL_USER:-user}
 prepare: |
-    # Copy external tools from the subtree to the "$TESTSLIB"/tools directory
-    cp -f "$TESTSLIB"/external/snapd-testing-tools/tools/* "$TESTSTOOLS"
+    # Copy external tools from the subtree to the "\$TESTSLIB"/tools directory
+    cp -f "\$TESTSLIB"/external/snapd-testing-tools/tools/* "\$TESTSTOOLS"
 suites:
         tests/smoke/:
             summary: Essenial system level tests for snapd

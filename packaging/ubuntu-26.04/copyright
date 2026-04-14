@@ -1,5 +1,5 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: snappy
+Upstream-Name: snapd
 Source: https://github.com/snapcore/snapd
 
 Files: *
