@@ -215,14 +215,23 @@ func readDigests(dir string) ([]string, error) {
 	return digests, nil
 }
 
-func writeUniqueCACertificates(certs *certificates, out io.Writer) error {
+func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.Writer) error {
 	copyOne := func(from string) error {
 		inf, err := os.Open(from)
 		if err != nil {
 			return err
 		}
 		defer inf.Close()
-		if _, err := io.Copy(out, inf); err != nil {
+
+		// Read it into the ca bundle
+		if _, err := io.Copy(bundle, inf); err != nil {
+			return err
+		}
+
+		// Create a link to the certificate in the merged directory, so that
+		// we keep the certificate files in sync.
+		to := filepath.Join(certsDir, filepath.Base(from))
+		if err := os.Link(from, to); err != nil {
 			return err
 		}
 		return nil
@@ -253,24 +262,51 @@ func writeUniqueCACertificates(certs *certificates, out io.Writer) error {
 	return nil
 }
 
-// generateCACertificates generates the ca-certificates.crt to the output path
-// The ca-certificates.crt is a concatenation of all the certs in the
-// output path.
-func generateCACertificates(certs *certificates, outputPath string) error {
-	certsPath := filepath.Join(outputPath, "ca-certificates.crt")
-	tmpFile, err := osutil.NewAtomicFile(certsPath, 0o644, 0, osutil.NoChown, osutil.NoChown)
-	if err != nil {
-		return fmt.Errorf("cannot create temporary ca-certificates.crt: %v", err)
+// generateCACertificates builds a merged certificate directory that mirrors
+// the system /etc/ssl/certs layout: individual certificate links plus a
+// combined ca-certificates.crt bundle. The directory is assembled in a
+// temporary location and atomically renamed into place so a failure mid-build
+// never leaves the final path in an inconsistent state.
+func generateCACertificates(certs *certificates, mergedPath string) error {
+	tmpMergedPath := mergedPath + ".tmp"
+	if err := os.MkdirAll(tmpMergedPath, 0o755); err != nil {
+		return fmt.Errorf("cannot create merged certificates directory: %v", err)
 	}
-	defer tmpFile.Cancel()
 
-	if err := writeUniqueCACertificates(certs, tmpFile); err != nil {
+	// Clean up the temp dir on failure so we don't leave partial state.
+	var err error
+	defer func() {
+		if err != nil {
+			os.RemoveAll(tmpMergedPath)
+		}
+	}()
+
+	bundlePath := filepath.Join(tmpMergedPath, "ca-certificates.crt")
+	bundle, err := os.Create(bundlePath)
+	if err != nil {
+		return fmt.Errorf("cannot create ca-certificates.crt: %v", err)
+	}
+	defer bundle.Close()
+
+	// Fill the bundle and create cert links, all inside the temp dir.
+	if err = writeUniqueCACertificates(certs, tmpMergedPath, bundle); err != nil {
 		return err
 	}
 
-	if err := tmpFile.Commit(); err != nil {
-		return fmt.Errorf("cannot atomically replace ca-certificates.crt: %v", err)
+	// Ensure the target directory exists so the swap has something to
+	// exchange with. This is a no-op when regenerating an existing DB.
+	if err = os.MkdirAll(mergedPath, 0o755); err != nil {
+		return fmt.Errorf("cannot create merged certificates directory: %v", err)
 	}
+
+	if err = osutil.SwapDirs(tmpMergedPath, mergedPath); err != nil {
+		return fmt.Errorf("cannot replace certificates directory: %v", err)
+	}
+
+	if e2 := os.RemoveAll(tmpMergedPath); e2 != nil {
+		logger.Noticef("Failed to remove old certificates directory %q: %v", tmpMergedPath, e2)
+	}
+
 	return nil
 }
 
@@ -331,7 +367,6 @@ func ensureDirectories() error {
 	dirsToEnsure := []string{
 		filepath.Join(dirs.SnapdPKIV1Dir, "added"),
 		filepath.Join(dirs.SnapdPKIV1Dir, "blocked"),
-		filepath.Join(dirs.SnapdPKIV1Dir, "merged"),
 	}
 	for _, dir := range dirsToEnsure {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -343,57 +378,28 @@ func ensureDirectories() error {
 
 var GenerateCertificateDatabase = GenerateCertificateDatabaseImpl
 
-// GenerateCertificateDatabase generates the ca-certificates.crt based on the following
-// folders:
-// - /etc/ssl/certs/ (base certificates from the system)
-// - /var/lib/snapd/pki/v1/added/ (user added certificates)
-// - /var/lib/snapd/pki/v1/blocked/ (user blocked certificates)
+// GenerateCertificateDatabaseImpl generates a merged certificate directory at
+// /var/lib/snapd/pki/v1/merged/ that mirrors the system /etc/ssl/certs layout.
+// It combines:
+//   - /etc/ssl/certs/ (base certificates from the system)
+//   - /var/lib/snapd/pki/v1/added/ (user added certificates)
+//   - /var/lib/snapd/pki/v1/blocked/ (user blocked certificate digests)
 //
-// Inside the added/ and blocked/ folders, the certificates are expected to be
-// named by their digest (sha256 hash of the certificate chain).
-// - /var/lib/snapd/pki/v1/added/<digest>.crt
-// - /var/lib/snapd/pki/v1/blocked/<digest>.crt
-//
-// The resulting ca-certificates.crt is written to
-// /var/lib/snapd/pki/v1/merged/ca-certificates.crt
-// If a previous version of the ca-certificates.crt exists, it is backed up to
-// /var/lib/snapd/pki/v1/merged/ca-certificates.crt.old
+// The resulting directory contains individual certificate links plus a combined
+// ca-certificates.crt bundle. The directory is built in a temporary location
+// and atomically swapped into place.
 func GenerateCertificateDatabaseImpl() error {
-	// we create the added/blocked/merged directories if they don't exist here.
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
 
-	// create a copy of the current certificates in the snapd pki v1 dir
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	caCertificateDbPath := filepath.Join(mergedDir, "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".old"
-
-	if err := os.Rename(caCertificateDbPath, caCertificateDbBackupPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot backup existing ca-certificates.crt: %v", err)
-	}
-
-	// make sure we restore it on error
-	var err error
-	defer func() {
-		if err != nil {
-			if restoreErr := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); restoreErr != nil && !os.IsNotExist(restoreErr) {
-				logger.Noticef("cannot restore backup of ca-certificates: %v", restoreErr)
-			}
-		}
-	}()
-
-	// We will be using the certificates from the rootfs as a starting point,
-	// meaning we need to go into /etc/ssl/certs/ and read
-	// all the certificates from there.
 	certs, err := loadCertificates()
 	if err != nil {
 		return err
 	}
 
-	// make sure we catch any error here and restore the backup
-	err = generateCACertificates(certs, mergedDir)
-	return err
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	return generateCACertificates(certs, mergedDir)
 }
 
 func certificatePathWithExtension(dir, name string) string {

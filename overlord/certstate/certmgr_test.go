@@ -266,9 +266,6 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, current)
-
-	_, err = os.Stat(filepath.Join(mergedDir, "ca-certificates.crt.old"))
-	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError(c *C) {

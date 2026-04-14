@@ -95,17 +95,28 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
-	return GenerateCertificateDatabase()
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	backupDir := mergedDir + ".old"
+
+	// Backup the existing merged directory so we can restore on undo.
+	if err := os.Rename(mergedDir, backupDir); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := GenerateCertificateDatabase(); err != nil {
+		os.Rename(backupDir, mergedDir)
+		return err
+	}
+	return nil
 }
 
 func (m *CertManager) undoUpdateCertificateDatabase(_ *state.Task, _ *tomb.Tomb) error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	backupDir := mergedDir + ".old"
 
-	// create a copy of the current certificates in the snapd pki v1 dir
-	caCertificateDbPath := filepath.Join(mergedDir, "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".old"
-
-	if err := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); err != nil && !os.IsNotExist(err) {
+	// Remove the newly generated directory and restore the backup.
+	os.RemoveAll(mergedDir)
+	if err := os.Rename(backupDir, mergedDir); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil

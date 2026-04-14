@@ -364,10 +364,6 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	c.Assert(err, IsNil)
 	c.Check(bytes.Contains(out, aPEM), Equals, true)
 	c.Check(bytes.Contains(out, bPEM), Equals, true)
-
-	bak, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt.old"))
-	c.Assert(err, IsNil)
-	c.Check(bak, DeepEquals, old)
 }
 
 func (s *certsTestSuite) TestGenerateCertificateDatabaseBlocksBaseCertByDigest(c *C) {
