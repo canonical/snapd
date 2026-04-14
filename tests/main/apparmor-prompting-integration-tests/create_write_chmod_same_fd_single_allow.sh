@@ -47,6 +47,9 @@ snap run --shell prompting-client.scripted -c "${HELPER_PATH} ${TEST_DIR}/test.t
 # Wait for the client to write its result and exit
 timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
 
+# Clean up the helper program
+rm -f "${HELPER_PATH}"
+
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
 if [ "$CLIENT_OUTPUT" != "success" ] ; then

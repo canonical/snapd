@@ -50,7 +50,7 @@ skip:
 
 prepare: |
     # Check whether kernel supports temporal cache, and whether it should, and
-    # whether the there is a temporal cache script for this variant.
+    # whether there is a temporal cache script for this variant.
     if [ -e /proc/sys/kernel/apparmor_cache_timeout ] ; then
         echo "Kernel supports apparmor temporal cache"
         if [ -f "${VARIANT}-temporal.json" ] ; then
