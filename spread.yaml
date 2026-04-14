@@ -143,6 +143,8 @@ environment:
     # Whether snapd should skip early refreshes.
     SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
+    SKIP_RESTORE: '$(HOST: echo "${SPREAD_SKIP_RESTORE:-false}")'
+
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -1596,9 +1598,13 @@ suites:
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+            if [ "$SKIP_RESTORE" = "false" ]; then
+                "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+            fi
         restore: |
-            "$TESTSLIB"/prepare-restore.sh --restore-suite
+            if [ "$SKIP_RESTORE" = "false" ]; then
+                "$TESTSLIB"/prepare-restore.sh --restore-suite
+            fi
     tests/cross/:
         summary: Cross-compile tests
         systems: [ubuntu-24.04-64]
