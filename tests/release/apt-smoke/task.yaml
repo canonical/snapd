@@ -1,0 +1,37 @@
+summary: Check that with the deb version installed apt can still install and upgrade other debs
+
+details: |
+    Check that with the deb version installed apt can still install and upgrade other debs
+
+systems:
+    - ubuntu-1*
+    - ubuntu-2*
+
+manual: true
+
+skip:
+    - reason: This test is a deb-only test
+      if: |
+        tests.info is-reexec-in-use
+
+execute: |
+    # https://documentation.ubuntu.com/project/SRU/reference/exception-Snapd-Updates/#snapd-packaging-qa
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        REBOOT
+    fi
+    . /etc/os-release
+    snap version | grep -E '^snap[[:space:]]' | MATCH "[0-9]+[.][0-9]+([.][0-9]+)?([.][0-9]+)?[+]ubuntu${VERSION_ID}([.][0-9]+)?"
+    snap version | grep -E '^snapd[[:space:]]' | MATCH "[0-9]+[.][0-9]+([.][0-9]+)?([.][0-9]+)?[+]ubuntu${VERSION_ID}([.][0-9]+)?"
+    snap version --verbose | MATCH "snapd-bin-from.*native-package$"
+    snap version --verbose | MATCH "snap-bin-from.*native-package$"
+
+    apt update
+    apt install -y apt-show-versions
+
+    if apt update | NOMATCH "packages can be upgraded"; then
+        echo "There are no packages to upgrade; so downgrade openssh-client and upgrade it"
+        version="$(apt-cache madison openssh-client | awk '{print $3}' | sort -u | head -1)"
+        apt install -y --allow-downgrades "openssh-client=${version}"
+    fi
+
+    apt upgrade -y | tee MATCH "The following packages will be upgraded:"
