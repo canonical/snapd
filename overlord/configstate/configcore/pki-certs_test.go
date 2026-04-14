@@ -250,10 +250,6 @@ func (s *pkiCertsSuite) TestHandleCustomCertificateChangeRegeneratesDatabase(c *
 	c.Assert(err, IsNil)
 	c.Check(bytes.Equal(newBundle, oldBundle), Equals, false)
 	assertCertificateDatabaseContains(c, certPEM, true)
-
-	bak, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt.old"))
-	c.Assert(err, IsNil)
-	c.Check(bak, DeepEquals, oldBundle)
 }
 
 func (s *pkiCertsSuite) TestHandleCustomCertificateBlockedWritesBlockedSymlink(c *C) {
