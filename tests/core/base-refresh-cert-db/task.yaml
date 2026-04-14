@@ -21,6 +21,9 @@ prepare: |
         24)
             other_base="core22"
             ;;
+        26)
+            other_base="core24"
+            ;;
         *)
             echo "unsupported VERSION_ID: $VERSION_ID"
             exit 1
