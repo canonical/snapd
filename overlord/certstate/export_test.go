@@ -18,14 +18,20 @@
 
 package certstate
 
-import "github.com/snapcore/snapd/testutil"
+import (
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
+	"gopkg.in/tomb.v2"
+)
 
 type Certificate = certificate
 type Certificates = certificates
 
 const (
-	Asn1TagVisibleString   = asn1TagVisibleString
-	Asn1TagUniversalString = asn1TagUniversalString
+	Asn1TagVisibleString                = asn1TagVisibleString
+	Asn1TagUniversalString              = asn1TagUniversalString
+	DoUpdateCertificateDatabaseMarker   = doUpdateCertificateDatabaseMarker
+	UndoUpdateCertificateDatabaseMarker = undoUpdateCertificateDatabaseMarker
 )
 
 var (
@@ -45,8 +51,20 @@ var (
 	CanonicalSubjectNameDER       = canonicalSubjectNameDER
 )
 
-func MockGenerateCertificateDatabase(f func() error) func() {
-	restore := testutil.Backup(&GenerateCertificateDatabase)
-	GenerateCertificateDatabase = f
+func MockRefreshCertificateDatabase(f func() error) func() {
+	restore := testutil.Backup(&RefreshCertificateDatabase)
+	RefreshCertificateDatabase = f
 	return restore
+}
+
+func (m *CertManager) DoUpdateCertificateDatabase(t *state.Task, tb *tomb.Tomb) error {
+	return m.doUpdateCertificateDatabase(t, tb)
+}
+
+func (m *CertManager) CleanupUpdateCertificateDatabase(t *state.Task, tb *tomb.Tomb) error {
+	return m.cleanupUpdateCertificateDatabase(t, tb)
+}
+
+func (m *CertManager) UndoUpdateCertificateDatabase(t *state.Task, tb *tomb.Tomb) error {
+	return m.undoUpdateCertificateDatabase(t, tb)
 }

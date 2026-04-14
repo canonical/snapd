@@ -85,7 +85,7 @@ func makePKITestCertPEM(c *C, commonName string) []byte {
 func certDigest(c *C, certPEM []byte) string {
 	parsed, err := certstate.ParseCertificateData(certPEM)
 	c.Assert(err, IsNil)
-	return parsed.Digest
+	return parsed.Sha256
 }
 
 func certificateDatabaseContains(c *C, certPEM []byte) bool {
@@ -250,10 +250,6 @@ func (s *pkiCertsSuite) TestHandleCustomCertificateChangeRegeneratesDatabase(c *
 	c.Assert(err, IsNil)
 	c.Check(bytes.Equal(newBundle, oldBundle), Equals, false)
 	assertCertificateDatabaseContains(c, certPEM, true)
-
-	bak, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt.old"))
-	c.Assert(err, IsNil)
-	c.Check(bak, DeepEquals, oldBundle)
 }
 
 func (s *pkiCertsSuite) TestHandleCustomCertificateBlockedWritesBlockedSymlink(c *C) {
