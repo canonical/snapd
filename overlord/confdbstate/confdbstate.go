@@ -210,33 +210,33 @@ var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, db
 // waitForAccess checks if ongoing transactions prevent this access from running
 // and if necessary blocks until it can. The following scenarios can occur:
 //   - the access can immediately run (no ongoing tx or all are reads) - returns
-//     without waiting, with no waitID or error
+//     without waiting, with no accessID or error
 //   - the access must wait - returns after being unblocked, with a non-empty
-//     waitID matching an access in Processing (to be removed after scheduling)
+//     accessID matching an access in Processing (to be removed after scheduling)
 //   - any error occurs or the context times out or is cancelled - returns an
-//     error but no waitID, since relevant state in Processing/Pending is cleared
+//     error but no accessID, since relevant state in Processing/Pending is cleared
 //
 // Caller must hold the state lock.
-func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, access accessType) (waitID string, err error) {
+func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, accKind accessType) (accessID string, err error) {
 	account, schema := view.Schema().Account, view.Schema().Name
 	txs, updateTxs, err := getOngoingTxs(st, account, schema)
 	if err != nil {
 		return "", fmt.Errorf("cannot access confdb view %s: cannot check ongoing transactions: %v", view.ID(), err)
 	}
 
-	if (access == readAccess && txs.CanStartReadTx()) || (access == writeAccess && txs.CanStartWriteTx()) {
+	if (accKind == readAccess && txs.CanStartReadTx()) || (accKind == writeAccess && txs.CanStartWriteTx()) {
 		return "", nil
 	}
-	waitID = randutil.RandomString(20)
+	accessID = randutil.RandomString(20)
 
 	// AFAICT a buffer isn't strictly necessary here because if a writer sends to
 	// the channel, this goroutine will already have unlocked state and will eventually
 	// read from the channel, unblocking the lock holding goroutine. But let's be extra safe
 	wait := make(chan struct{}, 2)
-	txs.Pending = append(txs.Pending, pendingAccess{
-		AccessType: access,
+	txs.Pending = append(txs.Pending, access{
+		AccessType: accKind,
 		WaitChan:   wait,
-		ID:         waitID,
+		ID:         accessID,
 	})
 	updateTxs(txs)
 	st.Unlock()
@@ -265,16 +265,17 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 		}
 
 		for i, acc := range txs.Pending {
-			if acc.ID == waitID {
+			if acc.ID == accessID {
 				txs.Pending = append(txs.Pending[:i], txs.Pending[i+1:]...)
 				break
 			}
 		}
 
-		// if the timeout/cancel raced with an unblock, the access might be in processing
-		for i, acc := range txs.Processing {
-			if acc.ID == waitID {
-				txs.Processing = append(txs.Processing[:i], txs.Processing[i+1:]...)
+		// if the timeout/cancel raced with an unblock, the access might be in
+		// Scheduling so remove that
+		for i, acc := range txs.Scheduling {
+			if acc.ID == accessID {
+				txs.Scheduling = append(txs.Scheduling[:i], txs.Scheduling[i+1:]...)
 				break
 			}
 		}
@@ -286,26 +287,26 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, acce
 
 		updateTxs(txs)
 
-		return "", fmt.Errorf("cannot %s %s: timed out waiting for access", access, view.ID())
+		return "", fmt.Errorf("cannot %s %s: timed out waiting for access", accKind, view.ID())
 	}
 
-	return waitID, nil
+	return accessID, nil
 }
 
 // WriteConfdb takes a map of request paths to values, schedules a change to
 // set the values in specified confdb view and run the appropriate hooks.
 // Returns a change ID.
 func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values map[string]any) (changeID string, err error) {
-	waitID, err := waitForAccess(ctx, st, view, writeAccess)
+	accessID, err := waitForAccess(ctx, st, view, writeAccess)
 	if err != nil {
 		return "", err
 	}
 
 	account, schema := view.Schema().Account, view.Schema().Name
 	var chg *state.Change
-	if waitID != "" {
+	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, waitID, account, schema)
+			cleanupAccess(st, chg, accessID, account, schema)
 		}()
 	}
 
@@ -330,7 +331,7 @@ func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values
 	chg = st.NewChange(setConfdbChangeKind, fmt.Sprintf("Set confdb through %q", view.ID()))
 	chg.AddAll(ts)
 
-	err = setWriteTransaction(st, account, schema, commitTask.ID(), waitID)
+	err = setWriteTransaction(st, account, schema, commitTask.ID(), accessID)
 	if err != nil {
 		return "", err
 	}
@@ -376,15 +377,15 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 	}
 
 	st := hookCtx.State()
-	waitID, err := waitForAccess(ctx, st, view, writeAccess)
+	accessID, err := waitForAccess(ctx, st, view, writeAccess)
 	if err != nil {
 		return err
 	}
 
 	var chg *state.Change
-	if waitID != "" {
+	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, waitID, account, schema)
+			cleanupAccess(st, chg, accessID, account, schema)
 		}()
 	}
 
@@ -414,7 +415,7 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 	}
 	chg.AddAll(ts)
 
-	err = setWriteTransaction(st, account, schema, commitTask.ID(), waitID)
+	err = setWriteTransaction(st, account, schema, commitTask.ID(), accessID)
 	if err != nil {
 		return err
 	}
@@ -720,15 +721,15 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 		defer cancel()
 	}
 
-	waitID, err := waitForAccess(ctx, st, view, readAccess)
+	accessID, err := waitForAccess(ctx, st, view, readAccess)
 	if err != nil {
 		return nil, err
 	}
 
 	var chg *state.Change
-	if waitID != "" {
+	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, waitID, account, schema)
+			cleanupAccess(st, chg, accessID, account, schema)
 		}()
 	}
 
@@ -772,7 +773,7 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 		return false
 	})
 
-	err = addReadTransaction(st, account, schema, clearTxTask.ID(), waitID)
+	err = addReadTransaction(st, account, schema, clearTxTask.ID(), accessID)
 	if err != nil {
 		return nil, err
 	}
@@ -806,10 +807,10 @@ const (
 	writeAccess accessType = "write"
 )
 
-// pendingAccess holds data for a pending access, namely a unique identifier,
+// access holds data for a pending access, namely a unique identifier,
 // access type (read or write) and a channel use to signal that the access can
 // proceed.
-type pendingAccess struct {
+type access struct {
 	// ID is a random string identifying this access.
 	ID string
 	// AccessType denotes whether the access is read or write.
@@ -818,7 +819,11 @@ type pendingAccess struct {
 	WaitChan chan<- struct{}
 }
 
-func cleanupAccess(st *state.State, chg *state.Change, waitID, account, schema string) {
+// cleanupAccess removes state related to processing an access, if any exists
+// (i.e., if the access had to wait and was eventually unblocked). If no tasks
+// were scheduled and there aren't other accesses waiting to schedule, it unblocks
+// the next pending accesses.
+func cleanupAccess(st *state.State, chg *state.Change, accessID, account, schema string) {
 	txs, updateTxStateFunc, uerr := getOngoingTxs(st, account, schema)
 	if uerr != nil {
 		logger.Noticef("cannot unblock next access after failed access: %v", uerr)
@@ -826,10 +831,10 @@ func cleanupAccess(st *state.State, chg *state.Change, waitID, account, schema s
 	}
 	defer updateTxStateFunc(txs)
 
-	// remove this access from the processing list, if we haven't yet
-	for i, acc := range txs.Processing {
-		if acc.ID == waitID {
-			txs.Processing = append(txs.Processing[:i], txs.Processing[i+1:]...)
+	// remove this access from the scheduling list, if we haven't yet
+	for i, acc := range txs.Scheduling {
+		if acc.ID == accessID {
+			txs.Scheduling = append(txs.Scheduling[:i], txs.Scheduling[i+1:]...)
 			break
 		}
 	}
@@ -849,16 +854,16 @@ func cleanupAccess(st *state.State, chg *state.Change, waitID, account, schema s
 // hooks and fulfilling the requests by reading the view and placing the
 // resulting data in the change's data (so it can be read by the client).
 func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, requests []string, constraints map[string]any, userAccess confdb.Access) (changeID string, err error) {
-	waitID, err := waitForAccess(ctx, st, view, readAccess)
+	accessID, err := waitForAccess(ctx, st, view, readAccess)
 	if err != nil {
 		return "", err
 	}
 
 	account, schema := view.Schema().Account, view.Schema().Name
 	var chg *state.Change
-	if waitID != "" {
+	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, waitID, account, schema)
+			cleanupAccess(st, chg, accessID, account, schema)
 		}()
 	}
 
@@ -892,7 +897,7 @@ func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, request
 		loadConfdbTask.WaitFor(clearTxTask)
 		chg.AddAll(ts)
 
-		err = addReadTransaction(st, account, schema, clearTxTask.ID(), waitID)
+		err = addReadTransaction(st, account, schema, clearTxTask.ID(), accessID)
 		if err != nil {
 			return "", err
 		}

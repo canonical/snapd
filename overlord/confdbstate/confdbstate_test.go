@@ -1875,13 +1875,13 @@ func (s *confdbTestSuite) TestReadConfdbNoHooksUnblocksNextPendingAccess(c *C) {
 
 	// the blocked read released the lock before waiting
 	s.state.Lock()
-	accs, ok := s.state.Cached("pending-confdb-" + ref).([]confdbstate.PendingAccess)
+	accs, ok := s.state.Cached("pending-confdb-" + ref).([]confdbstate.Access)
 	c.Assert(ok, Equals, true)
 	c.Assert(accs, HasLen, 1)
 	c.Assert(accs[0].AccessType, Equals, confdbstate.AccessType("read"))
 
 	nextWaitChan := make(chan struct{}, 1)
-	s.endOngoingAccess(c, &confdbstate.PendingAccess{
+	s.endOngoingAccess(c, &confdbstate.Access{
 		ID:         "next-write",
 		AccessType: confdbstate.AccessType("write"),
 		WaitChan:   nextWaitChan,
@@ -2294,7 +2294,7 @@ func (s *confdbTestSuite) TestAPIMultipleConcurrentReads(c *C) {
 	c.Assert(secondChgID, Not(Equals), "")
 
 	waitChan := make(chan struct{}, 1)
-	s.state.Cache("pending-confdb-"+view.Schema().Account+"/network", []confdbstate.PendingAccess{{
+	s.state.Cache("pending-confdb-"+view.Schema().Account+"/network", []confdbstate.Access{{
 		ID:         "foo",
 		AccessType: confdbstate.AccessType("write"),
 		WaitChan:   waitChan,
@@ -2446,7 +2446,7 @@ func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
 		s.state.Lock()
 		s.state.Set("confdb-ongoing-txs", ongoingTxs)
 		s.state.Cache("pending-confdb-"+ref, nil)
-		s.state.Cache("processing-confdb-"+ref, nil)
+		s.state.Cache("scheduling-confdb-"+ref, nil)
 
 		// testing helper closed when the access is about to block
 		blockingChan := make(chan struct{})
@@ -2469,11 +2469,11 @@ func (s *confdbTestSuite) TestFailedAccessUnblocksNextAccess(c *C) {
 		s.state.Lock()
 		accs := s.state.Cached("pending-confdb-" + ref)
 		c.Assert(accs, NotNil)
-		pending := accs.([]confdbstate.PendingAccess)
+		pending := accs.([]confdbstate.Access)
 		c.Assert(pending, HasLen, 1)
 
 		waitChan := make(chan struct{}, 1)
-		s.endOngoingAccess(c, &confdbstate.PendingAccess{
+		s.endOngoingAccess(c, &confdbstate.Access{
 			ID:         "foo",
 			AccessType: confdbstate.AccessType("write"),
 			WaitChan:   waitChan,
@@ -2549,7 +2549,7 @@ func (s *confdbTestSuite) testSnapctlConcurrentAccess(c *C, firstAccess accessFu
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(txs.Pending, IsNil)
-	c.Assert(txs.Processing, IsNil)
+	c.Assert(txs.Scheduling, IsNil)
 
 	err = s.o.Settle(5 * time.Second)
 	c.Assert(err, IsNil)
@@ -2620,7 +2620,7 @@ func (s *confdbTestSuite) TestReadWithOngoingReadBlocksIfWriteIsPending(c *C) {
 		ReadTxIDs: []string{"10"},
 	}
 	s.state.Set("confdb-ongoing-txs", ongoingTxs)
-	s.state.Cache("pending-confdb-"+ref, []confdbstate.PendingAccess{{
+	s.state.Cache("pending-confdb-"+ref, []confdbstate.Access{{
 		ID:         "foo",
 		AccessType: confdbstate.AccessType("write"),
 		WaitChan:   make(chan struct{}),
@@ -2646,7 +2646,7 @@ func (s *confdbTestSuite) TestReadWithOngoingReadBlocksIfWriteIsPending(c *C) {
 
 	// the read access released the lock and blocked so we have to re-lock
 	s.state.Lock()
-	pending, ok := s.state.Cached("pending-confdb-" + ref).([]confdbstate.PendingAccess)
+	pending, ok := s.state.Cached("pending-confdb-" + ref).([]confdbstate.Access)
 	s.state.Unlock()
 	c.Assert(ok, Equals, true)
 	c.Assert(pending, HasLen, 2)
@@ -2664,7 +2664,7 @@ func (s *confdbTestSuite) TestReadWithOngoingReadBlocksIfWriteIsPending(c *C) {
 	}
 
 	// check that cancelling an access cleans up the pending state
-	pending, ok = s.state.Cached("pending-confdb-" + ref).([]confdbstate.PendingAccess)
+	pending, ok = s.state.Cached("pending-confdb-" + ref).([]confdbstate.Access)
 	c.Assert(ok, Equals, true)
 	c.Assert(pending, HasLen, 1)
 	c.Assert(pending[0].AccessType, Equals, confdbstate.AccessType("write"))
@@ -2717,7 +2717,7 @@ func (s *confdbTestSuite) TestOngoingTxUnblocksMultiplePendingReads(c *C) {
 	c.Assert(err, IsNil)
 
 	readOneChan, readTwoChan, writeChan := make(chan struct{}, 1), make(chan struct{}, 1), make(chan struct{}, 1)
-	s.state.Cache("pending-confdb-"+view.Schema().Account+"/network", []confdbstate.PendingAccess{
+	s.state.Cache("pending-confdb-"+view.Schema().Account+"/network", []confdbstate.Access{
 		{
 			ID:         "foo",
 			AccessType: confdbstate.AccessType("read"),
@@ -2786,7 +2786,7 @@ func (s *confdbTestSuite) TestAPIConfdbErrorUnblocksNextAccess(c *C) {
 			ref: {WriteTxID: "10"},
 		})
 		s.state.Cache("pending-confdb-"+ref, nil)
-		s.state.Cache("processing-confdb-"+ref, nil)
+		s.state.Cache("scheduling-confdb-"+ref, nil)
 
 		blockingChan := make(chan struct{})
 		confdbstate.SetBlockingSignal("wait-for-access", blockingChan)
@@ -2808,12 +2808,12 @@ func (s *confdbTestSuite) TestAPIConfdbErrorUnblocksNextAccess(c *C) {
 		s.state.Lock()
 		accs := s.state.Cached("pending-confdb-" + ref)
 		c.Assert(accs, NotNil)
-		pending := accs.([]confdbstate.PendingAccess)
+		pending := accs.([]confdbstate.Access)
 		c.Assert(pending, HasLen, 1)
 
 		// clear the ongoing tx, queue another pending access, then unblock
 		nextWaitChan := make(chan struct{}, 1)
-		s.endOngoingAccess(c, &confdbstate.PendingAccess{
+		s.endOngoingAccess(c, &confdbstate.Access{
 			ID:         "next-access",
 			AccessType: confdbstate.AccessType("write"),
 			WaitChan:   nextWaitChan,
@@ -2840,7 +2840,7 @@ func (s *confdbTestSuite) TestAPIConfdbErrorUnblocksNextAccess(c *C) {
 // transaction. It unsets the ongoing tx in the state, unblocks the next pending
 // accesses and moves them to processing. If a new pending access is provided,
 // it's set in the state.
-func (s *confdbTestSuite) endOngoingAccess(c *C, newPending *confdbstate.PendingAccess) {
+func (s *confdbTestSuite) endOngoingAccess(c *C, newPending *confdbstate.Access) {
 	txs, updateFunc, err := confdbstate.GetOngoingTxs(s.state, s.devAccID, "network")
 	c.Assert(err, IsNil)
 	defer updateFunc(txs)
@@ -2887,7 +2887,7 @@ func (s *confdbTestSuite) TestSnapctlConfdbErrorUnblocksNextAccess(c *C) {
 			ref: {WriteTxID: "10"},
 		})
 		s.state.Cache("pending-confdb-"+ref, nil)
-		s.state.Cache("processing-confdb-"+ref, nil)
+		s.state.Cache("scheduling-confdb-"+ref, nil)
 
 		blockingChan := make(chan struct{})
 		confdbstate.SetBlockingSignal("wait-for-access", blockingChan)
@@ -2911,12 +2911,12 @@ func (s *confdbTestSuite) TestSnapctlConfdbErrorUnblocksNextAccess(c *C) {
 		s.state.Lock()
 		accs := s.state.Cached("pending-confdb-" + ref)
 		c.Assert(accs, NotNil)
-		pending := accs.([]confdbstate.PendingAccess)
+		pending := accs.([]confdbstate.Access)
 		c.Assert(pending, HasLen, 1)
 
 		// clear the ongoing tx, queue another pending access, then unblock
 		nextWaitChan := make(chan struct{}, 1)
-		s.endOngoingAccess(c, &confdbstate.PendingAccess{
+		s.endOngoingAccess(c, &confdbstate.Access{
 			ID:         "next-access",
 			AccessType: confdbstate.AccessType("write"),
 			WaitChan:   nextWaitChan,
@@ -2988,7 +2988,7 @@ func (s *confdbTestSuite) TestReadConfdbFromSnapNoHooksToRun(c *C) {
 	// clear the ongoing tx, queue another pending access, then unblock
 	nextWaitChan := make(chan struct{}, 1)
 	s.state.Lock()
-	s.endOngoingAccess(c, &confdbstate.PendingAccess{
+	s.endOngoingAccess(c, &confdbstate.Access{
 		ID:         "next-write",
 		AccessType: confdbstate.AccessType("write"),
 		WaitChan:   nextWaitChan,
@@ -3068,8 +3068,8 @@ func (s *confdbTestSuite) TestAPIBlockingAccessTimedOutRacesWithUnblock(c *C) {
 
 	// mock another goroutine unblocking the pending write
 	txs.WriteTxID = ""
-	txs.Processing = txs.Pending
-	txs.Pending = []confdbstate.PendingAccess{{
+	txs.Scheduling = txs.Pending
+	txs.Pending = []confdbstate.Access{{
 		ID:         "next-read",
 		AccessType: confdbstate.AccessType("read"),
 		WaitChan:   waitChan,
@@ -3086,7 +3086,7 @@ func (s *confdbTestSuite) TestAPIBlockingAccessTimedOutRacesWithUnblock(c *C) {
 
 	// even though the pending access was already unblocked, the time out/cancel
 	// still cleaned up its state and unblocked the next access
-	cached := s.state.Cached("processing-confdb-" + ref).([]confdbstate.PendingAccess)
+	cached := s.state.Cached("scheduling-confdb-" + ref).([]confdbstate.Access)
 	c.Assert(cached, HasLen, 1)
 	c.Assert(cached[0].AccessType, Equals, confdbstate.AccessType("read"))
 

@@ -39,7 +39,7 @@ var (
 
 type (
 	ConfdbTransactions = confdbTransactions
-	PendingAccess      = pendingAccess
+	Access             = access
 	AccessType         = accessType
 )
 

@@ -364,11 +364,11 @@ func (s *confdbTestSuite) TestSetAndUnsetOngoingTransactionHelpers(c *C) {
 	err := s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
-	s.state.Cache("processing-confdb-my-acc/my-confdb", []confdbstate.PendingAccess{{ID: "foo"}})
+	s.state.Cache("scheduling-confdb-my-acc/my-confdb", []confdbstate.Access{{ID: "foo"}})
 
 	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "1", "foo")
 	c.Assert(err, IsNil)
-	accs := s.state.Cached("processing-confdb-my-acc/my-confdb")
+	accs := s.state.Cached("scheduling-confdb-my-acc/my-confdb")
 	c.Assert(accs, IsNil)
 
 	err = confdbstate.SetWriteTransaction(s.state, "other-acc", "other-confdb", "2", "")
@@ -418,10 +418,10 @@ func (s *confdbTestSuite) TestConflictingOngoingTransactions(c *C) {
 	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
 	c.Assert(err, IsNil)
 
-	s.state.Cache("processing-confdb-my-acc/my-confdb", []confdbstate.PendingAccess{{ID: "foo"}})
+	s.state.Cache("scheduling-confdb-my-acc/my-confdb", []confdbstate.Access{{ID: "foo"}})
 	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "1", "foo")
 	c.Assert(err, IsNil)
-	accs := s.state.Cached("processing-confdb-my-acc/my-confdb")
+	accs := s.state.Cached("scheduling-confdb-my-acc/my-confdb")
 	c.Assert(accs, IsNil)
 
 	// can't set write due to ongoing read
