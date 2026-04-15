@@ -1,0 +1,98 @@
+name: Release Testing
+on:
+  pull_request:
+    branches: [ "release/**" ]
+
+jobs:
+  run-gate:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running release testing."
+
+  snap-builds:
+    uses: ./.github/workflows/snap-builds.yaml
+    needs: run-gate
+    with:
+      runs-on: '["ubuntu-latest"]'
+      toolchain: default
+      variant: test
+
+  find-lowest-supported:
+    runs-on: ubuntu-latest
+    needs: run-gate
+    outputs:
+      version: ${{ steps.find-lowest-supported.outputs.version }}
+      system: ${{ steps.find-lowest-supported.outputs.system }}
+    steps:
+      - name: Find lowest supported Ubuntu version
+        id: find-lowest-supported
+        run: |
+          sudo apt update
+          version=$(ubuntu-distro-info --supported --release | head -1 | awk '{print $1}')
+          echo "Setting lowest supported version to $version and system to ubuntu-$version-64"
+          echo "system=ubuntu-$version-64" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+  create-vendor-dir:
+    runs-on: ubuntu-latest
+    needs: run-gate
+    name: Create go vendor
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: vendor
+        run: |
+          sudo snap install --classic --channel 1.18/stable go
+          /snap/bin/go mod vendor
+          (
+            cd c-vendor
+            ./vendor.sh
+          )
+          mkdir /tmp/pkg
+          base_version="$(head -1 packaging/ubuntu-16.04/changelog | awk -F '[()]' '{print $2}')"
+          version="1337.$base_version"
+          ./packaging/pack-source -v "$version" -o /tmp/pkg
+          ./packaging/pack-source -v "$version" -o /tmp/pkg -s
+          echo "$version" > /tmp/pkg/version
+
+      - name: Upload vendors
+        uses: actions/upload-artifact@v7
+        with:
+          name: vendor-pkgs
+          path: /tmp/pkg
+  
+  package-snapd-deb:
+    needs: [find-lowest-supported, create-vendor-dir]
+    uses: ./.github/workflows/deb-builds.yaml
+    name: Package ${{ matrix.build-config.system }}
+    with:
+      runs-on: '["ubuntu-latest"]'
+      system: ${{ needs.find-lowest-supported.outputs.system }}
+      os: ubuntu
+      os-version: ${{ needs.find-lowest-supported.outputs.version }}
+
+  test-snapd-deb:
+    needs: [package-snapd-deb, snap-builds, find-lowest-supported]
+    uses: ./.github/workflows/spread-tests.yaml
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: deb-test
+      backend: openstack
+      systems: ${{ needs.find-lowest-supported.outputs.system }}
+      tasks: 'tests/upgrade/distro-upgrade'
+      rules: ''
+      spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_SNAP_REEXEC=0 SPREAD_SKIP_RESTORE=true"
+
+  test-snapd-snap:
+    needs: [snap-builds, find-lowest-supported]
+    uses: ./.github/workflows/spread-tests.yaml
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: snap-test
+      backend: openstack
+      systems: ${{ needs.find-lowest-supported.outputs.system }}
+      tasks: 'tests/upgrade/distro-upgrade'
+      rules: ''
+      spread-env: "SPREAD_SKIP_RESTORE=true"
