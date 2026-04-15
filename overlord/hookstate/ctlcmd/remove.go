@@ -55,7 +55,7 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	id, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: c.NoWait})
+	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: c.NoWait})
 	if err != nil {
 		return err
 	}
