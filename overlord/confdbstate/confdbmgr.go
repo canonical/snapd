@@ -242,7 +242,8 @@ func (txs *confdbTransactions) CanStartWriteTx() bool {
 }
 
 // addReadTransaction adds a read transaction for the specified confdb, if no
-// write transactions is ongoing. The state must be locked by the caller.
+// write transactions is ongoing. If a waitID is passed in, it'll be removed
+// from the processing list of accesses. The state must be locked by the caller.
 func addReadTransaction(st *state.State, account, confdbName, id, waitID string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, confdbName)
 	if err != nil {
@@ -266,8 +267,9 @@ func addReadTransaction(st *state.State, account, confdbName, id, waitID string)
 }
 
 // setWriteTransaction sets a write transaction for the specified confdb schema,
-// if no other transactions (read or write) are ongoing. The state must be locked
-// by the caller.
+// if no other transactions (read or write) are ongoing. If a waitID is passed
+// in, it'll be removed from the processing list of accesses. The state must be
+// locked by the caller.
 func setWriteTransaction(st *state.State, account, schemaName, id, waitID string) error {
 	txs, updateTxStateFunc, err := getOngoingTxs(st, account, schemaName)
 	if err != nil {

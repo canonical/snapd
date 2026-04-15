@@ -207,9 +207,16 @@ var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, db
 	return nil
 }
 
-// waitForAccess blocks until the access can be processed or until the context
-// was cancelled/timed out, in which case an error is returned. Caller must hold
-// the state lock.
+// waitForAccess checks if ongoing transactions prevent this access from running
+// and if necessary blocks until it can. The following scenarios can occur:
+//   - the access can immediately run (no ongoing tx or all are reads) - returns
+//     without waiting, with no waitID or error
+//   - the access must wait - returns after being unblocked, with a non-empty
+//     waitID matching an access in Processing (to be removed after scheduling)
+//   - any error occurs or the context times out or is cancelled - returns an
+//     error but no waitID, since relevant state in Processing/Pending is cleared
+//
+// Caller must hold the state lock.
 func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, access accessType) (waitID string, err error) {
 	account, schema := view.Schema().Account, view.Schema().Name
 	txs, updateTxs, err := getOngoingTxs(st, account, schema)
