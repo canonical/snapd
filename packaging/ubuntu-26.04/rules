@@ -122,7 +122,10 @@ endif
 BUILT_USING=$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W $(BUILT_USING_PACKAGES))
 
 %:
-	dh $@ --buildsystem=golang --with=golang --fail-missing --builddirectory=_build	
+	dh $@ --buildsystem=golang --with=golang --builddirectory=_build	
+
+override_dh_missing:
+	dh_missing --fail-missing
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
