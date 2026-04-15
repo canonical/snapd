@@ -29,8 +29,11 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
-// GetListener tries to get a listener for the given socket path from
-// the listener map, and if it fails it tries to set it up directly.
+// GetListener tries to get a listener for the given socket path from the
+// listener map, and if it fails it tries to set it up directly. The socket, if
+// needed to be created, is owned by the current user and its mode is set to
+// 0666. Upon returning, the caller can change to mode using os.Chmod() if
+// required.
 func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Listener, error) {
 	if listener, ok := listenerMap[socketPath]; ok {
 		return listener, nil
@@ -55,9 +58,9 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 		return nil, err
 	}
 	// if we reached here, the socket was clearly not in the set passed as
-	// activation sockets, so make sure it has the same mode as systemd's
-	// default (0666). The caller knows the path and can adjust the mode to
-	// their liking.
+	// activation sockets. It is owned by current user, but its mode is 0777 &
+	// ~umask. Update the mode to same value as systemd's default (0666). The
+	// caller knows the path and can adjust the mode to their liking.
 	if err := os.Chmod(socketPath, 0666); err != nil {
 		listener.Close()
 		return nil, err
