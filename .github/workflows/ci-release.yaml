@@ -81,9 +81,9 @@ jobs:
       group: deb-test
       backend: openstack
       systems: ${{ needs.find-lowest-supported.outputs.system }}
-      tasks: 'tests/upgrade/distro-upgrade'
+      tasks: 'tests/release/distro-upgrade'
       rules: ''
-      spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_SNAP_REEXEC=0 SPREAD_SKIP_RESTORE=true"
+      spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_SNAP_REEXEC=0"
 
   test-snapd-snap:
     needs: [snap-builds, find-lowest-supported]
@@ -93,6 +93,5 @@ jobs:
       group: snap-test
       backend: openstack
       systems: ${{ needs.find-lowest-supported.outputs.system }}
-      tasks: 'tests/upgrade/distro-upgrade'
+      tasks: 'tests/release/distro-upgrade'
       rules: ''
-      spread-env: "SPREAD_SKIP_RESTORE=true"

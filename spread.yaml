@@ -143,8 +143,6 @@ environment:
     # Whether snapd should skip early refreshes.
     SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
-    SKIP_RESTORE: '$(HOST: echo "${SPREAD_SKIP_RESTORE:-false}")'
-
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -1587,6 +1585,14 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
+    tests/release/:
+        summary: Tests for snapd during the release process
+        systems: [ubuntu-1*, ubuntu-2*]
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+
     tests/upgrade/:
         summary: Tests for snapd upgrade
         # Test cases are not yet ported to openSUSE that is why we keep
@@ -1598,13 +1604,9 @@ suites:
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
         restore-each: |
-            if [ "$SKIP_RESTORE" = "false" ]; then
-                "$TESTSLIB"/prepare-restore.sh --restore-suite-each
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
-            if [ "$SKIP_RESTORE" = "false" ]; then
-                "$TESTSLIB"/prepare-restore.sh --restore-suite
-            fi
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
     tests/cross/:
         summary: Cross-compile tests
         systems: [ubuntu-24.04-64]
