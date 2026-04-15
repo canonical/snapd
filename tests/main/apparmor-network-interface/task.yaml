@@ -1,0 +1,154 @@
+summary: Ensure AppArmor can restrict snap network access to specific interfaces.
+
+details: |
+    This test verifies that AppArmor can restrict a snap acting as a network
+    client to communicate only over a permitted network interface, while denying
+    access to other interfaces on the machine.
+
+    Two isolated server environments are created using veth pairs and network
+    namespaces: each server is only reachable through its own dedicated host-side
+    veth interface. This ensures traffic to each server actually traverses the
+    expected interface (as opposed to loopback, which would be used if both ends
+    of a connection shared the same host).
+
+    The test then:
+    1. Verifies both servers are reachable with the network plug connected
+       (baseline, no interface restriction).
+    2. Patches the snap's AppArmor profile to allow only veth0 and deny veth1,
+       and reloads the profile.
+    3. Verifies the snap can reach the server behind veth0 (permitted) and
+       is denied access to the server behind veth1 (restricted).
+    4. Verifies routing by checking veth0 TX packet counters increased after
+       the permitted call, and veth1 counters are unchanged after the denied call.
+    5. Verifies that disconnecting the network plug blocks all network access.
+
+    This test assumes AppArmor network interface mediation (the "interface="
+    qualifier in network rules) is available on the test system.
+
+systems: [ubuntu-24*, ubuntu-26*, ubuntu-core-24*, ubuntu-core-26*]
+
+environment:
+    SNAP_NAME: network-consumer
+    # Host-side veth interface names
+    VETH0: veth0
+    VETH1: veth1
+    # Peer interface names (live inside network namespaces)
+    VETH0_PEER: veth0-peer
+    VETH1_PEER: veth1-peer
+    # Network namespaces hosting the server processes
+    NS_SERVER0: ns-netif-server0
+    NS_SERVER1: ns-netif-server1
+    # Host-side IPs assigned to host ends of the veth pairs
+    HOST_IP_IFACE0: "10.10.0.100"
+    HOST_IP_IFACE1: "10.20.0.100"
+    # Server IPs assigned inside each namespace (what the snap connects to)
+    SERVER_IP_IFACE0: "10.10.0.1"
+    SERVER_IP_IFACE1: "10.20.0.1"
+    PORT_IFACE0: 8081
+    PORT_IFACE1: 8082
+    SERVICE_IFACE0: "test-service-netif0"
+    SERVICE_IFACE1: "test-service-netif1"
+
+prepare: |
+    echo "Create network namespaces for server isolation"
+    ip netns add "$NS_SERVER0"
+    ip netns add "$NS_SERVER1"
+
+    echo "Create veth pairs: each pair connects root namespace to a server namespace"
+    ip link add "$VETH0" type veth peer name "$VETH0_PEER"
+    ip link add "$VETH1" type veth peer name "$VETH1_PEER"
+
+    echo "Move veth peers into their respective namespaces"
+    ip link set "$VETH0_PEER" netns "$NS_SERVER0"
+    ip link set "$VETH1_PEER" netns "$NS_SERVER1"
+
+    echo "Assign IP addresses on the host side"
+    ip addr add "${HOST_IP_IFACE0}/24" dev "$VETH0"
+    ip addr add "${HOST_IP_IFACE1}/24" dev "$VETH1"
+
+    echo "Assign IP addresses inside the namespaces"
+    ip netns exec "$NS_SERVER0" ip addr add "${SERVER_IP_IFACE0}/24" dev "$VETH0_PEER"
+    ip netns exec "$NS_SERVER1" ip addr add "${SERVER_IP_IFACE1}/24" dev "$VETH1_PEER"
+
+    echo "Bring up all interfaces"
+    ip link set "$VETH0" up
+    ip link set "$VETH1" up
+    ip netns exec "$NS_SERVER0" ip link set "$VETH0_PEER" up
+    ip netns exec "$NS_SERVER1" ip link set "$VETH1_PEER" up
+
+    # shellcheck source=tests/lib/network.sh
+    . "$TESTSLIB"/network.sh
+
+    echo "Start HTTP server inside ns-server0 (reachable via $VETH0)"
+    make_network_service "$SERVICE_IFACE0" "$PORT_IFACE0" "$NS_SERVER0"
+
+    echo "Start HTTP server inside ns-server1 (reachable via $VETH1)"
+    make_network_service "$SERVICE_IFACE1" "$PORT_IFACE1" "$NS_SERVER1"
+
+    echo "Install test snap"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
+
+restore: |
+    # note: restore is executed even for a partial prepare,
+    # so clean up anything that might have been set up before a failure
+    systemctl stop "$SERVICE_IFACE0" "$SERVICE_IFACE1" || true
+    snap remove --purge "$SNAP_NAME" || true
+    ip link delete "$VETH0" || true
+    ip link delete "$VETH1" || true
+    ip netns delete "$NS_SERVER0" || true
+    ip netns delete "$NS_SERVER1" || true
+
+execute: |
+    echo "The network plug is auto-connected on install"
+    snap interfaces -i network | MATCH ":network .*${SNAP_NAME}"
+
+    echo "Baseline: snap can reach both servers with network plug connected"
+    network-consumer "http://${SERVER_IP_IFACE0}:${PORT_IFACE0}" | MATCH "ok"
+    network-consumer "http://${SERVER_IP_IFACE1}:${PORT_IFACE1}" | MATCH "ok"
+
+    if [ "$(snap debug confinement)" = partial ]; then
+        exit 0
+    fi
+
+    echo "Record TX packet counts before applying interface restriction"
+    TX_VETH0_BEFORE=$(cat /sys/class/net/"$VETH0"/statistics/tx_packets)
+    TX_VETH1_BEFORE=$(cat /sys/class/net/"$VETH1"/statistics/tx_packets)
+
+    echo "Patch the snap's AppArmor profile to permit only $VETH0, deny $VETH1"
+    PROFILE=/var/lib/snapd/apparmor/profiles/snap.network-consumer.network-consumer
+    # Deny access through veth1. The existing broad network allow in the
+    # profile continues to permit veth0. deny always takes precedence over allow
+    # in AppArmor, so this effectively allows only veth0.
+    sed -i "s#^}#audit deny network interface=${VETH1},\n}#" "$PROFILE"
+
+    # Reload using the snapd-internal parser when available, otherwise fall
+    # back to the system-installed parser.
+    APPARMOR_PARSER="apparmor_parser"
+    if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
+        echo "Using snapd-internal AppArmor parser for profile reload"
+        APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/4.0"
+    fi
+    $APPARMOR_PARSER -r "$PROFILE"
+
+    echo "Snap can still reach the permitted interface ($VETH0 → $SERVER_IP_IFACE0)"
+    network-consumer "http://${SERVER_IP_IFACE0}:${PORT_IFACE0}" | MATCH "ok"
+
+    echo "Snap is denied access through the restricted interface ($VETH1 → $SERVER_IP_IFACE1)"
+    if network-consumer "http://${SERVER_IP_IFACE1}:${PORT_IFACE1}" 2>net-iface1.output; then
+        echo "Expected permission denied when accessing via $VETH1"
+        exit 1
+    fi
+    MATCH "Permission denied" < net-iface1.output
+
+    echo "Verify packet routing: $VETH0 TX increased, $VETH1 TX unchanged"
+    TX_VETH0_AFTER=$(cat /sys/class/net/"$VETH0"/statistics/tx_packets)
+    TX_VETH1_AFTER=$(cat /sys/class/net/"$VETH1"/statistics/tx_packets)
+    [ "$TX_VETH0_AFTER" -gt "$TX_VETH0_BEFORE" ]
+    [ "$TX_VETH1_AFTER" -eq "$TX_VETH1_BEFORE" ]
+
+    echo "Disconnecting the network plug blocks all network access"
+    snap disconnect "${SNAP_NAME}:network"
+    if network-consumer "http://${SERVER_IP_IFACE0}:${PORT_IFACE0}" 2>/dev/null; then
+        echo "Expected network access to be blocked after plug disconnect"
+        exit 1
+    fi
