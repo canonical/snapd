@@ -369,7 +369,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	defer nm.rwMu.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
-	logger.Debugf("backendsToCheck for filter %+v: %#v", filter, backendsToCheck)
+	logger.Debugf("%d backendsToCheck for filter %+v: %#v", len(backendsToCheck), filter, backendsToCheck)
 	switch len(backendsToCheck) {
 	case 0:
 		// This should be impossible, since state is always an implicit backend
@@ -377,11 +377,9 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		logger.Debugf("WARNING: zero notice backends capable of matching filter: %+v", filter)
 		return nil, nil
 	case 1:
-		logger.Debugf("one notice backend capable of matching filter %+v: %#v", filter, backendsToCheck[0])
+		logger.Debugf("one notice backend capable of matching filter %+v: %T", filter, backendsToCheck[0])
 		return backendsToCheck[0].BackendWaitNotices(ctx, filter)
 	}
-
-	logger.Debugf("multiple notice backends capable of matching filter %+v: %#v", filter, backendsToCheck)
 
 	now := time.Now()
 
