@@ -160,8 +160,8 @@ parts:
       - g++
       - pkg-config
       - wget
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v4.1.7/apparmor-v4.1.7.tar.gz
-    source-checksum: sha256/ded4cd419b8a05002a108a0912208e2098695752664c6a59464d2dda418e0452
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v5.0.0-rc3/apparmor-v5.0.0-rc3.tar.gz
+    source-checksum: sha256/d9dc51c958864ac6afd0d651c756996f8592de1553e5f4203e5e95ec40e2b936
     override-build: |
       # For some reason, some snapcraft version remove the "build-aux" folder
       # and move the contents up when the data is uploaded; this conditional
@@ -173,7 +173,7 @@ parts:
 
       cd "${CRAFT_PART_BUILD}"/libraries/libapparmor
       ./autogen.sh
-      ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby
+      ./configure --prefix=/usr --libdir="/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" --disable-man-pages --disable-perl --disable-python --disable-ruby --disable-shared
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       make -C src install DESTDIR="${CRAFT_PART_INSTALL}"
       make -C include install DESTDIR="${CRAFT_PART_INSTALL}"
@@ -182,7 +182,7 @@ parts:
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
       cp -a "${LOCAL_APPARMOR_DIR}"/af_names.h .
-      make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" WITH_STATIC_LINKING=1
       install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
       cd "${CRAFT_PART_BUILD}/profiles"
