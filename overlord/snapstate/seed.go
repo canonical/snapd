@@ -40,6 +40,12 @@ var SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []st
 	panic("internal error: snapstate.SeedRefreshTasks is unset")
 }
 
+// AppendSeedRefreshSetupTaskIDs is set by devicestate to avoid an import
+// cycle. See devicestate.AppendSeedRefreshSetupTaskIDs.
+var AppendSeedRefreshSetupTaskIDs = func(create *state.Task, snapSetupTask string, compSetupTasks []string) error {
+	panic("internal error: snapstate.AppendSeedRefreshSetupTaskIDs is unset")
+}
+
 // seedRefreshEnabled reports whether the experimental seed-refresh feature is
 // enabled.
 func seedRefreshEnabled(st *state.State) (bool, error) {

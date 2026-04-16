@@ -298,6 +298,7 @@ func delayedCrossMgrInit() {
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
 	snapstate.SeedRefreshTasks = SeedRefreshTasks
+	snapstate.AppendSeedRefreshSetupTaskIDs = AppendSeedRefreshSetupTaskIDs
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -1815,6 +1816,37 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 		Finalize: finalize,
 		Remove:   removals,
 	}, nil
+}
+
+// AppendSeedRefreshSetupTaskIDs appends unique setup task IDs to the
+// create-recovery-system task recovery-system-setup payload.
+func AppendSeedRefreshSetupTaskIDs(create *state.Task, snapSetupTask string, compSetupTasks []string) error {
+	setup, err := taskRecoverySystemSetup(create)
+	if err != nil {
+		return err
+	}
+
+	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTask)
+	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTasks...)
+
+	return setTaskRecoverySystemSetup(create, setup)
+}
+
+func appendUnique(slice []string, additions ...string) []string {
+	seen := make(map[string]bool, len(slice))
+	for _, id := range slice {
+		seen[id] = true
+	}
+
+	for _, id := range additions {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		slice = append(slice, id)
+		seen[id] = true
+	}
+
+	return slice
 }
 
 // seedRefreshLabelsToRemove returns the existing seed-refresh systems that
