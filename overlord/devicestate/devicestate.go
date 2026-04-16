@@ -986,7 +986,7 @@ func remodelEssentialSnapTasks(
 		if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
 			return snapstate.SwitchToNewGadget(st, name, fromChange)
 		}
-		return snapstate.LinkNewBaseOrKernel(st, name, fromChange)
+		return snapstate.LinkNewBaseOrKernel(st, name, fromChange, rm.deviceCtx)
 	}
 
 	// as a bit of a special case, we support adding the needed tasks that make
@@ -1000,7 +1000,7 @@ func remodelEssentialSnapTasks(
 		if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
 			return snapstate.AddGadgetAssetsTasks(st, tss[0])
 		}
-		return snapstate.AddLinkNewBaseOrKernel(st, tss[0])
+		return snapstate.AddLinkNewBaseOrKernel(st, tss[0], rm.deviceCtx)
 	}
 
 	switch action {
@@ -1111,38 +1111,6 @@ func sortNonEssentialRemodelTaskSetsBasesFirst(snaps []*asserts.ModelSnap) []*as
 	})
 
 	return sorted
-}
-
-func shouldRegenerateCertificateDatabase(current, new *asserts.Model) bool {
-	// If the boot-base is being changed, then we should regenerate the cert db
-	// as that carry system certificates. When the certificates are changed,
-	// the managed snapd database must be regenerated
-
-	// When upgrading the base, and when the track is changed
-	if current.Base() != "" && new.Base() != "" {
-		// Non core16 models, if they are not matching, then we should regenerate the database
-		if current.Base() != new.Base() {
-			return true
-		}
-	}
-
-	baseTrack := func(ms *asserts.ModelSnap) string {
-		if ms == nil {
-			return ""
-		}
-		if ms.PinnedTrack != "" {
-			return ms.PinnedTrack
-		}
-		ch, err := channel.ParseVerbatim(ms.DefaultChannel, "-")
-		if err != nil {
-			return ""
-		}
-		return ch.Track
-	}
-	if baseTrack(current.BaseSnap()) != baseTrack(new.BaseSnap()) {
-		return true
-	}
-	return false
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model,
@@ -1382,16 +1350,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 		tss = append(tss, createRecoveryTasks)
 		recoverySetupTaskID = createRecoveryTasks.Tasks()[0].ID()
-	}
-
-	// When the base of the model is changing, refresh the certificate database managed by
-	// snapd as the new base will likely carry newer certificates.
-	if shouldRegenerateCertificateDatabase(current, new) {
-		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
-		for _, tsPrev := range tss {
-			updateCertDB.WaitAll(tsPrev)
-		}
-		tss = append(tss, state.NewTaskSet(updateCertDB))
 	}
 
 	// Set the new model assertion - this *must* be the last thing done

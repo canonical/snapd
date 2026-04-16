@@ -372,7 +372,7 @@ jobs:
       if: ${{ env.SKIP_SPREAD_LABEL != 'true' && env.RUN_TESTS == 'true' }}
       env:
         SYSTEMS: ${{ inputs.systems }}
-      uses: actions/github-script@v8
+      uses: actions/github-script@v9
       with:
         script: |
           let fs = require('fs');
@@ -381,11 +381,21 @@ jobs:
           let child_process = require('child_process');
           let systems = process.env.SYSTEMS.split(' ');
 
-          let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            run_id: context.runId,
-          });
+          let page = 1;
+          let per_page = 100;
+          let allArtifacts = [];
+          let response;
+          do {
+            response = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+              per_page: per_page,
+              page: page
+            });
+            allArtifacts = allArtifacts.concat(response.data.artifacts);
+            page++;
+          } while (allArtifacts.length < response.data.total_count);
           
           for (let system of systems) {
             let artifactName = `package-${system}`;
@@ -395,7 +405,7 @@ jobs:
               const arch = match[2] || '';
               artifactName = `package-ubuntu-${version}.04${arch}-64`;
             }
-            let artifact = allArtifacts.data.artifacts.find(a => a.name === artifactName);
+            let artifact = allArtifacts.find(a => a.name === artifactName);
             if (!artifact) {
               console.log(`Artifact not found for system: ${system}`);
               continue;

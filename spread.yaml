@@ -11,7 +11,7 @@ environment:
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
-    PATH: $PROJECT_PATH/tests/bin:$GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin
+    PATH: $PROJECT_PATH/tests/bin:$GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin:/usr/lib/python
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
@@ -66,7 +66,10 @@ environment:
     https_proxy: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
     no_proxy: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
+    # use NEW_CORE_CHANNEL to control the core channel used in refresh tests
     NEW_CORE_CHANNEL: '$(HOST: echo "$SPREAD_NEW_CORE_CHANNEL")'
+    # use NEW_SNAPD_CHANNEL to control the snapd channel used in refresh tests
+    NEW_SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_NEW_SNAPD_CHANNEL:-edge}")'
     SRU_VALIDATION: '$(HOST: echo "${SPREAD_SRU_VALIDATION:-0}")'
     # use the ppa_validation_name to install snapd from a public ppa
     PPA_VALIDATION_NAME: '$(HOST: echo "${SPREAD_PPA_VALIDATION_NAME:-}")'
@@ -136,6 +139,9 @@ environment:
     # to the journal
     SNAPD_LOG_SNAP_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAPD_LOG_SNAP_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
     SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
+
+    # Whether snapd should skip early refreshes.
+    SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
 backends:
     google:

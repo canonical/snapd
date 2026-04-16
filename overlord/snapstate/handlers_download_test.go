@@ -53,6 +53,9 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	s.fakeStore = &fakeStore{
 		state:       s.state,
 		fakeBackend: s.fakeBackend,
+		expectedDefaultDownloadOpts: &store.DownloadOptions{
+			LeavePartialOnError: true,
+		},
 	}
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -514,8 +517,9 @@ func (s *downloadSnapSuite) TestDoDownloadRateLimitedIntegration(c *C) {
 			name:   "foo",
 			target: filepath.Join(dirs.SnapBlobDir, "foo_11.snap"),
 			opts: &store.DownloadOptions{
-				RateLimit: 1234,
-				Scheduled: true,
+				RateLimit:           1234,
+				Scheduled:           true,
+				LeavePartialOnError: true,
 			},
 		},
 	})

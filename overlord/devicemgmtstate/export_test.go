@@ -35,15 +35,25 @@ var (
 	DefaultExchangeInterval = defaultExchangeInterval
 )
 
-type DeviceMgmtState deviceMgmtState
+func MockMaxSequences(n int) func() {
+	return testutil.Mock(&maxSequences, n)
+}
+
+func MockMaxBlockedMessagesPerSequence(n int) func() {
+	return testutil.Mock(&maxBlockedMessagesPerSequence, n)
+}
+
+type SequenceState = sequenceState
+
+type DeviceMgmtState = deviceMgmtState
 
 func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
 	ms, err := m.getState()
-	return (*DeviceMgmtState)(ms), err
+	return ms, err
 }
 
 func (m *DeviceMgmtManager) SetState(ms *DeviceMgmtState) {
-	m.setState((*deviceMgmtState)(ms))
+	m.setState(ms)
 }
 
 func (m *DeviceMgmtManager) MockHandler(kind string, handler MessageHandler) {
@@ -55,7 +65,7 @@ func (m *DeviceMgmtManager) MockSigner(signer ResponseMessageSigner) {
 }
 
 func (m *DeviceMgmtManager) ShouldExchangeMessages(ms *DeviceMgmtState) bool {
-	return m.shouldExchangeMessages((*deviceMgmtState)(ms))
+	return m.shouldExchangeMessages(ms)
 }
 
 func (m *DeviceMgmtManager) DoExchangeMessages(t *state.Task, tomb *tomb.Tomb) error {

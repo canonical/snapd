@@ -49,6 +49,29 @@ check_state() {
     fi
 }
 
+cancel_autorefresh() {
+    CHANGE_ID="$(snap changes | grep -E '.*( Do | Doing ).*Auto-refresh' | awk '{print $1}')"
+    if [ -n "$CHANGE_ID" ]; then
+        snap abort "$CHANGE_ID"
+        echo "snapd-state: aborting auto-refresh with change id $CHANGE_ID"
+        #shellcheck disable=SC2016
+        if retry -n 60 --wait 2 --env CHANGE_ID="$CHANGE_ID" sh -c 'snap changes | grep -E ".*$CHANGE_ID.*( Undone | Error ).*Auto-refresh"'; then
+            echo "snapd-state: auto-refresh aborted successfully"
+            exit 0
+        else
+            if snap changes | grep -E '.*$CHANGE_ID.* Done .*Auto-refresh'; then
+                echo "snapd-state: auto-refresh already completed, cannot abort"
+                exit 1
+            fi
+            echo "snapd-state: timeout while waiting for auto-refresh to be aborted"
+            exit 1
+        fi
+    else
+        echo "snapd-state: no auto-refresh in progress, nothing to abort"
+        exit 0
+    fi
+}
+
 change_snap_channel() {
     local SNAP="$1"
     local CHANNEL="$2"

@@ -227,6 +227,13 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
+        "$TESTSTOOLS"/snapd-state cancel-autorefresh
+
+        # Set a far future date to prevent automatic refreshes during the test execution.
+        snap set system refresh.hold="2050-01-01T00:00:00Z"
+    fi
+
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y

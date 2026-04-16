@@ -265,6 +265,10 @@ func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
 			Path:        fmt.Sprintf("/home/test/%d", i),
 			Interface:   "home",
 			Permissions: []string{"write"},
+			Reply: func([]string) error {
+				c.Error("unexpectedly called request.Reply()")
+				return errors.New("unexpectedly called request.Reply()")
+			},
 		}
 		reqChan <- req
 	}
@@ -342,7 +346,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.R
 	defer restore()
 
 	// Simulate request from the kernel
-	s.fillInPartialRequest(req)
+	s.fillInPartialRequest(c, req)
 	whenSent := time.Now()
 	// push a request
 	reqChan <- req
@@ -397,7 +401,7 @@ func (s *apparmorpromptingSuite) simulateRequest(c *C, reqChan chan *prompting.R
 
 // fillInPartialRequest fills in any blank fields from the given request
 // with default non-empty values.
-func (s *apparmorpromptingSuite) fillInPartialRequest(req *prompting.Request) {
+func (s *apparmorpromptingSuite) fillInPartialRequest(c *C, req *prompting.Request) {
 	if req.PID == 0 {
 		req.PID = 1234
 	}
@@ -418,6 +422,12 @@ func (s *apparmorpromptingSuite) fillInPartialRequest(req *prompting.Request) {
 	}
 	if req.Permissions == nil {
 		req.Permissions = []string{"read"}
+	}
+	if req.Reply == nil {
+		req.Reply = func(allowedPerms []string) error {
+			c.Errorf("unexpectedly called request.Reply(%#v)", allowedPerms)
+			return fmt.Errorf("unexpectedly called request.Reply(%#v)", allowedPerms)
+		}
 	}
 }
 
@@ -850,7 +860,7 @@ func (s *apparmorpromptingSuite) TestExistingRuleAllowsNewPrompt(c *C) {
 	req, replyChan := requestWithReplyChan(&prompting.Request{
 		Permissions: []string{"read", "write"},
 	})
-	s.fillInPartialRequest(req)
+	s.fillInPartialRequest(c, req)
 	whenSent := time.Now()
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
@@ -943,7 +953,7 @@ func (s *apparmorpromptingSuite) TestExistingRulePartiallyDeniesNewPrompt(c *C) 
 	req, replyChan := requestWithReplyChan(&prompting.Request{
 		Permissions: []string{"read", "write"},
 	})
-	s.fillInPartialRequest(req)
+	s.fillInPartialRequest(c, req)
 	whenSent := time.Now()
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
@@ -992,7 +1002,7 @@ func (s *apparmorpromptingSuite) TestExistingRulesMixedMatchNewPromptDenies(c *C
 	req, replyChan := requestWithReplyChan(&prompting.Request{
 		Permissions: []string{"read", "write"},
 	})
-	s.fillInPartialRequest(req)
+	s.fillInPartialRequest(c, req)
 	whenSent := time.Now()
 	reqChan <- req
 	time.Sleep(10 * time.Millisecond)
@@ -1313,14 +1323,14 @@ func (s *apparmorpromptingSuite) testReplyRuleHandlesFuturePrompts(c *C, outcome
 	writeReq, writeReplyChan := requestWithReplyChan(&prompting.Request{
 		Permissions: []string{"write"},
 	})
-	s.fillInPartialRequest(writeReq)
+	s.fillInPartialRequest(c, writeReq)
 	reqChan <- writeReq
 
 	// Add request for read and write
 	rwReq, rwReplyChan := requestWithReplyChan(&prompting.Request{
 		Permissions: []string{"read", "write"},
 	})
-	s.fillInPartialRequest(rwReq)
+	s.fillInPartialRequest(c, rwReq)
 	reqChan <- rwReq
 
 	// Check that kernel received replies
@@ -1851,7 +1861,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 		Key: "kernel:2",
 		UID: 1000,
 	}
-	s.fillInPartialRequest(req)
+	s.fillInPartialRequest(c, req)
 	reqChan <- req
 
 	// Check that the prompts are not ready yet

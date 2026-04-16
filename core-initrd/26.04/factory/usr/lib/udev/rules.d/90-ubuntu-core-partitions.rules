@@ -1,8 +1,20 @@
 SUBSYSTEM!="block", GOTO="ubuntu_core_partitions_end"
 KERNEL=="loop*|mmcblk[0-9]boot[0-9]", GOTO="ubuntu_core_partitions_end"
 
-ENV{DEVTYPE}=="disk", IMPORT{program}="/usr/lib/snapd/snap-bootstrap scan-disk"
+# Pull from db from a previous event for this device if it exists
+IMPORT{db}="UBUNTU_DISK"
 ENV{DEVTYPE}=="partition", IMPORT{parent}="UBUNTU_DISK"
+
+TEST=="/run/snapd/ubuntu-disk-already-found", GOTO="ubuntu_core_partitions_already_scanned"
+
+ENV{DEVTYPE}=="disk", IMPORT{program}="/usr/lib/snapd/snap-bootstrap scan-disk"
+# TODO move this to be done by "snap-bootstrap scan"
+ENV{UBUNTU_DISK}=="1", RUN+="/usr/bin/mkdir -p /run/snapd/", RUN+="/usr/bin/touch /run/snapd/ubuntu-disk-already-found"
+# Ensure UBUNTU_DISK survives "udevadm info --cleanup-db"
+ENV{UBUNTU_DISK}=="1", OPTIONS+="db_persist"
+
+LABEL="ubuntu_core_partitions_already_scanned"
+
 ENV{UBUNTU_DISK}!="1", GOTO="ubuntu_core_partitions_end"
 
 ENV{DEVTYPE}=="disk", SYMLINK+="disk/snapd/disk"
@@ -15,5 +27,5 @@ ENV{DEVTYPE}=="partition", ENV{ID_PART_ENTRY_NAME}=="ubuntu-save", ENV{ID_FS_TYP
 
 LABEL="ubuntu_core_partitions_end"
 
-ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data-*", SYMLINK+="disk/snapd/ubuntu-data"
-ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save-*", SYMLINK+="disk/snapd/ubuntu-save"
+ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-data*", SYMLINK+="disk/snapd/ubuntu-data"
+ENV{DM_UUID}=="CRYPT-*", ENV{DM_NAME}=="ubuntu-save*", SYMLINK+="disk/snapd/ubuntu-save"

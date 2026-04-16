@@ -1,0 +1,75 @@
+summary: Verify non-model base refresh does not inject certificate database update
+
+details: |
+    Ensure that refreshing a base snap that is not the current model base does
+    not inject the "Update certificate database" task.
+
+prepare: |
+    . /etc/os-release
+    core_snap="core${VERSION_ID}"
+
+    case "$VERSION_ID" in
+        18)
+            other_base="core"
+            ;;
+        20)
+            other_base="core18"
+            ;;
+        22)
+            other_base="core20"
+            ;;
+        24)
+            other_base="core22"
+            ;;
+        26)
+            other_base="core24"
+            ;;
+        *)
+            echo "unsupported VERSION_ID: $VERSION_ID"
+            exit 1
+            ;;
+    esac
+
+    readlink "/snap/$core_snap/current" > core.rev
+    test "$core_snap" != "$other_base"
+
+    echo "$other_base" > other-base.name
+    
+    # ensure the other base is installed
+    if ! snap list "$other_base" > /dev/null 2>&1; then
+        snap install "$other_base" --edge
+    fi
+
+execute: |
+    . /etc/os-release
+    core_snap="core${VERSION_ID}"
+    other_base="$(cat other-base.name)"
+
+    wait_and_verify_change() {
+        local change_id="$1"
+        snap watch "$change_id" || true
+        snap changes | MATCH "$change_id\\s+Done"
+        snap change "$change_id" > tasks.done
+        NOMATCH '^Error' < tasks.done
+        NOMATCH '^Undone' < tasks.done
+        NOMATCH '^Wait' < tasks.done
+        retry -n 30 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
+    }
+
+    # Refreshing a non-model base should not request update-cert-db.
+    snap download "$other_base" --edge --basename "$other_base"
+
+    # Create two distinct unasserted payloads to force an update.
+    printf '\0' >> "${other_base}.snap"
+
+    # Refresh the snap
+    snap install "${other_base}.snap" --dangerous --no-wait > install-change-id
+    change_id="$(cat install-change-id)"
+    test -n "$change_id"
+    wait_and_verify_change "$change_id"
+
+    # Verify that refresh of non-model base does not inject cert DB update.
+    NOMATCH 'Update certificate database' < tasks.done
+
+    # Ensure we did not change the model base.
+    test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"

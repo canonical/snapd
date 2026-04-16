@@ -3047,7 +3047,7 @@ func (s *snapsSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 		&store.RevisionNotAvailableError{},
 		store.ErrNoUpdateAvailable,
 		store.ErrLocalSnap,
-		&snap.AlreadyInstalledError{Snap: "foo"},
+		&snap.AlreadyInstalledError{Snaps: []string{"foo"}},
 		&snap.NotInstalledError{Snap: "foo"},
 		&snapstate.SnapNeedsDevModeError{Snap: "foo"},
 		&snapstate.SnapNeedsClassicError{Snap: "foo"},

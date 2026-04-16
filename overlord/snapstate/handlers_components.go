@@ -201,8 +201,9 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 	timings.Run(perf, "download", fmt.Sprintf("download component %q", compsup.ComponentName()), func(timings.Measurer) {
 		compRef := compsup.CompSideInfo.Component.String()
 		opts := &store.DownloadOptions{
-			Scheduled: snapsup.IsAutoRefresh,
-			RateLimit: rate,
+			Scheduled:           snapsup.IsAutoRefresh,
+			RateLimit:           rate,
+			LeavePartialOnError: true,
 		}
 
 		err = sto.Download(tomb.Context(nil), compRef, target, compsup.DownloadInfo, meter, user, opts)

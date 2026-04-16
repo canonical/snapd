@@ -375,6 +375,21 @@ func removeExtraComponentsTasks(st *state.State, snapst *SnapState, targetRevisi
 	return unlinkTasks, discardTasks, nil
 }
 
+// shouldScheduleUpdateCertDBForRefresh reports whether a snap operation
+// should inject an update-cert-db task.
+func shouldScheduleUpdateCertDBForRefresh(instanceName string, snapType snap.Type, ctx DeviceContext) bool {
+	if snapType != snap.TypeBase {
+		return false
+	}
+
+	model := ctx.Model()
+	if model.Classic() {
+		return false
+	}
+
+	return instanceName == model.Base()
+}
+
 func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
 	if !sc.requiresKmodSetup() {
 		// Let tasks know if they have to do something about restarts
@@ -397,6 +412,14 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 		if sc.requiresKmodSetup() {
 			s.UpdateEdge(discardOldKernelSnapSetup, MaybeRebootWaitEdge)
 		}
+	}
+
+	// Refreshing the model base may bring updated system certificates.
+	// Regenerate the managed certificate database as part of the post-reboot
+	// refresh stage for that base.
+	if shouldScheduleUpdateCertDBForRefresh(sc.snapsup.InstanceName(), sc.snapsup.Type, ic.DeviceCtx) {
+		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
+		s.Append(updateCertDB)
 	}
 
 	if sc.snapsup.QuotaGroupName != "" {

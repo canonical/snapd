@@ -1,0 +1,52 @@
+type: model
+authority-id: developer1
+series: 16
+brand-id: developer1
+model: testkeys-snapd-with-app-dangerous-core-22-amd64
+architecture: amd64
+base: core22
+grade: dangerous
+serial-authority:
+  - generic
+snaps:
+  -
+    default-channel: 22/edge
+    id: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    name: pc
+    type: gadget
+  -
+    default-channel: 22/edge
+    id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    name: pc-kernel
+    type: kernel
+  -
+    default-channel: latest/stable
+    id: amcUKQILKXHHTlmSa7NMdnXSx02dNeeT
+    name: core22
+    type: base
+  -
+    default-channel: latest/stable
+    id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    name: snapd
+    type: snapd
+  -
+    default-channel: latest/stable
+    id: oVVJz8d0Wfq6Hk4bDJRs4uWXQtmbAJCZ
+    modes:
+      - run
+      - ephemeral
+    name: test-snapd-sh-core22
+    type: app
+timestamp: 2026-04-06T00:00:00+00:00
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCadPaEwAAAN8QADWObY3nKmod7foRC0Jt7sOtK2EM+7G8o3SB4xXr2rpkBgAU
+qow/C4BM/MJ4lnxtuE3FY74T/zhfOvGwc3jGI9Nia3rDqodd/iHgF3JQyeGFBgVNL6zqmT/4TTvQ
+0OYCp/TcHQYF3GdVTQJrS5oYBHZOZhxXzNmgKfpC46rAkxyQ4fNGKMk1XqQBWM9z9EsZobC2XwZ2
+W419zciAs9Sff6YC3B+oS0JXvwNwsg8u0J/1vfLnvoDG/CMCF8GmizoY2rbST8c4Ii0izPboxN0H
+/6dSiuQRHv1rBfKp4atncSA+s7DIOYlNHbmk24OAy1DXtUTNZJKjlnVY3rgQLVs9FNLosCWSSzIs
+CBHw5nV6SFdPLNp8VURSh+x1AkOy5BIyJ9gpb74qHKr/8fUD0GPWqmbieflYY3w+AKfmAM4K5xNe
+9G2eHI3lw1zzquLKj45G7tnzRRHLmsEU4Ist++X1U/8Mzb556dYUBdghnOEoIt2llWSB0hfcjilP
+zMwpdjIYQTcP6egHujk3dPhlhgehhVUVlqUSJGRYaWvMLZyWVsPHF4/cgj7yrsWoAgeCVhy4wU3y
+5060nq2VJuIbbK4rDkkas8PWrIIEY10ITr3bPKceUlcmdb8f2UsUG5+cyfWQ99lphWf+fHFbVwZm
+EiSty0rfiGceALyQKxJXebVBx0c5

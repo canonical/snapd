@@ -909,8 +909,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	iconURL := snapsup.Media.IconURL()
 
 	dlOpts := &store.DownloadOptions{
-		Scheduled: snapsup.IsAutoRefresh,
-		RateLimit: rate,
+		Scheduled:           snapsup.IsAutoRefresh,
+		RateLimit:           rate,
+		LeavePartialOnError: true,
 	}
 	if snapsup.DownloadInfo == nil {
 		vsets, err := EnforcedValidationSets(st)
@@ -1025,8 +1026,9 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.BlobPath()
 	dlOpts := &store.DownloadOptions{
 		// pre-downloads are only triggered in auto-refreshes
-		Scheduled: true,
-		RateLimit: autoRefreshRateLimited(st),
+		Scheduled:           true,
+		RateLimit:           autoRefreshRateLimited(st),
+		LeavePartialOnError: true,
 	}
 
 	perfTimings := state.TimingsForTask(t)
