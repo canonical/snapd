@@ -23,13 +23,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// undoEntry represents a single undo closure with its required state lock
-// context.
-type undoEntry struct {
-	f        func() error
-	unlocked bool // if true, the closure runs with the state lock released
-}
-
 // UndoTracker accumulates undo closures during task handler execution.
 // When the handler returns an error, RunOnError executes the undo
 // closures in reverse (LIFO) order. On success, nothing runs. This
@@ -41,16 +34,19 @@ type UndoTracker struct {
 	t      *state.Task
 }
 
-func taskNotNil(t *state.Task) {
-	if t == nil {
-		panic("internal error: task cannot be nil")
-	}
+// undoEntry represents a single undo closure with its required state lock
+// context.
+type undoEntry struct {
+	f        func() error
+	unlocked bool // if true, the closure runs with the state lock released
 }
 
 // NewUndoTracker creates a new UndoTracker associated with the given task.
 // The task is used to log undo errors.
 func NewUndoTracker(t *state.Task) *UndoTracker {
-	taskNotNil(t)
+	if t == nil {
+		panic("internal error: task cannot be nil")
+	}
 	return &UndoTracker{t: t}
 }
 
@@ -58,30 +54,7 @@ func NewUndoTracker(t *state.Task) *UndoTracker {
 // The closure should reverse a change to the system and return an error if the
 // undo action itself fails. The closure runs with the state lock held.
 func (ut *UndoTracker) AddUndo(f func() error) {
-	taskNotNil(ut.t)
 	ut.undoes = append(ut.undoes, undoEntry{f: f})
-}
-
-// UnlockedUndoTracker embeds *UndoTracker and shadows AddUndo method to tag
-// registered closures as needing unlocked state execution.
-type UnlockedUndoTracker struct {
-	*UndoTracker
-}
-
-// Unlocked returns an adapter whose AddUndo method tags all registered
-// undo closures as requiring unlocked state execution. The caller
-// passes this where only AddUndo should be visible, while retaining
-// control over lock context decisions.
-func (ut *UndoTracker) Unlocked() *UnlockedUndoTracker {
-	taskNotNil(ut.t)
-	return &UnlockedUndoTracker{ut}
-}
-
-// AddUndo registers an undo closure that will run with the state lock
-// released.
-func (u *UnlockedUndoTracker) AddUndo(f func() error) {
-	taskNotNil(u.t)
-	u.undoes = append(u.undoes, undoEntry{f: f, unlocked: true})
 }
 
 // RunOnError should generally be deferred at the start of the handler.
@@ -95,7 +68,6 @@ func (u *UnlockedUndoTracker) AddUndo(f func() error) {
 // logged via the task's Errorf after all undoes complete, with the
 // state lock held.
 func (ut *UndoTracker) RunOnError(retErr *error) {
-	taskNotNil(ut.t)
 	if retErr == nil {
 		panic("internal error: retErr pointer cannot be nil")
 	}
@@ -106,6 +78,16 @@ func (ut *UndoTracker) RunOnError(retErr *error) {
 	st := ut.t.State()
 	locked := true
 	var errs []error
+
+	defer func() {
+		// Ensure state is locked before returning and errors are logged
+		if !locked {
+			st.Lock()
+		}
+		for _, err := range errs {
+			ut.t.Errorf("cannot undo: %v", err)
+		}
+	}()
 
 	for i := len(ut.undoes) - 1; i >= 0; i-- {
 		entry := ut.undoes[i]
@@ -120,12 +102,24 @@ func (ut *UndoTracker) RunOnError(retErr *error) {
 			errs = append(errs, err)
 		}
 	}
+}
 
-	// Ensure state is locked before logging and returning.
-	if !locked {
-		st.Lock()
-	}
-	for _, err := range errs {
-		ut.t.Errorf("cannot undo: %v", err)
-	}
+// Unlocked returns an adapter whose AddUndo method tags all registered
+// undo closures as requiring unlocked state execution. The caller
+// passes this where only AddUndo should be visible, while retaining
+// control over lock context decisions.
+func (ut *UndoTracker) Unlocked() *UnlockedUndoTracker {
+	return &UnlockedUndoTracker{ut}
+}
+
+// UnlockedUndoTracker embeds *UndoTracker and shadows AddUndo method to tag
+// registered closures as needing unlocked state execution.
+type UnlockedUndoTracker struct {
+	*UndoTracker
+}
+
+// AddUndo registers an undo closure that will run with the state lock
+// released.
+func (u *UnlockedUndoTracker) AddUndo(f func() error) {
+	u.undoes = append(u.undoes, undoEntry{f: f, unlocked: true})
 }
