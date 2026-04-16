@@ -228,6 +228,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
 	oldCreateRecoverySystemTasks := snapstate.SeedRefreshTasks
+	oldAppendSeedRefreshSetupTaskIDs := snapstate.AppendSeedRefreshSetupTaskIDs
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupInstallComponentHook = hookstate.SetupInstallComponentHook
 	snapstate.SetupPostRefreshComponentHook = hookstate.SetupPostRefreshComponentHook
@@ -254,6 +255,17 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 			Create:   create,
 			Finalize: finalize,
 		}, nil
+	}
+	snapstate.AppendSeedRefreshSetupTaskIDs = func(create *state.Task, snapSetupTask string, compSetupTasks []string) error {
+		var setup map[string][]string
+		if err := create.Get("recovery-system-setup", &setup); err != nil {
+			return err
+		}
+
+		setup["snap-setup-tasks"] = append(setup["snap-setup-tasks"], snapSetupTask)
+		setup["component-setup-tasks"] = append(setup["component-setup-tasks"], compSetupTasks...)
+		create.Set("recovery-system-setup", setup)
+		return nil
 	}
 
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
@@ -302,6 +314,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		snapstate.EnsureSnapAbsentFromQuotaGroup = oldEnsureSnapAbsentFromQuotaGroup
 		snapstate.SeedRefreshTasks = oldCreateRecoverySystemTasks
+		snapstate.AppendSeedRefreshSetupTaskIDs = oldAppendSeedRefreshSetupTaskIDs
 
 		dirs.SetRootDir("/")
 	})

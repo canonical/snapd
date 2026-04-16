@@ -143,9 +143,85 @@ func setupTaskIDsForSeedCreation(seedSnapUpdates map[string]snapInstallTaskSet) 
 	return snapsupIDs, compsupIDs, nil
 }
 
+// maybeMergeLateSeedRefreshPrereq folds a prerequisite refresh into an
+// in-flight seed refresh when the prerequisite snap is part of the model.
+func maybeMergeLateSeedRefreshPrereq(chg *state.Change, dctx DeviceContext, snapName string, providerTS *state.TaskSet) error {
+	if !changeCreatesRecoverySystem(chg) {
+		return nil
+	}
+
+	// TODO:SEEDREFRESH: consider the intersections of snaps in the model and
+	// snaps currently present in the seed, not all snaps in the model
+	for _, sn := range dctx.Model().AllSnaps() {
+		if snapName != sn.SnapName() {
+			continue
+		}
+
+		return mergeLateSeedRefreshPrereq(chg, providerTS)
+	}
+
+	return nil
+}
+
+func mergeLateSeedRefreshPrereq(chg *state.Change, providerTS *state.TaskSet) error {
+	var create, finalize *state.Task
+	for _, t := range chg.Tasks() {
+		switch t.Kind() {
+		case "create-recovery-system":
+			create = t
+		case "finalize-recovery-system":
+			finalize = t
+		}
+	}
+
+	if create == nil || finalize == nil {
+		return errors.New("internal error: seed-refresh change is missing recovery-system tasks")
+	}
+
+	snapsup, err := providerTS.Edge(SnapSetupEdge)
+	if err != nil {
+		return errors.New("internal error: seed-refresh provider task set is missing required edge")
+	}
+
+	var compsups []string
+	if err := snapsup.Get("component-setup-tasks", &compsups); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	if err := AppendSeedRefreshSetupTaskIDs(create, snapsup.ID(), compsups); err != nil {
+		return err
+	}
+
+	for _, lane := range create.Lanes() {
+		providerTS.JoinLane(lane)
+	}
+
+	end, err := providerTS.Edge(EndEdge)
+	if err != nil {
+		return errors.New("internal error: seed-refresh provider task set is missing required edge")
+	}
+
+	lastBeforeLocal, err := providerTS.Edge(LastBeforeLocalModificationsEdge)
+	if err != nil {
+		return errors.New("internal error: seed-refresh provider task set is missing required edge")
+	}
+
+	// TODO:SEEDREFRESH: what about content-providers that are essential snaps?
+	// this ordering is probably too weak, since essential snap updates trigger
+	// reboots that would interfere with the original single-reboot
+	// orchestration. however, this is not a uniquely seed-refresh problem.
+
+	waitForIfNeeded(create, lastBeforeLocal)
+	waitForIfNeeded(finalize, end)
+
+	return nil
+}
+
 // taskSetsForSeedSnaps returns the selected refresh task sets keyed by
 // snap name for snaps present in the model.
 func taskSetsForSeedSnaps(stss []snapInstallTaskSet, dctx DeviceContext) map[string]snapInstallTaskSet {
+	// TODO:SEEDREFRESH: consider the intersections of snaps in the model and
+	// snaps currently present in the seed, not all snaps in the model
 	seedSnaps := make(map[string]bool)
 	for _, sn := range dctx.Model().AllSnaps() {
 		seedSnaps[sn.SnapName()] = true

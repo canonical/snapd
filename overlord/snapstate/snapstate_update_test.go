@@ -20113,9 +20113,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBaseAndModelSnapRun(c *C
 	c.Assert(chg.IsReady(), Equals, true)
 }
 
-// TODO:SEEDREFRESH: drop this test once seed refresh can automatically update
-// model content providers.
-func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBlocksAutoUpdateOfModelContentProvider(c *C) {
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesModelSnap(c *C) {
 	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
 		"kernel":         "kernel",
 		"base":           "core18",
@@ -20146,9 +20144,6 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBlocksAutoUpdateOfModelC
 
 		return nil
 	}
-	defer func() {
-		s.fakeStore.mutateSnapInfo = nil
-	}()
 
 	mockSeedRefreshRebootHandlers(s, c, nil)
 
@@ -20166,14 +20161,52 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBlocksAutoUpdateOfModelC
 
 	appSnapSetupTask, err := appTS.Edge(snapstate.SnapSetupEdge)
 	c.Assert(err, IsNil)
+
 	appSnapSetup, err := snapstate.TaskSnapSetup(appSnapSetupTask)
 	c.Assert(err, IsNil)
 	c.Assert(appSnapSetup.PrereqContentAttrs, DeepEquals, map[string][]string{"content-provider": {"shared-content"}})
 
 	s.settle(c)
 
-	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install prerequisite "content-provider": cannot update seed while also automatically updating content provider.*`)
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, seedTS)
+
+	var seedSetup recoverySystemSetupForTest
+	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
+
+	providerSetupTaskID := seedSetup.SnapSetupTasks[len(seedSetup.SnapSetupTasks)-1]
+	providerSnapSetupTask := s.state.Task(providerSetupTaskID)
+	c.Assert(providerSnapSetupTask, NotNil)
+
+	providerSnapSetup, err := snapstate.TaskSnapSetup(providerSnapSetupTask)
+	c.Assert(err, IsNil)
+	c.Check(providerSnapSetup.InstanceName(), Equals, "content-provider")
+
+	c.Check(seedSetup.SnapSetupTasks, testutil.Contains, providerSnapSetupTask.ID())
+
+	waitTasksContainKindForSnap := func(c *C, waiter *state.Task, instanceName, kind string) bool {
+		for _, task := range waiter.WaitTasks() {
+			if task.Kind() != kind {
+				continue
+			}
+
+			snapsup, err := snapstate.TaskSnapSetup(task)
+			c.Assert(err, IsNil)
+			if snapsup.InstanceName() == instanceName {
+				return true
+			}
+		}
+		return false
+	}
+
+	// ensure create-recovery-system waits on the LastBeforeLocalModificationsEdge for content-provider
+	c.Check(waitTasksContainKindForSnap(c, seedCreate, "content-provider", "validate-snap"), Equals, true)
+	// ensure finalize-recovery-system waits on the EndEdge for content-provider
+	c.Check(waitTasksContainKindForSnap(c, seedFinalize, "content-provider", "run-hook"), Equals, true)
+
+	s.mockRestartAndSettle(c, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshAllowsRequestedModelContentProviderRefresh(c *C) {
@@ -20207,9 +20240,6 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshAllowsRequestedModelCont
 
 		return nil
 	}
-	defer func() {
-		s.fakeStore.mutateSnapInfo = nil
-	}()
 
 	mockSeedRefreshRebootHandlers(s, c, nil)
 
