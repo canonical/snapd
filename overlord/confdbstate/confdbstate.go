@@ -839,8 +839,12 @@ func cleanupAccess(st *state.State, chg *state.Change, accessID, account, schema
 		}
 	}
 
-	if chg != nil && len(chg.Tasks()) > 0 {
-		return
+	if chg != nil {
+		for _, t := range chg.Tasks() {
+			if t.Kind() == "clear-confdb-tx" {
+				return
+			}
+		}
 	}
 
 	// this may actually not unblock anything, if other accesses are being processed

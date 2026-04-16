@@ -2866,8 +2866,12 @@ func (s *confdbTestSuite) TestSnapctlConfdbErrorUnblocksNextAccess(c *C) {
 	ref := view.Schema().Account + "/" + view.Schema().Name
 
 	mockHandler := hooktest.NewMockHandler()
-	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "change-view-setup"}
-	hookCtx, err := hookstate.NewContext(nil, s.state, setup, mockHandler, "")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "install"}
+	t := s.state.NewTask("run-hook", "")
+	chg := s.state.NewChange("some-change", "")
+	chg.AddTask(t)
+
+	hookCtx, err := hookstate.NewContext(t, s.state, setup, mockHandler, "")
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 
