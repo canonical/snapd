@@ -3547,7 +3547,7 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	// stop the services
 	st.Unlock()
-	err = m.backend.StopServices(svcs, nil, stopReason, nil, nil, progress.Null, perfTimings)
+	err = m.backend.StopServices(svcs, nil, nil, stopReason, nil, progress.Null, perfTimings)
 	st.Lock()
 	if err != nil {
 		return err
@@ -3624,7 +3624,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	}
 
 	// stop the services
-	err = m.backend.StopServices(svcs, rmSvcs, stopReason, undoer.Unlocked(), disabledServices, pb, perfTimings)
+	err = m.backend.StopServices(svcs, rmSvcs, disabledServices, stopReason, undoer.Unlocked(), pb, perfTimings)
 	if err != nil {
 		return err
 	}
@@ -3806,7 +3806,7 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (retErr error)
 	pb := NewTaskProgressAdapterUnlocked(t)
 
 	// Make sure snap services are stopped because they may have started through snapctl
-	err = m.backend.StopServices(svcs, nil, snap.ServiceStopReason(reason), nil, nil, pb, perfTimings)
+	err = m.backend.StopServices(svcs, nil, nil, snap.ServiceStopReason(reason), nil, pb, perfTimings)
 	if err != nil {
 		return err
 	}

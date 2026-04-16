@@ -1245,7 +1245,7 @@ func (s *linkSuite) TestStopServices(c *C) {
 	defer restore()
 
 	apps := []*snap.AppInfo{{Name: "svc"}}
-	err := s.be.StopServices(apps, nil, snap.StopReasonRefresh, nil, nil, progress.Null, s.perfTimings)
+	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, nil, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, 1)
 }
@@ -1268,7 +1268,7 @@ func (s *linkSuite) TestStopServicesForRefreshRegistersUndo(c *C) {
 
 	undoer := &fakeUndoer{}
 	apps := []*snap.AppInfo{{Name: "svc"}}
-	err := s.be.StopServices(apps, nil, snap.StopReasonRefresh, undoer, nil, progress.Null, s.perfTimings)
+	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, undoer, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "mock StopServices error")
 	c.Assert(undoer.undoFuncs, HasLen, 1)
 }
@@ -1283,7 +1283,7 @@ func (s *linkSuite) TestStopServicesForRemoveDoesNotRegisterUndo(c *C) {
 
 	undoer := &fakeUndoer{}
 	apps := []*snap.AppInfo{{Name: "svc"}}
-	err := s.be.StopServices(apps, nil, snap.StopReasonRemove, undoer, nil, progress.Null, s.perfTimings)
+	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRemove, undoer, progress.Null, s.perfTimings)
 	c.Assert(err, ErrorMatches, "mock StopServices error")
 	c.Assert(undoer.undoFuncs, HasLen, 0)
 }

@@ -1482,7 +1482,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, undoer backend.Undoer, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, reason snap.ServiceStopReason, undoer backend.Undoer, meter progress.Meter, tm timings.Measurer) error {
 	meter.Notify("stop-services")
 
 	var svcNames []string

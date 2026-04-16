@@ -249,7 +249,7 @@ func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.Disa
 	return wrappersStartServices(apps, disabledSvcs, opts, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, undoer Undoer, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
+func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, reason snap.ServiceStopReason, undoer Undoer, meter progress.Meter, tm timings.Measurer) error {
 	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
 	if undoer != nil && !skipUndo {
 		// Register the undo before stopping so that services are
