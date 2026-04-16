@@ -1504,8 +1504,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string
 		sort.Strings(rmSvcNames)
 	}
 
-	skipUndo := reason == snap.StopReasonRemove || reason == snap.StopReasonDisable
-	if undoer != nil && !skipUndo {
+	if undoer != nil {
 		undoer.AddUndo(func() error {
 			startupOrdered, err := snap.SortServices(svcs)
 			if err != nil {

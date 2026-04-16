@@ -3561,8 +3561,19 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	st.Lock()
 	defer st.Unlock()
 
-	undoer := NewUndoTracker(t)
-	defer undoer.RunOnError(&retErr)
+	var stopReason snap.ServiceStopReason
+	if err := t.Get("stop-reason", &stopReason); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	var undoTracker *UndoTracker
+	var undoerUnlocked backend.Undoer
+	skipUndo := stopReason == snap.StopReasonRemove || stopReason == snap.StopReasonDisable
+	if !skipUndo {
+		undoTracker = NewUndoTracker(t)
+		defer undoTracker.RunOnError(&retErr)
+		undoerUnlocked = undoTracker.Unlocked()
+	}
 
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
@@ -3579,11 +3590,6 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	svcs := currentInfo.Services()
 	if len(svcs) == 0 {
 		return nil
-	}
-
-	var stopReason snap.ServiceStopReason
-	if err := t.Get("stop-reason", &stopReason); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
 	}
 
 	pb := NewTaskProgressAdapterUnlocked(t)
@@ -3624,7 +3630,7 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	}
 
 	// stop the services
-	err = m.backend.StopServices(svcs, rmSvcs, disabledServices, stopReason, undoer.Unlocked(), pb, perfTimings)
+	err = m.backend.StopServices(svcs, rmSvcs, disabledServices, stopReason, undoerUnlocked, pb, perfTimings)
 	if err != nil {
 		return err
 	}
