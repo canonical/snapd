@@ -26,6 +26,14 @@ jobs:
           include-snapd-build-fips-go-channel: true
           include-latest-go-channel: false
 
+      - name: Check go channels
+        run: |
+          echo "Resolved Go channels: ${{ steps.resolve-go-channels.outputs.go-channels }}"
+          if [ -z "${{ steps.resolve-go-channels.outputs.go-channels }}" ]; then
+            echo "Error: No Go channels resolved" >&2
+            exit 1
+          fi
+
   snap-builds:
     uses: ./.github/workflows/snap-builds.yaml
     with:

@@ -5151,6 +5151,7 @@ const (
 	isGadget
 	isKernel
 	needsKernelSetup
+	isModelBase
 )
 
 func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
@@ -5195,6 +5196,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	if flags&noConfigure == 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run default-configure hook of "%s" snap if present`, name))
+		i++
+	}
+	if flags&isModelBase != 0 {
+		c.Assert(tasks[i].Summary(), Equals, `Update certificate database`)
 		i++
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
@@ -5256,6 +5261,10 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run post-refresh hook of "%s" snap if present`, name))
 	i++
+	if flags&isModelBase != 0 {
+		c.Assert(tasks[i].Summary(), Equals, `Update certificate database`)
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Clean up "%s" (%s) install`, name, revno))
@@ -5696,11 +5705,9 @@ version: 20.04`
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
-	i += validateInstallTasks(c, tasks[i:], "core20", "2", noConfigure)
+	i += validateInstallTasks(c, tasks[i:], "core20", "2", noConfigure|isModelBase)
 	i += validateInstallTasks(c, tasks[i:], "pc-20", "2", isGadget)
 	i += validateInstallTasks(c, tasks[i:], "foo", "1", 0)
-	c.Assert(tasks[i].Summary(), Equals, `Update certificate database`)
-	i++
 	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
 
@@ -8633,7 +8640,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes in sequential order (no configure hooks for bases though)
-	validateRefreshTasks(c, tasks[i:], "core20", "33", noConfigure)
+	validateRefreshTasks(c, tasks[i:], "core20", "33", noConfigure|isModelBase)
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
@@ -9514,7 +9521,9 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 
 	// gadget update for the seed partition has been applied
 	c.Check(updater.updateCalls, Equals, 1)
-	c.Check(certDBUpdateCalls, Equals, 0)
+
+	// after we booted the base, the cert-db should be updated as well
+	c.Check(certDBUpdateCalls, Equals, 1)
 
 	dumpTasks(c, "after gadget install", chg.Tasks())
 
@@ -9552,9 +9561,6 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	dumpTasks(c, "after failing to set the new model", chg.Tasks())
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-
-	// update-cert-db should have been called prior to setting the new model
-	c.Check(certDBUpdateCalls, Equals, 1)
 
 	// list validation sets that are currently tracked
 	currentSets, err := assertstate.TrackedEnforcedValidationSets(st)
@@ -10051,11 +10057,8 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
 	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
-	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
+	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure|isModelBase)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
-	// then update certificate database for the new base
-	c.Assert(tasks[i].Summary(), Equals, `Update certificate database`)
-	i++
 	// finally new model assertion
 	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
@@ -10377,11 +10380,8 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
 	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
-	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
+	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure|isModelBase)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
-	// then update certificate database for the new base
-	c.Assert(tasks[i].Summary(), Equals, `Update certificate database`)
-	i++
 	// finally new model assertion
 	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
 	i++
@@ -11825,9 +11825,28 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.R
 	p, _ = s.makeStoreTestSnap(c, snapYamlContent, "2")
 	s.serveSnap(p, "2")
 
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0755), IsNil)
+
 	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "some-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel", "some-snap"})
+
+	// Regular refresh path should include certificate DB refresh when the
+	// model boot-base (core20) is refreshed.
+	foundUpdateCertDB := false
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "update-cert-db" {
+				foundUpdateCertDB = true
+				break
+			}
+		}
+		if foundUpdateCertDB {
+			break
+		}
+	}
+	c.Assert(foundUpdateCertDB, Equals, true)
+
 	chg := st.NewChange("update-many", "...")
 	for _, ts := range tss {
 		chg.AddAll(ts)

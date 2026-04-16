@@ -1115,8 +1115,9 @@ func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
 	snapRev := snap.R(1)
 
 	compNamesToType := map[string]string{
-		"one": "test",
-		"two": "test",
+		"one":   "test",
+		"two":   "test",
+		"three": "test",
 	}
 
 	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
@@ -1139,6 +1140,11 @@ func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
 		Revision:  snap.R(1),
 	}, snap.StandardComponent))
 
+	seq.AddComponentForRevision(snapRev, sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, "two"),
+		Revision:  snap.R(1),
+	}, snap.StandardComponent))
+
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
 		Active:          true,
 		Sequence:        seq,
@@ -1146,9 +1152,10 @@ func (s *snapmgrTestSuite) TestInstallComponentsAlreadyInstalledError(c *C) {
 		TrackingChannel: "channel-for-components",
 	})
 
-	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two"}, info, nil, snapstate.Options{})
+	_, err := snapstate.InstallComponents(context.TODO(), s.state, []string{"one", "two", "three"}, info, nil, snapstate.Options{})
 
-	c.Assert(err, testutil.ErrorIs, snap.AlreadyInstalledComponentError{Component: "one"})
+	expectedErr := snap.AlreadyInstalledError{Components: map[string][]string{snapName: {"one", "two"}}}
+	c.Assert(err, testutil.ErrorIs, expectedErr)
 }
 
 func (s *snapmgrTestSuite) TestInstallComponentsInvalidFlagAndTransaction(c *C) {

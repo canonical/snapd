@@ -1111,7 +1111,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesConcurrent(c *C) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.HostScaledTimeout(10*time.Second))
 			defer cancel()
 			key := prompting.IDType(i).String()
 			notices, err := ruleBackend.BackendWaitNotices(ctx, &state.NoticeFilter{Keys: []string{key}})
@@ -1133,7 +1133,7 @@ func (s *noticebackendSuite) TestBackendWaitNoticesConcurrent(c *C) {
 		close(done)
 	}()
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(testutil.HostScaledTimeout(15 * time.Second)):
 		c.Fatalf("timed out waiting for BackendWaitNotices goroutines to finish")
 	case <-done:
 	}

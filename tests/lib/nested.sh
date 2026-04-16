@@ -490,7 +490,7 @@ nested_cleanup_env() {
     rm -rf "$(nested_get_extra_snaps_path)"
 }
 
-nested_get_core_channel() {
+nested_get_image_channel() {
     if nested_is_core_26_system; then
         # TODO: Remove when it becomes available in the other channels
         echo "edge"
@@ -515,7 +515,7 @@ nested_get_gadget_channel() {
 nested_get_image_name_base() {
     local TYPE="$1"
     local SOURCE
-    SOURCE="$(nested_get_core_channel)"
+    SOURCE="$(nested_get_image_channel)"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION
 
@@ -1013,12 +1013,20 @@ nested_create_core_vm() {
             export SNAPPY_FORCE_SAS_URL
             UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
             export UBUNTU_IMAGE_SNAP_CMD
-            local core_channel
-            core_channel="$(nested_get_core_channel)"
-            if [ -n "${core_channel}" ]; then
-                UBUNTU_IMAGE_CHANNEL_ARG="--channel ${core_channel}"
-            else 
+            local image_channel
+            image_channel="$(nested_get_image_channel)"
+            if [ -n "${image_channel}" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel ${image_channel}"
+            else
                 UBUNTU_IMAGE_CHANNEL_ARG=""
+            fi
+
+            # Starting on core26 we have different tracks depending on whether
+            # cloud-init is included in the snap or not. This won't have any
+            # effect if using an unasserted snap.
+            local BASE_CHANNEL=""
+            if nested_is_core_26_system && [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+                BASE_CHANNEL="--snap core26=$image_channel/cloud-init"
             fi
 
             declare -a UBUNTU_IMAGE_PRESEED_ARGS
@@ -1031,6 +1039,7 @@ nested_create_core_vm() {
             SNAPD_DEBUG=1 "$UBUNTU_IMAGE" snap --image-size 10G \
                "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
+                $BASE_CHANNEL \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \

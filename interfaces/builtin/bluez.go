@@ -240,9 +240,6 @@ const bluezPermanentSlotDBus = `
     <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
     <allow send_interface="org.freedesktop.DBus.Properties"/>
 </policy>
-<policy context="default">
-    <deny send_destination="org.bluez"/>
-</policy>
 `
 
 type bluezInterface struct{}

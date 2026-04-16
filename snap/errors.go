@@ -21,22 +21,118 @@ package snap
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 )
 
+// Should not construct this error directly. Use NewAlreadyInstalledSnapsError,
+// NewAlreadyInstalledComponentsError, or NewAlreadyInstalledError.
 type AlreadyInstalledError struct {
-	Snap string
+	Snaps      []string
+	Components map[string][]string
 }
 
 func (e AlreadyInstalledError) Error() string {
-	return fmt.Sprintf("snap %q is already installed", e.Snap)
+	var comps []string
+	for snap, components := range e.Components {
+		for _, comp := range components {
+			comps = append(comps, SnapComponentName(snap, comp))
+		}
+	}
+	sort.Strings(comps)
+
+	builder := strings.Builder{}
+	if len(e.Snaps) == 1 {
+		fmt.Fprintf(&builder, "snap %q ", e.Snaps[0])
+	} else if len(e.Snaps) > 1 {
+		fmt.Fprintf(&builder, "snaps %q ", strings.Join(e.Snaps, ","))
+	}
+
+	if len(e.Snaps) > 0 && len(comps) > 0 {
+		fmt.Fprintf(&builder, "and ")
+	}
+
+	if len(comps) == 1 {
+		fmt.Fprintf(&builder, "component %q ", comps[0])
+	} else if len(comps) > 1 {
+		fmt.Fprintf(&builder, "components %q ", strings.Join(comps, ","))
+	}
+
+	if len(e.Snaps)+len(comps) > 1 {
+		fmt.Fprintf(&builder, "are already installed")
+	} else {
+		fmt.Fprintf(&builder, "is already installed")
+	}
+
+	return builder.String()
 }
 
-type AlreadyInstalledComponentError struct {
-	Component string
+func (e AlreadyInstalledError) Is(err error) bool {
+	other, ok := err.(AlreadyInstalledError)
+	if !ok {
+		return false
+	}
+
+	if !slicesEqual(e.Snaps, other.Snaps) {
+		return false
+	}
+
+	if len(e.Components) != len(other.Components) {
+		return false
+	}
+
+	for snap, comps := range e.Components {
+		otherComps, ok := other.Components[snap]
+		if !ok || !slicesEqual(comps, otherComps) {
+			return false
+		}
+	}
+	return true
 }
 
-func (e AlreadyInstalledComponentError) Error() string {
-	return fmt.Sprintf("component %q is already installed", e.Component)
+// slicesEqual is a helper function to compare two slices for equality.
+// TODO:GOVERSION 1.21: replace with slices.Equal
+func slicesEqual[S []E, E comparable](a, b S) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func NewAlreadyInstalledSnapsError(snaps []string) *AlreadyInstalledError {
+	return NewAlreadyInstalledError(snaps, nil)
+}
+
+func NewAlreadyInstalledComponentsError(snapName string, comps []string) *AlreadyInstalledError {
+	return NewAlreadyInstalledError(nil, map[string][]string{
+		snapName: comps,
+	})
+}
+
+func NewAlreadyInstalledError(snaps []string, comps map[string][]string) *AlreadyInstalledError {
+	// sort snaps for use with .Is()
+	if len(snaps) > 0 {
+		sort.Strings(snaps)
+	}
+
+	if len(comps) > 0 {
+		// sort components for use with .Is()
+		for _, scomps := range comps {
+			if len(scomps) > 0 {
+				sort.Strings(scomps)
+			}
+		}
+	}
+
+	return &AlreadyInstalledError{
+		Snaps:      snaps,
+		Components: comps,
+	}
 }
 
 type NotInstalledError struct {

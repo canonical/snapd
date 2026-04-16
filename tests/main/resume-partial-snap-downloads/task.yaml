@@ -1,0 +1,111 @@
+summary: Check that snap download resumes after interruption
+
+details: |
+    Verify that when a snap download is interrupted mid-way, the partial
+    download file is preserved and the subsequent download attempt resumes
+    from where it left off using an HTTP Range header.
+
+    The test uses the fakestore debug endpoint to force-kill the TCP
+    connection after a configured number of bytes have been served,
+    simulating a network interruption during download.
+
+# ubuntu-14.04: systemd-run not supported
+# ubuntu-core: needs curl
+# TODO implement fakestore CLI for debug API calls
+systems: [-ubuntu-14.04*, -ubuntu-core-*]
+
+kill-timeout: 5m
+
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
+restore: |
+    snap remove --purge test-snap-resume || true
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR"
+    rm -rf test-snap test-snap-resume_1.0_all.snap
+    rm -f /var/lib/snapd/snaps/test-snap-resume_*.snap.partial
+
+debug: |
+    ls -la /var/lib/snapd/snaps/test-snap-resume_* 2>/dev/null || true
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | tail -50 || true
+
+execute: |
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+
+    # Create a snap large enough for partial download testing.
+    # The snap needs to span multiple HTTP write chunks (~32KB each)
+    # so the fakestore kill-after mechanism can interrupt mid-transfer.
+    mkdir -p test-snap/meta
+    cat > test-snap/meta/snap.yaml << 'EOF'
+    name: test-snap-resume
+    version: 1.0
+    summary: Test snap for download resume
+    description: A test snap with padding data for resume testing
+    EOF
+    # Using urandom data ensures squashfs cannot compress it away
+    dd if=/dev/urandom of=test-snap/data.bin bs=1M count=100 2>/dev/null
+    snap pack test-snap
+
+    snap_file="test-snap-resume_1.0_all.snap"
+    snap_size=$(stat -c %s "$snap_file")
+    echo "Snap file size: $snap_size"
+
+    "$TESTSTOOLS"/store-state make-snap-installable "$BLOB_DIR" "$snap_file"
+
+    # Tell the fakestore to kill the download connection after 20MB.
+    # This ensures some successful write chunks are delivered before the
+    # connection is severed, leaving a meaningful partial file.
+    kill_after=20971520
+    curl --fail -s -X POST http://localhost:11028/debug \
+        -d "{\"action\":\"kill-request\",\"kill-path\":\"/download/$snap_file\",\"kill-after\":$kill_after}"
+
+    echo "First install attempt: expect failure due to interrupted download"
+    not snap install test-snap-resume
+
+    # Confirm the fakestore actually killed the connection
+    "$TESTSTOOLS"/journal-state get-log -u fakestore | MATCH "/download/$snap_file was force killed, quota exceeded"
+
+    # Verify a partial download file was preserved.
+    # The fakestore assigns revision 1 by default.
+    partial_path="/var/lib/snapd/snaps/test-snap-resume_1.snap.partial"
+    test -f "$partial_path"
+
+    partial_size=$(stat -c %s "$partial_path")
+    test "$partial_size" -gt 0
+    test "$partial_size" -lt "$snap_size"
+    echo "Partial download preserved: $partial_size bytes of $snap_size total"
+    partial_inode="$(stat -c '%i' "$partial_path")"
+    mod_time="$(stat -c '%y' "$partial_path")"
+
+    # Reset error injection
+    curl --fail -s -X POST http://localhost:11028/debug \
+        -d "{\"action\":\"reset\"}"
+
+    # Make sure the logs for the fakestore are not polluted by previous snapd download
+    # retries starting from last cursor.
+    cursor=$("$TESTSTOOLS"/journal-state get-last-cursor)
+
+    echo "Second install attempt: expect success with resumed download"
+    snap install test-snap-resume
+
+    # Verify the fakestore received a Range header on the resumed download,
+    # confirming that snapd resumed from the partial file offset
+    "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u fakestore | MATCH "requested range for /download/$snap_file"
+
+    # Verify snap is installed
+    snap list test-snap-resume
+
+    complete_path="/var/lib/snapd/snaps/test-snap-resume_1.snap"
+    test -f "$complete_path"
+    complete_inode="$(stat -c '%i' "$complete_path")"
+    complete_mod_time="$(stat -c '%y' "$complete_path")"
+    # same inode proves, file was renamed, not removed an recreated
+    test "$partial_inode" = "$complete_inode"
+    test "$mod_time" != "$complete_mod_time"

@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Get PR number
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             let page = 1;
@@ -36,7 +36,7 @@ jobs:
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
-            } while (response.data.artifacts.length === per_page);
+            } while (allArtifacts.length < response.data.total_count);
             let matchArtifact = allArtifacts.filter((artifact) => {
               return artifact.name == "pr_number"
             })[0];
@@ -53,7 +53,7 @@ jobs:
         run: unzip pr_number.zip
 
       - name: Get generated data
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             let page = 1;
@@ -70,7 +70,7 @@ jobs:
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
-            } while (response.data.artifacts.length === per_page);
+            } while (allArtifacts.length < response.data.total_count);
 
             let matchingArtifacts = allArtifacts.filter((artifact) => {
               return artifact.name.startsWith(`spread-results-${context.payload.workflow_run.id}-${context.payload.workflow_run.run_attempt}`);

@@ -356,8 +356,52 @@ func (s *snapmgrTestSuite) TestInstallAlreadyInstalled(c *C) {
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, 0, snapstate.Flags{})
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `snap "some-snap" is already installed`)
-	c.Check(err, FitsTypeOf, &snap.AlreadyInstalledError{})
+	expectedErr := snap.AlreadyInstalledError{Snaps: []string{"some-snap"}}
+	c.Assert(err, testutil.ErrorIs, expectedErr)
+}
+
+func (s *snapmgrTestSuite) TestInstallAlreadyInstalledMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(7)},
+		}),
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(8)},
+		}),
+		Current:  snap.R(8),
+		SnapType: "app",
+	})
+
+	names := []string{"some-snap", "other-snap", "some-other-snap"}
+	var snaps []snapstate.StoreSnap
+	for _, name := range names {
+		sn := snapstate.StoreSnap{InstanceName: name}
+		snaps = append(snaps, sn)
+	}
+	target := snapstate.StoreInstallGoal(snaps...)
+	infos, tts, err := snapstate.InstallWithGoal(context.Background(), s.state, target, snapstate.Options{})
+
+	c.Assert(infos, IsNil)
+	c.Assert(tts, IsNil)
+	c.Assert(err, NotNil)
+	expectedErr := snap.AlreadyInstalledError{Snaps: []string{"other-snap", "some-snap"}}
+	c.Assert(err, testutil.ErrorIs, expectedErr)
+
+	// Check that already installed snaps are skipped correctly with InstallMany
+	affected, tss, err := snapstate.InstallMany(s.state, names, nil, s.user.ID, nil)
+	c.Assert(err, IsNil)
+	c.Assert(affected, DeepEquals, []string{"some-other-snap"})
+	c.Check(tss, HasLen, 2)
 }
 
 func (s *snapmgrTestSuite) TestInstallInvalidOptions(c *C) {

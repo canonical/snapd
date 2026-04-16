@@ -8,7 +8,12 @@ details: |
   an installed core (to install core).
 
 # only needs a test on classic
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-24.04-64]
+
+skip:
+    - reason: requires python3
+      if: |
+            not command -v python3
 
 prepare: |
 
@@ -63,11 +68,6 @@ restore: |
     systemctl stop tinyproxy || true
 
 execute: |
-    if ! command -v python3; then
-       echo "SKIP: need python3"
-       exit 0
-    fi
-
     # We need the tiny proxy just when snapd does not connect to the store through a real proxy
     PROXY="$HTTPS_PROXY"
     if [ "${SNAPD_USE_PROXY:-}" != true ]; then

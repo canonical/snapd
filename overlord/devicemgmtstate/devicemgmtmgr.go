@@ -27,6 +27,7 @@ package devicemgmtstate
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -49,6 +50,9 @@ const (
 
 var (
 	timeNow = time.Now
+
+	maxSequences                  = 256
+	maxBlockedMessagesPerSequence = 8
 
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
@@ -86,6 +90,11 @@ type RequestMessage struct {
 	Body        string    `json:"body"`
 
 	ReceiveTime time.Time `json:"receive-time"`
+
+	Dispatched bool `json:"dispatched"`
+
+	Status asserts.MessageStatus `json:"status,omitempty"`
+	Error  string                `json:"error,omitempty"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -97,11 +106,24 @@ func (msg *RequestMessage) ID() string {
 	return msg.BaseID
 }
 
+// sequenceState holds the messages and progress for a single base ID,
+// covering both sequenced & unsequenced messages.
+type sequenceState struct {
+	// Messages holds request messages from receipt until their response is queued.
+	Messages []*RequestMessage `json:"messages"`
+
+	// Applied is the highest sequence number successfully applied. A sequenced
+	// message can only be applied once its predecessor has been applied.
+	Applied int `json:"applied"`
+}
+
 // deviceMgmtState holds the persistent state for device management operations.
 type deviceMgmtState struct {
-	// PendingRequests maps message IDs to request messages being processed.
-	// A message stays here from receipt until its response is queued.
-	PendingRequests map[string]*RequestMessage `json:"pending-requests"`
+	// Sequences maps base IDs to their per-base-ID state.
+	Sequences map[string]*sequenceState `json:"sequences"`
+
+	// SequenceLRU tracks sequenced base IDs in least-recently-used order for eviction.
+	SequenceLRU []string `json:"sequence-lru"`
 
 	// LastReceivedToken is the token of the last message successfully stored locally,
 	// sent in the "after" field of the next exchange to acknowledge receipt
@@ -128,9 +150,28 @@ func (ms *deviceMgmtState) enqueueRequests(pollResp *store.MessageExchangeRespon
 			continue
 		}
 
-		_, exists := ms.PendingRequests[reqMsg.ID()]
-		if !exists {
-			ms.PendingRequests[reqMsg.ID()] = reqMsg
+		seq := ms.Sequences[reqMsg.BaseID]
+		if seq == nil {
+			seq = &sequenceState{}
+			ms.Sequences[reqMsg.BaseID] = seq
+		}
+
+		// TODO:GOVERSION:1.21: replace with slices.BinarySearchFunc
+		i := sort.Search(len(seq.Messages), func(i int) bool {
+			return seq.Messages[i].SeqNum >= reqMsg.SeqNum
+		})
+		if i < len(seq.Messages) && seq.Messages[i].SeqNum == reqMsg.SeqNum {
+			continue // duplicate
+		}
+		// TODO:GOVERSION:1.21: replace with slices.Insert(seq.Messages, i, reqMsg)
+		seq.Messages = append(seq.Messages, nil)
+		copy(seq.Messages[i+1:], seq.Messages[i:])
+		seq.Messages[i] = reqMsg
+
+		if reqMsg.SeqNum > 0 {
+			// Move to end of LRU to mark as recently used.
+			ms.removeSequenceFromLRU(reqMsg.BaseID)
+			ms.SequenceLRU = append(ms.SequenceLRU, reqMsg.BaseID)
 		}
 	}
 
@@ -142,7 +183,16 @@ func (ms *deviceMgmtState) enqueueRequests(pollResp *store.MessageExchangeRespon
 	}
 
 	ms.ReadyResponses = make(map[string]store.Message)
-	ms.LastExchangeTime = timeNow()
+}
+
+// removeSequenceFromLRU removes a sequence from the LRU list, if present.
+func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
+	for i, id := range ms.SequenceLRU {
+		if id == baseID {
+			ms.SequenceLRU = append(ms.SequenceLRU[:i], ms.SequenceLRU[i+1:]...)
+			return
+		}
+	}
 }
 
 // DeviceMgmtManager handles device management operations.
@@ -176,12 +226,20 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
 			return &deviceMgmtState{
-				PendingRequests: make(map[string]*RequestMessage),
-				ReadyResponses:  make(map[string]store.Message),
+				Sequences:      make(map[string]*sequenceState),
+				ReadyResponses: make(map[string]store.Message),
 			}, nil
 		}
 
 		return nil, err
+	}
+
+	if ms.Sequences == nil {
+		ms.Sequences = make(map[string]*sequenceState)
+	}
+
+	if ms.ReadyResponses == nil {
+		ms.ReadyResponses = map[string]store.Message{}
 	}
 
 	return &ms, nil
@@ -202,8 +260,7 @@ func (m *DeviceMgmtManager) Ensure() error {
 		return err
 	}
 
-	exchange := m.shouldExchangeMessages(ms)
-	if !exchange {
+	if !m.shouldExchangeMessages(ms) {
 		return nil
 	}
 
@@ -228,8 +285,7 @@ func (m *DeviceMgmtManager) Ensure() error {
 	return nil
 }
 
-// isRemoteManagementEnabled checks whether the remote management feature is enabled.
-// Caller must hold state lock.
+// isRemoteDeviceManagementEnabled checks whether the remote device management feature is enabled.
 func (m *DeviceMgmtManager) isRemoteDeviceManagementEnabled() bool {
 	tr := config.NewTransaction(m.state)
 	enabled, err := features.Flag(tr, features.RemoteDeviceManagement)
@@ -244,7 +300,6 @@ func (m *DeviceMgmtManager) isRemoteDeviceManagementEnabled() bool {
 }
 
 // shouldExchangeMessages checks whether a message exchange should happen now.
-// Caller must hold state lock.
 func (m *DeviceMgmtManager) shouldExchangeMessages(ms *deviceMgmtState) bool {
 	nextExchange := ms.LastExchangeTime.Add(defaultExchangeInterval)
 	if timeNow().Before(nextExchange) {
@@ -265,6 +320,11 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
+
+	defer func() {
+		ms.LastExchangeTime = timeNow()
+		m.setState(ms)
+	}()
 
 	deviceCtx, err := snapstate.DevicePastSeeding(m.state, nil)
 	if err != nil {
@@ -294,14 +354,128 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 	}
 
 	ms.enqueueRequests(pollResp)
-	m.setState(ms)
 
 	return nil
 }
 
 // doDispatchMessages selects pending requests for processing and queues tasks for them.
 func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	chg := t.Change()
+	// Evict oldest sequences when the LRU exceeds capacity.
+	for len(ms.SequenceLRU) > maxSequences {
+		baseID := ms.SequenceLRU[0]
+		ms.SequenceLRU = ms.SequenceLRU[1:]
+		err = m.rejectSequence(ms, chg, baseID, "cannot process message: sequence evicted due to capacity limits")
+		if err != nil {
+			return err
+		}
+	}
+
+	for baseID, seq := range ms.Sequences {
+		dispatched := m.dispatchSequence(t, seq)
+		// If nothing was dispatched, the sequence is stuck at a gap (one or more missing predecessors).
+		// Reject if too many messages have accumulated waiting on it.
+		if dispatched == 0 && len(seq.Messages) > maxBlockedMessagesPerSequence {
+			err = m.rejectSequence(ms, chg, baseID, "cannot process message: too many messages waiting on missing predecessors in sequence")
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	m.setState(ms)
+
+	return nil
+}
+
+// dispatchSequence dispatches pending messages in a sequence starting from where
+// it left off, chaining consecutive messages. Gaps in the sequence stop the chain.
+// Messages are assumed to be sorted by SeqNum. Returns the number of messages dispatched.
+func (m *DeviceMgmtManager) dispatchSequence(dispatchTask *state.Task, seq *sequenceState) int {
+	// Unsequenced messages have SeqNum 0.
+	expectedSeqNum := 0
+	// Sequenced messages resume from where the sequence left off.
+	if len(seq.Messages) > 0 && seq.Messages[0].SeqNum != 0 {
+		expectedSeqNum = seq.Applied + 1
+	}
+
+	dispatched := 0
+	awaitTask := dispatchTask
+	for _, msg := range seq.Messages {
+		// Skip messages already dispatched or that have reached a final status.
+		if msg.Dispatched || msg.Status != "" {
+			continue
+		}
+
+		if msg.SeqNum != expectedSeqNum {
+			// Gap in sequence, stop chaining.
+			break
+		}
+
+		awaitTask = m.dispatchMessage(awaitTask, msg)
+		expectedSeqNum++
+		dispatched++
+	}
+
+	return dispatched
+}
+
+// dispatchMessage creates the task chain for a single message and returns
+// the final task so callers can chain subsequent messages after it.
+func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *RequestMessage) *state.Task {
+	chg := prevTask.Change()
+	// TODO: add tests verifying that a failure in one message's task chain does not
+	// affect other messages (lanes provide this isolation, but it needs test coverage).
+	lane := m.state.NewLane()
+
+	addTask := func(kind, summary string) {
+		t := m.state.NewTask(kind, summary)
+		t.Set("message-id", msg.ID())
+		t.WaitFor(prevTask)
+		t.JoinLane(lane)
+		chg.AddTask(t)
+
+		prevTask = t
+	}
+
+	addTask("validate-mgmt-message", fmt.Sprintf("Validate message with id %q", msg.ID()))
+	addTask("apply-mgmt-message", fmt.Sprintf("Apply message with id %q", msg.ID()))
+	addTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", msg.ID()))
+
+	msg.Dispatched = true
+
+	return prevTask
+}
+
+// rejectSequence rejects the earliest pending message in a sequence and discards
+// the rest. It removes the sequence from the LRU and queues a rejection response.
+func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Change, baseID, reason string) error {
+	seq := ms.Sequences[baseID]
+	if seq == nil || len(seq.Messages) == 0 {
+		return fmt.Errorf("internal error: rejectSequence called for baseID %q with no pending messages", baseID)
+	}
+
+	earliest := seq.Messages[0]
+	earliest.Status = asserts.MessageStatusRejected
+	earliest.Error = reason
+	seq.Messages = []*RequestMessage{earliest}
+
+	ms.removeSequenceFromLRU(baseID)
+
+	lane := m.state.NewLane()
+	queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", earliest.ID()))
+	queue.Set("message-id", earliest.ID())
+	queue.JoinLane(lane)
+	chg.AddTask(queue)
+
 	return nil
 }
 
