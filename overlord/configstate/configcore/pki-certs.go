@@ -187,7 +187,7 @@ func certificateFingerprint(certContent string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return cdata.Digest, nil
+	return cdata.Sha256, nil
 }
 
 func ensureCertificateState(fp string, cert certificate) error {

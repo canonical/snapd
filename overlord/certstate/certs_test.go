@@ -104,12 +104,12 @@ func digestForPEM(c *C, pemBytes []byte) string {
 	c.Assert(err, IsNil)
 	c.Assert(certs, HasLen, 1)
 
-	return certs[0].Digest
+	return certs[0].Sha256
 }
 
 func (s *certsTestSuite) TestIsBlockedReturnsBlocked(c *C) {
 	c.Check(certstate.IsBlocked(certstate.Certificate{
-		Digest:   "digest-123",
+		Sha256:   "digest-123",
 		RealPath: "blocked-cert.crt",
 	}, []string{"digest-123", "digest-789"}), Equals, true)
 }
@@ -129,7 +129,7 @@ func (s *certsTestSuite) TestIsBlockedReturnsBlockedOnSuffix(c *C) {
 
 func (s *certsTestSuite) TestIsBlockedReturnsNotBlocked(c *C) {
 	c.Check(certstate.IsBlocked(certstate.Certificate{
-		Digest:   "digest-123",
+		Sha256:   "digest-123",
 		RealPath: "not-blocked-cert.crt",
 	}, []string{"digest-789"}), Equals, false)
 }
@@ -238,7 +238,7 @@ func (s *certsTestSuite) TestParseCertificatesDigestIncludesFullChain(c *C) {
 
 	// Both chains share the same first certificate, but differ after it.
 	// The digest must include the full chain so the resulting digests differ.
-	c.Check(certs[0].Digest, Not(Equals), certs[1].Digest)
+	c.Check(certs[0].Sha256, Not(Equals), certs[1].Sha256)
 }
 
 func (s *certsTestSuite) TestReadDigestsMissingDir(c *C) {
@@ -418,6 +418,48 @@ func (s *certsTestSuite) TestGenerateCACertificatesSha1LinksAreUnique(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *certsTestSuite) TestGenerateCACertificatesSha1CollisionsUseNextSuffix(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	bPEM, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+
+	baseDir := c.MkDir()
+	outDir := filepath.Join(c.MkDir(), "merged")
+	aPath := filepath.Join(baseDir, "a.crt")
+	bPath := filepath.Join(baseDir, "b.crt")
+
+	c.Assert(os.WriteFile(aPath, aPEM, 0o644), IsNil)
+	c.Assert(os.WriteFile(bPath, bPEM, 0o644), IsNil)
+
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: []certstate.Certificate{
+			{
+				Name:     "a",
+				Path:     aPath,
+				RealPath: aPath,
+				Sha256:   "sha256-a",
+				Sha1:     "deadbeef00000000000000000000000000000000",
+			},
+			{
+				Name:     "b",
+				Path:     bPath,
+				RealPath: bPath,
+				Sha256:   "sha256-b",
+				Sha1:     "deadbeef11111111111111111111111111111111",
+			},
+		},
+	}, outDir)
+	c.Assert(err, IsNil)
+
+	got0, err := os.ReadFile(filepath.Join(outDir, "deadbeef.0"))
+	c.Assert(err, IsNil)
+	got1, err := os.ReadFile(filepath.Join(outDir, "deadbeef.1"))
+	c.Assert(err, IsNil)
+	c.Check(got0, DeepEquals, aPEM)
+	c.Check(got1, DeepEquals, bPEM)
+}
+
 func (s *certsTestSuite) TestGenerateCACertificatesBlockedCertHasNoLinks(c *C) {
 	aPEM, _, err := makeTestCertPEM("A")
 	c.Assert(err, IsNil)
@@ -438,7 +480,7 @@ func (s *certsTestSuite) TestGenerateCACertificatesBlockedCertHasNoLinks(c *C) {
 	// Find the sha1 of the blocked cert so we can check its link is absent.
 	var blockedSha1Prefix string
 	for _, cert := range base {
-		if cert.Digest == blockedDigest {
+		if cert.Sha256 == blockedDigest {
 			blockedSha1Prefix = cert.Sha1[:8]
 			break
 		}

@@ -99,6 +99,8 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 	backupDir := mergedDir + ".old"
 
 	// Backup the existing merged directory so we can restore on undo.
+	// If the merged directory doesn't exist, that's fine,
+	// we'll just ignore it and remove the backup on undo.
 	if err := os.Rename(mergedDir, backupDir); err != nil && !os.IsNotExist(err) {
 		return err
 	}

@@ -271,12 +271,13 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError(c *C) {
 	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+	certA, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), certA, 0o644), IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
-
-	current := []byte("current-ca-bundle")
-	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), current, 0o644), IsNil)
+	_, err = os.Stat(mergedDir)
+	c.Assert(os.IsNotExist(err), Equals, true)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -296,7 +297,9 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError
 	c.Check(tasks[1].Kind(), Equals, "error-trigger")
 	c.Check(tasks[1].Status(), Equals, state.ErrorStatus)
 
-	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
-	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, current)
+	_, err = os.Stat(mergedDir)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	_, err = os.Stat(mergedDir + ".old")
+	c.Check(os.IsNotExist(err), Equals, true)
 }

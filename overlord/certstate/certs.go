@@ -43,7 +43,7 @@ const (
 
 type CertificateData struct {
 	Raw    *x509.Certificate
-	Digest string
+	Sha256 string
 	Sha1   string
 }
 
@@ -51,11 +51,11 @@ type certificate struct {
 	Name     string
 	Path     string
 	RealPath string
-	Digest   string
+	Sha256   string
 	Sha1     string
 }
 
-func digest224HexForChain(chainDER [][]byte) string {
+func sha256HexForChain(chainDER [][]byte) string {
 	h := sha256.New224()
 	for _, der := range chainDER {
 		// Hash the DER bytes as-is (in file order).
@@ -64,7 +64,7 @@ func digest224HexForChain(chainDER [][]byte) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func digest1HexForChain(chainDER [][]byte) string {
+func sha1HexForChain(chainDER [][]byte) string {
 	h := sha1.New()
 	for _, der := range chainDER {
 		// Hash the DER bytes as-is (in file order).
@@ -108,8 +108,8 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 		}
 		return &CertificateData{
 			Raw:    first,
-			Digest: digest224HexForChain(chainDER),
-			Sha1:   digest1HexForChain(chainDER),
+			Sha256: sha256HexForChain(chainDER),
+			Sha1:   sha1HexForChain(chainDER),
 		}, nil
 	}
 
@@ -121,8 +121,8 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 	}
 	return &CertificateData{
 		Raw:    cert,
-		Digest: digest224HexForChain([][]byte{cert.Raw}),
-		Sha1:   digest1HexForChain([][]byte{cert.Raw}),
+		Sha256: sha256HexForChain([][]byte{cert.Raw}),
+		Sha1:   sha1HexForChain([][]byte{cert.Raw}),
 	}, nil
 }
 
@@ -146,7 +146,7 @@ func isBlocked(cert certificate, blockedCertDigests []string) bool {
 	if !strings.HasSuffix(cert.RealPath, ".crt") {
 		return true
 	}
-	return strutil.ListContains(blockedCertDigests, cert.Digest)
+	return strutil.ListContains(blockedCertDigests, cert.Sha256)
 }
 
 // parseCertificates retrieves a list of files in the directory path and returns
@@ -197,7 +197,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			Name:     trimCrtExtension(caFile.Name()),
 			Path:     filepath.Join(certsPath, caFile.Name()),
 			RealPath: certRealPath,
-			Digest:   cert.Digest,
+			Sha256:   cert.Sha256,
 			Sha1:     cert.Sha1,
 		}
 		certsObjects = append(certsObjects, certObject)
@@ -257,20 +257,23 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		// for creating a hash lookup. It must be in SHA-1.
 		hash := cert.Sha1[:8]
 
-		// TODO: Should be done in a loop with incrementing suffixes '
-		// if there are hash collisions.
-		linkName := filepath.Join(certsDir, hash+".0")
-		if err := os.Link(cert.RealPath, linkName); err != nil {
-			return err
+		for suffix := 0; ; suffix++ {
+			linkName := filepath.Join(certsDir, fmt.Sprintf("%s.%d", hash, suffix))
+			if err := os.Link(cert.RealPath, linkName); err != nil {
+				if os.IsExist(err) {
+					continue
+				}
+				return err
+			}
+			return nil
 		}
-		return nil
 	}
 
 	// avoid adding digests twice
 	digests := make(map[string]bool)
 
 	for _, cert := range certs.SystemCertificates {
-		if digests[cert.Digest] || isBlocked(cert, certs.BlockedDigests) {
+		if digests[cert.Sha256] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
 		if err := copyOne(cert.RealPath); err != nil {
@@ -279,11 +282,11 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		if err := sha1Link(cert); err != nil {
 			return fmt.Errorf("cannot create hash link for certificate %q: %v", cert.Name, err)
 		}
-		digests[cert.Digest] = true
+		digests[cert.Sha256] = true
 	}
 
 	for _, cert := range certs.AddedCertificates {
-		if digests[cert.Digest] || isBlocked(cert, certs.BlockedDigests) {
+		if digests[cert.Sha256] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
 		if err := copyOne(cert.RealPath); err != nil {
@@ -292,7 +295,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		if err := sha1Link(cert); err != nil {
 			return fmt.Errorf("cannot create hash link for extra certificate %q: %v", cert.Name, err)
 		}
-		digests[cert.Digest] = true
+		digests[cert.Sha256] = true
 	}
 	return nil
 }
@@ -304,15 +307,18 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 // never leaves the final path in an inconsistent state.
 func generateCACertificates(certs *certificates, mergedPath string) error {
 	tmpMergedPath := mergedPath + ".tmp"
+
+	// Remove any existing temp directory from a previous failed attempt,
+	// and recreate the directory.
+	os.RemoveAll(tmpMergedPath)
 	if err := os.MkdirAll(tmpMergedPath, 0o755); err != nil {
 		return fmt.Errorf("cannot create merged certificates directory: %v", err)
 	}
 
 	// Clean up the temp dir on failure so we don't leave partial state.
-	var err error
 	defer func() {
-		if err != nil {
-			os.RemoveAll(tmpMergedPath)
+		if e2 := os.RemoveAll(tmpMergedPath); e2 != nil {
+			logger.Noticef("Failed to remove old certificates directory %q: %v", tmpMergedPath, e2)
 		}
 	}()
 
@@ -324,22 +330,18 @@ func generateCACertificates(certs *certificates, mergedPath string) error {
 	defer bundle.Close()
 
 	// Fill the bundle and create cert links, all inside the temp dir.
-	if err = writeUniqueCACertificates(certs, tmpMergedPath, bundle); err != nil {
+	if err := writeUniqueCACertificates(certs, tmpMergedPath, bundle); err != nil {
 		return err
 	}
 
 	// Ensure the target directory exists so the swap has something to
 	// exchange with. This is a no-op when regenerating an existing DB.
-	if err = os.MkdirAll(mergedPath, 0o755); err != nil {
+	if err := os.MkdirAll(mergedPath, 0o755); err != nil {
 		return fmt.Errorf("cannot create merged certificates directory: %v", err)
 	}
 
-	if err = osutil.SwapDirs(tmpMergedPath, mergedPath); err != nil {
+	if err := osutil.SwapDirs(tmpMergedPath, mergedPath); err != nil {
 		return fmt.Errorf("cannot replace certificates directory: %v", err)
-	}
-
-	if e2 := os.RemoveAll(tmpMergedPath); e2 != nil {
-		logger.Noticef("Failed to remove old certificates directory %q: %v", tmpMergedPath, e2)
 	}
 
 	return nil
@@ -523,7 +525,7 @@ func certificateDigestAndContent(name, baseDir string) (digest string, content s
 	if err != nil {
 		return "", "", fmt.Errorf("cannot parse certificate %q: %w", name, err)
 	}
-	return cdata.Digest, string(certBytes), nil
+	return cdata.Sha256, string(certBytes), nil
 }
 
 func certificateInfo(name, baseDir, addedDir, blockedDir string) (*CertificateInfo, error) {
