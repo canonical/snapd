@@ -25,7 +25,11 @@ details: |
     This test assumes AppArmor network interface mediation (the "interface="
     qualifier in network rules) is available on the test system.
 
-systems: [ubuntu-24*, ubuntu-26*, ubuntu-core-24*, ubuntu-core-26*]
+systems: [ubuntu-*]
+
+skip:
+    - if: os.query is-core-lt 26 || os.query is-ubuntu-lt 26.04
+      reason: Requires AppArmor network_v9_skb/iface kernel feature (TODO check for this in the test)
 
 environment:
     SNAP_NAME: network-consumer
@@ -53,10 +57,14 @@ prepare: |
     echo "Create network namespaces for server isolation"
     ip netns add "$NS_SERVER0"
     ip netns add "$NS_SERVER1"
+    tests.cleanup defer ip netns delete "$NS_SERVER0"
+    tests.cleanup defer ip netns delete "$NS_SERVER1"
 
     echo "Create veth pairs: each pair connects root namespace to a server namespace"
     ip link add "$VETH0" type veth peer name "$VETH0_PEER"
     ip link add "$VETH1" type veth peer name "$VETH1_PEER"
+    tests.cleanup defer ip link delete "$VETH0"
+    tests.cleanup defer ip link delete "$VETH1"
 
     echo "Move veth peers into their respective namespaces"
     ip link set "$VETH0_PEER" netns "$NS_SERVER0"
@@ -81,22 +89,15 @@ prepare: |
 
     echo "Start HTTP server inside ns-server0 (reachable via $VETH0)"
     make_network_service "$SERVICE_IFACE0" "$PORT_IFACE0" "$NS_SERVER0"
-
+    tests.cleanup defer systemctl stop "$SERVICE_IFACE0"
+    
     echo "Start HTTP server inside ns-server1 (reachable via $VETH1)"
     make_network_service "$SERVICE_IFACE1" "$PORT_IFACE1" "$NS_SERVER1"
+    tests.cleanup defer systemctl stop "$SERVICE_IFACE1"
 
     echo "Install test snap"
     "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
-
-restore: |
-    # note: restore is executed even for a partial prepare,
-    # so clean up anything that might have been set up before a failure
-    systemctl stop "$SERVICE_IFACE0" "$SERVICE_IFACE1" || true
-    snap remove --purge "$SNAP_NAME" || true
-    ip link delete "$VETH0" || true
-    ip link delete "$VETH1" || true
-    ip netns delete "$NS_SERVER0" || true
-    ip netns delete "$NS_SERVER1" || true
+    tests.cleanup defer snap remove --purge "$SNAP_NAME"
 
 execute: |
     echo "The network plug is auto-connected on install"
@@ -121,14 +122,8 @@ execute: |
     # in AppArmor, so this effectively allows only veth0.
     sed -i "s#^}#audit deny network interface=${VETH1},\n}#" "$PROFILE"
 
-    # Reload using the snapd-internal parser when available, otherwise fall
-    # back to the system-installed parser.
-    APPARMOR_PARSER="apparmor_parser"
-    if snap debug sandbox-features --required apparmor:parser:snapd-internal; then
-        echo "Using snapd-internal AppArmor parser for profile reload"
-        APPARMOR_PARSER="/snap/snapd/current/usr/lib/snapd/apparmor_parser --config-file /snap/snapd/current/usr/lib/snapd/apparmor/parser.conf -b /snap/snapd/current/usr/lib/snapd/apparmor.d --policy-features /snap/snapd/current/usr/lib/snapd/apparmor.d/abi/4.0"
-    fi
-    $APPARMOR_PARSER -r "$PROFILE"
+    echo "Restart snapd.apparmor.service to reload profiles"
+    systemctl restart snapd.apparmor.service
 
     echo "Snap can still reach the permitted interface ($VETH0 → $SERVER_IP_IFACE0)"
     network-consumer "http://${SERVER_IP_IFACE0}:${PORT_IFACE0}" | MATCH "ok"
@@ -143,8 +138,8 @@ execute: |
     echo "Verify packet routing: $VETH0 TX increased, $VETH1 TX unchanged"
     TX_VETH0_AFTER=$(cat /sys/class/net/"$VETH0"/statistics/tx_packets)
     TX_VETH1_AFTER=$(cat /sys/class/net/"$VETH1"/statistics/tx_packets)
-    [ "$TX_VETH0_AFTER" -gt "$TX_VETH0_BEFORE" ]
-    [ "$TX_VETH1_AFTER" -eq "$TX_VETH1_BEFORE" ]
+    test "$TX_VETH0_AFTER" -gt "$TX_VETH0_BEFORE"
+    test "$TX_VETH1_AFTER" -eq "$TX_VETH1_BEFORE"
 
     echo "Disconnecting the network plug blocks all network access"
     snap disconnect "${SNAP_NAME}:network"
