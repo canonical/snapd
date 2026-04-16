@@ -91,6 +91,23 @@ func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnWaitError(c *C) {
 	c.Check(called, Equals, false)
 }
 
+func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnRetryError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	called := false
+	s.ut.AddUndo(func() error {
+		called = true
+		return nil
+	})
+
+	var retErr error = &state.Retry{Reason: "retrying task"}
+	s.ut.RunOnError(&retErr)
+
+	// undo not called
+	c.Check(called, Equals, false)
+}
+
 func (s *undoTrackerSuite) TestRunOnErrorNoUndoesRegistered(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

@@ -20,6 +20,8 @@
 package snapstate
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -71,7 +73,14 @@ func (ut *UndoTracker) RunOnError(retErr *error) {
 	if retErr == nil {
 		panic("internal error: retErr pointer cannot be nil")
 	}
-	if !IsErrAndNotWait(*retErr) {
+
+	// Do not run undoes if there is no error or if the error is of
+	// type *state.Wait or *state.Retry, which are used to control
+	// task flow but do not indicate failure.
+	re := *retErr
+	var w *state.Wait
+	var r *state.Retry
+	if re == nil || errors.As(re, &w) || errors.As(re, &r) {
 		return
 	}
 
