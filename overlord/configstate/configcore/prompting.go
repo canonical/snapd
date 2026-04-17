@@ -134,7 +134,7 @@ func doExperimentalApparmorPromptingDaemonRestart(c RunTransaction, opts *fsOnly
 		}
 
 		if len(handlers) == 0 {
-			return fmt.Errorf("cannot enable prompting feature no interfaces requests handler services are installed")
+			return fmt.Errorf("cannot enable prompting feature: no interfaces requests handler services are installed; consider installing the 'prompting-client' snap")
 		}
 
 		// try to start all the handlers for all active users
