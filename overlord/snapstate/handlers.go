@@ -3566,11 +3566,10 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 		return err
 	}
 
-	var undoTracker *UndoTracker
 	var undoerUnlocked backend.Undoer
 	skipUndo := stopReason == snap.StopReasonRemove || stopReason == snap.StopReasonDisable
 	if !skipUndo {
-		undoTracker = NewUndoTracker(t)
+		undoTracker := NewUndoTracker(t)
 		defer undoTracker.RunOnError(&retErr)
 		undoerUnlocked = undoTracker.Unlocked()
 	}

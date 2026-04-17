@@ -47,16 +47,6 @@ func (s *undoTrackerSuite) SetUpTest(c *C) {
 	s.ut = snapstate.NewUndoTracker(s.t)
 }
 
-func (s *undoTrackerSuite) TestNewUndoTrackerPanicsOnNilTask(c *C) {
-	c.Check(func() { snapstate.NewUndoTracker(nil) }, Panics, "internal error: task cannot be nil")
-}
-
-func (s *undoTrackerSuite) TestRunOnErrorPanicsOnNilErrorPointer(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-	c.Check(func() { s.ut.RunOnError(nil) }, Panics, "internal error: retErr pointer cannot be nil")
-}
-
 func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnNoError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

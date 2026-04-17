@@ -46,9 +46,6 @@ type undoEntry struct {
 // NewUndoTracker creates a new UndoTracker associated with the given task.
 // The task is used to log undo errors.
 func NewUndoTracker(t *state.Task) *UndoTracker {
-	if t == nil {
-		panic("internal error: task cannot be nil")
-	}
 	return &UndoTracker{t: t}
 }
 
@@ -61,7 +58,7 @@ func (ut *UndoTracker) AddUndo(f func() error) {
 
 // RunOnError should generally be deferred at the start of the handler.
 // It runs all registered undo closures in reverse order if *retErr is
-// a real error (not nil and not a *state.Wait).
+// a real error (not nil and neither a *state.Wait nor a *state.Retry).
 //
 // RunOnError expects the state lock to be held on entry and guarantees
 // it is held on return. It transitions the lock state as needed for
@@ -70,13 +67,6 @@ func (ut *UndoTracker) AddUndo(f func() error) {
 // logged via the task's Errorf after all undoes complete, with the
 // state lock held.
 func (ut *UndoTracker) RunOnError(retErr *error) {
-	if retErr == nil {
-		panic("internal error: retErr pointer cannot be nil")
-	}
-
-	// Do not run undoes if there is no error or if the error is of
-	// type *state.Wait or *state.Retry, which are used to control
-	// task flow but do not indicate failure.
 	re := *retErr
 	var w *state.Wait
 	var r *state.Retry
@@ -113,22 +103,26 @@ func (ut *UndoTracker) RunOnError(retErr *error) {
 	}
 }
 
-// Unlocked returns an adapter whose AddUndo method tags all registered
-// undo closures as requiring unlocked state execution. The caller
-// passes this where only AddUndo should be visible, while retaining
-// control over lock context decisions.
+// Unlocked returns an UnlockedUndoTracker which allows registering
+// undo closures that need to be run with the state lock released.
 func (ut *UndoTracker) Unlocked() *UnlockedUndoTracker {
-	return &UnlockedUndoTracker{ut}
+	return &UnlockedUndoTracker{ut: ut}
 }
 
-// UnlockedUndoTracker embeds *UndoTracker and shadows AddUndo method to tag
-// registered closures as needing unlocked state execution.
+// UnlockedUndoTracker allows registering undo closures that need to
+// be run with the state lock released. It should be constructed via
+// UndoTracker.Unlocked() and shares the UndoTracker's undo stack
+// and task for logging.
 type UnlockedUndoTracker struct {
-	*UndoTracker
+	ut *UndoTracker
 }
 
-// AddUndo registers an undo closure that will run with the state lock
-// released.
+// AddUndo registers an undo closure to be executed if the handler
+// returns an error. The closure should reverse a change to the system
+// and return an error if the undo action itself fails. The closure
+// runs with the state lock released.
+// The closure is added to the undo stack of the underlying UndoTracker
+// but is tagged to indicate it should be run with the lock released.
 func (u *UnlockedUndoTracker) AddUndo(f func() error) {
-	u.undoes = append(u.undoes, undoEntry{f: f, unlocked: true})
+	u.ut.undoes = append(u.ut.undoes, undoEntry{f: f, unlocked: true})
 }
