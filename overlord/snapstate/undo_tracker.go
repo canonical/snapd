@@ -40,7 +40,7 @@ type UndoTracker struct {
 // context.
 type undoEntry struct {
 	f        func() error
-	unlocked bool // if true, the closure runs with the state lock released
+	unlocked bool // if true, the closure runs with the state unlocked
 }
 
 // NewUndoTracker creates a new UndoTracker associated with the given task.
@@ -49,23 +49,28 @@ func NewUndoTracker(t *state.Task) *UndoTracker {
 	return &UndoTracker{t: t}
 }
 
-// AddUndo registers an undo closure to be executed if the handler returns an error.
-// The closure should reverse a change to the system and return an error if the
-// undo action itself fails. The closure runs with the state lock held.
+// AddUndo registers an undo closure to be executed if the handler returns
+// an error. The closure should reverse a change to the system and return
+// an error if the undo action itself fails. The closure runs with the state
+// locked.
+// To register the closure to run with the state unlocked, instead use
+// Unlocked().AddUndo().
 func (ut *UndoTracker) AddUndo(f func() error) {
 	ut.undoes = append(ut.undoes, undoEntry{f: f})
 }
 
-// RunOnError should generally be deferred at the start of the handler.
+// RunOnError should be deferred once at the start of the handler.
 // It runs all registered undo closures in reverse order if *retErr is
 // a real error (not nil and neither a *state.Wait nor a *state.Retry).
-//
-// RunOnError expects the state lock to be held on entry and guarantees
-// it is held on return. It transitions the lock state as needed for
-// each undo entry: locked entries run with the lock held, unlocked
-// entries run with the lock released. Undo errors are collected and
+// Undo closures can be registered via
+// (a) AddUndo() for closures that run with the state locked, or
+// (b) Unlocked().AddUndo() for closures that run with the state unlocked.
+// RunOnError expects the state to be locked on entry and guarantees
+// it is locked on return. It transitions the state lock as needed for
+// each undo entry: locked entries run with the state locked, unlocked
+// entries run with the state unlocked. Undo errors are collected and
 // logged via the task's Errorf after all undoes complete, with the
-// state lock held.
+// state locked.
 func (ut *UndoTracker) RunOnError(retErr *error) {
 	re := *retErr
 	var w *state.Wait
@@ -88,6 +93,8 @@ func (ut *UndoTracker) RunOnError(retErr *error) {
 		}
 	}()
 
+	// keep the state locked or unlocked between consecutive entries with
+	// the same lock context requirement and switch only when needed
 	for i := len(ut.undoes) - 1; i >= 0; i-- {
 		entry := ut.undoes[i]
 		if entry.unlocked && locked {
@@ -104,15 +111,15 @@ func (ut *UndoTracker) RunOnError(retErr *error) {
 }
 
 // Unlocked returns an UnlockedUndoTracker which allows registering
-// undo closures that need to be run with the state lock released.
+// undo closures that need to be run with the state unlocked.
 func (ut *UndoTracker) Unlocked() *UnlockedUndoTracker {
 	return &UnlockedUndoTracker{ut: ut}
 }
 
 // UnlockedUndoTracker allows registering undo closures that need to
-// be run with the state lock released. It should be constructed via
-// UndoTracker.Unlocked() and shares the UndoTracker's undo stack
-// and task for logging.
+// be run with the state unlocked. It should be constructed via
+// UndoTracker.Unlocked() and uses the underlying UndoTracker's undo
+// stack for collecting the closures.
 type UnlockedUndoTracker struct {
 	ut *UndoTracker
 }
@@ -120,9 +127,9 @@ type UnlockedUndoTracker struct {
 // AddUndo registers an undo closure to be executed if the handler
 // returns an error. The closure should reverse a change to the system
 // and return an error if the undo action itself fails. The closure
-// runs with the state lock released.
+// runs with the state unlocked.
 // The closure is added to the undo stack of the underlying UndoTracker
-// but is tagged to indicate it should be run with the lock released.
+// but is tagged to indicate it should be run with the state unlocked.
 func (u *UnlockedUndoTracker) AddUndo(f func() error) {
 	u.ut.undoes = append(u.ut.undoes, undoEntry{f: f, unlocked: true})
 }
