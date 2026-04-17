@@ -742,6 +742,37 @@ plugs:
 	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target import must exist and must be a directory, ensure it is present in the snap or created before packing`)
 }
 
+func (s *packSuite) TestCheckSkeletonContentPlugTargetEdgeCases(c *C) {
+	const snapYamlTemplate = `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: %s
+`
+	for _, tc := range []struct {
+		target string
+		ok     bool
+	}{
+		// all of these resolve to $SNAP and validation is always successful
+		{"$SNAP", true},
+		{"$SNAP/", true},
+		{"/", true},
+		// /path has implicit $SNAP prefix, leading / is stripped
+		{"/import", false},
+	} {
+		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, tc.target))
+		var buf bytes.Buffer
+		err := pack.CheckSkeleton(&buf, sourceDir)
+		if tc.ok {
+			c.Assert(err, IsNil, Commentf("target: %s", tc.target))
+		} else {
+			c.Assert(err, ErrorMatches, `content interface plug "shared-data" target.*must exist and must be a directory.*`, Commentf("target: %s", tc.target))
+		}
+	}
+}
+
 func (s *packSuite) TestCheckSkeletonContentPlugTargetMultiplePlugs(c *C) {
 	sourceDir := makeExampleSnapSourceDir(c, `name: hello
 version: 0
