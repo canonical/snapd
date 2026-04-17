@@ -23,22 +23,6 @@
           "permissions": [ "read" ]
         }
       }
-    },
-    {
-      "prompt-filter": {
-        "constraints": {
-          "path": "${BASE_PATH}/foo\\\\*\\\\?()\\\\[\\\\]\\\\{\\\\}\\\\\\\\",
-          "requested-permissions": [ "read" ]
-        }
-      },
-      "reply": {
-        "action": "allow",
-        "lifespan": "single",
-        "constraints": {
-          "path-pattern": "${BASE_PATH}/foo\\*\\?()\\[\\]\\{\\}\\\\",
-          "permissions": [ "read" ]
-        }
-      }
     }
   ]
 }
