@@ -15,8 +15,6 @@ details: |
   the store (snapctl install resolves via the snap store). This test therefore
   covers the remove --no-wait path, which is fully exercisable with local snaps.
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
-
 prepare: |
   snap pack test-snap/
   snap pack test-comp1/
