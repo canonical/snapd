@@ -258,7 +258,8 @@ func addReadTransaction(st *state.State, account, confdbName, id, accessID strin
 	}
 
 	if txs.WriteTxID != "" {
-		return fmt.Errorf("cannot read confdb (%s/%s): a write transaction is ongoing", account, confdbName)
+		// shouldn't happen save for programmer error
+		return fmt.Errorf("internal error: cannot read confdb (%s/%s): a write transaction is ongoing", account, confdbName)
 	}
 
 	txs.ReadTxIDs = append(txs.ReadTxIDs, id)
@@ -289,7 +290,8 @@ func setWriteTransaction(st *state.State, account, schemaName, id, accessID stri
 			op = "write"
 		}
 
-		return fmt.Errorf("cannot write confdb (%s/%s): a %s transaction is ongoing", account, schemaName, op)
+		// shouldn't happen save for programmer error
+		return fmt.Errorf("internal error: cannot write confdb (%s/%s): a %s transaction is ongoing", account, schemaName, op)
 	}
 
 	txs.WriteTxID = id

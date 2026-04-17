@@ -409,11 +409,11 @@ func (s *confdbTestSuite) TestConflictingOngoingTransactions(c *C) {
 
 	// can't set write due to ongoing write
 	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2", "")
-	c.Assert(err, ErrorMatches, `cannot write confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
+	c.Assert(err, ErrorMatches, `internal error: cannot write confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
 
 	// can't add read due to ongoing write
 	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2", "")
-	c.Assert(err, ErrorMatches, `cannot read confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
+	c.Assert(err, ErrorMatches, `internal error: cannot read confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
 
 	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
 	c.Assert(err, IsNil)
@@ -426,7 +426,7 @@ func (s *confdbTestSuite) TestConflictingOngoingTransactions(c *C) {
 
 	// can't set write due to ongoing read
 	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2", "")
-	c.Assert(err, ErrorMatches, `cannot write confdb \(my-acc/my-confdb\): a read transaction is ongoing`)
+	c.Assert(err, ErrorMatches, `internal error: cannot write confdb \(my-acc/my-confdb\): a read transaction is ongoing`)
 
 	// many reads are fine
 	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2", "")

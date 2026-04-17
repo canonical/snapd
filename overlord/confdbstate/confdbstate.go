@@ -303,10 +303,9 @@ func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values
 	}
 
 	account, schema := view.Schema().Account, view.Schema().Name
-	var chg *state.Change
 	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, accessID, account, schema)
+			cleanupAccess(st, accessID, account, schema)
 		}()
 	}
 
@@ -328,15 +327,17 @@ func WriteConfdb(ctx context.Context, st *state.State, view *confdb.View, values
 		return "", err
 	}
 
-	chg = st.NewChange(setConfdbChangeKind, fmt.Sprintf("Set confdb through %q", view.ID()))
-	chg.AddAll(ts)
-
 	err = setWriteTransaction(st, account, schema, commitTask.ID(), accessID)
 	if err != nil {
 		return "", err
 	}
 
-	return chg.ID(), err
+	// schedule tasks after saving the tx ID so the deferred cleanup skips waking
+	// up waiters if a task will do it (txs.WriteTxID != "")
+	chg := st.NewChange(setConfdbChangeKind, fmt.Sprintf("Set confdb through %q", view.ID()))
+	chg.AddAll(ts)
+
+	return chg.ID(), nil
 }
 
 // WriteConfdbFromSnap takes a hook context and a map of requests to values that
@@ -382,10 +383,9 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 		return err
 	}
 
-	var chg *state.Change
 	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, accessID, account, schema)
+			cleanupAccess(st, accessID, account, schema)
 		}()
 	}
 
@@ -401,6 +401,7 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 		return err
 	}
 
+	var chg *state.Change
 	if hookCtx.IsEphemeral() {
 		chg = st.NewChange(setConfdbChangeKind, fmt.Sprintf("Set confdb through %q", view.ID()))
 	} else {
@@ -413,12 +414,14 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 	if err != nil {
 		return err
 	}
-	chg.AddAll(ts)
 
+	// schedule tasks after saving the tx ID so the deferred cleanup skips waking
+	// up waiters if a task will do it (txs.WriteTxID != "")
 	err = setWriteTransaction(st, account, schema, commitTask.ID(), accessID)
 	if err != nil {
 		return err
 	}
+	chg.AddAll(ts)
 
 	waitChan := make(chan struct{})
 	st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
@@ -726,10 +729,9 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 		return nil, err
 	}
 
-	var chg *state.Change
 	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, accessID, account, schema)
+			cleanupAccess(st, accessID, account, schema)
 		}()
 	}
 
@@ -750,6 +752,7 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 		return tx, nil
 	}
 
+	var chg *state.Change
 	if hookCtx.IsEphemeral() {
 		chg = st.NewChange(getConfdbChangeKind, fmt.Sprintf("Get confdb through %q", view.ID()))
 	} else {
@@ -757,7 +760,6 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 		task, _ := hookCtx.Task()
 		chg = task.Change()
 	}
-	chg.AddAll(ts)
 
 	clearTxTask, err := ts.Edge(clearTxEdge)
 	if err != nil {
@@ -773,10 +775,13 @@ func ReadConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, paths []s
 		return false
 	})
 
+	// schedule tasks after saving the tx ID so the deferred cleanup skips waking
+	// up waiters if a task will do it (len(txs.ReadTxIDs) > 0)
 	err = addReadTransaction(st, account, schema, clearTxTask.ID(), accessID)
 	if err != nil {
 		return nil, err
 	}
+	chg.AddAll(ts)
 
 	ensureNow(st)
 	hookCtx.Unlock()
@@ -823,7 +828,7 @@ type access struct {
 // (i.e., if the access had to wait and was eventually unblocked). If no tasks
 // were scheduled and there aren't other accesses waiting to schedule, it unblocks
 // the next pending accesses.
-func cleanupAccess(st *state.State, chg *state.Change, accessID, account, schema string) {
+func cleanupAccess(st *state.State, accessID, account, schema string) {
 	txs, updateTxStateFunc, uerr := getOngoingTxs(st, account, schema)
 	if uerr != nil {
 		logger.Noticef("cannot unblock next access after failed access: %v", uerr)
@@ -836,14 +841,6 @@ func cleanupAccess(st *state.State, chg *state.Change, accessID, account, schema
 		if acc.ID == accessID {
 			txs.Scheduling = append(txs.Scheduling[:i], txs.Scheduling[i+1:]...)
 			break
-		}
-	}
-
-	if chg != nil {
-		for _, t := range chg.Tasks() {
-			if t.Kind() == "clear-confdb-tx" {
-				return
-			}
 		}
 	}
 
@@ -864,10 +861,9 @@ func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, request
 	}
 
 	account, schema := view.Schema().Account, view.Schema().Name
-	var chg *state.Change
 	if accessID != "" {
 		defer func() {
-			cleanupAccess(st, chg, accessID, account, schema)
+			cleanupAccess(st, accessID, account, schema)
 		}()
 	}
 
@@ -881,7 +877,7 @@ func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, request
 		return "", err
 	}
 
-	chg = st.NewChange(getConfdbChangeKind, fmt.Sprintf(`Get confdb through %q`, view.ID()))
+	chg := st.NewChange(getConfdbChangeKind, fmt.Sprintf(`Get confdb through %q`, view.ID()))
 	if ts != nil {
 		// if there are hooks to run, link the read-confdb task to those tasks
 		clearTxTask, err := ts.Edge(clearTxEdge)
@@ -901,6 +897,8 @@ func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, request
 		loadConfdbTask.WaitFor(clearTxTask)
 		chg.AddAll(ts)
 
+		// schedule tasks after saving the tx ID so the deferred cleanup skips waking
+		// up waiters if a task will do it (len(txs.ReadTxIDs) > 0)
 		err = addReadTransaction(st, account, schema, clearTxTask.ID(), accessID)
 		if err != nil {
 			return "", err
