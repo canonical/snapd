@@ -6,6 +6,7 @@ details: |
 
 execute: |
     CA_CERTIFICATES_DB=/var/lib/snapd/pki/v1/merged/ca-certificates.crt
+    CA_CERTIFICATES_DIR=/var/lib/snapd/pki/v1/merged
     
     # We want to verify that the ca-certificates database is created
     # after seeding, and that the contents match the ca-certificate file
@@ -26,6 +27,30 @@ execute: |
         exit 1
     fi
 
+    cert_chain_digest() {
+        local cert_file="$1"
+        local digest_cmd="$2"
+        local splitdir derfile
+        splitdir="$(mktemp -d)"
+        derfile="$(mktemp)"
+        trap 'rm -rf "$splitdir" "$derfile"' RETURN
+
+        csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$cert_file" \
+            '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
+
+        for f in "$splitdir"/cert-*.pem; do
+            grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
+            openssl x509 -in "$f" -inform pem -outform der 2>/dev/null >> "$derfile"
+        done
+
+        if ! [ -s "$derfile" ]; then
+            echo "Failed to parse certificate data from $cert_file"
+            return 1
+        fi
+
+        "$digest_cmd" "$derfile" | awk '{print $1}'
+    }
+
     # Emit one SHA256 digest per certificate in the PEM bundle, sorted.
     # We hash the DER form so differences in whitespace/wrapping don't matter.
     bundle_digests() {
@@ -39,10 +64,63 @@ execute: |
             '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
 
         for f in "$splitdir"/cert-*.pem; do
-            grep -q "-----BEGIN CERTIFICATE-----" "$f" || continue
+            grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
             openssl x509 -in "$f" -inform pem -outform der 2>/dev/null \
                 | sha256sum | awk '{print $1}'
         done | sort -u
+    }
+
+    verify_individual_certs_and_sha1_links() {
+        local cert_entry real_path cert_name cert_digest sha1_prefix hash_link
+        local expected_count=0
+        local matched_hash_link=false
+        declare -A seen_digests=()
+
+        while IFS= read -r cert_entry; do
+            real_path="$(readlink -f "$cert_entry")"
+
+            case "$real_path" in
+                *.crt) ;;
+                *) continue ;;
+            esac
+
+            cert_digest="$(cert_chain_digest "$real_path" sha224sum)"
+            if [ -n "${seen_digests[$cert_digest]:-}" ]; then
+                continue
+            fi
+            seen_digests["$cert_digest"]=1
+            expected_count=$((expected_count + 1))
+
+            cert_name="$(basename "$real_path")"
+            if ! [ -f "$CA_CERTIFICATES_DIR/$cert_name" ]; then
+                echo "Expected individual certificate missing: $cert_name"
+                return 1
+            fi
+
+            if ! cmp -s "$real_path" "$CA_CERTIFICATES_DIR/$cert_name"; then
+                echo "Merged certificate content mismatch: $cert_name"
+                return 1
+            fi
+
+            sha1_prefix="$(cert_chain_digest "$real_path" sha1sum | cut -c1-8)"
+            matched_hash_link=false
+            for hash_link in "$CA_CERTIFICATES_DIR/$sha1_prefix".*; do
+                if ! [ -e "$hash_link" ]; then
+                    continue
+                fi
+                if cmp -s "$real_path" "$hash_link"; then
+                    matched_hash_link=true
+                    break
+                fi
+            done
+
+            if ! $matched_hash_link; then
+                echo "Expected SHA1 hash link missing for $cert_name ($sha1_prefix.*)"
+                return 1
+            fi
+        done < <(find /etc/ssl/certs -maxdepth 1 \( -type f -o -type l \) -name '*.crt' | sort)
+
+        echo "Verified $expected_count individual certificates and SHA1 hash links"
     }
 
     SYSTEM_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
@@ -53,5 +131,7 @@ execute: |
         echo "CA certificates database does not match system CA certificates"
         exit 1
     fi
+
+    verify_individual_certs_and_sha1_links
 
     echo "CA certificates database matches system CA certificates"
