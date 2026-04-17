@@ -20209,6 +20209,70 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 	c.Assert(chg.IsReady(), Equals, true)
 }
 
+// TODO:SEEDREFRESH: update this test once this scenario is supported
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesFailsForProviderSwitchingToInFlightNonEssentialBase(c *C) {
+	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"content-provider", "some-app"},
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		switch info.InstanceName() {
+		case "some-app":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"shared-content": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]any{
+						"default-provider": "content-provider",
+						"content":          "shared-content",
+					},
+				},
+			}
+		case "content-provider":
+			info.Base = "some-base"
+		}
+
+		return nil
+	}
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "some-base", snapID: "some-base-id", snapType: "base"},
+		seedRefreshSnap{name: "content-provider", snapID: "content-provider-id", snapType: "app", base: "core18"},
+		seedRefreshSnap{name: "some-app", snapID: "some-app-id", snapType: "app", base: "core18"},
+	)
+
+	uts, _ := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{InstanceName: "some-app"}, {InstanceName: "some-base"}})
+	taskSetsBySnap, _ := parseSeedRefreshTaskSets(uts)
+	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
+
+	prereqs := findKindInTaskSet(appTS, "prerequisites")
+	c.Assert(prereqs, NotNil)
+
+	s.state.Unlock()
+	err := s.o.SettleWithBreakCondition(testutil.HostScaledTimeout(10*time.Second), func() bool {
+		s.state.Lock()
+		defer s.state.Unlock()
+		return prereqs.Status().Ready()
+	})
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(prereqs.Status(), Equals, state.ErrorStatus)
+
+	c.Assert(prereqs.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(prereqs.Log(), "\n"), Matches, `(?s).*cannot install prerequisite "content-provider": cannot automatically update prerequisite "content-provider" during seed-refresh while base "some-base" waits for create-recovery-system.*`)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshAllowsRequestedModelContentProviderRefresh(c *C) {
 	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
 		"kernel":         "kernel",

@@ -237,24 +237,37 @@ func defaultPrereqSnapsChannel() string {
 	return channel
 }
 
+func maybeFindTaskInChangeForSnap(chg *state.Change, kind, snapName string) (*state.Task, error) {
+	for _, t := range chg.Tasks() {
+		if t.Status().Ready() || t.Kind() != kind {
+			continue
+		}
+
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return nil, err
+		}
+		if snapsup.InstanceName() == snapName {
+			return t, nil
+		}
+	}
+
+	return nil, nil
+}
+
 func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
 		if chg.IsReady() {
 			continue
 		}
-		for _, tc := range chg.Tasks() {
-			if tc.Status().Ready() {
-				continue
-			}
-			if tc.Kind() == "link-snap" {
-				snapsup, err := TaskSnapSetup(tc)
-				if err != nil {
-					return nil, err
-				}
-				if snapsup.InstanceName() == snapName {
-					return tc, nil
-				}
-			}
+
+		t, err := maybeFindTaskInChangeForSnap(chg, "link-snap", snapName)
+		if err != nil {
+			return nil, err
+		}
+
+		if t != nil {
+			return t, nil
 		}
 	}
 

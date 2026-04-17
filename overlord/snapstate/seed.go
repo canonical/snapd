@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -157,14 +158,18 @@ func maybeMergeLateSeedRefreshPrereq(chg *state.Change, dctx DeviceContext, snap
 			continue
 		}
 
+		// TODO:SEEDREFRESH: drop this check
+		if err := errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg, providerTS); err != nil {
+			return err
+		}
+
 		return mergeLateSeedRefreshPrereq(chg, providerTS)
 	}
 
 	return nil
 }
 
-func mergeLateSeedRefreshPrereq(chg *state.Change, providerTS *state.TaskSet) error {
-	var create, finalize *state.Task
+func findRecoverySystemTasks(chg *state.Change) (create, finalize *state.Task, err error) {
 	for _, t := range chg.Tasks() {
 		switch t.Kind() {
 		case "create-recovery-system":
@@ -175,7 +180,56 @@ func mergeLateSeedRefreshPrereq(chg *state.Change, providerTS *state.TaskSet) er
 	}
 
 	if create == nil || finalize == nil {
-		return errors.New("internal error: seed-refresh change is missing recovery-system tasks")
+		return nil, nil, errors.New("internal error: seed-refresh change is missing recovery-system tasks")
+	}
+
+	return create, finalize, nil
+}
+
+// errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation rejects the currently
+// unsupported case where a prerequisite refresh depends on a base refresh whose
+// link-snap is ordered after create-recovery-system. Without extra
+// synchronization, the prerequisite refresh would wait forever on that base.
+func errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg *state.Change, providerTS *state.TaskSet) error {
+	snapsupTask, err := providerTS.Edge(SnapSetupEdge)
+	if err != nil {
+		return errors.New("internal error: seed-refresh provider task set is missing required edge")
+	}
+
+	snapsup, err := TaskSnapSetup(snapsupTask)
+	if err != nil {
+		return err
+	}
+
+	if snapsup.Base == "" || snapsup.Base == "none" {
+		return nil
+	}
+
+	create, _, err := findRecoverySystemTasks(chg)
+	if err != nil {
+		return err
+	}
+
+	baseLink, err := maybeFindTaskInChangeForSnap(chg, "link-snap", snapsup.Base)
+	if err != nil {
+		return err
+	}
+	if baseLink == nil || !willWaitOn(baseLink, create) {
+		return nil
+	}
+
+	// TODO:SEEDREFRESH: introduce new form of prerequisite synchronization that
+	// lets a late prerequisite refresh account for a base refresh whose
+	// link-snap is ordered after create-recovery-system. without that extra
+	// ordering, the prerequisite task keeps retrying forever on the in-flight
+	// base link-snap.
+	return fmt.Errorf("cannot automatically update prerequisite %q during seed-refresh while base %q waits for create-recovery-system", snapsup.InstanceName(), snapsup.Base)
+}
+
+func mergeLateSeedRefreshPrereq(chg *state.Change, providerTS *state.TaskSet) error {
+	create, finalize, err := findRecoverySystemTasks(chg)
+	if err != nil {
+		return err
 	}
 
 	snapsup, err := providerTS.Edge(SnapSetupEdge)
