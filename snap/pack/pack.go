@@ -131,9 +131,11 @@ func validateContentPlugTargets(container snap.Container, info *snap.Info) error
 		// - $SNAP/  # same as above
 		// - path    # implicit $SNAP/
 		// - /path   # implicit $SNAP/
+		// - /       # implicit $SNAP/
 		relPath := strings.TrimPrefix(target, "$SNAP")
 		relPath = strings.TrimPrefix(relPath, "/")
 		if relPath == "" {
+			// only the $SNAP and/or / combination prefix was present
 			continue
 		}
 		fi, err := container.Lstat(relPath)
