@@ -126,6 +126,11 @@ func validateContentPlugTargets(container snap.Container, info *snap.Info) error
 		if strings.HasPrefix(target, "$SNAP_DATA") || strings.HasPrefix(target, "$SNAP_COMMON") {
 			continue
 		}
+		// split cleanup in 2 steps so that we handle all possible weird cases:
+		// - $SNAP   # weird but accepted
+		// - $SNAP/  # same as above
+		// - path    # implicit $SNAP/
+		// - /path   # implicit $SNAP/
 		relPath := strings.TrimPrefix(target, "$SNAP")
 		relPath = strings.TrimPrefix(relPath, "/")
 		if relPath == "" {
