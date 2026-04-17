@@ -990,7 +990,11 @@ func filterUbuntuCoreSlots(candidates []*snap.SlotInfo, arities []interfaces.Sid
 // conns. cannotAutoConnectLog is called to build a log message in
 // case no applicable pair was found. conflictError is called
 // to handle checkAutoconnectConflicts errors.
-func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
+func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo,
+	filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState,
+	cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string,
+	conflictError func(*state.Retry, error) error,
+) error {
 	for _, plug := range plugs {
 		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, c.check)
 
