@@ -39,14 +39,17 @@ import (
 type extKeypairMgrSuite struct {
 	pgm *testutil.MockCmd
 
+	keyDir     string
 	defaultPub *rsa.PublicKey
 	modelsPub  *rsa.PublicKey
+	openpgpPub *rsa.PublicKey
 }
 
 var _ = Suite(&extKeypairMgrSuite{})
 
 func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 	tmpdir := c.MkDir()
+	s.keyDir = tmpdir
 	k1, err := rsa.GenerateKey(rand.Reader, 4096)
 	c.Assert(err, IsNil)
 	k2, err := rsa.GenerateKey(rand.Reader, 4096)
@@ -65,34 +68,64 @@ func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 	c.Assert(err, IsNil)
 	err = os.WriteFile(filepath.Join(tmpdir, "models.key"), x509.MarshalPKCS1PrivateKey(k2), 0600)
 	c.Assert(err, IsNil)
+	_, openpgpPriv := assertstest.ReadPrivKey(assertstest.DevKey)
+	derPub3, err := x509.MarshalPKIXPublicKey(&openpgpPriv.PublicKey)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(tmpdir, "openpgp.pub"), derPub3, 0644)
+	c.Assert(err, IsNil)
 
 	s.defaultPub = &k1.PublicKey
 	s.modelsPub = &k2.PublicKey
+	s.openpgpPub = &openpgpPriv.PublicKey
 
 	s.pgm = testutil.MockCommand(c, "keymgr", fmt.Sprintf(`
 keydir=%q
 case $1 in
   features)
-    echo '{"signing":["RSA-PKCS"] , "public-keys":["DER"]}'
+	    if [ -n "${EXT_KEYMGR_FEATURES}" ]; then
+	      echo "${EXT_KEYMGR_FEATURES}"
+	    else
+	      echo '{"signing":["RSA-PKCS","OPENPGP"] , "public-keys":["DER"]}'
+	    fi
     ;;
   key-names)
-    echo '{"key-names": ["default", "models"]}'
+	    if [ -n "${EXT_KEYMGR_KEY_NAMES}" ]; then
+	      echo "${EXT_KEYMGR_KEY_NAMES}"
+	    else
+	      echo '{"key-names": ["default", "models"]}'
+	    fi
     ;;
   get-public-key)
     if [ "$5" = missing ]; then
        echo not found
        exit 1
     fi
-    cat ${keydir}/"$5".pub
+	    pubname="$5"
+	    if [ "${EXT_KEYMGR_USE_OPENPGP_KEY}" = "1" ] && [ "$5" = default ]; then
+	      pubname="openpgp"
+	    fi
+	    cat ${keydir}/"$pubname".pub
     ;;
   sign)
-    openssl rsautl -sign -pkcs -keyform DER -inkey ${keydir}/"$5".key
+	    case "$3" in
+	      RSA-PKCS)
+	        openssl rsautl -sign -pkcs -keyform DER -inkey ${keydir}/"$5".key
+	        ;;
+	      OPENPGP)
+	        gpgbin=$(command -v gpg1 || command -v gpg) || exit 1
+	        [ -n "${EXT_KEYMGR_GNUPG_HOME}" ] || exit 1
+	        "$gpgbin" --homedir "${EXT_KEYMGR_GNUPG_HOME}" --batch --yes --personal-digest-preferences SHA512 --default-key "0x%s" --detach-sign --output -
+	        ;;
+	      *)
+	        exit 1
+	        ;;
+	    esac
     ;;
   *)
     exit 1
     ;;
 esac
-`, tmpdir))
+`, tmpdir, assertstest.DevKeyPGPFingerprint))
 }
 
 func (s *extKeypairMgrSuite) TearDownSuite(c *C) {
@@ -118,7 +151,9 @@ echo "${EXT_KEYMGR_FAIL}"
 	}{
 		{"exit-1", `.*exit status 1.*`},
 		{`{"signing":["RSA-PKCS"]}`, `external keypair manager "keymgr" missing support for public key DER output format`},
-		{"{}", `external keypair manager \"keymgr\" missing support for RSA-PKCS signing`},
+		{`{"signing":["OPENPGP"],"public-keys":["DER"]}`, ""},
+		{`{"signing":["RSA-PKCS","OPENPGP"],"public-keys":["DER"]}`, ""},
+		{"{}", `external keypair manager \"keymgr\" missing support for RSA-PKCS or OPENPGP signing`},
 		{"{", `cannot decode external keypair manager "keymgr" \[features\] output.*`},
 		{"", `cannot decode external keypair manager "keymgr" \[features\] output.*`},
 	}
@@ -128,7 +163,11 @@ echo "${EXT_KEYMGR_FAIL}"
 		os.Setenv("EXT_KEYMGR_FAIL", t.outcome)
 
 		_, err := asserts.NewExternalKeypairManager("keymgr")
-		c.Check(err, ErrorMatches, t.err)
+		if t.err == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.err)
+		}
 		c.Check(pgm.Calls(), DeepEquals, [][]string{
 			{"keymgr", "features"},
 		})
@@ -191,12 +230,14 @@ func (s *extKeypairMgrSuite) TestGet(c *C) {
 	c.Check(asserts.IsKeyNotFound(err), Equals, true)
 }
 
-func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
+func (s *extKeypairMgrSuite) TestSignFlowPrefersRSAPKCS(c *C) {
 	// the signing uses openssl
 	_, err := exec.LookPath("openssl")
 	if err != nil {
 		c.Skip("cannot locate openssl on this system to test signing")
 	}
+	os.Setenv("EXT_KEYMGR_FEATURES", `{"signing":["RSA-PKCS","OPENPGP"],"public-keys":["DER"]}`)
+	defer os.Unsetenv("EXT_KEYMGR_FEATURES")
 	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
 	c.Assert(err, IsNil)
 	s.pgm.ForgetCalls()
@@ -251,6 +292,78 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 	c.Check(s.pgm.Calls(), DeepEquals, [][]string{
 		{"keymgr", "get-public-key", "-f", "DER", "-k", "default"},
 		{"keymgr", "sign", "-m", "RSA-PKCS", "-k", "default"},
+	})
+}
+
+func (s *extKeypairMgrSuite) TestSignFlowOpenPGP(c *C) {
+	if _, err := exec.LookPath("gpg1"); err != nil {
+		if _, err := exec.LookPath("gpg"); err != nil {
+			c.Skip("gpg not installed")
+		}
+	}
+	gnupgHome := c.MkDir()
+	assertstest.GPGImportKey(gnupgHome, assertstest.DevKey)
+	os.Setenv("EXT_KEYMGR_FEATURES", `{"signing":["OPENPGP"],"public-keys":["DER"]}`)
+	os.Setenv("EXT_KEYMGR_KEY_NAMES", `{"key-names": ["default"]}`)
+	os.Setenv("EXT_KEYMGR_USE_OPENPGP_KEY", "1")
+	os.Setenv("EXT_KEYMGR_GNUPG_HOME", gnupgHome)
+	defer os.Unsetenv("EXT_KEYMGR_FEATURES")
+	defer os.Unsetenv("EXT_KEYMGR_KEY_NAMES")
+	defer os.Unsetenv("EXT_KEYMGR_USE_OPENPGP_KEY")
+	defer os.Unsetenv("EXT_KEYMGR_GNUPG_HOME")
+
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+	s.pgm.ForgetCalls()
+
+	pk, err := kmgr.GetByName("default")
+	c.Assert(err, IsNil)
+	c.Check(pk.PublicKey().ID(), Equals, asserts.RSAPublicKey(s.openpgpPub).ID())
+
+	store := assertstest.NewStoreStack("trusted", nil)
+
+	brandAcct := assertstest.NewAccount(store, "brand", map[string]any{
+		"account-id": "brand-id",
+	}, "")
+	brandAccKey := assertstest.NewAccountKey(store, brandAcct, nil, pk.PublicKey(), "")
+
+	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: kmgr,
+	})
+	c.Assert(err, IsNil)
+
+	checkDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   store.Trusted,
+	})
+	c.Assert(err, IsNil)
+	err = checkDB.Add(store.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = checkDB.Add(brandAcct)
+	c.Assert(err, IsNil)
+	err = checkDB.Add(brandAccKey)
+	c.Assert(err, IsNil)
+
+	modelHdsrs := map[string]any{
+		"authority-id": "brand-id",
+		"brand-id":     "brand-id",
+		"model":        "model",
+		"series":       "16",
+		"architecture": "amd64",
+		"base":         "core18",
+		"gadget":       "gadget",
+		"kernel":       "pc-kernel",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	a, err := signDB.Sign(asserts.ModelType, modelHdsrs, nil, pk.PublicKey().ID())
+	c.Assert(err, IsNil)
+
+	err = checkDB.Check(a)
+	c.Assert(err, IsNil)
+
+	c.Check(s.pgm.Calls(), DeepEquals, [][]string{
+		{"keymgr", "get-public-key", "-f", "DER", "-k", "default"},
+		{"keymgr", "sign", "-m", "OPENPGP", "-k", "default"},
 	})
 }
 
