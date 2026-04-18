@@ -3083,21 +3083,7 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		rev = si.Revision
 	}
 
-	err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
-	if e, ok := err.(InUseByErr); ok {
-		var usedByAndNotRemoved []string
-		for _, snap := range e {
-			if !strutil.ListContains(removed, snap) {
-				usedByAndNotRemoved = append(usedByAndNotRemoved, snap)
-			}
-		}
-
-		if len(usedByAndNotRemoved) > 0 {
-			err = InUseByErr(usedByAndNotRemoved)
-		}
-		inUseBy = e
-	}
-
+	err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx, removed, inUseBy)
 	if err != nil {
 		return err
 	}

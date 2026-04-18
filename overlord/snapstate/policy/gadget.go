@@ -29,7 +29,7 @@ type gadgetPolicy struct {
 	modelGadget string
 }
 
-func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device) error {
+func (p *gadgetPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, _, _ []string) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.

@@ -21,6 +21,8 @@ package policy
 
 import (
 	"errors"
+	"strconv"
+	"strings"
 )
 
 var (
@@ -35,3 +37,19 @@ var (
 
 	errEphemeralSnapsNotRemovable = errors.New("no snaps are removable in any of the ephemeral modes")
 )
+
+type inUseByErr []string
+
+func (e inUseByErr) Error() string {
+	switch len(e) {
+	case 0:
+		// how
+		return "snap is being used"
+	case 1:
+		return "snap is being used by snap " + e[0] + "."
+	case 2, 3, 4, 5:
+		return "snap is being used by snaps " + strings.Join(e[:len(e)-1], ", ") + " and " + e[len(e)-1] + "."
+	default:
+		return "snap is being used by snaps " + strings.Join(e[:5], ", ") + " and " + strconv.Itoa(len(e)-5) + " more."
+	}
+}

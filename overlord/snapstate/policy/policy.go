@@ -66,7 +66,7 @@ func inUse(name string, rev snap.Revision, typ snap.Type, dev snap.Device) error
 
 type appPolicy struct{}
 
-func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device) error {
+func (appPolicy) CanRemove(_ *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, _, _ []string) error {
 	if ephemeral(dev) {
 		return errEphemeralSnapsNotRemovable
 	}
