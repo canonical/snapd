@@ -68,7 +68,7 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	if len(usedBy) == 0 || err != nil {
 		return err
 	}
-	return inUseByErr(usedBy)
+	return snapstate.InUseByErr(usedBy)
 }
 
 func baseUsedBy(st *state.State, baseName string) ([]string, error) {

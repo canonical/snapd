@@ -17,21 +17,25 @@
  *
  */
 
-package policy
+package snapstate
 
 import (
-	"errors"
+	"strconv"
+	"strings"
 )
 
-var (
-	errNoName            = errors.New("snap has no name (not installed?)")
-	errInUseForBoot      = errors.New("snap is being used for boot")
-	errRequired          = errors.New("snap is required")
-	errIsModel           = errors.New("snap is used by the model")
-	errSnapdNotInstalled = errors.New("core snap cannot be removed if snapd snap is not installed")
+type InUseByErr []string
 
-	errSnapdNotRemovableOnCore       = errors.New("snapd required on core devices")
-	errSnapdNotYetRemovableOnClassic = errors.New("remove all other snaps first")
-
-	errEphemeralSnapsNotRemovable = errors.New("no snaps are removable in any of the ephemeral modes")
-)
+func (e InUseByErr) Error() string {
+	switch len(e) {
+	case 0:
+		// how
+		return "snap is being used"
+	case 1:
+		return "snap is being used by snap " + e[0] + "."
+	case 2, 3, 4, 5:
+		return "snap is being used by snaps " + strings.Join(e[:len(e)-1], ", ") + " and " + e[len(e)-1] + "."
+	default:
+		return "snap is being used by snaps " + strings.Join(e[:5], ", ") + " and " + strconv.Itoa(len(e)-5) + " more."
+	}
+}

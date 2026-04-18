@@ -93,5 +93,5 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 	if len(usedBy) == 0 || err != nil {
 		return err
 	}
-	return inUseByErr(usedBy)
+	return snapstate.InUseByErr(usedBy)
 }

@@ -1,5 +1,7 @@
 package policy
 
+import "github.com/snapcore/snapd/overlord/snapstate"
+
 func NewAppPolicy() appPolicy                    { return appPolicy{} }
 func NewBasePolicy(m string) *basePolicy         { return &basePolicy{modelBase: m} }
 func NewGadgetPolicy(m string) *gadgetPolicy     { return &gadgetPolicy{modelGadget: m} }
@@ -21,5 +23,5 @@ var (
 )
 
 func InUseByErr(snaps ...string) error {
-	return inUseByErr(snaps)
+	return snapstate.InUseByErr(snaps)
 }
