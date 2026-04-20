@@ -22,7 +22,7 @@ details: |
        the permitted call, and veth1 counters are unchanged after the denied call.
     5. Verifies that disconnecting the network plug blocks all network access.
 
-    This test assumes AppArmor network interface mediation (the "interface="
+    This test requires AppArmor network interface mediation (the "interface="
     qualifier in network rules) is available on the test system.
 
 systems: [ubuntu-*]
@@ -50,8 +50,10 @@ environment:
     SERVICE_IFACE1: "test-service-netif1"
 
 skip:
-    - if: os.query is-core-lt 26 || os.query is-ubuntu-lt 26.04
-      reason: Requires AppArmor network_v9_skb/iface kernel feature (TODO check for this in the test)
+    - if: not test -f /sys/kernel/security/apparmor/features/network_v9_skb/iface
+      reason: Requires AppArmor network_v9_skb/iface kernel feature
+    - if: not test -e /proc/sys/kernel/apparmor_packet_mediation
+      reason: Requires AppArmor packet mediation to restrict network access
 
 prepare: |
     echo "Create network namespaces for server isolation"
