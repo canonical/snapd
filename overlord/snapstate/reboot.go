@@ -235,7 +235,7 @@ func arrangeRebootAndUpdateSeed(
 	st *state.State,
 	stss []snapInstallTaskSet,
 	earlyDownloads map[string]bool,
-	dctx DeviceContext,
+	opts Options,
 ) (seedRefreshTS *state.TaskSet, err error) {
 	for _, sts := range stss {
 		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
@@ -251,7 +251,7 @@ func arrangeRebootAndUpdateSeed(
 	// note that seedSnapTaskSets will contain all snaps being refreshed that
 	// will go into the seed, and it might contain a combination of essential
 	// and non-essential snaps.
-	seedTS, seedSnapTaskSets, err := seedRefreshAndSeedSnapTaskSets(st, stss, dctx)
+	seedTS, seedSnapTaskSets, err := seedRefreshAndSeedSnapTaskSets(st, stss, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func arrangeRebootAndUpdateSeed(
 		return tasks[len(tasks)-1]
 	}
 
-	bootBase, err := deviceModelBootBase(st, nil)
+	bootBase, err := deviceModelBootBase(st, opts.DeviceCtx)
 	if err != nil {
 		return nil, err
 	}

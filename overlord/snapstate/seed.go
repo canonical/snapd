@@ -53,7 +53,7 @@ func seedRefreshEnabled(st *state.State) (bool, error) {
 
 // seedRefreshAndSeedSnapTaskSets returns the seed-refresh tasks and the task
 // sets for snaps that are involved in the seed refresh.
-func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, deviceCtx DeviceContext) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
+func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
 	enabled, err := seedRefreshEnabled(st)
 	if err != nil {
 		return nil, nil, err
@@ -63,7 +63,13 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 		return nil, nil, nil
 	}
 
-	deviceCtx, err = DeviceCtx(st, nil, deviceCtx)
+	// if the tasks here are being created from within a change that is already
+	// creating a recovery system, then we don't want to create another one.
+	if chg := st.Change(opts.FromChange); chg != nil && changeCreatesRecoverySystem(chg) {
+		return nil, nil, nil
+	}
+
+	deviceCtx, err := DeviceCtx(st, nil, opts.DeviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
