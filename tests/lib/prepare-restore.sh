@@ -233,6 +233,7 @@ prepare_project() {
         "$TESTSTOOLS"/lxd-state undo-mount-changes
 
         if [ -n "$UPDATE_UBUNTU_KERNEL_PATTERN" ] && [ "$SPREAD_REBOOT" = 0 ]; then
+            apt-get update
             KERNEL_VER="$(apt-cache search "^linux-headers-${UPDATE_UBUNTU_KERNEL_PATTERN}$" | tail -n1 | awk '{ print $1 }' | sed 's/^linux-headers-//')"
             if [ -z "$KERNEL_VER" ]; then
                 echo "Kernel version not found using pattern: $UPDATE_UBUNTU_KERNEL_PATTERN"
@@ -240,7 +241,6 @@ prepare_project() {
             fi
 
             # Install the kernel version found
-            apt-get update
             apt-get install -y linux-image-"$KERNEL_VER" linux-headers-"$KERNEL_VER"
 
             # Update grub to set this kernel as default
