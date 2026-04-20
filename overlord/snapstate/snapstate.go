@@ -3077,13 +3077,13 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext, removed []string, inUseBy []string) error {
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext, removedAndUsed map[string]bool) error {
 	rev := snap.Revision{}
 	if !removeAll {
 		rev = si.Revision
 	}
 
-	err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx, removed, inUseBy)
+	err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx, removedAndUsed)
 	if err != nil {
 		return err
 	}
@@ -3146,7 +3146,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
-	ts, snapshotSize, _, err := removeTasks(st, &snapst, nil, revision, flags)
+	ts, snapshotSize, err := removeTasks(st, &snapst, nil, revision, flags)
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
@@ -3168,15 +3168,15 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 
 // removeTasks provides the task set to remove snap name after taking a snapshot
 // if flags.Purge is not true, it also computes an estimate of the latter size.
-func removeTasks(st *state.State, snapst *SnapState, removed []string, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, inUseBy []string, err error) {
+func removeTasks(st *state.State, snapst *SnapState, removedAndUsed map[string]bool, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
 	name := snapst.InstanceName()
 	if err := CheckChangeConflict(st, name, nil); err != nil {
-		return nil, 0, nil, err
+		return nil, 0, err
 	}
 
 	deviceCtx, err := DeviceCtxFromState(st, nil)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, err
 	}
 
 	active := snapst.Active
@@ -3191,13 +3191,13 @@ func removeTasks(st *state.State, snapst *SnapState, removed []string, revision 
 				if len(snapst.Sequence.Revisions) > 1 {
 					msg += " (revert first?)"
 				}
-				return nil, 0, nil, fmt.Errorf(msg, revision, name)
+				return nil, 0, fmt.Errorf(msg, revision, name)
 			}
 			active = false
 		}
 
 		if !revisionInSequence(snapst, revision) {
-			return nil, 0, nil, &snap.NotInstalledError{Snap: name, Rev: revision}
+			return nil, 0, &snap.NotInstalledError{Snap: name, Rev: revision}
 		}
 
 		removeAll = len(snapst.Sequence.Revisions) == 1
@@ -3205,13 +3205,13 @@ func removeTasks(st *state.State, snapst *SnapState, removed []string, revision 
 
 	info, err := Info(st, name, revision)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, err
 	}
 
 	// check if this is something that can be removed
-	err = canRemove(st, info, snapst, removeAll, deviceCtx, removed, inUseBy)
+	err = canRemove(st, info, snapst, removeAll, deviceCtx, removedAndUsed)
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("snap %q is not removable: %v", name, err)
+		return nil, 0, fmt.Errorf("snap %q is not removable: %v", name, err)
 	}
 
 	// main/current SnapSetup
@@ -3280,7 +3280,7 @@ func removeTasks(st *state.State, snapst *SnapState, removed []string, revision 
 		// "kill-snap-apps" inhibits the snap from running and "discard-snap" only
 		// removes the inhibition file when removing last revision.
 		if !removeAll {
-			return nil, 0, nil, fmt.Errorf("cannot terminate running apps unless all revisions are removed")
+			return nil, 0, fmt.Errorf("cannot terminate running apps unless all revisions are removed")
 		}
 		stopSnapApps := st.NewTask("kill-snap-apps", fmt.Sprintf(i18n.G("Kill running snap %q apps"), name))
 		stopSnapApps.Set("snap-setup", snapsup)
@@ -3300,18 +3300,18 @@ func removeTasks(st *state.State, snapst *SnapState, removed []string, revision 
 				tr := config.NewTransaction(st)
 				checkDiskSpaceRemove, err := features.Flag(tr, features.CheckDiskSpaceRemove)
 				if err != nil && !config.IsNoOption(err) {
-					return nil, 0, nil, err
+					return nil, 0, err
 				}
 				if checkDiskSpaceRemove {
 					snapshotSize, err = EstimateSnapshotSize(st, name, nil)
 					if err != nil {
-						return nil, 0, nil, err
+						return nil, 0, err
 					}
 				}
 				addNext(ts)
 			} else {
 				if err != ErrNothingToDo {
-					return nil, 0, nil, err
+					return nil, 0, err
 				}
 			}
 		}
@@ -3347,7 +3347,7 @@ func removeTasks(st *state.State, snapst *SnapState, removed []string, revision 
 				ts, err := removeInactiveRevision(st, snapst, name,
 					info.SnapID, si.Revision, snapsup.Type)
 				if err != nil {
-					return nil, 0, nil, err
+					return nil, 0, err
 				}
 				addNext(ts)
 			}
@@ -3358,7 +3358,7 @@ func removeTasks(st *state.State, snapst *SnapState, removed []string, revision 
 			ts, err := removeInactiveRevision(st, snapst, name,
 				info.SnapID, si[currentIndex].Revision, snapsup.Type)
 			if err != nil {
-				return nil, 0, nil, err
+				return nil, 0, err
 			}
 			addNext(ts)
 		}
@@ -3366,12 +3366,12 @@ func removeTasks(st *state.State, snapst *SnapState, removed []string, revision 
 		ts, err := removeInactiveRevision(st, snapst, name, info.SnapID, revision,
 			snapsup.Type)
 		if err != nil {
-			return nil, 0, nil, err
+			return nil, 0, err
 		}
 		addNext(ts)
 	}
 
-	return removeTs, snapshotSize, inUseBy, nil
+	return removeTs, snapshotSize, nil
 }
 
 func removeInactiveRevision(st *state.State, snapst *SnapState, name, snapID string, revision snap.Revision, typ snap.Type) (*state.TaskSet, error) {
@@ -3491,6 +3491,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 
 	// first app, gadget, bases, kernel, core, then snapd
 	sort.Slice(snapsts, func(i, j int) bool {
+		// TODO: handle getting errors from Type
 		typeI, _ := snapsts[i].Type()
 		typeJ, _ := snapsts[j].Type()
 		return typeJ.SortsBefore(typeI)
@@ -3499,23 +3500,30 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	removed := make([]string, 0, len(snapsts))
 	tasksets := make([]*state.TaskSet, 0, len(snapsts))
 	snapToTaskSet := make(map[string]*state.TaskSet)
+	// for each removed snap, we use this to keep track of whether a base snap
+	// uses it
+	removedAndUsed := make(map[string]bool)
 	var totalSnapshotsSize uint64
 
 	for _, snapst := range snapsts {
 		name := snapst.InstanceName()
-		ts, snapshotSize, inUseBy, err := removeTasks(st, snapst, removed, snap.R(0), flags)
+		ts, snapshotSize, err := removeTasks(st, snapst, removedAndUsed, snap.R(0), flags)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		for _, snapName := range inUseBy {
+		for snapName, usedByBase := range removedAndUsed {
 			// snapName is ensured to be in snapToTaskSet since they are
 			// checked to be included in removed
-			ts.WaitAll(snapToTaskSet[snapName])
+			if usedByBase {
+				ts.WaitAll(snapToTaskSet[snapName])
+				removedAndUsed[snapName] = false
+			}
 		}
 
 		totalSnapshotsSize += snapshotSize
 		removed = append(removed, name)
+		removedAndUsed[name] = false
 		snapToTaskSet[name] = ts
 
 		ts.JoinLane(st.NewLane())

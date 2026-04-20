@@ -25,14 +25,13 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 type basePolicy struct {
 	modelBase string
 }
 
-func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, removed, inUseBy []string) error {
+func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, removedAndUsed map[string]bool) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
@@ -71,8 +70,10 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	}
 	var usedByAndNotRemoved []string
 	for _, snap := range usedBy {
-		if !strutil.ListContains(removed, snap) {
+		if _, ok := removedAndUsed[snap]; !ok {
 			usedByAndNotRemoved = append(usedByAndNotRemoved, snap)
+		} else {
+			removedAndUsed[snap] = true
 		}
 	}
 

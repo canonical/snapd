@@ -29,7 +29,7 @@ type snapdPolicy struct {
 	onClassic bool
 }
 
-func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, _, _ []string) error {
+func (p *snapdPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, _ map[string]bool) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.

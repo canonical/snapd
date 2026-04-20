@@ -62,19 +62,19 @@ var (
 
 func (s *canRemoveSuite) TestAppAreOK(c *check.C) {
 	snapst := &snapstate.SnapState{}
-	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(0), coreDev), check.IsNil)
-	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
+	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestRequiredAppIsNotOK(c *check.C) {
 	snapst := &snapstate.SnapState{Flags: snapstate.Flags{Required: true}}
-	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrRequired)
-	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrRequired)
+	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestEphemeralAppIsNotOK(c *check.C) {
 	snapst := &snapstate.SnapState{}
-	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(0), ephemeralDev), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
+	c.Check(policy.NewAppPolicy().CanRemove(s.st, snapst, snap.R(0), ephemeralDev, nil), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
 }
 
 func (s *canRemoveSuite) TestOneGadgetRevisionIsOK(c *check.C) {
@@ -82,7 +82,7 @@ func (s *canRemoveSuite) TestOneGadgetRevisionIsOK(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "gadget"}}),
 	}
-	c.Check(policy.NewGadgetPolicy("gadget").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewGadgetPolicy("gadget").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestOtherGadgetIsOK(c *check.C) {
@@ -90,7 +90,7 @@ func (s *canRemoveSuite) TestOtherGadgetIsOK(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "gadget"}}),
 	}
-	c.Check(policy.NewGadgetPolicy("gadget2").CanRemove(s.st, snapst, snap.R(0), coreDev), check.IsNil)
+	c.Check(policy.NewGadgetPolicy("gadget2").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestEphemeralGadgetIsNotOK(c *check.C) {
@@ -98,7 +98,7 @@ func (s *canRemoveSuite) TestEphemeralGadgetIsNotOK(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "gadget"}}),
 	}
-	c.Check(policy.NewGadgetPolicy("gadget2").CanRemove(s.st, snapst, snap.R(0), ephemeralDev), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
+	c.Check(policy.NewGadgetPolicy("gadget2").CanRemove(s.st, snapst, snap.R(0), ephemeralDev, nil), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
 }
 
 func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *check.C) {
@@ -106,7 +106,7 @@ func (s *canRemoveSuite) TestLastGadgetsAreNotOK(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "gadget"}}),
 	}
-	c.Check(policy.NewGadgetPolicy("gadget").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrIsModel)
+	c.Check(policy.NewGadgetPolicy("gadget").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrIsModel)
 }
 
 func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *check.C) {
@@ -118,16 +118,16 @@ func (s *canRemoveSuite) TestLastOSAndKernelAreNotOK(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "kernel"}}),
 	}
 	// model base is "" -> OS can't be removed
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrIsModel)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrIsModel)
 	// (well, single revisions are ok)
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), classicDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), classicDev, nil), check.IsNil)
 	// removing os is also ok on classic systems
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), classicDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), classicDev, nil), check.IsNil)
 	// model kernel == snap kernel -> can't be removed
-	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrIsModel)
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrIsModel)
 	// (well, single revisions are ok)
-	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestOSInUseNotOK(c *check.C) {
@@ -139,10 +139,10 @@ func (s *canRemoveSuite) TestOSInUseNotOK(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
 	// normally this would be fine
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 	// but not if it's the one we booted
 	s.bootloader.SetBootBase("core_1.snap")
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev), check.Equals, policy.ErrInUseForBoot)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.Equals, policy.ErrInUseForBoot)
 }
 
 func (s *canRemoveSuite) TestOSNoSnapdNotOK(c *check.C) {
@@ -156,7 +156,7 @@ func (s *canRemoveSuite) TestOSNoSnapdNotOK(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
 	// revision is unset as if we're fully removing core from the system
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.Revision{}, classicDev), check.Equals, policy.ErrSnapdNotInstalled)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.Revision{}, classicDev, nil), check.Equals, policy.ErrSnapdNotInstalled)
 }
 
 func (s *canRemoveSuite) TestOSRequiredNotOK(c *check.C) {
@@ -169,9 +169,9 @@ func (s *canRemoveSuite) TestOSRequiredNotOK(c *check.C) {
 		Flags:    snapstate.Flags{Required: true},
 	}
 	// can't remove them all if they're required
-	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrRequired)
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrRequired)
 	// but a single rev is ok
-	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestOSUbuntuCoreOK(c *check.C) {
@@ -182,7 +182,7 @@ func (s *canRemoveSuite) TestOSUbuntuCoreOK(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "ubuntu-core"}}),
 	}
-	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), coreDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *check.C) {
@@ -196,7 +196,7 @@ func (s *canRemoveSuite) TestKernelBootInUseIsKept(c *check.C) {
 
 	s.bootloader.SetBootKernel("kernel_1.snap")
 
-	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev), check.Equals, policy.ErrInUseForBoot)
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.Equals, policy.ErrInUseForBoot)
 }
 
 func (s *canRemoveSuite) TestBootInUseError(c *check.C) {
@@ -210,7 +210,7 @@ func (s *canRemoveSuite) TestBootInUseError(c *check.C) {
 
 	bootloader.ForceError(errors.New("broken bootloader"))
 
-	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev), check.ErrorMatches, `cannot get boot settings: broken bootloader`)
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.ErrorMatches, `cannot get boot settings: broken bootloader`)
 }
 
 func (s *canRemoveSuite) TestBaseInUseIsKept(c *check.C) {
@@ -222,13 +222,13 @@ func (s *canRemoveSuite) TestBaseInUseIsKept(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core18"}}),
 	}
 	// if not used for boot, removing a single one is ok
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 	// but not all
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrIsModel)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrIsModel)
 
 	// if in use for boot, not even one
 	s.bootloader.SetBootBase("core18_1.snap")
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev), check.Equals, policy.ErrInUseForBoot)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.Equals, policy.ErrInUseForBoot)
 }
 
 func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *check.C) {
@@ -237,7 +237,7 @@ func (s *canRemoveSuite) TestRemoveNonModelKernelIsOk(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "other-non-model-kernel"}}),
 	}
 
-	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0), coreDev), check.IsNil)
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestRemoveEphemeralKernelIsNotOK(c *check.C) {
@@ -246,7 +246,7 @@ func (s *canRemoveSuite) TestRemoveEphemeralKernelIsNotOK(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "other-non-model-kernel"}}),
 	}
 
-	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0), ephemeralDev), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
+	c.Check(policy.NewKernelPolicy("kernel").CanRemove(s.st, snapst, snap.R(0), ephemeralDev, nil), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *check.C) {
@@ -258,7 +258,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
 
-	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.IsNil)
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestEphemeralCoreIsNotOK(c *check.C) {
@@ -270,7 +270,7 @@ func (s *canRemoveSuite) TestEphemeralCoreIsNotOK(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
 
-	c.Check(policy.NewOSPolicy("core20").CanRemove(s.st, snapst, snap.R(0), ephemeralDev), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
+	c.Check(policy.NewOSPolicy("core20").CanRemove(s.st, snapst, snap.R(0), ephemeralDev, nil), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *check.C) {
@@ -291,7 +291,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUse(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
-	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.DeepEquals, policy.InUseByErr("some-snap"))
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-snap"))
 }
 
 func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUseByGadget(c *check.C) {
@@ -313,7 +313,7 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseButOsInUseByGadget(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
-	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.DeepEquals, policy.InUseByErr("some-gadget"))
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-gadget"))
 }
 
 func (s *canRemoveSuite) TestBaseUnused(c *check.C) {
@@ -325,8 +325,8 @@ func (s *canRemoveSuite) TestBaseUnused(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "foo"}}),
 	}
 
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.IsNil)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
 }
 
 func (s *canRemoveSuite) TestEphemeralBaseIsNotOK(c *check.C) {
@@ -338,7 +338,7 @@ func (s *canRemoveSuite) TestEphemeralBaseIsNotOK(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "foo"}}),
 	}
 
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), ephemeralDev), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), ephemeralDev, nil), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
 }
 
 func (s *canRemoveSuite) TestBaseUnusedButRequired(c *check.C) {
@@ -351,8 +351,8 @@ func (s *canRemoveSuite) TestBaseUnusedButRequired(c *check.C) {
 		Flags:    snapstate.Flags{Required: true},
 	}
 
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrRequired)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrRequired)
 }
 
 func (s *canRemoveSuite) TestBaseInUse(c *check.C) {
@@ -372,7 +372,7 @@ func (s *canRemoveSuite) TestBaseInUse(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "some-base"}}),
 	}
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.DeepEquals, policy.InUseByErr("some-snap"))
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-snap"))
 }
 
 func (s *canRemoveSuite) TestBaseInUseBrokenApp(c *check.C) {
@@ -394,7 +394,7 @@ func (s *canRemoveSuite) TestBaseInUseBrokenApp(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "some-base"}}),
 	}
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.DeepEquals, policy.InUseByErr("some-snap"))
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-snap"))
 }
 
 func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *check.C) {
@@ -420,12 +420,12 @@ func (s *canRemoveSuite) TestBaseInUseOtherRevision(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "some-base"}}),
 	}
 	// revision 1 requires some-base
-	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.DeepEquals, policy.InUseByErr("some-snap"))
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-snap"))
 
 	// now pretend we want to remove the core snap
 	snapst.Sequence.Revisions[0].Snap.RealName = "core"
 	// but revision 2 requires core
-	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev), check.DeepEquals, policy.InUseByErr("some-snap"))
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-snap"))
 }
 
 func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
@@ -440,11 +440,11 @@ func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
 
 	// snapd cannot be removed on core
 	onClassic := false
-	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0), coreDev), check.Equals, policy.ErrSnapdNotRemovableOnCore)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.Equals, policy.ErrSnapdNotRemovableOnCore)
 	// but single revisions can be removed
-	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(1), coreDev), check.IsNil)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(1), coreDev, nil), check.IsNil)
 	// but not in ephemeral mode
-	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(1), ephemeralDev), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(1), ephemeralDev, nil), check.DeepEquals, policy.ErrEphemeralSnapsNotRemovable)
 
 	// snapd *can* be removed on classic if its the last snap
 	onClassic = true
@@ -452,12 +452,12 @@ func (s *canRemoveSuite) TestSnapdTypePolicy(c *check.C) {
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 	})
-	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0), classicDev), check.IsNil)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0), classicDev, nil), check.IsNil)
 
 	// but it cannot be removed when there are more snaps installed
 	snapstate.Set(s.st, "other-snap", &snapstate.SnapState{
 		Current:  snap.R(1),
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "other-snap"}}),
 	})
-	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0), classicDev), check.Equals, policy.ErrSnapdNotYetRemovableOnClassic)
+	c.Check(policy.NewSnapdPolicy(onClassic).CanRemove(s.st, snapst, snap.R(0), classicDev, nil), check.Equals, policy.ErrSnapdNotYetRemovableOnClassic)
 }
