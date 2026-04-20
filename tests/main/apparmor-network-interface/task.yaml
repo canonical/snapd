@@ -27,10 +27,6 @@ details: |
 
 systems: [ubuntu-*]
 
-skip:
-    - if: os.query is-core-lt 26 || os.query is-ubuntu-lt 26.04
-      reason: Requires AppArmor network_v9_skb/iface kernel feature (TODO check for this in the test)
-
 environment:
     SNAP_NAME: network-consumer
     # Host-side veth interface names
@@ -52,6 +48,10 @@ environment:
     PORT_IFACE1: 8082
     SERVICE_IFACE0: "test-service-netif0"
     SERVICE_IFACE1: "test-service-netif1"
+
+skip:
+    - if: os.query is-core-lt 26 || os.query is-ubuntu-lt 26.04
+      reason: Requires AppArmor network_v9_skb/iface kernel feature (TODO check for this in the test)
 
 prepare: |
     echo "Create network namespaces for server isolation"
