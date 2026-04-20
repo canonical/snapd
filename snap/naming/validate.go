@@ -315,6 +315,15 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 
 var archIsISASupportedByCPU = arch.IsISASupportedByCPU
 
+type IsaError struct {
+	Flag string
+	Err  error
+}
+
+func (e *IsaError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Flag, e.Err)
+}
+
 // validateAssumedISAArch checks that, when a snap requires an ISA to be supported:
 //  1. compares the specified <arch> with the device's one. If they differ, it exits
 //     without error signaling that the flag is valid
@@ -338,7 +347,7 @@ func validateAssumedISAArch(flag string, currentArchitecture string) error {
 	}
 
 	if err := archIsISASupportedByCPU(tokens[2]); err != nil {
-		return fmt.Errorf("%s: %s", flag, err)
+		return &IsaError{Flag: flag, Err: err}
 	}
 
 	return nil
