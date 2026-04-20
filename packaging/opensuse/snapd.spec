@@ -98,6 +98,14 @@
 %global with_multilib 1
 %endif
 
+%global with_go_unit_tests 1
+%ifnarch x86_64
+# disable Go unit tests on architectures other than x86_64. Those run on
+# virtualized systems with very little resources and often amplify races in
+# checks emplyed by unit tests themselves.
+%global with_go_unit_tests 0
+%endif
+
 %ifarch %arm
 # libsnap-confine-private/unit-tests fails on ARM under valgrind
 %bcond_with valgrind
@@ -119,6 +127,7 @@ Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  m4
 BuildRequires:  distribution-release
 BuildRequires:  fakeroot
 BuildRequires:  glibc-devel-static
@@ -354,11 +363,13 @@ export CGO_LDFLAGS="$LDFLAGS"
 
 %make_build -C %{indigo_srcdir}/cmd -k check
 %make_build -C %{indigo_srcdir}/data -k check
+%if %{with_go_unit_tests}
 # Use the common packaging helper for testing.
 export SNAPD_SKIP_SLOW_TESTS=1
 %make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             check
+%endif
 
 %install
 # Install all systemd and dbus units, and env files.
@@ -601,6 +612,7 @@ fi
 %{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_environmentdir}/990-snapd.conf
+%dir %{_prefix}/lib/dracut/dracut.conf.d
 %{_prefix}/lib/dracut/dracut.conf.d/50-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
@@ -637,7 +649,6 @@ fi
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
-%ghost /tmp/snap-private-tmp
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}
