@@ -384,40 +384,16 @@ Steps:
 8. Edit the changelog (`osc vc`)
 9. Look at the diff
 10. Check in and submit the package (`osc ci` or through the webpage)
-
-```
-osc bco system:snappy snapd
-cd home:<obs-user>:branches:system:snappy
-cd snapd
-wget https://github.com/snapcore/snapd/releases/download/2.56.2/snapd_2.56.2.vendor.tar.xz
-osc rm snapd_2.56.vendor.tar.xz
-osc add snapd_2.56.2.vendor.tar.xz
-vim snapd.spec
-rpmdev-wipetree
-rpmdev-setuptree
-cp snapd_2.56.2.vendor.tar.xz ~/rpmbuild/SOURCES
-cp snapd-rpmlintrc ~/rpmbuild/SOURCES
-rpmbuild -ba ./snapd.spec  # use zypper to install any missing dep
-sudo zypper in ~/rpmbuild/RPMS/x86_64/snapd-2.56.2-0.x86_64.rpm
-snap version
-osc vc
-osc diff
-osc st
-osc ci
-osc submitpac
-```
+11. Enable publishing of RPMs in your OBS branch
+12. Run the opensuse workflow in https://github.com/canonical/snapd-smoke-tests/ pointing it to your fork
 
 ### Archlinux
 
 #### One-time setup
 - Create an account on the Arch User Repository (AUR) at aur.archlinux.org, then ask an existing maintainer to add you to the snapd project.
-- On your Arch machine, install the following packages: `pacman -S base-devel git asciidoc pkg-config moreutils`
-- Checkout the repositories:
+- On your Arch machine, install the following packages: `pacman -S base-devel git asciidoc pkg-config moreutils aurpublish`
+- Checkout the repository:
 	- `git clone ssh://aur@aur.archlinux.org/snapd.git`
-	- `git clone https://github.com/eli-schwartz/aurpublish.git`
-- Build the `aurpublish` tool:
-	- `cd aurpublish`
-	- `make && sudo make install`
 - Verify that you can build snapd:
 	- `cd ../snapd`
 	- `makepkg -s`
@@ -427,6 +403,8 @@ osc submitpac
 #### Making a new release
 Enter the directory where the snapd PKGBUILD file is located, and run
 `upgpkg 2.56.3  # Write the new snapd version number`
+
+Alternatively fork https://github.com/bboozzoo/pkgbuilds, submit PR, run `arch` workflow in https://github.com/canonical/snapd-smoke-tests/ providing it with a link to the PR.
 
 ### Debian
 
