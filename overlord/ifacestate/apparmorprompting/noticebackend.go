@@ -60,13 +60,24 @@ func newNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackends, error
 		return nil, fmt.Errorf("cannot create interfaces requests run directory: %w", err)
 	}
 
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create interfaces requests state directory: %w", err)
+	}
+
+	// The prompting notice backend is more tightly coupled to the prompt/rule
+	// state, since they rely on the prompt/rule state providing unique IDs.
+	// Thus, store prompt/rule notice state in the same directory as the
+	// prompts/rules themselves.
+
+	// Store prompt notices alongside the prompt ID mapping, in the run dir.
 	path := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "prompt-notices.json")
 	promptNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsPromptNotice, promptNoticeNamespace)
 	if err != nil {
 		return nil, err
 	}
 
-	path = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "rule-notices.json")
+	// Store rule notices alongside the rule state, in the state dir.
+	path = filepath.Join(dirs.SnapInterfacesRequestsStateDir, "rule-notices.json")
 	ruleNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsRuleUpdateNotice, ruleNoticeNamespace)
 	if err != nil {
 		return nil, err
@@ -168,6 +179,7 @@ func newNoticeTypeBackend(now time.Time, nextNoticeTimestamp func() time.Time, p
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
 func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data map[string]string) error {
+	logger.Debugf("called addNotice(%d, %s, %v)", userID, id, data)
 	ntb.rwmu.Lock()
 	defer ntb.rwmu.Unlock()
 	key := id.String()
@@ -175,6 +187,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 
 	userNotices, existingNotice, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
 	if err != nil {
+		logger.Debugf("error when searching for existing notice with userID %d, noticeID %s: %v", userID, noticeID, err)
 		return err
 	}
 
@@ -198,8 +211,10 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	if existingNotice != nil && !existingNotice.Expired(timestamp) {
 		newNotice = existingNotice.DeepCopy()
 		newNotice.Reoccur(timestamp, data, 0)
+		logger.Debugf("calling newNotice.Reoccur() for notice with ID %s", noticeID)
 	} else {
 		newNotice = state.NewNotice(noticeID, &userID, ntb.noticeType, key, timestamp, data, 0, defaultExpireAfter)
+		logger.Debugf("calling NewNotice(%s, %d, %s, %s, ...)", noticeID, userID, ntb.noticeType, key)
 	}
 
 	newUserNotices := appendNotice(userNotices, newNotice, existingIndex, expiredCount)
@@ -214,6 +229,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 		} else {
 			delete(ntb.idToNotice, noticeID)
 		}
+		logger.Debugf("error when saving prompting %s notice backend: %v", ntb.noticeType, err)
 		return fmt.Errorf("cannot add notice to prompting %s backend: %w", ntb.noticeType, err)
 	}
 
@@ -222,12 +238,15 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 		delete(ntb.idToNotice, expiredNotice.ID())
 	}
 
+	logger.Debugf("calling ntb.cond.Broadcast()")
 	ntb.cond.Broadcast()
+
+	logger.Debugf("successfully added notice with ID %s", noticeID)
 
 	return nil
 }
 
-// searchExistingNotice looks up the list of existing notices for the given
+// searchExistingNotices looks up the list of existing notices for the given
 // userID and checks whether a notice with the given noticeID already exists.
 //
 // Returns the slice of existing notices for the given userID. If the notice
@@ -314,6 +333,7 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 	}
 	if !filter.BeforeOrAt.IsZero() && !filter.After.IsZero() && !filter.After.Before(filter.BeforeOrAt) {
 		// No possible timestamp can satisfy both After and BeforeOrAt filters
+		logger.Debugf("no possible timestamp can satisfy both After and BeforeOrAt filters: %+v", filter)
 		return simplified, false
 	}
 	var keys []string
@@ -330,6 +350,7 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 		if len(keys) == 0 {
 			// There were keys specified in the original filter but none were
 			// viable, so it's impossible for notices to match this filter.
+			logger.Debugf("no possible keys from this backend can satisfy the Keys filter: %+v", filter)
 			return simplified, false
 		}
 	}
@@ -349,7 +370,7 @@ func (ntb *noticeTypeBackend) simplifyFilter(filter *state.NoticeFilter) (simpli
 // filter.
 func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*state.Notice {
 	var filteredNotices []*state.Notice
-	// Discard expired notices or those with last repeated timestamp before f.After (if given)
+	// Discard expired notices or those with last repeated timestamp <= f.After (if given)
 	for i, notice := range notices {
 		if notice.Expired(now) {
 			continue
@@ -362,6 +383,7 @@ func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*stat
 	}
 	if len(filteredNotices) == 0 {
 		// Never found a non-expired notice matching After filter
+		logger.Debugf("found no non-expired notices matching the After filter (skipped %d notices)", len(notices))
 		return nil
 	}
 	// Discard notices with last repeated timestamp after f.BeforeOrAt (if given).
@@ -377,11 +399,13 @@ func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*stat
 			}
 			allAfter = false
 			// Discard all notices with timestamps after this one
+			logger.Debugf("skipping notices with timestamp after that of %s: %v", filteredNotices[i].Key(), filteredNotices[i].LastRepeated())
 			filteredNotices = filteredNotices[:i+1]
 			break
 		}
 		if allAfter {
 			// All notices had timestamps after f.BeforeOrAt
+			logger.Debugf("all %d notices had timestamps after f.BeforeOrAt: %v", len(filteredNotices), f.BeforeOrAt)
 			return nil
 		}
 	}
@@ -389,6 +413,7 @@ func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*stat
 	// Now have non-expired notices matching After/BeforeOrAt filters.
 	// If filter has no keys, we're done.
 	if len(f.Keys) == 0 {
+		logger.Debugf("returning %d filtered notices as there is no Keys filter", len(filteredNotices))
 		return filteredNotices
 	}
 
@@ -403,6 +428,7 @@ func (f ntbFilter) filterNotices(notices []*state.Notice, now time.Time) []*stat
 			break
 		}
 	}
+	logger.Debugf("returning %d filtered notices matching Keys filter", len(keyNotices))
 	return keyNotices
 }
 
@@ -435,6 +461,7 @@ func (ntb *noticeTypeBackend) doNotices(filter ntbFilter, now time.Time) []*stat
 	if filter.UserID != nil {
 		userNotices, ok := ntb.userNotices[*filter.UserID]
 		if !ok {
+			logger.Debugf("no notices exist in notice backend for UID: %d", *filter.UserID)
 			return nil
 		}
 		notices = append(notices, filter.filterNotices(userNotices, now)...)
@@ -451,8 +478,10 @@ func (ntb *noticeTypeBackend) doNotices(filter ntbFilter, now time.Time) []*stat
 	}
 	if nonEmptyUserNotices > 1 {
 		// Since we concatenated notices from multiple users, need to re-sort
+		logger.Debugf("found %d notices matching filter for %d users, re-sorting", len(notices), nonEmptyUserNotices)
 		state.SortNotices(notices)
 	}
+	logger.Debugf("found %d notices matching filter, all for the same user", len(notices))
 	return notices
 }
 
@@ -504,17 +533,20 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 		ntb.rwmu.Lock()
 		defer ntb.rwmu.Unlock()
 
+		logger.Debugf("calling ntb.cond.Broadcast() because the context expired")
 		ntb.cond.Broadcast()
 	})
 	defer stop()
 
 	for {
 		// Wait until a new notice occurs or ctx is cancelled.
+		logger.Debugf("calling ntb.cond.Wait()")
 		ntb.cond.Wait()
 
 		// If ctx was cancelled, return the error.
 		ctxErr := ctx.Err()
 		if ctxErr != nil {
+			logger.Debugf("ctx was cancelled with error: %v", ctxErr)
 			return nil, ctxErr
 		}
 
@@ -522,16 +554,20 @@ func (ntb *noticeTypeBackend) BackendWaitNotices(ctx context.Context, filter *st
 		// Otherwise, check if there are now matching notices.
 		notices = ntb.doNotices(simplifiedFilter, now)
 		if len(notices) > 0 {
+			logger.Debugf("returning %d notices from BackendWaitNotices", len(notices))
 			return notices, nil
 		}
 
+		logger.Debugf("after ntb.cond.Wait() returned, no notices matched the filter")
 		if !simplifiedFilter.BeforeOrAt.IsZero() && now.After(simplifiedFilter.BeforeOrAt) {
 			// Since we just checked with the now timestamp and there were no
 			// matching notices, and any new notices must have a later timestamp
 			// after simplifiedFilter.BeforeOrAt, it's impossible for a new
 			// notice to match the filter.
+			logger.Noticef("it is impossible for new notices to match the BeforeOrAt filter")
 			return nil, nil
 		}
+		logger.Debugf("trying again")
 	}
 }
 

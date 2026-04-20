@@ -32,6 +32,9 @@ prepare: |
 
     echo "Clone the prompting-client repo"
     git clone https://github.com/canonical/prompting-client
+    pushd prompting-client
+    git checkout 5039741f4cd5153af771eb3b07e1d29763019b2b
+    popd
 
     echo "Build the test snap"
     pushd prompting-client/testing-snap

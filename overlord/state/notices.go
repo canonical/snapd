@@ -21,6 +21,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/snapcore/snapd/logger"
 )
 
 const (
@@ -391,6 +393,8 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	s.noticesMu.Lock()
 	defer s.noticesMu.Unlock()
 
+	logger.Debugf("called AddNotice(%v, %s, %s, %v)", userID, noticeType, key, options.Data)
+
 	now := options.Time
 	if now.IsZero() {
 		now = s.NextNoticeTimestamp()
@@ -403,17 +407,21 @@ func (s *State) AddNotice(userID *uint32, noticeType NoticeType, key string, opt
 	if !ok {
 		// First occurrence of this notice userID+type+key
 		s.lastNoticeId++
+		logger.Debugf("calling NewNotice(%s, %d, %s, %s, ...)", strconv.Itoa(s.lastNoticeId), userID, noticeType, key)
 		notice = NewNotice(strconv.Itoa(s.lastNoticeId), userID, noticeType, key, now, options.Data, options.RepeatAfter, defaultNoticeExpireAfter)
 		s.notices[uniqueKey] = notice
 		newOrRepeated = true
 	} else {
 		// Additional occurrence, update existing notice
+		logger.Debugf("calling notice.Reoccur() for notice with ID %s", notice.ID())
 		newOrRepeated = notice.Reoccur(now, options.Data, options.RepeatAfter)
 	}
 
 	if newOrRepeated {
+		logger.Debugf("calling s.noticeCond.Broadcast()")
 		s.noticeCond.Broadcast()
 	}
+	logger.Debugf("successfully added notice with ID %s", notice.ID())
 
 	return notice.id, nil
 }
@@ -569,6 +577,7 @@ func (s *State) Notices(filter *NoticeFilter) []*Notice {
 func (s *State) doNotices(filter *NoticeFilter) []*Notice {
 	notices := s.filterNotices(filter)
 	SortNotices(notices)
+	logger.Debugf("returning %d notices from doNotices", len(notices))
 	return notices
 }
 
@@ -680,6 +689,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		s.noticesMu.Lock()
 		defer s.noticesMu.Unlock()
 
+		logger.Debugf("calling s.noticeCond.Broadcast() because the context expired")
 		s.noticeCond.Broadcast()
 	})
 	defer stop()
@@ -693,6 +703,7 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		// notices which match the filter.
 		now := time.Now()
 		if !filter.futureNoticesPossible(now) {
+			logger.Debugf("it is impossible for new notices to match the BeforeOrAt filter")
 			return nil, nil
 		}
 
@@ -700,19 +711,23 @@ func (s *State) WaitNotices(ctx context.Context, filter *NoticeFilter) ([]*Notic
 		// This unlocks noticeCond.L, so for this reason, it is essential that
 		// noticeCond.L is noticesMu.RLocker, since that is what we hold during
 		// this function call.
+		logger.Debugf("calling s.noticeCond.Wait()")
 		s.noticeCond.Wait()
 
 		// If this context is cancelled, return the error.
 		ctxErr := ctx.Err()
 		if ctxErr != nil {
+			logger.Debugf("ctx was cancelled with error: %v", ctxErr)
 			return nil, ctxErr
 		}
 
 		// Otherwise check if there are now matching notices.
 		notices = s.doNotices(filter)
 		if len(notices) > 0 {
+			logger.Debugf("returning %d notices from WaitNotices", len(notices))
 			return notices, nil
 		}
+		logger.Debugf("after s.noticeCond.Wait() returned, no notices matched the filter; trying again")
 	}
 }
 

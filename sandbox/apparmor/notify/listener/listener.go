@@ -523,5 +523,6 @@ func (l *Listener[R]) encodeAndSendResponse(resp *notify.MsgNotificationResponse
 	}
 	ioctlBuf := notify.IoctlRequestBuffer(buf)
 	_, err = l.doIoctl(notify.APPARMOR_NOTIF_SEND, ioctlBuf)
+	logger.Debugf("sent response to the kernel with allowed permissions (%s): %+v", notify.FilePermission(resp.Allow), resp)
 	return err
 }

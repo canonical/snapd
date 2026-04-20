@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -236,15 +237,19 @@ func (nm *NoticeManager) Notices(filter *state.NoticeFilter) []*state.Notice {
 	defer nm.rwMu.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
+	logger.Debugf("backendsToCheck for filter %+v: %#v", filter, backendsToCheck)
 	switch len(backendsToCheck) {
 	case 0:
 		// This should be impossible, since state is always an implicit backend
 		// if no other backend is registered for a given type.
+		logger.Debugf("WARNING: zero notice backends capable of matching filter: %+v", filter)
 		return nil
 	case 1:
+		logger.Debugf("one notice backend capable of matching filter %+v: %#v", filter, backendsToCheck[0])
 		return backendsToCheck[0].BackendNotices(filter)
 	}
 
+	logger.Debugf("multiple notice backends capable of matching filter %+v: %#v", filter, backendsToCheck)
 	now := time.Now()
 	return doNotices(backendsToCheck, filter, now)
 }
@@ -364,12 +369,15 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	defer nm.rwMu.RUnlock()
 
 	backendsToCheck := nm.relevantBackendsForFilter(filter)
+	logger.Debugf("%d backendsToCheck for filter %+v: %#v", len(backendsToCheck), filter, backendsToCheck)
 	switch len(backendsToCheck) {
 	case 0:
 		// This should be impossible, since state is always an implicit backend
 		// if no other backend is registered for a given type.
+		logger.Debugf("WARNING: zero notice backends capable of matching filter: %+v", filter)
 		return nil, nil
 	case 1:
+		logger.Debugf("one notice backend capable of matching filter %+v: %T", filter, backendsToCheck[0])
 		return backendsToCheck[0].BackendWaitNotices(ctx, filter)
 	}
 
@@ -381,6 +389,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 	// and then another backend recording a new notice.
 	notices := doNotices(backendsToCheck, filter, now)
 	if len(notices) > 0 {
+		logger.Debugf("found %d notices immediately when calling WaitNotices", len(notices))
 		return notices, nil
 	}
 
@@ -388,6 +397,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		// Since each backend returned, none can create a notice with a
 		// timestamp before now, and since the original filter's Before field
 		// is <= now, no notices can be created matching the filter.
+		logger.Debugf("filter has Before filter set before now, so it's impossible to get matching notice")
 		return nil, nil
 	}
 
@@ -407,16 +417,19 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 		// error, which we'll handle below.
 		backendNotices, _ := bknd.BackendWaitNotices(backendCtx, filter)
 		if len(backendNotices) == 0 {
+			logger.Debugf("backend returned no notices from BackendWaitNotices with filter %+v: %#v", filter, bknd)
 			return
 		}
 		select {
 		case noticesChan <- backendNotices:
 			// Successfully sent notices back to caller. Cancel any of the other
 			// goroutinues that are inside of BackendWaitNotices
+			logger.Debugf("backend returned notices, so calling cancel(): %#v", bknd)
 			cancel()
 		default:
 			// This channel was already full, so we know that another backend
 			// already wrote some notices to the channel.
+			logger.Debugf("backend failed to write backendNotices to noticeChan, likely because the channel is already full: %#v", bknd)
 		}
 	}
 
@@ -445,6 +458,7 @@ func (nm *NoticeManager) WaitNotices(ctx context.Context, filter *state.NoticeFi
 
 	// Get the last repeated timestamp of the newest received notice
 	lastRepeated := notices[len(notices)-1].LastRepeated()
+	logger.Debugf("lastRepeated timestamp from %d notices: %v", len(notices), lastRepeated)
 
 	// Re-query all backends for any notices which occurred before or at the
 	// last repeated timestamp.
