@@ -581,7 +581,19 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	flags.NoReRefresh = true
 
 	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := UpdateWithDeviceContext(st, snapName, nil, userID, flags, nil, deviceCtx, "")
+	ts, err := UpdateOne(context.Background(), st, StoreUpdateGoal(StoreUpdate{
+		InstanceName: snapName,
+	}), nil, Options{
+		Flags:     flags,
+		UserID:    userID,
+		DeviceCtx: deviceCtx,
+		ConflictOptions: ConflictOptions{
+			FromChange: t.Change().ID(),
+			// setting this lets us use snap update conflict detection, even
+			// though we're passing in the change ID
+			IncludeFromChangeInTaskConflictCheck: true,
+		},
+	})
 	if err != nil {
 		if conflErr, ok := err.(*ChangeConflictError); ok {
 			// If we aren't seeded, then it's too early to do any updates and we cannot
