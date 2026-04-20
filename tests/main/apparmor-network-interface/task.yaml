@@ -102,6 +102,11 @@ prepare: |
     tests.cleanup defer snap remove --purge "$SNAP_NAME"
 
 execute: |
+    echo "Enable AppArmor packet mediation"
+    orig_apparmor_packet_mediation=$(sysctl -n kernel.apparmor_packet_mediation)
+    sysctl -w kernel.apparmor_packet_mediation=1
+    tests.cleanup defer sysctl -w kernel.apparmor_packet_mediation="$orig_apparmor_packet_mediation"
+
     echo "The network plug is auto-connected on install"
     snap interfaces -i network | MATCH ":network .*${SNAP_NAME}"
 
