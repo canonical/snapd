@@ -10,7 +10,7 @@ systems:
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
-  # FIXME: add test-snapd-remodel-pc-26
+  - ubuntu-26*
 
 environment:
     NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/test-snapd-remodel-auto-import.assert

@@ -9,8 +9,8 @@ details: |
   HTTP form.
 
 systems:
-  # FIXME: make it work on 26
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   MODEL_JSON: $TESTSLIB/assertions/test-snapd-component-recovery-system-pc-VERSION.json
