@@ -51,6 +51,7 @@
 # adding global with_alt_snap_mount_dir 1 then.
 %global snap_mount_dir /snap
 %global alt_snap_mount_dir %{_localstatedir}/lib/snapd/snap
+%global with_alt_snap_mount_dir 1
 
 %global selinuxtype targeted
 
@@ -442,13 +443,12 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
 
-# TODO: starting with 2.74 default to %{alt_snap_mount_dir}
 if test ! -e %{snap_mount_dir} && test ! -e %{alt_snap_mount_dir} ; then
     # neither location exists, it's likely a new installation, but we
     # need one of the directories to exist for snapd and snap-confine
     # to be able to figure out the desired configuration at runtime
-    echo "Using %{snap_mount_dir} as snap mount directory"
-    mkdir -p -m 755 %{snap_mount_dir} || :
+    echo "Using %{alt_snap_mount_dir} as snap mount directory"
+    mkdir -p -m 755 %{alt_snap_mount_dir} || :
 fi
 
 %service_add_post %{systemd_services_list}
