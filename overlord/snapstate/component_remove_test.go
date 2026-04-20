@@ -426,7 +426,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentUpdateNoConflict(c *C) {
 
 	// No conflict as this remove would be part of the change
 	tss, err := snapstate.RemoveComponents(s.state, snapName, []string{compName},
-		snapstate.RemoveComponentsOpts{FromChange: chg.ID()})
+		snapstate.RemoveComponentsOpts{ConflictOptions: snapstate.ConflictOptions{FromChange: chg.ID()}})
 
 	c.Assert(err, IsNil)
 	c.Assert(len(tss), Equals, 1)

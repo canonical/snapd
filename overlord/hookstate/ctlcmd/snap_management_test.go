@@ -117,7 +117,7 @@ func (s *installSuite) testMngmtCommand(c *C, cmd string) {
 		ctlcmd.MockSnapstateInstallComponentsFunc(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
 			c.Check(names, DeepEquals, []string{"comp1", "comp2"})
 			c.Check(opts, DeepEquals, snapstate.Options{ExpectOneSnap: true,
-				FromChange: s.mockContext.ChangeID()})
+				ConflictOptions: snapstate.ConflictOptions{FromChange: s.mockContext.ChangeID()}})
 			var ts state.TaskSet
 			ts.AddTask(task)
 			return []*state.TaskSet{&ts}, nil
@@ -127,7 +127,7 @@ func (s *installSuite) testMngmtCommand(c *C, cmd string) {
 			c.Check(compNames, DeepEquals, []string{"comp1", "comp2"})
 			c.Check(opts, DeepEquals,
 				snapstate.RemoveComponentsOpts{RefreshProfile: true,
-					FromChange: s.mockContext.ChangeID()})
+					ConflictOptions: snapstate.ConflictOptions{FromChange: s.mockContext.ChangeID()}})
 			var ts state.TaskSet
 			ts.AddTask(task)
 			return []*state.TaskSet{&ts}, nil
@@ -190,8 +190,8 @@ func (s *installSuite) TestInstallCommandUsesPendingValidationSets(c *C) {
 		c.Assert(vsets.Keys(), DeepEquals, []snapasserts.ValidationSetKey{snapasserts.NewValidationSetKey(vs)})
 		c.Check(names, DeepEquals, []string{"comp1", "comp2"})
 		c.Check(opts, DeepEquals, snapstate.Options{
-			ExpectOneSnap: true,
-			FromChange:    s.mockContext.ChangeID(),
+			ExpectOneSnap:   true,
+			ConflictOptions: snapstate.ConflictOptions{FromChange: s.mockContext.ChangeID()},
 		})
 
 		return []*state.TaskSet{state.NewTaskSet(task)}, nil

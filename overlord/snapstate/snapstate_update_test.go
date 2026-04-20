@@ -20851,6 +20851,48 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 	c.Check(seedSetup.ComponentSetupTasks, DeepEquals, appCompSetupTaskIDs)
 }
 
+func (s *snapmgrTestSuite) TestUpdateOneIncludeFromChangeInTaskConflictCheckIgnoresSameChangeSeedRefreshExclusivity(c *C) {
+	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"content-provider"},
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "content-provider", snapID: "content-provider-id", snapType: "app", base: "core18"},
+	)
+
+	chg := s.state.NewChange("refresh-snap", "...")
+	chg.AddTask(s.state.NewTask("create-recovery-system", "Create recovery system"))
+
+	other := s.state.NewTask("same-change-update", "same-change update for content-provider")
+	other.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "content-provider",
+			Revision: snap.R(11),
+		},
+	})
+	chg.AddTask(other)
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{InstanceName: "content-provider"})
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{
+		UserID:          s.user.ID,
+		ConflictOptions: snapstate.ConflictOptions{FromChange: chg.ID(), IncludeFromChangeInTaskConflictCheck: true},
+	})
+	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Assert(err, ErrorMatches, `snap "content-provider" has "refresh-snap" change in progress`)
+
+	var conflErr *snapstate.ChangeConflictError
+	c.Assert(errors.As(err, &conflErr), Equals, true)
+	c.Check(conflErr.ChangeID, Equals, chg.ID())
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBlockedByOtherChanges(c *C) {
 	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
 		"kernel": "kernel",

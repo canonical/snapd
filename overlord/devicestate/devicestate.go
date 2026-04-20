@@ -533,10 +533,10 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 
 		_, ts, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
-			DeviceCtx:     r.deviceCtx,
-			FromChange:    r.fromChange,
-			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true, Required: true, NoDelayedSideEffects: true},
+			DeviceCtx:       r.deviceCtx,
+			ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+			PrereqTracker:   r.tracker,
+			Flags:           snapstate.Flags{NoReRefresh: true, Required: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
@@ -619,10 +619,10 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 
 		ts, err := snapstateUpdateOne(ctx, st, goal, nil, snapstate.Options{
-			DeviceCtx:     r.deviceCtx,
-			FromChange:    r.fromChange,
-			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true, NoDelayedSideEffects: true},
+			DeviceCtx:       r.deviceCtx,
+			ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+			PrereqTracker:   r.tracker,
+			Flags:           snapstate.Flags{NoReRefresh: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
@@ -915,9 +915,9 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 			}
 
 			ts, err := snapstateInstallComponentPath(st, lc.SideInfo, info, lc.Path, snapstate.Options{
-				DeviceCtx:     r.deviceCtx,
-				FromChange:    r.fromChange,
-				PrereqTracker: r.tracker,
+				DeviceCtx:       r.deviceCtx,
+				ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+				PrereqTracker:   r.tracker,
 			})
 			if err != nil {
 				return nil, err
@@ -931,9 +931,9 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 	}
 
 	return snapstateInstallComponents(ctx, st, components, info, r.vsets, snapstate.Options{
-		DeviceCtx:     r.deviceCtx,
-		FromChange:    r.fromChange,
-		PrereqTracker: r.tracker,
+		DeviceCtx:       r.deviceCtx,
+		ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+		PrereqTracker:   r.tracker,
 	})
 }
 
