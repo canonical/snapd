@@ -17,6 +17,7 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_BUILDPKG = $(strip $(addprefix $(DH_GOPKG)/, \
     cmd/snap \
     cmd/snap-exec \
+    cmd/snap-rehash \
     cmd/snap-seccomp \
     cmd/snap-update-ns \
     cmd/snapctl \

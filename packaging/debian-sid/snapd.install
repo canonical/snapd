@@ -12,6 +12,7 @@ data/info /usr/lib/snapd/
 etc/apparmor.d/usr.lib.snapd.snap-confine.real
 usr/bin/snap
 usr/bin/snap-exec /usr/lib/snapd/
+usr/bin/snap-rehash /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
