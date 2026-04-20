@@ -43,8 +43,6 @@ type (
 	AccessType         = accessType
 )
 
-const ClearTxEdge = clearTxEdge
-
 func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
 	return &changeViewHandler{ctx: ctx}
 }

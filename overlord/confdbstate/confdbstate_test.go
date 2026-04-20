@@ -1327,7 +1327,7 @@ func (s *confdbTestSuite) testConfdbLoadNoCustodian(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 
 	// a non-custodian snap modifies a confdb
-	_, err = confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
+	_, _, err = confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb through view %s/network/setup-wifi: no custodian snap connected", s.devAccID))
 }
 
@@ -1388,12 +1388,9 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianInstalled(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 	chg := s.state.NewChange("load-confdb", "")
 
-	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
+	ts, cleanupTask, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
-
-	cleanupTask, err := ts.Edge(confdbstate.ClearTxEdge)
-	c.Assert(err, IsNil)
 	c.Assert(cleanupTask.Kind(), Equals, "clear-confdb-tx")
 
 	// the custodian snap's hooks are run
@@ -1431,7 +1428,7 @@ func (s *confdbTestSuite) TestConfdbLoadCustodianWithNoHooks(c *C) {
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
-	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
+	ts, _, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
 	c.Assert(err, IsNil)
 	// no hooks, nothing to run
 	c.Assert(ts, IsNil)
@@ -1452,7 +1449,7 @@ func (s *confdbTestSuite) TestConfdbLoadTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
-	ts, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
+	ts, _, err := confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
 	c.Assert(err, IsNil)
 	chg := s.state.NewChange("get-confdb", "")
 	chg.AddAll(ts)
