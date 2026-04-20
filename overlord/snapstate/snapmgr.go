@@ -87,10 +87,10 @@ type SnapManager struct {
 
 	preseed bool
 
-	ensuredMountsUpdated       bool
-	ensuredDesktopFilesUpdated bool
-	ensuredDownloadsCleaned    bool
-	ensureStoreCacheCleanNext  time.Time
+	ensuredMountsUpdated        bool
+	ensuredDesktopFilesUpdated  bool
+	ensuredDownloadsCleanedNext time.Time
+	ensureStoreCacheCleanNext   time.Time
 
 	changeCallbackID int
 }
@@ -822,7 +822,6 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 		preseed:                    preseed,
 		ensuredMountsUpdated:       false,
 		ensuredDesktopFilesUpdated: false,
-		ensuredDownloadsCleaned:    false,
 	}
 	if preseed {
 		m.backend = backend.NewForPreseedMode()
@@ -1601,10 +1600,6 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.ensuredDownloadsCleaned {
-		return nil
-	}
-
 	// only run after we are seeded
 	var seeded bool
 	err := m.state.Get("seeded", &seeded)
@@ -1615,13 +1610,19 @@ func (m *SnapManager) ensureDownloadsCleaned() error {
 		return nil
 	}
 
+	now := timeNow()
+
+	if !m.ensuredDownloadsCleanedNext.IsZero() && m.ensuredDownloadsCleanedNext.After(now) {
+		return nil
+	}
+
 	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDownloadsCleaned")
 
 	if err := cleanDownloads(m.state); err != nil {
 		return err
 	}
 
-	m.ensuredDownloadsCleaned = true
+	m.ensuredDownloadsCleanedNext = now.Add(maxUnusedDownloadRetention / 4)
 
 	return nil
 }

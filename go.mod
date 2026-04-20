@@ -22,7 +22,7 @@ require (
 	// if below two libseccomp-golang lines are updated, one must also update packaging/ubuntu-14.04/rules
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
-	github.com/snapcore/secboot v0.0.0-20260320145120-26dce572077a
+	github.com/snapcore/secboot v0.0.0-20260410084611-3f8b98c2db70
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.8.0

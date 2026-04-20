@@ -19,7 +19,8 @@ license=('GPL3')
 makedepends=('git' 'go' 'go-tools' 'libseccomp' 'libcap' 'systemd' 'xfsprogs' 'python-docutils' 'apparmor' 'autoconf-archive' 'm4')
 # the following checkdepends are only required for static checks and unit tests,
 # unit tests are currently enabled
-checkdepends=('python' 'squashfs-tools' 'shellcheck')
+checkdepends=('python' 'squashfs-tools' 'shellcheck' 'openssh')
+checkdepends_x86_64=('lib32-glibc')
 conflicts=('snap-confine')
 options=('!strip' 'emptydirs')
 install=snapd.install
@@ -62,6 +63,8 @@ with_core_bits = 0
 with_alt_snap_mount_dir = 1
 with_apparmor = 1
 with_testkeys = ${WITH_TEST_KEYS:-0}
+with_vendor = 1
+with_static_pie = 0
 EXTRA_GO_BUILD_FLAGS = -trimpath
 EXTRA_GO_LDFLAGS = -w -s
 __DEFINES__
@@ -98,19 +101,11 @@ __DEFINES__
 check() {
     cd "$pkgname-$pkgver"
 
-    # make sure the binaries that need to be built statically really are
-    for binary in snap-exec snap-update-ns snapctl; do
-        if ! LC_ALL=C ldd "$srcdir/_go_build/$binary" 2>&1 | grep -q 'not a dynamic executable'; then
-            echo "$binary is not a static binary"
-            exit 1
-        fi
-    done
-
-    SKIP_UNCLEAN=1 IGNORE_MISSING=1 ./run-checks --unit
-    # XXX: Static checks choke on autotools generated cruft. Let's not run them
-    # here as they are designed to pass on a clean tree, before anything else is
-    # done, not after building the tree.
-    # ./run-checks --static
+    make -f packaging/snapd.mk \
+      SNAPD_DEFINES_DIR="$srcdir" \
+      check \
+      check-static-binaries \
+      check-trusted-account-keys
     TMPDIR=/tmp make -C cmd -k check
     TMPDIR=/tmp make -C data -k check
 }

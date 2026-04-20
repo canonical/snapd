@@ -909,8 +909,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	iconURL := snapsup.Media.IconURL()
 
 	dlOpts := &store.DownloadOptions{
-		Scheduled: snapsup.IsAutoRefresh,
-		RateLimit: rate,
+		Scheduled:           snapsup.IsAutoRefresh,
+		RateLimit:           rate,
+		LeavePartialOnError: true,
 	}
 	if snapsup.DownloadInfo == nil {
 		vsets, err := EnforcedValidationSets(st)
@@ -1025,8 +1026,9 @@ func (m *SnapManager) doPreDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	targetFn := snapsup.BlobPath()
 	dlOpts := &store.DownloadOptions{
 		// pre-downloads are only triggered in auto-refreshes
-		Scheduled: true,
-		RateLimit: autoRefreshRateLimited(st),
+		Scheduled:           true,
+		RateLimit:           autoRefreshRateLimited(st),
+		LeavePartialOnError: true,
 	}
 
 	perfTimings := state.TimingsForTask(t)
@@ -2392,10 +2394,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	// find if the snap is already installed before we modify snapst below
 	isInstalled := snapst.IsInstalled()
 
-	cand := sequence.NewRevisionSideState(snapsup.SideInfo, nil)
-	m.backend.Candidate(cand.Snap)
+	oldCandidateIndex := snapst.LastIndex(snapsup.SideInfo.Revision)
 
-	oldCandidateIndex := snapst.LastIndex(cand.Snap.Revision)
+	var candidateComponents []*sequence.ComponentState
+	if oldCandidateIndex >= 0 {
+		candidateComponents = snapst.Sequence.Revisions[oldCandidateIndex].Components
+	}
+
+	cand := sequence.NewRevisionSideState(snapsup.SideInfo, candidateComponents)
+	m.backend.Candidate(cand.Snap)
 
 	var oldRevsBeforeCand []snap.Revision
 	if oldCandidateIndex < 0 {

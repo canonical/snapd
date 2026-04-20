@@ -35,6 +35,9 @@ func (s *downloadComponentSuite) SetUpTest(c *C) {
 	s.fakeStore = &fakeStore{
 		state:       s.state,
 		fakeBackend: s.fakeBackend,
+		expectedDefaultDownloadOpts: &store.DownloadOptions{
+			LeavePartialOnError: true,
+		},
 	}
 
 	s.state.Lock()
@@ -139,8 +142,9 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, opts testDoDownlo
 	var downloadOpts *store.DownloadOptions
 	if opts.autoRefresh {
 		downloadOpts = &store.DownloadOptions{
-			RateLimit: 1234,
-			Scheduled: true,
+			RateLimit:           1234,
+			Scheduled:           true,
+			LeavePartialOnError: true,
 		}
 	}
 

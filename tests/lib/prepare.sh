@@ -1406,7 +1406,7 @@ setup_reflash_magic() {
     journalctl -u snapd
     snap model --verbose
     # remove the above debug lines once the mentioned bug is fixed
-    snap install "--channel=${CORE_CHANNEL:-edge}" "$core_name"
+    snap install "--channel=$(nested_get_base_channel)" "$core_name"
     # TODO set up a trap to clean this up properly?
     local UNPACK_DIR
     UNPACK_DIR="$(mktemp -d "/tmp/$core_name-unpack.XXXXXXXX")"

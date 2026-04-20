@@ -27,6 +27,6 @@ runs:
         sudo apt update
         ln -s packaging/ubuntu-16.04 debian
         sudo apt build-dep -y "${{ inputs.snapd-src-dir }}"
-        sudo apt install -y clang
+        sudo apt install -y clang dbus-x11
         sudo apt install -y gcovr lcov
         rm -rf ./debian-deps

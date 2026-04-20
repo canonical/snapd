@@ -28,7 +28,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -2680,7 +2679,7 @@ func MigrateHome(st *state.State, snaps []string) ([]*state.TaskSet, error) {
 // this was not needed. Since this function is only used if the snap is
 // installed already installed, then it is expected that the drivers tree is
 // present. Thus, the prepare-kernel-snap task would be redundant.
-func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*state.TaskSet, error) {
+func LinkNewBaseOrKernel(st *state.State, name string, fromChange string, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(st, name, &snapst)
 	if errors.Is(err, state.ErrNoState) {
@@ -2725,14 +2724,14 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string) (*stat
 	ts.MarkEdge(prepareSnap, LastBeforeLocalModificationsEdge)
 	ts.MarkEdge(prepareSnap, SnapSetupEdge)
 
-	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, prepareSnap); err != nil {
+	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, prepareSnap, deviceCtx); err != nil {
 		return nil, err
 	}
 
 	return ts, nil
 }
 
-func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.TaskSet, snapsupTask *state.Task) error {
+func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.TaskSet, snapsupTask *state.Task, deviceCtx DeviceContext) error {
 	tasks := ts.Tasks()
 	if len(tasks) == 0 {
 		return errors.New("internal error: task set must be seeded with at least one task")
@@ -2786,6 +2785,13 @@ func addLinkNewBaseOrKernelTasks(st *state.State, snapst SnapState, ts *state.Ta
 
 	snapsupTask.Set("component-setup-tasks", compsupTasks)
 
+	// Switching to a new model base may require regenerating the managed
+	// certificate database.
+	if shouldScheduleUpdateCertDBForRefresh(info.InstanceName(), info.Type(), deviceCtx) {
+		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
+		add(updateCertDB)
+	}
+
 	return nil
 }
 
@@ -2820,7 +2826,7 @@ func findSnapSetupTask(tasks []*state.Task) (*state.Task, *SnapSetup, error) {
 // this was not needed. Since this function is only used if the snap is
 // installed already installed, then it is expected that the drivers tree is
 // present. Thus, the prepare-kernel-snap task would be redundant.
-func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet, error) {
+func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet, deviceCtx DeviceContext) (*state.TaskSet, error) {
 	if ts.MaybeEdge(LastBeforeLocalModificationsEdge) != nil {
 		return nil, errors.New("internal error: cannot add tasks to link new base or kernel to task set that introduces local modifications")
 	}
@@ -2848,7 +2854,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet) (*state.TaskSet,
 	// tasks introduced here modify system state
 	ts.MarkEdge(allTasks[len(allTasks)-1], LastBeforeLocalModificationsEdge)
 
-	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, snapSetupTask); err != nil {
+	if err := addLinkNewBaseOrKernelTasks(st, snapst, ts, snapSetupTask, deviceCtx); err != nil {
 		return nil, err
 	}
 
@@ -4097,23 +4103,33 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 	}
 
 	var downloadsToKeep map[string]bool
-	keep := func(name string, rev snap.Revision) {
+
+	keepBlob := func(blobPath string) {
+		if blobPath == "" {
+			return
+		}
+
 		if downloadsToKeep == nil {
 			downloadsToKeep = make(map[string]bool)
 		}
-		downloadsToKeep[fmt.Sprintf("%s_%s.snap", name, rev)] = true
+		downloadsToKeep[filepath.Base(blobPath)] = true
 	}
 
 	// keep revisions in snap's sequence
 	for snapName, snapst := range snapStates {
-		for _, si := range snapst.Sequence.SideInfos() {
-			keep(snapName, si.Revision)
+		for _, rss := range snapst.Sequence.Revisions {
+			keepBlob(snap.MountFile(snapName, rss.Snap.Revision))
+			for _, comp := range rss.Components {
+				cpi := snap.MinimalComponentContainerPlaceInfo(comp.SideInfo.Component.ComponentName,
+					comp.SideInfo.Revision, snapName)
+				keepBlob(cpi.MountFile())
+			}
 		}
 	}
 
 	// keep revisions in refresh hints
 	for snapName, hint := range refreshHints {
-		keep(snapName, hint.Revision())
+		keepBlob(snap.MountFile(snapName, hint.Revision()))
 	}
 
 	// keep revisions pointed to by a download task in an ongoing change
@@ -4122,14 +4138,30 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 			continue
 		}
 		for _, t := range chg.Tasks() {
-			if t.Kind() != "download-snap" {
-				continue
+			switch t.Kind() {
+			case "download-snap":
+				snapsup, err := TaskSnapSetup(t)
+				if err != nil {
+					return nil, err
+				}
+
+				keepBlob(snapsup.BlobPath())
+			case "download-component":
+				compsup, snapsup, err := TaskComponentSetup(t)
+				if err != nil {
+					return nil, err
+				}
+				keepBlob(snapsup.BlobPath())
+				// component download sets CompPath at some point when the
+				// download task runs, which may, or may not have run already.
+				if compsup.CompPath == "" {
+					cpi := snap.MinimalComponentContainerPlaceInfo(compsup.ComponentName(),
+						compsup.Revision(), snapsup.InstanceName())
+					keepBlob(cpi.MountFile())
+				} else {
+					keepBlob(compsup.CompPath)
+				}
 			}
-			snapsup, err := TaskSnapSetup(t)
-			if err != nil {
-				return nil, err
-			}
-			keep(snapsup.InstanceName(), snapsup.Revision())
 		}
 	}
 
@@ -4162,14 +4194,30 @@ var cleanDownloads = func(st *state.State) error {
 		return err
 	}
 
-	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
-	if err != nil {
-		return err
+	var blobs []string
+	for _, pattern := range []string{
+		"*.snap", "*.snap.partial", // snaps
+		"*.comp", "*.comp.partial", // and their components
+	} {
+		matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, pattern))
+		if err != nil {
+			return err
+		}
+		blobs = append(blobs, matches...)
 	}
-	for _, file := range matches {
+
+	for _, file := range blobs {
 		if keep[filepath.Base(file)] {
 			continue
 		}
+
+		if targetFile, _, partial := strings.Cut(file, ".partial"); partial {
+			if keep[filepath.Base(targetFile)] && !osutil.FileExists(targetFile) {
+				// only keep the partial file if the target does not exist yet
+				continue
+			}
+		}
+
 		if rmErr := maybeRemoveSnapDownload(file); rmErr != nil {
 			// continue deletion, report error in the end
 			err = rmErr
@@ -4188,19 +4236,26 @@ var cleanSnapDownloads = func(st *state.State, snapName string) error {
 		return err
 	}
 
-	regex := regexp.MustCompile(fmt.Sprintf("^%s_x?[0-9]+\\.snap$", snapName))
-
 	matches, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_*.snap", snapName)))
 	if err != nil {
 		return err
 	}
-	for _, file := range matches {
-		if !regex.MatchString(filepath.Base(file)) {
-			continue
-		}
+	partial, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_*.snap.partial", snapName)))
+	if err != nil {
+		return err
+	}
+	for _, file := range append(matches, partial...) {
 		if keep[filepath.Base(file)] {
 			continue
 		}
+
+		if targetFile, _, partial := strings.Cut(file, ".partial"); partial {
+			if keep[filepath.Base(targetFile)] && !osutil.FileExists(targetFile) {
+				// only keep the partial file if the target does not exist yet
+				continue
+			}
+		}
+
 		if rmErr := maybeRemoveSnapDownload(file); rmErr != nil {
 			// continue deletion, report error in the end
 			err = rmErr

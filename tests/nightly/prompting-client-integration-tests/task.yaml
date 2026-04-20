@@ -44,10 +44,11 @@ prepare: |
     popd
 
     echo "Install dependencies for local tests"
-    apt install -y protobuf-compiler "linux-modules-extra-$(uname -r)" v4l-utils
+    apt install -y protobuf-compiler
 
     # Skip video device setup since we're skipping camera tests below
     #echo "Ensure virtual camera and audio devices will work"
+    #apt install -y "linux-modules-extra-$(uname -r)" v4l-utils
     #modprobe v4l2loopback devices=1 video_nr=0 card_label="Placeholder Card" exclusive_caps=1
     #modprobe snd-aloop
     #adduser test video && newgrp video

@@ -169,7 +169,7 @@ Requires:       (snapd-selinux = %{version} if selinux-policy-%{selinuxtype})
 %endif
 
 # Old versions of xdg-document-portal can expose data belonging to
-# other confied apps.  Older OpenSUSE releases are unlikely to change,
+# other confined apps.  Older OpenSUSE releases are unlikely to change,
 # so for now limit this to Tumbleweed.
 %if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
 Conflicts:      xdg-desktop-portal < 0.11
@@ -260,12 +260,14 @@ localstatedir = %{_localstatedir}
 sharedstatedir = %{_sharedstatedir}
 unitdir = %{_unitdir}
 builddir = %{_builddir}
+sourcedir = %{indigo_srcdir}
 # Build configuration
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
 with_apparmor = %{with apparmor}
 with_testkeys = %{!?with_testkeys:0}%{?with_testkeys:1}
 with_static_pie = $build_with_static_pie
+with_vendor = 1
 EXTRA_GO_BUILD_FLAGS = -v -x
 # fix broken debuginfo bsc#1215402
 EXTRA_GO_LDFLAGS = -compressdwarf=false
@@ -278,7 +280,7 @@ popd
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
-  echo "pkg-confing and rpm macros disagree about the location of systemd system generator directory"
+  echo "pkg-config and rpm macros disagree about the location of systemd system generator directory"
   exit 1
 fi
 
@@ -339,25 +341,8 @@ M4PARAM='-D distro_opensuse' %make_build -C %{indigo_srcdir}/data/selinux
 		USE_ALT_SNAP_MOUNT_DIR=true
 
 %check
-
-static_pie=
-if [ -e build-with-static-pie ]; then
-    static_pie=1
-fi
-
-# These binaries execute inside the mount namespace thus they must be built statically
-pushd %{buildroot}/%{_libexecdir}/snapd/
-for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
-    ldd $binary 2>&1 | grep 'statically linked\|not a dynamic executable'
-done
-
-if [ -n "$static_pie" ]; then
-    for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
-        file $binary | grep -F pie
-    done
-fi
-
-popd
+# Verify that statically linked binaries are indeed static
+%make_build -f %{indigo_srcdir}/packaging/snapd.mk SNAPD_DEFINES_DIR=%{_builddir} check-static-binaries
 
 export CFLAGS="$RPM_OPT_FLAGS -fpie"
 export CXXFLAGS="$RPM_OPT_FLAGS -fpie"
