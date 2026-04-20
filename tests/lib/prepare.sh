@@ -1405,6 +1405,8 @@ setup_reflash_magic() {
     snap tasks --last=seed || true
     journalctl -u snapd
     snap model --verbose
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
     # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=$(nested_get_base_channel)" "$core_name"
     # TODO set up a trap to clean this up properly?
