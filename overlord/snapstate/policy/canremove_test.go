@@ -373,6 +373,11 @@ func (s *canRemoveSuite) TestBaseInUse(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "some-base"}}),
 	}
 	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-snap"))
+
+	// allow removing if the snap is also being removed
+	removedAndUsed := map[string]bool{"some-snap": false}
+	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, removedAndUsed), check.IsNil)
+	c.Check(removedAndUsed["some-snap"], check.Equals, true)
 }
 
 func (s *canRemoveSuite) TestBaseInUseBrokenApp(c *check.C) {

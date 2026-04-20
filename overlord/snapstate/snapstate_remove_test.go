@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -2121,6 +2122,43 @@ func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
 	c.Check(ts, HasLen, 2)
+}
+
+func (s *snapmgrTestSuite) TestRemoveAppAndBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\ntype: app\nbase: some-base", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+	})
+
+	si2 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si2)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
+		Current:  si2.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	_, _, err := snapstate.RemoveMany(s.state, []string{"some-base"}, nil)
+	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snap some-snap.")
+
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-base", "some-snap"}, nil)
+	c.Check(err, IsNil)
+
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
+	c.Check(tss, HasLen, 2)
+
+	// check that the tasks for the bases depend on the tasks for the app
+	for _, baseTask := range tss[1].Tasks() {
+		for _, appTask := range tss[0].Tasks() {
+			c.Check(baseTask.WaitTasks(), testutil.Contains, appTask)
+		}
+	}
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
