@@ -29,9 +29,11 @@ import (
 )
 
 type undoTrackerSuite struct {
-	st *state.State
-	t  *state.Task
-	ut *snapstate.UndoTracker
+	st     *state.State
+	t      *state.Task
+	ut     *snapstate.UndoTracker
+	retErr error
+	run    func()
 }
 
 var _ = Suite(&undoTrackerSuite{})
@@ -43,11 +45,11 @@ func (s *undoTrackerSuite) SetUpTest(c *C) {
 	chg := s.st.NewChange("test-change", "test change")
 	s.t = s.st.NewTask("test-task", "test task")
 	chg.AddTask(s.t)
-
-	s.ut = snapstate.NewUndoTracker(s.t)
+	s.retErr = nil
+	s.ut, s.run = snapstate.NewUndoTracker(s.t, &s.retErr)
 }
 
-func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnNoError(c *C) {
+func (s *undoTrackerSuite) TestRunDoesNothingOnNoError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -57,14 +59,13 @@ func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnNoError(c *C) {
 		return nil
 	})
 
-	var retErr error
-	s.ut.RunOnError(&retErr)
+	s.run()
 
 	// undo not called
 	c.Check(called, Equals, false)
 }
 
-func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnWaitError(c *C) {
+func (s *undoTrackerSuite) TestRunDoesNothingOnWaitError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -74,14 +75,14 @@ func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnWaitError(c *C) {
 		return nil
 	})
 
-	var retErr error = &state.Wait{Reason: "waiting for reboot"}
-	s.ut.RunOnError(&retErr)
+	s.retErr = &state.Wait{Reason: "waiting for reboot"}
+	s.run()
 
 	// undo not called
 	c.Check(called, Equals, false)
 }
 
-func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnRetryError(c *C) {
+func (s *undoTrackerSuite) TestRunDoesNothingOnRetryError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -91,23 +92,23 @@ func (s *undoTrackerSuite) TestRunOnErrorDoesNothingOnRetryError(c *C) {
 		return nil
 	})
 
-	var retErr error = &state.Retry{Reason: "retrying task"}
-	s.ut.RunOnError(&retErr)
+	s.retErr = &state.Retry{Reason: "retrying task"}
+	s.run()
 
 	// undo not called
 	c.Check(called, Equals, false)
 }
 
-func (s *undoTrackerSuite) TestRunOnErrorNoUndoesRegistered(c *C) {
+func (s *undoTrackerSuite) TestRunWithNoUndosRegisteredDoesNotPanic(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// no undoes registered, should not panic
-	retErr := errors.New("task failed")
-	s.ut.RunOnError(&retErr)
+	// no undos registered, should not panic
+	s.retErr = errors.New("task failed")
+	s.run()
 }
 
-func (s *undoTrackerSuite) TestRunOnErrorRunsUndoesInReverseOrder(c *C) {
+func (s *undoTrackerSuite) TestRunExecutesUndosInReverseOrder(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -120,14 +121,14 @@ func (s *undoTrackerSuite) TestRunOnErrorRunsUndoesInReverseOrder(c *C) {
 		})
 	}
 
-	retErr := errors.New("task failed")
-	s.ut.RunOnError(&retErr)
+	s.retErr = errors.New("task failed")
+	s.run()
 
-	// undoes called in reverse order
+	// undos called in reverse order
 	c.Check(order, DeepEquals, []int{3, 2, 1})
 }
 
-func (s *undoTrackerSuite) TestRunOnErrorContinuesAfterUndoFailure(c *C) {
+func (s *undoTrackerSuite) TestRunContinuesAfterUndoFailure(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -143,8 +144,8 @@ func (s *undoTrackerSuite) TestRunOnErrorContinuesAfterUndoFailure(c *C) {
 		})
 	}
 
-	retErr := errors.New("task failed")
-	s.ut.RunOnError(&retErr)
+	s.retErr = errors.New("task failed")
+	s.run()
 
 	// all three ran despite undo 2 failing
 	c.Check(order, DeepEquals, []int{3, 2, 1})
@@ -161,7 +162,7 @@ func (s *undoTrackerSuite) TestUnlockedUndoRunsWithStateUnlocked(c *C) {
 	called := false
 	s.ut.Unlocked().AddUndo(func() error {
 		// try to lock the state. If Unlocked() correctly tags this
-		// undo for unlocked execution, RunOnError will release the
+		// undo for unlocked execution, run will release the
 		// lock before calling it, and this will succeed. Otherwise
 		// it will deadlock and the test will fail
 		s.st.Lock()
@@ -170,14 +171,14 @@ func (s *undoTrackerSuite) TestUnlockedUndoRunsWithStateUnlocked(c *C) {
 		return nil
 	})
 
-	retErr := errors.New("task failed")
-	s.ut.RunOnError(&retErr)
+	s.retErr = errors.New("task failed")
+	s.run()
 
 	// undo was successfully called
 	c.Check(called, Equals, true)
 }
 
-func (s *undoTrackerSuite) TestUnlockedMixedWithLockedUndoes(c *C) {
+func (s *undoTrackerSuite) TestUnlockedMixedWithLockedUndos(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -190,7 +191,7 @@ func (s *undoTrackerSuite) TestUnlockedMixedWithLockedUndoes(c *C) {
 
 	s.ut.Unlocked().AddUndo(func() error {
 		// try to lock the state. If Unlocked() correctly tags this
-		// undo for unlocked execution, RunOnError will release the
+		// undo for unlocked execution, run will release the
 		// lock before calling it, and this will succeed. Otherwise
 		// it will deadlock and the test will fail
 		s.st.Lock()
@@ -204,14 +205,14 @@ func (s *undoTrackerSuite) TestUnlockedMixedWithLockedUndoes(c *C) {
 		return nil
 	})
 
-	retErr := errors.New("task failed")
-	s.ut.RunOnError(&retErr)
+	s.retErr = errors.New("task failed")
+	s.run()
 
-	// undoes called in reverse order
+	// undos called in reverse order
 	c.Check(order, DeepEquals, []int{3, 2, 1})
 }
 
-func (s *undoTrackerSuite) TestRunOnErrorCollectsAndLogsAllErrors(c *C) {
+func (s *undoTrackerSuite) TestRunCollectsAndLogsAllErrors(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -223,11 +224,42 @@ func (s *undoTrackerSuite) TestRunOnErrorCollectsAndLogsAllErrors(c *C) {
 		return errors.New("unlocked undo failed")
 	})
 
-	retErr := errors.New("task failed")
-	s.ut.RunOnError(&retErr)
+	s.retErr = errors.New("task failed")
+	s.run()
 
 	// both errors logged (in reverse registration order)
 	c.Check(s.t.Log(), HasLen, 2)
 	c.Check(s.t.Log()[0], Matches, `.*cannot undo: unlocked undo failed`)
 	c.Check(s.t.Log()[1], Matches, `.*cannot undo: locked undo failed`)
+}
+
+func (s *undoTrackerSuite) TestRunPanicsOnSecondCall(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.run()
+
+	c.Assert(s.run, PanicMatches, "internal error: cannot call UndoTracker.run more than once")
+}
+
+func (s *undoTrackerSuite) TestAddUndoPanicsAfterRunAlreadyCalled(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.run()
+
+	c.Assert(func() {
+		s.ut.AddUndo(func() error { return nil })
+	}, PanicMatches, "internal error: cannot register undo after undos execution has started")
+}
+
+func (s *undoTrackerSuite) TestUnlockedAddUndoPanicsAfterRunAlreadyCalled(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.run()
+
+	c.Assert(func() {
+		s.ut.Unlocked().AddUndo(func() error { return nil })
+	}, PanicMatches, "internal error: cannot register undo after undos execution has started")
 }

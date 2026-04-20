@@ -3569,9 +3569,9 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) (retErr erro
 	var undoerUnlocked backend.Undoer
 	skipUndo := stopReason == snap.StopReasonRemove || stopReason == snap.StopReasonDisable
 	if !skipUndo {
-		undoTracker := NewUndoTracker(t)
-		defer undoTracker.RunOnError(&retErr)
-		undoerUnlocked = undoTracker.Unlocked()
+		ut, undoOnError := NewUndoTracker(t, &retErr)
+		defer undoOnError()
+		undoerUnlocked = ut.Unlocked()
 	}
 
 	perfTimings := state.TimingsForTask(t)
