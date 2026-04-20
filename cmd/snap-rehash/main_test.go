@@ -79,6 +79,38 @@ func expectedHash(pemData []byte) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
+func (s *rehashSuite) TestRehashInvalidPEMNoCertificateBlock(c *C) {
+	dir := c.MkDir()
+
+	// A PEM file that contains only a PRIVATE KEY block, no CERTIFICATE.
+	keyBlock := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("not a real key")})
+	c.Assert(os.WriteFile(filepath.Join(dir, "nocert.crt"), keyBlock, 0o644), IsNil)
+
+	err := rehashDirectory(dir)
+	c.Check(err, ErrorMatches, `cannot hash certificate "nocert.crt": no CERTIFICATE PEM block found`)
+}
+
+func (s *rehashSuite) TestRehashInvalidPEMCertificateData(c *C) {
+	dir := c.MkDir()
+
+	// A PEM file with a CERTIFICATE block containing garbage bytes.
+	badCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("garbage")})
+	c.Assert(os.WriteFile(filepath.Join(dir, "corrupt.crt"), badCert, 0o644), IsNil)
+
+	err := rehashDirectory(dir)
+	c.Check(err, ErrorMatches, `cannot hash certificate "corrupt.crt": cannot parse PEM certificate block: .*`)
+}
+
+func (s *rehashSuite) TestRehashInvalidDERData(c *C) {
+	dir := c.MkDir()
+
+	// Raw bytes that are not valid DER or PEM.
+	c.Assert(os.WriteFile(filepath.Join(dir, "junk.crt"), []byte{0x30, 0x00, 0x01}, 0o644), IsNil)
+
+	err := rehashDirectory(dir)
+	c.Check(err, ErrorMatches, `cannot hash certificate "junk.crt": cannot parse DER certificate: .*`)
+}
+
 func (s *rehashSuite) TestRehashCreatesHashLinks(c *C) {
 	dir := c.MkDir()
 
@@ -100,6 +132,22 @@ func (s *rehashSuite) TestRehashCreatesHashLinks(c *C) {
 	c.Check(err, IsNil)
 	_, err = os.Stat(filepath.Join(dir, hashB+".0"))
 	c.Check(err, IsNil)
+}
+
+func (s *rehashSuite) TestRehashLinkCreationError(c *C) {
+	dir := c.MkDir()
+
+	certA, err := makeTestCert("A")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dir, "a.crt"), certA, 0o644), IsNil)
+
+	// Make the directory read-only so os.Link fails with permission denied
+	// (not EEXIST), which exercises the non-collision error return.
+	c.Assert(os.Chmod(dir, 0o555), IsNil)
+	defer os.Chmod(dir, 0o755)
+
+	err = rehashDirectory(dir)
+	c.Check(err, ErrorMatches, `cannot create hash link for "a.crt": .*permission denied`)
 }
 
 func (s *rehashSuite) TestRehashSkipsCACertificatesBundle(c *C) {
