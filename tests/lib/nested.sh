@@ -1863,7 +1863,7 @@ nested_prepare_tools() {
     if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
         REMOTE_PATH="$(remote.exec 'echo $PATH')"
-        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH:/usr/lib/python | sudo tee -a /etc/environment"
     fi
 
     if [ -n "$TAG_FEATURES" ]; then
