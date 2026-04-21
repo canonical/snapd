@@ -1298,6 +1298,78 @@ func (s *snapmgrTestSuite) TestRemoveRefusedLastRevision(c *C) {
 	c.Check(err, ErrorMatches, `snap "brand-gadget" is not removable: snap is used by the model`)
 }
 
+func (s *snapmgrTestSuite) TestRemoveConsultsSeedRefreshRemoveHookOnlyWhenEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si}),
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	called := false
+	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, *snap.Info, snapstate.DeviceContext) error {
+		called = true
+		return errors.New("blocked by test hook")
+	})
+	defer restore()
+
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	_, err = snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: blocked by test hook`)
+	c.Check(called, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestRemoveSpecificRevisionDoesNotConsultSeedRefreshRemoveHook(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+	si1 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&si2, &si1}),
+		Current:  si2.Revision,
+		SnapType: "app",
+	})
+
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	called := false
+	restore := snapstate.MockCheckSeedRefreshRemove(func(*state.State, *snap.Info, snapstate.DeviceContext) error {
+		called = true
+		return errors.New("blocked by test hook")
+	})
+	defer restore()
+
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(1), nil)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
+}
+
 func (s *snapmgrTestSuite) TestRemoveDeletesConfigOnLastRevision(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
