@@ -984,6 +984,21 @@ func filterUbuntuCoreSlots(candidates []*snap.SlotInfo, arities []interfaces.Sid
 	return candidates, arities
 }
 
+func filterOutParallelInstallsSlots(candidates []*snap.SlotInfo, arities []interfaces.SideArity) ([]*snap.SlotInfo, []interfaces.SideArity) {
+	var withoutParallelInstalled []*snap.SlotInfo
+	var withoutParallelInstalledArities []interfaces.SideArity
+
+	for i, candSlot := range candidates {
+		if candSlot.Snap.InstanceKey != "" {
+			continue
+		}
+		withoutParallelInstalled = append(withoutParallelInstalled, candSlot)
+		withoutParallelInstalledArities = append(withoutParallelInstalledArities, arities[i])
+	}
+
+	return withoutParallelInstalled, withoutParallelInstalledArities
+}
+
 // addAutoConnections adds to newconns any applicable auto-connections
 // from the given plugs to corresponding candidates slots after
 // filtering them with optional filter and against preexisting
@@ -1008,6 +1023,13 @@ func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[s
 		// want to ignore any candidates in ubuntu-core and
 		// simply go with those from the new core snap.
 		candSlots, arities = filterUbuntuCoreSlots(candSlots, arities)
+
+		// Filter out slots from parallel installed snaps.
+		// TODO:parallel-installs: figure out the policy for auto connections
+		// and parallel installed slot side snaps. Note, this could be applied
+		// earlier, but doing it here ensures that the policy is applied in a
+		// centralized fashion.
+		candSlots, arities = filterOutParallelInstallsSlots(candSlots, arities)
 
 		applicable := candSlots
 		// candidate arity check

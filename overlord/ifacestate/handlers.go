@@ -1678,13 +1678,6 @@ func getAllowOptionAsString(inter string, tr *config.Transaction) (string, error
 }
 
 func isSnapSlotAutoConnectAllowed(st *state.State, snapID string, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
-	if slot.Snap.InstanceKey != "" {
-		// Disallow auto connecting to parallel installed slot snaps
-		// TODO:parallel-installs: figure out the policy for auto
-		// connections and parallel installed slot side snaps
-		return false, nil
-	}
-
 	// Until we decide that we want to support other interfaces, do a
 	// quick allow check for x11 only.
 	if slot.Interface != "x11" {
