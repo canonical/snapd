@@ -1,8 +1,0 @@
-name: test-snapd-sh-core26
-version: 1.0
-architectures: ["all"]
-base: core26
-
-apps:
-    sh:
-        command: bin/sh

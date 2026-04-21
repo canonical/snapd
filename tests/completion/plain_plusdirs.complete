@@ -1,4 +1,0 @@
-# -*- sh -*-
-
-complete -W "alpha beta chi" -o plusdirs test-snapd-complexion
-complete -W "alpha beta chi" -o plusdirs test-snapd-complexion.two

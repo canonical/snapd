@@ -1,7 +1,0 @@
-rules:
-  all:
-    from: [.*]
-    to:
-      - tests/smoke/
-      - tests/main/canonical-livepatch
-      - tests/main/canonical-livepatch-14.04

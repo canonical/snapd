@@ -1,3 +1,0 @@
-#!/bin/sh
-
-# intentionally empty, needed to drive the tests via snapctl.

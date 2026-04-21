@@ -1,5 +1,0 @@
-#!/bin/sh
-
-set -e
-
-cat /sys/class/block/loop0/stat

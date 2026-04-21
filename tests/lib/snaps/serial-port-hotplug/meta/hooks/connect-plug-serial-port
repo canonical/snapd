@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo "Getting attributes from connect-plug- hook"
-snapctl get --slot :serial-port path > "$SNAP_COMMON/connect-plug-done"

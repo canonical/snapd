@@ -1,9 +1,0 @@
-name: content-provider
-version: 1.0
-slots:
-  quoting:
-    interface: content
-    read: ["$SNAP_DATA/a,comma"]
-  invalid-char:
-    interface: content
-    read: ["$SNAP_DATA/{this,that}"]

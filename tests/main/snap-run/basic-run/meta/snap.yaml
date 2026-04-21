@@ -1,6 +1,0 @@
-name: basic-run
-version: 1.0
-apps:
- echo-data:
-  command: bin/echo $SNAP_DATA
-  

@@ -1,5 +1,0 @@
-name: bad-layout
-version: 1.0
-layout:
-  /var/lib/foo:
-    bind: "$SNAP_DATA/var/*"

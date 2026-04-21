@@ -1,4 +1,0 @@
-#!/bin/sh
-
-# it is important for the test that this configure hook doesn't set
-# any snap config options via snapctl.

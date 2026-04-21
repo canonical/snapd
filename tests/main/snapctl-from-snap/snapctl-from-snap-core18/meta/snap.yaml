@@ -1,8 +1,0 @@
-name: snapctl-from-snap-core18
-version: 1.0
-base: core18
-apps:
-    snapctl-get:
-        command: bin/snapctl-get
-    snapctl-set:
-        command: bin/snapctl-set

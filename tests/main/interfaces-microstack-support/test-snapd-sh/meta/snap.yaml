@@ -1,9 +1,0 @@
-name: test-snapd-sh
-summary: A no-strings-attached, no-fuss shell for writing tests
-version: 1.0
-
-apps:
-  inspect:
-    command: bin/inspect
-    daemon: simple
-    plugs: [microstack-support]

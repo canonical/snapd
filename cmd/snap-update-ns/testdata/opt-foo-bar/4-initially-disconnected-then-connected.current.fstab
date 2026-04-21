@@ -1,4 +1,0 @@
-tmpfs / tmpfs x-snapd.origin=rootfs 0 0
-tmpfs /opt tmpfs x-snapd.synthetic,x-snapd.needed-by=/opt/foo/bar,mode=0755,uid=0,gid=0 0 0
-/snap/test-snapd-layout/x1/opt/foo/bar /opt/foo/bar none rbind,rw,x-snapd.origin=layout 0 0
-/snap/test-snapd-content/x1/opt /snap/test-snapd-layout/x1/opt none bind,ro 0 0

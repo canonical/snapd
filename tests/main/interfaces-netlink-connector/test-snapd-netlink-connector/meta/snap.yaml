@@ -1,9 +1,0 @@
-name: test-snapd-netlink-connector
-summary: Basic snap to bind the netlink connector
-description: A basic snap used to bind the netlink connector
-version: 1.0
-
-apps:
-  bind:
-    command: bin/bind
-    plugs: [netlink-connector]

@@ -1,6 +1,0 @@
-source lib.exp0
-
-chat "snap export-key \t" "snap export-key default"
-
-cancel
-brexit

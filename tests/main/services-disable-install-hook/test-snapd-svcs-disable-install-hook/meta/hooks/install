@@ -1,6 +1,0 @@
-#!/bin/bash -e
-
-for service in simple forking; do
-    echo "Disabling $service service from install hook"
-    snapctl stop --disable "$SNAP_NAME.$service"
-done

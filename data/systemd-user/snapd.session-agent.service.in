@@ -1,7 +1,0 @@
-[Unit]
-Description=snapd user session agent
-Requires=snapd.session-agent.socket
-
-[Service]
-Type=notify
-ExecStart=@bindir@/snap userd --agent

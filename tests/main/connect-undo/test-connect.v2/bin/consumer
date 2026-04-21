@@ -1,2 +1,0 @@
-#!/bin/sh
-exec nc -h > /dev/null

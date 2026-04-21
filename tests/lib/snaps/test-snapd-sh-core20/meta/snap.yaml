@@ -1,8 +1,0 @@
-name: test-snapd-sh-core20
-version: 1.0
-architectures: ["all"]
-base: core20
-
-apps:
-    sh:
-        command: bin/sh

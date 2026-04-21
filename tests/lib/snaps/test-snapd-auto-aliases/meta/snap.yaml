@@ -1,9 +1,0 @@
-name: test-snapd-auto-aliases
-version: 1.0
-apps:
-    wellknown1:
-        command: bin/wellknown1
-        aliases: [test_snapd_wellknown1]
-    wellknown2:
-        command: bin/wellknown2
-        aliases: [test_snapd_wellknown2]

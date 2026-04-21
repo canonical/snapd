@@ -1,6 +1,0 @@
-name: generic-consumer
-version: 1.0
-apps:
-    cmd:
-        command: bin/cmd
-        plugs: [@INTERFACE@]

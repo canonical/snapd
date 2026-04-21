@@ -1,5 +1,0 @@
-# This is the layout entry. Snapd orders layouts before any content entries.
-/snap/test-snapd-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
-# This is the content entry. Notice that it is after the layout but the user
-# expectation is that the content shows up through the layout entry.
-/snap/test-snapd-content/x1 /snap/test-snapd-layout/x2/attached-content none bind,ro 0 0

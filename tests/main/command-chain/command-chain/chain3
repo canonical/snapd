@@ -1,5 +1,0 @@
-#!/bin/sh
-
-export CHAIN_3_RAN=1
-printf "chain3 "
-exec "$@"

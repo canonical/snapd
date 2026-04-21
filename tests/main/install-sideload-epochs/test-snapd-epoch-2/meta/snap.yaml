@@ -1,5 +1,0 @@
-name: test-snapd-epoch
-version: 2
-summary: Basic snap with epochs
-description: A basic snap that has epochs
-epoch: 2

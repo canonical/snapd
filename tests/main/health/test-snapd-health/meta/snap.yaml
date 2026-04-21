@@ -1,5 +1,0 @@
-name: test-snapd-health
-version: 1
-apps:
-  test-snapd-health:
-    command: health

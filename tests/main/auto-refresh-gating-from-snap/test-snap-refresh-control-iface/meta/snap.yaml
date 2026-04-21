@@ -1,9 +1,0 @@
-name: test-snap-refresh-control-iface
-summary: Test snap that has snap-refresh-control but no gate-auto-refresh hook.
-version: 1
-plugs:
-  snap-refresh-control:
-    interface: snap-refresh-control
-apps:
-  proceed:
-    command: proceed

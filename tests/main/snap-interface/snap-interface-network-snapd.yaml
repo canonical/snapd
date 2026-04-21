@@ -1,7 +1,0 @@
-name:          network
-summary:       allows access to the network
-documentation: https://snapcraft.io/docs/network-interface
-plugs:
-  - network-consumer
-slots:
-  - snapd

@@ -1,8 +1,0 @@
-name: testsnap
-version: 1.0
-base: core18
-apps:
-  cmd:
-    command: bin/cmd
-    plugs: [ system-observe ]
-    slots: [ fwupd ]

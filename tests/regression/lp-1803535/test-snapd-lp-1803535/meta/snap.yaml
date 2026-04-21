@@ -1,9 +1,0 @@
-name: test-snapd-lp-1803535
-version: 1.0
-summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1803535
-apps:
-    sh:
-        command: bin/sh
-layout:
-  /etc/OpenCL/vendors/foo.icd:
-    bind-file: $SNAP/etc/OpenCL/vendors/foo.icd

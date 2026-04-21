@@ -1,6 +1,0 @@
-source lib.exp0
-
-chat "snap delete-key \t" "snap delete-key default"
-
-cancel
-brexit

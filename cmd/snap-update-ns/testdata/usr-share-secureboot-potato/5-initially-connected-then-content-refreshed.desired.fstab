@@ -1,7 +1,0 @@
-# This file is almost the same as 1-initially-connected.desired.fstab, which is good.
-# The only difference, and one that we expect, is the revision of the attached content snap.
-# The revision changes from x1 to x2 as the content is refreshed.
-/snap/test-snapd-layout/x2/attached-content /usr/share/secureboot/potato none rbind,rw,x-snapd.origin=layout 0 0
-# This is the content entry. Notice that it is after the layout but the user
-# expectation is that the content shows up through the layout entry.
-/snap/test-snapd-content/x2 /snap/test-snapd-layout/x2/attached-content none bind,ro 0 0

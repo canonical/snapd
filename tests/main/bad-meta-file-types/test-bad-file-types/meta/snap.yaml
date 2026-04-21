@@ -1,4 +1,0 @@
-name: test-bad-file-types
-base: none
-version: 1.0
-summary: A bad test snap that has non-regular files disguised under meta directory
