@@ -15,11 +15,11 @@ details: |
     aware of the shutdown.
 
 # Run on a system matching the guest container.
-systems: [ubuntu-18.04-64]
+systems: [ubuntu-24.04-64]
 
 prepare: |
     "$TESTSTOOLS"/lxd-state prepare-snap
-    "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image 18.04 --name bionic
+    "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image 24.04 --name bionic
 
     # Install snapd inside the container and then install the core snap so that
     # we get re-execution logic to applies as snapd in the store is more recent
