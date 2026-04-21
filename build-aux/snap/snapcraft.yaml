@@ -189,6 +189,7 @@ parts:
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       mkdir -p "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
       cp -a apparmor.d/abi "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
+      cp -a "${LOCAL_APPARMOR_DIR}"/abi/* "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d/abi"
       cp -a apparmor.d/abstractions "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
       cp -a apparmor.d/tunables "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
     prime:
