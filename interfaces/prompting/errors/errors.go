@@ -114,11 +114,10 @@ func NewRuleLifespanSingleError(supported []string) *UnsupportedValueError {
 	}
 }
 
-func NewEmptyFieldError(field, msg string) *UnsupportedValueError {
+func NewMissingFieldError(field, msg string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field: field,
 		Msg:   msg,
-		Value: []string{""},
 	}
 }
 

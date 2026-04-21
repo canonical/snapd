@@ -817,7 +817,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Matches, `cannot have empty field: "interface"`)
+	c.Check(rspe.Message, Matches, `must have non-empty "interface" field`)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
 
 	// Missing pid
@@ -1775,7 +1775,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
-	c.Check(rspe.Message, Equals, `cannot have empty field: "snap"`)
+	c.Check(rspe.Message, Equals, `must have non-empty "snap" field`)
 
 	// Missing "interface"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add","rule":{"snap":"firefox","interface":"","constraints":{}}}`)))
@@ -1784,7 +1784,7 @@ func (s *promptingSuite) TestPostRulesErrors(c *C) {
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
-	c.Check(rspe.Message, Equals, `cannot have empty field: "interface"`)
+	c.Check(rspe.Message, Equals, `must have non-empty "interface" field`)
 
 	// Missing "selector"
 	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"remove"}`)))

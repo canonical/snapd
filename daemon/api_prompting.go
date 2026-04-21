@@ -398,7 +398,7 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 	}
 
 	if postBody.Interface == "" {
-		return promptingError(prompting_errors.NewEmptyFieldError("interface", `cannot have empty field: "interface"`))
+		return promptingError(prompting_errors.NewMissingFieldError("interface", `must have non-empty "interface" field`))
 	}
 
 	if postBody.PID <= 0 {
@@ -608,13 +608,13 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch postBody.Action {
 	case "add":
 		if postBody.AddRule == nil {
-			return promptingError(prompting_errors.NewEmptyFieldError("rule", `must include "rule" field in request body when action is "add"`))
+			return promptingError(prompting_errors.NewMissingFieldError("rule", `must include "rule" field in request body when action is "add"`))
 		}
 		if postBody.AddRule.Snap == "" {
-			return promptingError(prompting_errors.NewEmptyFieldError("snap", `cannot have empty field: "snap"`))
+			return promptingError(prompting_errors.NewMissingFieldError("snap", `must have non-empty "snap" field`))
 		}
 		if postBody.AddRule.Interface == "" {
-			return promptingError(prompting_errors.NewEmptyFieldError("interface", `cannot have empty field: "interface"`))
+			return promptingError(prompting_errors.NewMissingFieldError("interface", `must have non-empty "interface" field`))
 		}
 		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints)
 		if err != nil {
@@ -623,7 +623,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(newRule)
 	case "remove":
 		if postBody.RemoveSelector == nil {
-			return promptingError(prompting_errors.NewEmptyFieldError("selector", `must include "selector" field in request body when action is "remove"`))
+			return promptingError(prompting_errors.NewMissingFieldError("selector", `must include "selector" field in request body when action is "remove"`))
 		}
 		if postBody.RemoveSelector.Snap == "" && postBody.RemoveSelector.Interface == "" {
 			// XXX: ideally we'd marshal a map[string]invalidFieldValue with
@@ -699,7 +699,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch postBody.Action {
 	case "patch":
 		if postBody.PatchRule == nil {
-			return promptingError(prompting_errors.NewEmptyFieldError("rule", `must include "rule" field in request body when action is "patch"`))
+			return promptingError(prompting_errors.NewMissingFieldError("rule", `must include "rule" field in request body when action is "patch"`))
 		}
 		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints)
 		if err != nil {
