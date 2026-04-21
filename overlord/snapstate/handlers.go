@@ -591,7 +591,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 			FromChange: t.Change().ID(),
 			// setting this lets us use snap update conflict detection, even
 			// though we're passing in the change ID
-			IncludeFromChangeInTaskConflictCheck: true,
+			DoNotIgnoreFromChangeInTaskConflictCheck: true,
 		},
 	})
 	if err != nil {

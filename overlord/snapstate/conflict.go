@@ -263,7 +263,7 @@ func isIrrelevantChange(chg *state.Change, opts ConflictOptions) bool {
 	if chg == nil || chg.IsReady() {
 		return true
 	}
-	if opts.FromChange != "" && chg.ID() == opts.FromChange && !opts.IncludeFromChangeInTaskConflictCheck {
+	if opts.FromChange != "" && chg.ID() == opts.FromChange && !opts.DoNotIgnoreFromChangeInTaskConflictCheck {
 		return true
 	}
 	switch chg.Kind() {

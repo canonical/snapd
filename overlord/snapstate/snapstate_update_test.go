@@ -21028,7 +21028,7 @@ func (s *snapmgrTestSuite) TestUpdateOneIncludeFromChangeInTaskConflictCheckIgno
 	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{InstanceName: "content-provider"})
 	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{
 		UserID:          s.user.ID,
-		ConflictOptions: snapstate.ConflictOptions{FromChange: chg.ID(), IncludeFromChangeInTaskConflictCheck: true},
+		ConflictOptions: snapstate.ConflictOptions{FromChange: chg.ID(), DoNotIgnoreFromChangeInTaskConflictCheck: true},
 	})
 	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Assert(err, ErrorMatches, `snap "content-provider" has "refresh-snap" change in progress`)

@@ -42,11 +42,11 @@ import (
 type ConflictOptions struct {
 	// FromChange is the change that triggered the operation.
 	FromChange string
-	// IncludeFromChangeInTaskConflictCheck makes task-level conflict checks
+	// DoNotIgnoreFromChangeInTaskConflictCheck makes task-level conflict checks
 	// continue to inspect tasks in FromChange while still ignoring FromChange
 	// for exclusive change conflicts. This is for internal use by nested
 	// operations spawned from an existing change.
-	IncludeFromChangeInTaskConflictCheck bool
+	DoNotIgnoreFromChangeInTaskConflictCheck bool
 }
 
 // Options contains optional parameters for the snapstate operations. All of
