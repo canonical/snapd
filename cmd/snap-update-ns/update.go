@@ -70,19 +70,21 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
+	// TODO: NeededChanges could return changes grouped by origin (overname,
+	// non-layout, layout) instead of a flat list, removing the need to
+	// filter by origin in each pass.
 
 	var changesMade []*Change
 	changeErr := make([]error, len(changesNeeded))
 
 	var errContinue = errors.New("continue")
 
-	applyIf := func(
+	applyOnly := func(
 		pred func(c *Change) bool,
-		f func(idx int, c *Change) (extraChangesMade []*Change, err error),
+		f func(idx int, c *Change) (changesMade []*Change, err error),
 	) error {
 		for i, change := range changesNeeded {
 			if !pred(change) {
-				logger.Debugf("skipping %v", change)
 				continue
 			}
 
@@ -106,9 +108,10 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	// 2. Dependencies:
 	// 2.1. overname (parallel installs)
 	//    Mock $SNAP_INSTANCE_NAME -> $SNAP mount, must come before everything else
-	// 2.2. content
-	//    Content from other snaps, make sure to bring it in as soon as possible, as layouts may
-	//    distribute it inside the world view
+	// 2.2. non-layout dependencies
+	//    Everything that is not a layout mount, including content interface mounts
+	//    and host filesystem mounts. Content needs to be brought in early as
+	//    layouts may distribute it inside the world view.
 	// 3. layouts
 	//    Everything else the snap ever wanted
 	//
@@ -117,7 +120,7 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 
 	logger.Debugf("1. pass keep/unmount")
 	// In the first pass we fully apply keep and unmount changes
-	err = applyIf(
+	err = applyOnly(
 		func(c *Change) bool { return c.Action != Mount },
 		func(i int, change *Change) ([]*Change, error) {
 			// Non-mount changes (so unmount or keep) do nothing in
@@ -138,7 +141,7 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	logger.Debugf("2. pass prep")
 	logger.Debugf("2.1. pass prep+apply (overname)")
 	// Keep the invariant that overname (parallel installs mocking) needs to be applied first.
-	err = applyIf(
+	err = applyOnly(
 		func(c *Change) bool {
 			return c.Action == Mount && c.Entry.XSnapdOrigin() == "overname"
 		},
@@ -157,10 +160,11 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 		return err
 	}
 
-	logger.Debugf("2.2.1 pass prep (content)")
-	err = applyIf(
+	logger.Debugf("2.2.1 pass prep (non-layout)")
+	err = applyOnly(
 		func(c *Change) bool {
-			// TODO is this seriously the only way to identify a content mount?
+			// Non-layout entries have no explicit origin set, this includes
+			// content interface mounts and host filesystem mounts.
 			return c.Action == Mount && c.Entry.XSnapdOrigin() == ""
 		},
 		func(i int, change *Change) ([]*Change, error) {
@@ -174,8 +178,8 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 		return err
 	}
 
-	logger.Debugf("2.2.2 pass apply (content)")
-	err = applyIf(
+	logger.Debugf("2.2.2 pass apply (non-layout)")
+	err = applyOnly(
 		func(c *Change) bool {
 			return c.Action == Mount && c.Entry.XSnapdOrigin() == ""
 		},
@@ -199,7 +203,7 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	// In the third and final pass, we perform all the mount changes related to layouts
 	logger.Debugf("3. pass mount")
 	logger.Debugf("3.1 pass prep (layout)")
-	err = applyIf(
+	err = applyOnly(
 		func(c *Change) bool {
 			return c.Action == Mount && c.Entry.XSnapdOrigin() == "layout"
 		},
@@ -215,7 +219,7 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	}
 
 	logger.Debugf("3.2 pass apply (layout)")
-	err = applyIf(
+	err = applyOnly(
 		func(c *Change) bool {
 			return c.Action == Mount && c.Entry.XSnapdOrigin() == "layout"
 		},
