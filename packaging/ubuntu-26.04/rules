@@ -149,11 +149,11 @@ override_dh_installsystemd:
 	# debhelper supporting --remaining like behaviour here would
 	# have been useful
 	# (Re-)start socket first
-	dh_installsystemd $(DH_SYSTEMD_START_OPTS) snapd.socket
+	dh_installsystemd -psnapd $(DH_SYSTEMD_START_OPTS) snapd.socket
 	# Then service
-	dh_installsystemd $(DH_SYSTEMD_START_OPTS) snapd.service
+	dh_installsystemd -psnapd $(DH_SYSTEMD_START_OPTS) snapd.service
 	# Then the rest
-	dh_installsystemd $(DH_SYSTEMD_START_OPTS) \
+	dh_installsystemd -psnapd $(DH_SYSTEMD_START_OPTS) \
 	$(filter-out snapd.socket snapd.service snapd.mounts-pre.target, \
 	$(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
 
