@@ -346,7 +346,7 @@ type addRuleContents struct {
 }
 
 type removeRulesSelector struct {
-	Snap      string `json:"snap"`
+	Snap      string `json:"snap,omitempty"`
 	Interface string `json:"interface,omitempty"`
 }
 
@@ -542,7 +542,10 @@ func postPrompt(c *Command, r *http.Request, user *auth.UserState) Response {
 	var reply postPromptRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&reply); err != nil {
-		return promptingError(fmt.Errorf("cannot decode request body into prompt reply: %w", err))
+		if errors.Is(err, prompting_errors.ErrUnsupportedValue) || errors.Is(err, prompting_errors.ErrParseError) {
+			return promptingError(err)
+		}
+		return BadRequest("cannot decode request body into prompt reply: %v", err)
 	}
 
 	clientActivity := isClientActivity(c, r)
@@ -599,7 +602,7 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	var postBody postRulesRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
-		return promptingError(fmt.Errorf("cannot decode request body for rules endpoint: %w", err))
+		return BadRequest("cannot decode request body for rules endpoint: %v", err)
 	}
 
 	switch postBody.Action {
@@ -690,7 +693,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	var postBody postRuleRequestBody
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&postBody); err != nil {
-		return promptingError(fmt.Errorf("cannot decode request body into request rule modification or deletion: %w", err))
+		return BadRequest("cannot decode request body into request rule modification or deletion: %v", err)
 	}
 
 	switch postBody.Action {

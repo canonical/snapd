@@ -657,6 +657,18 @@ func (s *promptingSuite) TestPromptingError(c *C) {
 				"type":        "error",
 			},
 		},
+		{
+			err: fmt.Errorf("wrapped a handled error: %w", prompting_errors.ErrPromptNotFound),
+			body: map[string]any{
+				"result": map[string]any{
+					"message": fmt.Sprintf("wrapped a handled error: %v", prompting_errors.ErrPromptNotFound.Error()),
+					"kind":    string(client.ErrorKindInterfacesRequestsPromptNotFound),
+				},
+				"status":      "Not Found",
+				"status-code": 404.0,
+				"type":        "error",
+			},
+		},
 	} {
 		apiResp := daemon.PromptingError(testCase.err)
 		jsonResp := apiResp.JSON()
@@ -995,6 +1007,52 @@ func (s *promptingSuite) TestGetPromptsHappy(c *C) {
 	c.Check(prompts, DeepEquals, s.manager.prompts)
 }
 
+func (s *promptingSuite) TestGetPromptsReturnsEmptyList(c *C) {
+	s.daemon(c)
+
+	// Pretend manager returned nil prompts
+	s.manager.prompts = nil
+	rsp := s.makeSyncReq(c, "GET", "/v2/interfaces/requests/prompts", 1000, nil)
+
+	// Daemon remaps nil to empty slice
+	prompts, ok := rsp.Result.([]*requestprompts.Prompt)
+	c.Check(ok, Equals, true)
+	c.Check(prompts, DeepEquals, []*requestprompts.Prompt{})
+}
+
+func (s *promptingSuite) TestGetPromptsErrors(c *C) {
+	s.daemon(c)
+
+	// Can't parse userID
+	req, err := http.NewRequest("GET", "/v2/interfaces/requests/prompts", nil)
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, Equals, "cannot get remote user: no pid/uid found")
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	s.appArmorPromptingRunning = true
+
+	// Prompting closed
+	s.manager.err = prompting_errors.ErrPromptingClosed
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 503)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Equals, prompting_errors.ErrPromptingClosed.Error())
+	s.manager.err = nil
+}
+
 func (s *promptingSuite) makeSyncReq(c *C, method string, path string, uid uint32, data []byte) *daemon.RespJSON {
 	body := &bytes.Reader{}
 	if len(data) > 0 {
@@ -1024,6 +1082,67 @@ func (s *promptingSuite) TestGetPromptHappy(c *C) {
 	prompt, ok := rsp.Result.(*requestprompts.Prompt)
 	c.Check(ok, Equals, true)
 	c.Check(prompt, DeepEquals, s.manager.prompt)
+}
+
+func (s *promptingSuite) TestGetPromptErrors(c *C) {
+	s.daemon(c)
+
+	// Can't parse userID
+	req, err := http.NewRequest("GET", "/v2/interfaces/requests/prompts/0123456789ABCDEF", nil)
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, Equals, "cannot get remote user: no pid/uid found")
+
+	// Can't parse prompt ID
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts/not-a-valid-id", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 404)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsPromptNotFound)
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts/0123456789ABCDEF", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	s.appArmorPromptingRunning = true
+
+	// Errors from manager
+	for _, testCase := range []struct {
+		err          error
+		expectedCode int
+		expectedKind client.ErrorKind
+		expectedMsg  string
+	}{
+		{
+			err:          prompting_errors.ErrPromptNotFound,
+			expectedCode: 404,
+			expectedKind: client.ErrorKindInterfacesRequestsPromptNotFound,
+			expectedMsg:  prompting_errors.ErrPromptNotFound.Error(),
+		},
+		{
+			err:          prompting_errors.ErrPromptingClosed,
+			expectedCode: 503,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrPromptingClosed.Error(),
+		},
+	} {
+		s.manager.err = testCase.err
+		req, err = http.NewRequest("GET", "/v2/interfaces/requests/prompts/0123456789ABCDEF", nil)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		rspe = s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rspe.Status, Equals, testCase.expectedCode)
+		c.Check(rspe.Kind, Equals, testCase.expectedKind)
+		c.Check(rspe.Message, Equals, testCase.expectedMsg)
+		s.manager.err = nil
+	}
 }
 
 func (s *promptingSuite) TestPostPromptHappy(c *C) {
@@ -1110,6 +1229,224 @@ func (s *promptingSuite) TestPostPromptDenyHappy(c *C) {
 	c.Check(satisfiedIDs, DeepEquals, s.manager.satisfiedIDs)
 }
 
+func (s *promptingSuite) TestPostPromptReturnsEmptyList(c *C) {
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
+
+	s.daemon(c)
+
+	constraintsJSON := prompting.ConstraintsJSON{
+		"path-pattern": json.RawMessage(`"/home/test/Pictures/**/*.{png,svg}"`),
+		"permissions":  json.RawMessage(`["read","execute"]`),
+	}
+	contents := &daemon.PostPromptRequestBody{
+		Outcome:     prompting.OutcomeAllow,
+		Lifespan:    prompting.LifespanTimespan,
+		Duration:    "10m",
+		Constraints: constraintsJSON,
+	}
+	marshalled, err := json.Marshal(contents)
+	c.Assert(err, IsNil)
+
+	// Pretend manager returned nil satisfiedIDs
+	s.manager.satisfiedIDs = nil
+	rsp := s.makeSyncReq(c, "POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", 1000, marshalled)
+
+	// Daemon remaps nil to empty slice
+	satisfiedIDs, ok := rsp.Result.([]prompting.IDType)
+	c.Check(ok, Equals, true)
+	c.Check(satisfiedIDs, DeepEquals, []prompting.IDType{})
+}
+
+func (s *promptingSuite) TestPostPromptErrors(c *C) {
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
+	s.daemon(c)
+
+	validBody := []byte(`{"action":"allow","lifespan":"timespan","duration":"10m","constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,svg}","permissions":["read","execute"]}}`)
+
+	// Can't parse userID
+	req, err := http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader(validBody))
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, testutil.Contains, "cannot get remote user")
+
+	// Can't parse prompt ID
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/not-a-valid-id", bytes.NewReader(validBody))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 404)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsPromptNotFound)
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader(validBody))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	s.appArmorPromptingRunning = true
+
+	// Bad json
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader([]byte(`{"action":"allow"`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Matches, "cannot decode request body into prompt reply:.*")
+
+	// Decode body error
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader([]byte(`{"action":"allow","lifespan":10,"constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,svg}","permissions":["read","execute"]}}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Matches, "cannot decode request body into prompt reply:.*cannot unmarshal number into Go struct field.*")
+
+	// Invalid outcome (action) or lifespan
+	for _, testCase := range []struct {
+		body         []byte
+		actionKnown  actionExpectedBool
+		expectedCode int
+		expectedKind client.ErrorKind
+		expectedMsg  string
+	}{
+		{
+			body:         []byte(`{"action":"foo","lifespan":"timespan","duration":"10m","constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,svg}","permissions":["read","execute"]}}`),
+			actionKnown:  actionIsUnexpected,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid outcome: "foo"`,
+		},
+		{
+			body:         []byte(`{"action":"","lifespan":"timespan","duration":"10m","constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,svg}","permissions":["read","execute"]}}`),
+			actionKnown:  actionIsUnexpected,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid outcome: ""`,
+		},
+		{
+			body:         []byte(`{"action":"allow","lifespan":"foo","duration":"10m","constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,svg}","permissions":["read","execute"]}}`),
+			actionKnown:  actionIsExpected,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid lifespan: "foo"`,
+		},
+		{
+			body:         []byte(`{"action":"allow","lifespan":"","duration":"10m","constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,svg}","permissions":["read","execute"]}}`),
+			actionKnown:  actionIsExpected,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid lifespan: ""`,
+		},
+	} {
+		req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader(testCase.body))
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		rspe = s.errorReq(c, req, nil, testCase.actionKnown)
+		c.Check(rspe.Status, Equals, testCase.expectedCode)
+		c.Check(rspe.Kind, Equals, testCase.expectedKind)
+		c.Check(rspe.Message, Equals, testCase.expectedMsg)
+	}
+
+	// Errors from manager
+	for _, testCase := range []struct {
+		err          error
+		expectedCode int
+		expectedKind client.ErrorKind
+		expectedMsg  string
+	}{
+		{
+			err:          prompting_errors.ErrPromptNotFound,
+			expectedCode: 404,
+			expectedKind: client.ErrorKindInterfacesRequestsPromptNotFound,
+			expectedMsg:  prompting_errors.ErrPromptNotFound.Error(),
+		},
+		{
+			err:          prompting_errors.NewInvalidDurationError("foo", "cannot parse duration"),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid duration: cannot parse duration: "foo"`,
+		},
+		{
+			err:          prompting_errors.NewInvalidPathPatternError("foo", "must start with '/'"),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid path pattern: must start with '/': "foo"`,
+		},
+		{
+			err:          prompting_errors.NewInvalidPermissionsError("home", []string{"foo"}, []string{"read", "write", "execute"}),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid permissions for home interface: "foo"`,
+		},
+		{
+			err:          prompting_errors.NewPermissionsEmptyError("home", []string{"read", "write", "execute"}),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid permissions for home interface: permissions empty`,
+		},
+		{
+			err: &prompting_errors.RequestedPathNotMatchedError{
+				Requested: "foo",
+				Replied:   "bar",
+			},
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsReplyNotMatchRequest,
+			expectedMsg:  fmt.Sprintf(`%v "foo": "bar"`, prompting_errors.ErrReplyNotMatchRequestedPath),
+		},
+		{
+			err: &prompting_errors.RequestedPermissionsNotMatchedError{
+				Requested: []string{"foo", "bar"},
+				Replied:   []string{"fizz"},
+			},
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsReplyNotMatchRequest,
+			expectedMsg:  fmt.Sprintf(`%v [foo bar]: [fizz]`, prompting_errors.ErrReplyNotMatchRequestedPermissions),
+		},
+		{
+			err: &prompting_errors.RuleConflictError{Conflicts: []prompting_errors.RuleConflict{
+				{Permission: "read", Variant: "/path/to/conflict", ConflictingID: "DEADBEEFDEADBEEF"},
+			}},
+			expectedCode: 409,
+			expectedKind: client.ErrorKindInterfacesRequestsRuleConflict,
+			expectedMsg:  prompting_errors.ErrRuleConflict.Error(),
+		},
+		{
+			err:          prompting_errors.ErrNewSessionRuleNoSession,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsNewSessionRuleNoSession,
+			expectedMsg:  prompting_errors.ErrNewSessionRuleNoSession.Error(),
+		},
+		{
+			err:          prompting_errors.ErrRuleDBInconsistent,
+			expectedCode: 500,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrRuleDBInconsistent.Error(),
+		},
+		{
+			err:          prompting_errors.ErrPromptingClosed,
+			expectedCode: 503,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrPromptingClosed.Error(),
+		},
+	} {
+		s.manager.err = testCase.err
+		req, err = http.NewRequest("POST", "/v2/interfaces/requests/prompts/0123456789ABCDEF", bytes.NewReader(validBody))
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		rspe = s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rspe.Status, Equals, testCase.expectedCode)
+		c.Check(rspe.Kind, Equals, testCase.expectedKind)
+		c.Check(rspe.Message, Equals, testCase.expectedMsg)
+		s.manager.err = nil
+	}
+}
+
 func mustParsePathPattern(c *C, pattern string) *patterns.PathPattern {
 	parsed, err := patterns.ParsePathPattern(pattern)
 	c.Assert(err, IsNil)
@@ -1182,6 +1519,52 @@ func (s *promptingSuite) TestGetRulesHappy(c *C) {
 		c.Check(ok, Equals, true)
 		c.Check(rules, DeepEquals, s.manager.rules)
 	}
+}
+
+func (s *promptingSuite) TestGetRulesReturnsEmptyList(c *C) {
+	s.daemon(c)
+
+	// Pretend manager returned nil rules
+	s.manager.rules = nil
+	rsp := s.makeSyncReq(c, "GET", "/v2/interfaces/requests/rules", 1234, nil)
+
+	// Daemon remaps nil to empty slice
+	rules, ok := rsp.Result.([]*requestrules.Rule)
+	c.Check(ok, Equals, true)
+	c.Check(rules, DeepEquals, []*requestrules.Rule{})
+}
+
+func (s *promptingSuite) TestGetRulesErrors(c *C) {
+	s.daemon(c)
+
+	// Can't parse userID
+	req, err := http.NewRequest("GET", "/v2/interfaces/requests/rules", nil)
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, testutil.Contains, "cannot get remote user")
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	s.appArmorPromptingRunning = true
+
+	// Error from manager
+	s.manager.err = fmt.Errorf("something went wrong")
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Equals, "something went wrong")
+	s.manager.err = nil
 }
 
 func (s *promptingSuite) TestPostRulesAddHappy(c *C) {
@@ -1333,6 +1716,166 @@ func (s *promptingSuite) TestPostRulesRemoveHappy(c *C) {
 	}
 }
 
+func (s *promptingSuite) TestPostRulesErrors(c *C) {
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
+	s.daemon(c)
+
+	validAddBody := []byte(`{"action":"add","rule":{"snap":"thunderbird","interface":"home","constraints":{"path-pattern":"/home/test/{foo,bar,baz}/**/*.{png,svg}","permissions":{"read":{"outcome":"allow","lifespan":"forever"}}}}}`)
+	validRemoveBody := []byte(`{"action":"remove","selector":{"snap":"thunderbird"}}`)
+
+	// Can't parse userID
+	req, err := http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader(validAddBody))
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, testutil.Contains, "cannot get remote user")
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader(validAddBody))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	s.appArmorPromptingRunning = true
+
+	// Bad json
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add"`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Matches, "cannot decode request body for rules endpoint:.*")
+
+	// Decode body error
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add","rule":"0123456789ABCDEF"}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Matches, "cannot decode request body for rules endpoint:.*cannot unmarshal string into Go struct field.*")
+
+	// Missing "rule"
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add"}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
+	c.Check(rspe.Message, Equals, `must include "rule" field in request body when action is "add"`)
+
+	// Missing "snap"
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add","rule":{"snap":"","interface":"home","constraints":{}}}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
+	c.Check(rspe.Message, Equals, `cannot have empty field: "snap"`)
+
+	// Missing "interface"
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"add","rule":{"snap":"firefox","interface":"","constraints":{}}}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
+	c.Check(rspe.Message, Equals, `cannot have empty field: "interface"`)
+
+	// Missing "selector"
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"remove"}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
+	c.Check(rspe.Message, Equals, `must include "selector" field in request body when action is "remove"`)
+
+	// Missing "snap" and "interface"
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader([]byte(`{"action":"remove","selector":{"snap":"","interface":""}}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Equals, `must include "snap" and/or "interface" field in "selector"`)
+
+	// Errors from manager
+	for _, testCase := range []struct {
+		body         []byte
+		err          error
+		expectedCode int
+		expectedKind client.ErrorKind
+		expectedMsg  string
+	}{
+		{
+			body:         validAddBody,
+			err:          prompting_errors.NewInvalidPathPatternError("foo", "must start with '/'"),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid path pattern: must start with '/': "foo"`,
+		},
+		{
+			body:         validAddBody,
+			err:          prompting_errors.NewInvalidPermissionsError("home", []string{"foo"}, []string{"read", "write", "execute"}),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid permissions for home interface: "foo"`,
+		},
+		{
+			body:         validAddBody,
+			err:          prompting_errors.NewPermissionsEmptyError("home", []string{"read", "write", "execute"}),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid permissions for home interface: permissions empty`,
+		},
+		{
+			body: validAddBody,
+			err: &prompting_errors.RuleConflictError{Conflicts: []prompting_errors.RuleConflict{
+				{Permission: "read", Variant: "v1", ConflictingID: "abcd"},
+			}},
+			expectedCode: 409,
+			expectedKind: client.ErrorKindInterfacesRequestsRuleConflict,
+			expectedMsg:  prompting_errors.ErrRuleConflict.Error(),
+		},
+		{
+			body:         validAddBody,
+			err:          prompting_errors.ErrNewSessionRuleNoSession,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsNewSessionRuleNoSession,
+			expectedMsg:  prompting_errors.ErrNewSessionRuleNoSession.Error(),
+		},
+		{
+			body:         validAddBody,
+			err:          prompting_errors.ErrRuleDBInconsistent,
+			expectedCode: 500,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrRuleDBInconsistent.Error(),
+		},
+		{
+			body:         validRemoveBody,
+			err:          prompting_errors.ErrPromptingClosed,
+			expectedCode: 503,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrPromptingClosed.Error(),
+		},
+	} {
+		s.manager.err = testCase.err
+		req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules", bytes.NewReader(testCase.body))
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		rspe = s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rspe.Status, Equals, testCase.expectedCode)
+		c.Check(rspe.Kind, Equals, testCase.expectedKind)
+		c.Check(rspe.Message, Equals, testCase.expectedMsg)
+		s.manager.err = nil
+	}
+}
+
 func (s *promptingSuite) TestGetRuleHappy(c *C) {
 	s.daemon(c)
 
@@ -1366,6 +1909,79 @@ func (s *promptingSuite) TestGetRuleHappy(c *C) {
 	rule, ok := rsp.Result.(*requestrules.Rule)
 	c.Check(ok, Equals, true)
 	c.Check(rule, DeepEquals, s.manager.rule)
+}
+
+func (s *promptingSuite) TestGetRuleErrors(c *C) {
+	s.daemon(c)
+
+	// Can't parse userID
+	req, err := http.NewRequest("GET", "/v2/interfaces/requests/rules/000000000000012B", nil)
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, testutil.Contains, "cannot get remote user")
+
+	// Can't parse rule ID
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules/not-a-valid-id", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 404)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsRuleNotFound)
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules/000000000000012B", nil)
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	s.appArmorPromptingRunning = true
+
+	// Errors from manager
+	for _, testCase := range []struct {
+		err          error
+		expectedCode int
+		expectedKind client.ErrorKind
+		expectedMsg  string
+	}{
+		{
+			err:          prompting_errors.ErrRuleNotAllowed,
+			expectedCode: 404,
+			expectedKind: client.ErrorKindInterfacesRequestsRuleNotFound,
+			expectedMsg:  prompting_errors.ErrRuleNotAllowed.Error(),
+		},
+		{
+			err:          prompting_errors.ErrRuleNotFound,
+			expectedCode: 404,
+			expectedKind: client.ErrorKindInterfacesRequestsRuleNotFound,
+			expectedMsg:  prompting_errors.ErrRuleNotFound.Error(),
+		},
+		{
+			err:          prompting_errors.ErrRuleDBInconsistent,
+			expectedCode: 500,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrRuleDBInconsistent.Error(),
+		},
+		{
+			err:          prompting_errors.ErrPromptingClosed,
+			expectedCode: 503,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrPromptingClosed.Error(),
+		},
+	} {
+		s.manager.err = testCase.err
+		req, err = http.NewRequest("GET", "/v2/interfaces/requests/rules/000000000000012B", nil)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		rspe = s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rspe.Status, Equals, testCase.expectedCode)
+		c.Check(rspe.Kind, Equals, testCase.expectedKind)
+		c.Check(rspe.Message, Equals, testCase.expectedMsg)
+		s.manager.err = nil
+	}
 }
 
 func (s *promptingSuite) TestPostRulePatchHappy(c *C) {
@@ -1465,4 +2081,157 @@ func (s *promptingSuite) TestPostRuleRemoveHappy(c *C) {
 	rule, ok := rsp.Result.(*requestrules.Rule)
 	c.Check(ok, Equals, true)
 	c.Check(rule, DeepEquals, s.manager.rule)
+}
+
+func (s *promptingSuite) TestPostRuleErrors(c *C) {
+	s.expectWriteAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control"}})
+	s.daemon(c)
+
+	validPatchBody := []byte(`{"action":"patch","rule":{"constraints":{"path-pattern":"/home/test/Pictures/**/*.{png,jpg}","permissions":{"read":{"outcome":"allow","lifespan":"forever"}}}}}`)
+	validRemoveBody := []byte(`{"action":"remove"}`)
+
+	// Can't parse userID
+	req, err := http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader(validPatchBody))
+	c.Assert(err, IsNil)
+	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 403)
+	c.Check(rspe.Message, testutil.Contains, "cannot get remote user")
+
+	// Can't parse rule ID
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/not-a-valid-id", bytes.NewReader(validPatchBody))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 404)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsRuleNotFound)
+
+	// Prompting not running
+	s.appArmorPromptingRunning = false
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader(validPatchBody))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 500)
+	c.Check(rspe.Kind, Equals, client.ErrorKindAppArmorPromptingNotRunning)
+	c.Check(rspe.Message, Equals, "AppArmor Prompting is not running")
+	s.appArmorPromptingRunning = true
+
+	// Bad json
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader([]byte(`{"action":"patch"`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Matches, "cannot decode request body into request rule modification or deletion:.*")
+
+	// Decode body error
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader([]byte(`{"action":"patch","rule":"0000001123581321"}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
+	c.Check(rspe.Message, Matches, "cannot decode request body into request rule modification or deletion:.*cannot unmarshal string into Go struct field.*")
+
+	// Missing "rule"
+	req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader([]byte(`{"action":"patch"}`)))
+	c.Assert(err, IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	rspe = s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rspe.Status, Equals, 400)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
+	c.Check(rspe.Message, Equals, `must include "rule" field in request body when action is "patch"`)
+
+	// Errors from manager
+	for _, testCase := range []struct {
+		body         []byte
+		err          error
+		expectedCode int
+		expectedKind client.ErrorKind
+		expectedMsg  string
+	}{
+		{
+			body:         validPatchBody,
+			err:          prompting_errors.NewInvalidPathPatternError("foo", "must start with '/'"),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid path pattern: must start with '/': "foo"`,
+		},
+		{
+			body:         validPatchBody,
+			err:          prompting_errors.NewInvalidPermissionsError("home", []string{"foo"}, []string{"read", "write", "execute"}),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid permissions for home interface: "foo"`,
+		},
+		{
+			body:         validPatchBody,
+			err:          prompting_errors.NewPermissionsEmptyError("home", []string{"read", "write", "execute"}),
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsInvalidFields,
+			expectedMsg:  `invalid permissions for home interface: permissions empty`,
+		},
+		{
+			body:         validPatchBody,
+			err:          prompting_errors.ErrPatchedRuleHasNoPerms,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsPatchedRuleHasNoPermissions,
+			expectedMsg:  prompting_errors.ErrPatchedRuleHasNoPerms.Error(),
+		},
+		{
+			body: validPatchBody,
+			err: &prompting_errors.RuleConflictError{Conflicts: []prompting_errors.RuleConflict{
+				{Permission: "read", Variant: "v1", ConflictingID: "abcd"},
+			}},
+			expectedCode: 409,
+			expectedKind: client.ErrorKindInterfacesRequestsRuleConflict,
+			expectedMsg:  prompting_errors.ErrRuleConflict.Error(),
+		},
+		{
+			body:         validPatchBody,
+			err:          prompting_errors.ErrNewSessionRuleNoSession,
+			expectedCode: 400,
+			expectedKind: client.ErrorKindInterfacesRequestsNewSessionRuleNoSession,
+			expectedMsg:  prompting_errors.ErrNewSessionRuleNoSession.Error(),
+		},
+		{
+			body:         validPatchBody,
+			err:          prompting_errors.ErrRuleDBInconsistent,
+			expectedCode: 500,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrRuleDBInconsistent.Error(),
+		},
+		{
+			body:         validPatchBody,
+			err:          prompting_errors.ErrPromptingClosed,
+			expectedCode: 503,
+			expectedKind: client.ErrorKind(""),
+			expectedMsg:  prompting_errors.ErrPromptingClosed.Error(),
+		},
+		{
+			body:         validRemoveBody,
+			err:          prompting_errors.ErrRuleNotAllowed,
+			expectedCode: 404,
+			expectedKind: client.ErrorKindInterfacesRequestsRuleNotFound,
+			expectedMsg:  prompting_errors.ErrRuleNotAllowed.Error(),
+		},
+		{
+			body:         validRemoveBody,
+			err:          prompting_errors.ErrRuleNotFound,
+			expectedCode: 404,
+			expectedKind: client.ErrorKindInterfacesRequestsRuleNotFound,
+			expectedMsg:  prompting_errors.ErrRuleNotFound.Error(),
+		},
+	} {
+		s.manager.err = testCase.err
+		req, err = http.NewRequest("POST", "/v2/interfaces/requests/rules/0000001123581321", bytes.NewReader(testCase.body))
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+		rspe = s.errorReq(c, req, nil, actionIsExpected)
+		c.Check(rspe.Status, Equals, testCase.expectedCode)
+		c.Check(rspe.Kind, Equals, testCase.expectedKind)
+		c.Check(rspe.Message, Equals, testCase.expectedMsg)
+		s.manager.err = nil
+	}
 }
