@@ -80,6 +80,71 @@ import (
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
 
+type observedSeedRefreshCandidates struct {
+	initial       [][]snapstate.SeedRefreshCandidate
+	prerequisites []snapstate.SeedRefreshCandidate
+}
+
+func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, func()) {
+	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
+	oldUpdateSeedRefreshChange := snapstate.UpdateSeedRefreshChange
+	triggered := make(map[string]bool, len(triggers))
+	for _, instanceName := range triggers {
+		triggered[instanceName] = true
+	}
+
+	var observed observedSeedRefreshCandidates
+	var currentSeedTS *snapstate.SeedRefreshTaskSet
+
+	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+		observed.initial = append(observed.initial, candidates)
+
+		added := make(map[string]bool, len(candidates))
+		for _, candidate := range candidates {
+			if !triggered[candidate.InstanceName] {
+				continue
+			}
+
+			added[candidate.InstanceName] = true
+		}
+		if len(added) == 0 {
+			return nil, nil, nil
+		}
+
+		create := st.NewTask("create-recovery-system", "Create recovery system")
+		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
+
+		finalize := st.NewTask("finalize-recovery-system", "Finalize recovery system")
+		finalize.WaitFor(create)
+		finalize.Set("recovery-system-setup-task", create.ID())
+
+		currentSeedTS = &snapstate.SeedRefreshTaskSet{
+			Create:   create,
+			Finalize: finalize,
+		}
+		return currentSeedTS, added, nil
+	}
+
+	snapstate.UpdateSeedRefreshChange = func(chg *state.Change, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
+		observed.prerequisites = append(observed.prerequisites, candidate)
+
+		if !triggered[candidate.InstanceName] {
+			return nil, nil
+		}
+
+		if currentSeedTS == nil {
+			return nil, fmt.Errorf("missing recovery-system tasks")
+		}
+
+		return currentSeedTS, nil
+	}
+
+	return &observed, func() {
+		snapstate.SeedRefreshTasks = oldSeedRefreshTasks
+		snapstate.UpdateSeedRefreshChange = oldUpdateSeedRefreshChange
+	}
+}
+
 type snapmgrBaseTest struct {
 	testutil.BaseTest
 	o       *overlord.Overlord
@@ -227,8 +292,6 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
-	oldCreateRecoverySystemTasks := snapstate.SeedRefreshTasks
-	oldAppendSeedRefreshSetupTaskIDs := snapstate.AppendSeedRefreshSetupTaskIDs
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupInstallComponentHook = hookstate.SetupInstallComponentHook
 	snapstate.SetupPostRefreshComponentHook = hookstate.SetupPostRefreshComponentHook
@@ -238,37 +301,10 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
-	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
-		create := st.NewTask("create-recovery-system", "Create recovery system")
-		create.Set("recovery-system-setup", map[string]any{
-			"snap-setup-tasks":      snapSetupTasks,
-			"component-setup-tasks": compSetupTasks,
-		})
+	_, restore := mockSeedRefreshHooks(nil)
+	s.AddCleanup(restore)
 
-		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
-
-		finalize := st.NewTask("finalize-recovery-system", "Finalize recovery system")
-		finalize.WaitFor(create)
-		finalize.Set("recovery-system-setup-task", create.ID())
-
-		return &snapstate.SeedRefreshTaskSet{
-			Create:   create,
-			Finalize: finalize,
-		}, nil
-	}
-	snapstate.AppendSeedRefreshSetupTaskIDs = func(create *state.Task, snapSetupTask string, compSetupTasks []string) error {
-		var setup map[string][]string
-		if err := create.Get("recovery-system-setup", &setup); err != nil {
-			return err
-		}
-
-		setup["snap-setup-tasks"] = append(setup["snap-setup-tasks"], snapSetupTask)
-		setup["component-setup-tasks"] = append(setup["component-setup-tasks"], compSetupTasks...)
-		create.Set("recovery-system-setup", setup)
-		return nil
-	}
-
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+	restore = snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
 		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
@@ -313,8 +349,6 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
 		snapstate.EnsureSnapAbsentFromQuotaGroup = oldEnsureSnapAbsentFromQuotaGroup
-		snapstate.SeedRefreshTasks = oldCreateRecoverySystemTasks
-		snapstate.AppendSeedRefreshSetupTaskIDs = oldAppendSeedRefreshSetupTaskIDs
 
 		dirs.SetRootDir("/")
 	})
