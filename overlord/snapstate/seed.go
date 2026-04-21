@@ -51,6 +51,19 @@ func seedRefreshEnabled(st *state.State) (bool, error) {
 	return seedRefresh, nil
 }
 
+func changeHasPendingSeedRefresh(chg *state.Change) bool {
+	for _, t := range chg.Tasks() {
+		switch t.Kind() {
+		case "create-recovery-system", "finalize-recovery-system":
+			if !t.Status().Ready() {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // seedRefreshAndSeedSnapTaskSets returns the seed-refresh tasks and the task
 // sets for snaps that are involved in the seed refresh.
 func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
@@ -63,9 +76,9 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 		return nil, nil, nil
 	}
 
-	// if the tasks here are being created from within a change that is already
-	// creating a recovery system, then we don't want to create another one.
-	if chg := st.Change(opts.FromChange); chg != nil && changeCreatesRecoverySystem(chg) {
+	// if the tasks here are being created from within a change that is still
+	// performing a seed refresh, then we don't want to create another one.
+	if chg := st.Change(opts.FromChange); chg != nil && changeHasPendingSeedRefresh(chg) {
 		return nil, nil, nil
 	}
 
