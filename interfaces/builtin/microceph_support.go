@@ -54,6 +54,8 @@ const microcephSupportConnectedPlugAppArmor = `
 /sys/bus/rbd/supported_features r,                         # display enabled features
 /sys/bus/rbd/devices/** rwk,                               # manage individual block devs
 
+# Avoid logging known attempts calling sudo
+deny /usr/bin/sudo x,
 `
 
 func init() {
