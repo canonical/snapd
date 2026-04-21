@@ -389,20 +389,31 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 	case "ask":
 		// all good
 	default:
-		return BadRequest(`"action" field must be "ask"`)
+		return promptingError(&prompting_errors.UnsupportedValueError{
+			Field:     "action",
+			Msg:       `"action" field must be "ask"`,
+			Value:     []string{postBody.Action},
+			Supported: []string{"ask"},
+		})
 	}
 
 	if postBody.Interface == "" {
-		return BadRequest(`"interface" field must be non-empty`)
+		return promptingError(prompting_errors.NewEmptyFieldError("interface", `cannot have empty field: "interface"`))
 	}
 
 	if postBody.PID <= 0 {
-		return BadRequest(`"pid" field must be a positive integer`)
+		return promptingError(&prompting_errors.UnsupportedValueError{
+			Field: "pid",
+			Msg:   `"pid" field must be a positive integer`,
+			Value: []string{fmt.Sprintf("%d", postBody.PID)},
+		})
 	}
 
 	// TODO: validate that the request originator has permission to query for
 	// this interface. E.g. if originator is WirePlumber, it may query for the
 	// "audio-record" interface.
+	// If it doesn't have permission, use prompting_errors.NewInvalidInterfaceError
+	// with `supported` set according to the requester.
 
 	cgroupPath, err := cgroupProcessPathInTrackingCgroup(int(postBody.PID))
 	if err != nil {
@@ -594,7 +605,13 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch postBody.Action {
 	case "add":
 		if postBody.AddRule == nil {
-			return BadRequest(`must include "rule" field in request body when action is "add"`)
+			return promptingError(prompting_errors.NewEmptyFieldError("rule", `must include "rule" field in request body when action is "add"`))
+		}
+		if postBody.AddRule.Snap == "" {
+			return promptingError(prompting_errors.NewEmptyFieldError("snap", `cannot have empty field: "snap"`))
+		}
+		if postBody.AddRule.Interface == "" {
+			return promptingError(prompting_errors.NewEmptyFieldError("interface", `cannot have empty field: "interface"`))
 		}
 		newRule, err := getInterfaceManager(c).InterfacesRequestsManager().AddRule(userID, postBody.AddRule.Snap, postBody.AddRule.Interface, postBody.AddRule.Constraints)
 		if err != nil {
@@ -603,9 +620,12 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(newRule)
 	case "remove":
 		if postBody.RemoveSelector == nil {
-			return BadRequest(`must include "selector" field in request body when action is "remove"`)
+			return promptingError(prompting_errors.NewEmptyFieldError("selector", `must include "selector" field in request body when action is "remove"`))
 		}
 		if postBody.RemoveSelector.Snap == "" && postBody.RemoveSelector.Interface == "" {
+			// XXX: ideally we'd marshal a map[string]invalidFieldValue with
+			// more than one field field name, but don't yet have the setup to
+			// do so.
 			return BadRequest(`must include "snap" and/or "interface" field in "selector"`)
 		}
 		removedRules, err := getInterfaceManager(c).InterfacesRequestsManager().RemoveRules(userID, postBody.RemoveSelector.Snap, postBody.RemoveSelector.Interface)
@@ -614,7 +634,12 @@ func postRules(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return SyncResponse(removedRules)
 	default:
-		return BadRequest(`"action" field must be "create" or "remove"`)
+		return promptingError(&prompting_errors.UnsupportedValueError{
+			Field:     "action",
+			Msg:       `"action" field must be "add" or "remove"`,
+			Value:     []string{postBody.Action},
+			Supported: []string{"add", "remove"},
+		})
 	}
 }
 
@@ -638,7 +663,7 @@ func getRule(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	rule, err := getInterfaceManager(c).InterfacesRequestsManager().RuleWithID(userID, ruleID)
 	if err != nil {
-		return NotFound("%v", err)
+		return promptingError(err)
 	}
 
 	return SyncResponse(rule)
@@ -671,7 +696,7 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch postBody.Action {
 	case "patch":
 		if postBody.PatchRule == nil {
-			return BadRequest(`must include "rule" field in request body when action is "patch"`)
+			return promptingError(prompting_errors.NewEmptyFieldError("rule", `must include "rule" field in request body when action is "patch"`))
 		}
 		patchedRule, err := getInterfaceManager(c).InterfacesRequestsManager().PatchRule(userID, ruleID, postBody.PatchRule.Constraints)
 		if err != nil {
@@ -685,6 +710,11 @@ func postRule(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return SyncResponse(removedRule)
 	default:
-		return BadRequest(`action must be "add" or "remove"`)
+		return promptingError(&prompting_errors.UnsupportedValueError{
+			Field:     "action",
+			Msg:       `"action" field must be "patch" or "remove"`,
+			Value:     []string{postBody.Action},
+			Supported: []string{"patch", "remove"},
+		})
 	}
 }

@@ -805,7 +805,8 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Matches, `"interface" field must be non-empty`)
+	c.Check(rspe.Message, Matches, `cannot have empty field: "interface"`)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
 
 	// Missing pid
 	badBody = bytes.NewReader([]byte(`{"action": "ask", "interface": "audio-record"}`))
@@ -815,6 +816,7 @@ func (s *promptingSuite) TestPostInterfacesRequestsErrors(c *C) {
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Message, Matches, `"pid" field must be a positive integer`)
+	c.Check(rspe.Kind, Equals, client.ErrorKindInterfacesRequestsInvalidFields)
 
 	// Can't find cgroup
 	restore = daemon.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {

@@ -114,6 +114,14 @@ func NewRuleLifespanSingleError(supported []string) *UnsupportedValueError {
 	}
 }
 
+func NewEmptyFieldError(field, msg string) *UnsupportedValueError {
+	return &UnsupportedValueError{
+		Field: field,
+		Msg:   msg,
+		Value: []string{""},
+	}
+}
+
 func NewInvalidInterfaceError(unsupported string, supported []string) *UnsupportedValueError {
 	return &UnsupportedValueError{
 		Field:     "interface",
