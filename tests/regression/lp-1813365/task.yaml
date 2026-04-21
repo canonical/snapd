@@ -30,5 +30,5 @@ restore: |
     rm -f /tmp/logger.log
 
 execute: |
-    su -l -c "$(pwd)/helper" test
+    su -l -c "PATH=\$PATH:/usr/lib/python $(pwd)/helper" test
     not test -e /tmp/logger.log
