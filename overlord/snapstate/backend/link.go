@@ -254,13 +254,15 @@ func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap
 		// Register the undo before stopping so that services are
 		// started again even when StopServices fails partway through
 		// (some services stopped, then an error on a later one).
-		// StartServices filters out disabled services, so only
-		// previously enabled services will be started again.
 		undoer.AddUndo(func() error {
+			// Services need to be sorted according to their Before
+			// and After requirements
 			startupOrdered, err := snap.SortServices(apps)
 			if err != nil {
 				return fmt.Errorf("cannot sort services for undo: %v", err)
 			}
+			// StartServices filters out disabled services, so only
+			// previously enabled services will be started again.
 			return b.StartServices(startupOrdered, disabledSvcs, meter, tm)
 		})
 	}
