@@ -48,6 +48,8 @@ var (
 	snapstateRemoveComponents  = snapstate.RemoveComponents
 )
 
+var timeAfter = time.After
+
 var (
 	serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
 	snapctlInstallChangeKind = swfeats.RegisterChangeKind("snapctl-install")
@@ -60,6 +62,8 @@ func init() {
 		finalTasks[kind] = true
 	}
 }
+
+const snapctlDebounceWindow = 200 * time.Millisecond
 
 // finalSeedTask is the last task that should run during seeding. This is used
 // in the special handling of the "seed" change, which requires that we
@@ -451,6 +455,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 	chg := st.NewChange(changeKind,
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
+	chg.Set("initiated-by-snap", hctx.InstanceName())
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
@@ -489,6 +494,140 @@ func jsonRaw(v any) *json.RawMessage {
 	}
 	raw := json.RawMessage(data)
 	return &raw
+}
+
+type changeRateLimitKey struct {
+	ChangeID string
+}
+
+// isReady checks if the change is ready, if it is, it returns the status, otherwise state.DoingStatus.
+func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
+	callerSnapName := hctx.InstanceName()
+
+	st := hctx.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(changeID)
+
+	if chg == nil {
+		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+	}
+
+	var initiatorSnapName string
+	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	if err != nil {
+		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+	}
+
+	if initiatorSnapName != callerSnapName {
+		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+	}
+
+	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
+	if err != nil {
+		return state.DefaultStatus, err
+	}
+
+	return unlockAndWaitForStatus(st, chg, wait), nil
+}
+
+// unlockAndWaitForStatus unlocks the state and waits for the change to be ready.
+// The lock must be held prior to calling, and will be re-acquired before returning.
+// Returns doingStatus if the change is still in progress, otherwise returns the final
+// status of the change.
+func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Duration) state.Status {
+	st.Unlock()
+	// note: we cannot defer the re-lock, since we must re-lock prior to
+	// calculating the return value in some branches.
+
+	ready := chg.Ready()
+
+	// The check ensures that both select cases aren't true immediately.
+	if wait <= 0 {
+		select {
+		// use default so the channel is prioritized.
+		case <-ready:
+			st.Lock()
+			return chg.Status()
+		default:
+			st.Lock()
+			return state.DoingStatus
+		}
+	}
+
+	// Because the wait could've been > 0, the last select between a closed ready channel
+	// and a timer.After channel would've be racy.
+	select {
+	case <-ready:
+	case <-timeAfter(wait):
+		st.Lock()
+		return state.DoingStatus
+	}
+
+	st.Lock()
+	return chg.Status()
+}
+
+// rateLimit returns the amount of time that should be waited before accessing
+// this change via snapctl. Internally, data associated with the change is
+// cached so that all access to the change shares the same rate limit.
+// The lock must be acquired before calling, as it modifies the state object.
+func rateLimit(st *state.State, changeID string, rate time.Duration) (wait time.Duration, err error) {
+	now := time.Now()
+
+	accessed, err := changeAccessedAt(st, changeID)
+	if err != nil {
+		return 0, err
+	}
+
+	// first time through, we just set the change access to now. next request
+	// must wait at least "rate" duration before access.
+	if accessed.IsZero() {
+		setChangeAccessedAt(st, now, changeID)
+		return 0, nil
+	}
+
+	durationSinceLastAccess := now.Sub(accessed)
+
+	// user waited on their own, no waiting needed. next access will require
+	// waiting at least "rate" duration.
+	if durationSinceLastAccess >= rate {
+		setChangeAccessedAt(st, now, changeID)
+		return 0, nil
+	}
+
+	// user needs to wait a bit still. note that durationSinceLastAccess might
+	// be negative, since "accessed" could be in the future. this can happen
+	// when there are multiple requests in parallel, within a duration less than
+	// "rate".
+	wait = rate - durationSinceLastAccess
+
+	// current request must wait. next request must wait this amount of time,
+	// plus at least "rate" duration.
+	setChangeAccessedAt(st, now.Add(wait), changeID)
+
+	return wait, nil
+}
+
+func changeAccessedAt(st *state.State, changeID string) (time.Time, error) {
+	key := changeRateLimitKey{ChangeID: changeID}
+	accessedAt := st.Cached(key)
+	if accessedAt == nil {
+		return time.Time{}, nil
+	}
+
+	accessedNano, ok := accessedAt.(int64)
+	if !ok {
+		return time.Time{}, fmt.Errorf("error: invalid type (%T) for access time", accessedAt)
+	}
+
+	return time.Unix(0, accessedNano), nil
+}
+
+func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
+	key := changeRateLimitKey{ChangeID: changeID}
+	st.Cache(key, accessed.UnixNano())
 }
 
 // getAttribute unmarshals into result the value of the provided key from attributes map.

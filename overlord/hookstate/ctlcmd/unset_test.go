@@ -25,14 +25,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/confdb"
-	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type unsetSuite struct {
@@ -165,31 +163,18 @@ func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
-	s.state.Lock()
-	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
-	c.Assert(err, IsNil)
-
-	err = tx.Set(parsePath(c, "wifi.psk"), "bar")
-	c.Assert(err, IsNil)
-
-	ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
-		return tx, nil, nil
+	ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+		c.Assert(values, DeepEquals, map[string]any{
+			"ssid":     nil,
+			"password": nil,
+		})
+		return nil
 	})
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"unset", "--view", ":write-wifi", "ssid", "password"}, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
-
-	_, err = tx.Get(parsePath(c, "wifi.ssid"), nil)
-	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
-
-	_, err = tx.Get(parsePath(c, "wifi.psk"), nil)
-	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *confdbSuite) TestConfdbUnsetInvalid(c *C) {

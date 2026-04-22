@@ -366,10 +366,14 @@ func (s *confdbTestSuite) TestSetAndUnsetOngoingTransactionHelpers(c *C) {
 	err := s.state.Get("confdb-ongoing-txs", &ongoingTxs)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
-	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "1")
-	c.Assert(err, IsNil)
+	s.state.Cache("scheduling-confdb-my-acc/my-confdb", []confdbstate.Access{{ID: "foo"}})
 
-	err = confdbstate.SetWriteTransaction(s.state, "other-acc", "other-confdb", "2")
+	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "1", "foo")
+	c.Assert(err, IsNil)
+	accs := s.state.Cached("scheduling-confdb-my-acc/my-confdb")
+	c.Assert(accs, IsNil)
+
+	err = confdbstate.SetWriteTransaction(s.state, "other-acc", "other-confdb", "2", "")
 	c.Assert(err, IsNil)
 
 	err = s.state.Get("confdb-ongoing-txs", &ongoingTxs)
@@ -402,29 +406,32 @@ func (s *confdbTestSuite) TestConflictingOngoingTransactions(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "1")
+	err := confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "1", "")
 	c.Assert(err, IsNil)
 
 	// can't set write due to ongoing write
-	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2")
-	c.Assert(err, ErrorMatches, `cannot write confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
+	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2", "")
+	c.Assert(err, ErrorMatches, `internal error: cannot write confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
 
 	// can't add read due to ongoing write
-	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2")
-	c.Assert(err, ErrorMatches, `cannot read confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
+	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2", "")
+	c.Assert(err, ErrorMatches, `internal error: cannot read confdb \(my-acc/my-confdb\): a write transaction is ongoing`)
 
 	err = confdbstate.UnsetOngoingTransaction(s.state, "my-acc", "my-confdb", "1")
 	c.Assert(err, IsNil)
 
-	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "1")
+	s.state.Cache("scheduling-confdb-my-acc/my-confdb", []confdbstate.Access{{ID: "foo"}})
+	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "1", "foo")
 	c.Assert(err, IsNil)
+	accs := s.state.Cached("scheduling-confdb-my-acc/my-confdb")
+	c.Assert(accs, IsNil)
 
 	// can't set write due to ongoing read
-	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2")
-	c.Assert(err, ErrorMatches, `cannot write confdb \(my-acc/my-confdb\): a read transaction is ongoing`)
+	err = confdbstate.SetWriteTransaction(s.state, "my-acc", "my-confdb", "2", "")
+	c.Assert(err, ErrorMatches, `internal error: cannot write confdb \(my-acc/my-confdb\): a read transaction is ongoing`)
 
 	// many reads are fine
-	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2")
+	err = confdbstate.AddReadTransaction(s.state, "my-acc", "my-confdb", "2", "")
 	c.Assert(err, IsNil)
 }
 
@@ -483,7 +490,7 @@ func (s *confdbTestSuite) TestClearOngoingTransaction(c *C) {
 	chg.AddTask(t)
 	t.Set("tx-task", commitTask.ID())
 
-	confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", commitTask.ID())
+	confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", commitTask.ID(), "")
 	c.Assert(err, IsNil)
 
 	var confdbTxs map[string]*confdbstate.ConfdbTransactions
@@ -524,7 +531,7 @@ func (s *confdbTestSuite) TestClearTransactionOnError(c *C) {
 	commitTask.Set("view", "setup-wifi")
 
 	// add this transaction to the state
-	err = confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", commitTask.ID())
+	err = confdbstate.SetWriteTransaction(s.state, s.devAccID, "network", commitTask.ID(), "")
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
