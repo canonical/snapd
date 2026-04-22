@@ -112,7 +112,8 @@ $(info version_from_changelog is $(version_from_changelog))
 define snapdtool__version_generated.go
 package snapdtool
 func init() {
-	Version = "$(version_from_changelog)"
+	// TODO: Stop doing this and start setting downstream version suffix later on.
+	UpstreamVersion = "$(version_from_changelog)"
 }
 endef
 

@@ -68,3 +68,19 @@ func (s *infoFileSuite) TestInfoVersionFlags(c *C) {
 	c.Check(ver, Equals, "1.2.3")
 	c.Assert(flags, DeepEquals, map[string]string{"FOO": "BAR"})
 }
+
+type versionSuite struct{}
+
+var _ = Suite(&versionSuite{})
+
+func (s *versionSuite) TestFullVersionNoDistroPatch(c *C) {
+	restore := snapdtool.MockVersion("2.75.2", "")
+	defer restore()
+	c.Check(snapdtool.FullVersion(), Equals, "2.75.2")
+}
+
+func (s *versionSuite) TestFullVersionWithDistroPatch(c *C) {
+	restore := snapdtool.MockVersion("2.75.2", "~0.fc42")
+	defer restore()
+	c.Check(snapdtool.FullVersion(), Equals, "2.75.2~0.fc42")
+}
