@@ -200,6 +200,9 @@ apps:
   pkcs11:
     command: bin/run
     plugs: [ pkcs11 ]
+  plymouth-replace:
+    command: bin/run
+    plugs: [ plymouth-replace ]
   polkit-agent:
     command: bin/run
     plugs: [ polkit-agent ]
