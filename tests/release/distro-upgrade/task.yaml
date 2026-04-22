@@ -18,6 +18,9 @@ systems:
 
 manual: true
 
+artifacts: 
+    - snapd-versions
+
 prepare: |
     snap install go-example-webserver
     snap install test-snapd-sh
@@ -38,6 +41,8 @@ prepare: |
     fi
     snap version | grep -E '^snapd[[:space:]]' | awk '{print $2}' | sed 's/+ubuntu.*//' > initial-snapd-version.txt
 
+    mkdir snapd-versions
+
 restore: |
     snap remove --purge go-example-webserver
     snap remove --purge test-snapd-sh
@@ -49,6 +54,7 @@ execute: |
     # Don't fail the test if the distro is missing the latest snapd version. Sometimes one distro
     # doesn't have the latest yet.
     ./check-snapd-version.sh "$(cat initial-snapd-version.txt)" || [ "$SRU_VALIDATION" = "1" ]
+    snap version --verbose > snapd-versions/$(lsb_release -c -s)
 
     while not os.query is-ubuntu-devel; do
         # We can only upgrade the distro if we have all upgrades installed
@@ -77,6 +83,7 @@ execute: |
         # Don't fail the test if the distro is missing the latest snapd version. Sometimes one distro
         # doesn't have the latest yet.
         ./check-snapd-version.sh "$(cat initial-snapd-version.txt)" || [ "$SRU_VALIDATION" = "1" ]
+        snap version --verbose > snapd-versions/$(lsb_release -c -s)
 
         if os.query is-ubuntu-latest-lts; then
             touch lts-upgrade-done
