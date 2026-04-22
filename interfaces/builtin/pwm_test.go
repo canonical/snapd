@@ -166,7 +166,7 @@ func (s *PwmInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *PwmInterfaceSuite) TestSystemdConnectedSlot(c *C) {
-	spec := &systemd.Specification{}
+	spec := systemd.NewSpecification(s.gadgetPwmSlot.AppSet())
 	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
