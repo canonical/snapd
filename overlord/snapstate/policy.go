@@ -17,7 +17,7 @@ type Policy interface {
 	// installed revisions will be removed, which is equally true when
 	// removing the last remaining revision of the snap, even if said
 	// revision was explicitly passed by the user.
-	CanRemove(st *state.State, snapst *SnapState, rev snap.Revision, dev snap.Device, removedAndUsed map[string]bool) error
+	CanRemove(st *state.State, snapst *SnapState, rev snap.Revision, dev snap.Device, removals map[string]bool) error
 }
 
 var PolicyFor func(snap.Type, *asserts.Model) Policy = policyForUnset

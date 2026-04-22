@@ -3077,13 +3077,13 @@ func canDisable(si *snap.Info) bool {
 }
 
 // canRemove verifies that a snap can be removed.
-func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext, removedAndUsed map[string]bool) error {
+func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool, deviceCtx DeviceContext, removals map[string]bool) error {
 	rev := snap.Revision{}
 	if !removeAll {
 		rev = si.Revision
 	}
 
-	err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx, removedAndUsed)
+	err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx, removals)
 	if err != nil {
 		return err
 	}
@@ -3168,7 +3168,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 
 // removeTasks provides the task set to remove snap name after taking a snapshot
 // if flags.Purge is not true, it also computes an estimate of the latter size.
-func removeTasks(st *state.State, snapst *SnapState, removedAndUsed map[string]bool, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
+func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
 	name := snapst.InstanceName()
 	if err := CheckChangeConflict(st, name, nil); err != nil {
 		return nil, 0, err
@@ -3209,7 +3209,7 @@ func removeTasks(st *state.State, snapst *SnapState, removedAndUsed map[string]b
 	}
 
 	// check if this is something that can be removed
-	err = canRemove(st, info, snapst, removeAll, deviceCtx, removedAndUsed)
+	err = canRemove(st, info, snapst, removeAll, deviceCtx, removals)
 	if err != nil {
 		return nil, 0, fmt.Errorf("snap %q is not removable: %v", name, err)
 	}
@@ -3476,6 +3476,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	}
 
 	snapsts := make([]*SnapState, 0, len(names))
+	removals := make(map[string]bool, len(names))
 	for _, name := range names {
 		var snapst SnapState
 		if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3487,6 +3488,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		}
 
 		snapsts = append(snapsts, &snapst)
+		removals[name] = false
 	}
 
 	// first app, gadget, bases, kernel, core, then snapd
@@ -3502,28 +3504,26 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	snapToTaskSet := make(map[string]*state.TaskSet)
 	// for each removed snap, we use this to keep track of whether a base snap
 	// uses it
-	removedAndUsed := make(map[string]bool)
 	var totalSnapshotsSize uint64
 
 	for _, snapst := range snapsts {
 		name := snapst.InstanceName()
-		ts, snapshotSize, err := removeTasks(st, snapst, removedAndUsed, snap.R(0), flags)
+		ts, snapshotSize, err := removeTasks(st, snapst, removals, snap.R(0), flags)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		for snapName, usedByBase := range removedAndUsed {
+		for snapName, usedByBase := range removals {
 			// snapName is ensured to be in snapToTaskSet since they are
 			// checked to be included in removed
 			if usedByBase {
 				ts.WaitAll(snapToTaskSet[snapName])
-				removedAndUsed[snapName] = false
+				removals[snapName] = false
 			}
 		}
 
 		totalSnapshotsSize += snapshotSize
 		removed = append(removed, name)
-		removedAndUsed[name] = false
 		snapToTaskSet[name] = ts
 
 		ts.JoinLane(st.NewLane())

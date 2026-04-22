@@ -31,7 +31,7 @@ type basePolicy struct {
 	modelBase string
 }
 
-func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, removedAndUsed map[string]bool) error {
+func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, removals map[string]bool) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
@@ -68,12 +68,13 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	if err != nil {
 		return err
 	}
+
 	var usedByAndNotRemoved []string
 	for _, snap := range usedBy {
-		if _, ok := removedAndUsed[snap]; !ok {
+		if _, ok := removals[snap]; !ok {
 			usedByAndNotRemoved = append(usedByAndNotRemoved, snap)
 		} else {
-			removedAndUsed[snap] = true
+			removals[snap] = true
 		}
 	}
 
