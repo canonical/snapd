@@ -3517,7 +3517,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 			// snapName is ensured to be in snapToTaskSet since they are
 			// checked to be included in removed
 			if usedByBase {
-				ts.WaitAll(snapToTaskSet[snapName])
+				serializeTaskSets(snapToTaskSet[snapName], ts)
 				removals[snapName] = false
 			}
 		}

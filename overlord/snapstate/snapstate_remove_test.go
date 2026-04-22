@@ -2154,11 +2154,9 @@ func (s *snapmgrTestSuite) TestRemoveAppAndBase(c *C) {
 	c.Check(tss, HasLen, 2)
 
 	// check that the tasks for the bases depend on the tasks for the app
-	for _, baseTask := range tss[1].Tasks() {
-		for _, appTask := range tss[0].Tasks() {
-			c.Check(baseTask.WaitTasks(), testutil.Contains, appTask)
-		}
-	}
+	baseFirstTask := tss[1].Tasks()[0]
+	appLastTask := tss[0].Tasks()[len(tss[0].Tasks())-1]
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
