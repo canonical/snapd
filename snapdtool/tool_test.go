@@ -106,7 +106,7 @@ func (s *toolSuite) mockReExecingEnv() func() {
 	restore := []func(){
 		release.MockOnClassic(true),
 		snapdtool.MockCoreSnapdPaths(s.corePath, s.snapdPath),
-		snapdtool.MockVersion("2"),
+		snapdtool.MockVersion("2", ""),
 	}
 
 	return func() {
@@ -205,7 +205,7 @@ func (s *toolSuite) TestSystemSnapSupportsReExecBadVersion(c *C) {
 
 func (s *toolSuite) TestSystemSnapSupportsReExecOldVersion(c *C) {
 	// can't re-exec if core version is too old
-	defer snapdtool.MockVersion("2")()
+	defer snapdtool.MockVersion("2", "")()
 	s.fakeCoreVersion(c, s.snapdPath, "0")
 
 	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
@@ -214,7 +214,7 @@ func (s *toolSuite) TestSystemSnapSupportsReExecOldVersion(c *C) {
 }
 
 func (s *toolSuite) TestSystemSnapSupportsReExec(c *C) {
-	defer snapdtool.MockVersion("2")()
+	defer snapdtool.MockVersion("2", "")()
 	s.fakeCoreVersion(c, s.snapdPath, "9999")
 
 	ok, err := snapdtool.CandidateVersionNewer(s.snapdPath)
@@ -526,7 +526,7 @@ func (s *toolSuite) TestExecInSnapdOrCoreForced(c *C) {
 	defer s.mockReExecFor(c, s.snapdPath, "potato", dirs.DefaultDistroLibexecDir)()
 
 	// snapd snap version is lower than ours, normally this would not reexec
-	defer snapdtool.MockVersion("999")()
+	defer snapdtool.MockVersion("999", "")()
 
 	// reexec does not happen, because version is lower
 	snapdtool.ExecInSnapdOrCoreSnap()
