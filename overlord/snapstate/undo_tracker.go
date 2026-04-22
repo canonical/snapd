@@ -41,17 +41,14 @@ type Undoer interface {
 // are registered via Locked().AddUndo() or Unlocked().AddUndo() depending
 // on whether the undo needs to run with the state locked or unlocked.
 // If the handler fails in-flight, the returned closure executes the
-// undos in reverse (LIFO) order. On success, nothing runs. If skipped
-// using Skip() and there was a real error, the undos are not executed
-// but the skip reason is logged in the task.
+// undos in reverse (LIFO) order. On success, nothing runs.
 // This allows do handlers to incrementally register undo actions for
 // each step, ensuring partial progress is automatically rolled back on
 // failure.
 type UndoTracker struct {
-	undos      []undoEntry
-	t          *state.Task
-	runCalled  uint32 // TODO:GOVERSION: use atomic.Uint32 once on go 1.19+
-	skipReason string
+	undos     []undoEntry
+	t         *state.Task
+	runCalled uint32 // TODO:GOVERSION: use atomic.Uint32 once on go 1.19+
 }
 
 // undoEntry represents a single undo closure with its required state
@@ -81,8 +78,6 @@ func NewUndoTracker(t *state.Task, retErr *error) (*UndoTracker, func()) {
 // as needed for each undo entry: locked entries run with the state
 // locked, unlocked entries run with the state unlocked. Undo errors
 // are collected and logged in the task after all undos complete.
-// If skipped using Skip() and there was a real error, the undos are
-// not executed but the skip reason is logged in the task.
 func (ut *UndoTracker) run(retErr *error) {
 	if atomic.SwapUint32(&ut.runCalled, 1) != 0 {
 		panic("internal error: cannot call UndoTracker.run more than once")
@@ -92,11 +87,6 @@ func (ut *UndoTracker) run(retErr *error) {
 	var w *state.Wait
 	var r *state.Retry
 	if re == nil || errors.As(re, &w) || errors.As(re, &r) {
-		return
-	}
-
-	if ut.skipReason != "" {
-		ut.t.Logf("skipping undos, reason: %s", ut.skipReason)
 		return
 	}
 
@@ -131,22 +121,9 @@ func (ut *UndoTracker) run(retErr *error) {
 	}
 }
 
-// Skip marks that undos should be skipped even if there is an error
-// in the task handler but the skip reason will be logged in the task.
-func (ut *UndoTracker) Skip(reason string) {
-	if atomic.LoadUint32(&ut.runCalled) != 0 {
-		panic("internal error: cannot Skip after undos execution has started")
-	}
-	ut.skipReason = reason
-}
-
 func (ut *UndoTracker) addUndo(entry undoEntry) {
 	if atomic.LoadUint32(&ut.runCalled) != 0 {
 		panic("internal error: cannot register undo after undos execution has started")
-	}
-
-	if ut.skipReason != "" {
-		panic("internal error: cannot register undo as they are marked to be skipped")
 	}
 	ut.undos = append(ut.undos, entry)
 }
@@ -188,9 +165,9 @@ func (nu nullUndoer) AddUndo(f func() error) {}
 // NullUndoer is an Undoer that does nothing. It is meant to be used
 // when system changes should not be undone, for example in the undo
 // functions of task handlers.
-var NullUndoer = nullUndoer{}
+var NullUndoer Undoer = nullUndoer{}
 
 // TODOUndoer is an Undoer that does nothing. It is meant to be used
 // when system changes should be undone, but the caller has not yet
 // added support for passing UndoTracker.Locked() or UndoTracker.Unlocked().
-var TODOUndoer = nullUndoer{}
+var TODOUndoer Undoer = nullUndoer{}
