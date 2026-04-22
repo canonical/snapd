@@ -201,8 +201,12 @@ func errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg *state.Change, prov
 		return err
 	}
 
-	if snapsup.Base == "" || snapsup.Base == "none" {
+	base := snapsup.Base
+	if base == "none" {
 		return nil
+	}
+	if base == "" {
+		base = defaultCoreSnapName
 	}
 
 	create, _, err := findRecoverySystemTasks(chg)
@@ -210,7 +214,7 @@ func errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg *state.Change, prov
 		return err
 	}
 
-	baseLink, err := maybeFindTaskInChangeForSnap(chg, "link-snap", snapsup.Base)
+	baseLink, err := maybeFindTaskInChangeForSnap(chg, "link-snap", base)
 	if err != nil {
 		return err
 	}
@@ -223,7 +227,7 @@ func errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg *state.Change, prov
 	// link-snap is ordered after create-recovery-system. without that extra
 	// ordering, the prerequisite task keeps retrying forever on the in-flight
 	// base link-snap.
-	return fmt.Errorf("cannot automatically update prerequisite %q during seed-refresh while base %q waits for create-recovery-system", snapsup.InstanceName(), snapsup.Base)
+	return fmt.Errorf("cannot automatically update prerequisite %q during seed-refresh while base %q waits for create-recovery-system", snapsup.InstanceName(), base)
 }
 
 func mergeLateSeedRefreshPrereq(chg *state.Change, providerTS *state.TaskSet) error {
