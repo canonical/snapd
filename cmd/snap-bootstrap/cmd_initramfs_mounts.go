@@ -88,7 +88,7 @@ type cmdInitramfsMounts struct{}
 func (c *cmdInitramfsMounts) Execute([]string) error {
 	boot.HookKeyProtectorFactory = hookKeyProtectorFactory
 
-	logger.Noticef("snap-bootstrap version %v starting", snapdtool.Version)
+	logger.Noticef("snap-bootstrap version %v starting", snapdtool.FullVersion())
 
 	return generateInitramfsMounts()
 }
