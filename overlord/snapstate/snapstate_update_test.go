@@ -309,6 +309,21 @@ func splitSeedRefreshTasks(c *C, seedTS *state.TaskSet) (create, finalize *state
 	return create, finalize, removals
 }
 
+func waitTasksContainKindForSnap(c *C, waiter *state.Task, instanceName, kind string) bool {
+	for _, task := range waiter.WaitTasks() {
+		if task.Kind() != kind {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		if snapsup.InstanceName() == instanceName {
+			return true
+		}
+	}
+	return false
+}
+
 func countTasksOfKind(tasks []*state.Task, kind string) int {
 	var count int
 	for _, task := range tasks {
@@ -20183,21 +20198,6 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 
 	c.Check(seedSetup.SnapSetupTasks, testutil.Contains, providerSnapSetupTask.ID())
 
-	waitTasksContainKindForSnap := func(c *C, waiter *state.Task, instanceName, kind string) bool {
-		for _, task := range waiter.WaitTasks() {
-			if task.Kind() != kind {
-				continue
-			}
-
-			snapsup, err := snapstate.TaskSnapSetup(task)
-			c.Assert(err, IsNil)
-			if snapsup.InstanceName() == instanceName {
-				return true
-			}
-		}
-		return false
-	}
-
 	// ensure create-recovery-system waits on the LastBeforeLocalModificationsEdge for content-provider
 	c.Check(waitTasksContainKindForSnap(c, seedCreate, "content-provider", "validate-snap"), Equals, true)
 	// ensure finalize-recovery-system waits on the EndEdge for content-provider
@@ -20207,6 +20207,88 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesDoNotMergeWhenSeedRefreshAlreadyReady(c *C) {
+	restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"content-provider", "some-app"},
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.InstanceName() != "some-app" {
+			return nil
+		}
+
+		info.Plugs = map[string]*snap.PlugInfo{
+			"shared-content": {
+				Snap:      info,
+				Name:      "shared-content",
+				Interface: "content",
+				Attrs: map[string]any{
+					"default-provider": "content-provider",
+					"content":          "shared-content",
+				},
+			},
+		}
+
+		return nil
+	}
+
+	mockSeedRefreshRebootHandlers(s, c, nil)
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "content-provider", snapID: "content-provider-id", snapType: "app", base: "core18"},
+		seedRefreshSnap{name: "some-app", snapID: "some-app-id", snapType: "app", base: "core18"},
+	)
+
+	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{InstanceName: "some-app"}})
+	_, seedTS := parseSeedRefreshTaskSets(uts)
+
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, seedTS)
+
+	// manually mark these as done to prove that prerequisites won't add a snap
+	// to an already completed seed-refresh
+	seedCreate.SetStatus(state.DoneStatus)
+	seedFinalize.SetStatus(state.DoneStatus)
+
+	s.settle(c)
+
+	var seedSetup recoverySystemSetupForTest
+	c.Assert(seedCreate.Get("recovery-system-setup", &seedSetup), IsNil)
+
+	// ensure that the first recovery-system-setup doesn't have the
+	// content-provider as a source
+	for _, taskID := range seedSetup.SnapSetupTasks {
+		task := s.state.Task(taskID)
+		c.Assert(task, NotNil)
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		c.Check(snapsup.InstanceName(), Not(Equals), "content-provider")
+	}
+
+	// ensure that the seed-refresh tasks didn't get dependencies on the
+	// content-provider
+	c.Check(waitTasksContainKindForSnap(c, seedCreate, "content-provider", "validate-snap"), Equals, false)
+	c.Check(waitTasksContainKindForSnap(c, seedFinalize, "content-provider", "run-hook"), Equals, false)
+
+	c.Check(restart.Pending(s.state), Equals, restart.RestartSystem)
+
+	// since content-provider is part of the model, we should end up creating
+	// new recovery-system tasks, rather than updating the existing one
+	c.Check(countTasksOfKind(chg.Tasks(), "create-recovery-system"), Equals, 2)
+	c.Check(countTasksOfKind(chg.Tasks(), "finalize-recovery-system"), Equals, 2)
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, false)
 }
 
 // TODO:SEEDREFRESH: update this test once this scenario is supported

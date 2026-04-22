@@ -145,9 +145,10 @@ func setupTaskIDsForSeedCreation(seedSnapUpdates map[string]snapInstallTaskSet) 
 }
 
 // maybeMergeLateSeedRefreshPrereq folds a prerequisite refresh into an
-// in-flight seed refresh when the prerequisite snap is part of the model.
+// in-flight seed refresh when the current change still has pending
+// recovery-system tasks and the prerequisite snap is part of the model.
 func maybeMergeLateSeedRefreshPrereq(chg *state.Change, dctx DeviceContext, snapName string, providerTS *state.TaskSet) error {
-	if !changeCreatesRecoverySystem(chg) {
+	if !changeHasPendingSeedRefresh(chg) {
 		return nil
 	}
 
