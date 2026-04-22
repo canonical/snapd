@@ -57,7 +57,7 @@ type certificate struct {
 	SubjectNameSha1 string
 }
 
-// .crl not supported for now, and there is none of this type carried
+// TODO: .crl not supported for now, and there is none of this type carried
 // in the bases
 var allowedSuffixes = []string{"pem", "crt", "cer"}
 
