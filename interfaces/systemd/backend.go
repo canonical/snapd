@@ -22,9 +22,12 @@
 package systemd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -96,8 +99,15 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		logger.Noticef("cannot stop removed services: %s", err)
 	}
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
+
+	// set up systemd drop-in config files
+	dropInsChanged, errDropIns := b.setUpDropIns(snapName, spec.(*Specification))
+	if errDropIns != nil {
+		logger.Noticef("error configuring systemd drop-ins: %s", errDropIns)
+	}
+
 	// Reload systemd whenever something is added or removed
-	if !b.preseed && (len(changed) > 0 || len(removed) > 0) {
+	if !b.preseed && (len(changed) > 0 || len(removed) > 0 || dropInsChanged) {
 		err := systemd.DaemonReload()
 		if err != nil {
 			logger.Noticef("cannot reload systemd state: %s", err)
@@ -138,6 +148,12 @@ func (b *Backend) Remove(snapName string) error {
 	glob := serviceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 
+	// remove all drop-ins matching the snap glob
+	dropInsChanged, errDropIns := b.removeOtherDropIns(snapName, nil)
+	if errDropIns != nil {
+		logger.Noticef("error removing systemd drop-ins: %s", errDropIns)
+	}
+
 	if len(removed) > 0 {
 		logger.Noticef("systemd-backend: Disable: removed services: %q", removed)
 		if err := systemd.DisableNoReload(removed); err != nil {
@@ -150,7 +166,7 @@ func (b *Backend) Remove(snapName string) error {
 		}
 	}
 	// Reload systemd whenever something is removed
-	if !b.preseed && len(removed) > 0 {
+	if !b.preseed && (len(removed) > 0 || dropInsChanged) {
 		err := systemd.DaemonReload()
 		if err != nil {
 			logger.Noticef("cannot reload systemd state: %s", err)
@@ -159,9 +175,77 @@ func (b *Backend) Remove(snapName string) error {
 	return errEnsure
 }
 
+func (b *Backend) setUpDropIns(snapName string, spec *Specification) (madeChanges bool, err error) {
+	dropIns := spec.DropIns()
+	for svc, svcDropIns := range dropIns {
+		dropInDir := filepath.Join(dirs.SnapServicesDir, svc+".d")
+		if err := os.MkdirAll(dropInDir, 0755); err != nil {
+			return madeChanges, fmt.Errorf("cannot create directory for systemd services %q: %s", dropInDir, err)
+		}
+		content := make(map[string]osutil.FileState, len(svcDropIns))
+		for name, data := range svcDropIns {
+			content["snap."+name+".conf"] = &osutil.MemoryFileState{
+				Content: []byte(data),
+				Mode:    0644,
+			}
+		}
+		changed, removed, err := osutil.EnsureDirState(dropInDir, "snap.*.conf", content)
+		if len(changed) > 0 || len(removed) > 0 {
+			madeChanges = true
+		}
+		if err != nil {
+			return madeChanges, err
+		}
+	}
+
+	// There may exist other dropIns created by previous runs that need to be cleaned up.
+	if changes, err := b.removeOtherDropIns(snapName, dropIns); err == nil {
+		if changes {
+			madeChanges = true
+		}
+	} else {
+		return madeChanges, err
+	}
+	return madeChanges, nil
+}
+
+func (b *Backend) removeOtherDropIns(snapName string, dropIns map[string]map[string]string) (madeChanges bool, err error) {
+	entries, err := os.ReadDir(dirs.SnapServicesDir)
+	if err != nil {
+		return false, err
+	}
+	pattern := snap.AppSecurityTag(snapName, "*") + ".service.d"
+	for _, node := range entries {
+		if !node.IsDir() {
+			continue
+		}
+		if ok, err := filepath.Match(pattern, node.Name()); err != nil || !ok {
+			continue
+		}
+		if len(dropIns[strings.TrimSuffix(node.Name(), ".d")]) > 0 {
+			continue
+		}
+		dropInDir := filepath.Join(dirs.SnapServicesDir, node.Name())
+		changed, removed, err := osutil.EnsureDirState(dropInDir, "snap.*.conf", nil)
+		if len(changed) > 0 || len(removed) > 0 {
+			madeChanges = true
+		}
+		if err != nil {
+			return madeChanges, err
+		}
+
+		// Try to remove the directory, ignoring errors if it
+		// contains other files.
+		if err := os.Remove(dropInDir); err != nil && !errors.Is(err, syscall.ENOTEMPTY) {
+			return madeChanges, err
+		}
+	}
+	return madeChanges, nil
+}
+
 // NewSpecification returns a new systemd specification.
-func (b *Backend) NewSpecification(*interfaces.SnapAppSet, interfaces.ConfinementOptions) interfaces.Specification {
-	return &Specification{}
+func (b *Backend) NewSpecification(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) interfaces.Specification {
+	return NewSpecification(appSet)
 }
 
 // SandboxFeatures returns nil
