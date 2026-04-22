@@ -448,7 +448,9 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
             // Create an empty file which can be used as a mount point, no need
             // for 0000, parent directory already owned and writable by root
             // only.
-            int fd = open(full_path, O_CREAT | O_TRUNC, 0644);
+            // Use O_NOFOLLOW to prevent symlink attacks during the TOCTOU window
+            // between directory creation and chown.
+            int fd = open(full_path, O_CREAT | O_TRUNC | O_NOFOLLOW, 0644);
             if (fd < 0) {
                 die("cannot create mount point for file \"%s\"", full_path);
             }
