@@ -124,19 +124,6 @@ func makeMockSnapdSnapWithOverrides(c *C, metaSnapYaml string, extra [][]string)
 			"[Desktop Entry]\n" +
 			"Name=Handler for snap:// URIs",
 		},
-		// security journal namespace files
-		{"etc/systemd/journald@snapd-security.conf", "" +
-			"[Journal]\nStorage=persistent\nCompress=yes\n" +
-			"SystemMaxFileSize=10M\nSystemMaxUse=10M\n" +
-			"SyncIntervalSec=30s\nSyncOnShutdown=yes\n",
-		},
-		{"lib/systemd/system/systemd-journald@snapd-security.service.d/00-snapd.conf", "" +
-			"[Service]\nLogsDirectory=\n",
-		},
-		{"lib/systemd/system/snapd.service.d/security-journal.conf", "" +
-			"[Unit]\nWants=systemd-journald@snapd-security.socket\n" +
-			"After=systemd-journald@snapd-security.socket\n",
-		},
 	}
 
 	content := append(defaultContent, extra...)
@@ -258,21 +245,6 @@ WantedBy=snapd.service
 	}, {
 		filepath.Join(dirs.SnapDesktopFilesDir, "snap-handle-link.desktop"),
 		"[Desktop Entry]\nName=Handler for snap:// URIs",
-	}, {
-		// check that security journal config is installed
-		filepath.Join(dirs.SnapSystemdDir, "journald@snapd-security.conf"),
-		"[Journal]\nStorage=persistent\nCompress=yes\n" +
-			"SystemMaxFileSize=10M\nSystemMaxUse=10M\n" +
-			"SyncIntervalSec=30s\nSyncOnShutdown=yes\n",
-	}, {
-		// check that security journal service drop-in is installed
-		filepath.Join(dirs.SnapServicesDir, "systemd-journald@snapd-security.service.d/00-snapd.conf"),
-		"[Service]\nLogsDirectory=\n",
-	}, {
-		// check that snapd.service.d drop-in for security journal is installed
-		filepath.Join(dirs.SnapServicesDir, "snapd.service.d/security-journal.conf"),
-		"[Unit]\nWants=systemd-journald@snapd-security.socket\n" +
-			"After=systemd-journald@snapd-security.socket\n",
 	}} {
 		c.Check(entry[0], testutil.FileEquals, entry[1])
 	}
@@ -306,8 +278,6 @@ WantedBy=snapd.service
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 		{"--user", "daemon-reload"},
-		// security journal files installed
-		{"daemon-reload"},
 	})
 }
 
@@ -351,8 +321,6 @@ type: snapd
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 		{"--user", "daemon-reload"},
-		// security journal files installed
-		{"daemon-reload"},
 	}
 
 	s.testAddSnapServicesOperationsWithQuirks(c, quirkySnapdYaml, extras, expectedOps)
@@ -404,8 +372,6 @@ type: snapd
 		{"--user", "--global", "--no-reload", "disable", "snapd.session-agent.socket"},
 		{"--user", "--global", "--no-reload", "enable", "snapd.session-agent.socket"},
 		{"--user", "daemon-reload"},
-		// security journal files installed
-		{"daemon-reload"},
 	}
 
 	s.testAddSnapServicesOperationsWithQuirks(c, quirkySnapdYaml, extras, expectedOps)

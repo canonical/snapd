@@ -57,6 +57,10 @@ func MockSeclogLogLoginSuccess(f func(user seclog.SnapdUser)) (restore func()) {
 	return testutil.Mock(&seclogLogLoginSuccess, f)
 }
 
+func MockSeclogLogLoginFailure(f func(user seclog.SnapdUser, reason seclog.Reason)) (restore func()) {
+	return testutil.Mock(&seclogLogLoginFailure, f)
+}
+
 type (
 	UserResponseData = userResponseData
 )

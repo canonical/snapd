@@ -21,10 +21,14 @@ package main
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/seclog"
 )
 
 var (
-	Run = run
+	Run                   = run
+	SetupSecurityLogger   = setupSecurityLogger
+	DisableSecurityLogger = disableSecurityLogger
 )
 
 func MockSyscheckCheckSystem(f func() error) (restore func()) {
@@ -32,6 +36,22 @@ func MockSyscheckCheckSystem(f func() error) (restore func()) {
 	syscheckCheckSystem = f
 	return func() {
 		syscheckCheckSystem = oldSyscheckCheckSystem
+	}
+}
+
+func MockSeclogSetup(f func(seclog.Impl, seclog.Sink, string, seclog.Level) error) (restore func()) {
+	old := seclogSetup
+	seclogSetup = f
+	return func() {
+		seclogSetup = old
+	}
+}
+
+func MockSeclogDisable(f func() error) (restore func()) {
+	old := seclogDisable
+	seclogDisable = f
+	return func() {
+		seclogDisable = old
 	}
 }
 

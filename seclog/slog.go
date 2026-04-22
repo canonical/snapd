@@ -1,4 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+
+// go1.21 is required for log/slog which was added in Go 1.21.
+// See https://go.dev/doc/go1.21#slog
+// The noslog tag allows excluding the slog-based logger entirely.
 //go:build go1.21 && !noslog
 
 /*
@@ -31,26 +35,21 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// slogProvider implements [provider].
-type slogProvider struct{}
+// slogImplementation implements [implFactory].
+type slogImplementation struct{}
 
-// Ensure [slogProvider] implements [provider].
-var _ provider = slogProvider{}
+// Ensure [slogImplementation] implements [implFactory].
+var _ implFactory = slogImplementation{}
 
 // New constructs an slog based [securityLogger] that emits structured JSON to the
 // provided [io.Writer]. The returned logger enables dynamic level control via
 // an internal [slog.LevelVar].
-func (slogProvider) New(writer io.Writer, appID string, minLevel Level) securityLogger {
+func (slogImplementation) New(writer io.Writer, appID string, minLevel Level) securityLogger {
 	return newSlogLogger(writer, appID, minLevel)
 }
 
-// Impl returns the implementation.
-func (slogProvider) Impl() Impl {
-	return ImplSlog
-}
-
 func init() {
-	register(slogProvider{})
+	registerImpl(ImplSlog, slogImplementation{})
 }
 
 func newSlogLogger(writer io.Writer, appID string, minLevel Level) securityLogger {
@@ -60,6 +59,7 @@ func newSlogLogger(writer io.Writer, appID string, minLevel Level) securityLogge
 	if lw, ok := writer.(levelWriter); ok {
 		handler = newLevelHandler(handler, lw)
 	}
+
 	logger := &slogLogger{
 		// enable dynamic level adjustment
 		levelVar: levelVar,
@@ -73,7 +73,7 @@ func newSlogLogger(writer io.Writer, appID string, minLevel Level) securityLogge
 }
 
 // slogLogger implements [securityLogger] and is constructed by the
-// [slogProvider]. It wraps a [slog.Logger] and provides the required
+// [slogImplementation]. It wraps a [slog.Logger] and provides the required
 // methods. The logger emits structured JSON with a predefined schema for
 // built-in attributes and supports dynamic log level control via an internal
 // [slog.LevelVar]. When used with a [levelWriter] sink, it ensures that
@@ -98,7 +98,7 @@ func (l *slogLogger) LogLoggingEnabled() {
 	l.logger.LogAttrs(
 		context.Background(),
 		slog.Level(LevelInfo),
-		"Security auditing enabled",
+		"Security logging enabled",
 		slog.Attr{Key: "category", Value: slog.StringValue("SYS")},
 		slog.Attr{Key: "event", Value: slog.StringValue("sys_logging_enabled")},
 	)
@@ -109,7 +109,7 @@ func (l *slogLogger) LogLoggingDisabled() {
 	l.logger.LogAttrs(
 		context.Background(),
 		slog.Level(LevelCritical),
-		"Security auditing disabled",
+		"Security logging disabled",
 		slog.Attr{Key: "category", Value: slog.StringValue("SYS")},
 		slog.Attr{Key: "event", Value: slog.StringValue("sys_logging_disabled")},
 	)
@@ -128,25 +128,30 @@ func (l *slogLogger) LogLoginSuccess(user SnapdUser) {
 }
 
 // LogLoginFailure implements [securityLogger.LogLoginFailure].
-func (l *slogLogger) LogLoginFailure(user SnapdUser) {
+func (l *slogLogger) LogLoginFailure(user SnapdUser, reason Reason) {
 	l.logger.LogAttrs(
 		context.Background(),
 		slog.Level(LevelWarn),
-		fmt.Sprintf("User %s login failure", user.String()),
+		fmt.Sprintf("User %s login failure: %s", user.String(), reason.String()),
 		slog.Attr{Key: "category", Value: slog.StringValue("AUTHN")},
 		slog.Attr{Key: "event", Value: slog.StringValue("authn_login_failure")},
 		slog.Any("user", user),
+		slog.Any("error", reason),
 	)
 }
 
 // LogValue implements [slog.LogValuer], allowing SnapdUser to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
+	expiration := "never"
+	if !u.Expiration.IsZero() {
+		expiration = u.Expiration.UTC().Format(time.RFC3339Nano)
+	}
 	return slog.GroupValue(
 		slog.Int64("snapd-user-id", u.ID),
 		slog.String("system-user-name", u.SystemUserName),
 		slog.String("store-user-email", u.StoreUserEmail),
-		slog.String("expiration", u.Expiration.UTC().Format(time.RFC3339Nano)),
+		slog.String("expiration", expiration),
 	)
 }
 
@@ -190,14 +195,6 @@ func newJsonHandler(writer io.Writer, minLevel slog.Leveler) slog.Handler {
 	return slog.NewJSONHandler(writer, options)
 }
 
-// levelWriter extends [io.Writer] with per-message level control. Writers
-// that implement this interface allow log handlers to set the severity for
-// each message before writing.
-type levelWriter interface {
-	io.Writer
-	SetLevel(Level)
-}
-
 // levelHandler is a [slog.Handler] wrapper that sets the level on a
 // [levelWriter] before each message is handled. This ensures that the
 // written output carries the correct per-message priority.
@@ -221,6 +218,7 @@ func (h *levelHandler) Enabled(ctx context.Context, level slog.Level) bool {
 func (h *levelHandler) Handle(ctx context.Context, r slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
 	h.lw.SetLevel(Level(r.Level))
 	return h.inner.Handle(ctx, r)
 }
@@ -229,6 +227,8 @@ func (h *levelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &levelHandler{inner: h.inner.WithAttrs(attrs), lw: h.lw, mu: h.mu}
 }
 
+// WithGroup is required by the [slog.Handler] interface but is not
+// currently used by seclog.
 func (h *levelHandler) WithGroup(name string) slog.Handler {
 	return &levelHandler{inner: h.inner.WithGroup(name), lw: h.lw, mu: h.mu}
 }

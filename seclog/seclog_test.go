@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build go1.21 && !noslog
 
 /*
  * Copyright (C) 2026 Canonical Ltd
@@ -24,11 +25,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/syslog"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -91,43 +92,80 @@ func (s *SecLogSuite) TestString(c *C) {
 	c.Assert(expected, DeepEquals, obtained)
 }
 
-func (s *SecLogSuite) TestSyslogPriority(c *C) {
-	tests := []struct {
-		level    seclog.Level
-		expected syslog.Priority
-	}{
-		{seclog.LevelDebug - 1, syslog.LOG_DEBUG},
-		{seclog.LevelDebug, syslog.LOG_DEBUG},
-		{seclog.LevelInfo, syslog.LOG_INFO},
-		{seclog.LevelWarn, syslog.LOG_WARNING},
-		{seclog.LevelError, syslog.LOG_ERR},
-		{seclog.LevelCritical, syslog.LOG_CRIT},
-		{seclog.LevelCritical + 1, syslog.LOG_CRIT},
-	}
-	for _, t := range tests {
-		c.Check(seclog.SyslogPriority(t.level), Equals, t.expected,
-			Commentf("level %v", t.level))
-	}
+func (s *SecLogSuite) TestSnapdUserString(c *C) {
+	// All fields set.
+	c.Check(seclog.SnapdUser{
+		ID: 42, StoreUserEmail: "a@b.com", SystemUserName: "jdoe",
+	}.String(), Equals, "42:a@b.com:jdoe")
+
+	// All fields zero/empty — all "unknown".
+	c.Check(seclog.SnapdUser{}.String(), Equals, "unknown:unknown:unknown")
+
+	// Only ID set.
+	c.Check(seclog.SnapdUser{ID: 7}.String(), Equals, "7:unknown:unknown")
+
+	// Only email set.
+	c.Check(seclog.SnapdUser{StoreUserEmail: "x@y.z"}.String(), Equals, "unknown:x@y.z:unknown")
+
+	// Only username set.
+	c.Check(seclog.SnapdUser{SystemUserName: "root"}.String(), Equals, "unknown:unknown:root")
+}
+
+func (s *SecLogSuite) TestReasonString(c *C) {
+	// Both fields set.
+	c.Check(seclog.Reason{
+		Code: seclog.ReasonInvalidCredentials, Message: "bad password",
+	}.String(), Equals, "invalid-credentials:bad password")
+
+	// Both fields empty — all "unknown".
+	c.Check(seclog.Reason{}.String(), Equals, "unknown:unknown")
+
+	// Only code set.
+	c.Check(seclog.Reason{Code: seclog.ReasonInternal}.String(), Equals, "internal:unknown")
+
+	// Only message set.
+	c.Check(seclog.Reason{Message: "something broke"}.String(), Equals, "unknown:something broke")
 }
 
 func (s *SecLogSuite) TestRegister(c *C) {
-	restore := seclog.MockProviders(map[seclog.Impl]seclog.Provider{})
+	restore := seclog.MockImplementations(map[seclog.Impl]seclog.ImplFactory{})
 	defer restore()
 
-	seclog.Register(seclog.SlogProvider{})
+	seclog.RegisterImpl(seclog.ImplSlog, seclog.SlogImplementation{})
 
 	// registering the same implementation again panics
-	c.Assert(func() { seclog.Register(seclog.SlogProvider{}) }, PanicMatches,
-		`attempting registration for existing logger "slog"`)
+	c.Assert(func() { seclog.RegisterImpl(seclog.ImplSlog, seclog.SlogImplementation{}) }, PanicMatches,
+		`attempting re-registration for existing logger "slog"`)
+}
+
+func (s *SecLogSuite) TestRegisterSinkDuplicatePanics(c *C) {
+	restore := seclog.MockSinks(map[seclog.Sink]seclog.SinkFactory{})
+	defer restore()
+
+	dummy := seclog.SinkFunc(func(string) (io.Writer, error) { return nil, nil })
+	seclog.RegisterSink(seclog.SinkAudit, dummy)
+
+	// registering the same sink again panics
+	c.Assert(func() { seclog.RegisterSink(seclog.SinkAudit, dummy) }, PanicMatches,
+		`attempting re-registration for existing sink "audit"`)
 }
 
 func (s *SecLogSuite) TestSetupUnknownImpl(c *C) {
-	restore := seclog.MockProviders(map[seclog.Impl]seclog.Provider{})
+	restore := seclog.MockImplementations(map[seclog.Impl]seclog.ImplFactory{})
 	defer restore()
 
-	err := seclog.Setup("unknown", seclog.SinkJournal, s.appID, seclog.LevelInfo)
+	err := seclog.Setup("unknown", seclog.SinkAudit, s.appID, seclog.LevelInfo)
 	c.Assert(err, ErrorMatches,
 		`cannot set up security logger: unknown implementation "unknown"`)
+}
+
+func (s *SecLogSuite) TestSetupUnknownSink(c *C) {
+	restore := seclog.MockSinks(map[seclog.Sink]seclog.SinkFactory{})
+	defer restore()
+
+	err := seclog.Setup(seclog.ImplSlog, "unknown", s.appID, seclog.LevelInfo)
+	c.Assert(err, ErrorMatches,
+		`cannot set up security logger: unknown sink "unknown"`)
 }
 
 func (s *SecLogSuite) TestSetupSinkError(c *C) {
@@ -136,8 +174,8 @@ func (s *SecLogSuite) TestSetupSinkError(c *C) {
 	})
 	defer restore()
 
-	err := seclog.Setup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo)
-	c.Assert(err, ErrorMatches, "security logger disabled")
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, ErrorMatches, "security logger disabled: cannot enable security logger: journal unavailable")
 }
 
 func (s *SecLogSuite) TestSetupSuccess(c *C) {
@@ -150,7 +188,7 @@ func (s *SecLogSuite) TestSetupSuccess(c *C) {
 	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
 	defer restoreLogger()
 
-	err := seclog.Setup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo)
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
 	c.Assert(err, IsNil)
 
 	// verify the logger is functional by logging through it
@@ -167,8 +205,11 @@ func (s *SecLogSuite) setupSlogLogger(c *C) {
 	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
 	s.AddCleanup(restoreLogger)
 
-	err := seclog.Setup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo)
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
 	c.Assert(err, IsNil)
+
+	// Reset buffer after Setup, which logs the "logging enabled" event.
+	s.buf.Reset()
 }
 
 func (s *SecLogSuite) TestLogLoginSuccess(c *C) {
@@ -206,14 +247,14 @@ func (s *SecLogSuite) TestLogLoginFailure(c *C) {
 		StoreUserEmail: "user@example.com",
 		SystemUserName: "jdoe",
 	}
-	seclog.LogLoginFailure(user)
+	seclog.LogLoginFailure(user, seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"})
 
 	var obtained map[string]any
 	err := json.Unmarshal(s.buf.Bytes(), &obtained)
 	c.Assert(err, IsNil)
 	c.Check(obtained["level"], Equals, "WARN")
 	c.Check(obtained["description"], Equals,
-		"User 42:user@example.com:jdoe login failure")
+		"User 42:user@example.com:jdoe login failure: invalid-credentials:invalid credentials")
 	c.Check(obtained["app_id"], Equals, s.appID)
 	c.Check(obtained["category"], Equals, "AUTHN")
 	c.Check(obtained["event"], Equals, "authn_login_failure")
@@ -222,6 +263,10 @@ func (s *SecLogSuite) TestLogLoginFailure(c *C) {
 	c.Check(userMap["snapd-user-id"], Equals, float64(42))
 	c.Check(userMap["store-user-email"], Equals, "user@example.com")
 	c.Check(userMap["system-user-name"], Equals, "jdoe")
+	errMap, ok := obtained["error"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(errMap["code"], Equals, seclog.ReasonInvalidCredentials)
+	c.Check(errMap["message"], Equals, "invalid credentials")
 	c.Check(obtained["type"], Equals, "security")
 }
 
@@ -243,7 +288,7 @@ func (s *SecLogSuite) TestDisableClosesTheSink(c *C) {
 	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
 	defer restoreLogger()
 	restoreSetup := seclog.MockGlobalSetup(
-		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo))
+		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo))
 	defer restoreSetup()
 
 	err := seclog.Disable()
@@ -251,14 +296,84 @@ func (s *SecLogSuite) TestDisableClosesTheSink(c *C) {
 	c.Check(tracker.closed, Equals, true)
 }
 
-func (s *SecLogSuite) TestDisableWithNoSinkReturnsNil(c *C) {
+func (s *SecLogSuite) TestDisableLogsDisabledEvent(c *C) {
+	s.setupSlogLogger(c)
+
+	err := seclog.Disable()
+	c.Assert(err, IsNil)
+
+	var obtained map[string]any
+	err = json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "CRITICAL")
+	c.Check(obtained["description"], Equals, "Security logging disabled")
+	c.Check(obtained["category"], Equals, "SYS")
+	c.Check(obtained["event"], Equals, "sys_logging_disabled")
+}
+
+func (s *SecLogSuite) TestDisableWithNoSetupReturnsError(c *C) {
 	restoreCloser := seclog.MockGlobalCloser(nil)
 	defer restoreCloser()
 	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
 	defer restoreLogger()
+	restoreSetup := seclog.MockGlobalSetup(nil)
+	defer restoreSetup()
+
+	err := seclog.Disable()
+	c.Assert(err, ErrorMatches, "cannot disable security logger: setup has not been called")
+}
+
+func (s *SecLogSuite) TestEnableWithNoSetupReturnsError(c *C) {
+	restoreSetup := seclog.MockGlobalSetup(nil)
+	defer restoreSetup()
+
+	err := seclog.Enable()
+	c.Assert(err, ErrorMatches, "cannot enable security logger: setup has not been called")
+}
+
+func (s *SecLogSuite) TestEnableWithMissingImpl(c *C) {
+	restoreSetup := seclog.MockGlobalSetup(
+		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo))
+	defer restoreSetup()
+	restoreImpls := seclog.MockImplementations(map[seclog.Impl]seclog.ImplFactory{})
+	defer restoreImpls()
+
+	err := seclog.Enable()
+	c.Assert(err, ErrorMatches, `internal error: implementation "slog" missing`)
+}
+
+func (s *SecLogSuite) TestEnableWithMissingSink(c *C) {
+	restoreSetup := seclog.MockGlobalSetup(
+		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo))
+	defer restoreSetup()
+	restoreSinks := seclog.MockSinks(map[seclog.Sink]seclog.SinkFactory{})
+	defer restoreSinks()
+
+	err := seclog.Enable()
+	c.Assert(err, ErrorMatches, `internal error: sink "audit" missing`)
+}
+
+func (s *SecLogSuite) TestEnableAfterDisable(c *C) {
+	s.setupSlogLogger(c)
 
 	err := seclog.Disable()
 	c.Assert(err, IsNil)
+	s.buf.Reset()
+
+	err = seclog.Enable()
+	c.Assert(err, IsNil)
+	s.buf.Reset()
+	user := seclog.SnapdUser{
+		ID:             1,
+		StoreUserEmail: "a@b.com",
+		SystemUserName: "u",
+	}
+	seclog.LogLoginSuccess(user)
+
+	var obtained map[string]any
+	err = json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["event"], Equals, "authn_login_success")
 }
 
 func (s *SecLogSuite) TestDisableIsIdempotent(c *C) {
@@ -268,7 +383,7 @@ func (s *SecLogSuite) TestDisableIsIdempotent(c *C) {
 	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
 	defer restoreLogger()
 	restoreSetup := seclog.MockGlobalSetup(
-		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo))
+		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo))
 	defer restoreSetup()
 
 	err := seclog.Disable()
@@ -287,7 +402,7 @@ func (s *SecLogSuite) TestDisablePropagatesError(c *C) {
 	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
 	defer restoreLogger()
 	restoreSetup := seclog.MockGlobalSetup(
-		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo))
+		seclog.NewLoggerSetup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo))
 	defer restoreSetup()
 
 	err := seclog.Disable()
@@ -324,13 +439,192 @@ func (s *SecLogSuite) TestSetupClosesPreviousSink(c *C) {
 	defer restoreLogger()
 
 	// first setup
-	err := seclog.Setup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo)
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
 	c.Assert(err, IsNil)
 	c.Check(first.closed, Equals, false)
 
 	// second setup should close the first sink
-	err = seclog.Setup(seclog.ImplSlog, seclog.SinkJournal, s.appID, seclog.LevelInfo)
+	err = seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
 	c.Assert(err, IsNil)
 	c.Check(first.closed, Equals, true)
 	c.Check(second.closed, Equals, false)
+}
+
+// countingWriter counts successful writes before switching to errors.
+type countingWriter struct {
+	buf       bytes.Buffer
+	successes int // number of remaining successful writes
+}
+
+func (w *countingWriter) Write(p []byte) (int, error) {
+	if w.successes > 0 {
+		w.successes--
+		return w.buf.Write(p)
+	}
+	return 0, fmt.Errorf("write failed")
+}
+
+func (s *SecLogSuite) TestWriteFailuresDisableAfterThreshold(c *C) {
+	// Allow LogLoggingEnabled to succeed so writeFailures starts at 0;
+	// only the test loop writes trigger failures.
+	cw := &countingWriter{successes: 1}
+	restore := seclog.MockNewSink(func(appID string) (io.Writer, error) {
+		return cw, nil
+	})
+	defer restore()
+	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
+	defer restoreLogger()
+
+	logBuf, restoreStdLogger := logger.MockLogger()
+	defer restoreStdLogger()
+
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, IsNil)
+	logBuf.Reset()
+
+	user := seclog.SnapdUser{ID: 1, SystemUserName: "test"}
+
+	// Exactly maxWriteFailures consecutive failures trigger auto-disable.
+	for i := 0; i < seclog.MaxWriteFailures; i++ {
+		seclog.LogLoginSuccess(user)
+	}
+
+	c.Check(seclog.GetFailed(), Equals, true)
+	c.Check(seclog.GetWriteFailures(), Equals, seclog.MaxWriteFailures)
+	c.Check(logBuf.String(), testutil.Contains,
+		"security logger failed after 3 consecutive write errors, disabling")
+}
+
+func (s *SecLogSuite) TestWriteFailuresDoNotDisableBelowThreshold(c *C) {
+	// Allow LogLoggingEnabled to succeed so writeFailures starts at 0.
+	cw := &countingWriter{successes: 1}
+	restore := seclog.MockNewSink(func(appID string) (io.Writer, error) {
+		return cw, nil
+	})
+	defer restore()
+	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
+	defer restoreLogger()
+
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, IsNil)
+
+	user := seclog.SnapdUser{ID: 1, SystemUserName: "test"}
+
+	// Fewer than maxWriteFailures failures should not trigger auto-disable.
+	for i := 0; i < seclog.MaxWriteFailures-1; i++ {
+		seclog.LogLoginSuccess(user)
+	}
+
+	c.Check(seclog.GetFailed(), Equals, false)
+	c.Check(seclog.GetWriteFailures(), Equals, seclog.MaxWriteFailures-1)
+}
+
+func (s *SecLogSuite) TestWriteSuccessResetsFailureCount(c *C) {
+	cw := &countingWriter{successes: 100}
+	restore := seclog.MockNewSink(func(appID string) (io.Writer, error) {
+		return cw, nil
+	})
+	defer restore()
+	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
+	defer restoreLogger()
+
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, IsNil)
+
+	// Simulate some failures below the threshold.
+	restoreFailures := seclog.MockWriteFailures(seclog.MaxWriteFailures - 1)
+	defer restoreFailures()
+
+	user := seclog.SnapdUser{ID: 1, SystemUserName: "test"}
+	// A successful write resets the counter.
+	seclog.LogLoginSuccess(user)
+
+	c.Check(seclog.GetWriteFailures(), Equals, 0)
+	c.Check(seclog.GetFailed(), Equals, false)
+}
+
+func (s *SecLogSuite) TestEnableResetsFailureState(c *C) {
+	restore := seclog.MockNewSink(func(appID string) (io.Writer, error) {
+		return s.buf, nil
+	})
+	defer restore()
+	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
+	defer restoreLogger()
+
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, IsNil)
+
+	// Simulate a failed state.
+	restoreFailures := seclog.MockWriteFailures(seclog.MaxWriteFailures)
+	defer restoreFailures()
+	restoreFailed := seclog.MockFailed(true)
+	defer restoreFailed()
+
+	// Re-enable should reset the failure state.
+	err = seclog.Enable()
+	c.Assert(err, IsNil)
+	c.Check(seclog.GetFailed(), Equals, false)
+	c.Check(seclog.GetWriteFailures(), Equals, 0)
+}
+
+func (s *SecLogSuite) TestEnableLogsToStandardLogger(c *C) {
+	restore := seclog.MockNewSink(func(appID string) (io.Writer, error) {
+		return s.buf, nil
+	})
+	defer restore()
+	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
+	defer restoreLogger()
+
+	logBuf, restoreStdLogger := logger.MockLogger()
+	defer restoreStdLogger()
+
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, IsNil)
+
+	c.Check(logBuf.String(), testutil.Contains, "security logger enabled")
+}
+
+func (s *SecLogSuite) TestDisableLogsToStandardLogger(c *C) {
+	restore := seclog.MockNewSink(func(appID string) (io.Writer, error) {
+		return s.buf, nil
+	})
+	defer restore()
+	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
+	defer restoreLogger()
+
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, IsNil)
+
+	logBuf, restoreStdLogger := logger.MockLogger()
+	defer restoreStdLogger()
+
+	err = seclog.Disable()
+	c.Assert(err, IsNil)
+
+	c.Check(logBuf.String(), testutil.Contains, "security logger disabled")
+}
+
+func (s *SecLogSuite) TestFailureTrackingWriterPassesSetLevel(c *C) {
+	// Use a levelBuf (defined in slog_test.go) which implements
+	// levelWriter so we can verify SetLevel is called through
+	// the failureTrackingWriter wrapper.
+	lb := &levelBuf{}
+	restore := seclog.MockNewSink(func(appID string) (io.Writer, error) {
+		return lb, nil
+	})
+	defer restore()
+	restoreLogger := seclog.MockGlobalLogger(seclog.NewNopLogger())
+	defer restoreLogger()
+
+	err := seclog.Setup(seclog.ImplSlog, seclog.SinkAudit, s.appID, seclog.LevelInfo)
+	c.Assert(err, IsNil)
+	lb.Reset()
+	lb.levels = nil
+
+	seclog.LogLoginSuccess(seclog.SnapdUser{ID: 1, SystemUserName: "test"})
+
+	// The levelHandler should have called SetLevel on the underlying
+	// levelBuf through the failureTrackingWriter wrapper.
+	c.Assert(len(lb.levels), Equals, 1)
+	c.Check(lb.levels[0], Equals, seclog.LevelInfo)
 }

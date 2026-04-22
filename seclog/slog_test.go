@@ -25,7 +25,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"testing"
 	"time"
 
 	"log/slog"
@@ -38,19 +37,17 @@ import (
 
 type SlogSuite struct {
 	testutil.BaseTest
-	buf      *bytes.Buffer
-	appID    string
-	provider seclog.Provider
+	buf     *bytes.Buffer
+	appID   string
+	factory seclog.ImplFactory
 }
 
 var _ = Suite(&SlogSuite{})
 
-func TestSlog(t *testing.T) { TestingT(t) }
-
 func (s *SlogSuite) SetUpSuite(c *C) {
 	s.buf = &bytes.Buffer{}
 	s.appID = "canonical.snapd"
-	s.provider = seclog.SlogProvider{}
+	s.factory = seclog.SlogImplementation{}
 }
 
 func (s *SlogSuite) SetUpTest(c *C) {
@@ -73,12 +70,9 @@ func extractSlogLogger(logger seclog.SecurityLogger) (*slog.Logger, error) {
 	}
 }
 
-func (s *SlogSuite) TestSlogProvider(c *C) {
-	logger := s.provider.New(s.buf, s.appID, seclog.LevelInfo)
+func (s *SlogSuite) TestSlogImplementation(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
 	c.Check(logger, NotNil)
-
-	impl := s.provider.Impl()
-	c.Check(impl, Equals, seclog.ImplSlog)
 }
 
 // baseAttrs represents the non-optional attributes that is present in
@@ -136,7 +130,7 @@ type attrsAllTypes struct {
 }
 
 func (s *SlogSuite) TestHandlerAttrsAllTypes(c *C) {
-	logger := s.provider.New(s.buf, s.appID, seclog.LevelInfo)
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
 	c.Assert(logger, NotNil)
 
 	sl, err := extractSlogLogger(logger)
@@ -183,7 +177,7 @@ func (s *SlogSuite) TestHandlerAttrsAllTypes(c *C) {
 }
 
 func (s *SlogSuite) TestLogLoginSuccess(c *C) {
-	logger := s.provider.New(s.buf, s.appID, seclog.LevelInfo)
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
 	c.Assert(logger, NotNil)
 
 	type LoginSuccess struct {
@@ -215,6 +209,7 @@ func (s *SlogSuite) TestLogLoginSuccess(c *C) {
 	c.Check(obtained.User.ID, Equals, int64(42))
 	c.Check(obtained.User.StoreUserEmail, Equals, "user@gmail.com")
 	c.Check(obtained.User.SystemUserName, Equals, "jdoe")
+	c.Check(obtained.User.Expiration, Equals, "never")
 
 	// verify key order for human readability
 	keys, err := orderedKeys(s.buf.Bytes())
@@ -225,8 +220,38 @@ func (s *SlogSuite) TestLogLoginSuccess(c *C) {
 	})
 }
 
+func (s *SlogSuite) TestLogLoginSuccessWithExpiration(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type LoginSuccess struct {
+		baseAttrs
+		Event string `json:"event"`
+		User  struct {
+			ID             int64  `json:"snapd-user-id"`
+			SystemUserName string `json:"system-user-name"`
+			StoreUserEmail string `json:"store-user-email"`
+			Expiration     string `json:"expiration"`
+		} `json:"user"`
+	}
+
+	expiry := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		SystemUserName: "jdoe",
+		Expiration:     expiry,
+	}
+	logger.LogLoginSuccess(user)
+
+	var obtained LoginSuccess
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.User.Expiration, Equals, "2026-06-15T12:00:00Z")
+}
+
 func (s *SlogSuite) TestLogLoginFailure(c *C) {
-	logger := s.provider.New(s.buf, s.appID, seclog.LevelInfo)
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
 	c.Assert(logger, NotNil)
 
 	type loginFailure struct {
@@ -238,6 +263,10 @@ func (s *SlogSuite) TestLogLoginFailure(c *C) {
 			StoreUserEmail string `json:"store-user-email"`
 			Expiration     string `json:"expiration"`
 		} `json:"user"`
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
 	}
 
 	user := seclog.SnapdUser{
@@ -245,62 +274,59 @@ func (s *SlogSuite) TestLogLoginFailure(c *C) {
 		StoreUserEmail: "user@gmail.com",
 		SystemUserName: "jdoe",
 	}
-	logger.LogLoginFailure(user)
+	logger.LogLoginFailure(user, seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"})
 
 	var obtained loginFailure
 	err := json.Unmarshal(s.buf.Bytes(), &obtained)
 	c.Assert(err, IsNil)
 	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
 	c.Check(obtained.Level, Equals, "WARN")
-	c.Check(obtained.Description, Equals, "User 42:user@gmail.com:jdoe login failure")
+	c.Check(obtained.Description, Equals, "User 42:user@gmail.com:jdoe login failure: invalid-credentials:invalid credentials")
 	c.Check(obtained.AppID, Equals, s.appID)
 	c.Check(obtained.Event, Equals, "authn_login_failure")
 	c.Check(obtained.User.ID, Equals, int64(42))
 	c.Check(obtained.User.StoreUserEmail, Equals, "user@gmail.com")
 	c.Check(obtained.User.SystemUserName, Equals, "jdoe")
+	c.Check(obtained.User.Expiration, Equals, "never")
+	c.Check(obtained.Error.Code, Equals, seclog.ReasonInvalidCredentials)
+	c.Check(obtained.Error.Message, Equals, "invalid credentials")
 
 	// verify key order for human readability
 	keys, err := orderedKeys(s.buf.Bytes())
 	c.Assert(err, IsNil)
 	c.Check(keys, DeepEquals, []string{
 		"datetime", "level", "description",
-		"app_id", "type", "category", "event", "user",
+		"app_id", "type", "category", "event", "user", "error",
 	})
 }
 
-func (s *SlogSuite) TestLevelWriterSink(c *C) {
-	// wrap buffer in a journalWriter to exercise the levelWriter
-	// branch in newSlogLogger and the levelHandler wrapper
-	jw := seclog.NewJournalWriter(s.buf)
-	logger := s.provider.New(jw, s.appID, seclog.LevelInfo)
-	c.Assert(logger, NotNil)
+// levelBuf is a bytes.Buffer that also implements [seclog.LevelWriter],
+// recording the level set before each log message is written.
+type levelBuf struct {
+	bytes.Buffer
+	levels []seclog.Level
+}
 
-	admin := seclog.SnapdUser{
-		ID:             1,
-		SystemUserName: "admin",
-	}
-	logger.LogLoginSuccess(admin)
+func (lb *levelBuf) SetLevel(l seclog.Level) {
+	lb.levels = append(lb.levels, l)
+}
 
-	// the journalWriter prepends a syslog priority prefix
-	raw := s.buf.String()
-	// INFO maps to syslog.LOG_INFO (6)
-	c.Check(raw[:3], Equals, "<6>")
+// Ensure levelBuf satisfies the interface.
+var _ seclog.LevelWriter = (*levelBuf)(nil)
 
-	// the JSON payload follows the prefix
-	var obtained map[string]any
-	err := json.Unmarshal([]byte(raw[3:]), &obtained)
+func (s *SlogSuite) TestLevelHandlerSetsLevelBeforeWrite(c *C) {
+	lb := &levelBuf{}
+	logger := seclog.SlogImplementation{}.New(lb, s.appID, seclog.LevelInfo)
+
+	slogLogger, err := extractSlogLogger(logger)
 	c.Assert(err, IsNil)
-	c.Check(obtained["level"], Equals, "INFO")
-	c.Check(obtained["event"], Equals, "authn_login_success")
-	userMap, ok := obtained["user"].(map[string]any)
-	c.Assert(ok, Equals, true)
-	c.Check(userMap["system-user-name"], Equals, "admin")
 
-	// log a WARN-level message and verify the prefix changes
-	s.buf.Reset()
-	logger.LogLoginFailure(admin)
+	// Use seclog level values cast to slog.Level so they pass the
+	// level threshold set by newSlogLogger (slog.Level(seclog.LevelInfo)).
+	slogLogger.Log(context.Background(), slog.Level(seclog.LevelInfo), "info message")
+	slogLogger.Log(context.Background(), slog.Level(seclog.LevelWarn), "warn message")
 
-	raw = s.buf.String()
-	// WARN maps to syslog.LOG_WARNING (4)
-	c.Check(raw[:3], Equals, "<4>")
+	c.Assert(len(lb.levels), Equals, 2)
+	c.Check(lb.levels[0], Equals, seclog.LevelInfo)
+	c.Check(lb.levels[1], Equals, seclog.LevelWarn)
 }

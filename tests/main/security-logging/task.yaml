@@ -1,0 +1,39 @@
+summary: Checks that security audit events are written to the kernel audit log
+
+details: |
+    The snapd daemon writes structured security audit events via the kernel
+    audit subsystem (AUDIT_TRUSTED_APP, type 1121). This test verifies that
+    a failed login attempt produces an "authn_login_failure" event and,
+    when store credentials are available, that a successful login produces
+    an "authn_login_success" event in the audit log.
+
+prepare: |
+    # Create an audit checkpoint so we only see events from this test.
+    ausearch --checkpoint stamp -m 1121 || true
+
+restore: |
+    snap logout || true
+    rm -f stamp
+
+execute: |
+    echo "Checking that a failed login attempt produces an audit event"
+    echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \
+        snap debug api -X POST -H 'Content-Type: application/json' /v2/login || true
+
+    # The audit log entry is the raw JSON payload sent by snapd.
+    ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'authn_login_failure'
+    ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'invalid-credentials'
+    ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'someemail@testing.com'
+
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
+        echo "Checking that a successful login produces an audit event"
+        # Reset the checkpoint so we only see the success event.
+        ausearch --checkpoint stamp -m 1121 || true
+
+        expect -d -f "$TESTSLIB"/successful_login.exp
+
+        ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'authn_login_success'
+        ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH "$SPREAD_STORE_USER"
+
+        snap logout
+    fi

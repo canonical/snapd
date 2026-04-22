@@ -379,73 +379,7 @@ func AddSnapdSnapServices(s *snap.Info, opts *AddSnapdSnapServicesOptions, inter
 		return err
 	}
 
-	// Handle the security log journal namespace
-	if err := writeSnapdSecurityJournalOnCore(s, sysd); err != nil {
-		return err
-	}
-
 	return nil
-}
-
-const securityJournalConfFile = "journald@snapd-security.conf"
-const securityJournalDropInDir = "systemd-journald@snapd-security.service.d"
-const securityJournalDropInFile = "00-snapd.conf"
-const securityJournalSnapdDropInDir = "snapd.service.d"
-const securityJournalSnapdDropInFile = "security-journal.conf"
-
-// writeSnapdSecurityJournalOnCore installs the journald namespace
-// configuration and drop-in files for the snapd security log from
-// the snapd snap onto the host filesystem. The namespace socket is
-// pulled in via a snapd.service.d drop-in (Wants + After) so that
-// it starts alongside snapd but cannot cause snapd to fail.
-func writeSnapdSecurityJournalOnCore(s *snap.Info, sysd systemd.Systemd) error {
-	// Install the journald namespace config to /etc/systemd/
-	srcConf := filepath.Join(s.MountDir(), "etc/systemd", securityJournalConfFile)
-	dstConf := filepath.Join(dirs.SnapSystemdDir, securityJournalConfFile)
-	if err := copyFileIfChanged(srcConf, dstConf); err != nil {
-		return fmt.Errorf("cannot install security journal config: %v", err)
-	}
-
-	// Install the journald service drop-in to /etc/systemd/system/
-	srcDropIn := filepath.Join(s.MountDir(), "lib/systemd/system", securityJournalDropInDir, securityJournalDropInFile)
-	dstDropInDir := filepath.Join(dirs.SnapServicesDir, securityJournalDropInDir)
-	if err := os.MkdirAll(dstDropInDir, 0755); err != nil {
-		return fmt.Errorf("cannot create security journal drop-in dir: %v", err)
-	}
-	dstDropIn := filepath.Join(dstDropInDir, securityJournalDropInFile)
-	if err := copyFileIfChanged(srcDropIn, dstDropIn); err != nil {
-		return fmt.Errorf("cannot install security journal service drop-in: %v", err)
-	}
-
-	// Install the snapd.service drop-in to pull in the journal socket
-	srcSnapdDropIn := filepath.Join(s.MountDir(), "lib/systemd/system", securityJournalSnapdDropInDir, securityJournalSnapdDropInFile)
-	dstSnapdDropInDir := filepath.Join(dirs.SnapServicesDir, securityJournalSnapdDropInDir)
-	if err := os.MkdirAll(dstSnapdDropInDir, 0755); err != nil {
-		return fmt.Errorf("cannot create snapd.service.d dir: %v", err)
-	}
-	dstSnapdDropIn := filepath.Join(dstSnapdDropInDir, securityJournalSnapdDropInFile)
-	if err := copyFileIfChanged(srcSnapdDropIn, dstSnapdDropIn); err != nil {
-		return fmt.Errorf("cannot install snapd service drop-in for security journal: %v", err)
-	}
-
-	return sysd.DaemonReload()
-}
-
-// copyFileIfChanged copies src to dst only if the contents differ or
-// dst does not exist. Returns nil if dst is already up to date.
-func copyFileIfChanged(src, dst string) error {
-	srcContent, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	err = osutil.EnsureFileState(dst, &osutil.MemoryFileState{
-		Content: srcContent,
-		Mode:    0644,
-	})
-	if err == osutil.ErrSameState {
-		return nil
-	}
-	return err
 }
 
 // undoSnapdUserServicesOnCore attempts to remove services that were deployed in

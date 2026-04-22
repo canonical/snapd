@@ -42,20 +42,33 @@ import (
 
 var (
 	syscheckCheckSystem = syscheck.CheckSystem
+	seclogSetup         = seclog.Setup
+	seclogDisable       = seclog.Disable
 )
 
 const secLogAppID = "canonical.snapd.snapd"
 const secLogMinLevel seclog.Level = seclog.LevelInfo
 
-func init() {
-	logger.SimpleSetup(nil)
-
-	if err := seclog.Setup(seclog.ImplSlog, seclog.SinkJournal, secLogAppID, secLogMinLevel); err != nil {
-		logger.Noticef("%v", err)
+func setupSecurityLogger() {
+	if err := seclogSetup(seclog.ImplSlog, seclog.SinkAudit, secLogAppID, secLogMinLevel); err != nil {
+		logger.Noticef("WARNING: %v", err)
 	}
 }
 
+func disableSecurityLogger() {
+	if err := seclogDisable(); err != nil {
+		logger.Noticef("WARNING: cannot disable security logger: %v", err)
+	}
+}
+
+func init() {
+	logger.SimpleSetup(nil)
+	setupSecurityLogger()
+}
+
 func main() {
+	defer disableSecurityLogger()
+
 	// When preseeding re-exec is not used
 	if snapdenv.Preseeding() {
 		logger.Noticef("running for preseeding")

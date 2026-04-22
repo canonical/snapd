@@ -20,8 +20,6 @@
 package seclog_test
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/seclog"
@@ -33,8 +31,6 @@ type NopSuite struct {
 }
 
 var _ = Suite(&NopSuite{})
-
-func TestNop(t *testing.T) { TestingT(t) }
 
 func (s *NopSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
@@ -73,5 +69,5 @@ func (s *NopSuite) TestLogLoginFailure(c *C) {
 	c.Assert(logger, NotNil)
 
 	// nop logger discards all messages without error
-	logger.LogLoginFailure(seclog.SnapdUser{StoreUserEmail: "user@gmail.com"})
+	logger.LogLoginFailure(seclog.SnapdUser{StoreUserEmail: "user@gmail.com"}, seclog.Reason{})
 }

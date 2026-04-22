@@ -24,15 +24,8 @@ import (
 	"io"
 	"sync"
 	"time"
-)
 
-var (
-	providers                   = map[Impl]provider{}
-	sinks                       = map[Sink]func(string) (io.Writer, error){}
-	globalLogger securityLogger = newNopLogger()
-	globalCloser io.Closer
-	globalSetup  *loggerSetup
-	lock         sync.Mutex
+	"github.com/snapcore/snapd/logger"
 )
 
 // Level is the importance or severity of a log event.
@@ -93,16 +86,18 @@ type Sink string
 
 // Sink types.
 const (
-	SinkJournal Sink = "journal" // journald namespace stream
-	SinkAudit   Sink = "audit"   // kernel audit via netlink
+	SinkAudit Sink = "audit" // kernel audit via netlink
 )
 
 // SnapdUser represents the identity of a user for security log events.
+// The slog output schema is defined by [SnapdUser.LogValue], which
+// renders Expiration as "never" for zero values instead of emitting a
+// zero-value datetime.
 type SnapdUser struct {
 	ID             int64     `json:"snapd-user-id"`
-	SystemUserName string    `json:"system-user-name,omitempty"`
-	StoreUserEmail string    `json:"store-user-email,omitempty"`
-	Expiration     time.Time `json:"expiration,omitzero"`
+	SystemUserName string    `json:"system-user-name"`
+	StoreUserEmail string    `json:"store-user-email"`
+	Expiration     time.Time `json:"expiration"`
 }
 
 // String returns a colon-separated description of the user in the form
@@ -110,29 +105,68 @@ type SnapdUser struct {
 // "unknown" as a placeholder. A zero ID is treated as unset.
 func (u SnapdUser) String() string {
 	const unknown = "unknown"
+
 	id := unknown
 	if u.ID != 0 {
 		id = fmt.Sprintf("%d", u.ID)
 	}
+
 	email := unknown
 	if u.StoreUserEmail != "" {
 		email = u.StoreUserEmail
 	}
+
 	name := unknown
 	if u.SystemUserName != "" {
 		name = u.SystemUserName
 	}
+
 	return id + ":" + email + ":" + name
 }
 
+// Reason codes are stable identifiers for security audit events.
+const (
+	ReasonInvalidCredentials = "invalid-credentials"
+	ReasonTwoFactorRequired  = "two-factor-required"
+	ReasonTwoFactorFailed    = "two-factor-failed"
+	ReasonInvalidAuthData    = "invalid-auth-data"
+	ReasonPasswordPolicy     = "password-policy"
+	ReasonInternal           = "internal"
+)
+
+// Reason describes why a security event happened.
+type Reason struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// String returns a colon-separated representation in the form
+// "<Code>:<Message>". Fields that are unset use "unknown" as a
+// placeholder.
+func (r Reason) String() string {
+	const unknown = "unknown"
+
+	code := unknown
+	if r.Code != "" {
+		code = r.Code
+	}
+
+	message := unknown
+	if r.Message != "" {
+		message = r.Message
+	}
+
+	return code + ":" + message
+}
+
 // securityLogger defines the interface for emitting structured security
-// audit events. Implementations are created by a [provider] and write
+// audit events. Implementations are created by an [implFactory] and write
 // to a configured sink.
 type securityLogger interface {
 	LogLoggingEnabled()
 	LogLoggingDisabled()
 	LogLoginSuccess(user SnapdUser)
-	LogLoginFailure(user SnapdUser)
+	LogLoginFailure(user SnapdUser, reason Reason)
 }
 
 // loggerSetup holds the configuration provided to Setup.
@@ -143,15 +177,39 @@ type loggerSetup struct {
 	minLevel Level
 }
 
-// provider provides functions required for constructing a [securityLogger].
+// implFactory provides functions required for constructing a [securityLogger].
 // It is intended for registration of available loggers.
-type provider interface {
+type implFactory interface {
 	// New creates a securityLogger that writes to writer. Messages with a
 	// severity below minLevel are silently dropped.
 	New(writer io.Writer, appID string, minLevel Level) securityLogger
-	// Impl returns the identifier for this provider.
-	Impl() Impl
 }
+
+// sinkFactory creates an [io.Writer] for a log output destination.
+// The appID identifies the application opening the sink and may be
+// used by implementations for tagging or routing.
+//
+// If the returned writer also implements [io.Closer], it will be closed
+// automatically when the sink is replaced or disabled.
+type sinkFactory interface {
+	Open(appID string) (io.Writer, error)
+}
+
+var (
+	implementations                = map[Impl]implFactory{}
+	sinks                          = map[Sink]sinkFactory{}
+	globalLogger    securityLogger = newNopLogger()
+	globalCloser    io.Closer
+	globalSetup     *loggerSetup
+	writeFailures   int
+	failed          bool
+	lock            sync.Mutex
+)
+
+// maxWriteFailures is the number of consecutive write failures
+// tolerated before the security logger enters the failed state and
+// is automatically disabled.
+const maxWriteFailures = 3
 
 // Setup stores the logger configuration and attempts to enable the
 // security logger immediately. If the log sink cannot be opened (e.g.
@@ -162,16 +220,19 @@ func Setup(impl Impl, sink Sink, appID string, minLevel Level) error {
 	lock.Lock()
 	defer lock.Unlock()
 
-	if _, exists := providers[impl]; !exists {
+	if _, exists := implementations[impl]; !exists {
 		return fmt.Errorf("cannot set up security logger: unknown implementation %q", string(impl))
 	}
+
 	if _, exists := sinks[sink]; !exists {
 		return fmt.Errorf("cannot set up security logger: unknown sink %q", string(sink))
 	}
+
 	globalSetup = &loggerSetup{impl: impl, sink: sink, appID: appID, minLevel: minLevel}
 	if err := enableLocked(); err != nil {
-		return fmt.Errorf("security logger disabled")
+		return fmt.Errorf("security logger disabled: %v", err)
 	}
+
 	return nil
 }
 
@@ -191,100 +252,123 @@ func Enable() error {
 
 // Disable closes the security log sink and resets the global logger to nop.
 // The stored configuration is retained so that Enable can re-open the sink
-// later. It is safe to call even if the logger is already a nop.
+// later. Returns an error if Setup has not been called or if the sink
+// cannot be closed.
 func Disable() error {
 	lock.Lock()
 	defer lock.Unlock()
+
 	if globalSetup == nil {
-		return nil
+		return fmt.Errorf("cannot disable security logger: setup has not been called")
 	}
-	return closeSinkLocked()
-}
-
-// LogLoggingEnabled logs that security auditing has been enabled.
-func LogLoggingEnabled() {
-	lock.Lock()
-	defer lock.Unlock()
-	globalLogger.LogLoggingEnabled()
-}
-
-// LogLoggingDisabled logs that security auditing has been disabled.
-func LogLoggingDisabled() {
-	lock.Lock()
-	defer lock.Unlock()
 	globalLogger.LogLoggingDisabled()
+	logger.Noticef("security logger disabled")
+	return closeSinkLocked()
 }
 
 // LogLoginSuccess logs a successful login using the global security logger.
 func LogLoginSuccess(user SnapdUser) {
 	lock.Lock()
 	defer lock.Unlock()
+
 	globalLogger.LogLoginSuccess(user)
 }
 
 // LogLoginFailure logs a failed login attempt using the global security logger.
-func LogLoginFailure(user SnapdUser) {
+func LogLoginFailure(user SnapdUser, reason Reason) {
 	lock.Lock()
 	defer lock.Unlock()
-	globalLogger.LogLoginFailure(user)
+
+	globalLogger.LogLoginFailure(user, reason)
 }
 
-// register makes a provider available by name.
-// Should be called from init().
-func register(p provider) {
+// registerImpl makes a logger factory available by name.
+// The registration pattern allows implementations to be conditionally
+// compiled via build tags without requiring the core package to
+// import them directly.
+// Should be called from the init() of the implementation file.
+func registerImpl(name Impl, factory implFactory) {
 	lock.Lock()
 	defer lock.Unlock()
-	impl := p.Impl()
-	if _, exists := providers[impl]; exists {
-		panic(fmt.Sprintf("attempting registration for existing logger %q", impl))
+
+	if _, exists := implementations[name]; exists {
+		panic(fmt.Sprintf("attempting re-registration for existing logger %q", name))
 	}
-	providers[impl] = p
+	implementations[name] = factory
 }
 
 // registerSink makes a sink factory available by name.
-// Should be called from init().
-func registerSink(name Sink, factory func(string) (io.Writer, error)) {
+// The registration pattern allows sinks to be conditionally compiled
+// via build tags without requiring the core package to import them
+// directly.
+// Should be called from the init() of the sink file.
+func registerSink(name Sink, factory sinkFactory) {
 	lock.Lock()
 	defer lock.Unlock()
+
 	if _, exists := sinks[name]; exists {
-		panic(fmt.Sprintf("attempting registration for existing sink %q", name))
+		panic(fmt.Sprintf("attempting re-registration for existing sink %q", name))
 	}
 	sinks[name] = factory
 }
 
-// enableLocked resolves the provider, opens the sink, and activates the
+// enableLocked resolves the logger factory, opens the sink, and activates the
 // logger. Must be called with lock held and globalSetup non-nil.
 func enableLocked() error {
-	provider, exists := providers[globalSetup.impl]
+	factory, exists := implementations[globalSetup.impl]
 	if !exists {
-		return fmt.Errorf("internal error: provider %q missing", string(globalSetup.impl))
+		return fmt.Errorf("internal error: implementation %q missing", string(globalSetup.impl))
 	}
+
 	newSink, exists := sinks[globalSetup.sink]
 	if !exists {
 		return fmt.Errorf("internal error: sink %q missing", string(globalSetup.sink))
 	}
+
 	writer, err := openSinkLocked(newSink, globalSetup.appID)
 	if err != nil {
 		return fmt.Errorf("cannot enable security logger: %w", err)
 	}
-	globalLogger = provider.New(writer, globalSetup.appID, globalSetup.minLevel)
+
+	// Wrap the writer with failure tracking so that repeated write
+	// errors automatically disable the logger.
+	tracked := &failureTrackingWriter{
+		writer:        writer,
+		writeFailures: &writeFailures,
+		failed:        &failed,
+		maxFailures:   maxWriteFailures,
+		onThresholdReached: func(failures int, lastErr error) {
+			logger.Noticef("security logger failed after %d consecutive write errors, disabling (last error: %v)", failures, lastErr)
+			closeSinkLocked()
+		},
+	}
+	globalLogger = factory.New(tracked, globalSetup.appID, globalSetup.minLevel)
+	writeFailures = 0
+	failed = false
+	globalLogger.LogLoggingEnabled()
+	logger.Noticef("security logger enabled")
 	return nil
 }
 
 // openSinkLocked opens the log sink and manages the closer. Any previously
 // open sink is closed first. Must be called with lock held.
-func openSinkLocked(newSink func(string) (io.Writer, error), appID string) (io.Writer, error) {
-	writer, err := newSink(appID)
+func openSinkLocked(factory sinkFactory, appID string) (io.Writer, error) {
+	writer, err := factory.Open(appID)
 	if err != nil {
 		return nil, err
 	}
+
 	if globalCloser != nil {
 		globalCloser.Close()
 		globalCloser = nil
 	}
+
+	// If the writer also implements io.Closer, track it so
+	// the sink is closed when replaced or disabled.
 	if closer, ok := writer.(io.Closer); ok {
 		globalCloser = closer
 	}
+
 	return writer, nil
 }
 
@@ -298,4 +382,55 @@ func closeSinkLocked() error {
 		return err
 	}
 	return nil
+}
+
+// levelWriter extends [io.Writer] with per-message level control. Writers
+// that implement this interface allow log handlers to set the severity for
+// each message before writing.
+//
+// This interface is defined here rather than in slog.go so that
+// [failureTrackingWriter] can implement it without a build-tag
+// dependency on log/slog. The slog layer's [levelHandler] and the
+// audit sink's [auditWriter] are the primary consumers.
+type levelWriter interface {
+	io.Writer
+	SetLevel(Level)
+}
+
+// failureTrackingWriter wraps an [io.Writer] and counts consecutive
+// write failures. When maxFailures consecutive errors are reached it
+// invokes onThresholdReached and marks the logger as failed.
+//
+// All mutable state (writeFailures, failed) is injected via pointers
+// so that the writer does not implicitly depend on package globals.
+// The caller must hold [lock] when calling Write; since Write is
+// invoked from within a locked Log* call, the lock is already held.
+type failureTrackingWriter struct {
+	writer             io.Writer
+	writeFailures      *int
+	failed             *bool
+	maxFailures        int
+	onThresholdReached func(failures int, lastErr error)
+}
+
+func (w *failureTrackingWriter) Write(p []byte) (int, error) {
+	n, err := w.writer.Write(p)
+	if err != nil {
+		*w.writeFailures++
+		if *w.writeFailures >= w.maxFailures && !*w.failed {
+			*w.failed = true
+			w.onThresholdReached(*w.writeFailures, err)
+		}
+		return n, err
+	}
+	*w.writeFailures = 0
+	return n, nil
+}
+
+// SetLevel implements [levelWriter] so the tracking wrapper is
+// transparent to the [levelHandler].
+func (w *failureTrackingWriter) SetLevel(l Level) {
+	if lw, ok := w.writer.(levelWriter); ok {
+		lw.SetLevel(l)
+	}
 }

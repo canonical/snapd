@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -58,6 +59,48 @@ func (s *snapdSuite) SetUpTest(c *C) {
 
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
+}
+
+func (s *snapdSuite) TestSetupSecurityLoggerWarnsOnError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	restore = snapd.MockSeclogSetup(func(impl seclog.Impl, sink seclog.Sink, appID string, level seclog.Level) error {
+		return fmt.Errorf("security logger disabled: cannot open audit socket: permission denied")
+	})
+	defer restore()
+
+	snapd.SetupSecurityLogger()
+
+	c.Check(logbuf.String(), testutil.Contains, "WARNING: security logger disabled: cannot open audit socket: permission denied")
+}
+
+func (s *snapdSuite) TestDisableSecurityLoggerCallsDisable(c *C) {
+	_, restore := logger.MockLogger()
+	defer restore()
+
+	disabled := false
+	restore = snapd.MockSeclogDisable(func() error {
+		disabled = true
+		return nil
+	})
+	defer restore()
+
+	snapd.DisableSecurityLogger()
+	c.Check(disabled, Equals, true)
+}
+
+func (s *snapdSuite) TestDisableSecurityLoggerWarnsOnError(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	restore = snapd.MockSeclogDisable(func() error {
+		return fmt.Errorf("audit socket busy")
+	})
+	defer restore()
+
+	snapd.DisableSecurityLogger()
+	c.Check(logbuf.String(), testutil.Contains, "WARNING: cannot disable security logger: audit socket busy")
 }
 
 func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {

@@ -42,5 +42,5 @@ func (nopLogger) LogLoginSuccess(user SnapdUser) {
 }
 
 // LogLoginFailure implements [securityLogger.LogLoginFailure].
-func (nopLogger) LogLoginFailure(user SnapdUser) {
+func (nopLogger) LogLoginFailure(user SnapdUser, reason Reason) {
 }

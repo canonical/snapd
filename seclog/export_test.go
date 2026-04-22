@@ -27,34 +27,42 @@ import (
 
 var NewNopLogger = newNopLogger
 
-var Register = register
+var RegisterImpl = registerImpl
 var RegisterSink = registerSink
 
 type (
-	Provider       = provider
+	ImplFactory    = implFactory
+	SinkFactory    = sinkFactory
 	SecurityLogger = securityLogger
 )
 
-func MockSinks(m map[Sink]func(string) (io.Writer, error)) (restore func()) {
+func MockSinks(m map[Sink]sinkFactory) (restore func()) {
 	restore = testutil.Backup(&sinks)
 	sinks = m
 	return restore
 }
 
-// MockNewSink is a convenience wrapper that replaces the journal sink factory
-// in the sinks map. The rest of the sinks map is preserved.
+// sinkFunc adapts a plain function to the [sinkFactory] interface.
+type sinkFunc func(string) (io.Writer, error)
+
+// SinkFunc exports sinkFunc for use in external test packages.
+type SinkFunc = sinkFunc
+
+func (f sinkFunc) Open(appID string) (io.Writer, error) { return f(appID) }
+
+// MockNewSink is a convenience wrapper that replaces the audit sink factory
+// in the sinks map.
 func MockNewSink(f func(string) (io.Writer, error)) (restore func()) {
 	restore = testutil.Backup(&sinks)
-	sinks = map[Sink]func(string) (io.Writer, error){
-		SinkJournal: f,
-		SinkAudit:   newAuditSink,
+	sinks = map[Sink]sinkFactory{
+		SinkAudit: sinkFunc(f),
 	}
 	return restore
 }
 
-func MockProviders(m map[Impl]provider) (restore func()) {
-	restore = testutil.Backup(&providers)
-	providers = m
+func MockImplementations(m map[Impl]implFactory) (restore func()) {
+	restore = testutil.Backup(&implementations)
+	implementations = m
 	return restore
 }
 
@@ -85,8 +93,24 @@ func MockGlobalSetup(s *LoggerSetup) (restore func()) {
 	return restore
 }
 
-var SyslogPriority = syslogPriority
+const MaxWriteFailures = maxWriteFailures
 
-var NewJournalWriter = newJournalWriter
+func MockWriteFailures(n int) (restore func()) {
+	restore = testutil.Backup(&writeFailures)
+	writeFailures = n
+	return restore
+}
 
-type JournalWriter = journalWriter
+func MockFailed(f bool) (restore func()) {
+	restore = testutil.Backup(&failed)
+	failed = f
+	return restore
+}
+
+func GetFailed() bool {
+	return failed
+}
+
+func GetWriteFailures() int {
+	return writeFailures
+}
