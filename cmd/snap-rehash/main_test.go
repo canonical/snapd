@@ -43,6 +43,10 @@ type rehashSuite struct{}
 var _ = Suite(&rehashSuite{})
 
 func makeTestCert(cn string) ([]byte, error) {
+	return makeTestCertWithPEMBlockType(cn, "CERTIFICATE")
+}
+
+func makeTestCertWithPEMBlockType(cn, blockType string) ([]byte, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, err
@@ -58,7 +62,7 @@ func makeTestCert(cn string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), nil
+	return pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: der}), nil
 }
 
 func expectedHash(pemData []byte) string {
@@ -70,13 +74,41 @@ func expectedHash(pemData []byte) string {
 			break
 		}
 		rest = next
-		if block.Type != "CERTIFICATE" {
+		if !isCertificatePEMBlockType(block.Type) {
 			continue
 		}
 		cert, _ := x509.ParseCertificate(block.Bytes)
 		h.Write(cert.Raw)
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+func (s *rehashSuite) TestRehashAcceptsTrustedCertificatePEMBlock(c *C) {
+	dir := c.MkDir()
+
+	certData, err := makeTestCertWithPEMBlockType("trusted", "TRUSTED CERTIFICATE")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dir, "trusted.crt"), certData, 0o644), IsNil)
+
+	err = rehashDirectory(dir)
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(filepath.Join(dir, expectedHash(certData)[:8]+".0"))
+	c.Check(err, IsNil)
+}
+
+func (s *rehashSuite) TestRehashAcceptsX509CertificatePEMBlock(c *C) {
+	dir := c.MkDir()
+
+	certData, err := makeTestCertWithPEMBlockType("x509", "X509 CERTIFICATE")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(dir, "x509.crt"), certData, 0o644), IsNil)
+
+	err = rehashDirectory(dir)
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(filepath.Join(dir, expectedHash(certData)[:8]+".0"))
+	c.Check(err, IsNil)
 }
 
 func (s *rehashSuite) TestRehashInvalidPEMNoCertificateBlock(c *C) {
@@ -196,14 +228,14 @@ func (s *rehashSuite) TestRehashCollisionUsesSuffix(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *rehashSuite) TestRehashSkipsNonCrtFiles(c *C) {
+func (s *rehashSuite) TestRehashSkipsUnsupportedSuffixes(c *C) {
 	dir := c.MkDir()
 
 	certA, err := makeTestCert("A")
 	c.Assert(err, IsNil)
 
-	// Write with .pem extension — should be skipped.
-	c.Assert(os.WriteFile(filepath.Join(dir, "a.pem"), certA, 0o644), IsNil)
+	// Write with an unsupported extension — it should be skipped.
+	c.Assert(os.WriteFile(filepath.Join(dir, "a.txt"), certA, 0o644), IsNil)
 
 	err = rehashDirectory(dir)
 	c.Assert(err, IsNil)

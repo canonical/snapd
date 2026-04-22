@@ -32,8 +32,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"regexp"
+
+	"github.com/snapcore/snapd/strutil"
 )
+
+var allowedSuffixes = []string{"pem", "crt", "cer"}
+
+var certificatePEMBlockTypePattern = regexp.MustCompile(`^(X509 |TRUSTED |)?CERTIFICATE$`)
+
+func isCertificatePEMBlockType(blockType string) bool {
+	return certificatePEMBlockTypePattern.MatchString(blockType)
+}
 
 // sha1HashForCertFile computes the SHA-1 digest of all DER-encoded
 // certificate blocks found in the file at path. For PEM files with
@@ -57,9 +67,12 @@ func sha1HashForCertFile(path string) (string, error) {
 				break
 			}
 			rest = next
-			if block.Type != "CERTIFICATE" {
+
+			// TODO: block type 'X509 CRL' if we ever need this
+			if !isCertificatePEMBlockType(block.Type) {
 				continue
 			}
+
 			cert, err := x509.ParseCertificate(block.Bytes)
 			if err != nil {
 				return "", fmt.Errorf("cannot parse PEM certificate block: %v", err)
@@ -82,8 +95,8 @@ func sha1HashForCertFile(path string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
-// rehashDirectory creates SHA-1 hash links for all .crt files in dir, emulating
-// the behaviour of OpenSSL's c_rehash(1). Each certificate file gets a
+// rehashDirectory creates SHA-1 hash links for all supported certificate files
+// in dir, emulating the behaviour of OpenSSL's c_rehash(1). Each certificate file gets a
 // hard link named <hash>.N where <hash> is the first 8 hex characters of
 // the SHA-1 digest of the certificate chain's DER encoding and N is a
 // collision suffix starting at 0.
@@ -94,7 +107,14 @@ func rehashDirectory(dir string) error {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".crt") {
+		if entry.IsDir() {
+			continue
+		}
+
+		// TODO: we could support .crl files like openssl's c_rehash does,
+		// but currently we have no .crl files in the bases
+		extension := filepath.Ext(entry.Name())[1:]
+		if !strutil.ListContains(allowedSuffixes, extension) {
 			continue
 		}
 
