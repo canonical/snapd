@@ -508,7 +508,7 @@ static void sc_replicate_base_rootfs(const char *scratch_dir, const char *rootfs
  * snaps) or remove them, through the unmount system call.
  **/
 static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
-    char scratch_dir[] = "/tmp/snap.rootfs_XXXXXX";
+    char scratch_dir[] = "/tmp/snap-private-tmp/snap.rootfs_XXXXXX";
     char src[PATH_MAX] = {0};
     char dst[PATH_MAX] = {0};
     if (mkdtemp(scratch_dir) == NULL) {
@@ -767,7 +767,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
     // all-snap system where this would-be chroot didn't happen and all the
     // rules see / as the root file system _OR_ we are running on top of a
     // classic distribution and this chroot has now moved all paths to
-    // /tmp/snap.rootfs_*.
+    // /tmp/snap-private-tmp/snap.rootfs_*.
     //
     // Because we are using unshare(2) with CLONE_NEWNS we can essentially use
     // pivot_root just like chroot but this makes apparmor unaware of the old
