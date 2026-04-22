@@ -375,12 +375,12 @@ func (s *undoTrackerSuite) TestNullUndoerAddUndoDoesNothing(c *C) {
 	c.Check(called, Equals, false)
 }
 
-func (s *undoTrackerSuite) TestTodoUndoerAddUndoDoesNothing(c *C) {
+func (s *undoTrackerSuite) TestTODOUndoerAddUndoDoesNothing(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	called := false
-	snapstate.TodoUndoer.AddUndo(func() error {
+	snapstate.TODOUndoer.AddUndo(func() error {
 		called = true
 		return nil
 	})

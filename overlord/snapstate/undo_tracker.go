@@ -190,7 +190,7 @@ func (nu nullUndoer) AddUndo(f func() error) {}
 // functions of task handlers.
 var NullUndoer = nullUndoer{}
 
-// TodoUndoer is an Undoer that does nothing. It is meant to be used
+// TODOUndoer is an Undoer that does nothing. It is meant to be used
 // when system changes should be undone, but the caller has not yet
 // added support for passing UndoTracker.Locked() or UndoTracker.Unlocked().
-var TodoUndoer = nullUndoer{}
+var TODOUndoer = nullUndoer{}
