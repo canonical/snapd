@@ -1588,6 +1588,8 @@ suites:
     tests/release/:
         summary: Tests for snapd during the release process
         systems: [ubuntu-1*, ubuntu-2*]
+        environment:
+            CORE_CHANNEL: stable
         prepare: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |

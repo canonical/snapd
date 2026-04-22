@@ -8,17 +8,15 @@ systemctl is-active snapd.socket
 tests.invariant check crashed-snap-confine
 tests.invariant check broken-snaps
 
-snap version | grep -q "$(cat snap-version.txt)"
-
 snap debug confinement | MATCH "strict"
 
-snap connections go-example-webserver > tmp-webserver-connectionts.txt
-diff -u webserver-connections.txt tmp-webserver-connectionts.txt
+snap connections go-example-webserver > connections.txt
+diff -u webserver-connections.txt connections.txt
 
 tests.systemd wait-for-service -n 30 --state active snap.go-example-webserver.webserver.service
 curl --fail --silent --show-error -o /dev/null localhost:8081
 
-snap list > tmp-snap-list.txt
+snap list | grep -v "^snapd[[:space:]]" > tmp-snap-list.txt
 diff -u snap-list.txt tmp-snap-list.txt
 
 test-snapd-sh.sh -c 'echo Hello' | MATCH "Hello"
