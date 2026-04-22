@@ -22,11 +22,13 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -42,18 +44,24 @@ const (
 )
 
 type CertificateData struct {
-	Raw    *x509.Certificate
-	Sha256 string
-	Sha1   string
+	Raw             *x509.Certificate
+	Sha256          string
+	SubjectNameSha1 string
 }
 
 type certificate struct {
-	Name     string
-	Path     string
-	RealPath string
-	Sha256   string
-	Sha1     string
+	Name            string
+	Path            string
+	RealPath        string
+	Sha256          string
+	SubjectNameSha1 string
 }
+
+// .crl not supported for now, and there is none of this type carried
+// in the bases
+var allowedSuffixes = []string{"pem", "crt", "cer"}
+
+var certificatePEMBlockTypePattern = regexp.MustCompile(`^(X509 |TRUSTED |)?CERTIFICATE$`)
 
 func sha256HexForChain(chainDER [][]byte) string {
 	h := sha256.New224()
@@ -64,17 +72,20 @@ func sha256HexForChain(chainDER [][]byte) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func sha1HexForChain(chainDER [][]byte) string {
-	h := sha1.New()
-	for _, der := range chainDER {
-		// Hash the DER bytes as-is (in file order).
-		_, _ = h.Write(der)
+func sha1HexForCertSubjectName(cert *x509.Certificate) (string, error) {
+	canonicalSubject, err := canonicalSubjectNameDER(cert.RawSubject)
+	if err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("%x", h.Sum(nil))
+
+	// OpenSSL's X509_NAME_hash_ex uses SHA-1 over the canonicalized subject DN
+	// and returns the first 4 bytes in little-endian order.
+	digest := sha1.Sum(canonicalSubject)
+	return fmt.Sprintf("%08x", binary.LittleEndian.Uint32(digest[:4])), nil
 }
 
 // ParseCertificateData parses certificate data and returns the first certificate,
-// plus the full chain DER blobs (all CERTIFICATE PEM blocks, in order).
+// plus the full chain DER blobs,
 //
 // For DER input, it returns a single-certificate chain.
 func ParseCertificateData(certData []byte) (*CertificateData, error) {
@@ -84,13 +95,14 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 		rest := certData
 		var chainDER [][]byte
 		var first *x509.Certificate
+
 		for {
 			block, next := pem.Decode(rest)
 			if block == nil {
 				break
 			}
 			rest = next
-			if block.Type != "CERTIFICATE" {
+			if !certificatePEMBlockTypePattern.MatchString(block.Type) {
 				continue
 			}
 
@@ -103,13 +115,26 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 			}
 			chainDER = append(chainDER, cert.Raw)
 		}
+
 		if first == nil {
 			return nil, fmt.Errorf("no certificate PEM block found")
 		}
+
+		// only calculate the subject name hash if we have a single certificate
+		// which is what openssl does.
+		var subjectNameSha1 string
+		if len(chainDER) == 1 {
+			hash, err := sha1HexForCertSubjectName(first)
+			if err != nil {
+				return nil, fmt.Errorf("failed to hash certificate subject name: %v", err)
+			}
+			subjectNameSha1 = hash
+		}
+
 		return &CertificateData{
-			Raw:    first,
-			Sha256: sha256HexForChain(chainDER),
-			Sha1:   sha1HexForChain(chainDER),
+			Raw:             first,
+			Sha256:          sha256HexForChain(chainDER),
+			SubjectNameSha1: subjectNameSha1,
 		}, nil
 	}
 
@@ -119,22 +144,28 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse DER certificate: %v", err)
 	}
+
+	subjectNameSha1, err := sha1HexForCertSubjectName(cert)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash certificate subject name: %v", err)
+	}
 	return &CertificateData{
-		Raw:    cert,
-		Sha256: sha256HexForChain([][]byte{cert.Raw}),
-		Sha1:   sha1HexForChain([][]byte{cert.Raw}),
+		Raw:             cert,
+		Sha256:          sha256HexForChain([][]byte{cert.Raw}),
+		SubjectNameSha1: subjectNameSha1,
 	}, nil
 }
 
-func trimCrtExtension(name string) string {
-	if strings.HasSuffix(name, ".crt") {
-		return strings.TrimSuffix(name, ".crt")
+func trimExtension(name string) string {
+	extension := filepath.Ext(name)
+	if len(extension) != 0 && strutil.ListContains(allowedSuffixes, extension[1:]) {
+		return strings.TrimSuffix(name, extension)
 	}
 	return name
 }
 
 // isBlocked checks whether the given certificate is blocked
-// based on it's name (special names or its path not being a .crt), or
+// based on its name (special names or its path not being a supported extension), or
 // based on its digest being in the list of blocked digests.
 func isBlocked(cert certificate, blockedCertDigests []string) bool {
 	// Special case for ca-certificates.crt
@@ -142,8 +173,10 @@ func isBlocked(cert certificate, blockedCertDigests []string) bool {
 		return true
 	}
 
-	// Check that the real underlying filepath to the certificate ends with .crt
-	if !strings.HasSuffix(cert.RealPath, ".crt") {
+	// Check that the real underlying filepath to the
+	// certificate ends with a supported extension
+	extension := filepath.Ext(cert.RealPath)
+	if len(extension) == 0 || !strutil.ListContains(allowedSuffixes, extension[1:]) {
 		return true
 	}
 	return strutil.ListContains(blockedCertDigests, cert.Sha256)
@@ -163,7 +196,13 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 
 	var certsObjects []certificate
 	for _, caFile := range certFiles {
-		if caFile.IsDir() || !strings.HasSuffix(caFile.Name(), ".crt") {
+		if caFile.IsDir() {
+			continue
+		}
+
+		extension := filepath.Ext(caFile.Name())[1:]
+		if !strutil.ListContains(allowedSuffixes, extension) {
+			logger.Noticef("Skipping file %q in certs directory: unexpected file extension %q", caFile.Name(), extension)
 			continue
 		}
 
@@ -179,7 +218,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			certRealPath = resolvedPath
 		}
 
-		// Load the crt file and calculate the digest of the certificate.
+		// Load the cert file and calculate the digest of the certificate.
 		certBytes, err := os.ReadFile(certRealPath)
 		if err != nil {
 			logger.Noticef("Failed to read certificate %q: %v", certRealPath, err)
@@ -194,11 +233,11 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 
 		// If the file is not a symbolic link then Path and RealPath will be identical.
 		certObject := certificate{
-			Name:     trimCrtExtension(caFile.Name()),
-			Path:     filepath.Join(certsPath, caFile.Name()),
-			RealPath: certRealPath,
-			Sha256:   cert.Sha256,
-			Sha1:     cert.Sha1,
+			Name:            trimExtension(caFile.Name()),
+			Path:            filepath.Join(certsPath, caFile.Name()),
+			RealPath:        certRealPath,
+			Sha256:          cert.Sha256,
+			SubjectNameSha1: cert.SubjectNameSha1,
 		}
 		certsObjects = append(certsObjects, certObject)
 	}
@@ -206,7 +245,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 }
 
 // readDigests reads the names of all files in the given directory
-// and returns them as a list of strings (with any .crt extension trimmed).
+// and returns them as a list of strings (with any extension trimmed).
 // It expects that the files in the directory are named by their digest.
 func readDigests(dir string) ([]string, error) {
 	files, err := os.ReadDir(dir)
@@ -218,13 +257,13 @@ func readDigests(dir string) ([]string, error) {
 	}
 
 	// Certificates are expected to be named by their digest,
-	// and we trim any .crt extension prior to returning them.
+	// and we trim any extension prior to returning them.
 	var digests []string
 	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
-		name := trimCrtExtension(f.Name())
+		name := trimExtension(f.Name())
 		digests = append(digests, name)
 	}
 	return digests, nil
@@ -253,9 +292,16 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 	}
 
 	sha1Link := func(cert certificate) error {
+		if cert.SubjectNameSha1 == "" {
+			return nil
+		}
+
 		// Emulate https://docs.openssl.org/1.0.2/man1/c_rehash/ behaviour
 		// for creating a hash lookup. It must be in SHA-1.
-		hash := cert.Sha1[:8]
+		hash := cert.SubjectNameSha1
+		if len(hash) > 8 {
+			hash = hash[:8]
+		}
 
 		for suffix := 0; ; suffix++ {
 			linkName := filepath.Join(certsDir, fmt.Sprintf("%s.%d", hash, suffix))
@@ -445,6 +491,8 @@ func certificatePathWithExtension(dir, name string) string {
 
 // CertificatePath returns a path to the certificate file itself,
 // given the name of the certificate (without .crt extension).
+// Custom certificates are expected to be with .crt extension, while
+// system certificates may vary.
 func CertificatePath(name string) string {
 	return certificatePathWithExtension(dirs.SnapdPKIV1Dir, name)
 }
@@ -577,7 +625,7 @@ func CustomCertificates() ([]*CertificateInfo, error) {
 		if f.IsDir() || !strings.HasSuffix(f.Name(), ".crt") {
 			continue
 		}
-		name := trimCrtExtension(f.Name())
+		name := trimExtension(f.Name())
 		info, err := certificateInfo(name, dirs.SnapdPKIV1Dir, addedDir, blockedDir)
 		if err != nil {
 			// Let us be resilient to errors here, and just skip the certificate if we

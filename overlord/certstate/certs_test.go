@@ -28,7 +28,9 @@ import (
 	"errors"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,6 +97,21 @@ func makeTestCertPEM(commonName string) ([]byte, *x509.Certificate, error) {
 	return pemBytes, cert, nil
 }
 
+func opensslSubjectHash(c *C, certData []byte) string {
+	if _, err := exec.LookPath("openssl"); err != nil {
+		c.Skip("openssl not available")
+	}
+
+	dir := c.MkDir()
+	certPath := filepath.Join(dir, "cert.pem")
+	c.Assert(os.WriteFile(certPath, certData, 0o644), IsNil)
+
+	out, err := exec.Command("openssl", "x509", "-in", certPath, "-noout", "-subject_hash").CombinedOutput()
+	c.Assert(err, IsNil, Commentf("openssl output: %s", out))
+
+	return strings.TrimSpace(string(out))
+}
+
 func digestForPEM(c *C, pemBytes []byte) string {
 	dir := c.MkDir()
 	path := filepath.Join(dir, "one.crt")
@@ -121,9 +138,9 @@ func (s *certsTestSuite) TestIsBlockedReturnsBlockedOnSpecialNamings(c *C) {
 }
 
 func (s *certsTestSuite) TestIsBlockedReturnsBlockedOnSuffix(c *C) {
-	// RealPath must end with .crt, otherwise it returns true
+	// RealPath must end with a supported extension, otherwise it returns true
 	c.Check(certstate.IsBlocked(certstate.Certificate{
-		RealPath: "blocked-cert.pem",
+		RealPath: "blocked-cert.crl",
 	}, nil), Equals, true)
 }
 
@@ -164,6 +181,26 @@ func (s *certsTestSuite) TestParseCertificateDataDERInput(c *C) {
 	c.Check(parsed.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
 }
 
+func (s *certsTestSuite) TestParseCertificateDataSubjectHashMatchesOpenSSL(c *C) {
+	certPEM, _, err := makeTestCertPEM(" Test  Name ")
+	c.Assert(err, IsNil)
+
+	parsed, err := certstate.ParseCertificateData(certPEM)
+	c.Assert(err, IsNil)
+	c.Check(parsed.SubjectNameSha1, Equals, opensslSubjectHash(c, certPEM))
+}
+
+func (s *certsTestSuite) TestParseCertificateDataMultipleCertificatesSkipsSubjectHash(c *C) {
+	cert1, _, err := makeTestCertPEM("Test Certificate Root CA 1")
+	c.Assert(err, IsNil)
+	cert2, _, err := makeTestCertPEM("Test Certificate Root CA 2")
+	c.Assert(err, IsNil)
+
+	parsed, err := certstate.ParseCertificateData(append(cert1, cert2...))
+	c.Assert(err, IsNil)
+	c.Check(parsed.SubjectNameSha1, Equals, "")
+}
+
 func (s *certsTestSuite) TestParseCertificateDataNoCertificateBlock(c *C) {
 	data := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("junk")})
 	cert, err := certstate.ParseCertificateData(data)
@@ -182,16 +219,18 @@ func (s *certsTestSuite) TestParseCertificatesSimpleHappy(c *C) {
 	// write certs into a directory
 	certsDir := c.MkDir()
 	c.Assert(os.WriteFile(""+certsDir+"/cert1.crt", cert1, 0o644), IsNil)
-	c.Assert(os.WriteFile(""+certsDir+"/cert2.crt", cert2, 0o644), IsNil)
-
-	// this one should be ignored as it does not have .crt suffix
+	c.Assert(os.WriteFile(""+certsDir+"/cert2.cer", cert2, 0o644), IsNil)
 	c.Assert(os.WriteFile(""+certsDir+"/cert3.pem", cert3, 0o644), IsNil)
+
+	// this one should be ignored as it does not have a supported suffix
+	c.Assert(os.WriteFile(""+certsDir+"/cert4.crl", cert3, 0o644), IsNil)
 
 	certs, err := certstate.ParseCertificates(certsDir)
 	c.Assert(err, IsNil)
-	c.Assert(len(certs), Equals, 2)
+	c.Assert(len(certs), Equals, 3)
 	c.Assert(certs[0].Name, Equals, "cert1")
 	c.Assert(certs[1].Name, Equals, "cert2")
+	c.Assert(certs[2].Name, Equals, "cert3")
 }
 
 func (s *certsTestSuite) TestParseCertificatesResolvesSymlinks(c *C) {
@@ -373,7 +412,7 @@ func (s *certsTestSuite) TestGenerateCACertificatesMirrorsCertsDir(c *C) {
 
 	// Verify SHA-1 hash links exist (first 8 hex chars of SHA-1 + ".0").
 	for _, cert := range base {
-		linkName := cert.Sha1[:8] + ".0"
+		linkName := cert.SubjectNameSha1[:8] + ".0"
 		_, err := os.Stat(filepath.Join(outDir, linkName))
 		c.Check(err, IsNil, Commentf("sha1 hash link %q missing for cert %q", linkName, cert.Name))
 	}
@@ -402,7 +441,7 @@ func (s *certsTestSuite) TestGenerateCACertificatesSha1LinksAreUnique(c *C) {
 
 	// Ensure the two certificates produce different SHA-1 hash links.
 	c.Assert(base, HasLen, 2)
-	c.Check(base[0].Sha1[:8], Not(Equals), base[1].Sha1[:8])
+	c.Check(base[0].SubjectNameSha1[:8], Not(Equals), base[1].SubjectNameSha1[:8])
 
 	err = certstate.GenerateCACertificates(&certstate.Certificates{
 		SystemCertificates: base,
@@ -410,8 +449,8 @@ func (s *certsTestSuite) TestGenerateCACertificatesSha1LinksAreUnique(c *C) {
 	c.Assert(err, IsNil)
 
 	// Both hash links must be present.
-	link0 := base[0].Sha1[:8] + ".0"
-	link1 := base[1].Sha1[:8] + ".0"
+	link0 := base[0].SubjectNameSha1[:8] + ".0"
+	link1 := base[1].SubjectNameSha1[:8] + ".0"
 	_, err = os.Stat(filepath.Join(outDir, link0))
 	c.Check(err, IsNil)
 	_, err = os.Stat(filepath.Join(outDir, link1))
@@ -435,18 +474,18 @@ func (s *certsTestSuite) TestGenerateCACertificatesSha1CollisionsUseNextSuffix(c
 	err = certstate.GenerateCACertificates(&certstate.Certificates{
 		SystemCertificates: []certstate.Certificate{
 			{
-				Name:     "a",
-				Path:     aPath,
-				RealPath: aPath,
-				Sha256:   "sha256-a",
-				Sha1:     "deadbeef00000000000000000000000000000000",
+				Name:            "a",
+				Path:            aPath,
+				RealPath:        aPath,
+				Sha256:          "sha256-a",
+				SubjectNameSha1: "deadbeef00000000000000000000000000000000",
 			},
 			{
-				Name:     "b",
-				Path:     bPath,
-				RealPath: bPath,
-				Sha256:   "sha256-b",
-				Sha1:     "deadbeef11111111111111111111111111111111",
+				Name:            "b",
+				Path:            bPath,
+				RealPath:        bPath,
+				Sha256:          "sha256-b",
+				SubjectNameSha1: "deadbeef11111111111111111111111111111111",
 			},
 		},
 	}, outDir)
@@ -458,6 +497,38 @@ func (s *certsTestSuite) TestGenerateCACertificatesSha1CollisionsUseNextSuffix(c
 	c.Assert(err, IsNil)
 	c.Check(got0, DeepEquals, aPEM)
 	c.Check(got1, DeepEquals, bPEM)
+}
+
+func (s *certsTestSuite) TestGenerateCACertificatesSkipsHashLinkForMultiCertificateFile(c *C) {
+	cert1, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	cert2, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+
+	baseDir := c.MkDir()
+	outDir := filepath.Join(c.MkDir(), "merged")
+	bundlePEM := append(append([]byte(nil), cert1...), cert2...)
+
+	bundlePath := filepath.Join(baseDir, "bundle.crt")
+	c.Assert(os.WriteFile(bundlePath, bundlePEM, 0o644), IsNil)
+
+	base, err := certstate.ParseCertificates(baseDir)
+	c.Assert(err, IsNil)
+	c.Assert(base, HasLen, 1)
+	c.Check(base[0].SubjectNameSha1, Equals, "")
+
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: base,
+	}, outDir)
+	c.Assert(err, IsNil)
+
+	entries, err := os.ReadDir(outDir)
+	c.Assert(err, IsNil)
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	c.Check(names, DeepEquals, []string{"bundle.crt", "ca-certificates.crt"})
 }
 
 func (s *certsTestSuite) TestGenerateCACertificatesBlockedCertHasNoLinks(c *C) {
@@ -481,7 +552,7 @@ func (s *certsTestSuite) TestGenerateCACertificatesBlockedCertHasNoLinks(c *C) {
 	var blockedSha1Prefix string
 	for _, cert := range base {
 		if cert.Sha256 == blockedDigest {
-			blockedSha1Prefix = cert.Sha1[:8]
+			blockedSha1Prefix = cert.SubjectNameSha1[:8]
 			break
 		}
 	}
