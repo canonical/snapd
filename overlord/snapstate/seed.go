@@ -230,6 +230,10 @@ func errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg *state.Change, prov
 	return fmt.Errorf("cannot automatically update prerequisite %q during seed-refresh while base %q waits for create-recovery-system", snapsup.InstanceName(), base)
 }
 
+// mergeLateSeedRefreshPrereq folds a prerequisite refresh into the existing
+// seed-refresh task graph by adding its setup tasks to create-recovery-system,
+// joining its task set to the seed-refresh lanes, and ensuring seed creation
+// tasks depend on the prerequisite refresh tasks.
 func mergeLateSeedRefreshPrereq(chg *state.Change, providerTS *state.TaskSet) error {
 	create, finalize, err := findRecoverySystemTasks(chg)
 	if err != nil {
