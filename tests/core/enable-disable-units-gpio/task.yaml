@@ -21,7 +21,7 @@ skip:
 
 prepare: |
     echo "Create/enable fake gpio"
-    tests.systemd create-and-start-unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.snapd.interface.gpio-100.service\\n[Service]\\nType=notify"
+    tests.systemd create-and-start-unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py" "[Unit]\\nBefore=snap.snapd.interface.gpio-100.service\\n[Service]\\nType=notify\\nEnvironment=PATH=$PATH"
 
     echo "Given a snap declaring a plug on gpio is installed"
     "$TESTSTOOLS"/snaps-state install-local gpio-consumer
