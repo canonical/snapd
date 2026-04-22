@@ -208,6 +208,14 @@ func (s *certsTestSuite) TestParseCertificateDataNoCertificateBlock(c *C) {
 	c.Check(err, ErrorMatches, ".*no certificate PEM block found.*")
 }
 
+func (s *certsTestSuite) TestParseCertificateDataInvalidCertificatePEMBlock(c *C) {
+	data := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("junk")})
+
+	cert, err := certstate.ParseCertificateData(data)
+	c.Check(cert, IsNil)
+	c.Check(err, ErrorMatches, `failed to parse certificate PEM block: .*`)
+}
+
 func (s *certsTestSuite) TestParseCertificatesSimpleHappy(c *C) {
 	cert1, _, err := makeTestCertPEM("Test Certificate Root CA 1")
 	c.Assert(err, IsNil)
@@ -254,6 +262,27 @@ func (s *certsTestSuite) TestParseCertificatesResolvesSymlinks(c *C) {
 	c.Check(certs[1].Name, Equals, "real")
 	c.Check(certs[1].Path, Equals, real)
 	c.Check(certs[1].RealPath, Equals, real)
+}
+
+func (s *certsTestSuite) TestParseCertificatesSkipsBrokenEntries(c *C) {
+	certPEM, _, err := makeTestCertPEM("Test Certificate Root CA")
+	c.Assert(err, IsNil)
+
+	dir := c.MkDir()
+	goodPath := filepath.Join(dir, "good.crt")
+	brokenLink := filepath.Join(dir, "broken-link.crt")
+	brokenCert := filepath.Join(dir, "broken-cert.crt")
+
+	c.Assert(os.WriteFile(goodPath, certPEM, 0o644), IsNil)
+	c.Assert(os.Symlink("missing.crt", brokenLink), IsNil)
+	c.Assert(os.WriteFile(brokenCert, []byte("not-a-certificate"), 0o644), IsNil)
+
+	certs, err := certstate.ParseCertificates(dir)
+	c.Assert(err, IsNil)
+	c.Assert(certs, HasLen, 1)
+	c.Check(certs[0].Name, Equals, "good")
+	c.Check(certs[0].Path, Equals, goodPath)
+	c.Check(certs[0].RealPath, Equals, goodPath)
 }
 
 func (s *certsTestSuite) TestParseCertificatesDigestIncludesFullChain(c *C) {
