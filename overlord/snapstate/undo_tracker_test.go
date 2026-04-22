@@ -54,7 +54,7 @@ func (s *undoTrackerSuite) TestRunDoesNothingOnNoError(c *C) {
 	defer s.st.Unlock()
 
 	called := false
-	s.ut.AddUndo(func() error {
+	s.ut.Locked().AddUndo(func() error {
 		called = true
 		return nil
 	})
@@ -70,7 +70,7 @@ func (s *undoTrackerSuite) TestRunDoesNothingOnWaitError(c *C) {
 	defer s.st.Unlock()
 
 	called := false
-	s.ut.AddUndo(func() error {
+	s.ut.Locked().AddUndo(func() error {
 		called = true
 		return nil
 	})
@@ -87,7 +87,7 @@ func (s *undoTrackerSuite) TestRunDoesNothingOnRetryError(c *C) {
 	defer s.st.Unlock()
 
 	called := false
-	s.ut.AddUndo(func() error {
+	s.ut.Locked().AddUndo(func() error {
 		called = true
 		return nil
 	})
@@ -115,7 +115,7 @@ func (s *undoTrackerSuite) TestRunExecutesUndosInReverseOrder(c *C) {
 	var order []int
 	for i := 1; i <= 3; i++ {
 		i := i // capture loop variable
-		s.ut.AddUndo(func() error {
+		s.ut.Locked().AddUndo(func() error {
 			order = append(order, i)
 			return nil
 		})
@@ -135,7 +135,7 @@ func (s *undoTrackerSuite) TestRunContinuesAfterUndoFailure(c *C) {
 	var order []int
 	for i := 1; i <= 3; i++ {
 		i := i // capture loop variable
-		s.ut.AddUndo(func() error {
+		s.ut.Locked().AddUndo(func() error {
 			order = append(order, i)
 			if i == 2 {
 				return errors.New("undo 2 failed")
@@ -184,7 +184,7 @@ func (s *undoTrackerSuite) TestUnlockedMixedWithLockedUndos(c *C) {
 
 	var order []int
 
-	s.ut.AddUndo(func() error {
+	s.ut.Locked().AddUndo(func() error {
 		order = append(order, 1)
 		return nil
 	})
@@ -200,7 +200,7 @@ func (s *undoTrackerSuite) TestUnlockedMixedWithLockedUndos(c *C) {
 		return nil
 	})
 
-	s.ut.AddUndo(func() error {
+	s.ut.Locked().AddUndo(func() error {
 		order = append(order, 3)
 		return nil
 	})
@@ -216,7 +216,7 @@ func (s *undoTrackerSuite) TestRunCollectsAndLogsAllErrors(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.ut.AddUndo(func() error {
+	s.ut.Locked().AddUndo(func() error {
 		return errors.New("locked undo failed")
 	})
 
@@ -249,7 +249,7 @@ func (s *undoTrackerSuite) TestAddUndoPanicsAfterRunAlreadyCalled(c *C) {
 	s.run()
 
 	c.Assert(func() {
-		s.ut.AddUndo(func() error { return nil })
+		s.ut.Locked().AddUndo(func() error { return nil })
 	}, PanicMatches, "internal error: cannot register undo after undos execution has started")
 }
 
@@ -262,4 +262,132 @@ func (s *undoTrackerSuite) TestUnlockedAddUndoPanicsAfterRunAlreadyCalled(c *C) 
 	c.Assert(func() {
 		s.ut.Unlocked().AddUndo(func() error { return nil })
 	}, PanicMatches, "internal error: cannot register undo after undos execution has started")
+}
+
+func (s *undoTrackerSuite) TestRunSkipsUndosOnRealErrorWhenMarkedSkip(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	called := false
+	s.ut.Locked().AddUndo(func() error {
+		called = true
+		return nil
+	})
+	s.ut.Unlocked().AddUndo(func() error {
+		called = true
+		return nil
+	})
+
+	s.ut.Skip("mock skipping")
+	s.retErr = errors.New("task failed")
+	s.run()
+
+	// undo not called
+	c.Check(called, Equals, false)
+	// skip reason logged
+	c.Assert(s.t.Log(), HasLen, 1)
+	c.Check(s.t.Log()[0], Matches, `.*skipping undos, reason: mock skipping`)
+}
+
+func (s *undoTrackerSuite) TestSkipDoesNotLogOnNoError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.ut.Skip("mock skipping")
+	s.retErr = nil
+	s.run()
+
+	// skip reason is not logged
+	c.Check(s.t.Log(), HasLen, 0)
+}
+
+func (s *undoTrackerSuite) TestSkipDoesNotLogOnWaitError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.ut.Skip("mock skipping")
+	s.retErr = &state.Wait{Reason: "waiting for reboot"}
+	s.run()
+
+	// skip reason is not logged
+	c.Check(s.t.Log(), HasLen, 0)
+}
+
+func (s *undoTrackerSuite) TestSkipDoesNotLogOnRetryError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.ut.Skip("mock skipping")
+	s.retErr = &state.Retry{Reason: "retrying task"}
+	s.run()
+
+	// skip reason is not logged
+	c.Check(s.t.Log(), HasLen, 0)
+}
+
+func (s *undoTrackerSuite) TestSkipPanicsAfterRunAlreadyCalled(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.run()
+
+	c.Assert(func() {
+		s.ut.Skip("mock skipping")
+	}, PanicMatches, "internal error: cannot Skip after undos execution has started")
+}
+
+func (s *undoTrackerSuite) TestLockedAddUndoPanicsAfterSkip(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.ut.Skip("mock skipping")
+
+	c.Assert(func() {
+		s.ut.Locked().AddUndo(func() error { return nil })
+	}, PanicMatches, "internal error: cannot register undo as they are marked to be skipped")
+}
+
+func (s *undoTrackerSuite) TestUnlockedAddUndoPanicsAfterSkip(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.ut.Skip("mock skipping")
+
+	c.Assert(func() {
+		s.ut.Unlocked().AddUndo(func() error { return nil })
+	}, PanicMatches, "internal error: cannot register undo as they are marked to be skipped")
+}
+
+func (s *undoTrackerSuite) TestNullUndoerAddUndoDoesNothing(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	called := false
+	snapstate.NullUndoer.AddUndo(func() error {
+		called = true
+		return nil
+	})
+
+	s.retErr = errors.New("task failed")
+	s.run()
+
+	// undo not called
+	c.Check(called, Equals, false)
+}
+
+func (s *undoTrackerSuite) TestTodoUndoerAddUndoDoesNothing(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	called := false
+	snapstate.TodoUndoer.AddUndo(func() error {
+		called = true
+		return nil
+	})
+
+	s.retErr = errors.New("task failed")
+	s.run()
+
+	// undo not called
+	c.Check(called, Equals, false)
 }

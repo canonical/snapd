@@ -1234,6 +1234,10 @@ func (s *linkSuite) TestStartServices(c *C) {
 	c.Assert(called, Equals, 1)
 }
 
+type nullUndoer struct{}
+
+func (nu nullUndoer) AddUndo(f func() error) {}
+
 func (s *linkSuite) TestStopServices(c *C) {
 	var called int
 	restore := backend.MockWrappersStopServices(func(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, opts *wrappers.StopServicesOptions, reason snap.ServiceStopReason, inter wrappers.Interacter, tm timings.Measurer) error {
@@ -1245,7 +1249,7 @@ func (s *linkSuite) TestStopServices(c *C) {
 	defer restore()
 
 	apps := []*snap.AppInfo{{Name: "svc"}}
-	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, nil, progress.Null, s.perfTimings)
+	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, &nullUndoer{}, progress.Null, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, 1)
 }
