@@ -37,8 +37,26 @@ type addedService struct {
 // holds internal state that is used by the systemd backend during the interface
 // setup process.
 type Specification struct {
+	appSet *interfaces.SnapAppSet
+
+	// scope for AddDropin function
+	systemServices []string
+
 	curIface string
 	services map[string]*addedService
+
+	dropIns map[string]map[string]string
+}
+
+func NewSpecification(appSet *interfaces.SnapAppSet) *Specification {
+	return &Specification{appSet: appSet}
+}
+
+func (spec *Specification) setScope(systemServices []string) (restore func()) {
+	spec.systemServices = systemServices
+	return func() {
+		spec.systemServices = nil
+	}
 }
 
 // AddService adds a new systemd service unit.
@@ -77,6 +95,40 @@ func (spec *Specification) Services() map[string]*Service {
 	return result
 }
 
+// AddDropIn creates a systemd drop-in file for services associated
+// with the given interface.
+func (spec *Specification) AddDropIn(name, dropIn string) error {
+	for _, svc := range spec.systemServices {
+		if spec.dropIns == nil {
+			spec.dropIns = make(map[string]map[string]string)
+		}
+		if spec.dropIns[svc] == nil {
+			spec.dropIns[svc] = make(map[string]string)
+		}
+		if _, ok := spec.dropIns[svc][name]; ok {
+			return fmt.Errorf("internal error: systemd drop-in %q for service %q defined by interface %q has already been defined", name, svc, spec.curIface)
+		}
+		spec.dropIns[svc][name] = dropIn
+	}
+	return nil
+}
+
+// DropIns returns a list of drop-ins registered for the snap
+func (spec *Specification) DropIns() map[string]map[string]string {
+	if spec.dropIns == nil {
+		return nil
+	}
+	result := make(map[string]map[string]string, len(spec.dropIns))
+	for svc, svcDropIns := range spec.dropIns {
+		dropIns := make(map[string]string, len(svcDropIns))
+		result[svc] = dropIns
+		for k, v := range svcDropIns {
+			dropIns[k] = v
+		}
+	}
+	return result
+}
+
 // Implementation of methods required by interfaces.Specification
 
 // AddConnectedPlug records systemd-specific side-effects of having a connected plug.
@@ -86,6 +138,13 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 		SystemdConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		svcs, err := spec.appSet.SystemServicesForConnectedPlug(plug)
+		if err != nil {
+			return err
+		}
+		restore := spec.setScope(svcs)
+		defer restore()
+
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedPlug(spec, plug, slot)
@@ -100,6 +159,13 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 		SystemdConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		svcs, err := spec.appSet.SystemServicesForConnectedSlot(slot)
+		if err != nil {
+			return err
+		}
+		restore := spec.setScope(svcs)
+		defer restore()
+
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedSlot(spec, plug, slot)
@@ -114,6 +180,13 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 		SystemdPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
+		svcs, err := spec.appSet.SystemServicesForPlug(plug)
+		if err != nil {
+			return err
+		}
+		restore := spec.setScope(svcs)
+		defer restore()
+
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentPlug(spec, plug)
@@ -128,6 +201,13 @@ func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *sn
 		SystemdPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
+		svcs, err := spec.appSet.SystemServicesForSlot(slot)
+		if err != nil {
+			return err
+		}
+		restore := spec.setScope(svcs)
+		defer restore()
+
 		spec.curIface = iface.Name()
 		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentSlot(spec, slot)

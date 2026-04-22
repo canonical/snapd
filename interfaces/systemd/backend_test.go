@@ -223,3 +223,57 @@ func (s *backendSuite) TestRemovingSnapWhenPreseeding(c *C) {
 		})
 	}
 }
+
+func (s *backendSuite) TestInstallDropIn(c *C) {
+	const snapYaml = `
+name: samba
+version: 1
+apps:
+    smbd:
+        daemon: simple
+slots:
+    slot:
+        interface: iface
+`
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
+		err := spec.AddDropIn("foo", "[Unit]\nConflicts=foo.service")
+		if err != nil {
+			return err
+		}
+		return spec.AddDropIn("bar", "[Unit]\nAfter=bar.service")
+	}
+	dropInDir := filepath.Join(dirs.SnapServicesDir, "snap.samba.smbd.service.d")
+	dropInFoo := filepath.Join(dropInDir, "snap.foo.conf")
+	dropInBar := filepath.Join(dropInDir, "snap.bar.conf")
+	// verify known test state
+	c.Check(dropInFoo, testutil.FileAbsent)
+	c.Check(dropInBar, testutil.FileAbsent)
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYaml, 1)
+	// the services were created
+	c.Check(dropInFoo, testutil.FilePresent)
+	c.Check(dropInBar, testutil.FilePresent)
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"systemctl", "daemon-reload"},
+	})
+	s.systemctlArgs = nil
+
+	// Change what the interface returns to simulate some useful change
+	s.Iface.SystemdPermanentSlotCallback = func(spec *systemd.Specification, slot *snap.SlotInfo) error {
+		return spec.AddDropIn("foo", "[Unit]\nConflicts=foo.service")
+	}
+	// Update over to the same snap to regenerate security
+	s.UpdateSnap(c, snapInfo, interfaces.ConfinementOptions{}, snapYaml, 0)
+	// The bar service should have been stopped, foo service is unchanged
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"systemctl", "daemon-reload"},
+	})
+	c.Check(dropInFoo, testutil.FilePresent)
+	c.Check(dropInBar, testutil.FileAbsent)
+
+	//Remove the snap
+	s.RemoveSnap(c, snapInfo)
+	// Drop-ins files and directories have been removed
+	c.Check(dropInFoo, testutil.FileAbsent)
+	c.Check(dropInBar, testutil.FileAbsent)
+	c.Check(dropInDir, testutil.FileAbsent)
+}
