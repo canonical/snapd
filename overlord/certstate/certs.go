@@ -61,8 +61,14 @@ type certificate struct {
 // in the bases
 var allowedSuffixes = []string{"pem", "crt", "cer"}
 
+// certificatePEMBlockTypePattern matches the PEM labels accepted when scanning
+// certificate files or bundles.
 var certificatePEMBlockTypePattern = regexp.MustCompile(`^(X509 |TRUSTED |)?CERTIFICATE$`)
 
+// sha256HexForChain returns the content fingerprint for a certificate payload.
+// For PEM bundles, every certificate DER block contributes to the digest in
+// file order so two files that share a leaf certificate but differ elsewhere do
+// not collapse to the same value.
 func sha256HexForChain(chainDER [][]byte) string {
 	h := sha256.New224()
 	for _, der := range chainDER {
@@ -72,6 +78,8 @@ func sha256HexForChain(chainDER [][]byte) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
+// sha1HexForCertSubjectName reproduces the OpenSSL subject-name hash used by
+// c_rehash-style lookup links.
 func sha1HexForCertSubjectName(cert *x509.Certificate) (string, error) {
 	canonicalSubject, err := canonicalSubjectNameDER(cert.RawSubject)
 	if err != nil {
@@ -84,46 +92,55 @@ func sha1HexForCertSubjectName(cert *x509.Certificate) (string, error) {
 	return fmt.Sprintf("%08x", binary.LittleEndian.Uint32(digest[:4])), nil
 }
 
-// ParseCertificateData parses certificate data and returns the first certificate,
-// plus the full chain DER blobs,
-//
-// For DER input, it returns a single-certificate chain.
-func ParseCertificateData(certData []byte) (*CertificateData, error) {
-	// Many distro-provided *.crt files are PEM-encoded, while x509.ParseCertificate
-	// expects DER.
-	if block, _ := pem.Decode(certData); block != nil {
-		rest := certData
-		var chainDER [][]byte
-		var first *x509.Certificate
-
-		for {
-			block, next := pem.Decode(rest)
-			if block == nil {
-				break
-			}
-			rest = next
-			if !certificatePEMBlockTypePattern.MatchString(block.Type) {
-				continue
-			}
-
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse certificate PEM block: %v", err)
-			}
-			if first == nil {
-				first = cert
-			}
-			chainDER = append(chainDER, cert.Raw)
+// decodePemBlocks extracts certificate PEM blocks from data, returning their
+// DER payloads in file order together with the first parsed certificate.
+func decodePemBlocks(data []byte) (blocks [][]byte, first *x509.Certificate, err error) {
+	rest := data
+	for {
+		block, next := pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		rest = next
+		if !certificatePEMBlockTypePattern.MatchString(block.Type) {
+			continue
 		}
 
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse certificate PEM block: %v", err)
+		}
 		if first == nil {
+			first = cert
+		}
+		blocks = append(blocks, cert.Raw)
+	}
+	return blocks, first, nil
+}
+
+// ParseCertificateData parses a PEM or DER certificate payload and returns the
+// first certificate together with the digests snapd tracks for it.
+//
+// For PEM bundles, the content digest covers every certificate block in file
+// order. The subject-name hash is set only for single-certificate inputs,
+// matching the hash-link behavior of c_rehash and openssl x509 -subject_hash.
+func ParseCertificateData(certData []byte) (*CertificateData, error) {
+	// Many distro-provided cert files are PEM-encoded, while x509.ParseCertificate
+	// expects DER.
+	if block, _ := pem.Decode(certData); block != nil {
+		blocks, first, err := decodePemBlocks(certData)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(blocks) == 0 {
 			return nil, fmt.Errorf("no certificate PEM block found")
 		}
 
 		// only calculate the subject name hash if we have a single certificate
 		// which is what openssl does.
 		var subjectNameSha1 string
-		if len(chainDER) == 1 {
+		if len(blocks) == 1 {
 			hash, err := sha1HexForCertSubjectName(first)
 			if err != nil {
 				return nil, fmt.Errorf("failed to hash certificate subject name: %v", err)
@@ -133,7 +150,7 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 
 		return &CertificateData{
 			Raw:             first,
-			Sha256:          sha256HexForChain(chainDER),
+			Sha256:          sha256HexForChain(blocks),
 			SubjectNameSha1: subjectNameSha1,
 		}, nil
 	}
@@ -156,6 +173,7 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 	}, nil
 }
 
+// trimExtension strips one supported certificate-file extension from name.
 func trimExtension(name string) string {
 	extension := filepath.Ext(name)
 	if len(extension) != 0 && strutil.ListContains(allowedSuffixes, extension[1:]) {
@@ -269,6 +287,9 @@ func readDigests(dir string) ([]string, error) {
 	return digests, nil
 }
 
+// writeUniqueCACertificates writes the merged CA bundle and populates the
+// merged directory with one link per distinct certificate payload. For
+// single-certificate files it also creates the OpenSSL-style subject hash link.
 func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.Writer) error {
 	copyOne := func(from string) error {
 		inf, err := os.Open(from)
@@ -291,6 +312,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		return nil
 	}
 
+	// Create the c_rehash-style subject hash link for single-certificate files.
 	sha1Link := func(cert certificate) error {
 		if cert.SubjectNameSha1 == "" {
 			return nil
@@ -485,6 +507,8 @@ func GenerateCertificateDatabaseImpl() error {
 	return generateCACertificates(certs, mergedDir)
 }
 
+// certificatePathWithExtension returns a path under dir for a certificate name
+// stored with the on-disk .crt suffix.
 func certificatePathWithExtension(dir, name string) string {
 	return filepath.Join(dir, name+".crt")
 }
@@ -531,10 +555,9 @@ func WriteCertificate(name, content string) error {
 	return nil
 }
 
-// SetCertificateState sets the state of the certificate with the given name and digest.
-// The state can be either "accepted", "blocked" or "unset". This is done by creating a symlink
-// to the certificate file in the corresponding directory (added/blocked), or removing any existing
-// symlink if the state is set to "unset".
+// SetCertificateState records the requested state for a custom certificate by
+// creating the corresponding symlink in added or blocked. Callers that need to
+// clear or replace an existing state must remove old symlinks separately.
 func SetCertificateState(name, digest, state string) error {
 	customPath := certificatePathWithExtension("..", name)
 
@@ -555,6 +578,8 @@ func SetCertificateState(name, digest, state string) error {
 	return nil
 }
 
+// CertificateInfo describes a custom certificate together with its configured
+// state and original file contents.
 type CertificateInfo struct {
 	Name        string `json:"name"`
 	Fingerprint string `json:"fingerprint"`
@@ -562,6 +587,8 @@ type CertificateInfo struct {
 	Content     string `json:"content,omitempty"`
 }
 
+// certificateDigestAndContent reads a custom certificate file and returns its
+// content fingerprint plus the original file contents.
 func certificateDigestAndContent(name, baseDir string) (digest string, content string, err error) {
 	certPath := certificatePathWithExtension(baseDir, name)
 	certBytes, err := os.ReadFile(certPath)
@@ -576,6 +603,8 @@ func certificateDigestAndContent(name, baseDir string) (digest string, content s
 	return cdata.Sha256, string(certBytes), nil
 }
 
+// certificateInfo resolves the fingerprint, content, and current state for a
+// certificate stored under baseDir.
 func certificateInfo(name, baseDir, addedDir, blockedDir string) (*CertificateInfo, error) {
 	digest, content, err := certificateDigestAndContent(name, baseDir)
 	if err != nil {

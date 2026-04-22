@@ -15,6 +15,8 @@ const (
 	asn1TagUniversalString = 28
 )
 
+// asn1IsCanonicalizedStringType reports whether tag is one of the ASN.1
+// string types that OpenSSL normalises before hashing an X.509 name.
 func asn1IsCanonicalizedStringType(tag int) bool {
 	switch tag {
 	case asn1.TagUTF8String, asn1.TagBMPString, asn1TagUniversalString,
@@ -26,10 +28,13 @@ func asn1IsCanonicalizedStringType(tag int) bool {
 	}
 }
 
+// asn1IsASCII reports whether b is an ASCII byte.
 func asn1IsASCII(b byte) bool {
 	return b <= 0x7f
 }
 
+// asn1IsASCIISpace reports whether b is an ASCII whitespace byte that is
+// trimmed or collapsed during OpenSSL-style string canonicalisation.
 func asn1IsASCIISpace(b byte) bool {
 	switch b {
 	case ' ', '\t', '\n', '\v', '\f', '\r':
@@ -39,6 +44,7 @@ func asn1IsASCIISpace(b byte) bool {
 	}
 }
 
+// appendASN1Length appends the DER length encoding for length to dst.
 func appendASN1Length(dst []byte, length int) []byte {
 	if length < 0x80 {
 		return append(dst, byte(length))
@@ -55,6 +61,8 @@ func appendASN1Length(dst []byte, length int) []byte {
 	return append(dst, encoded[len(encoded)-count:]...)
 }
 
+// marshalASN1Value builds a DER TLV with the given universal tag, primitive or
+// constructed bit, and already-encoded contents.
 func marshalASN1Value(tag int, isCompound bool, contents []byte) []byte {
 	identifier := byte(tag)
 	if isCompound {
@@ -66,6 +74,8 @@ func marshalASN1Value(tag int, isCompound bool, contents []byte) []byte {
 	return append(out, contents...)
 }
 
+// asn1StringToUTF8Bytes decodes the supported ASN.1 string encodings used in
+// distinguished names into UTF-8 bytes.
 func asn1StringToUTF8Bytes(value asn1.RawValue) ([]byte, error) {
 	switch value.Tag {
 	case asn1.TagUTF8String:
@@ -106,6 +116,14 @@ func asn1StringToUTF8Bytes(value asn1.RawValue) ([]byte, error) {
 	}
 }
 
+// canonicalizeASN1String applies the OpenSSL string normalisation used for
+// X.509 name hashing:
+//
+//   - decode the original string value to UTF-8;
+//   - trim leading and trailing ASCII whitespace;
+//   - collapse internal ASCII whitespace runs to a single space;
+//   - lower-case ASCII letters; and
+//   - re-encode the result as a UTF8String.
 func canonicalizeASN1String(value asn1.RawValue) ([]byte, error) {
 	utf8Bytes, err := asn1StringToUTF8Bytes(value)
 	if err != nil {
@@ -145,6 +163,9 @@ func canonicalizeASN1String(value asn1.RawValue) ([]byte, error) {
 	return marshalASN1Value(asn1.TagUTF8String, false, canonical), nil
 }
 
+// canonicalizeNameAttribute canonicalises a single AttributeTypeAndValue
+// sequence. String values are normalised with canonicalizeASN1String, while
+// non-string values are preserved byte-for-byte.
 func canonicalizeNameAttribute(rawATAV asn1.RawValue) ([]byte, error) {
 	if rawATAV.Class != 0 || rawATAV.Tag != asn1.TagSequence || !rawATAV.IsCompound {
 		return nil, fmt.Errorf("malformed certificate subject")
@@ -181,6 +202,19 @@ func canonicalizeNameAttribute(rawATAV asn1.RawValue) ([]byte, error) {
 	return marshalASN1Value(asn1.TagSequence, true, contents), nil
 }
 
+// canonicalSubjectNameDER returns the DER encoding of rawSubject after applying
+// OpenSSL's X509_NAME_hash canonicalisation:
+//
+//   - every ASN.1 string attribute value is decoded to UTF-8, lower-cased,
+//     stripped of leading/trailing whitespace, and internal whitespace runs
+//     are collapsed to a single space;
+//   - the resulting string is re-encoded as a UTF8String; and
+//   - AttributeTypeAndValue entries within each RDN SET are sorted by their
+//     canonical DER encoding.
+//
+// The inner SET values are re-encoded after canonicalisation. The outer
+// SEQUENCE wrapper is not re-emitted; callers receive the canonicalised
+// SEQUENCE contents.
 func canonicalSubjectNameDER(rawSubject []byte) ([]byte, error) {
 	var subject asn1.RawValue
 	rest, err := asn1.Unmarshal(rawSubject, &subject)
@@ -230,7 +264,6 @@ func canonicalSubjectNameDER(rawSubject []byte) ([]byte, error) {
 		canonical = append(canonical, marshalASN1Value(asn1.TagSet, true, setContents)...)
 	}
 
-	// Intentionally we do not re-encode the outer sequence tag and length,
-	// as openssl does not do this for hashing of the subject name
+	// Intentionally return only the canonicalised SEQUENCE contents.
 	return canonical, nil
 }
