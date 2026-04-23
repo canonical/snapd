@@ -56,3 +56,36 @@ jobs:
       tasks: 'tests/release/distro-upgrade'
       rules: ''
       upload-artifacts: true
+
+  report-results:
+    needs: [test-snapd-deb, test-snapd-snap]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download
+        uses: actions/download-artifact@v8
+        with:
+          pattern: spread-artifacts-*
+          merge-multiple: true
+
+      - name: Untar artifacts
+        run: |
+          find . -name "*.tar.gz" | while read filename; do 
+            dir="${filename%.tar.gz}"
+            mkdir -p "$dir"
+            tar -xzf "$filename" -C "$dir"
+            rm "$filename"
+          done
+          find . -name "*.txt" -type f -delete
+          echo "All files after delete"
+          find . -type f
+
+      - name: Report results
+        run: |
+          echo "--------------------------------------------"
+          echo "----------------Snap results----------------"
+          echo "--------------------------------------------"
+          find spread-artifacts-snap-test* -type f -exec sh -c 'echo $1; cat $1' _ {} \;
+          echo "-------------------------------------------"
+          echo "----------------Deb results----------------"
+          echo "-------------------------------------------"
+          find spread-artifacts-deb-test* -type f -exec sh -c 'echo $1; cat $1' _ {} \;
