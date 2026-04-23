@@ -1,3 +1,4 @@
+# spread-variant=plus
 project: snapd
 
 environment:
