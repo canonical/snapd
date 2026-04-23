@@ -225,7 +225,6 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 
 		extension := filepath.Ext(caFile.Name())
 		if len(extension) == 0 || !strutil.ListContains(allowedSuffixes, extension[1:]) {
-			logger.Noticef("Skipping file %q in certs directory: unexpected file extension %q", caFile.Name(), extension)
 			continue
 		}
 
@@ -297,24 +296,20 @@ func readDigests(dir string) ([]string, error) {
 // single-certificate files it also creates the OpenSSL-style subject hash link.
 func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.Writer) error {
 	copyOne := func(from string) error {
-		inf, err := os.Open(from)
+		data, err := os.ReadFile(from)
 		if err != nil {
 			return err
 		}
-		defer inf.Close()
 
-		// Read it into the ca bundle
-		if _, err := io.Copy(bundle, inf); err != nil {
+		// Append it to the ca bundle
+		if _, err := io.Writer.Write(bundle, data); err != nil {
 			return err
 		}
 
-		// Create a link to the certificate in the merged directory, so that
-		// we keep the certificate files in sync.
+		// Create a copy of it into the merged directory, to preserve the
+		// structure of the system certificates.
 		to := filepath.Join(certsDir, filepath.Base(from))
-		if err := os.Link(from, to); err != nil {
-			return err
-		}
-		return nil
+		return os.WriteFile(to, data, 0o644)
 	}
 
 	// Create the c_rehash-style subject hash link for single-certificate files.
@@ -332,7 +327,8 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 
 		for suffix := 0; ; suffix++ {
 			linkName := filepath.Join(certsDir, fmt.Sprintf("%s.%d", hash, suffix))
-			if err := os.Link(cert.RealPath, linkName); err != nil {
+			from := filepath.Join(certsDir, filepath.Base(cert.RealPath))
+			if err := os.Link(from, linkName); err != nil {
 				if os.IsExist(err) {
 					continue
 				}
