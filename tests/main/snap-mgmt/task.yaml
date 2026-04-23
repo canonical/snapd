@@ -113,6 +113,7 @@ debug: |
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
 
 execute: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     echo "Stop snapd before purging"
     systemctl stop snapd.service snapd.socket
 
@@ -121,7 +122,6 @@ execute: |
     touch pkg-removed
 
     echo "Data directories are empty"
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     emptydirs="${SNAP_MOUNT_DIR} \
                /var/snap \
                /var/lib/snapd/dbus-1/services/ \

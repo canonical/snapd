@@ -29,6 +29,7 @@ prepare: |
         echo "confinement: classic" >> classic-container-mgr-snap/meta/snap.yaml
 
         if os.query is-arch-linux || os.query is-fedora || os.query is-centos; then
+            # TODO:opensuse: detect the mount directory
             # need to enable /snap symlink to install classic snaps
             ln -s /var/lib/snapd/snap /snap
             # remove it when we are done
