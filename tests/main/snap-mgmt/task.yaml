@@ -57,6 +57,7 @@ prepare: |
         echo "${SNAP_MOUNT_DIR} empty - test setup broken"
         exit 1
     fi
+    echo "$SNAP_MOUNT_DIR" > start-mount-dir
 
     echo "test service is known to systemd and enabled"
     systemctl list-unit-files --type service --no-legend | MATCH 'snap.test-snapd-service\..*\.service\s+enabled'
@@ -105,6 +106,11 @@ restore: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
     if [ -e pkg-removed ]; then
+        # since we are not reinstalling the package, restore the snap mount
+        # directory which sometimes is created during install
+        mkdir -p "$(cat start-mount-dir)"
+        # TODO: the package isn't technically removed, this needs to
+        # consistently force reinstallation
         distro_install_build_snapd
         rm pkg-removed
     fi
