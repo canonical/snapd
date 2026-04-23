@@ -755,29 +755,23 @@ backends:
             exec image-garden discard "$SPREAD_SYSTEM_ADDRESS"
         systems:
             - ubuntu-core-16-64:
-                  image: ubuntu-16.04-64
                   username: root
                   password: root
                   # Disable due to ENOSPC.
                   manual: true
             - ubuntu-core-18-64:
-                  image: ubuntu-18.04-64
                   username: root
                   password: root
             - ubuntu-core-20-64:
-                  image: ubuntu-20.04-64
                   username: root
                   password: root
             - ubuntu-core-22-64:
-                  image: ubuntu-22.04-64
                   username: root
                   password: root
             - ubuntu-core-24-64:
-                  image: ubuntu-24.04-64
                   username: root
                   password: root
             - ubuntu-core-26-64:
-                  image: ubuntu-26.04-64
                   username: root
                   password: root
             - ubuntu-16.04-64:
