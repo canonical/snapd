@@ -69,7 +69,10 @@ EXTRA_GO_BUILD_FLAGS = -trimpath
 EXTRA_GO_LDFLAGS = -w -s
 __DEFINES__
 
-  ./mkversion.sh $pkgver-$pkgrel
+  # Patch the actual version.
+  echo "$pkgver-$pkgrel|" >cmd/VERSION
+  sed -i "s|^VERSION=.*|VERSION=$pkgver-$pkgrel|" data/info
+  sed -i "s|Version = \"\"|Version = \"$pkgver-$pkgrel\"|" snapdtool/version_generated.go
 
   make -f packaging/snapd.mk \
        SNAPD_DEFINES_DIR="$srcdir"

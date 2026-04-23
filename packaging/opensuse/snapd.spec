@@ -273,10 +273,10 @@ EXTRA_GO_BUILD_FLAGS = -v -x
 EXTRA_GO_LDFLAGS = -compressdwarf=false
 __DEFINES__
 
-# Set the version and configuration that is compiled into the various executables/
-pushd %{indigo_srcdir}
-./mkversion.sh %{version}
-popd
+# Patch the actual version.
+echo "%{version}-%{release}" >%{indigo_srcdir}/cmd/VERSION
+sed -i "s|^VERSION=.*|VERSION=%{version}-%{release}|" %{indigo_srcdir}/data/info
+sed -i "s|Version = \"\"|Version = \"%{version}-%{release}\"|" %{indigo_srcdir}/snapdtool/version_generated.go
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then

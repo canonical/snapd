@@ -224,7 +224,15 @@ endef
 snapd.defines.mk:
 	$(file >$@,$(snapd_defines_mk_content))
 
+deb_version := $(shell dpkg-parsechangelog --show-field Version)
+
 override_dh_auto_build: snapd.defines.mk
+	# Patch the actual version.
+	echo "$(deb_version)" >cmd/VERSION
+	sed -i "s|^VERSION=.*|VERSION=$(deb_version)|" data/info
+	sed -i "s|Version = \"\"|Version = \"$(deb_version)\"|" \
+		_build/src/$(DH_GOPKG)/snapdtool/version_generated.go
+
 	# very ugly test for FIPS variant of a toolchain
 	# see https://warthogs.atlassian.net/browse/FR-8860
 ifeq (${FIPSBUILD},1)
@@ -236,10 +244,6 @@ endif
 
 	# generate dh-golang does not copy modules.txt
 	cp -a vendor/modules.txt _build/src/$(DH_GOPKG)/vendor
-	# usually done via `go generate` but that is not supported on powerpc
-	./mkversion.sh
-	# ensure auto-generated version is also in the build-tree
-	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
