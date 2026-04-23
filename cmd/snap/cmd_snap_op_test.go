@@ -3097,6 +3097,80 @@ func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallOneAlreadyInstalledSnap(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `{
+  "type": "error",
+  "result": {
+    "message": "snap \"some-snap\" is already installed",
+    "value": {
+      "snaps": ["some-snap"]
+    },
+    "kind": "snap-already-installed"
+  },
+  "status-code": 400
+}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "some-snap"})
+	c.Assert(err, check.IsNil)
+	c.Assert(s.Stderr(), check.Matches, `snap "some-snap" is already installed, see 'snap help refresh'\n`)
+}
+
+func (s *SnapOpSuite) TestInstallOneAlreadyInstalledComponent(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `{
+  "type": "error",
+  "result": {
+    "message": "component \"some-snap+one\" is already installed",
+    "value": {
+	  "components": {
+		  "some-snap": ["one"]
+	  }
+    },
+    "kind": "snap-already-installed"
+  },
+  "status-code": 400
+}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "some-snap+one"})
+	c.Assert(err, check.IsNil)
+	c.Assert(s.Stderr(), check.Matches, `component "some-snap\+one" is already installed\n`)
+}
+
+func (s *SnapOpSuite) TestInstallManyAlreadyInstalled(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		w.WriteHeader(400)
+		fmt.Fprintf(w, `{
+  "type": "error",
+  "result": {
+    "message": "snaps \"other-snap,some-snap\" and components \"some-other-snap+one,some-snap+one,some-snap+two\" are already installed",
+    "value": {
+      "snaps": ["some-snap", "other-snap"],
+	  "components": {
+		  "some-snap": ["one", "two"],
+		  "some-other-snap": ["one"]
+	  }
+    },
+    "kind": "snap-already-installed"
+  },
+  "status-code": 400
+}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "some-snap+one+two", "other-snap", "some-other-snap+one"})
+	c.Assert(err, check.IsNil)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*snap "other-snap" is already installed. see 'snap help refresh'`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*component "some-snap\+one" is already installed`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*component "some-snap\+two" is already installed`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*component "some-other-snap\+one" is already installed`)
+}
 func (s *SnapOpSuite) TestInstallOneIgnoreValidation(c *check.C) {
 	s.RedirectClientToTestServer(s.srv.handle)
 	s.srv.checker = func(r *http.Request) {
@@ -3519,12 +3593,63 @@ func (s *SnapOpSuite) TestInstallManyNoChanges(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	// note that (stable) is omitted
-	c.Check(s.Stdout(), check.Matches, `(?sm).*one already installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*two already installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*three already installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*three\+comp1 already installed`)
-	c.Check(s.Stdout(), check.Matches, `(?sm).*three\+comp2 already installed`)
-	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stderr(), check.Matches, `(?sm).*snap "one" is already installed. see 'snap help refresh'`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*snap "two" is already installed. see 'snap help refresh'`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*component "three\+comp1" is already installed`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*component "three\+comp2" is already installed`)
+	c.Check(s.Stdout(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestInstallManySomeChanges(c *check.C) {
+	total := 4
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]any{
+				"action": "install",
+				"snaps":  []any{"one", "two", "three"},
+				"components": map[string]any{
+					"three": []any{"comp1", "comp2"},
+				},
+				"transaction": string(client.TransactionPerSnap),
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(202)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["one"], "components": {"three": ["comp1"]}}}}`)
+		case 3:
+			comps := `[{"name": "comp1", "version": "3.2"}]`
+
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":42, "channel":"stable"},{"name": "three", "status": "active", "version": "2.0", "developer": "foo", "publisher": {"id": "foo-id", "username": "foo", "display-name": "Foo", "validation": "unproven"}, "revision":42, "channel":"edge", "components":%s}]}\n`, comps)
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "one", "two", "three+comp1+comp2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	// note that (stable) is omitted
+	c.Check(s.Stdout(), check.Matches, `(?sm).*one 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*snap "two" is already installed. see 'snap help refresh'`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*component comp1 3\.2 for three \(edge\) 2\.0 installed`)
+	c.Check(s.Stderr(), check.Matches, `(?sm).*component "three\+comp2" is already installed`)
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, total)
 }

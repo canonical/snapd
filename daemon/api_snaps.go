@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -947,8 +948,9 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		revOpts = *inst.revnoOpts()
 	}
 
-	installedSnaps := make([]string, 0)
+	installedSnaps := make([]string, 0, len(inst.Snaps))
 	installedComponents := make(map[string][]string)
+	alreadyInstalledComponents := make(map[string][]string)
 
 	var (
 		tss   []*state.TaskSet
@@ -961,35 +963,61 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		}
 
 		comps := inst.CompsForSnaps[name]
-		installedComponents[name] = append(installedComponents[name], comps...)
 
-		if snapst.IsInstalled() && len(comps) > 0 {
+		if !snapst.IsInstalled() {
+			installedSnaps = append(installedSnaps, name)
+			snaps = append(snaps, snapstate.StoreSnap{
+				InstanceName: name,
+				Components:   comps,
+				RevOpts:      revOpts,
+			})
+			if len(comps) > 0 {
+				installedComponents[name] = comps
+			}
+		} else if len(comps) > 0 {
 			info, err := snapst.CurrentInfo()
 			if err != nil {
 				return nil, nil, nil, err
 			}
 
-			ts, err := snapstateInstallComponents(ctx, st, comps, info, nil, opts)
-			if err != nil {
-				return nil, nil, nil, err
+			var compsToInstall []string
+			var alreadyInstalled []string
+			for _, comp := range comps {
+				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(name, comp)) == nil {
+					compsToInstall = append(compsToInstall, comp)
+				} else {
+					alreadyInstalled = append(alreadyInstalled, comp)
+				}
 			}
 
-			tss = append(tss, ts...)
+			if len(alreadyInstalled) > 0 {
+				alreadyInstalledComponents[name] = alreadyInstalled
+			}
 
-			continue
+			if len(compsToInstall) > 0 {
+				installedComponents[name] = compsToInstall
+				ts, err := snapstateInstallComponents(ctx, st, compsToInstall, info, nil, opts)
+
+				if err != nil {
+					return nil, nil, nil, err
+				}
+
+				tss = append(tss, ts...)
+			}
 		}
-
-		installedSnaps = append(installedSnaps, name)
-		snaps = append(snaps, snapstate.StoreSnap{
-			InstanceName: name,
-			Components:   comps,
-			RevOpts:      revOpts,
-		})
 	}
 
 	// this means that we're installing a set of components for one snap that is
 	// already installed
 	if len(snaps) == 0 {
+		if len(tss) == 0 {
+			return nil, nil, nil, snap.NewAlreadyInstalledError(inst.Snaps, alreadyInstalledComponents)
+		}
+		// we don't need to construct the AlreadyInstalledError when at
+		// at least one of the snaps/components are not already installed
+		// since we want them to get installed. In that case,
+		// we will figure out which snaps/components were already installed
+		// by comparing the requested and changed snaps/components later.
 		return installedSnaps, installedComponents, tss, nil
 	}
 

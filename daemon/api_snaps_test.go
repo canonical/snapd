@@ -2535,6 +2535,145 @@ func (s *snapsSuite) TestInstallEmptyName(c *check.C) {
 	c.Check(err, check.ErrorMatches, "cannot install snap with empty name")
 }
 
+func (s *snapsSuite) TestInstallOneAlreadyInstalledSnap(c *check.C) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		return nil, nil, errors.New("should not be called")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action: "install",
+		Snaps:  []string{"some-snap"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(si, nil)},
+		),
+		Current: snap.R(1),
+	})
+
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Check(err, testutil.ErrorIs, *snap.NewAlreadyInstalledSnapsError([]string{"some-snap"}))
+}
+
+func (s *snapsSuite) TestInstallOneAlreadyInstalledComponent(c *check.C) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		return nil, nil, errors.New("should not be called")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:        "install",
+		Snaps:         []string{"some-snap"},
+		CompsForSnaps: map[string][]string{"some-snap": {"one"}},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+		sequence.NewRevisionSideState(si, nil),
+	})
+
+	seq.AddComponentForRevision(snap.R(1), sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("some-snap", "one"),
+		Revision:  snap.R(1),
+	}, snap.StandardComponent))
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  snap.R(1),
+	})
+
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Check(err, testutil.ErrorIs, *snap.NewAlreadyInstalledError([]string{"some-snap"}, map[string][]string{"some-snap": {"one"}}))
+}
+
+func (s *snapsSuite) TestInstallManySomeSnapsAndComponentsAlreadyInstalled(c *check.C) {
+	defer daemon.MockSnapstateInstallComponents(func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error) {
+		c.Check(names, check.DeepEquals, []string{"one"})
+		t := st.NewTask("fake-install-component", "Doing a fake components install")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		t := st.NewTask("fake-install-snap", "Doing a fake install")
+		return []*snap.Info{{}}, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:        "install",
+		Snaps:         []string{"some-snap", "other-snap", "some-other-snap"},
+		CompsForSnaps: map[string][]string{"some-snap": {"one"}, "other-snap": {"one"}},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	seq := snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+		sequence.NewRevisionSideState(si, nil),
+	})
+
+	seq.AddComponentForRevision(snap.R(1), sequence.NewComponentState(&snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("some-snap", "one"),
+		Revision:  snap.R(1),
+	}, snap.StandardComponent))
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: seq,
+		Current:  snap.R(1),
+	})
+
+	si2 := &snap.SideInfo{
+		RealName: "other-snap",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(st, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(si2, nil)},
+		),
+		Current: snap.R(1),
+	})
+
+	res, err := inst.DispatchForMany()(context.Background(), inst, st)
+	c.Check(err, check.IsNil)
+	c.Check(res.Affected, check.DeepEquals, []string{"some-other-snap"})
+	c.Check(res.AffectedComponents, check.DeepEquals, map[string][]string{"other-snap": {"one"}})
+
+}
+
 func (s *snapsSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, false, snapstate.Flags{}, snap.R(0))
 }

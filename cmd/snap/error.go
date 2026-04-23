@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/user"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -171,8 +172,57 @@ Try 'snapcraft prime' in your project directory, then 'snap try' again.`)
 			}
 		}
 	case client.ErrorKindSnapAlreadyInstalled:
-		isError = false
-		msg = i18n.G(`snap %q is already installed, see 'snap help refresh'`)
+		val, ok := err.Value.(map[string]any)
+		if !ok {
+			return "", e
+		}
+
+		if len(val) == 0 {
+			return "", fmt.Errorf("internal error: empty value in error %v", val)
+		}
+
+		var snaps []any
+		if s, ok := val["snaps"]; ok {
+			snaps, ok = s.([]any)
+			if !ok {
+				return "", fmt.Errorf("internal error: unexpected type %T", s)
+			}
+		}
+		var components map[string]any
+		if c, ok := val["components"]; ok {
+			components, ok = c.(map[string]any)
+			if !ok {
+				return "", fmt.Errorf("internal error: unexpected type %T", c)
+			}
+		}
+
+		var msgs []string
+		for _, s := range snaps {
+			snap, ok := s.(string)
+			if !ok {
+				return "", fmt.Errorf("internal error: unexpected type %T", s)
+			}
+			if _, ok := components[snap]; !ok {
+				msgs = append(msgs, fmt.Sprintf(i18n.G(`snap %q is already installed, see 'snap help refresh'`), s))
+			}
+		}
+
+		for s, c := range components {
+			comps, ok := c.([]any)
+			if !ok {
+				return "", fmt.Errorf("internal error: unexpected type %T", c)
+			}
+			for _, comp := range comps {
+				comp, ok := comp.(string)
+				if !ok {
+					return "", fmt.Errorf("internal error: unexpected type %T", comp)
+				}
+				msgs = append(msgs, fmt.Sprintf(i18n.G(`component %q is already installed`), snap.SnapComponentName(s, comp)))
+			}
+		}
+
+		return strings.Join(msgs, "\n"), nil
+
 	case client.ErrorKindSnapNeedsDevMode:
 		if opts != nil && opts.Dangerous {
 			msg = i18n.G("snap %q requires devmode or confinement override")
