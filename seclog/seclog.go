@@ -41,15 +41,9 @@ const (
 	LevelCritical Level = 5
 )
 
-// String returns a name for the level.
-// If the level has a name, then that name
-// in uppercase is returned.
-// If the level is between named values, then
-// an integer is appended to the uppercased name.
-// Examples:
-//
-//	LevelWarn.String() => "WARN"
-//	(LevelCritical+2).String() => "CRITICAL+2"
+// String returns a name for the level. If the level has a name, then that name
+// in uppercase is returned. If the level is between named values, then an
+// integer is appended to the uppercased name.
 func (l Level) String() string {
 	str := func(base string, val Level) string {
 		if val == 0 {
@@ -81,7 +75,8 @@ const (
 	ImplSlog Impl = "slog" // slog based structured logger
 )
 
-// Sink identifies a log output destination.
+// Sink identifies a log output destination used for
+// registration and selection of security log sinks.
 type Sink string
 
 // Sink types.
@@ -95,13 +90,13 @@ const (
 // zero-value datetime.
 type SnapdUser struct {
 	ID             int64     `json:"snapd-user-id"`
-	SystemUserName string    `json:"system-user-name"`
+	StoreUserName  string    `json:"store-user-name"`
 	StoreUserEmail string    `json:"store-user-email"`
 	Expiration     time.Time `json:"expiration"`
 }
 
 // String returns a colon-separated description of the user in the form
-// "<ID>:<StoreUserEmail>:<SystemUserName>". Fields that are unset use
+// "<ID>:<StoreUserEmail>:<StoreUserName>". Fields that are unset use
 // "unknown" as a placeholder. A zero ID is treated as unset.
 func (u SnapdUser) String() string {
 	const unknown = "unknown"
@@ -117,8 +112,8 @@ func (u SnapdUser) String() string {
 	}
 
 	name := unknown
-	if u.SystemUserName != "" {
-		name = u.SystemUserName
+	if u.StoreUserName != "" {
+		name = u.StoreUserName
 	}
 
 	return id + ":" + email + ":" + name
@@ -163,6 +158,8 @@ func (r Reason) String() string {
 // audit events. Implementations are created by an [implFactory] and write
 // to a configured sink.
 type securityLogger interface {
+	// LogLoggingEnabled and LogLoggingDisabled are internal events
+	// emitted automatically when the logger is enabled or disabled.
 	LogLoggingEnabled()
 	LogLoggingDisabled()
 	LogLoginSuccess(user SnapdUser)
@@ -213,9 +210,12 @@ const maxWriteFailures = 3
 
 // Setup stores the logger configuration and attempts to enable the
 // security logger immediately. If the log sink cannot be opened (e.g.
-// because the journal namespace is not active yet), the configuration
-// is still stored and a non-fatal "security logger disabled" error is
-// returned. A subsequent call to Enable will re-attempt activation.
+// because the sink is not yet available), the configuration is still
+// stored and a non-fatal "security logger disabled" error is returned.
+// A subsequent call to Enable will re-attempt activation.
+//
+// Although Setup is reentrant, it is intended to be called exactly
+// once per application, typically during early initialization.
 func Setup(impl Impl, sink Sink, appID string, minLevel Level) error {
 	lock.Lock()
 	defer lock.Unlock()
@@ -238,8 +238,8 @@ func Setup(impl Impl, sink Sink, appID string, minLevel Level) error {
 
 // Enable opens the security log sink using the configuration stored by Setup,
 // activating the security logger. If the sink is already open, it is closed
-// and re-opened, refreshing the connection to the journal namespace.
-// Returns an error if Setup has not been called or if the sink cannot be opened.
+// and re-opened, refreshing the connection to the sink. Returns an error if
+// Setup has not been called or if the sink cannot be opened.
 func Enable() error {
 	lock.Lock()
 	defer lock.Unlock()
@@ -252,14 +252,14 @@ func Enable() error {
 
 // Disable closes the security log sink and resets the global logger to nop.
 // The stored configuration is retained so that Enable can re-open the sink
-// later. Returns an error if Setup has not been called or if the sink
-// cannot be closed.
+// later. If Setup has not been called, Disable is a no-op. Returns an error
+// if the sink cannot be closed.
 func Disable() error {
 	lock.Lock()
 	defer lock.Unlock()
 
 	if globalSetup == nil {
-		return fmt.Errorf("cannot disable security logger: setup has not been called")
+		return nil
 	}
 	globalLogger.LogLoggingDisabled()
 	logger.Noticef("security logger disabled")
@@ -282,10 +282,10 @@ func LogLoginFailure(user SnapdUser, reason Reason) {
 	globalLogger.LogLoginFailure(user, reason)
 }
 
-// registerImpl makes a logger factory available by name.
-// The registration pattern allows implementations to be conditionally
-// compiled via build tags without requiring the core package to
-// import them directly.
+// registerImpl makes a logger factory available by name. The registration
+// pattern allows implementations to be conditionally compiled via build tags
+// without requiring the core package to import them directly.
+//
 // Should be called from the init() of the implementation file.
 func registerImpl(name Impl, factory implFactory) {
 	lock.Lock()
@@ -297,10 +297,10 @@ func registerImpl(name Impl, factory implFactory) {
 	implementations[name] = factory
 }
 
-// registerSink makes a sink factory available by name.
-// The registration pattern allows sinks to be conditionally compiled
-// via build tags without requiring the core package to import them
-// directly.
+// registerSink makes a sink factory available by name. The registration
+// pattern allows sinks to be conditionally compiled via build tags without
+// requiring the core package to import them directly.
+//
 // Should be called from the init() of the sink file.
 func registerSink(name Sink, factory sinkFactory) {
 	lock.Lock()
@@ -327,7 +327,7 @@ func enableLocked() error {
 
 	writer, err := openSinkLocked(newSink, globalSetup.appID)
 	if err != nil {
-		return fmt.Errorf("cannot enable security logger: %w", err)
+		return fmt.Errorf("cannot enable security logger: %v", err)
 	}
 
 	// Wrap the writer with failure tracking so that repeated write
@@ -412,6 +412,8 @@ type failureTrackingWriter struct {
 	maxFailures        int
 	onThresholdReached func(failures int, lastErr error)
 }
+
+var _ levelWriter = (*failureTrackingWriter)(nil)
 
 func (w *failureTrackingWriter) Write(p []byte) (int, error) {
 	n, err := w.writer.Write(p)

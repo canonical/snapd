@@ -149,7 +149,7 @@ func (u SnapdUser) LogValue() slog.Value {
 	}
 	return slog.GroupValue(
 		slog.Int64("snapd-user-id", u.ID),
-		slog.String("system-user-name", u.SystemUserName),
+		slog.String("store-user-name", u.StoreUserName),
 		slog.String("store-user-email", u.StoreUserEmail),
 		slog.String("expiration", expiration),
 	)
@@ -162,12 +162,14 @@ func (u SnapdUser) LogValue() slog.Value {
 //   - time:     key "datetime", formatted in UTC using [time.RFC3339Nano]
 //   - level:    rendered as a string via [Level.String]
 //   - message:  key "description"
+//
+// [newSlogLogger] adds additional built-in attributes to the logger context:
 //   - app_id:   always included with the value provided to newSlogLogger
 //   - type:     always included with the value "security"
 //
 // Additional attributes are preserved verbatim, including nested groups. The
-// handler logs at or above the minLevel threshold. It does not
-// close or sync writer.
+// handler logs at or above the minLevel threshold. It does not close or sync
+// writer.
 func newJsonHandler(writer io.Writer, minLevel slog.Leveler) slog.Handler {
 	options := &slog.HandlerOptions{
 		Level: minLevel,
@@ -227,8 +229,8 @@ func (h *levelHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &levelHandler{inner: h.inner.WithAttrs(attrs), lw: h.lw, mu: h.mu}
 }
 
-// WithGroup is required by the [slog.Handler] interface but is not
-// currently used by seclog.
+// WithGroup is required by the [slog.Handler] interface but is not currently
+// used by seclog.
 func (h *levelHandler) WithGroup(name string) slog.Handler {
 	return &levelHandler{inner: h.inner.WithGroup(name), lw: h.lw, mu: h.mu}
 }

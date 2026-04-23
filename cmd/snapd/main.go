@@ -63,10 +63,10 @@ func disableSecurityLogger() {
 
 func init() {
 	logger.SimpleSetup(nil)
-	setupSecurityLogger()
 }
 
 func main() {
+	setupSecurityLogger()
 	defer disableSecurityLogger()
 
 	// When preseeding re-exec is not used

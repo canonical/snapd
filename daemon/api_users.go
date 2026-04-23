@@ -135,7 +135,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	// point we know the email and optional username; the numeric ID
 	// is only available after successful authentication.
 	snapdUser := seclog.SnapdUser{
-		SystemUserName: loginData.Username,
+		StoreUserName:  loginData.Username,
 		StoreUserEmail: loginData.Email,
 	}
 
@@ -173,7 +173,11 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Value:   err,
 			}, snapdUser, seclog.ReasonPasswordPolicy)
 		}
-		return loginError(Unauthorized(err.Error()), snapdUser, seclog.ReasonInvalidCredentials)
+		reason := seclog.ReasonInternal
+		if err == store.ErrInvalidCredentials {
+			reason = seclog.ReasonInvalidCredentials
+		}
+		return loginError(Unauthorized(err.Error()), snapdUser, reason)
 	case nil:
 		// continue
 	}
@@ -199,7 +203,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	snapdUser.ID = int64(user.ID)
-	snapdUser.SystemUserName = user.Username
+	snapdUser.StoreUserName = user.Username
 	snapdUser.StoreUserEmail = user.Email
 	snapdUser.Expiration = user.Expiration
 	seclogLogLoginSuccess(snapdUser)

@@ -7,33 +7,103 @@ details: |
     when store credentials are available, that a successful login produces
     an "authn_login_success" event in the audit log.
 
+# ubuntu-core: auditd is not available as a distro package
+systems: [-ubuntu-core-*]
+
 prepare: |
-    # Create an audit checkpoint so we only see events from this test.
-    ausearch --checkpoint stamp -m 1121 || true
+    # Ensure auditd (which provides ausearch) is installed and running.
+    if ! command -v ausearch; then
+        #shellcheck source=tests/lib/pkgdb.sh
+        . "$TESTSLIB/pkgdb.sh"
+        distro_install_package auditd
+        systemctl enable --now auditd.service
+    fi
 
 restore: |
     snap logout || true
-    rm -f stamp
+    rm -f stamp content
 
 execute: |
+    # Pin snapd journal search position to the current journal position
+    journal_pin() {
+        "$TESTSTOOLS"/journal-state start_new_log
+    }
+
+    # Assert that snapd.service logs since the pinned position do not match expression
+    journal_nomatch() {
+        expression="$1"
+        ! "$TESTSTOOLS"/journal-state match-log "$expression" -n 1 -u snapd.service >/dev/null 2>&1
+    }
+
+    # Assert that snapd.service logs since the pinned position match expression
+    journal_match() {
+        expression="$1"
+        "$TESTSTOOLS"/journal-state match-log "$expression" -n 3 -u snapd.service >/dev/null 2>&1
+    }
+
+    # Pin audit search position to after the latest existing 1121 events
+    audit_pin() {
+        rm -f stamp content
+        ausearch --checkpoint stamp -m 1121 --raw >/dev/null 2>&1 || true
+    }
+
+    # Dump all content since pinned position into file with provided name
+    audit_dump() {
+        filename=$1
+        ausearch --start checkpoint --checkpoint stamp -m 1121 --raw > "$filename" 2>&1 || true
+    }
+
+    # Wait for snapd to become active and responsive to API calls, retrying if necessary.
+    wait_snapd_ready() {
+        local retries="${1:-3}"
+        local delay="${2:-1}"
+        local attempt=1
+        local output
+
+        while (( attempt <= retries )); do
+            if output="$(snap debug api /v2/snaps 2>&1)"; then
+                echo "snapd ready" >&2
+                return 0
+            fi
+
+            echo "snapd API not ready yet, retrying ($attempt/$retries): $output" >&2
+            sleep "$delay"
+            ((attempt++))
+        done
+
+        echo "snapd API did not become ready after $retries attempts" >&2
+        echo "last error: $output" >&2
+        return 1
+    }
+
+    echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
+    audit_pin
+    journal_pin
+    systemctl restart snapd.service
+    wait_snapd_ready
+    journal_match "security logger disabled"
+    journal_match "security logger enabled"
+
+    echo "Checking that restart produces disable/enable audit events"
+    audit_dump content
+    MATCH 'sys_logging_disabled' < content
+    MATCH 'sys_logging_enabled' < content
+
     echo "Checking that a failed login attempt produces an audit event"
+    audit_pin
     echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \
         snap debug api -X POST -H 'Content-Type: application/json' /v2/login || true
-
-    # The audit log entry is the raw JSON payload sent by snapd.
-    ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'authn_login_failure'
-    ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'invalid-credentials'
-    ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'someemail@testing.com'
+    audit_dump content
+    MATCH 'authn_login_failure' < content
+    MATCH 'invalid-credentials' < content
+    MATCH 'someemail@testing.com' < content
 
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
         echo "Checking that a successful login produces an audit event"
-        # Reset the checkpoint so we only see the success event.
-        ausearch --checkpoint stamp -m 1121 || true
-
+        audit_pin
         expect -d -f "$TESTSLIB"/successful_login.exp
-
-        ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH 'authn_login_success'
-        ausearch --start checkpoint --checkpoint stamp -m 1121 --raw 2>&1 | MATCH "$SPREAD_STORE_USER"
-
+        audit_dump content
+        MATCH 'authn_login_success' < content
+        MATCH "$SPREAD_STORE_USER" < content
         snap logout
     fi

@@ -100,7 +100,7 @@ func (auditSinkFactory) Open(_ string) (io.Writer, error) {
 	// SOCK_CLOEXEC prevents the fd from leaking to child processes.
 	fd, err := netlink.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, netlinkAudit)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open audit socket: %w", err)
+		return nil, fmt.Errorf("cannot open audit socket: %v", err)
 	}
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
@@ -109,12 +109,12 @@ func (auditSinkFactory) Open(_ string) (io.Writer, error) {
 	}
 	if err := netlink.Bind(fd, addr); err != nil {
 		netlink.Close(fd)
-		return nil, fmt.Errorf("cannot bind audit socket: %w", err)
+		return nil, fmt.Errorf("cannot bind audit socket: %v", err)
 	}
 	portID, err := getPortID(fd)
 	if err != nil {
 		netlink.Close(fd)
-		return nil, fmt.Errorf("cannot get audit socket port ID: %w", err)
+		return nil, fmt.Errorf("cannot get audit socket port ID: %v", err)
 	}
 	return &auditWriter{fd: fd, portID: portID}, nil
 }
@@ -155,7 +155,7 @@ func (aw *auditWriter) Write(payload []byte) (int, error) {
 		Pid:    0, // kernel
 	}
 	if err := netlink.Sendto(aw.fd, msg, 0, addr); err != nil {
-		return 0, fmt.Errorf("cannot send audit message: %w", err)
+		return 0, fmt.Errorf("cannot send audit message: %v", err)
 	}
 	return len(payload), nil
 }

@@ -209,7 +209,7 @@ func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 
 	// security log was called with the right user details
 	c.Check(loggedUser.ID, check.Equals, int64(1))
-	c.Check(loggedUser.SystemUserName, check.Equals, "username")
+	c.Check(loggedUser.StoreUserName, check.Equals, "username")
 	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
 }
 
@@ -544,7 +544,7 @@ func (s *userSuite) TestLoginUserPersistError(c *check.C) {
 	c.Check(rspe.Message, check.Matches, "cannot persist authentication details: .*")
 
 	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
-	c.Check(loggedUser.SystemUserName, check.Equals, "username")
+	c.Check(loggedUser.StoreUserName, check.Equals, "username")
 	c.Check(loggedReason.Message, check.Matches, "cannot persist authentication details: .*")
 }
 

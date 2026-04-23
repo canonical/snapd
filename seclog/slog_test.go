@@ -124,7 +124,7 @@ type attrsAllTypes struct {
 	Timestamp time.Time     `json:"timestamp"`
 	Float64   float64       `json:"float64"`
 	Int64     int64         `json:"int64"`
-	Int       int           `json:"int"`
+	Int       int64         `json:"int"`
 	Uint64    uint64        `json:"uint64"`
 	Any       any           `json:"any"`
 }
@@ -148,7 +148,7 @@ func (s *SlogSuite) TestHandlerAttrsAllTypes(c *C) {
 		},
 		slog.Attr{Key: "float64", Value: slog.Float64Value(3.141592653589793)},
 		slog.Attr{Key: "int64", Value: slog.Int64Value(-4611686018427387904)},
-		slog.Attr{Key: "int", Value: slog.IntValue(-4294967296)},
+		slog.Attr{Key: "int", Value: slog.IntValue(-2147483648)},
 		slog.Attr{Key: "uint64", Value: slog.Uint64Value(4294967295)},
 		// AnyValue returns value of KindInt64, the original
 		// numeric type is not preserved
@@ -171,7 +171,7 @@ func (s *SlogSuite) TestHandlerAttrsAllTypes(c *C) {
 	c.Check(obtained.Timestamp, Equals, time.Date(2025, 10, 8, 8, 0, 0, 0, time.UTC))
 	c.Check(obtained.Float64, Equals, float64(3.141592653589793))
 	c.Check(obtained.Int64, Equals, int64(-4611686018427387904))
-	c.Check(obtained.Int, Equals, int(-4294967296))
+	c.Check(obtained.Int, Equals, int64(-2147483648)) // 32 bit compatible
 	c.Check(obtained.Uint64, Equals, uint64(4294967295))
 	c.Check(obtained.Any, DeepEquals, map[string]any{"k": "v", "n": float64(1)})
 }
@@ -185,7 +185,7 @@ func (s *SlogSuite) TestLogLoginSuccess(c *C) {
 		Event string `json:"event"`
 		User  struct {
 			ID             int64  `json:"snapd-user-id"`
-			SystemUserName string `json:"system-user-name"`
+			StoreUserName  string `json:"store-user-name"`
 			StoreUserEmail string `json:"store-user-email"`
 			Expiration     string `json:"expiration"`
 		} `json:"user"`
@@ -194,7 +194,7 @@ func (s *SlogSuite) TestLogLoginSuccess(c *C) {
 	user := seclog.SnapdUser{
 		ID:             42,
 		StoreUserEmail: "user@gmail.com",
-		SystemUserName: "jdoe",
+		StoreUserName:  "jdoe",
 	}
 	logger.LogLoginSuccess(user)
 
@@ -208,7 +208,7 @@ func (s *SlogSuite) TestLogLoginSuccess(c *C) {
 	c.Check(obtained.Event, Equals, "authn_login_success")
 	c.Check(obtained.User.ID, Equals, int64(42))
 	c.Check(obtained.User.StoreUserEmail, Equals, "user@gmail.com")
-	c.Check(obtained.User.SystemUserName, Equals, "jdoe")
+	c.Check(obtained.User.StoreUserName, Equals, "jdoe")
 	c.Check(obtained.User.Expiration, Equals, "never")
 
 	// verify key order for human readability
@@ -229,7 +229,7 @@ func (s *SlogSuite) TestLogLoginSuccessWithExpiration(c *C) {
 		Event string `json:"event"`
 		User  struct {
 			ID             int64  `json:"snapd-user-id"`
-			SystemUserName string `json:"system-user-name"`
+			StoreUserName  string `json:"store-user-name"`
 			StoreUserEmail string `json:"store-user-email"`
 			Expiration     string `json:"expiration"`
 		} `json:"user"`
@@ -239,7 +239,7 @@ func (s *SlogSuite) TestLogLoginSuccessWithExpiration(c *C) {
 	user := seclog.SnapdUser{
 		ID:             42,
 		StoreUserEmail: "user@gmail.com",
-		SystemUserName: "jdoe",
+		StoreUserName:  "jdoe",
 		Expiration:     expiry,
 	}
 	logger.LogLoginSuccess(user)
@@ -259,7 +259,7 @@ func (s *SlogSuite) TestLogLoginFailure(c *C) {
 		Event string `json:"event"`
 		User  struct {
 			ID             int64  `json:"snapd-user-id"`
-			SystemUserName string `json:"system-user-name"`
+			StoreUserName  string `json:"store-user-name"`
 			StoreUserEmail string `json:"store-user-email"`
 			Expiration     string `json:"expiration"`
 		} `json:"user"`
@@ -272,7 +272,7 @@ func (s *SlogSuite) TestLogLoginFailure(c *C) {
 	user := seclog.SnapdUser{
 		ID:             42,
 		StoreUserEmail: "user@gmail.com",
-		SystemUserName: "jdoe",
+		StoreUserName:  "jdoe",
 	}
 	logger.LogLoginFailure(user, seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"})
 
@@ -286,7 +286,7 @@ func (s *SlogSuite) TestLogLoginFailure(c *C) {
 	c.Check(obtained.Event, Equals, "authn_login_failure")
 	c.Check(obtained.User.ID, Equals, int64(42))
 	c.Check(obtained.User.StoreUserEmail, Equals, "user@gmail.com")
-	c.Check(obtained.User.SystemUserName, Equals, "jdoe")
+	c.Check(obtained.User.StoreUserName, Equals, "jdoe")
 	c.Check(obtained.User.Expiration, Equals, "never")
 	c.Check(obtained.Error.Code, Equals, seclog.ReasonInvalidCredentials)
 	c.Check(obtained.Error.Message, Equals, "invalid credentials")
@@ -310,9 +310,6 @@ type levelBuf struct {
 func (lb *levelBuf) SetLevel(l seclog.Level) {
 	lb.levels = append(lb.levels, l)
 }
-
-// Ensure levelBuf satisfies the interface.
-var _ seclog.LevelWriter = (*levelBuf)(nil)
 
 func (s *SlogSuite) TestLevelHandlerSetsLevelBeforeWrite(c *C) {
 	lb := &levelBuf{}
