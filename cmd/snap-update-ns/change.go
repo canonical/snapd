@@ -651,6 +651,22 @@ func neededChanges(currentProfile, desiredProfile *osutil.MountProfile) []*Chang
 		// mount entries of a directory that was hidden with a tmpfs, but this
 		// fact was lost.
 		if current[i].XSnapdSynthetic() && desiredIDs[current[i].XSnapdNeededBy()] {
+			// Don't reuse a synthetic entry, created as a prerequisite of a
+			// previously constructed writable mimic, if a different,
+			// non-synthetic desired entry targets the same mountpoint. This
+			// handles the case where a writable mimic created a synthetic
+			// self-rebind of an existing directory, but a content interface
+			// mount should replace it. All children of the replaced mount point
+			// are also skipped from reuse, as they were mounted on top of the
+			// old content and need to be rebuilt.
+			// This problem should no longer be possible in snaps using bare or
+			// core26+ bases.
+			if entry, ok := desiredMap[dir]; ok && !current[i].Equal(entry) {
+				logger.Debugf("not reusing synthetic entry %q, non-synthetic desired entry %q exists for same mountpoint",
+					current[i], entry)
+				skipDir = strings.TrimSuffix(dir, "/") + "/"
+				continue
+			}
 			logger.Debugf("reusing synthetic entry %q", current[i])
 			reuse[mountId] = true
 			continue

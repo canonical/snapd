@@ -543,6 +543,71 @@ func (s *changeSuite) TestNeededChangesRepeatedDir(c *C) {
 	})
 }
 
+// This models the scenario from LP: #2144666 where a snap has two content
+// plugs: provider-1 (target doesn't exist in snap, triggering a writable mimic)
+// and provider-2 (target exists in snap as an empty directory). The mimic
+// creates synthetic self-rebinds for all existing directories, including
+// provider-2. When provider-2's content interface is subsequently connected,
+// the synthetic self-rebind must be replaced with the real content mount.
+func (s *changeSuite) TestNeededChangesSyntheticNotReusedWhenContentMountDesired(c *C) {
+	// The provider-2 target directory exists on the filesystem (it lives on
+	// the tmpfs from the mimic that is being kept).
+	restore := update.MockIsDirectory(func(path string) bool {
+		return path == "/snap/name/42/provider-2"
+	})
+	defer restore()
+
+	// After connecting provider-1, a writable mimic was created over
+	// /snap/name/42. The current profile reflects the mimic state: a tmpfs,
+	// synthetic self-rebinds for pre-existing directories (provider-2, bin,
+	// meta), and the non-synthetic content mount for provider-1.
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "tmpfs", Dir: "/snap/name/42", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/var/lib/snapd/hostfs/snap/name/42/provider-2", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/var/lib/snapd/hostfs/snap/name/42/bin", Dir: "/snap/name/42/bin",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/var/lib/snapd/hostfs/snap/name/42/meta", Dir: "/snap/name/42/meta",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/snap/provider-1/x1", Dir: "/snap/name/42/provider-1",
+			Options: []string{"bind", "ro"}},
+	}}
+
+	// Now provider-2 is also connected. The desired profile contains both
+	// content mounts.
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "/snap/provider-1/x1", Dir: "/snap/name/42/provider-1",
+			Options: []string{"bind", "ro"}},
+		{Name: "/snap/provider-2/x1", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro"}},
+	}}
+
+	changes := update.NeededChanges(current, desired)
+
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// Keep/Unmount phase (reverse of current profile order):
+		// provider-1 content mount is unchanged.
+		{Entry: osutil.MountEntry{Name: "/snap/provider-1/x1", Dir: "/snap/name/42/provider-1",
+			Options: []string{"bind", "ro"}}, Action: update.Keep},
+		// meta and bin synthetic rebinds still support provider-1.
+		{Entry: osutil.MountEntry{Name: "/var/lib/snapd/hostfs/snap/name/42/meta", Dir: "/snap/name/42/meta",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}}, Action: update.Keep},
+		{Entry: osutil.MountEntry{Name: "/var/lib/snapd/hostfs/snap/name/42/bin", Dir: "/snap/name/42/bin",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}}, Action: update.Keep},
+		// The synthetic self-rebind of provider-2 must NOT be reused: a
+		// real content mount wants the same directory.
+		{Entry: osutil.MountEntry{Name: "/var/lib/snapd/hostfs/snap/name/42/provider-2", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1"), osutil.XSnapdDetach()}}, Action: update.Unmount},
+		// The mimic tmpfs still supports provider-1.
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/snap/name/42", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}}, Action: update.Keep},
+		// Mount phase: real content mount for provider-2.
+		{Entry: osutil.MountEntry{Name: "/snap/provider-2/x1", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro"}}, Action: update.Mount},
+	})
+}
+
 func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() {
