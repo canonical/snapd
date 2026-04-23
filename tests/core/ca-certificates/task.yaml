@@ -55,9 +55,10 @@ execute: |
     # We hash the DER form so differences in whitespace/wrapping don't matter.
     bundle_digests() {
         local bundle="$1"
-        local splitdir
+        local splitdir derfile
         splitdir="$(mktemp -d)"
-        trap 'rm -rf "$splitdir"' RETURN
+        derfile="$(mktemp)"
+        trap 'rm -rf "$splitdir" "$derfile"' RETURN
 
         # Split on BEGIN CERTIFICATE boundaries; the first chunk may be empty.
         csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$bundle" \
@@ -65,8 +66,12 @@ execute: |
 
         for f in "$splitdir"/cert-*.pem; do
             grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
-            openssl x509 -in "$f" -inform pem -outform der 2>/dev/null \
-                | sha256sum | awk '{print $1}'
+            : > "$derfile"
+            if ! openssl x509 -in "$f" -inform pem -outform der > "$derfile" 2>/dev/null; then
+                echo "Failed to parse certificate chunk $f from $bundle" >&2
+                return 1
+            fi
+            sha256sum "$derfile" | awk '{print $1}'
         done | sort -u
     }
 

@@ -133,7 +133,7 @@ func (s *certsTestSuite) TestIsBlockedReturnsBlocked(c *C) {
 
 func (s *certsTestSuite) TestIsBlockedReturnsBlockedOnSpecialNamings(c *C) {
 	c.Check(certstate.IsBlocked(certstate.Certificate{
-		Name: "ca-certificates.crt",
+		Name: "ca-certificates",
 	}, nil), Equals, true)
 }
 
@@ -451,6 +451,51 @@ func (s *certsTestSuite) TestGenerateCACertificatesMirrorsCertsDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(bytes.Contains(bundle, aPEM), Equals, true)
 	c.Check(bytes.Contains(bundle, bPEM), Equals, true)
+}
+
+func (s *certsTestSuite) TestGenerateCACertificatesSkipsSourceBundleFile(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	bPEM, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+
+	baseDir := c.MkDir()
+	outDir := filepath.Join(c.MkDir(), "merged")
+	sourceBundle := append(append([]byte(nil), aPEM...), bPEM...)
+
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "a.crt"), aPEM, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "b.crt"), bPEM, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "ca-certificates.crt"), sourceBundle, 0o644), IsNil)
+
+	base, err := certstate.ParseCertificates(baseDir)
+	c.Assert(err, IsNil)
+	c.Assert(base, HasLen, 3)
+
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: base,
+	}, outDir)
+	c.Assert(err, IsNil)
+
+	bundle, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Count(bundle, []byte("BEGIN CERTIFICATE")), Equals, 2)
+	c.Check(bytes.Contains(bundle, aPEM), Equals, true)
+	c.Check(bytes.Contains(bundle, bPEM), Equals, true)
+
+	_, err = os.Stat(filepath.Join(outDir, "a.crt"))
+	c.Check(err, IsNil)
+	_, err = os.Stat(filepath.Join(outDir, "b.crt"))
+	c.Check(err, IsNil)
+
+	entries, err := os.ReadDir(outDir)
+	c.Assert(err, IsNil)
+	var sourceBundleCopies int
+	for _, entry := range entries {
+		if entry.Name() == "ca-certificates.crt" {
+			sourceBundleCopies++
+		}
+	}
+	c.Check(sourceBundleCopies, Equals, 1)
 }
 
 func (s *certsTestSuite) TestGenerateCACertificatesSha1LinksAreUnique(c *C) {

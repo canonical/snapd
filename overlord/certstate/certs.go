@@ -192,7 +192,7 @@ func trimExtension(name string) string {
 // based on its digest being in the list of blocked digests.
 func isBlocked(cert certificate, blockedCertDigests []string) bool {
 	// Special case for ca-certificates.crt
-	if cert.Name == "ca-certificates.crt" {
+	if cert.Name == "ca-certificates" {
 		return true
 	}
 
