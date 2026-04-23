@@ -442,14 +442,6 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 		return fmt.Errorf("internal error: wrong data type under changeAuthOptionsKey: %T", cached)
 	}
 
-	if opts.old == opts.new {
-		// optimally, this check should be done in ChangeAuth before the change
-		// is created but it is done here to avoid breaking the API, as on success
-		// it expects an async response with a change ID, and if we have an empty
-		// change, it stays at "Hold" status forever, so it is more for convenience.
-		return nil
-	}
-
 	changeOneKeyslot := func(keyslot Keyslot, old, new string) error {
 		kd, err := keyslot.KeyData()
 		if err != nil {
