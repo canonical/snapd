@@ -13,12 +13,11 @@ details: |
 
 # This test should only be run on the lowest supported version of ubuntu for a given release
 systems:
-    - ubuntu-1*
     - ubuntu-2*
 
 manual: true
 
-warn-timeout: 80m
+warn-timeout: 10m
 kill-timeout: 90m
 
 artifacts: 
