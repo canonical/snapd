@@ -223,8 +223,8 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			continue
 		}
 
-		extension := filepath.Ext(caFile.Name())[1:]
-		if !strutil.ListContains(allowedSuffixes, extension) {
+		extension := filepath.Ext(caFile.Name())
+		if len(extension) == 0 || !strutil.ListContains(allowedSuffixes, extension[1:]) {
 			logger.Noticef("Skipping file %q in certs directory: unexpected file extension %q", caFile.Name(), extension)
 			continue
 		}
