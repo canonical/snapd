@@ -1594,6 +1594,9 @@ suites:
             "$TESTSLIB"/prepare-restore.sh --prepare-suite
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        # This suite does not have restore steps due to the destructive
+        # nature of its tests that will cause the vanila restore scripts to
+        # fail. The tests in this suite are all meant to be run in isolation.
 
     tests/upgrade/:
         summary: Tests for snapd upgrade

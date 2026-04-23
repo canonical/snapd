@@ -6,7 +6,7 @@ details: |
     It can run against a snap, a spread-built deb, debs from a custom PPA, or from proposed.
     After each upgrade, it checks that snapd is still working correctly and performs some simple smoke checks.
     It expects to have done an upgrade to the latest LTS, the latest interim release and the latest devel release.
-    This spread tests has artifacts to verify snapd versions at each upgrade. Each file is named after its 
+    This spread test has artifacts to verify snapd versions at each upgrade. Each file is named after its
     distro's codename and contains the output of `snap version --verbose` on that distro.
     Env for running on snappy-dev: SPREAD_SNAP_REEXEC=0 SPREAD_PPA_VALIDATION_NAME=ppa:snappy-dev/image
     Env for running on proposed: SPREAD_SNAP_REEXEC=0 SPREAD_SRU_VALIDATION=1
@@ -17,6 +17,9 @@ systems:
     - ubuntu-2*
 
 manual: true
+
+warn-timeout: 80m
+kill-timeout: 90m
 
 artifacts: 
     - snapd-versions
