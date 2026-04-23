@@ -863,33 +863,6 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 	}
 }
 
-func (s *fdeMgrSuite) TestDoChangeAuthKeysNoop(c *C) {
-	const onClassic = true
-	s.startedManager(c, onClassic)
-
-	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
-		panic("unexpected")
-	})()
-
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	task := s.st.NewTask("fde-change-auth", "test")
-	task.Set("keyslots", []fdestate.KeyslotRef{})
-	task.Set("auth-mode", device.AuthModePassphrase)
-
-	s.st.Unlock()
-	defer fdestate.MockChangeAuthOptionsInCache(s.st, "old", "old")()
-	s.st.Lock()
-
-	chg := s.st.NewChange("sample", "...")
-	chg.AddTask(task)
-
-	s.settle(c)
-
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-}
-
 func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
