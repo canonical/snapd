@@ -370,7 +370,14 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		}
 		digests[cert.Sha256] = true
 	}
-	return nil
+
+	// sync the directory to ensure file-writes are completed
+	dir, err := os.Open(certsDir)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }
 
 // generateCACertificates builds a merged certificate directory that mirrors

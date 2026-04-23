@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 	"gopkg.in/tomb.v2"
 )
 
@@ -101,13 +102,14 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 	// Backup the existing merged directory so we can restore on undo.
 	// If the merged directory doesn't exist, that's fine,
 	// we'll just ignore it and remove the backup on undo.
-	if err := os.Rename(mergedDir, backupDir); err != nil && !os.IsNotExist(err) {
+	if err := osutil.AtomicRename(mergedDir, backupDir); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 
 	if err := GenerateCertificateDatabase(); err != nil {
-		os.Rename(backupDir, mergedDir)
-		return err
+		rerr := osutil.AtomicRename(backupDir, mergedDir)
+		// TODO:GOVERSION: use errors.Join
+		return strutil.JoinErrors(err, rerr)
 	}
 	return nil
 }
