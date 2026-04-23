@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: snapd
-Source: https://github.com/snapcore/snapd
+Source: https://github.com/canonical/snapd
 
 Files: *
 Copyright: Copyright (C) 2014,2015 Canonical, Ltd.

@@ -1,6 +1,5 @@
 usr/bin/snap
 usr/bin/snapctl /usr/lib/snapd/
-usr/lib/snapd/system-shutdown
 usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/
 usr/bin/snap-failure /usr/lib/snapd/
@@ -12,7 +11,6 @@ usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-recovery-chooser /usr/lib/snapd/
 usr/bin/snap-fde-keymgr /usr/lib/snapd/
 usr/bin/snapd-apparmor /usr/lib/snapd/
-usr/bin/snap-gpio-helper /usr/lib/snapd/
 
 # bash completion
 data/completion/bash/snap /usr/share/bash-completion/completions

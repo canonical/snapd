@@ -1,4 +1,4 @@
-# Ubuntu 26.04 (not really) Packaging
+# Ubuntu 26.04 Packaging
 
 This directory contains packaging for the Ubuntu distribution.
 
@@ -55,7 +55,7 @@ podman run \
     -v "snapd-ubuntu-apt-lists:/var/lib/apt/lists" \
     -v "snapd-gomod-cache:/var/cache/gomod" \
     -w /build \
-    docker.io/ubuntu:noble \
+    docker.io/ubuntu:resolute \
     /bin/bash -x -e -u
 ```
 
