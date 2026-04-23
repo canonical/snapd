@@ -1363,14 +1363,16 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "one", SnapID: "one-id", Revision: snap.R(1)},
 		}),
-		Current: snap.R(1),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
 	})
 	snapstate.Set(s.state, "two", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "two", SnapID: "two-id", Revision: snap.R(1)},
 		}),
-		Current: snap.R(1),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
 	})
 
 	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, nil)
@@ -1378,12 +1380,14 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	// snaps of app type will also have snapshots taken if the purge is not set
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
 			"run-hook[remove]",
 			"auto-disconnect",
+			"save-snapshot",
 			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",
@@ -2104,23 +2108,25 @@ func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(1),
 		}}),
-		Current: snap.R(1),
-		Active:  true,
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: string(snap.TypeApp),
 	})
 
-	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
-			RealName: "some-base",
-			SnapID:   "some-base-id",
+			RealName: "some-other-snap",
+			SnapID:   "some-other-snap-id",
 			Revision: snap.R(1),
 		}}),
-		Current: snap.R(1),
-		Active:  true,
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: string(snap.TypeApp),
 	})
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, nil)
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-other-snap", "some-snap", "some-other-snap"}, nil)
 	c.Assert(err, IsNil)
-	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
 	c.Check(ts, HasLen, 2)
 }
 
@@ -2134,6 +2140,7 @@ func (s *snapmgrTestSuite) TestRemoveAppAndBase(c *C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
 		Current:  si.Revision,
 		SnapType: string(snap.TypeApp),
+		Base:     "some-base",
 	})
 
 	si2 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
