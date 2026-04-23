@@ -3146,7 +3146,8 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
-	ts, snapshotSize, err := removeTasks(st, &snapst, nil, revision, flags)
+	removals := map[string]bool{}
+	ts, snapshotSize, err := removeTasks(st, &snapst, removals, revision, flags)
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
@@ -3459,11 +3460,15 @@ func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
 	return nil
 }
 
-func baseForApp(snapst *SnapState, alsoCore16 bool) string {
+func baseForApp(snapst *SnapState, fallbackToCore bool) string {
 	// if core is installed, snaps with base core16 use core instead
 	baseName := snapst.Base
-	if alsoCore16 && baseName == "core16" {
-		baseName = ""
+	if baseName == "" {
+		return "core"
+	}
+
+	if fallbackToCore && baseName == "core16" {
+		return "core"
 	}
 	return baseName
 }
@@ -3484,9 +3489,9 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		return nil, nil, err
 	}
 
-	snapsts := make([]SnapState, 0, len(names))
-	// set to keep track of snaps being removed
+	// removals is a set to keep track of snaps being removed
 	removals := make(map[string]bool, len(names))
+	snapsts := make([]SnapState, 0, len(names))
 	for _, name := range names {
 		var snapst SnapState
 		if err := Get(st, name, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3509,12 +3514,17 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		return typeI.SortsBefore(typeJ)
 	})
 
-	// base name for core is ""
-	coreName := ""
-	alsoCore16 := false
-	var coreSnapst SnapState
-	if err := Get(st, coreName, &coreSnapst); err == nil && !errors.Is(err, state.ErrNoState) {
-		alsoCore16 = true
+	fallbackToCore := false
+	var core16Snapst SnapState
+	err := Get(st, "core16", &core16Snapst)
+	if err != nil || !core16Snapst.IsInstalled() {
+		// core16 is not installed
+		var coreSnapst SnapState
+		err := Get(st, "core", &coreSnapst)
+		if err == nil && coreSnapst.IsInstalled() {
+			// core is installed
+			fallbackToCore = true
+		}
 	}
 
 	removed := make([]string, 0, len(snapsts))
@@ -3538,8 +3548,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		// for apps, check if the base it uses is being removed as well
 		// and make the base's remove taskset wait for the app's
 		if typ == snap.TypeApp {
-			base := baseForApp(&snapst, alsoCore16)
-			fmt.Println("original", snapst.Base, base, alsoCore16)
+			base := baseForApp(&snapst, fallbackToCore)
 			if removals[base] {
 				baseTs := snapToTaskSet[base]
 				serializeTaskSets(baseTs, ts)

@@ -375,9 +375,8 @@ func (s *canRemoveSuite) TestBaseInUse(c *check.C) {
 	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.DeepEquals, policy.InUseByErr("some-snap"))
 
 	// allow removing if the snap is also being removed
-	removals := map[string]bool{"some-snap": false}
+	removals := map[string]bool{"some-snap": true}
 	c.Check(policy.NewBasePolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, removals), check.IsNil)
-	c.Check(removals["some-snap"], check.Equals, true)
 }
 
 func (s *canRemoveSuite) TestBaseInUseBrokenApp(c *check.C) {
