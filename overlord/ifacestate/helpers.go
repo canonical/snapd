@@ -999,12 +999,12 @@ func filterOutParallelInstallsSlots(candidates []*snap.SlotInfo, arities []inter
 	return withoutParallelInstalled, withoutParallelInstalledArities
 }
 
-// addAutoConnections adds to newconns any applicable auto-connections
-// from the given plugs to corresponding candidates slots after
-// filtering them with optional filter and against preexisting
-// conns. cannotAutoConnectLog is called to build a log message in
-// case no applicable pair was found. conflictError is called
-// to handle checkAutoconnectConflicts errors.
+// addAutoConnections adds to newconns any applicable auto-connections from the
+// given plugs to corresponding candidates slots after filtering them with
+// optional filter and against preexisting conns. Candidate slots from parallel
+// installed snaps are filtered-out. cannotAutoConnectLog is called to build a
+// log message in case no applicable pair was found. conflictError is called to
+// handle checkAutoconnectConflicts errors.
 func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo,
 	filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState,
 	cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string,
