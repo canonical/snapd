@@ -3459,6 +3459,15 @@ func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
 	return nil
 }
 
+func baseForApp(snapst *SnapState, alsoCore16 bool) string {
+	// if core is installed, snaps with base core16 use core instead
+	baseName := snapst.Base
+	if alsoCore16 && baseName == "core16" {
+		baseName = ""
+	}
+	return baseName
+}
+
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, []*state.TaskSet, error) {
@@ -3475,7 +3484,8 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		return nil, nil, err
 	}
 
-	snapsts := make([]*SnapState, 0, len(names))
+	snapsts := make([]SnapState, 0, len(names))
+	// set to keep track of snaps being removed
 	removals := make(map[string]bool, len(names))
 	for _, name := range names {
 		var snapst SnapState
@@ -3487,38 +3497,52 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 			continue
 		}
 
-		snapsts = append(snapsts, &snapst)
-		removals[name] = false
+		snapsts = append(snapsts, snapst)
+		removals[name] = true
 	}
 
-	// first app, gadget, bases, kernel, core, then snapd
+	// first snapd, core, kernel, bases, gadget, then app
 	sort.Slice(snapsts, func(i, j int) bool {
 		// TODO: handle getting errors from Type
 		typeI, _ := snapsts[i].Type()
 		typeJ, _ := snapsts[j].Type()
-		return typeJ.SortsBefore(typeI)
+		return typeI.SortsBefore(typeJ)
 	})
+
+	// base name for core is ""
+	coreName := ""
+	alsoCore16 := false
+	var coreSnapst SnapState
+	if err := Get(st, coreName, &coreSnapst); err == nil && !errors.Is(err, state.ErrNoState) {
+		alsoCore16 = true
+	}
 
 	removed := make([]string, 0, len(snapsts))
 	tasksets := make([]*state.TaskSet, 0, len(snapsts))
+	// keeps track of the taskset created to remove a snap
 	snapToTaskSet := make(map[string]*state.TaskSet)
-	// for each removed snap, we use this to keep track of whether a base snap
-	// uses it
 	var totalSnapshotsSize uint64
 
 	for _, snapst := range snapsts {
 		name := snapst.InstanceName()
-		ts, snapshotSize, err := removeTasks(st, snapst, removals, snap.R(0), flags)
+		ts, snapshotSize, err := removeTasks(st, &snapst, removals, snap.R(0), flags)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		for snapName, usedByBase := range removals {
-			// snapName is ensured to be in snapToTaskSet since they are
-			// checked to be included in removed
-			if usedByBase {
-				serializeTaskSets(snapToTaskSet[snapName], ts)
-				removals[snapName] = false
+		typ, err := snapst.Type()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// for apps, check if the base it uses is being removed as well
+		// and make the base's remove taskset wait for the app's
+		if typ == snap.TypeApp {
+			base := baseForApp(&snapst, alsoCore16)
+			fmt.Println("original", snapst.Base, base, alsoCore16)
+			if removals[base] {
+				baseTs := snapToTaskSet[base]
+				serializeTaskSets(baseTs, ts)
 			}
 		}
 

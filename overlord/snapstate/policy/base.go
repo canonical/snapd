@@ -71,10 +71,8 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 
 	var usedByAndNotRemoved []string
 	for _, snap := range usedBy {
-		if _, ok := removals[snap]; !ok {
+		if !removals[snap] {
 			usedByAndNotRemoved = append(usedByAndNotRemoved, snap)
-		} else {
-			removals[snap] = true
 		}
 	}
 
