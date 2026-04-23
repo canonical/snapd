@@ -51,6 +51,37 @@ execute: |
         "$digest_cmd" "$derfile" | awk '{print $1}'
     }
 
+    cert_subject_hash() {
+        local cert_file="$1"
+        local splitdir cert_count hash
+        splitdir="$(mktemp -d)"
+        trap 'rm -rf "$splitdir"' RETURN
+
+        csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$cert_file" \
+            '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
+
+        cert_count=0
+        for f in "$splitdir"/cert-*.pem; do
+            grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
+            cert_count=$((cert_count + 1))
+            if [ "$cert_count" -gt 1 ]; then
+                echo ""
+                return 0
+            fi
+            if ! hash="$(openssl x509 -in "$f" -inform pem -noout -subject_hash 2>/dev/null)"; then
+                echo "Failed to compute subject hash for $cert_file" >&2
+                return 1
+            fi
+        done
+
+        if [ "$cert_count" -eq 0 ]; then
+            echo "Failed to parse certificate data from $cert_file"
+            return 1
+        fi
+
+        printf '%s\n' "$hash"
+    }
+
     # Emit one SHA256 digest per certificate in the PEM bundle, sorted.
     # We hash the DER form so differences in whitespace/wrapping don't matter.
     bundle_digests() {
@@ -85,9 +116,14 @@ execute: |
             real_path="$(readlink -f "$cert_entry")"
 
             case "$real_path" in
-                *.crt) ;;
+                *.crt|*.pem|*.cer) ;;
                 *) continue ;;
             esac
+
+            cert_name="$(basename "$real_path")"
+            if [ "$cert_name" = "ca-certificates.crt" ]; then
+                continue
+            fi
 
             cert_digest="$(cert_chain_digest "$real_path" sha224sum)"
             if [ -n "${seen_digests[$cert_digest]:-}" ]; then
@@ -96,7 +132,6 @@ execute: |
             seen_digests["$cert_digest"]=1
             expected_count=$((expected_count + 1))
 
-            cert_name="$(basename "$real_path")"
             if ! [ -f "$CA_CERTIFICATES_DIR/$cert_name" ]; then
                 echo "Expected individual certificate missing: $cert_name"
                 return 1
@@ -107,7 +142,10 @@ execute: |
                 return 1
             fi
 
-            sha1_prefix="$(cert_chain_digest "$real_path" sha1sum | cut -c1-8)"
+            sha1_prefix="$(cert_subject_hash "$real_path")"
+            if [ -z "$sha1_prefix" ]; then
+                continue
+            fi
             matched_hash_link=false
             for hash_link in "$CA_CERTIFICATES_DIR/$sha1_prefix".*; do
                 if ! [ -e "$hash_link" ]; then
