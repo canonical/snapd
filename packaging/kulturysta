@@ -95,9 +95,10 @@ mdsh_echo_with_runtime() {
 	
 	# If we're using docker instead of podman, substitute podman references with docker
 	if [ "$CONTAINER_RUNTIME" = "docker" ]; then
-		# Replace 'podman run' with 'docker run'
-		# But be careful not to replace 'podman' in comments or strings
-		echo "$script" | sed 's/^podman run /docker run /g'
+		# Replace 'podman run' with 'docker run' and remove docker-incompatible flags
+		echo "$script" | sed \
+			-e 's/^podman run /docker run /g' \
+			-e 's/ --preserve-fd=[^ ]*//g'
 	else
 		echo "$script"
 	fi
