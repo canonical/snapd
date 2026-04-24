@@ -27,30 +27,22 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download vendor
+    - name: Download source tarball
       uses: actions/download-artifact@v8
       with:
-        name: vendor-pkgs
-        path: /tmp/pkg
+        name: source-tarball
+        path: packaging/.build
 
-    - name: Extract vendor
+    - name: Build deb package
       run: |
-        mkdir /tmp/vendor-dir
-        tar -xf /tmp/pkg/snapd*.vendor.tar.xz -C /tmp/vendor-dir
-        mv /tmp/vendor-dir/snapd-*/vendor .
-        mv /tmp/vendor-dir/snapd-*/c-vendor/* c-vendor/
-
-    - name: Setup debian dir
-      run: |
-        # top level debian directory must not exist
-        test ! -d debian
+        # Map distro name from workflow inputs to packaging directory name
         target_system="${{ inputs.os }}-${{ inputs.os-version }}"
         case "$target_system" in
             debian-sid)
-                ln -sfn packaging/debian-sid debian
+                distro="debian-sid"
                 ;;
             ubuntu-*)
-                ln -sfn packaging/ubuntu-16.04 debian
+                distro="debian-sid"
                 ;;
             *)
                 echo "unsupported deb packaging for $target_system"
@@ -58,37 +50,13 @@ jobs:
                 ;;
         esac
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
+        # Run build using kulturysta from the packaging directory
+        cd "packaging/$distro"
+        ../kulturysta --no-tests
 
-    - name: Build Docker image
-      uses: docker/build-push-action@v7
-      with:
-        context: .
-        push: false
-        load: true
-        file: tests/lib/packaging/debian.dockerfile
-        build-args: |
-          SYSTEM=${{ inputs.os }}
-          TAG=${{ inputs.os-version }}
-        tags: deb-base:latest
-
-    - name: Build deb
-      run: |
-        chmod a+w ../
-        chmod -R a+w .
+        # Collect built packages
         mkdir -p /tmp/builds
-        chmod -R a+w /tmp/builds
-        docker run --cap-add SYS_ADMIN --rm \
-          --mount type=bind,src=$(dirname $(pwd)),dst=/home/test/snapd-parent \
-          --mount type=bind,src=/tmp/builds,dst=/tmp/builds \
-          deb-base:latest \
-          bash -c "
-            chown -R test:test /home/test/snapd-parent/snapd* && \
-            cd /home/test/snapd-parent/snapd* && \
-            tests/lib/packaging/build-deb.sh --user test --pkg-version "$(cat /tmp/pkg/version)" && \
-            cp /home/test/snapd-parent/*.deb /tmp/builds
-          "
+        find .build -maxdepth 1 -name "*.deb" -exec cp {} /tmp/builds/ \;
 
     - name: upload packages
       uses: actions/upload-artifact@v7

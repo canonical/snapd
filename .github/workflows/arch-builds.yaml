@@ -15,42 +15,26 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download vendor
+    - name: Download source tarball
       uses: actions/download-artifact@v8
       with:
-        name: vendor-pkgs
-        path: /tmp/pkg
+        name: source-tarball
+        path: packaging/.build
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
-
-    - name: Build Docker image
-      uses: docker/build-push-action@v7
-      with:
-        context: .
-        push: false
-        load: true
-        file: tests/lib/packaging/arch.dockerfile
-        tags: arch-base:latest
-
-    - name: Set version in spec
+    - name: Build arch package
       run: |
-        version=$(cat /tmp/pkg/version)
-        sed -i -e "s/pkgver=.*/pkgver=$version/" packaging/arch/PKGBUILD
+        # Map distro name for arch packaging
+        distro="arch"
 
-    - name: Build arch pkg
-      run: |
-        chmod -R a+w .
-        docker run --cap-add SYS_ADMIN --rm \
-          --mount type=bind,src=$(pwd),dst=/home/test/snapd \
-          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
-          arch-base:latest \
-          bash -c "
-            cd /home/test/snapd && \
-            tests/lib/packaging/build-arch.sh --user test --build-dir /tmp/pkg/
-          "
-        mkdir /tmp/uploads
-        sudo find /tmp/pkg/* -name '*.pkg.tar.*' -exec mv {} /tmp/uploads \;
+        # Prepare build environment
+        mkdir -p /tmp/uploads
+
+        # Run build using kulturysta from the packaging directory
+        cd "packaging/$distro"
+        ../kulturysta --no-tests
+
+        # Collect built packages
+        find .build -maxdepth 1 -name "*.pkg.tar.*" -exec cp {} /tmp/uploads/ \;
 
     - name: upload packages
       uses: actions/upload-artifact@v7
