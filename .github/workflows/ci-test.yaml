@@ -421,7 +421,7 @@ jobs:
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
-        fuzzing-search-dir: confdb	
+        fuzzing-search-dir: confdb
   
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit
