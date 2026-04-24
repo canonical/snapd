@@ -20,36 +20,10 @@ jobs:
           include-snapd-build-fips-go-channel: true
           include-latest-go-channel: true
 
-  cache-build-deps:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-
-    - name: Download Debian dependencies
-      run: |
-          sudo apt clean
-          sudo apt update
-          ln -s packaging/ubuntu-16.04 debian
-          sudo apt build-dep -d -y ${{ github.workspace }}
-          # for indent
-          sudo apt install texinfo autopoint
-
-    - name: Copy dependencies
-      run: |
-        sudo tar cvf cached-apt.tar /var/cache/apt
-
-    - name: upload Debian dependencies
-      uses: actions/upload-artifact@v7
-      with:
-        name: debian-dependencies
-        path: ./cached-apt.tar
-
   unit-tests:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
-      - cache-build-deps
     name: "unit-tests (Go default ${{ matrix.gochannel }})"
     with:
       runs-on: ubuntu-latest
@@ -63,8 +37,6 @@ jobs:
 
   unit-tests-c:
     uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - cache-build-deps
     name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
     with:
       runs-on: ubuntu-latest
@@ -82,7 +54,6 @@ jobs:
     uses: ./.github/workflows/unit-tests.yaml
     needs:
       - go-channels
-      - cache-build-deps
     name: "unit-tests (Go ${{ matrix.gochannel }} ${{ matrix.test-case.go-build-tags }}
           ${{ matrix.test-case.go-test-race && ' test-race' || ''}}
           ${{ matrix.test-case.snapd-debug && ' snapd-debug' || ''}})"
