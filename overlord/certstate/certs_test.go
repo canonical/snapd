@@ -414,12 +414,15 @@ func (s *certsTestSuite) TestGenerateCACertificatesMirrorsCertsDir(c *C) {
 	c.Assert(err, IsNil)
 	bPEM, _, err := makeTestCertPEM("B")
 	c.Assert(err, IsNil)
+	cPEM, _, err := makeTestCertPEM("C")
+	c.Assert(err, IsNil)
 
 	baseDir := c.MkDir()
 	outDir := filepath.Join(c.MkDir(), "merged")
 
 	c.Assert(os.WriteFile(filepath.Join(baseDir, "a.crt"), aPEM, 0o644), IsNil)
 	c.Assert(os.WriteFile(filepath.Join(baseDir, "b.crt"), bPEM, 0o644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "c.pem"), cPEM, 0o644), IsNil)
 
 	base, err := certstate.ParseCertificates(baseDir)
 	c.Assert(err, IsNil)
@@ -430,7 +433,7 @@ func (s *certsTestSuite) TestGenerateCACertificatesMirrorsCertsDir(c *C) {
 	c.Assert(err, IsNil)
 
 	// Verify individual certificate links exist and match content.
-	for _, name := range []string{"a.crt", "b.crt"} {
+	for _, name := range []string{"a.crt", "b.crt", "c.pem"} {
 		got, err := os.ReadFile(filepath.Join(outDir, name))
 		c.Assert(err, IsNil, Commentf("cert link %q", name))
 
@@ -451,6 +454,7 @@ func (s *certsTestSuite) TestGenerateCACertificatesMirrorsCertsDir(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(bytes.Contains(bundle, aPEM), Equals, true)
 	c.Check(bytes.Contains(bundle, bPEM), Equals, true)
+	c.Check(bytes.Contains(bundle, cPEM), Equals, true)
 }
 
 func (s *certsTestSuite) TestGenerateCACertificatesSkipsSourceBundleFile(c *C) {

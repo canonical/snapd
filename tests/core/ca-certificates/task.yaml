@@ -161,7 +161,7 @@ execute: |
                 echo "Expected SHA1 hash link missing for $cert_name ($sha1_prefix.*)"
                 return 1
             fi
-        done < <(find /etc/ssl/certs -maxdepth 1 \( -type f -o -type l \) -name '*.crt' | sort)
+        done < <(find /etc/ssl/certs -maxdepth 1 \( -type f -o -type l \) -name '*.crt' -o -name '*.pem' -o -name '*.cer' | sort)
 
         echo "Verified $expected_count individual certificates and SHA1 hash links"
     }
