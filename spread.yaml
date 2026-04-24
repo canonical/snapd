@@ -1486,8 +1486,9 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
-        backends: [google, qemu]
+        backends: [google, qemu, garden]
         prepare-each: |
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
