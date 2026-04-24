@@ -101,16 +101,18 @@ execute: |
   # system-data is encrypted but not protected by a passphrase or PIN yet
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # system-save is also encrypted not protected by a passphrase or PIN yet
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
