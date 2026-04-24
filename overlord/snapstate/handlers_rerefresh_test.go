@@ -630,6 +630,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	c.Assert(taskKinds(revertTasks), DeepEquals, []string{
 		"prerequisites",
 		"prepare-snap",
+		"prerequisites",
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-current-snap",
