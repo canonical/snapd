@@ -123,9 +123,6 @@ jobs:
       runs-on: '["ubuntu-latest"]'
       pkg-dir: ${{ matrix.build-config.pkg-dir }}
       system: ${{ matrix.build-config.system }}
-      dockerfile: ${{ matrix.build-config.dockerfile }}
-      image-name: ${{ matrix.build-config.image-name }}
-      image-tag: ${{ matrix.build-config.image-tag }}
     strategy:
       fail-fast: false
       matrix:
