@@ -49,7 +49,7 @@ podman run \
     -v "snapd-opensuse-zypper-cache:/var/cache/zypp" \
     -v "snapd-gomod-cache:/var/cache/gomod" \
     -w /build \
-    registry.opensuse.org/opensuse/tumbleweed:latest \
+    opensuse/tumbleweed:latest \
     /bin/bash -x -e -u
 ```
 

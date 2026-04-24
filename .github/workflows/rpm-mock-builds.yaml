@@ -27,67 +27,43 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download vendor
+    - name: Download source tarball
       uses: actions/download-artifact@v8
       with:
-        name: vendor-pkgs
-        path: /tmp/pkg
+        name: source-tarball
+        path: packaging/.build
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
-
-    - name: Build Docker image
-      uses: docker/build-push-action@v7
+    - name: Restore volume cache
+      uses: actions/cache@v4
       with:
-        context: .
-        push: false
-        load: true
-        file: tests/lib/packaging/fedora.dockerfile
-        tags: mock-base:latest
+        path: packaging/${{ inputs.pkg-dir }}/.cache/
+        key: pkg-cache-${{ inputs.pkg-dir }}-v1-${{ hashFiles('go.mod', 'c-vendor/**') }}
+        restore-keys: |
+          pkg-cache-${{ inputs.pkg-dir }}-v1-
 
-    - name: Create cache key
-      # Force a cache refresh once a week by using the year and week number as part of the cache key
-      run: echo "CACHE_KEY=mock-cache-${{ inputs.system }}-$(date '+%Y-%U')" >> $GITHUB_ENV
-
-    - name: Cache mock dependencies
-      uses: actions/cache@v5
-      with:
-        path: /tmp/mock
-        key: ${{ env.CACHE_KEY }}
-
-    - name: Set version in spec
+    - name: Build rpm package
       run: |
-        version=$(cat /tmp/pkg/version)
-        sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
+        # Map packaging directory name from workflow input
+        distro="${{ inputs.pkg-dir }}"
 
-    - name: Build rpm
-      run: |
-        chmod -R o+rw .
-        mkdir -p /tmp/mock
+        # Prepare build environment
         mkdir -p /tmp/builds
-        chmod -R o+rw /tmp/builds
-        docker run --privileged --rm \
-          --mount type=bind,src=/tmp/mock,dst=/var/cache/mock \
-          --mount type=bind,src=$(pwd),dst=/home/mockbuilder/snapd \
-          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
-          --mount type=bind,src=/tmp/builds,dst=/home/mockbuilder/builds \
-          mock-base:latest \
-          bash -c "
-            cd /home/mockbuilder/snapd && \
-            tests/lib/packaging/build-rpm-mock.sh \
-              --pkg-dir ${{ inputs.pkg-dir }} \
-              --vendor-tar-dir /tmp/pkg \
-              --config-file /etc/mock/${{ inputs.config }}.cfg
-          "
-        mkdir /tmp/uploads
-        sudo find /tmp/builds/* -type f \
-          ! -name '*debug*' \
-          ! -name '*.src.rpm' \
-          -name '*.rpm' \
-          -exec mv {} /tmp/uploads \;
+
+        # Import cached volumes before build
+        packaging/cache-volumes.sh "$distro" import
+
+        # Run build using kulturysta from the packaging directory
+        cd "packaging/$distro"
+        ../kulturysta --no-tests
+
+        # Export volumes after build for caching
+        ../cache-volumes.sh "$distro" export
+
+        # Collect built packages
+        find .build -maxdepth 1 -name "*.rpm" ! -name "*debug*" ! -name "*.src.rpm" -exec cp {} /tmp/builds/ \;
 
     - name: upload packages
       uses: actions/upload-artifact@v7
       with:
         name: package-${{ inputs.system }}
-        path: /tmp/uploads
+        path: /tmp/builds

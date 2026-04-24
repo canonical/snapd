@@ -85,11 +85,18 @@ jobs:
           ./packaging/pack-source -v "$version" -o /tmp/pkg -s
           echo "$version" > /tmp/pkg/version
 
-      - name: Upload vendors
+      - name: Upload vendor packages
         uses: actions/upload-artifact@v7
         with:
           name: vendor-pkgs
           path: /tmp/pkg
+
+      - name: Upload source tarballs
+        uses: actions/upload-artifact@v7
+        with:
+          name: source-tarball
+          path: /tmp/pkg
+          if-no-files-found: error
 
   package-snapd-rpm-mock:
     needs: create-vendor-dir
@@ -116,9 +123,6 @@ jobs:
       runs-on: '["ubuntu-latest"]'
       pkg-dir: ${{ matrix.build-config.pkg-dir }}
       system: ${{ matrix.build-config.system }}
-      dockerfile: ${{ matrix.build-config.dockerfile }}
-      image-name: ${{ matrix.build-config.image-name }}
-      image-tag: ${{ matrix.build-config.image-tag }}
     strategy:
       fail-fast: false
       matrix:
@@ -160,36 +164,10 @@ jobs:
           - { system: "ubuntu-24.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '24.04' }
           - { system: "ubuntu-22.04-arm-64", runs-on: '["ubuntu-24.04-arm"]',  os: ubuntu, os-version: '22.04' }
 
-  cache-build-deps:
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-
-    - name: Download Debian dependencies
-      run: |
-          sudo apt clean
-          sudo apt update
-          ln -s packaging/ubuntu-16.04 debian
-          sudo apt build-dep -d -y ${{ github.workspace }}
-          # for indent
-          sudo apt install texinfo autopoint
-
-    - name: Copy dependencies
-      run: |
-        sudo tar cvf cached-apt.tar /var/cache/apt
-
-    - name: upload Debian dependencies
-      uses: actions/upload-artifact@v7
-      with:
-        name: debian-dependencies
-        path: ./cached-apt.tar
-
   static-checks:
     uses: ./.github/workflows/static-checks.yaml
     needs:
       - go-channels
-      - cache-build-deps
     with:
       runs-on: ubuntu-latest
       gochannel: ${{ matrix.gochannel }}
@@ -202,15 +180,12 @@ jobs:
     
   static-checks-not-required:
     uses: ./.github/workflows/static-checks.yaml
-    needs:
-      - cache-build-deps
     with:
       runs-on: ubuntu-latest
       gochannel: 'latest/stable'
 
   branch-static-checks:
     runs-on: ubuntu-latest
-    needs: [cache-build-deps]
     if: github.ref != 'refs/heads/master'
     steps:
     - name: Checkout code
@@ -303,8 +278,6 @@ jobs:
 
   unit-tests-c:
     uses: ./.github/workflows/unit-tests.yaml
-    needs:
-      - cache-build-deps
     name: "unit-tests (C ${{ matrix.test-case.c-compiler }})"
     with:
       runs-on: ubuntu-latest
@@ -415,7 +388,7 @@ jobs:
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
-        fuzzing-search-dir: confdb	
+        fuzzing-search-dir: confdb
   
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit

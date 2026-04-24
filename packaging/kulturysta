@@ -88,8 +88,36 @@ yellow() {
 	done
 }
 
+mdsh_echo_with_runtime() {
+	# Extract the script section and substitute container runtime if needed
+	local script
+	script=$(mdsh_echo "$@")
+
+	# If we're using docker instead of podman, substitute podman references with docker
+	if [ "$CONTAINER_RUNTIME" = "docker" ]; then
+		# Replace 'podman run' with 'docker run' and fix docker-incompatible options:
+		# - Remove --preserve-fd (podman-specific, used for trace output)
+		# - Remove -e BASH_XTRACEFD (only works with --preserve-fd)
+		# - Remove ,Z and :Z flags (SELinux relabeling, podman-specific)
+		# - Convert relative paths to absolute paths using $(cd PATH; pwd)
+		unset BASH_XTRACEFD
+		# shellcheck disable=SC2016
+		echo "$script" | sed \
+			-e 's/^podman run /docker run /g' \
+			-e 's/ --preserve-fd=[^ ]*//g' \
+			-e 's/ --preserve-fd="\${[^}]*}"//g' \
+			-e 's/ -e BASH_XTRACEFD=[^ ]*//g' \
+			-e 's/ -e BASH_XTRACEFD="\${[^}]*}"//g' \
+			-e 's/,Z//g' \
+			-e 's/:Z//g' \
+			-e 's|-v "\([^/][^":]*\)/:\([^"]*\)"|-v "\$(cd \1; pwd):\2"|g'
+	else
+		echo "$script"
+	fi
+}
+
 mdsh_bash() {
-	container_cmd=$(mdsh_echo "$@")
+	container_cmd=$(mdsh_echo_with_runtime "$@")
 	# Run the script with stdout, stderr, and trace all prefixed and sent to the co-process
 	local fd="${FORMATTER[1]}"
 	BASH_XTRACEFD=23 bash -x -u -c -- "$container_cmd" \
@@ -120,19 +148,35 @@ kulturysta() {
 		export SKIP_TESTS=
 	fi
 
-	local podman_version podman_major
-	podman_version=$(podman --version | awk '/podman version/ { if (match($0, /([0-9]+.?)+/) != 0) { print substr($0, RSTART, RLENGTH); exit } }')
-	podman_major=${podman_version%%.*}
-	case "$podman_major" in
-	'' | *[!0-9]*)
-		echo "podman 5 or later is required" 1>&2
-		return 1
-		;;
-	esac
-	if [ "$podman_major" -lt 5 ]; then
-		echo "podman 5 or later is required" 1>&2
-		return 1
+	# Determine which container runtime to use (podman or docker)
+	local container_runtime=""
+	if command -v podman >/dev/null 2>&1; then
+		local podman_version podman_major
+		podman_version=$(podman --version | awk '/podman version/ { if (match($0, /([0-9]+.?)+/) != 0) { print substr($0, RSTART, RLENGTH); exit } }')
+		podman_major=${podman_version%%.*}
+		case "$podman_major" in
+		'' | *[!0-9]*)
+			# podman not properly installed, try docker
+			;;
+		*)
+			if [ "$podman_major" -ge 5 ]; then
+				container_runtime="podman"
+			fi
+			;;
+		esac
 	fi
+
+	# If podman is not available or too old, try docker
+	if [ -z "$container_runtime" ]; then
+		if command -v docker >/dev/null 2>&1; then
+			container_runtime="docker"
+		else
+			echo "neither podman 5 or later nor docker is available" 1>&2
+			return 1
+		fi
+	fi
+
+	export CONTAINER_RUNTIME="$container_runtime"
 
 	if [ ! -f README.md ]; then
 		echo "kulturysta: README.md not found, call me from a sub-directory" 1>&2
