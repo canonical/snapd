@@ -28,6 +28,9 @@ import (
 
 // Undoer collects undo actions to reverse system changes on error.
 type Undoer interface {
+	// AddUndo registers an undo closure to be executed if the task
+	// handler returns an error. The closure should reverse a change to
+	// the system and return an error if the undo action itself fails.
 	AddUndo(f func() error)
 }
 
@@ -59,25 +62,23 @@ type undoEntry struct {
 }
 
 // NewUndoTracker returns a new UndoTracker associated with the given
-// task and a closure that should be deferred to run the undo closures
-// on error. The returned closure expects the state to be locked on
-// entry and guarantees it is locked on return.
+// task and an undoOnError closure that should be deferred to run the
+// undo closures on error.
+// The undoOnError closure runs all registered undo closures in
+// reverse order if *retErr is a real error (i.e. not nil and neither
+// a *state.Wait nor a *state.Retry). It expects the state to be locked
+// on entry and guarantees it is locked on return.
 // The task is used to log undo errors and to maintain the state lock
 // context as required for each undo.
 // retErr is the pointer to the error return value of the task handler,
-// which the returned closure checks to decide whether to run the undos.
-func NewUndoTracker(t *state.Task, retErr *error) (*UndoTracker, func()) {
-	ut := &UndoTracker{t: t}
-	return ut, func() { ut.run(retErr) }
+// which the undoOnError closure checks to decide whether to run the
+// undos.
+func NewUndoTracker(t *state.Task, retErr *error) (ut *UndoTracker, undoOnError func()) {
+	ut = &UndoTracker{t: t}
+	undoOnError = func() { ut.run(retErr) }
+	return ut, undoOnError
 }
 
-// run runs all registered undo closures in reverse order if
-// *retErr is a real error (not nil and neither a *state.Wait nor a
-// *state.Retry). It expects the state to be locked on entry and
-// guarantees it is locked on return. It transitions the state lock
-// as needed for each undo entry: locked entries run with the state
-// locked, unlocked entries run with the state unlocked. Undo errors
-// are collected and logged in the task after all undos complete.
 func (ut *UndoTracker) run(retErr *error) {
 	if atomic.SwapUint32(&ut.runCalled, 1) != 0 {
 		panic("internal error: cannot call UndoTracker.run more than once")
@@ -140,19 +141,13 @@ func (ut *UndoTracker) Unlocked() Undoer {
 	return &undoerWithLockContext{ut: ut, unlocked: true}
 }
 
-// undoerWithLockContext implements the Undoer interface.
-// It can be constructed via UndoTracker.Locked() or
-// UndoTracker.Unlocked() and uses the underlying UndoTracker's undo
-// stack for collecting the undo closures.
 type undoerWithLockContext struct {
-	ut       *UndoTracker
+	ut *UndoTracker
+	// unlocked indicates whether the registered undo closures
+	// need to be run with the state unlocked or locked.
 	unlocked bool
 }
 
-// AddUndo registers an undo closure to be executed if the handler
-// returns an error. The closure should reverse a change to the system
-// and return an error if the undo action itself fails.
-// The closure is added to the undo stack of the underlying UndoTracker.
 func (u *undoerWithLockContext) AddUndo(f func() error) {
 	u.ut.addUndo(undoEntry{f: f, unlocked: u.unlocked})
 }
@@ -162,12 +157,12 @@ type nullUndoer struct{}
 
 func (nu nullUndoer) AddUndo(f func() error) {}
 
-// NullUndoer is an Undoer that does nothing. It is meant to be used
+// NullUndoer is an Undoer that does nothing. It is meant to mark
 // when system changes should not be undone, for example in the undo
 // functions of task handlers.
 var NullUndoer Undoer = nullUndoer{}
 
-// TODOUndoer is an Undoer that does nothing. It is meant to be used
+// TODOUndoer is an Undoer that does nothing. It is meant to mark
 // when system changes should be undone, but the caller has not yet
 // added support for passing UndoTracker.Locked() or UndoTracker.Unlocked().
 var TODOUndoer Undoer = nullUndoer{}

@@ -3817,6 +3817,7 @@ func (m *SnapManager) doKillSnapApps(t *state.Task, _ *tomb.Tomb) (retErr error)
 	pb := NewTaskProgressAdapterUnlocked(t)
 
 	// Make sure snap services are stopped because they may have started through snapctl
+	// TODO: replace TODOUndoer with an UndoTracker for non-remove reason
 	err = m.backend.StopServices(svcs, nil, nil, snap.ServiceStopReason(reason), TODOUndoer, pb, perfTimings)
 	if err != nil {
 		return err
