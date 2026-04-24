@@ -102,11 +102,12 @@ mdsh_echo_with_runtime() {
 		echo "$script" | sed \
 			-e 's/^podman run /docker run /g' \
 			-e 's/ --preserve-fd=[^ ]*//g' \
+			-e 's/ --preserve-fd="\${[^}]*}"//g' \
 			-e 's/,Z / /g' \
-			-e 's/,Z$//g' \
+			-e 's/,Z"//g' \
 			-e 's/ :Z/ /g' \
 			-e 's/:Z / /g' \
-			-e 's|-v ../../\(:[^ ]*\)|-v $(cd ../..; pwd)\1|g'
+			-e 's|-v "\.\./\.\./\(:[^"]*\)"|-v "$(cd ../..; pwd)\1"|g'
 	else
 		echo "$script"
 	fi
