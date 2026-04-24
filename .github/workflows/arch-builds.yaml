@@ -36,7 +36,7 @@ jobs:
 
         # Run build using kulturysta from the packaging directory
         cd "packaging/$distro"
-        ../../kulturysta
+        ../kulturysta
 
         # Collect built packages
         find .build -maxdepth 1 -name "*.pkg.tar.*" -exec cp {} /tmp/uploads/ \;

@@ -57,7 +57,7 @@ jobs:
 
         # Run build using kulturysta from the packaging directory
         cd "packaging/$distro"
-        ../../kulturysta
+        ../kulturysta
 
         # Collect built packages
         mkdir -p /tmp/builds
