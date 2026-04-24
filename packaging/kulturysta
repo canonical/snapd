@@ -107,7 +107,7 @@ mdsh_echo_with_runtime() {
 			-e 's/,Z"//g' \
 			-e 's/ :Z/ /g' \
 			-e 's/:Z / /g' \
-			-e 's|-v "\.\./\.\./\(:[^"]*\)"|-v "$(cd ../..; pwd)\1"|g'
+			-e 's|-v "\([^/][^":]*\)/:\([^"]*\)"|-v "$(cd \1; pwd):\2"|g'
 	else
 		echo "$script"
 	fi
