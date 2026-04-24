@@ -96,13 +96,16 @@ mdsh_echo_with_runtime() {
 	# If we're using docker instead of podman, substitute podman references with docker
 	if [ "$CONTAINER_RUNTIME" = "docker" ]; then
 		# Replace 'podman run' with 'docker run' and fix docker-incompatible options:
-		# - Remove --preserve-fd (podman-specific)
+		# - Remove --preserve-fd (podman-specific, used for trace output)
+		# - Remove -e BASH_XTRACEFD (only works with --preserve-fd)
 		# - Remove :Z flags (SELinux relabeling, podman-specific)
 		# - Convert relative paths to absolute paths using $(cd PATH; pwd)
 		echo "$script" | sed \
 			-e 's/^podman run /docker run /g' \
 			-e 's/ --preserve-fd=[^ ]*//g' \
 			-e 's/ --preserve-fd="\${[^}]*}"//g' \
+			-e 's/ -e BASH_XTRACEFD=[^ ]*//g' \
+			-e 's/ -e BASH_XTRACEFD="\${[^}]*}"//g' \
 			-e 's/,Z / /g' \
 			-e 's/,Z"//g' \
 			-e 's/ :Z/ /g' \
