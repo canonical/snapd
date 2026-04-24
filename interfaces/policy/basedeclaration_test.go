@@ -1069,6 +1069,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-firmware-control":          true,
 		"kernel-module-control":            true,
 		"kernel-module-load":               true,
+		"kernel-sched-ext-control":         true,
 		"kubernetes-support":               true,
 		"lxd-support":                      true,
 		"microceph-support":                true,
@@ -1088,7 +1089,6 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"polkit-agent":                     true,
 		"remoteproc":                       true,
 		"ros-snapd-support":                true,
-		"scheduler-control":                true,
 		"scsi-generic":                     true,
 		"sd-control":                       true,
 		"shutdown":                         true,
@@ -1389,6 +1389,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"kernel-firmware-control":          true,
 		"kernel-module-control":            true,
 		"kernel-module-load":               true,
+		"kernel-sched-ext-control":         true,
 		"kubernetes-support":               true,
 		"lxd-support":                      true,
 		"microceph-support":                true,
@@ -1411,7 +1412,6 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"remoteproc":                       true,
 		"ros-snapd-support":                true,
 		"qualcomm-ipc-router":              true,
-		"scheduler-control":                true,
 		"scsi-generic":                     true,
 		"screen-inhibit-control":           true,
 		"sd-control":                       true,
@@ -1437,6 +1437,7 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"snap-fde-control":                 true,
 		"firmware-updater-support":         true,
 		"devlxd":                           true,
+		"mediatek-accel":                   true,
 	}
 
 	for _, iface := range all {
