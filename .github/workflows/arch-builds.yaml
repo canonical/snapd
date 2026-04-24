@@ -15,46 +15,48 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download source tarballs
+    - name: Download source tarball
       uses: actions/download-artifact@v8
       with:
         name: source-tarball
         path: /tmp/source
 
-    - name: Extract version from tarball
+    - name: Extract source tarball
       run: |
-        version=$(ls /tmp/source/snapd_*.vendor.tar.xz | sed -E 's/.*snapd_(.*)\.vendor.*/\1/')
-        echo "PKG_VERSION=$version" >> $GITHUB_ENV
+        # Extract both tarballs (no-vendor and only-vendor) into .build/
+        mkdir -p .build
+        tar -xf /tmp/source/snapd_*.no-vendor.tar.xz -C .build
+        tar -xf /tmp/source/snapd_*.only-vendor.tar.xz -C .build
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
+        # Both tarballs have snapd-<version>/ prefix, merging into single directory
+        snapd_dir=$(find .build -maxdepth 1 -type d -name 'snapd-*' | head -1)
+        if [ -z "$snapd_dir" ]; then
+            echo "ERROR: No snapd directory found after extraction"
+            exit 1
+        fi
 
-    - name: Build Docker image
-      uses: docker/build-push-action@v7
-      with:
-        context: .
-        push: false
-        load: true
-        file: tests/lib/packaging/arch.dockerfile
-        tags: arch-base:latest
+        # Move snapd-<version>/* to .build/ so kulturysta has expected layout
+        mv "$snapd_dir"/* .build/
+        rmdir "$snapd_dir"
 
-    - name: Set version in spec
+    - name: Install podman
       run: |
-        sed -i -e "s/pkgver=.*/pkgver=${{ env.PKG_VERSION }}/" packaging/arch/PKGBUILD
+        sudo apt-get update
+        sudo apt-get install -y podman
 
-    - name: Build arch pkg
+    - name: Build arch package
       run: |
-        chmod -R a+w .
-        docker run --cap-add SYS_ADMIN --rm \
-          --mount type=bind,src=$(pwd),dst=/home/test/snapd \
-          --mount type=bind,src=/tmp/source,dst=/tmp/source \
-          arch-base:latest \
-          bash -c "
-            cd /home/test/snapd && \
-            tests/lib/packaging/build-arch.sh --user test --build-dir /tmp/source/
-          "
-        mkdir /tmp/uploads
-        sudo find /tmp/source/* -name '*.pkg.tar.*' -exec mv {} /tmp/uploads \;
+        # Map distro name for arch packaging
+        distro="arch"
+
+        # Prepare build environment
+        mkdir -p /tmp/uploads
+
+        # Run build using kulturysta + podman via build-ci.sh wrapper
+        packaging/build-ci.sh "$distro"
+
+        # Collect built packages
+        find .build -maxdepth 1 -name "*.pkg.tar.*" -exec cp {} /tmp/uploads/ \;
 
     - name: upload packages
       uses: actions/upload-artifact@v7

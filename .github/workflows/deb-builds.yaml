@@ -27,49 +27,45 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download source tarballs
+    - name: Download source tarball
       uses: actions/download-artifact@v8
       with:
         name: source-tarball
         path: /tmp/source
 
-    - name: Extract source tarballs
+    - name: Extract source tarball
       run: |
-        # Extract version from tarball filename
-        version=$(ls /tmp/source/snapd_*.no-vendor.tar.xz | sed -E 's/.*snapd_(.*)\.no-vendor.*/\1/')
-        echo "PKG_VERSION=$version" >> $GITHUB_ENV
+        # Extract both tarballs (no-vendor and only-vendor) into .build/
+        mkdir -p .build
+        tar -xf /tmp/source/snapd_*.no-vendor.tar.xz -C .build
+        tar -xf /tmp/source/snapd_*.only-vendor.tar.xz -C .build
 
-        # Extract source tarballs into working directory
-        tar -xf /tmp/source/snapd_*.no-vendor.tar.xz
-        tar -xf /tmp/source/snapd_*.only-vendor.tar.xz
-
-        # Move extracted content from snapd-<version> directory to working directory
-        snapd_dir=$(find . -maxdepth 1 -type d -name 'snapd-*' | head -1)
+        # Both tarballs have snapd-<version>/ prefix, merging into single directory
+        snapd_dir=$(find .build -maxdepth 1 -type d -name 'snapd-*' | head -1)
         if [ -z "$snapd_dir" ]; then
             echo "ERROR: No snapd directory found after extraction"
             exit 1
         fi
 
-        mv "$snapd_dir/vendor" .
-        if [ -d "$snapd_dir/c-vendor" ]; then
-            if [ ! -d c-vendor ]; then
-                mkdir c-vendor
-            fi
-            cp -r "$snapd_dir/c-vendor"/* c-vendor/
-        fi
-        rm -rf "$snapd_dir"
+        # Move snapd-<version>/* to .build/ so kulturysta has expected layout
+        mv "$snapd_dir"/* .build/
+        rmdir "$snapd_dir"
 
-    - name: Setup debian dir
+    - name: Install podman
       run: |
-        # top level debian directory must not exist
-        test ! -d debian
+        sudo apt-get update
+        sudo apt-get install -y podman
+
+    - name: Build deb package
+      run: |
+        # Map distro name from workflow inputs to packaging directory name
         target_system="${{ inputs.os }}-${{ inputs.os-version }}"
         case "$target_system" in
             debian-sid)
-                ln -sfn packaging/debian-sid debian
+                distro="debian-sid"
                 ;;
             ubuntu-*)
-                ln -sfn packaging/ubuntu-16.04 debian
+                distro="debian-sid"
                 ;;
             *)
                 echo "unsupported deb packaging for $target_system"
@@ -77,37 +73,12 @@ jobs:
                 ;;
         esac
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
+        # Run build using kulturysta + podman via build-ci.sh wrapper
+        packaging/build-ci.sh "$distro"
 
-    - name: Build Docker image
-      uses: docker/build-push-action@v7
-      with:
-        context: .
-        push: false
-        load: true
-        file: tests/lib/packaging/debian.dockerfile
-        build-args: |
-          SYSTEM=${{ inputs.os }}
-          TAG=${{ inputs.os-version }}
-        tags: deb-base:latest
-
-    - name: Build deb
-      run: |
-        chmod a+w ../
-        chmod -R a+w .
+        # Collect built packages
         mkdir -p /tmp/builds
-        chmod -R a+w /tmp/builds
-        docker run --cap-add SYS_ADMIN --rm \
-          --mount type=bind,src=$(dirname $(pwd)),dst=/home/test/snapd-parent \
-          --mount type=bind,src=/tmp/builds,dst=/tmp/builds \
-          deb-base:latest \
-          bash -c "
-            chown -R test:test /home/test/snapd-parent/snapd* && \
-            cd /home/test/snapd-parent/snapd* && \
-            tests/lib/packaging/build-deb.sh --user test --pkg-version ${{ env.PKG_VERSION }} && \
-            cp /home/test/snapd-parent/*.deb /tmp/builds
-          "
+        find .build -maxdepth 1 -name "*.deb" -exec cp {} /tmp/builds/ \;
 
     - name: upload packages
       uses: actions/upload-artifact@v7
