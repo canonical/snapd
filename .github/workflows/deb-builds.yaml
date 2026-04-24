@@ -33,11 +33,6 @@ jobs:
         name: source-tarball
         path: packaging/.build
 
-    - name: Install podman
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y podman
-
     - name: Build deb package
       run: |
         # Map distro name from workflow inputs to packaging directory name

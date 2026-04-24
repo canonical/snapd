@@ -21,11 +21,6 @@ jobs:
         name: source-tarball
         path: packaging/.build
 
-    - name: Install podman
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y podman
-
     - name: Build arch package
       run: |
         # Map distro name for arch packaging

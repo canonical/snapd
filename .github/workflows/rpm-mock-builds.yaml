@@ -33,20 +33,6 @@ jobs:
         name: source-tarball
         path: packaging/.build
 
-    - name: Install podman
-      run: |
-        sudo dnf install -y podman
-
-    - name: Create cache key
-      # Force a cache refresh once a week by using the year and week number as part of the cache key
-      run: echo "CACHE_KEY=podman-cache-${{ inputs.system }}-$(date '+%Y-%U')" >> $GITHUB_ENV
-
-    - name: Cache podman volumes
-      uses: actions/cache@v5
-      with:
-        path: /tmp/podman-cache
-        key: ${{ env.CACHE_KEY }}
-
     - name: Build rpm package
       run: |
         # Map packaging directory name from workflow input
@@ -54,7 +40,6 @@ jobs:
 
         # Prepare build environment
         mkdir -p /tmp/builds
-        mkdir -p /tmp/podman-cache
 
         # Run build using kulturysta from the packaging directory
         cd "packaging/$distro"

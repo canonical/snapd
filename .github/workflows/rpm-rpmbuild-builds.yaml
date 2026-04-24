@@ -29,11 +29,6 @@ jobs:
         name: source-tarball
         path: packaging/.build
 
-    - name: Install podman
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y podman
-
     - name: Build rpm package
       run: |
         # Map packaging directory name from workflow input
