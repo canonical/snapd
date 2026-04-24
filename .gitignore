@@ -114,3 +114,6 @@ cmd/test-driver
 
 # Directory that is used by the run-spread script
 /built-snap
+
+# Package manager cache directories used for GitHub Actions caching
+packaging/*/.cache/

@@ -33,6 +33,14 @@ jobs:
         name: source-tarball
         path: packaging/.build
 
+    - name: Restore volume cache
+      uses: actions/cache@v4
+      with:
+        path: packaging/${{ inputs.pkg-dir }}/.cache/
+        key: pkg-cache-${{ inputs.pkg-dir }}-v1-${{ hashFiles('go.mod', 'c-vendor/**') }}
+        restore-keys: |
+          pkg-cache-${{ inputs.pkg-dir }}-v1-
+
     - name: Build rpm package
       run: |
         # Map packaging directory name from workflow input
@@ -41,9 +49,15 @@ jobs:
         # Prepare build environment
         mkdir -p /tmp/builds
 
+        # Import cached volumes before build
+        packaging/cache-volumes.sh "$distro" import
+
         # Run build using kulturysta from the packaging directory
         cd "packaging/$distro"
         ../kulturysta --no-tests
+
+        # Export volumes after build for caching
+        ../cache-volumes.sh "$distro" export
 
         # Collect built packages
         find .build -maxdepth 1 -name "*.rpm" ! -name "*debug*" ! -name "*.src.rpm" -exec cp {} /tmp/builds/ \;

@@ -33,15 +33,20 @@ jobs:
         name: source-tarball
         path: packaging/.build
 
+    - name: Restore volume cache
+      uses: actions/cache@v4
+      with:
+        path: packaging/debian-sid/.cache/
+        key: pkg-cache-debian-sid-v1-${{ hashFiles('go.mod', 'c-vendor/**') }}
+        restore-keys: |
+          pkg-cache-debian-sid-v1-
+
     - name: Build deb package
       run: |
         # Map distro name from workflow inputs to packaging directory name
         target_system="${{ inputs.os }}-${{ inputs.os-version }}"
         case "$target_system" in
-            debian-sid)
-                distro="debian-sid"
-                ;;
-            ubuntu-*)
+            debian-*|ubuntu-*)
                 distro="debian-sid"
                 ;;
             *)
@@ -50,9 +55,15 @@ jobs:
                 ;;
         esac
 
+        # Import cached volumes before build
+        packaging/cache-volumes.sh "$distro" import
+
         # Run build using kulturysta from the packaging directory
         cd "packaging/$distro"
         ../kulturysta --no-tests
+
+        # Export volumes after build for caching
+        ../cache-volumes.sh "$distro" export
 
         # Collect built packages
         mkdir -p /tmp/builds
