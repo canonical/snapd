@@ -239,12 +239,19 @@ check_snap_mount_dir() {
     local expected_mount_dir
     local current_mount_dir
 
+    if [ ! -f "$TESTSTMP/tests.invariant.initial-snap-mount-dir" ]; then
+        echo "tests.invariant: initial snap mount directory not configured, run 'set snap-mount-dir' first"
+        return 1
+    fi
+
     expected_mount_dir="$(cat "$TESTSTMP/tests.invariant.initial-snap-mount-dir")"
     test -n "$expected_mount_dir"
     current_mount_dir="$(os.paths snap-mount-dir)"
-    if test "$current_mount_dir" != "$expected_mount_dir" ; then
+    if [ "$current_mount_dir" != "$expected_mount_dir" ]; then
         echo "tests.invariant: unexpected snap-mount-directory, expected $expected_mount_dir, got $current_mount_dir" \
-            > "$TESTTMP/tests.invariant.$n"
+            > "$TESTSTMP/tests.invariant.$n"
+    else
+        rm -f "$TESTSTMP/tests.invariant.$n"
     fi
 
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
