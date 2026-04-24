@@ -85,11 +85,17 @@ jobs:
           ./packaging/pack-source -v "$version" -o /tmp/pkg -s
           echo "$version" > /tmp/pkg/version
 
-      - name: Upload vendors
+      - name: Upload vendor packages
         uses: actions/upload-artifact@v7
         with:
           name: vendor-pkgs
           path: /tmp/pkg
+
+      - name: Upload source tarballs
+        uses: actions/upload-artifact@v7
+        with:
+          name: source-tarball
+          path: /tmp/pkg/snapd_*.tar.xz
 
   package-snapd-rpm-mock:
     needs: create-vendor-dir
@@ -415,7 +421,7 @@ jobs:
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
-        fuzzing-search-dir: confdb	
+        fuzzing-search-dir: confdb
   
   # The required-unit-tests job was introduced to maintain a consistent
   # status check name, regardless of changes to the Go channel used for unit

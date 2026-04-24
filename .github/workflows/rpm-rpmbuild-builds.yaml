@@ -1,22 +1,10 @@
-name: Build deb package
+name: Build rpm package (rpmbuild)
 
 on:
   workflow_call:
     inputs:
       runs-on:
         description: 'A json list of tags to indicate which runner to use'
-        required: true
-        type: string
-      dockerfile:
-        description: 'The name of the dockerfile in tests/lib/packaging'
-        required: true
-        type: string
-      image-name:
-        description: 'The name of the docker image to build'
-        required: true
-        type: string
-      image-tag:
-        description: 'The tag of the docker image to build'
         required: true
         type: string
       pkg-dir:
@@ -35,53 +23,31 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download vendor
+    - name: Download source tarball
       uses: actions/download-artifact@v8
       with:
-        name: vendor-pkgs
-        path: /tmp/pkg
+        name: source-tarball
+        path: packaging/.build
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v4
-
-    - name: Build Docker image
-      uses: docker/build-push-action@v7
-      with:
-        context: .
-        push: false
-        load: true
-        file: tests/lib/packaging/${{ inputs.dockerfile }}
-        tags: ${{ inputs.image-name }}-base:latest
-        build-args: |
-          IMAGE=${{ inputs.image-name }}
-          TAG=${{ inputs.image-tag }}
-          PACKAGING_DIR=${{ inputs.pkg-dir }}
-
-    - name: Set version in spec
+    - name: Install podman
       run: |
-        version=$(cat /tmp/pkg/version)
-        sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
+        sudo apt-get update
+        sudo apt-get install -y podman
 
-    - name: Build rpm
+    - name: Build rpm package
       run: |
-        # Here we use rpmbuild instead of osc because osc
-        # requires authentication to build packages
+        # Map packaging directory name from workflow input
+        distro="${{ inputs.pkg-dir }}"
 
-        chmod -R o+wr .
+        # Prepare build environment
         mkdir -p /tmp/uploads
-        chmod -R o+wr /tmp/uploads
-        docker run --privileged --rm \
-          --mount type=bind,src=$(pwd),dst=/root/snapd \
-          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
-          --mount type=bind,src=/tmp/uploads,dst=/tmp/uploads \
-          ${{ inputs.image-name }}-base:latest \
-          bash -c "
-            cd /root/snapd && \
-            tests/lib/packaging/build-rpm-rpmbuild.sh \
-              --pkg-dir ${{ inputs.pkg-dir }} \
-              --vendor-tar-dir /tmp/pkg \
-              --build-dir /tmp/uploads
-          "
+
+        # Run build using kulturysta from the packaging directory
+        cd "packaging/$distro"
+        ../../kulturysta
+
+        # Collect built packages
+        find .build -maxdepth 1 -name "*.rpm" ! -name "*debug*" ! -name "*.src.rpm" -exec cp {} /tmp/uploads/ \;
 
     - name: Upload packages
       uses: actions/upload-artifact@v7
