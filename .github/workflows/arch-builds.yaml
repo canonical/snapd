@@ -15,11 +15,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download vendor
+    - name: Download source tarballs
       uses: actions/download-artifact@v8
       with:
-        name: vendor-pkgs
-        path: /tmp/pkg
+        name: source-tarball
+        path: /tmp/source
+
+    - name: Extract version from tarball
+      run: |
+        version=$(ls /tmp/source/snapd_*.vendor.tar.xz | sed -E 's/.*snapd_(.*)\.vendor.*/\1/')
+        echo "PKG_VERSION=$version" >> $GITHUB_ENV
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
@@ -35,22 +40,21 @@ jobs:
 
     - name: Set version in spec
       run: |
-        version=$(cat /tmp/pkg/version)
-        sed -i -e "s/pkgver=.*/pkgver=$version/" packaging/arch/PKGBUILD
+        sed -i -e "s/pkgver=.*/pkgver=${{ env.PKG_VERSION }}/" packaging/arch/PKGBUILD
 
     - name: Build arch pkg
       run: |
         chmod -R a+w .
         docker run --cap-add SYS_ADMIN --rm \
           --mount type=bind,src=$(pwd),dst=/home/test/snapd \
-          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
+          --mount type=bind,src=/tmp/source,dst=/tmp/source \
           arch-base:latest \
           bash -c "
             cd /home/test/snapd && \
-            tests/lib/packaging/build-arch.sh --user test --build-dir /tmp/pkg/
+            tests/lib/packaging/build-arch.sh --user test --build-dir /tmp/source/
           "
         mkdir /tmp/uploads
-        sudo find /tmp/pkg/* -name '*.pkg.tar.*' -exec mv {} /tmp/uploads \;
+        sudo find /tmp/source/* -name '*.pkg.tar.*' -exec mv {} /tmp/uploads \;
 
     - name: upload packages
       uses: actions/upload-artifact@v7

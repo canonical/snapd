@@ -27,11 +27,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download vendor
+    - name: Download source tarballs
       uses: actions/download-artifact@v8
       with:
-        name: vendor-pkgs
-        path: /tmp/pkg
+        name: source-tarball
+        path: /tmp/source
+
+    - name: Extract version from tarball
+      run: |
+        version=$(ls /tmp/source/snapd_*.no-vendor.tar.xz | sed -E 's/.*snapd_(.*)\.no-vendor.*/\1/')
+        echo "PKG_VERSION=$version" >> $GITHUB_ENV
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v4
@@ -57,8 +62,7 @@ jobs:
 
     - name: Set version in spec
       run: |
-        version=$(cat /tmp/pkg/version)
-        sed -i -e "s/^Version:.*$/Version: $version/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
+        sed -i -e "s/^Version:.*$/Version: ${{ env.PKG_VERSION }}/g" "packaging/${{ inputs.pkg-dir }}/snapd.spec"
 
     - name: Build rpm
       run: |
@@ -69,14 +73,14 @@ jobs:
         docker run --privileged --rm \
           --mount type=bind,src=/tmp/mock,dst=/var/cache/mock \
           --mount type=bind,src=$(pwd),dst=/home/mockbuilder/snapd \
-          --mount type=bind,src=/tmp/pkg,dst=/tmp/pkg \
+          --mount type=bind,src=/tmp/source,dst=/tmp/source \
           --mount type=bind,src=/tmp/builds,dst=/home/mockbuilder/builds \
           mock-base:latest \
           bash -c "
             cd /home/mockbuilder/snapd && \
             tests/lib/packaging/build-rpm-mock.sh \
               --pkg-dir ${{ inputs.pkg-dir }} \
-              --vendor-tar-dir /tmp/pkg \
+              --vendor-tar-dir /tmp/source \
               --config-file /etc/mock/${{ inputs.config }}.cfg
           "
         mkdir /tmp/uploads

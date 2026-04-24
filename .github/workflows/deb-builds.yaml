@@ -27,18 +27,28 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
-    - name: Download vendor
+    - name: Download source tarballs
       uses: actions/download-artifact@v8
       with:
-        name: vendor-pkgs
-        path: /tmp/pkg
+        name: source-tarball
+        path: /tmp/source
 
-    - name: Extract vendor
+    - name: Extract source tarballs
       run: |
-        mkdir /tmp/vendor-dir
-        tar -xf /tmp/pkg/snapd*.vendor.tar.xz -C /tmp/vendor-dir
-        mv /tmp/vendor-dir/snapd-*/vendor .
-        mv /tmp/vendor-dir/snapd-*/c-vendor/* c-vendor/
+        # Extract version from tarball filename
+        version=$(ls /tmp/source/snapd_*.no-vendor.tar.xz | sed -E 's/.*snapd_(.*)\.no-vendor.*/\1/')
+        echo "PKG_VERSION=$version" >> $GITHUB_ENV
+
+        # Extract source tarballs
+        mkdir -p /tmp/source-extracted
+        cd /tmp/source-extracted
+        tar -xf /tmp/source/snapd_*.no-vendor.tar.xz
+        tar -xf /tmp/source/snapd_*.only-vendor.tar.xz
+
+        # Move extracted content to current directory
+        cd -
+        mv /tmp/source-extracted/snapd-*/vendor .
+        mv /tmp/source-extracted/snapd-*/c-vendor/* c-vendor/
 
     - name: Setup debian dir
       run: |
@@ -86,7 +96,7 @@ jobs:
           bash -c "
             chown -R test:test /home/test/snapd-parent/snapd* && \
             cd /home/test/snapd-parent/snapd* && \
-            tests/lib/packaging/build-deb.sh --user test --pkg-version "$(cat /tmp/pkg/version)" && \
+            tests/lib/packaging/build-deb.sh --user test --pkg-version ${{ env.PKG_VERSION }} && \
             cp /home/test/snapd-parent/*.deb /tmp/builds
           "
 
