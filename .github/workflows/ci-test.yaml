@@ -95,7 +95,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: source-tarball
-          path: /tmp/pkg/snapd_*.tar.xz
+          path: /tmp/pkg
+          if-no-files-found: error
 
   package-snapd-rpm-mock:
     needs: create-vendor-dir
