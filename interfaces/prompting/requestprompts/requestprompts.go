@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/prompting"
 	prompting_errors "github.com/snapcore/snapd/interfaces/prompting/errors"
 	"github.com/snapcore/snapd/interfaces/prompting/internal/maxidmmap"
+	"github.com/snapcore/snapd/interfaces/prompting/patterns"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -225,7 +226,7 @@ func (pc *promptConstraints) marshalForInterface(iface string) ([]byte, error) {
 	switch iface {
 	case "home":
 		constraintsJSON := &promptConstraintsJSONHome{
-			Path:                 pc.path,
+			Path:                 pc.EscapedPath(),
 			RequestedPermissions: pc.outstandingPermissions,
 			AvailablePermissions: pc.availablePermissions,
 		}
@@ -274,7 +275,7 @@ func (pc *promptConstraints) equals(other *promptConstraints) bool {
 // then affectedByRule is false, and no changes are made to the prompt
 // constraints.
 func (pc *promptConstraints) applyRuleConstraints(constraints *prompting.RuleConstraints) (affectedByRule, respond bool, deniedPermissions []string, err error) {
-	pathMatched, err := constraints.Match(pc.path)
+	pathMatched, err := constraints.Match(pc.Path())
 	if err != nil {
 		// Should not occur, only error is if path pattern is malformed,
 		// which would have thrown an error while parsing, not now.
@@ -341,9 +342,22 @@ func (pc *promptConstraints) buildResponse(deniedPermissions []string) []string 
 }
 
 // Path returns the path associated with the request to which the receiving
-// prompt constraints apply.
+// prompt constraints apply. This is the literal path, without special path
+// pattern characters escaped. This should be used when matching patterns
+// against prompts.
 func (pc *promptConstraints) Path() string {
 	return pc.path
+}
+
+// EscapedPath returns the path associated with prompt constraints, with any
+// special path pattern characters escaped by a '\' character. This should be
+// used in order to create a path pattern which matches the requested path.
+// Thus, it should also be used when marshalling prompt constraints to send to
+// a prompting client, as clients should be able to reply using the exact path
+// they received in the prompt as the path pattern and have that reply apply to
+// the requested path.
+func (pc *promptConstraints) EscapedPath() string {
+	return patterns.EscapeLiteralPath(pc.path)
 }
 
 // OutstandingPermissions returns the outstanding unsatisfied permissions

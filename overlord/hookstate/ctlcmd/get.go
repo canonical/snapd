@@ -42,8 +42,8 @@ import (
 )
 
 var (
-	confdbstateGetView           = confdbstate.GetView
-	confdbstateTransactionForGet = confdbstate.GetTransactionForSnapctlGet
+	confdbstateGetView    = confdbstate.GetView
+	confdbstateReadConfdb = confdbstate.ReadConfdbFromSnap
 )
 
 type getCommand struct {
@@ -448,7 +448,8 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	tx, err := confdbstateTransactionForGet(ctx, view, requests, constraints)
+	// TODO: add --wait-for timeout to options and cache in hookstate context
+	tx, err := confdbstateReadConfdb(ctx, view, requests, constraints)
 	if err != nil {
 		return err
 	}

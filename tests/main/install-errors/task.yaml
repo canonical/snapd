@@ -53,6 +53,19 @@ execute: |
     snap install "$SNAP_NAME" 2> stderr.out
     MATCH "snap \"$SNAP_NAME\" is already installed" < stderr.out
 
+    echo "Installing multiple snaps that are already installed shows a message"
+    echo "but does exit 0"
+    snap install "$SNAP_NAME" snapd 2> stderr.out
+    MATCH "snap \"$SNAP_NAME\" is already installed" < stderr.out
+    MATCH "snap \"snapd\" is already installed" < stderr.out
+
+    echo "Installing new and already installed snaps installs the new and has"
+    echo "message for the already installed snap but does exit 0"
+    snap install "$SNAP_NAME" test-snap-with-components 2> stderr.out 1> stdout.out
+    MATCH "snap \"$SNAP_NAME\" is already installed" < stderr.out
+    MATCH "test-snap-with-components .* installed" < stdout.out
+    snap list test-snap-with-components
+
     echo "Install ubuntu-core"
     if snap install ubuntu-core 2> stderr.out; then
         echo "Installing ubuntu-core should fail"

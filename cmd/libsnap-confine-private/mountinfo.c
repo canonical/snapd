@@ -134,8 +134,9 @@ static char *parse_next_string_field_ex(sc_mountinfo_entry *entry, const char *l
                                         bool allow_spaces_in_field) {
     const char *input = &line[*offset];
     char *output = &entry->line_buf[*offset];
-    size_t input_idx = 0;   // reading index
-    size_t output_idx = 0;  // writing index
+    size_t input_idx = 0;              // reading index
+    size_t output_idx = 0;             // writing index
+    size_t input_len = strlen(input);  // length of remaining input (used for bounds checks below)
 
     // Scan characters until we run out of memory to scan or we find a
     // space.  The kernel uses simple octal escape sequences for the
@@ -169,14 +170,13 @@ static char *parse_next_string_field_ex(sc_mountinfo_entry *entry, const char *l
             break;
         } else if (c == '\\') {
             // Three *more* octal digits required for the escape
-            // sequence.  For reference see mangle_path() in
-            // fs/seq_file.c.  Note that is_octal_digit returns
-            // false on the string terminator character NUL and the
-            // short-circuiting behavior of && makes this check
-            // correct even if '\\' is the last character of the
-            // string.
+            // sequence. For reference see mangle_path() in
+            // fs/seq_file.c. We explicitly verify that at least 3
+            // more bytes remain before the end of the string to
+            // prevent out-of-bounds reads when the input contains
+            // fewer than 3 bytes after the backslash.
             const char *s = &input[input_idx];
-            if (is_octal_digit(s[1]) && is_octal_digit(s[2]) && is_octal_digit(s[3])) {
+            if (input_idx + 4 <= input_len && is_octal_digit(s[1]) && is_octal_digit(s[2]) && is_octal_digit(s[3])) {
                 // Unescape the octal value encoded in s[1],
                 // s[2] and s[3]. Because we are working with
                 // byte values there are no issues related to

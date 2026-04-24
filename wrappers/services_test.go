@@ -5406,8 +5406,8 @@ apps:
 		{"start", srvFile1},
 	})
 
-	// Restart but with restarting non-active, this means that the activated services
-	// should be restarted now
+	// Restart but with restarting non-active. This restarts the activators for the
+	// activated service, but the inactive primary unit still stays stopped.
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -5422,11 +5422,9 @@ apps:
 		{"start", srvFile2Sock1, srvFile2Sock2},
 	})
 
-	// Restart but also reload. When reloading we expect to see different behaviour.
-	// Reloading activated units is not supported by systemd, and for that reason they must
-	// not appear in the list of systemctl calls.
-	// The only call we expect to appear here is the primary service of svc1 as
-	// that one is the only one reported as active here.
+	// Restart but also reload. Reload skips activators, and idle activated
+	// services still keep their primary unit stopped. The only reload here is for
+	// svc1, which is the only primary unit reported active.
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{Reload: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -5493,10 +5491,9 @@ apps:
 		{"start", srvFile2Sock1, srvFile2Sock2},
 	})
 
-	// Restart but with restarting non-active, which means that all services
-	// **except** for any activated service will restart  (svc2 primary unit).
-	// The activator service units should restart, but not the main one since
-	// it was reported as inactive
+	// Restart but with restarting non-active. The non-activated service restarts,
+	// and the activated service only restarts its activators because the primary
+	// unit was reported inactive.
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{AlsoEnabledNonActive: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -5511,10 +5508,8 @@ apps:
 		{"start", srvFile2Sock1, srvFile2Sock2},
 	})
 
-	// Restart but also reload. We do not expect any services to be restarted here as
-	// both the primary units are reported inactive. (Only the activation units are
-	// reported active). The reason we don't expect to see the activation units restarted
-	// when reloading, is that these units do not support reloading by systemd.
+	// Restart but also reload. The primary units are reported inactive, so they
+	// must stay stopped.
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{Reload: true}, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -5577,6 +5572,63 @@ apps:
 		{"show", "--property=ActiveState", srvFile2Sock2},
 		{"show", "--property=ActiveState", srvFile2},
 		{"start", srvFile2Sock1, srvFile2Sock2, srvFile2},
+	})
+
+	// Restart but also reload. Only the active primary unit should be
+	// reload-or-restarted.
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, nil, &wrappers.RestartServicesOptions{Reload: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1, srvFile2},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile2Sock1, srvFile2Sock2},
+		{"reload-or-restart", srvFile2},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartWithActivatedServicesInactiveExplicitReload(c *C) {
+	const snapYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    daemon: simple
+    plugs: [network-bind]
+    sockets:
+      sock1:
+        listen-stream: $SNAP_DATA/sock1.socket
+        socket-mode: 0666
+      sock2:
+        listen-stream: $SNAP_COMMON/sock2.socket
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile1Sock1 := "snap.test-snap.svc1.sock1.socket"
+	srvFile1Sock2 := "snap.test-snap.svc1.sock2.socket"
+
+	info := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1:      {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile1Sock1: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile1Sock2: {ActiveState: "inactive", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := s.addSnapServices(info, false)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, []string{srvFile1}, &wrappers.RestartServicesOptions{Reload: true}, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type,Names,NeedDaemonReload", srvFile1},
+		{"show", "--property=Id,ActiveState,UnitFileState,Names", srvFile1Sock1, srvFile1Sock2},
 	})
 }
 

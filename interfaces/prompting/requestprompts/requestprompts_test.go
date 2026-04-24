@@ -503,6 +503,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt1.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
+	c.Check(prompt1.Constraints.EscapedPath(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt1.Requests(), HasLen, 1)
 	c.Check(prompt1.Requests()[0].Key, Equals, "fake:1")
@@ -540,6 +541,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt2.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt2.Interface, Equals, metadata.Interface)
 	c.Check(prompt2.Constraints.Path(), Equals, path)
+	c.Check(prompt2.Constraints.EscapedPath(), Equals, path)
 	c.Check(prompt2.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 
 	// Request was added to the requests list
@@ -582,6 +584,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt3.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt3.Interface, Equals, metadata.Interface)
 	c.Check(prompt3.Constraints.Path(), Equals, path)
+	c.Check(prompt3.Constraints.EscapedPath(), Equals, path)
 	c.Check(prompt3.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt3.Requests(), HasLen, 1)
 	c.Check(prompt3.Requests()[0].Key, Equals, "fake:3")
@@ -624,6 +627,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt4.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt4.Interface, Equals, metadata.Interface)
 	c.Check(prompt4.Constraints.Path(), Equals, path)
+	c.Check(prompt4.Constraints.EscapedPath(), Equals, path)
 	c.Check(prompt4.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt4.Requests(), HasLen, 1)
 	c.Check(prompt4.Requests()[0].Key, Equals, "fake:4")
@@ -668,6 +672,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt5.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt5.Interface, Equals, metadata.Interface)
 	c.Check(prompt5.Constraints.Path(), Equals, path)
+	c.Check(prompt5.Constraints.EscapedPath(), Equals, path)
 	c.Check(prompt5.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt5.Requests(), HasLen, 1)
 	c.Check(prompt5.Requests()[0].Key, Equals, "fake:5")
@@ -715,6 +720,7 @@ func (s *requestpromptsSuite) TestAddOrMergeNonMerges(c *C) {
 	c.Check(prompt6.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt6.Interface, Equals, metadata.Interface)
 	c.Check(prompt6.Constraints.Path(), Equals, path)
+	c.Check(prompt6.Constraints.EscapedPath(), Equals, path)
 	c.Check(prompt6.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 	c.Assert(prompt6.Requests(), HasLen, 1)
 	c.Check(prompt6.Requests()[0].Key, Equals, "fake:6")
@@ -819,6 +825,7 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	c.Check(prompt1.Cgroup, Equals, metadata.Cgroup)
 	c.Check(prompt1.Interface, Equals, metadata.Interface)
 	c.Check(prompt1.Constraints.Path(), Equals, path)
+	c.Check(prompt1.Constraints.EscapedPath(), Equals, path)
 	c.Check(prompt1.Constraints.OutstandingPermissions(), DeepEquals, permissions)
 
 	stored, err = pdb.Prompts(metadata.User, clientActivity)
@@ -851,6 +858,63 @@ func (s *requestpromptsSuite) TestAddOrMergeMerges(c *C) {
 	// Merged prompts should create mapping from new request key to existing prompt ID
 	expectedMap["fake:3"] = requestprompts.RequestMapEntry{PromptID: 1, UserID: s.defaultUser}
 	s.checkWrittenRequestMap(c, expectedMap)
+}
+
+func (s *requestpromptsSuite) TestAddOrMergeEscapesPath(c *C) {
+	// Mock timer so we don't get irrelevant timeouts during the test
+	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
+		return testtime.AfterFunc(d, f)
+	})
+	defer restore()
+
+	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
+	c.Assert(err, IsNil)
+	defer pdb.Close()
+
+	metadata := &prompting.Metadata{
+		User:      s.defaultUser,
+		Snap:      "nextcloud",
+		PID:       1234,
+		Cgroup:    "some/cgroup/path",
+		Interface: "home",
+	}
+	permissions := []string{"read", "write", "execute"}
+
+	for i, testCase := range []struct {
+		originalPath string
+		escapedPath  string
+	}{
+		// Normal path
+		{`/foo/bar`, `/foo/bar`},
+		{`/foo(bar,baz)`, `/foo(bar,baz)`}, // () are not special, so not escaped
+		// Paths with individual special characters
+		{`/foo*bar`, `/foo\*bar`},
+		{`/foo?bar`, `/foo\?bar`},
+		{`/foo\bar`, `/foo\\bar`},
+		{`/foo[bar,baz]`, `/foo\[bar,baz\]`},
+		{`/foo{bar,baz}`, `/foo\{bar,baz\}`},
+		// Paths with special characters preceded by a literal '\' (as decoy)
+		{`/foo\*bar`, `/foo\\\*bar`},
+		{`/foo\?bar`, `/foo\\\?bar`},
+		{`/foo\\bar`, `/foo\\\\bar`},
+		{`/foo\(bar,baz\)`, `/foo\\(bar,baz\\)`}, // () are not special, so not escaped
+		{`/foo\[bar,baz\]`, `/foo\\\[bar,baz\\\]`},
+		{`/foo\{bar,baz\}`, `/foo\\\{bar,baz\\\}`},
+		// Path with all the special characters and some not so special characters
+		{`/foo*?()[]{}'",\`, `/foo\*\?()\[\]\{\}'",\\`},
+		// Path with square brackets and unicode characters
+		{`/foo/bar/[アニメ][ゲーム動画].mkv`, `/foo/bar/\[アニメ\]\[ゲーム動画\].mkv`},
+	} {
+		req := &prompting.Request{Key: fmt.Sprintf("fake:%d", i)}
+
+		prompt, merged, err := pdb.AddOrMerge(metadata, testCase.originalPath, permissions, permissions, req)
+		c.Assert(err, IsNil)
+		c.Assert(prompt, NotNil)
+		c.Assert(merged, Equals, false)
+
+		c.Check(prompt.Constraints.Path(), Equals, testCase.originalPath)
+		c.Check(prompt.Constraints.EscapedPath(), Equals, testCase.escapedPath)
+	}
 }
 
 func (s *requestpromptsSuite) TestAddOrMergeDuplicateRequests(c *C) {
@@ -1400,6 +1464,33 @@ func (s *requestpromptsSuite) TestReplyErrors(c *C) {
 }
 
 func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
+	for _, testCase := range []struct {
+		requestedPath string
+		replyPattern  string
+	}{
+		{`/home/test/Documents/foo.txt`, `/home/test/Documents/foo.txt`},
+		{`/home/test/Documents/foo.txt`, `/home/test/Documents/**`},
+		{`/foo*bar`, `/foo\*bar`},
+		{`/foo*bar`, `/foo*bar`}, // if we happen to reply with a globstar, it matches literal '*'
+		{`/foo*bar`, `/foo*`},
+		{`/foo*bar`, `/foo*\**`},
+		{`/foo?bar`, `/foo\?bar`},
+		{`/foo?bar`, `/foo\??ar`},
+		{`/foo?bar`, `/foo?bar`},             // if we reply with a ?, it matches literal '?'
+		{`/foo(bar,baz)`, `/foo(bar,baz)`},   // technically, '(' and ')' are not special
+		{`/foo(bar,baz)`, `/foo\(bar,baz\)`}, // but they can be escaped all the same
+		{`/foo[bar]`, `/foo\[bar\]`},
+		{`/foo{bar,baz}`, `/foo\{bar,baz\}`},
+		{`/foo{bar,baz}`, `/foo{xyz,\{bar\,baz\}}`},
+		{`/foo*?()[]{}'",\`, `/foo\*\?()\[\]\{\}'",\\`},
+		{`/foo/bar/[アニメ][ゲーム動画].mkv`, `/foo/bar/\[アニメ\]\[ゲーム動画\].mkv`},
+	} {
+		s.SetUpTest(c)
+		s.testHandleNewRule(c, testCase.requestedPath, testCase.replyPattern)
+	}
+}
+
+func (s *requestpromptsSuite) testHandleNewRule(c *C, requestedPath, replyPattern string) {
 	// Mock timer so we don't get irrelevant timeouts during the test
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
 		return testtime.AfterFunc(d, f)
@@ -1417,29 +1508,28 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 		Cgroup:    "some-cgroup-path",
 		Interface: "home",
 	}
-	path := "/home/test/Documents/foo.txt"
 
 	permissions1 := []string{"read", "write", "execute"}
 	req1, replyChan1 := newRequestWithReplyChan("fake:12")
-	prompt1, merged, err := pdb.AddOrMerge(metadata, path, permissions1, permissions1, req1)
+	prompt1, merged, err := pdb.AddOrMerge(metadata, requestedPath, permissions1, permissions1, req1)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions2 := []string{"read", "write"}
 	req2, replyChan2 := newRequestWithReplyChan("fake:34")
-	prompt2, merged, err := pdb.AddOrMerge(metadata, path, permissions2, permissions2, req2)
+	prompt2, merged, err := pdb.AddOrMerge(metadata, requestedPath, permissions2, permissions2, req2)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions3 := []string{"read"}
 	req3, replyChan3 := newRequestWithReplyChan("fake:56")
-	prompt3, merged, err := pdb.AddOrMerge(metadata, path, permissions3, permissions3, req3)
+	prompt3, merged, err := pdb.AddOrMerge(metadata, requestedPath, permissions3, permissions3, req3)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
 	permissions4 := []string{"open"}
 	req4 := &prompting.Request{Key: "fake:78"} // Reply should not occur, so panic if called
-	prompt4, merged, err := pdb.AddOrMerge(metadata, path, permissions4, permissions4, req4)
+	prompt4, merged, err := pdb.AddOrMerge(metadata, requestedPath, permissions4, permissions4, req4)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
@@ -1457,7 +1547,7 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(stored, HasLen, 4)
 
-	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
+	pathPattern, err := patterns.ParsePathPattern(replyPattern)
 	c.Assert(err, IsNil)
 	constraints := &prompting.RuleConstraints{
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
@@ -1476,7 +1566,7 @@ func (s *requestpromptsSuite) TestHandleNewRule(c *C) {
 
 	satisfied, err := pdb.HandleNewRule(metadata, constraints)
 	c.Assert(err, IsNil)
-	c.Check(satisfied, HasLen, 2)
+	c.Check(satisfied, HasLen, 2, Commentf("requestedPath: %q, replyPattern: %q", requestedPath, replyPattern))
 	c.Check(promptIDListContains(satisfied, prompt1.ID), Equals, true)
 	c.Check(promptIDListContains(satisfied, prompt3.ID), Equals, true)
 
@@ -1543,6 +1633,29 @@ func promptIDListContains(haystack []prompting.IDType, needle prompting.IDType) 
 }
 
 func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
+	for _, testCase := range []struct {
+		requestedPath      string
+		matchingPattern    string
+		nonMatchingPattern string
+	}{
+		{`/home/test/Documents/foo.txt`, `/home/test/Documents/foo.txt`, `/home/test/Documents/bar.txt`},
+		{`/home/test/Documents/foo.txt`, `/home/test/Documents/foo.txt`, `/home/test/Pictures/**`},
+		{`/foo*bar`, `/foo\*bar`, `/foobar`},
+		{`/foo*bar`, `/foo\*bar`, `/foo\*\*bar`},
+		{`/foo*bar`, `/foo\*bar`, `/foo\*`},
+		{`/foo?bar`, `/foo\?bar`, `/fooxbar`},
+		{`/foo?bar`, `/foo\?bar`, `/foo?\?bar`},
+		{`/foo{bar,baz}`, `/foo\{bar,baz\}`, `/foo{bar,baz}`},
+		{`/foo*?()[]{}'",\`, `/foo\*\?()\[\]\{\}'",\\`, `/foo*?()\[\]{}'",\\`}, // () are not special so do not need to be escaped
+		{`/foo*?()[]{}'",\`, `/foo\*\?\(\)\[\]\{\}'",\\`, `/foo*?()\[\]{}'",\\`},
+		{`/foo/bar/[アニメ][ゲーム動画].mkv`, `/foo/bar/\[アニメ\]\[ゲーム動画\].mkv`, `/foo/bar/アニメゲーム動画.mkv`},
+	} {
+		s.SetUpTest(c)
+		s.testHandleNewRuleNonMatches(c, testCase.requestedPath, testCase.matchingPattern, testCase.nonMatchingPattern)
+	}
+}
+
+func (s *requestpromptsSuite) testHandleNewRuleNonMatches(c *C, requestedPath, matchingPattern, nonMatchingPattern string) {
 	// Mock timer so we don't get irrelevant timeouts during the test
 	restore := requestprompts.MockTimeAfterFunc(func(d time.Duration, f func()) timeutil.Timer {
 		return testtime.AfterFunc(d, f)
@@ -1563,10 +1676,9 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 		Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
 		Interface: iface,
 	}
-	path := "/home/test/Documents/foo.txt"
 	permissions := []string{"read"}
 	req, replyChan := newRequestWithReplyChan("fake:1")
-	prompt, merged, err := pdb.AddOrMerge(metadata, path, permissions, permissions, req)
+	prompt, merged, err := pdb.AddOrMerge(metadata, requestedPath, permissions, permissions, req)
 	c.Assert(err, IsNil)
 	c.Check(merged, Equals, false)
 
@@ -1576,7 +1688,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	metadata.PID = 0
 	metadata.Cgroup = ""
 
-	pathPattern, err := patterns.ParsePathPattern("/home/test/Documents/**")
+	pathPattern, err := patterns.ParsePathPattern(matchingPattern)
 	c.Assert(err, IsNil)
 	constraints := &prompting.RuleConstraints{
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
@@ -1599,7 +1711,7 @@ func (s *requestpromptsSuite) TestHandleNewRuleNonMatches(c *C) {
 	otherUser := user + 1
 	otherSnap := "ldx"
 	otherInterface := "system-files"
-	otherPattern, err := patterns.ParsePathPattern("/home/test/Pictures/**.png")
+	otherPattern, err := patterns.ParsePathPattern(nonMatchingPattern)
 	c.Assert(err, IsNil)
 	otherConstraints := &prompting.RuleConstraints{
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
@@ -2232,6 +2344,20 @@ func (s *requestpromptsSuite) TestPromptMarshalJSON(c *C) {
 			requestedPerms:   []string{"access"},
 			outstandingPerms: []string{"access"},
 			expected:         `{"id":"0000000000000003","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"protonmail-bridge","pid":1248,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"audio-record","constraints":{"requested-permissions":["access"],"available-permissions":["access"]}}`,
+		},
+		{
+			// Path with special characters
+			metadata: &prompting.Metadata{
+				User:      s.defaultUser,
+				Snap:      "firefox",
+				PID:       1234,
+				Cgroup:    "0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope",
+				Interface: "home",
+			},
+			path:             `/home/test/foo*?()[]{}'",\`,
+			requestedPerms:   []string{"write"},
+			outstandingPerms: []string{"write"},
+			expected:         `{"id":"0000000000000004","timestamp":"2024-08-14T09:47:03.350324989-05:00","snap":"firefox","pid":1234,"cgroup":"0::/user.slice/user-1000.slice/user@1000.service/app.slice/some-cgroup.scope","interface":"home","constraints":{"path":"/home/test/foo\\*\\?()\\[\\]\\{\\}'\",\\\\","requested-permissions":["write"],"available-permissions":["read","write","execute"]}}`,
 		},
 	} {
 		fakeRequest := &prompting.Request{Key: fmt.Sprintf("fake:%d", reqCount)}

@@ -20,6 +20,7 @@
 package builtin_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -320,6 +321,46 @@ apps:
 	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := info.Plugs["content"]
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "content plug must contain target path")
+}
+
+func (s *ContentSuite) TestSanitizePlugTargetEdgeCases(c *C) {
+	const snapYamlTemplate = `name: content-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  content: mycont
+  target: %s
+`
+	for _, tc := range []struct {
+		target string
+		errMsg string
+	}{
+		// explicit, well understood, covered by other unit tests
+		{target: "$SNAP/import"},
+		{target: "$SNAP_DATA/import"},
+		{target: "$SNAP_COMMON/import"},
+		// bare $SNAP, no subpath
+		{target: "$SNAP"},
+		// bare path, implicit $SNAP prefix
+		{target: "import"},
+		// absolute path, implicit $SNAP prefix
+		{target: "/import"},
+		// bare root, ends up as $SNAP
+		{target: "/"},
+
+		// trailing slash is not a clean path, inconsistent with the rest
+		{target: "$SNAP/", errMsg: `content interface path is not clean: .*`},
+	} {
+		info := snaptest.MockInfo(c, fmt.Sprintf(snapYamlTemplate, tc.target), nil)
+		plug := info.Plugs["content-plug"]
+		err := interfaces.BeforePreparePlug(s.iface, plug)
+		if tc.errMsg == "" {
+			c.Assert(err, IsNil, Commentf("target: %s", tc.target))
+		} else {
+			c.Assert(err, ErrorMatches, tc.errMsg, Commentf("target: %s", tc.target))
+		}
+	}
 }
 
 func (s *ContentSuite) TestSanitizeSlotNilAttrMap(c *C) {

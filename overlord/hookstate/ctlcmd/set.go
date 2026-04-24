@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var confdbstateTransactionForSet = confdbstate.GetTransactionToSet
+var confdbstateWriteConfdb = confdbstate.WriteConfdbFromSnap
 
 type setCommand struct {
 	baseCommand
@@ -244,7 +244,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	return nil
 }
 
-func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]any) error {
+func setConfdbValues(ctx *hookstate.Context, plugName string, values map[string]any) error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
@@ -267,28 +267,6 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 		return fmt.Errorf("cannot modify confdb in %q hook", ctx.HookName())
 	}
 
-	tx, commitTxFunc, err := confdbstateTransactionForSet(ctx, ctx.State(), view)
-	if err != nil {
-		return err
-	}
-
-	err = confdbstate.SetViaView(tx, view, requests)
-	if err != nil {
-		return err
-	}
-
-	// if a new transaction was created, commit it
-	if commitTxFunc != nil {
-		_, waitChan, err := commitTxFunc()
-		if err != nil {
-			return err
-		}
-
-		// wait for the transaction to be committed
-		ctx.Unlock()
-		<-waitChan
-		ctx.Lock()
-	}
-
-	return nil
+	// TODO: add --wait-for timeout to options and cache in hookstate context
+	return confdbstateWriteConfdb(ctx, view, values)
 }

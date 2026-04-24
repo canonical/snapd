@@ -157,6 +157,45 @@ func (s *mountinfoSuite) TestParseMountInfoEntry5(c *C) {
 	c.Assert(entry.MountDir, Equals, "/tmp/strange\rdir")
 }
 
+// TestParseMountInfoEntryBrokenOctalEscaping checks that partial octal escape
+// sequences (fewer than 3 octal digits after a backslash, including a trailing
+// backslash) do not cause a panic and are preserved verbatim, consistent with
+// the behaviour of the C mountinfo parser.
+func (s *mountinfoSuite) TestParseMountInfoEntryBrokenOctalEscaping(c *C) {
+	// Non-octal chars after backslash and trailing backslash in last field.
+	entry, err := osutil.ParseMountInfoEntry(
+		`2074 27 0:54 / /tmp/strange-dir rw,relatime shared:1039 - tmpfs no\888thing rw\`)
+	c.Assert(err, IsNil)
+	c.Assert(entry.MountSource, Equals, `no\888thing`)
+	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{`rw\`: ""})
+
+	// Backslash followed by one octal digit at end of string.
+	entry, err = osutil.ParseMountInfoEntry(
+		`2074 27 0:54 / /tmp/dir rw - tmpfs source rw\0`)
+	c.Assert(err, IsNil)
+	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{`rw\0`: ""})
+
+	// Backslash followed by two octal digits at end of string.
+	entry, err = osutil.ParseMountInfoEntry(
+		`2074 27 0:54 / /tmp/dir rw - tmpfs source rw\05`)
+	c.Assert(err, IsNil)
+	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{`rw\05`: ""})
+
+	// Backslash followed by one octal digit in mount source (field ended by space).
+	entry, err = osutil.ParseMountInfoEntry(
+		`2074 27 0:54 / /tmp/dir rw - tmpfs source\5 rw`)
+	c.Assert(err, IsNil)
+	c.Assert(entry.MountSource, Equals, `source\5`)
+	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{"rw": ""})
+
+	// Backslash followed by two octal digits in mount source.
+	entry, err = osutil.ParseMountInfoEntry(
+		`2074 27 0:54 / /tmp/dir rw - tmpfs source\57 rw`)
+	c.Assert(err, IsNil)
+	c.Assert(entry.MountSource, Equals, `source\57`)
+	c.Assert(entry.SuperOptions, DeepEquals, map[string]string{"rw": ""})
+}
+
 // Test that empty mountinfo is parsed without errors.
 func (s *mountinfoSuite) TestReadMountInfo1(c *C) {
 	entries, err := osutil.ReadMountInfo(strings.NewReader(""))

@@ -167,8 +167,8 @@
     # some point we want to investigate if we can narrow the scope of the aforementioned rule.
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin{,2} r,
 
-    # adding a missing bpf mount
-    mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,
+    # adding a missing bpf mount; nosuid/nodev/noexec are required for hardening
+    mount fstype=bpf options=(rw nosuid nodev noexec) bpf -> /sys/fs/bpf/,
 
     # For mounting base dir by dir (write dirs and mount on them)
     /tmp/snap.rootfs_** rw,

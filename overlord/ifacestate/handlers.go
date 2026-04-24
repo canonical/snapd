@@ -1677,7 +1677,7 @@ func getAllowOptionAsString(inter string, tr *config.Transaction) (string, error
 	return "", nil
 }
 
-func isSnapSlotAllowed(st *state.State, snapID string, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
+func isSnapSlotAutoConnectAllowed(st *state.State, snapID string, slot *snap.SlotInfo, tr *config.Transaction) (bool, error) {
 	// Until we decide that we want to support other interfaces, do a
 	// quick allow check for x11 only.
 	if slot.Interface != "x11" {
@@ -1705,7 +1705,7 @@ func filterAllowedAutoConnectionSlots(st *state.State, snapID string, ssi []*sna
 	var filtered []*snap.SlotInfo
 	tr := config.NewTransaction(st)
 	for _, slot := range ssi {
-		if allowed, err := isSnapSlotAllowed(st, snapID, slot, tr); err != nil {
+		if allowed, err := isSnapSlotAutoConnectAllowed(st, snapID, slot, tr); err != nil {
 			// In case there is any error of filtering auto-connections, assume something is horribly
 			// wrong and return to the default behaviour. However make sure we log this error from the
 			// caller.
@@ -1713,8 +1713,7 @@ func filterAllowedAutoConnectionSlots(st *state.State, snapID string, ssi []*sna
 		} else if allowed {
 			filtered = append(filtered, slot)
 		} else {
-			logger.Debugf("Interface %s was configured to be disallowed auto-connection, skipping connection",
-				slot.Interface)
+			logger.Debugf("slot %v interface %v disallowed auto-connection, skipping connection", slot, slot.Interface)
 		}
 	}
 	return filtered, nil

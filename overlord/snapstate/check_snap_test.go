@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/arch/archtest"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -95,6 +96,8 @@ architectures:
 }
 
 func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
+	s.AddCleanup(archtest.MockArchitecture("arm64"))
+
 	var assumesTests = []struct {
 		version string
 		assumes string
@@ -109,6 +112,9 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 		assumes: "[f1, f2]",
 		classic: true,
 		error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
+	}, {
+		assumes: "[isa-arm64-someisa]",
+		error:   `snap "foo" assumes isa-arm64-someisa: ISA specification is not supported for arch: arm64`,
 	},
 	}
 

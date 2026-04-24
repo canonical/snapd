@@ -1,3 +1,9 @@
+ubuntu-core-initramfs (73+2.75.2+g199.9a8c2f3+26.04) resolute; urgency=medium
+
+  * Update to snapd version 2.75.2+g199.9a8c2f3
+
+ -- Alfonso Sanchez-Beato <alfonso.sanchez-beato@canonical.com>  Wed, 15 Apr 2026 16:50:37 -0400
+
 ubuntu-core-initramfs (73+2.75+g75.4b39daa+26.04) resolute; urgency=medium
 
   * Update to snapd version 2.75+g75.4b39daa

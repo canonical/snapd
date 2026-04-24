@@ -28,14 +28,12 @@ import (
 
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type setSuite struct {
@@ -412,44 +410,14 @@ func parsePath(c *C, path string) []confdb.Accessor {
 	return accs
 }
 
-func (s *confdbSuite) TestConfdbSetSingleView(c *C) {
-	s.state.Lock()
-	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
-		return tx, nil, nil
-	})
-	defer restore()
-
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "--view", ":write-wifi", "ssid=other-ssid"}, 0, nil)
-	c.Assert(err, IsNil)
-	c.Check(stdout, IsNil)
-	c.Check(stderr, IsNil)
-	s.mockContext.Lock()
-	c.Assert(s.mockContext.Done(), IsNil)
-	s.mockContext.Unlock()
-
-	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, "other-ssid")
-}
-
 func (s *confdbSuite) TestConfdbSetSingleViewNewTransaction(c *C) {
-	s.state.Lock()
-	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
 	var called bool
-	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
-		return tx, func() (string, <-chan struct{}, error) {
-			called = true
-			waitChan := make(chan struct{})
-			close(waitChan)
-			return "123", waitChan, nil
-		}, nil
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+		called = true
+		c.Assert(values, DeepEquals, map[string]any{
+			"ssid": "other-ssid",
+		})
+		return nil
 	})
 	defer restore()
 
@@ -457,22 +425,16 @@ func (s *confdbSuite) TestConfdbSetSingleViewNewTransaction(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
-
 	c.Assert(called, Equals, true)
-
-	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, DeepEquals, "other-ssid")
 }
 
 func (s *confdbSuite) TestConfdbSetManyViews(c *C) {
-	s.state.Lock()
-	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
-		return tx, nil, nil
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+		c.Assert(values, DeepEquals, map[string]any{
+			"ssid":     "other-ssid",
+			"password": "other-secret",
+		})
+		return nil
 	})
 	defer restore()
 
@@ -480,14 +442,6 @@ func (s *confdbSuite) TestConfdbSetManyViews(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
-
-	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "other-ssid")
-
-	val, err = tx.Get(parsePath(c, "wifi.psk"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "other-secret")
 }
 
 func (s *confdbSuite) TestConfdbSetInvalid(c *C) {
@@ -516,19 +470,9 @@ func (s *confdbSuite) TestConfdbSetInvalid(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
-	s.state.Lock()
-	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-	s.state.Unlock()
-	c.Assert(err, IsNil)
-
-	err = tx.Set(parsePath(c, "wifi.ssid"), "foo")
-	c.Assert(err, IsNil)
-
-	err = tx.Set(parsePath(c, "wifi.psk"), "bar")
-	c.Assert(err, IsNil)
-
-	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
-		return tx, nil, nil
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+		c.Assert(values, DeepEquals, map[string]any{"password": nil})
+		return nil
 	})
 	defer restore()
 
@@ -536,24 +480,15 @@ func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(stdout, IsNil)
 	c.Check(stderr, IsNil)
-
-	_, err = tx.Get(parsePath(c, "wifi.psk"), nil)
-	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
-
-	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
 }
 
 func (s *confdbSuite) TestConfdbModifyHooks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tx, err := confdbstate.NewTransaction(s.state, s.devAccID, "network")
-	c.Assert(err, IsNil)
-
-	restore := ctlcmd.MockConfdbstateTransactionForSet(func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error) {
-		return tx, nil, nil
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+		c.Assert(values, DeepEquals, map[string]any{"password": "thing"})
+		return nil
 	})
 	defer restore()
 
