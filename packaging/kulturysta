@@ -136,7 +136,7 @@ kulturysta() {
 	fi
 
 	# Determine which container runtime to use (podman or docker)
-	local container_runtime
+	local container_runtime=""
 	if command -v podman >/dev/null 2>&1; then
 		local podman_version podman_major
 		podman_version=$(podman --version | awk '/podman version/ { if (match($0, /([0-9]+.?)+/) != 0) { print substr($0, RSTART, RLENGTH); exit } }')
