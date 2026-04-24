@@ -3,6 +3,6 @@ summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
 
 apps:
-    with-scheduler-control-plug:
+    with-kernel-sched-ext-control-plug:
         command: bin/sh
-        plugs: [scheduler-control]
+        plugs: [kernel-sched-ext-control]
