@@ -20,6 +20,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -68,26 +70,171 @@ func executeMountProfileUpdate(upCtx MountProfileUpdateContext) error {
 	// needed, collecting those that we managed to perform or that
 	// were performed already.
 	changesNeeded := NeededChanges(currentBefore, desired)
+	// TODO: NeededChanges could return changes grouped by origin (overname,
+	// non-layout, layout) instead of a flat list, removing the need to
+	// filter by origin in each pass.
 
 	var changesMade []*Change
-	for _, change := range changesNeeded {
-		synthesised, err := change.Perform(as)
-		changesMade = append(changesMade, synthesised...)
-		if err != nil {
-			// We may have done something even if Perform itself has
-			// failed. We need to collect synthesized changes and
-			// store them.
-			origin := change.Entry.XSnapdOrigin()
-			if origin == "layout" || origin == "overname" {
-				// TODO: convert the test to a method over origin.
-				return err
-			} else if err != ErrIgnoredMissingMount {
-				logger.Noticef("cannot change mount namespace according to change %s: %s", change, err)
-			}
-			continue
-		}
+	changeErr := make([]error, len(changesNeeded))
 
-		changesMade = append(changesMade, change)
+	var errContinue = errors.New("continue")
+
+	applyOnly := func(
+		pred func(c *Change) bool,
+		f func(idx int, c *Change) (changesMade []*Change, err error),
+	) error {
+		for i, change := range changesNeeded {
+			if !pred(change) {
+				continue
+			}
+
+			logger.Debugf("apply: %v", change)
+			actualChangesMade, err := f(i, change)
+			if err != nil {
+				if err == errContinue {
+					continue
+				}
+				return err
+			}
+			changesMade = append(changesMade, actualChangesMade...)
+		}
+		return nil
+	}
+
+	// Apply all the changes in separate passes in the following order:
+	// 1. Unmounts/keeps
+	//    Things are either going away or we keep them, establish a new world order before doing
+	//    anything else
+	// 2. Dependencies:
+	// 2.1. overname (parallel installs)
+	//    Mock $SNAP_INSTANCE_NAME -> $SNAP mount, must come before everything else
+	// 2.2. non-layout dependencies
+	//    Everything that is not a layout mount, including content interface mounts
+	//    and host filesystem mounts. Content needs to be brought in early as
+	//    layouts may distribute it inside the world view.
+	// 3. layouts
+	//    Everything else the snap ever wanted
+	//
+	// Passes 2.2 and 3. are split into separate sub-passes that do prepare &
+	// apply independently.
+
+	logger.Debugf("1. pass keep/unmount")
+	// In the first pass we fully apply keep and unmount changes
+	err = applyOnly(
+		func(c *Change) bool { return c.Action != Mount },
+		func(i int, change *Change) ([]*Change, error) {
+			// Non-mount changes (so unmount or keep) do nothing in
+			// PrepareToPerform so we can safely call DoPerform which does not
+			// return any synthetic changes.
+			if err := change.DoPerform(as); err != nil {
+				changeErr[i] = err
+				logger.Noticef("cannot change mount namespace according to change %s: %s", change, err)
+				return nil, errContinue
+			}
+			return []*Change{change}, nil
+		})
+	if err != nil {
+		return err
+	}
+
+	// In the second pass we prepare to perform all mount changes
+	logger.Debugf("2. pass prep")
+	logger.Debugf("2.1. pass prep+apply (overname)")
+	// Keep the invariant that overname (parallel installs mocking) needs to be applied first.
+	err = applyOnly(
+		func(c *Change) bool {
+			return c.Action == Mount && c.Entry.XSnapdOrigin() == "overname"
+		},
+		func(i int, change *Change) ([]*Change, error) {
+			var synthesized []*Change
+			synthesized, changeErr[i] = change.PrepareToPerform(as)
+			if changeErr[i] == nil {
+				changeErr[i] = change.DoPerform(as)
+			}
+			if err := changeErr[i]; err != nil {
+				return synthesized, err
+			}
+			return append(synthesized, change), nil
+		})
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("2.2.1 pass prep (non-layout)")
+	err = applyOnly(
+		func(c *Change) bool {
+			// Non-layout entries have no explicit origin set, this includes
+			// content interface mounts and host filesystem mounts.
+			return c.Action == Mount && c.Entry.XSnapdOrigin() == ""
+		},
+		func(i int, change *Change) ([]*Change, error) {
+			var synthesized []*Change
+			synthesized, changeErr[i] = change.PrepareToPerform(as)
+			// We may have done something even if Perform itself has failed.
+			// We need to collect synthesized changes and store them.
+			return synthesized, nil
+		})
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("2.2.2 pass apply (non-layout)")
+	err = applyOnly(
+		func(c *Change) bool {
+			return c.Action == Mount && c.Entry.XSnapdOrigin() == ""
+		},
+		func(i int, change *Change) ([]*Change, error) {
+			if changeErr[i] == nil {
+				// Only perform the change if preparation has not failed.
+				changeErr[i] = change.DoPerform(as)
+			}
+			if err := changeErr[i]; err != nil {
+				if err != ErrIgnoredMissingMount {
+					logger.Noticef("cannot change mount namespace according to change %s: %s", change, err)
+				}
+				return nil, errContinue
+			}
+			return []*Change{change}, nil
+		})
+	if err != nil {
+		return err
+	}
+
+	// In the third and final pass, we perform all the mount changes related to layouts
+	logger.Debugf("3. pass mount")
+	logger.Debugf("3.1 pass prep (layout)")
+	err = applyOnly(
+		func(c *Change) bool {
+			return c.Action == Mount && c.Entry.XSnapdOrigin() == "layout"
+		},
+		func(i int, change *Change) ([]*Change, error) {
+			var synthesized []*Change
+			synthesized, changeErr[i] = change.PrepareToPerform(as)
+			// We may have done something even if Perform itself has failed.
+			// We need to collect synthesized changes and store them.
+			return synthesized, nil
+		})
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("3.2 pass apply (layout)")
+	err = applyOnly(
+		func(c *Change) bool {
+			return c.Action == Mount && c.Entry.XSnapdOrigin() == "layout"
+		},
+		func(i int, change *Change) ([]*Change, error) {
+			if changeErr[i] == nil {
+				// Only perform the change if preparation has not failed.
+				changeErr[i] = change.DoPerform(as)
+			}
+			if changeErr[i] == nil {
+				return []*Change{change}, nil
+			}
+			return nil, changeErr[i]
+		})
+	if err != nil {
+		return err
 	}
 
 	// Compute the new current profile so that it contains only changes that were made

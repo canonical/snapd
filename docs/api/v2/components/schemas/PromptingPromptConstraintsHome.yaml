@@ -10,7 +10,13 @@ required:
 properties:
   path:
     type: string
-    description: The path for which access is requested.
+    description: |
+      The path for which access is requested.
+
+      Any characters which are considered special in reply path patterns will
+      be escaped by a backslash ('\') character. That way, the "path" field in the prompt
+      can be used directly as the "path-pattern" field in a reply and exactly
+      match the requested path.
     example: /home/ubuntu/Downloads/image.png
   requested-permissions:
     type: array

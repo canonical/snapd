@@ -296,7 +296,7 @@ func (*listenerSuite) TestRunSimple(c *C) {
 
 	// simulate user only explicitly giving permission for read
 	response := []string{"read"}
-	expectedAllow := uint32(0b1110)
+	expectedAllow := uint32(0b1001001110) // getattr, open, read, aBits
 	expectedDeny := uint32(0b0001)
 
 	for _, id := range ids {

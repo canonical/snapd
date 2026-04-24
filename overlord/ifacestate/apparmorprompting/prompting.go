@@ -469,7 +469,9 @@ func (m *InterfacesRequestsManager) HandleReply(userID uint32, promptID promptin
 	}
 	if !matches {
 		return nil, &prompting_errors.RequestedPathNotMatchedError{
-			Requested: prompt.Constraints.Path(),
+			// XXX: it's a bit complicated, as we really send EscapedPath() but
+			// we check whether it matches against Path()
+			Requested: prompt.Constraints.EscapedPath(),
 			Replied:   constraints.PathPattern().String(),
 		}
 	}

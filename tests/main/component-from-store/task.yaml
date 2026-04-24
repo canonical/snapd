@@ -32,6 +32,18 @@ execute: |
   # test installing a component for a snap that is already installed
   snap install test-snap-with-components+three
 
+  # test installing an already installed component for a snap that is already installed
+  snap install test-snap-with-components+one 2> stderr.out
+  MATCH "component \"test-snap-with-components\+one\" is already installed" < stderr.out
+
+  # test installing an already installed component with a new component
+  # for a snap that is already installed
+  snap remove test-snap-with-components+three
+  snap components test-snap-with-components | MATCH "test-snap-with-components\+three\s+available\s+test"
+  snap install test-snap-with-components+one+three 2> stderr.out
+  MATCH "component \"test-snap-with-components\+one\" is already installed" < stderr.out
+  snap components test-snap-with-components | MATCH "test-snap-with-components\+three\s+installed\s+test"
+
   for comp in one two three; do
       snap run test-snap-with-components ${comp}
   done

@@ -215,6 +215,55 @@ static void test_parse_mountinfo_entry__broken_octal_escaping(void) {
     g_assert_null(entry->next);
 }
 
+static void test_parse_mountinfo_entry__partial_escape_oob(void) {
+    // Regression tests: partial octal escape sequences (fewer than 3 octal
+    // digits after the backslash, or just a trailing backslash) must not cause
+    // out-of-bounds reads.  Each partial escape is copied verbatim.
+    const char *line;
+    struct sc_mountinfo_entry *entry;
+
+    // Lone trailing backslash at end of string.
+    line = "2074 27 0:54 / /tmp/dir rw - tmpfs source rw\\";
+    entry = sc_parse_mountinfo_entry(line);
+    g_assert_nonnull(entry);
+    g_test_queue_destroy((GDestroyNotify)sc_free_mountinfo_entry, entry);
+    g_assert_cmpstr(entry->mount_source, ==, "source");
+    g_assert_cmpstr(entry->super_opts, ==, "rw\\");
+
+    // Backslash followed by one octal digit at end of string.
+    line = "2074 27 0:54 / /tmp/dir rw - tmpfs source rw\\0";
+    entry = sc_parse_mountinfo_entry(line);
+    g_assert_nonnull(entry);
+    g_test_queue_destroy((GDestroyNotify)sc_free_mountinfo_entry, entry);
+    g_assert_cmpstr(entry->mount_source, ==, "source");
+    g_assert_cmpstr(entry->super_opts, ==, "rw\\0");
+
+    // Backslash followed by two octal digits at end of string.
+    line = "2074 27 0:54 / /tmp/dir rw - tmpfs source rw\\05";
+    entry = sc_parse_mountinfo_entry(line);
+    g_assert_nonnull(entry);
+    g_test_queue_destroy((GDestroyNotify)sc_free_mountinfo_entry, entry);
+    g_assert_cmpstr(entry->mount_source, ==, "source");
+    g_assert_cmpstr(entry->super_opts, ==, "rw\\05");
+
+    // Backslash followed by one octal digit then space (partial escape at
+    // end of a space-delimited field, not at end of string).
+    line = "2074 27 0:54 / /tmp/dir rw - tmpfs source\\5 rw";
+    entry = sc_parse_mountinfo_entry(line);
+    g_assert_nonnull(entry);
+    g_test_queue_destroy((GDestroyNotify)sc_free_mountinfo_entry, entry);
+    g_assert_cmpstr(entry->mount_source, ==, "source\\5");
+    g_assert_cmpstr(entry->super_opts, ==, "rw");
+
+    // Backslash followed by two octal digits then space.
+    line = "2074 27 0:54 / /tmp/dir rw - tmpfs source\\57 rw";
+    entry = sc_parse_mountinfo_entry(line);
+    g_assert_nonnull(entry);
+    g_test_queue_destroy((GDestroyNotify)sc_free_mountinfo_entry, entry);
+    g_assert_cmpstr(entry->mount_source, ==, "source\\57");
+    g_assert_cmpstr(entry->super_opts, ==, "rw");
+}
+
 static void test_parse_mountinfo_entry__unescaped_whitespace(void) {
     // The kernel does not escape '\r'
     const char *line = "2074 27 0:54 / /tmp/strange\rdir rw,relatime shared:1039 - tmpfs tmpfs rw";
@@ -271,6 +320,8 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mountinfo/parse_mountinfo_entry/octal_escaping", test_parse_mountinfo_entry__octal_escaping);
     g_test_add_func("/mountinfo/parse_mountinfo_entry/broken_octal_escaping",
                     test_parse_mountinfo_entry__broken_octal_escaping);
+    g_test_add_func("/mountinfo/parse_mountinfo_entry/partial_escape_oob",
+                    test_parse_mountinfo_entry__partial_escape_oob);
     g_test_add_func("/mountinfo/parse_mountinfo_entry/unescaped_whitespace",
                     test_parse_mountinfo_entry__unescaped_whitespace);
     g_test_add_func("/mountinfo/parse_mountinfo_entry/broken_9p_superblock",

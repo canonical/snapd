@@ -18,6 +18,7 @@
 #include "bpf-support.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -39,6 +40,18 @@ static int sys_bpf(enum bpf_cmd cmd, union bpf_attr *attr, size_t size) {
 
 #define __ptr_as_u64(__x) ((uint64_t)(uintptr_t)__x)
 
+/* set_cloexec sets FD_CLOEXEC on fd. On failure the fd is closed and -1 is
+ * returned with errno preserved from fcntl. On success fd is returned. */
+static int set_cloexec(int fd) {
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC) < 0) {
+        int saved_errno = errno;
+        close(fd);
+        errno = saved_errno;
+        return -1;
+    }
+    return fd;
+}
+
 int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, size_t max_entries,
                    const char *map_name) {
     debug("create bpf map of type 0x%x, key size %zu, value size %zu, entries %zu name '%s'", type, key_size,
@@ -52,7 +65,11 @@ int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, s
     if (map_name != NULL) {
         strncpy(attr.map_name, map_name, sizeof(attr.map_name) - 1);
     }
-    return sys_bpf(BPF_MAP_CREATE, &attr, sizeof(attr));
+    int fd = sys_bpf(BPF_MAP_CREATE, &attr, sizeof(attr));
+    if (fd < 0) {
+        return fd;
+    }
+    return set_cloexec(fd);
 }
 
 int bpf_update_map(int map_fd, const void *key, const void *value) {
@@ -84,7 +101,11 @@ int bpf_get_by_path(const char *path) {
     /* pointer must be converted to a u64 */
     attr.pathname = __ptr_as_u64(path);
 
-    return sys_bpf(BPF_OBJ_GET, &attr, sizeof(attr));
+    int fd = sys_bpf(BPF_OBJ_GET, &attr, sizeof(attr));
+    if (fd < 0) {
+        return fd;
+    }
+    return set_cloexec(fd);
 }
 
 int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t insns_cnt, char *log_buf,
@@ -113,7 +134,11 @@ int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t 
 
     /* XXX: libbpf does a while loop checking for EAGAIN */
     /* XXX: do we need to handle E2BIG? */
-    return sys_bpf(BPF_PROG_LOAD, &attr, sizeof(attr));
+    int fd = sys_bpf(BPF_PROG_LOAD, &attr, sizeof(attr));
+    if (fd < 0) {
+        return fd;
+    }
+    return set_cloexec(fd);
 }
 
 int bpf_prog_attach(enum bpf_attach_type type, int cgroup_fd, int prog_fd) {
@@ -197,8 +222,11 @@ bool bpf_path_is_bpffs(const char *path) {
 void bpf_mount_bpffs(const char *path) {
     /* systemd and bpftool disagree as to the propagation mode of bpffs mounts,
      * so go with the default which is a shared propagation and matches the
-     * state of a freshly booted system */
-    int res = mount("bpf", path, "bpf", 0, "mode=0700");
+     * state of a freshly booted system.
+     * MS_NOSUID|MS_NODEV|MS_NOEXEC are included as a defense-in-depth measure:
+     * bpffs only contains BPF maps and programs, so no executables, device
+     * nodes, or setuid binaries should ever appear there. */
+    int res = mount("bpf", path, "bpf", MS_NOSUID | MS_NODEV | MS_NOEXEC, "mode=0700");
     if (res < 0) {
         die("cannot mount bpf filesystem under %s", path);
     }

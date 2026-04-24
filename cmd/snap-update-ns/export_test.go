@@ -163,11 +163,14 @@ func MockGetgid(fn func() sys.GroupID) (restore func()) {
 	}
 }
 
-func MockChangePerform(f func(chg *Change, as *Assumptions) ([]*Change, error)) func() {
-	origChangePerform := changePerform
-	changePerform = f
+func MockChangePerform(prepare func(chg *Change, as *Assumptions) ([]*Change, error), do func(chg *Change, as *Assumptions) error) func() {
+	origPrepareToPerformChange := prepareToPerformChangeOverride
+	origDoPerformChange := doPerformChangeOverride
+	prepareToPerformChangeOverride = prepare
+	doPerformChangeOverride = do
 	return func() {
-		changePerform = origChangePerform
+		prepareToPerformChangeOverride = origPrepareToPerformChange
+		doPerformChangeOverride = origDoPerformChange
 	}
 }
 

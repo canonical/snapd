@@ -82,7 +82,7 @@ By default all the snap revisions are removed, including their data and the
 common data directory. When a --revision option is passed only the specified
 revision is removed.
 
-Unless automatic snapshots are disabled, a snapshot of all data for the snap is 
+Unless automatic snapshots are disabled, a snapshot of all data for the snap is
 saved upon removal, which is then available for future restoration with snap
 restore. The --purge option disables automatically creating snapshots.
 `)
@@ -564,6 +564,10 @@ func showDone(cli *client.Client, chg *client.Change, snapsData *changedSnapsDat
 		return nil
 	}
 
+	if !snapsData.hasChanges() {
+		return nil
+	}
+
 	instances, notOnlyComps := snapsData.changedSnaps()
 	snaps, err := cli.List(instances, nil)
 	if err != nil {
@@ -735,7 +739,8 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	var snapName string
 	var path string
 
-	if isLocalContainer(nameOrPath) {
+	isLocal := isLocalContainer(nameOrPath)
+	if isLocal {
 		// don't log the request's body because the encoded snap is large.
 		x.client.SetMayLogBody(false)
 		path = nameOrPath
@@ -771,16 +776,26 @@ func (x *cmdInstall) installOne(nameOrPath, desiredName string, opts *client.Sna
 	}
 
 	changedSnaps, err := changedSnapsFromChange(chg)
+	if err != nil && !errors.Is(err, client.ErrNoData) {
+		return err
+	}
 
-	// TODO: if we're waiting, then there won't be any changed snaps. showDone
-	// will catch the case where we're waiting. might want to move this code
-	// around a bit
-	if err != nil && chg.Status != "Wait" {
-		return fmt.Errorf("cannot extract the snap-name from change: %w", err)
+	// changedSnaps might be nil in some operations with the fakestore
+	if changedSnaps == nil {
+		changedSnaps = &changedSnapsData{}
 	}
 
 	// TODO: mention details of the install (e.g. like switch does)
-	return showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes())
+	if err := showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes()); err != nil {
+		return err
+	}
+
+	// local installs aren't skipped if the snap is installed
+	if !isLocal && chg.Status != "Wait" {
+		compareChangedToRequested(*changedSnaps, []string{snapName})
+	}
+
+	return nil
 }
 
 func isLocalContainer(name string) bool {
@@ -832,14 +847,14 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 
 	chg, err := x.wait(changeID)
 	if err != nil {
-		if err == noWait {
+		if errors.Is(err, noWait) {
 			return nil
 		}
 		return err
 	}
 
 	changedSnaps, err := changedSnapsFromChange(chg)
-	if err != nil && err != client.ErrNoData {
+	if err != nil && !errors.Is(err, client.ErrNoData) {
 		return err
 	}
 
@@ -848,18 +863,14 @@ func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error
 		changedSnaps = &changedSnapsData{}
 	}
 
-	if changedSnaps.hasChanges() {
-		if err := showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes()); err != nil {
-			return err
-		}
+	if err := showDone(x.client, chg, changedSnaps, "install", opts, x.getEscapes()); err != nil {
+		return err
 	}
 
 	// local installs aren't skipped if the snap is installed
-	if isLocal {
-		return nil
+	if !isLocal && chg.Status != "Wait" {
+		compareChangedToRequested(*changedSnaps, names)
 	}
-
-	compareChangedToRequested(*changedSnaps, names)
 
 	return nil
 }
@@ -884,25 +895,22 @@ func compareChangedToRequested(changed changedSnapsData, requested []string) {
 		return
 	}
 
-	var compNames []string
-	for sn, comps := range components {
-		for _, comp := range comps {
-			compNames = append(compNames, snap.SnapComponentName(sn, comp))
-		}
-	}
-
 	for _, name := range names {
-		if !seen[name] {
+		if _, ok := components[name]; !seen[name] && !ok {
 			// FIXME: this is the only reason why a name can be skipped, but it
 			// does feel awkward.
-			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
+
+			fmt.Fprintf(Stderr, i18n.G("snap %q is already installed. see 'snap help refresh'\n"), name)
 		}
 	}
 
-	for _, name := range compNames {
-		if !seen[name] {
-			// FIXME: same as above
-			fmt.Fprintf(Stdout, i18n.G("%s already installed\n"), name)
+	for sn, comps := range components {
+		for _, comp := range comps {
+			name := snap.SnapComponentName(sn, comp)
+			if !seen[name] {
+				// FIXME: same as above
+				fmt.Fprintf(Stderr, i18n.G("component %q is already installed\n"), name)
+			}
 		}
 	}
 }

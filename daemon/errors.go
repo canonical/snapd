@@ -212,6 +212,26 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 	}
 }
 
+// AlreadyInstalled is an error responder used when an install command
+// attempts to installed snaps/components that are already installed.
+func AlreadyInstalled(aie *snap.AlreadyInstalledError) *apiError {
+	value := map[string]any{}
+	if len(aie.Snaps) > 0 {
+		value["snaps"] = aie.Snaps
+	}
+
+	if len(aie.Components) > 0 {
+		value["components"] = aie.Components
+	}
+
+	return &apiError{
+		Status:  400,
+		Message: aie.Error(),
+		Kind:    client.ErrorKindSnapAlreadyInstalled,
+		Value:   value,
+	}
+}
+
 // SnapChangeConflict is an error responder used when an operation would
 // conflict with another ongoing change.
 func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
@@ -377,13 +397,7 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 				return InternalError("store.RevisionNotAvailable with %d snaps", len(snaps))
 			}
 		case *snap.AlreadyInstalledError:
-			// TODO: handle error for multiple snaps and components
-			kind = client.ErrorKindSnapAlreadyInstalled
-			if len(err.Snaps) == 1 {
-				snapName = err.Snaps[0]
-			} else {
-				handled = false
-			}
+			return AlreadyInstalled(err)
 		case *snap.NotInstalledError:
 			kind = client.ErrorKindSnapNotInstalled
 			snapName = err.Snap

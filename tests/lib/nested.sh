@@ -499,6 +499,19 @@ nested_get_image_channel() {
     fi
 }
 
+nested_get_base_channel() {
+    if nested_is_core_26_system; then
+        # TODO: use $CORE_CHANNEL for the risk when core26 is released
+        if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+            echo "cloud-init/edge"
+        else
+            echo "edge"
+        fi
+    else
+        echo "${CORE_CHANNEL:-edge}"
+    fi
+}
+
 nested_get_kernel_channel() {
     echo "${NESTED_KERNEL_CHANNEL}"
 }
@@ -897,10 +910,10 @@ nested_prepare_base() {
             fi
             return
         fi
-        
+
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
             echo "Repacking $snap_name snap"
-            snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
+            snap download --channel="$(nested_get_base_channel)" --basename="$snap_name" "$snap_name"
             repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
             rm -f "$snap_name".snap "$snap_name".assert
 
@@ -1025,9 +1038,7 @@ nested_create_core_vm() {
             # cloud-init is included in the snap or not. This won't have any
             # effect if using an unasserted snap.
             local BASE_CHANNEL=""
-            if nested_is_core_26_system && [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
-                BASE_CHANNEL="--snap core26=$image_channel/cloud-init"
-            fi
+            BASE_CHANNEL=$(nested_get_base_channel)
 
             declare -a UBUNTU_IMAGE_PRESEED_ARGS
             if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
@@ -1852,7 +1863,7 @@ nested_prepare_tools() {
     if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
         REMOTE_PATH="$(remote.exec 'echo $PATH')"
-        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH:/usr/lib/python | sudo tee -a /etc/environment"
     fi
 
     if [ -n "$TAG_FEATURES" ]; then

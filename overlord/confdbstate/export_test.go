@@ -39,13 +39,8 @@ var (
 
 type (
 	ConfdbTransactions = confdbTransactions
-	PendingAccess      = pendingAccess
+	Access             = access
 	AccessType         = accessType
-)
-
-const (
-	CommitEdge  = commitEdge
-	ClearTxEdge = clearTxEdge
 )
 
 func ChangeViewHandlerGenerator(ctx *hookstate.Context) hookstate.Handler {
@@ -96,6 +91,21 @@ func MockDefaultWaitTimeout(dur time.Duration) func() {
 	}
 }
 
-func SetBlockingSignalChan(signalChan chan struct{}) {
-	blockingSignalChan = signalChan
+func SetBlockingSignal(key string, signalChan chan struct{}) {
+	if blockingSignals == nil {
+		blockingSignals = make(map[string]chan struct{})
+	}
+	blockingSignals[key] = signalChan
+}
+
+func ResetBlockingSignals() {
+	blockingSignals = nil
+}
+
+func MaybeUnblockAccesses(txs *confdbTransactions) error {
+	return maybeUnblockAccesses(txs)
+}
+
+func GetOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *confdbTransactions, updateTxStateFunc func(*confdbTransactions), err error) {
+	return getOngoingTxs(st, account, schemaName)
 }
