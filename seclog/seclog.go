@@ -154,6 +154,26 @@ func (r Reason) String() string {
 	return code + ":" + message
 }
 
+// SystemUser represents the identity of a system (Linux) user for
+// security log events.
+type SystemUser struct {
+	SystemUserName string `json:"system-user-name"`
+}
+
+// AddOptions captures the options used when creating a system user.
+type AddOptions struct {
+	Gecos               string `json:"real-user-name"`
+	Sudoer              bool   `json:"sudoer"`
+	ExtraUsers          bool   `json:"extra-users"`
+	ForcePasswordChange bool   `json:"force-password-change"`
+	Known               bool   `json:"known"`
+}
+
+// RemoveOptions captures the options used when removing a system user.
+type RemoveOptions struct {
+	Force bool `json:"force"`
+}
+
 // securityLogger defines the interface for emitting structured security
 // audit events. Implementations are created by an [implFactory] and write
 // to a configured sink.
@@ -167,6 +187,8 @@ type securityLogger interface {
 	LogUserCreated(user SnapdUser)
 	LogUserUpdated(user SnapdUser, changedFields []string)
 	LogUserRemoved(user SnapdUser)
+	LogSystemUserCreated(user SystemUser, opts AddOptions)
+	LogSystemUserRemoved(user SystemUser, opts RemoveOptions)
 }
 
 // loggerSetup holds the configuration provided to Setup.
@@ -307,6 +329,22 @@ func LogUserRemoved(user SnapdUser) {
 	defer lock.Unlock()
 
 	globalLogger.LogUserRemoved(user)
+}
+
+// LogSystemUserCreated logs a system user creation event using the global security logger.
+func LogSystemUserCreated(user SystemUser, opts AddOptions) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogSystemUserCreated(user, opts)
+}
+
+// LogSystemUserRemoved logs a system user removal event using the global security logger.
+func LogSystemUserRemoved(user SystemUser, opts RemoveOptions) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogSystemUserRemoved(user, opts)
 }
 
 // registerImpl makes a logger factory available by name. The registration

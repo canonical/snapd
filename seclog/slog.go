@@ -177,6 +177,32 @@ func (l *slogLogger) LogUserRemoved(user SnapdUser) {
 	)
 }
 
+// LogSystemUserCreated implements [securityLogger.LogSystemUserCreated].
+func (l *slogLogger) LogSystemUserCreated(user SystemUser, opts AddOptions) {
+	l.logger.LogAttrs(
+		context.Background(),
+		slog.Level(LevelInfo),
+		fmt.Sprintf("Created system user %s", user.SystemUserName),
+		slog.Attr{Key: "category", Value: slog.StringValue("AUTHN")},
+		slog.Attr{Key: "event", Value: slog.StringValue("user_created_system")},
+		slog.Any("system_user", user),
+		slog.Any("add_options", opts),
+	)
+}
+
+// LogSystemUserRemoved implements [securityLogger.LogSystemUserRemoved].
+func (l *slogLogger) LogSystemUserRemoved(user SystemUser, opts RemoveOptions) {
+	l.logger.LogAttrs(
+		context.Background(),
+		slog.Level(LevelInfo),
+		fmt.Sprintf("Removed system user %s", user.SystemUserName),
+		slog.Attr{Key: "category", Value: slog.StringValue("AUTHN")},
+		slog.Attr{Key: "event", Value: slog.StringValue("user_removed_system")},
+		slog.Any("system_user", user),
+		slog.Any("remove_options", opts),
+	)
+}
+
 // LogValue implements [slog.LogValuer], allowing SnapdUser to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
@@ -189,6 +215,34 @@ func (u SnapdUser) LogValue() slog.Value {
 		slog.String("store-user-name", u.StoreUserName),
 		slog.String("store-user-email", u.StoreUserEmail),
 		slog.String("expiration", expiration),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing SystemUser to be
+// used directly as a structured log attribute value.
+func (u SystemUser) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("system-user-name", u.SystemUserName),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing AddOptions to be
+// used directly as a structured log attribute value.
+func (o AddOptions) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("real-user-name", o.Gecos),
+		slog.Bool("sudoer", o.Sudoer),
+		slog.Bool("extra-users", o.ExtraUsers),
+		slog.Bool("force-password-change", o.ForcePasswordChange),
+		slog.Bool("known", o.Known),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing RemoveOptions to be
+// used directly as a structured log attribute value.
+func (o RemoveOptions) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Bool("force", o.Force),
 	)
 }
 

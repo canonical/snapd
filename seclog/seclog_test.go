@@ -354,6 +354,64 @@ func (s *SecLogSuite) TestLogUserRemoved(c *C) {
 	c.Check(obtained["type"], Equals, "security")
 }
 
+func (s *SecLogSuite) TestLogSystemUserCreated(c *C) {
+	s.setupSlogLogger(c)
+
+	user := seclog.SystemUser{SystemUserName: "jdoe"}
+	opts := seclog.AddOptions{
+		Gecos:               "jdoe@example.com,John Doe",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: false,
+		Known:               true,
+	}
+	seclog.LogSystemUserCreated(user, opts)
+
+	var obtained map[string]any
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "INFO")
+	c.Check(obtained["description"], Equals, "Created system user jdoe")
+	c.Check(obtained["app_id"], Equals, s.appID)
+	c.Check(obtained["category"], Equals, "AUTHN")
+	c.Check(obtained["event"], Equals, "user_created_system")
+	sysUser, ok := obtained["system_user"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(sysUser["system-user-name"], Equals, "jdoe")
+	addOpts, ok := obtained["add_options"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(addOpts["real-user-name"], Equals, "jdoe@example.com,John Doe")
+	c.Check(addOpts["sudoer"], Equals, true)
+	c.Check(addOpts["extra-users"], Equals, true)
+	c.Check(addOpts["force-password-change"], Equals, false)
+	c.Check(addOpts["known"], Equals, true)
+	c.Check(obtained["type"], Equals, "security")
+}
+
+func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
+	s.setupSlogLogger(c)
+
+	user := seclog.SystemUser{SystemUserName: "jdoe"}
+	opts := seclog.RemoveOptions{Force: true}
+	seclog.LogSystemUserRemoved(user, opts)
+
+	var obtained map[string]any
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "INFO")
+	c.Check(obtained["description"], Equals, "Removed system user jdoe")
+	c.Check(obtained["app_id"], Equals, s.appID)
+	c.Check(obtained["category"], Equals, "AUTHN")
+	c.Check(obtained["event"], Equals, "user_removed_system")
+	sysUser, ok := obtained["system_user"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(sysUser["system-user-name"], Equals, "jdoe")
+	rmOpts, ok := obtained["remove_options"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(rmOpts["force"], Equals, true)
+	c.Check(obtained["type"], Equals, "security")
+}
+
 // closeTracker is a test helper that records whether Close was called.
 type closeTracker struct {
 	closed bool

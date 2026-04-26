@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
@@ -753,4 +754,12 @@ func MockOsutilBootID(bootID string) (restore func()) {
 
 func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error) error) (restore func()) {
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
+}
+
+func MockSeclogLogSystemUserCreated(f func(user seclog.SystemUser, opts seclog.AddOptions)) (restore func()) {
+	return testutil.Mock(&seclogLogSystemUserCreated, f)
+}
+
+func MockSeclogLogSystemUserRemoved(f func(user seclog.SystemUser, opts seclog.RemoveOptions)) (restore func()) {
+	return testutil.Mock(&seclogLogSystemUserRemoved, f)
 }

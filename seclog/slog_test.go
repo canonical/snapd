@@ -464,3 +464,103 @@ func (s *SlogSuite) TestLogUserRemoved(c *C) {
 		"app_id", "type", "category", "event", "snapd_user",
 	})
 }
+
+func (s *SlogSuite) TestLogSystemUserCreated(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type systemUserCreated struct {
+		baseAttrs
+		Event      string `json:"event"`
+		SystemUser struct {
+			SystemUserName string `json:"system-user-name"`
+		} `json:"system_user"`
+		AddOptions struct {
+			Gecos               string `json:"real-user-name"`
+			Sudoer              bool   `json:"sudoer"`
+			ExtraUsers          bool   `json:"extra-users"`
+			ForcePasswordChange bool   `json:"force-password-change"`
+			Known               bool   `json:"known"`
+		} `json:"add_options"`
+	}
+
+	user := seclog.SystemUser{
+		SystemUserName: "jdoe",
+	}
+	opts := seclog.AddOptions{
+		Gecos:               "jdoe@example.com,John Doe",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: false,
+		Known:               true,
+	}
+	logger.LogSystemUserCreated(user, opts)
+
+	var obtained systemUserCreated
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Created system user jdoe")
+	c.Check(obtained.AppID, Equals, s.appID)
+	c.Check(obtained.Category, Equals, "AUTHN")
+	c.Check(obtained.Event, Equals, "user_created_system")
+	c.Check(obtained.SystemUser.SystemUserName, Equals, "jdoe")
+	c.Check(obtained.AddOptions.Gecos, Equals, "jdoe@example.com,John Doe")
+	c.Check(obtained.AddOptions.Sudoer, Equals, true)
+	c.Check(obtained.AddOptions.ExtraUsers, Equals, true)
+	c.Check(obtained.AddOptions.ForcePasswordChange, Equals, false)
+	c.Check(obtained.AddOptions.Known, Equals, true)
+
+	// verify key order for human readability
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "system_user", "add_options",
+	})
+}
+
+func (s *SlogSuite) TestLogSystemUserRemoved(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type systemUserRemoved struct {
+		baseAttrs
+		Event      string `json:"event"`
+		SystemUser struct {
+			SystemUserName string `json:"system-user-name"`
+		} `json:"system_user"`
+		RemoveOptions struct {
+			Force bool `json:"force"`
+		} `json:"remove_options"`
+	}
+
+	user := seclog.SystemUser{
+		SystemUserName: "jdoe",
+	}
+	opts := seclog.RemoveOptions{
+		Force: true,
+	}
+	logger.LogSystemUserRemoved(user, opts)
+
+	var obtained systemUserRemoved
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Removed system user jdoe")
+	c.Check(obtained.AppID, Equals, s.appID)
+	c.Check(obtained.Category, Equals, "AUTHN")
+	c.Check(obtained.Event, Equals, "user_removed_system")
+	c.Check(obtained.SystemUser.SystemUserName, Equals, "jdoe")
+	c.Check(obtained.RemoveOptions.Force, Equals, true)
+
+	// verify key order for human readability
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "system_user", "remove_options",
+	})
+}

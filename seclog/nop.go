@@ -56,3 +56,11 @@ func (nopLogger) LogUserUpdated(user SnapdUser, changedFields []string) {
 // LogUserRemoved implements [securityLogger.LogUserRemoved].
 func (nopLogger) LogUserRemoved(user SnapdUser) {
 }
+
+// LogSystemUserCreated implements [securityLogger.LogSystemUserCreated].
+func (nopLogger) LogSystemUserCreated(user SystemUser, opts AddOptions) {
+}
+
+// LogSystemUserRemoved implements [securityLogger.LogSystemUserRemoved].
+func (nopLogger) LogSystemUserRemoved(user SystemUser, opts RemoveOptions) {
+}

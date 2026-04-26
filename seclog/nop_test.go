@@ -98,3 +98,25 @@ func (s *NopSuite) TestLogUserRemoved(c *C) {
 	// nop logger discards all messages without error
 	logger.LogUserRemoved(seclog.SnapdUser{StoreUserEmail: "user@gmail.com"})
 }
+
+func (s *NopSuite) TestLogSystemUserCreated(c *C) {
+	logger := seclog.NewNopLogger()
+	c.Assert(logger, NotNil)
+
+	// nop logger discards all messages without error
+	logger.LogSystemUserCreated(
+		seclog.SystemUser{SystemUserName: "jdoe"},
+		seclog.AddOptions{Gecos: "John Doe", Sudoer: true},
+	)
+}
+
+func (s *NopSuite) TestLogSystemUserRemoved(c *C) {
+	logger := seclog.NewNopLogger()
+	c.Assert(logger, NotNil)
+
+	// nop logger discards all messages without error
+	logger.LogSystemUserRemoved(
+		seclog.SystemUser{SystemUserName: "jdoe"},
+		seclog.RemoveOptions{Force: true},
+	)
+}
