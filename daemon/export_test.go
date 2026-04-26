@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -46,6 +47,7 @@ import (
 var (
 	CreateQuotaValues = createQuotaValues
 	ParseOptionalTime = parseOptionalTime
+	AccessCheckerName = accessCheckerName
 )
 
 func APICommands() []*Command {
@@ -97,6 +99,22 @@ func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) 
 	ucrednetGet = mock
 	return func() {
 		ucrednetGet = oldUcrednetGet
+	}
+}
+
+func MockSeclogLogAdminActivity(mock func(user seclog.SnapdUser, endpoint seclog.Endpoint, checks seclog.AuthzChecks)) (restore func()) {
+	old := seclogLogAdminActivity
+	seclogLogAdminActivity = mock
+	return func() {
+		seclogLogAdminActivity = old
+	}
+}
+
+func MockSeclogLogUnauthorizedAccess(mock func(user seclog.SnapdUser, endpoint seclog.Endpoint, checks seclog.AuthzChecks, pid int32, reason seclog.Reason)) (restore func()) {
+	old := seclogLogUnauthorizedAccess
+	seclogLogUnauthorizedAccess = mock
+	return func() {
+		seclogLogUnauthorizedAccess = old
 	}
 }
 

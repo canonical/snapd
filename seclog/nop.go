@@ -64,3 +64,11 @@ func (nopLogger) LogSystemUserCreated(user SystemUser, opts AddOptions) {
 // LogSystemUserRemoved implements [securityLogger.LogSystemUserRemoved].
 func (nopLogger) LogSystemUserRemoved(user SystemUser, opts RemoveOptions) {
 }
+
+// LogAdminActivity implements [securityLogger.LogAdminActivity].
+func (nopLogger) LogAdminActivity(user SnapdUser, endpoint Endpoint, checks AuthzChecks) {
+}
+
+// LogUnauthorizedAccess implements [securityLogger.LogUnauthorizedAccess].
+func (nopLogger) LogUnauthorizedAccess(user SnapdUser, endpoint Endpoint, checks AuthzChecks, pid int32, reason Reason) {
+}

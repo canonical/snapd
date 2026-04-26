@@ -203,6 +203,37 @@ func (l *slogLogger) LogSystemUserRemoved(user SystemUser, opts RemoveOptions) {
 	)
 }
 
+// LogAdminActivity implements [securityLogger.LogAdminActivity].
+func (l *slogLogger) LogAdminActivity(user SnapdUser, endpoint Endpoint, checks AuthzChecks) {
+	l.logger.LogAttrs(
+		context.Background(),
+		slog.Level(LevelInfo),
+		fmt.Sprintf("User %s accessed %s", user.String(), endpoint.String()),
+		slog.Attr{Key: "category", Value: slog.StringValue("AUTHZ")},
+		slog.Attr{Key: "event", Value: slog.StringValue("authz_admin")},
+		slog.Any("snapd_user", user),
+		slog.Any("endpoint", endpoint),
+		slog.Any("authz_checks", checks),
+	)
+}
+
+// LogUnauthorizedAccess implements [securityLogger.LogUnauthorizedAccess].
+func (l *slogLogger) LogUnauthorizedAccess(user SnapdUser, endpoint Endpoint, checks AuthzChecks, pid int32, reason Reason) {
+	l.logger.LogAttrs(
+		context.Background(),
+		slog.Level(LevelCritical),
+		fmt.Sprintf("Process %d: User %s attempted to access %s without entitlement: %s",
+			pid, user.String(), endpoint.String(), reason.Message),
+		slog.Attr{Key: "category", Value: slog.StringValue("AUTHZ")},
+		slog.Attr{Key: "event", Value: slog.StringValue("authz_fail")},
+		slog.Any("snapd_user", user),
+		slog.Any("endpoint", endpoint),
+		slog.Any("authz_checks", checks),
+		slog.Int64("pid", int64(pid)),
+		slog.Any("error", reason),
+	)
+}
+
 // LogValue implements [slog.LogValuer], allowing SnapdUser to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
@@ -243,6 +274,31 @@ func (o AddOptions) LogValue() slog.Value {
 func (o RemoveOptions) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.Bool("force", o.Force),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing Endpoint to be
+// used directly as a structured log attribute value.
+func (e Endpoint) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("method", e.Method),
+		slog.String("path", e.Path),
+		slog.String("action", e.Action),
+		slog.String("access-check", e.AccessCheck),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing AuthzChecks to be
+// used directly as a structured log attribute value.
+func (a AuthzChecks) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("peer-credentials-available", string(a.PeerCreds)),
+		slog.String("socket-allowed", string(a.Socket)),
+		slog.String("interface-requirements", string(a.Interface)),
+		slog.String("open-access", string(a.Open)),
+		slog.String("user-authentication", string(a.UserAuth)),
+		slog.String("root", string(a.Root)),
+		slog.String("polkit", string(a.Polkit)),
 	)
 }
 

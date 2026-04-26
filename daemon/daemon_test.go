@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -370,9 +371,9 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks)
 
-func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	return f(d, r, ucred, user)
 }
 
@@ -382,7 +383,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -391,11 +392,11 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return nil
+		return nil, seclog.NewAuthzChecks()
 	})
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 		c.Fail()
-		return Forbidden("")
+		return Forbidden(""), seclog.NewAuthzChecks()
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -414,12 +415,12 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 		c.Fail()
-		return Forbidden("")
+		return Forbidden(""), seclog.NewAuthzChecks()
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -428,7 +429,7 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return nil
+		return nil, seclog.NewAuthzChecks()
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
@@ -467,12 +468,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 		c.Fail()
-		return Forbidden("")
+		return Forbidden(""), seclog.NewAuthzChecks()
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -481,7 +482,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.DeepEquals, authUser)
-		return nil
+		return nil, seclog.NewAuthzChecks()
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
@@ -1552,4 +1553,140 @@ func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 			"message": "request canceled",
 		},
 		"type": "error"})
+}
+
+func (s *daemonSuite) TestAccessCheckerName(c *check.C) {
+	c.Check(accessCheckerName(openAccess{}), check.Equals, "open")
+	c.Check(accessCheckerName(authenticatedAccess{}), check.Equals, "authenticated")
+	c.Check(accessCheckerName(rootAccess{}), check.Equals, "root")
+	c.Check(accessCheckerName(snapAccess{}), check.Equals, "snap")
+	c.Check(accessCheckerName(interfaceOpenAccess{}), check.Equals, "interface-open")
+	c.Check(accessCheckerName(interfaceAuthenticatedAccess{}), check.Equals, "interface-authenticated")
+	c.Check(accessCheckerName(interfaceProviderRootAccess{}), check.Equals, "interface-provider-root")
+	c.Check(accessCheckerName(interfaceRootAccess{}), check.Equals, "interface-root")
+	c.Check(accessCheckerName(byActionAccess{}), check.Equals, "by-action")
+}
+
+func (s *daemonSuite) TestServeHTTPLogsAdminActivity(c *check.C) {
+	d := s.newTestDaemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	authUser, err := auth.NewUser(st, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@example.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	var loggedUser seclog.SnapdUser
+	var loggedEndpoint seclog.Endpoint
+	var loggedChecks seclog.AuthzChecks
+	s.AddCleanup(testutil.Mock(&seclogLogAdminActivity, func(user seclog.SnapdUser, endpoint seclog.Endpoint, checks seclog.AuthzChecks) {
+		loggedUser = user
+		loggedEndpoint = endpoint
+		loggedChecks = checks
+	}))
+
+	// Also suppress the unauthorized access log
+	s.AddCleanup(testutil.Mock(&seclogLogUnauthorizedAccess, func(seclog.SnapdUser, seclog.Endpoint, seclog.AuthzChecks, int32, seclog.Reason) {}))
+
+	cmd := &Command{d: d}
+	mck := &mockHandler{cmd: cmd}
+	cmd.POST = func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
+		return mck
+	}
+	cmd.Path = "/v2/snaps"
+	cmd.WriteAccess = authenticatedAccess{}
+
+	req, err := http.NewRequest("POST", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;", dirs.SnapdSocket)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
+
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+
+	c.Check(loggedUser.ID, check.Equals, int64(authUser.ID))
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "jdoe@example.com")
+	c.Check(loggedUser.StoreUserName, check.Equals, "jdoe")
+	c.Check(loggedEndpoint.Method, check.Equals, "POST")
+	c.Check(loggedEndpoint.Path, check.Equals, "/v2/snaps")
+	c.Check(loggedEndpoint.AccessCheck, check.Equals, "authenticated")
+	c.Check(loggedChecks.PeerCreds, check.Equals, seclog.AuthzPass)
+	c.Check(loggedChecks.Socket, check.Equals, seclog.AuthzPass)
+	c.Check(loggedChecks.UserAuth, check.Equals, seclog.AuthzPass)
+}
+
+func (s *daemonSuite) TestServeHTTPLogsAdminActivityNotForGET(c *check.C) {
+	d := s.newTestDaemon(c)
+
+	adminLogged := false
+	s.AddCleanup(testutil.Mock(&seclogLogAdminActivity, func(seclog.SnapdUser, seclog.Endpoint, seclog.AuthzChecks) {
+		adminLogged = true
+	}))
+	s.AddCleanup(testutil.Mock(&seclogLogUnauthorizedAccess, func(seclog.SnapdUser, seclog.Endpoint, seclog.AuthzChecks, int32, seclog.Reason) {}))
+
+	cmd := &Command{d: d}
+	mck := &mockHandler{cmd: cmd}
+	cmd.GET = func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
+		return mck
+	}
+	cmd.Path = "/v2/system-info"
+	cmd.ReadAccess = openAccess{}
+
+	req, err := http.NewRequest("GET", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(adminLogged, check.Equals, false)
+}
+
+func (s *daemonSuite) TestServeHTTPLogsUnauthorizedAccess(c *check.C) {
+	d := s.newTestDaemon(c)
+
+	var loggedUser seclog.SnapdUser
+	var loggedEndpoint seclog.Endpoint
+	var loggedChecks seclog.AuthzChecks
+	var loggedPID int32
+	var loggedReason seclog.Reason
+	s.AddCleanup(testutil.Mock(&seclogLogUnauthorizedAccess, func(user seclog.SnapdUser, endpoint seclog.Endpoint, checks seclog.AuthzChecks, pid int32, reason seclog.Reason) {
+		loggedUser = user
+		loggedEndpoint = endpoint
+		loggedChecks = checks
+		loggedPID = pid
+		loggedReason = reason
+	}))
+	s.AddCleanup(testutil.Mock(&seclogLogAdminActivity, func(seclog.SnapdUser, seclog.Endpoint, seclog.AuthzChecks) {}))
+
+	cmd := &Command{d: d}
+	cmd.POST = func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
+		return &mockHandler{cmd: cmd}
+	}
+	cmd.Path = "/v2/snaps"
+	cmd.WriteAccess = rootAccess{}
+
+	req, err := http.NewRequest("POST", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=12345;uid=1001;socket=%s;", dirs.SnapdSocket)
+
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 403)
+
+	c.Check(loggedUser, check.DeepEquals, seclog.SnapdUser{})
+	c.Check(loggedEndpoint.Method, check.Equals, "POST")
+	c.Check(loggedEndpoint.Path, check.Equals, "/v2/snaps")
+	c.Check(loggedEndpoint.AccessCheck, check.Equals, "root")
+	c.Check(loggedChecks.PeerCreds, check.Equals, seclog.AuthzPass)
+	c.Check(loggedChecks.Socket, check.Equals, seclog.AuthzPass)
+	c.Check(loggedChecks.Root, check.Equals, seclog.AuthzFail)
+	c.Check(loggedPID, check.Equals, int32(12345))
+	c.Check(loggedReason.Code, check.Equals, "403")
+	c.Check(loggedReason.Message, check.Equals, "access denied")
 }

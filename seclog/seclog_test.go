@@ -412,6 +412,91 @@ func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
 	c.Check(obtained["type"], Equals, "security")
 }
 
+func (s *SecLogSuite) TestLogAdminActivity(c *C) {
+	s.setupSlogLogger(c)
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	endpoint := seclog.Endpoint{
+		Method:      "POST",
+		Path:        "/v2/snaps/hello-world",
+		Action:      "install",
+		AccessCheck: "authenticatedAccess",
+	}
+	seclog.LogAdminActivity(user, endpoint, seclog.NewAuthzChecks())
+
+	var obtained map[string]any
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "INFO")
+	c.Check(obtained["description"], Equals, "User 42:user@gmail.com:jdoe accessed POST:/v2/snaps/hello-world:install")
+	c.Check(obtained["app_id"], Equals, s.appID)
+	c.Check(obtained["category"], Equals, "AUTHZ")
+	c.Check(obtained["event"], Equals, "authz_admin")
+	snapdUser, ok := obtained["snapd_user"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(snapdUser["snapd-user-id"], Equals, float64(42))
+	c.Check(snapdUser["store-user-email"], Equals, "user@gmail.com")
+	c.Check(snapdUser["store-user-name"], Equals, "jdoe")
+	ep, ok := obtained["endpoint"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(ep["method"], Equals, "POST")
+	c.Check(ep["path"], Equals, "/v2/snaps/hello-world")
+	c.Check(ep["action"], Equals, "install")
+	c.Check(ep["access-check"], Equals, "authenticatedAccess")
+	authzChecks := obtained["authz_checks"].(map[string]any)
+	c.Check(authzChecks["peer-credentials-available"], Equals, "n/a")
+	c.Check(obtained["type"], Equals, "security")
+}
+
+func (s *SecLogSuite) TestLogUnauthorizedAccess(c *C) {
+	s.setupSlogLogger(c)
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	endpoint := seclog.Endpoint{
+		Method:      "POST",
+		Path:        "/v2/snaps/hello-world",
+		Action:      "install",
+		AccessCheck: "rootAccess",
+	}
+	reason := seclog.Reason{
+		Code:    "access-denied",
+		Message: "access denied",
+	}
+	seclog.LogUnauthorizedAccess(user, endpoint, seclog.NewAuthzChecks(), int32(12345), reason)
+
+	var obtained map[string]any
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "CRITICAL")
+	c.Check(obtained["description"], Equals, "Process 12345: User 42:user@gmail.com:jdoe attempted to access POST:/v2/snaps/hello-world:install without entitlement: access denied")
+	c.Check(obtained["app_id"], Equals, s.appID)
+	c.Check(obtained["category"], Equals, "AUTHZ")
+	c.Check(obtained["event"], Equals, "authz_fail")
+	snapdUser, ok := obtained["snapd_user"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(snapdUser["snapd-user-id"], Equals, float64(42))
+	ep, ok := obtained["endpoint"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(ep["method"], Equals, "POST")
+	c.Check(ep["path"], Equals, "/v2/snaps/hello-world")
+	authzChecks := obtained["authz_checks"].(map[string]any)
+	c.Check(authzChecks["peer-credentials-available"], Equals, "n/a")
+	c.Check(obtained["pid"], Equals, float64(12345))
+	errObj, ok := obtained["error"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(errObj["code"], Equals, "access-denied")
+	c.Check(errObj["message"], Equals, "access denied")
+	c.Check(obtained["type"], Equals, "security")
+}
+
 // closeTracker is a test helper that records whether Close was called.
 type closeTracker struct {
 	closed bool

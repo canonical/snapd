@@ -174,6 +174,62 @@ type RemoveOptions struct {
 	Force bool `json:"force"`
 }
 
+// Endpoint describes an API endpoint involved in an authorization event.
+type Endpoint struct {
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Action      string `json:"action"`
+	AccessCheck string `json:"access-check"`
+}
+
+// String returns a colon-separated representation in the form
+// "<Method>:<Path>:<Action>".
+func (e Endpoint) String() string {
+	s := e.Method + ":" + e.Path
+	if e.Action != "" {
+		s += ":" + e.Action
+	}
+	return s
+}
+
+// AuthzCheck represents the outcome of a single authorization stage.
+type AuthzCheck string
+
+const (
+	// AuthzPass indicates that the authorization stage passed.
+	AuthzPass AuthzCheck = "pass"
+	// AuthzFail indicates that the authorization stage failed.
+	AuthzFail AuthzCheck = "fail"
+	// AuthzNA indicates that the authorization stage was not applicable.
+	AuthzNA AuthzCheck = "n/a"
+)
+
+// AuthzChecks captures the outcome of each authorization stage evaluated
+// during an access check. Each field records whether that stage passed,
+// failed, or was not applicable to the request.
+type AuthzChecks struct {
+	PeerCreds AuthzCheck `json:"peer-credentials-available"`
+	Socket    AuthzCheck `json:"socket-allowed"`
+	Interface AuthzCheck `json:"interface-requirements"`
+	Open      AuthzCheck `json:"open-access"`
+	UserAuth  AuthzCheck `json:"user-authentication"`
+	Root      AuthzCheck `json:"root"`
+	Polkit    AuthzCheck `json:"polkit"`
+}
+
+// NewAuthzChecks returns an AuthzChecks with all fields set to [AuthzNA].
+func NewAuthzChecks() AuthzChecks {
+	return AuthzChecks{
+		PeerCreds: AuthzNA,
+		Socket:    AuthzNA,
+		Interface: AuthzNA,
+		Open:      AuthzNA,
+		UserAuth:  AuthzNA,
+		Root:      AuthzNA,
+		Polkit:    AuthzNA,
+	}
+}
+
 // securityLogger defines the interface for emitting structured security
 // audit events. Implementations are created by an [implFactory] and write
 // to a configured sink.
@@ -189,6 +245,8 @@ type securityLogger interface {
 	LogUserRemoved(user SnapdUser)
 	LogSystemUserCreated(user SystemUser, opts AddOptions)
 	LogSystemUserRemoved(user SystemUser, opts RemoveOptions)
+	LogAdminActivity(user SnapdUser, endpoint Endpoint, checks AuthzChecks)
+	LogUnauthorizedAccess(user SnapdUser, endpoint Endpoint, checks AuthzChecks, pid int32, reason Reason)
 }
 
 // loggerSetup holds the configuration provided to Setup.
@@ -345,6 +403,22 @@ func LogSystemUserRemoved(user SystemUser, opts RemoveOptions) {
 	defer lock.Unlock()
 
 	globalLogger.LogSystemUserRemoved(user, opts)
+}
+
+// LogAdminActivity logs an administrative API access event using the global security logger.
+func LogAdminActivity(user SnapdUser, endpoint Endpoint, checks AuthzChecks) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogAdminActivity(user, endpoint, checks)
+}
+
+// LogUnauthorizedAccess logs an unauthorized access attempt using the global security logger.
+func LogUnauthorizedAccess(user SnapdUser, endpoint Endpoint, checks AuthzChecks, pid int32, reason Reason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogUnauthorizedAccess(user, endpoint, checks, pid, reason)
 }
 
 // registerImpl makes a logger factory available by name. The registration

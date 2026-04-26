@@ -120,3 +120,29 @@ func (s *NopSuite) TestLogSystemUserRemoved(c *C) {
 		seclog.RemoveOptions{Force: true},
 	)
 }
+
+func (s *NopSuite) TestLogAdminActivity(c *C) {
+	logger := seclog.NewNopLogger()
+	c.Assert(logger, NotNil)
+
+	// nop logger discards all messages without error
+	logger.LogAdminActivity(
+		seclog.SnapdUser{ID: 1, StoreUserName: "test"},
+		seclog.Endpoint{Method: "POST", Path: "/v2/snaps"},
+		seclog.NewAuthzChecks(),
+	)
+}
+
+func (s *NopSuite) TestLogUnauthorizedAccess(c *C) {
+	logger := seclog.NewNopLogger()
+	c.Assert(logger, NotNil)
+
+	// nop logger discards all messages without error
+	logger.LogUnauthorizedAccess(
+		seclog.SnapdUser{ID: 1, StoreUserName: "test"},
+		seclog.Endpoint{Method: "POST", Path: "/v2/snaps"},
+		seclog.NewAuthzChecks(),
+		int32(12345),
+		seclog.Reason{Code: "access-denied", Message: "access denied"},
+	)
+}

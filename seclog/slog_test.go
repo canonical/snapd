@@ -564,3 +564,180 @@ func (s *SlogSuite) TestLogSystemUserRemoved(c *C) {
 		"app_id", "type", "category", "event", "system_user", "remove_options",
 	})
 }
+
+func (s *SlogSuite) TestLogAdminActivity(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type adminActivity struct {
+		baseAttrs
+		Event     string `json:"event"`
+		SnapdUser struct {
+			ID             int64  `json:"snapd-user-id"`
+			StoreUserName  string `json:"store-user-name"`
+			StoreUserEmail string `json:"store-user-email"`
+			Expiration     string `json:"expiration"`
+		} `json:"snapd_user"`
+		Endpoint struct {
+			Method      string `json:"method"`
+			Path        string `json:"path"`
+			Action      string `json:"action"`
+			AccessCheck string `json:"access-check"`
+		} `json:"endpoint"`
+		AuthzChecks map[string]string `json:"authz_checks"`
+	}
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	endpoint := seclog.Endpoint{
+		Method:      "POST",
+		Path:        "/v2/snaps/hello-world",
+		Action:      "install",
+		AccessCheck: "authenticatedAccess",
+	}
+	logger.LogAdminActivity(user, endpoint, seclog.NewAuthzChecks())
+
+	var obtained adminActivity
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "User 42:user@gmail.com:jdoe accessed POST:/v2/snaps/hello-world:install")
+	c.Check(obtained.AppID, Equals, s.appID)
+	c.Check(obtained.Category, Equals, "AUTHZ")
+	c.Check(obtained.Event, Equals, "authz_admin")
+	c.Check(obtained.SnapdUser.ID, Equals, int64(42))
+	c.Check(obtained.SnapdUser.StoreUserEmail, Equals, "user@gmail.com")
+	c.Check(obtained.SnapdUser.StoreUserName, Equals, "jdoe")
+	c.Check(obtained.SnapdUser.Expiration, Equals, "never")
+	c.Check(obtained.Endpoint.Method, Equals, "POST")
+	c.Check(obtained.Endpoint.Path, Equals, "/v2/snaps/hello-world")
+	c.Check(obtained.Endpoint.Action, Equals, "install")
+	c.Check(obtained.Endpoint.AccessCheck, Equals, "authenticatedAccess")
+	c.Check(obtained.AuthzChecks["peer-credentials-available"], Equals, "n/a")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_user", "endpoint", "authz_checks",
+	})
+}
+
+func (s *SlogSuite) TestLogAdminActivityNoAction(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type adminActivity struct {
+		baseAttrs
+		Event     string `json:"event"`
+		SnapdUser struct {
+			ID             int64  `json:"snapd-user-id"`
+			StoreUserName  string `json:"store-user-name"`
+			StoreUserEmail string `json:"store-user-email"`
+			Expiration     string `json:"expiration"`
+		} `json:"snapd_user"`
+		Endpoint struct {
+			Method      string `json:"method"`
+			Path        string `json:"path"`
+			Action      string `json:"action"`
+			AccessCheck string `json:"access-check"`
+		} `json:"endpoint"`
+		AuthzChecks map[string]string `json:"authz_checks"`
+	}
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	endpoint := seclog.Endpoint{
+		Method:      "GET",
+		Path:        "/v2/system-info",
+		AccessCheck: "openAccess",
+	}
+	logger.LogAdminActivity(user, endpoint, seclog.NewAuthzChecks())
+
+	var obtained adminActivity
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Description, Equals, "User 42:user@gmail.com:jdoe accessed GET:/v2/system-info")
+	c.Check(obtained.Endpoint.Action, Equals, "")
+}
+
+func (s *SlogSuite) TestLogUnauthorizedAccess(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type unauthorizedAccess struct {
+		baseAttrs
+		Event     string `json:"event"`
+		SnapdUser struct {
+			ID             int64  `json:"snapd-user-id"`
+			StoreUserName  string `json:"store-user-name"`
+			StoreUserEmail string `json:"store-user-email"`
+			Expiration     string `json:"expiration"`
+		} `json:"snapd_user"`
+		Endpoint struct {
+			Method      string `json:"method"`
+			Path        string `json:"path"`
+			Action      string `json:"action"`
+			AccessCheck string `json:"access-check"`
+		} `json:"endpoint"`
+		AuthzChecks map[string]string `json:"authz_checks"`
+		PID         int64             `json:"pid"`
+		Error       struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	endpoint := seclog.Endpoint{
+		Method:      "POST",
+		Path:        "/v2/snaps/hello-world",
+		Action:      "install",
+		AccessCheck: "rootAccess",
+	}
+	reason := seclog.Reason{
+		Code:    "access-denied",
+		Message: "access denied",
+	}
+	logger.LogUnauthorizedAccess(user, endpoint, seclog.NewAuthzChecks(), int32(12345), reason)
+
+	var obtained unauthorizedAccess
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
+	c.Check(obtained.Level, Equals, "CRITICAL")
+	c.Check(obtained.Description, Equals, "Process 12345: User 42:user@gmail.com:jdoe attempted to access POST:/v2/snaps/hello-world:install without entitlement: access denied")
+	c.Check(obtained.AppID, Equals, s.appID)
+	c.Check(obtained.Category, Equals, "AUTHZ")
+	c.Check(obtained.Event, Equals, "authz_fail")
+	c.Check(obtained.SnapdUser.ID, Equals, int64(42))
+	c.Check(obtained.SnapdUser.StoreUserEmail, Equals, "user@gmail.com")
+	c.Check(obtained.SnapdUser.StoreUserName, Equals, "jdoe")
+	c.Check(obtained.SnapdUser.Expiration, Equals, "never")
+	c.Check(obtained.Endpoint.Method, Equals, "POST")
+	c.Check(obtained.Endpoint.Path, Equals, "/v2/snaps/hello-world")
+	c.Check(obtained.Endpoint.Action, Equals, "install")
+	c.Check(obtained.Endpoint.AccessCheck, Equals, "rootAccess")
+	c.Check(obtained.AuthzChecks["peer-credentials-available"], Equals, "n/a")
+	c.Check(obtained.PID, Equals, int64(12345))
+	c.Check(obtained.Error.Code, Equals, "access-denied")
+	c.Check(obtained.Error.Message, Equals, "access denied")
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_user", "endpoint", "authz_checks", "pid", "error",
+	})
+}
