@@ -71,3 +71,30 @@ func (s *NopSuite) TestLogLoginFailure(c *C) {
 	// nop logger discards all messages without error
 	logger.LogLoginFailure(seclog.SnapdUser{StoreUserEmail: "user@gmail.com"}, seclog.Reason{})
 }
+
+func (s *NopSuite) TestLogUserCreated(c *C) {
+	logger := seclog.NewNopLogger()
+	c.Assert(logger, NotNil)
+
+	// nop logger discards all messages without error
+	logger.LogUserCreated(seclog.SnapdUser{StoreUserEmail: "user@gmail.com"})
+}
+
+func (s *NopSuite) TestLogUserUpdated(c *C) {
+	logger := seclog.NewNopLogger()
+	c.Assert(logger, NotNil)
+
+	// nop logger discards all messages without error
+	logger.LogUserUpdated(
+		seclog.SnapdUser{StoreUserEmail: "user@gmail.com"},
+		[]string{"email"},
+	)
+}
+
+func (s *NopSuite) TestLogUserRemoved(c *C) {
+	logger := seclog.NewNopLogger()
+	c.Assert(logger, NotNil)
+
+	// nop logger discards all messages without error
+	logger.LogUserRemoved(seclog.SnapdUser{StoreUserEmail: "user@gmail.com"})
+}

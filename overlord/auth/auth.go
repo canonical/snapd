@@ -32,6 +32,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 )
 
 // AuthState represents current authenticated users as tracked in state
@@ -65,6 +66,72 @@ type UserState struct {
 	StoreDischarges []string  `json:"store-discharges,omitempty"`
 	Expiration      time.Time `json:"expiration,omitzero"`
 }
+
+// ChangedFields returns a sorted list of JSON-tag field names that differ
+// between u and other. The comparison is performed on all fields of
+// UserState. The returned names use the JSON tag values for stability.
+func (u *UserState) ChangedFields(other *UserState) []string {
+	var changed []string
+	if u.ID != other.ID {
+		changed = append(changed, "id")
+	}
+	if u.Username != other.Username {
+		changed = append(changed, "username")
+	}
+	if u.Email != other.Email {
+		changed = append(changed, "email")
+	}
+	if u.Macaroon != other.Macaroon {
+		changed = append(changed, "local-macaroon")
+	}
+	if !slicesEqual(u.Discharges, other.Discharges) {
+		changed = append(changed, "local-discharges")
+	}
+	if u.StoreMacaroon != other.StoreMacaroon {
+		changed = append(changed, "store-macaroon")
+	}
+	if !slicesEqual(u.StoreDischarges, other.StoreDischarges) {
+		changed = append(changed, "store-discharges")
+	}
+	if !u.Expiration.Equal(other.Expiration) {
+		changed = append(changed, "expiration")
+	}
+	// Fields are compared in JSON-tag alphabetical order which happens
+	// to match declaration order, but sort explicitly for stability.
+	sort.Strings(changed)
+	return changed
+}
+
+// slicesEqual reports whether two string slices are identical.
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// snapdUser returns a seclog.SnapdUser with the identity fields
+// of u suitable for security audit logging. Sensitive fields such
+// as macaroons and discharges are deliberately excluded.
+func (u *UserState) snapdUser() seclog.SnapdUser {
+	return seclog.SnapdUser{
+		ID:             int64(u.ID),
+		StoreUserName:  u.Username,
+		StoreUserEmail: u.Email,
+		Expiration:     u.Expiration,
+	}
+}
+
+var (
+	seclogLogUserCreated = seclog.LogUserCreated
+	seclogLogUserUpdated = seclog.LogUserUpdated
+	seclogLogUserRemoved = seclog.LogUserRemoved
+)
 
 // identificationOnly returns a *UserState with only the
 // identification information from u.
@@ -201,6 +268,8 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 
 	st.Set("auth", authStateData)
 
+	seclogLogUserCreated(authenticatedUser.snapdUser())
+
 	return &authenticatedUser, nil
 }
 
@@ -231,6 +300,7 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	for i := range authStateData.Users {
 		u := &authStateData.Users[i]
 		if p(u) {
+			su := u.snapdUser()
 			removed := u.identificationOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
@@ -238,6 +308,9 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 			authStateData.Users[n] = UserState{}
 			authStateData.Users = authStateData.Users[:n]
 			st.Set("auth", authStateData)
+
+			seclogLogUserRemoved(su)
+
 			return removed, nil
 		}
 	}
@@ -308,8 +381,13 @@ func UpdateUser(st *state.State, user *UserState) error {
 
 	for i := range authStateData.Users {
 		if authStateData.Users[i].ID == user.ID {
+			prev := authStateData.Users[i]
 			authStateData.Users[i] = *user
 			st.Set("auth", authStateData)
+
+			changedFields := prev.ChangedFields(user)
+			seclogLogUserUpdated(user.snapdUser(), changedFields)
+
 			return nil
 		}
 	}

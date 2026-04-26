@@ -270,6 +270,90 @@ func (s *SecLogSuite) TestLogLoginFailure(c *C) {
 	c.Check(obtained["type"], Equals, "security")
 }
 
+func (s *SecLogSuite) TestLogUserCreated(c *C) {
+	s.setupSlogLogger(c)
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@example.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogUserCreated(user)
+
+	var obtained map[string]any
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "INFO")
+	c.Check(obtained["description"], Equals,
+		"Created user 42:user@example.com:jdoe")
+	c.Check(obtained["app_id"], Equals, s.appID)
+	c.Check(obtained["category"], Equals, "AUTHN")
+	c.Check(obtained["event"], Equals, "user_created")
+	userMap, ok := obtained["snapd_user"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(userMap["snapd-user-id"], Equals, float64(42))
+	c.Check(userMap["store-user-email"], Equals, "user@example.com")
+	c.Check(userMap["store-user-name"], Equals, "jdoe")
+	c.Check(obtained["type"], Equals, "security")
+}
+
+func (s *SecLogSuite) TestLogUserUpdated(c *C) {
+	s.setupSlogLogger(c)
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "new@example.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogUserUpdated(user, []string{"email", "store-macaroon"})
+
+	var obtained map[string]any
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "INFO")
+	c.Check(obtained["description"], Equals,
+		"Updated user 42:new@example.com:jdoe")
+	c.Check(obtained["app_id"], Equals, s.appID)
+	c.Check(obtained["category"], Equals, "AUTHN")
+	c.Check(obtained["event"], Equals, "user_updated")
+	userMap, ok := obtained["snapd_user"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(userMap["snapd-user-id"], Equals, float64(42))
+	c.Check(userMap["store-user-email"], Equals, "new@example.com")
+	c.Check(userMap["store-user-name"], Equals, "jdoe")
+	changed, ok := obtained["changed_fields"].([]any)
+	c.Assert(ok, Equals, true)
+	c.Check(changed, DeepEquals, []any{"email", "store-macaroon"})
+	c.Check(obtained["type"], Equals, "security")
+}
+
+func (s *SecLogSuite) TestLogUserRemoved(c *C) {
+	s.setupSlogLogger(c)
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@example.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogUserRemoved(user)
+
+	var obtained map[string]any
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained["level"], Equals, "INFO")
+	c.Check(obtained["description"], Equals,
+		"Removed user 42:user@example.com:jdoe")
+	c.Check(obtained["app_id"], Equals, s.appID)
+	c.Check(obtained["category"], Equals, "AUTHN")
+	c.Check(obtained["event"], Equals, "user_removed")
+	userMap, ok := obtained["snapd_user"].(map[string]any)
+	c.Assert(ok, Equals, true)
+	c.Check(userMap["snapd-user-id"], Equals, float64(42))
+	c.Check(userMap["store-user-email"], Equals, "user@example.com")
+	c.Check(userMap["store-user-name"], Equals, "jdoe")
+	c.Check(obtained["type"], Equals, "security")
+}
+
 // closeTracker is a test helper that records whether Close was called.
 type closeTracker struct {
 	closed bool

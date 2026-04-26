@@ -44,3 +44,15 @@ func (nopLogger) LogLoginSuccess(user SnapdUser) {
 // LogLoginFailure implements [securityLogger.LogLoginFailure].
 func (nopLogger) LogLoginFailure(user SnapdUser, reason Reason) {
 }
+
+// LogUserCreated implements [securityLogger.LogUserCreated].
+func (nopLogger) LogUserCreated(user SnapdUser) {
+}
+
+// LogUserUpdated implements [securityLogger.LogUserUpdated].
+func (nopLogger) LogUserUpdated(user SnapdUser, changedFields []string) {
+}
+
+// LogUserRemoved implements [securityLogger.LogUserRemoved].
+func (nopLogger) LogUserRemoved(user SnapdUser) {
+}

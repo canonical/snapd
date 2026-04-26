@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 )
 
 // Hook up gocheck into the "go test" runner.
@@ -600,4 +601,223 @@ func (as *authSuite) TestHasExpiredNoExpirationSetIsFalse(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(user.HasExpired(), Equals, false)
+}
+
+func (as *authSuite) TestChangedFieldsNoChanges(c *C) {
+	u := &auth.UserState{
+		ID: 1, Username: "jdoe", Email: "j@d.com",
+		Macaroon: "m1", StoreMacaroon: "sm1",
+	}
+	c.Check(u.ChangedFields(u), HasLen, 0)
+}
+
+func (as *authSuite) TestChangedFieldsSingleField(c *C) {
+	prev := &auth.UserState{ID: 1, Email: "old@test.com"}
+	cur := &auth.UserState{ID: 1, Email: "new@test.com"}
+	c.Check(prev.ChangedFields(cur), DeepEquals, []string{"email"})
+}
+
+func (as *authSuite) TestChangedFieldsMultipleFieldsSorted(c *C) {
+	prev := &auth.UserState{
+		ID:            1,
+		Username:      "old",
+		Email:         "old@test.com",
+		StoreMacaroon: "sm1",
+	}
+	cur := &auth.UserState{
+		ID:            1,
+		Username:      "new",
+		Email:         "new@test.com",
+		StoreMacaroon: "sm2",
+	}
+	c.Check(prev.ChangedFields(cur), DeepEquals, []string{
+		"email", "store-macaroon", "username",
+	})
+}
+
+func (as *authSuite) TestChangedFieldsDischarges(c *C) {
+	prev := &auth.UserState{
+		ID:         1,
+		Discharges: []string{"a", "b"},
+	}
+	cur := &auth.UserState{
+		ID:         1,
+		Discharges: []string{"a", "c"},
+	}
+	c.Check(prev.ChangedFields(cur), DeepEquals, []string{"local-discharges"})
+}
+
+func (as *authSuite) TestChangedFieldsExpiration(c *C) {
+	t1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	t2 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	prev := &auth.UserState{ID: 1, Expiration: t1}
+	cur := &auth.UserState{ID: 1, Expiration: t2}
+	c.Check(prev.ChangedFields(cur), DeepEquals, []string{"expiration"})
+}
+
+func (as *authSuite) TestChangedFieldsAllFields(c *C) {
+	prev := &auth.UserState{
+		ID: 1, Username: "a", Email: "a@a.com",
+		Macaroon: "m1", Discharges: []string{"d1"},
+		StoreMacaroon: "sm1", StoreDischarges: []string{"sd1"},
+		Expiration: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	cur := &auth.UserState{
+		ID: 2, Username: "b", Email: "b@b.com",
+		Macaroon: "m2", Discharges: []string{"d2"},
+		StoreMacaroon: "sm2", StoreDischarges: []string{"sd2"},
+		Expiration: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+	}
+	c.Check(prev.ChangedFields(cur), DeepEquals, []string{
+		"email", "expiration", "id",
+		"local-discharges", "local-macaroon", "store-discharges", "store-macaroon", "username",
+	})
+}
+
+func (as *authSuite) TestNewUserLogsCreated(c *C) {
+	var logged seclog.SnapdUser
+	restore := auth.MockSeclogLogUserCreated(func(u seclog.SnapdUser) {
+		logged = u
+	})
+	defer restore()
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(logged.ID, Equals, int64(user.ID))
+	c.Check(logged.StoreUserName, Equals, "jdoe")
+	c.Check(logged.StoreUserEmail, Equals, "jdoe@test.com")
+}
+
+func (as *authSuite) TestUpdateUserLogsUpdated(c *C) {
+	var loggedUser seclog.SnapdUser
+	var loggedFields []string
+	restore := auth.MockSeclogLogUserUpdated(func(u seclog.SnapdUser, fields []string) {
+		loggedUser = u
+		loggedFields = fields
+	})
+	defer restore()
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "old@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	user.Email = "new@test.com"
+	user.StoreMacaroon = "new-macaroon"
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(loggedUser.ID, Equals, int64(user.ID))
+	c.Check(loggedUser.StoreUserName, Equals, "jdoe")
+	c.Check(loggedUser.StoreUserEmail, Equals, "new@test.com")
+	c.Check(loggedFields, DeepEquals, []string{"email", "store-macaroon"})
+}
+
+func (as *authSuite) TestRemoveUserLogsRemoved(c *C) {
+	var logged seclog.SnapdUser
+	restore := auth.MockSeclogLogUserRemoved(func(u seclog.SnapdUser) {
+		logged = u
+	})
+	defer restore()
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(logged.ID, Equals, int64(user.ID))
+	c.Check(logged.StoreUserName, Equals, "jdoe")
+	c.Check(logged.StoreUserEmail, Equals, "jdoe@test.com")
+}
+
+func (as *authSuite) TestRemoveUserByUsernameLogsRemoved(c *C) {
+	var logged seclog.SnapdUser
+	restore := auth.MockSeclogLogUserRemoved(func(u seclog.SnapdUser) {
+		logged = u
+	})
+	defer restore()
+
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = auth.RemoveUserByUsername(as.state, "jdoe")
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(logged.StoreUserName, Equals, "jdoe")
+	c.Check(logged.StoreUserEmail, Equals, "jdoe@test.com")
+}
+
+func (as *authSuite) TestNewUserLogsExpiration(c *C) {
+	var logged seclog.SnapdUser
+	restore := auth.MockSeclogLogUserCreated(func(u seclog.SnapdUser) {
+		logged = u
+	})
+	defer restore()
+
+	expiry := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+		Expiration: expiry,
+	})
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(logged.Expiration.Equal(expiry), Equals, true)
+}
+
+func (as *authSuite) TestRemoveUserLogsExpiration(c *C) {
+	var logged seclog.SnapdUser
+	restore := auth.MockSeclogLogUserRemoved(func(u seclog.SnapdUser) {
+		logged = u
+	})
+	defer restore()
+
+	expiry := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+		Expiration: expiry,
+	})
+	c.Assert(err, IsNil)
+
+	_, err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(logged.Expiration.Equal(expiry), Equals, true)
 }

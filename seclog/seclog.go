@@ -164,6 +164,9 @@ type securityLogger interface {
 	LogLoggingDisabled()
 	LogLoginSuccess(user SnapdUser)
 	LogLoginFailure(user SnapdUser, reason Reason)
+	LogUserCreated(user SnapdUser)
+	LogUserUpdated(user SnapdUser, changedFields []string)
+	LogUserRemoved(user SnapdUser)
 }
 
 // loggerSetup holds the configuration provided to Setup.
@@ -280,6 +283,30 @@ func LogLoginFailure(user SnapdUser, reason Reason) {
 	defer lock.Unlock()
 
 	globalLogger.LogLoginFailure(user, reason)
+}
+
+// LogUserCreated logs a user creation event using the global security logger.
+func LogUserCreated(user SnapdUser) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogUserCreated(user)
+}
+
+// LogUserUpdated logs a user update event using the global security logger.
+func LogUserUpdated(user SnapdUser, changedFields []string) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogUserUpdated(user, changedFields)
+}
+
+// LogUserRemoved logs a user removal event using the global security logger.
+func LogUserRemoved(user SnapdUser) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogUserRemoved(user)
 }
 
 // registerImpl makes a logger factory available by name. The registration

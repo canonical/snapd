@@ -327,3 +327,140 @@ func (s *SlogSuite) TestLevelHandlerSetsLevelBeforeWrite(c *C) {
 	c.Check(lb.levels[0], Equals, seclog.LevelInfo)
 	c.Check(lb.levels[1], Equals, seclog.LevelWarn)
 }
+
+func (s *SlogSuite) TestLogUserCreated(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type userCreated struct {
+		baseAttrs
+		Event     string `json:"event"`
+		SnapdUser struct {
+			ID             int64  `json:"snapd-user-id"`
+			StoreUserName  string `json:"store-user-name"`
+			StoreUserEmail string `json:"store-user-email"`
+			Expiration     string `json:"expiration"`
+		} `json:"snapd_user"`
+	}
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	logger.LogUserCreated(user)
+
+	var obtained userCreated
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Created user 42:user@gmail.com:jdoe")
+	c.Check(obtained.AppID, Equals, s.appID)
+	c.Check(obtained.Category, Equals, "AUTHN")
+	c.Check(obtained.Event, Equals, "user_created")
+	c.Check(obtained.SnapdUser.ID, Equals, int64(42))
+	c.Check(obtained.SnapdUser.StoreUserEmail, Equals, "user@gmail.com")
+	c.Check(obtained.SnapdUser.StoreUserName, Equals, "jdoe")
+	c.Check(obtained.SnapdUser.Expiration, Equals, "never")
+
+	// verify key order for human readability
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_user",
+	})
+}
+
+func (s *SlogSuite) TestLogUserUpdated(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type userUpdated struct {
+		baseAttrs
+		Event     string `json:"event"`
+		SnapdUser struct {
+			ID             int64  `json:"snapd-user-id"`
+			StoreUserName  string `json:"store-user-name"`
+			StoreUserEmail string `json:"store-user-email"`
+			Expiration     string `json:"expiration"`
+		} `json:"snapd_user"`
+		ChangedFields []string `json:"changed_fields"`
+	}
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "new@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	logger.LogUserUpdated(user, []string{"email", "store-macaroon"})
+
+	var obtained userUpdated
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Updated user 42:new@gmail.com:jdoe")
+	c.Check(obtained.AppID, Equals, s.appID)
+	c.Check(obtained.Category, Equals, "AUTHN")
+	c.Check(obtained.Event, Equals, "user_updated")
+	c.Check(obtained.SnapdUser.ID, Equals, int64(42))
+	c.Check(obtained.SnapdUser.StoreUserEmail, Equals, "new@gmail.com")
+	c.Check(obtained.SnapdUser.StoreUserName, Equals, "jdoe")
+	c.Check(obtained.SnapdUser.Expiration, Equals, "never")
+	c.Check(obtained.ChangedFields, DeepEquals, []string{"email", "store-macaroon"})
+
+	// verify key order for human readability
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_user", "changed_fields",
+	})
+}
+
+func (s *SlogSuite) TestLogUserRemoved(c *C) {
+	logger := s.factory.New(s.buf, s.appID, seclog.LevelInfo)
+	c.Assert(logger, NotNil)
+
+	type userRemoved struct {
+		baseAttrs
+		Event     string `json:"event"`
+		SnapdUser struct {
+			ID             int64  `json:"snapd-user-id"`
+			StoreUserName  string `json:"store-user-name"`
+			StoreUserEmail string `json:"store-user-email"`
+			Expiration     string `json:"expiration"`
+		} `json:"snapd_user"`
+	}
+
+	user := seclog.SnapdUser{
+		ID:             42,
+		StoreUserEmail: "user@gmail.com",
+		StoreUserName:  "jdoe",
+	}
+	logger.LogUserRemoved(user)
+
+	var obtained userRemoved
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
+	c.Check(obtained.Level, Equals, "INFO")
+	c.Check(obtained.Description, Equals, "Removed user 42:user@gmail.com:jdoe")
+	c.Check(obtained.AppID, Equals, s.appID)
+	c.Check(obtained.Category, Equals, "AUTHN")
+	c.Check(obtained.Event, Equals, "user_removed")
+	c.Check(obtained.SnapdUser.ID, Equals, int64(42))
+	c.Check(obtained.SnapdUser.StoreUserEmail, Equals, "user@gmail.com")
+	c.Check(obtained.SnapdUser.StoreUserName, Equals, "jdoe")
+	c.Check(obtained.SnapdUser.Expiration, Equals, "never")
+
+	// verify key order for human readability
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "snapd_user",
+	})
+}

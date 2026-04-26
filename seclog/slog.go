@@ -140,6 +140,43 @@ func (l *slogLogger) LogLoginFailure(user SnapdUser, reason Reason) {
 	)
 }
 
+// LogUserCreated implements [securityLogger.LogUserCreated].
+func (l *slogLogger) LogUserCreated(user SnapdUser) {
+	l.logger.LogAttrs(
+		context.Background(),
+		slog.Level(LevelInfo),
+		fmt.Sprintf("Created user %s", user.String()),
+		slog.Attr{Key: "category", Value: slog.StringValue("AUTHN")},
+		slog.Attr{Key: "event", Value: slog.StringValue("user_created")},
+		slog.Any("snapd_user", user),
+	)
+}
+
+// LogUserUpdated implements [securityLogger.LogUserUpdated].
+func (l *slogLogger) LogUserUpdated(user SnapdUser, changedFields []string) {
+	l.logger.LogAttrs(
+		context.Background(),
+		slog.Level(LevelInfo),
+		fmt.Sprintf("Updated user %s", user.String()),
+		slog.Attr{Key: "category", Value: slog.StringValue("AUTHN")},
+		slog.Attr{Key: "event", Value: slog.StringValue("user_updated")},
+		slog.Any("snapd_user", user),
+		slog.Any("changed_fields", changedFields),
+	)
+}
+
+// LogUserRemoved implements [securityLogger.LogUserRemoved].
+func (l *slogLogger) LogUserRemoved(user SnapdUser) {
+	l.logger.LogAttrs(
+		context.Background(),
+		slog.Level(LevelInfo),
+		fmt.Sprintf("Removed user %s", user.String()),
+		slog.Attr{Key: "category", Value: slog.StringValue("AUTHN")},
+		slog.Attr{Key: "event", Value: slog.StringValue("user_removed")},
+		slog.Any("snapd_user", user),
+	)
+}
+
 // LogValue implements [slog.LogValuer], allowing SnapdUser to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
