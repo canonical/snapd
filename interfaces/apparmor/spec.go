@@ -172,6 +172,8 @@ type Specification struct {
 	// is smaller than the old one.
 	prioritizedSnippets map[string]map[SnippetKey]prioritizedSnippets
 
+	baseSnippets map[SnippetKey]string
+
 	// dedupSnippets are just like snippets but are added only once to the
 	// resulting policy in an effort to avoid certain expensive to de-duplicate
 	// rules by apparmor_parser.
@@ -336,12 +338,44 @@ func (spec *Specification) AddPrioritizedSnippet(snippet string, key SnippetKey,
 	}
 }
 
+// AddBasePrioritizedSnippet adds a new apparmor snippet to all apps and hooks,
+// identified by a key. If any other prioritized snippet exists for that key, it
+// will take priority over this. This is useful to add snippets which should be
+// present on all profiles, unless a more specific snippet is added by an
+// interface. The key must have been previously registered using RegisterSnippetKey().
+func (spec *Specification) AddBasePrioritizedSnippet(snippet string, key SnippetKey) {
+	if _, ok := registeredKeys[key]; !ok {
+		logger.Panicf("snippet key %q is not registered", key.String())
+	} else if _, ok := spec.baseSnippets[key]; ok {
+		logger.Panicf("already registered a snippet for key %q (one base snippet per key expected)", key.String())
+	}
+
+	if spec.baseSnippets == nil {
+		spec.baseSnippets = make(map[SnippetKey]string)
+	}
+
+	spec.baseSnippets[key] = snippet
+}
+
 func (spec *Specification) composeSnippetsForTag(tag string) []string {
 	// Compose the normal and the prioritized snippets in a single string array
 	composedSnippets := append([]string(nil), spec.snippets[tag]...)
+
+	prioKeys := make(map[SnippetKey]bool)
 	for key := range spec.prioritizedSnippets[tag] {
+		prioKeys[key] = true
 		composedSnippets = append(composedSnippets, spec.prioritizedSnippets[tag][key].list...)
 	}
+
+	for key, sn := range spec.baseSnippets {
+		if prioKeys[key] {
+			// any prioritized snippet overrides a base snippet of the same key
+			continue
+		}
+
+		composedSnippets = append(composedSnippets, sn)
+	}
+
 	sort.Strings(composedSnippets)
 	return composedSnippets
 }

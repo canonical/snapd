@@ -19,6 +19,11 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+)
+
 const classicSupportSummary = `special permissions for the classic snap`
 
 const classicSupportBaseDeclarationPlugs = `
@@ -64,7 +69,6 @@ capability sys_admin,
 /{,usr/}bin/mount ixr,
 /{,usr/}bin/mountpoint ixr,
 /run/mount/utab rw,
-@{PROC}/[0-9]*/mountinfo r,
 # parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
 # completeness allow SNAP_INSTANCE_NAME too
 mount options=(rw bind) /home/ -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/**/,
@@ -118,15 +122,28 @@ umount
 umount2
 `
 
+type classicSupportInterface struct {
+	commonInterface
+}
+
+func (iface *classicSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(classicSupportPlugAppArmor)
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "classic-support",
-		summary:               classicSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  classicSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  classicSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: classicSupportPlugAppArmor,
-		connectedPlugSecComp:  classicSupportPlugSecComp,
+	registerIface(&classicSupportInterface{
+		commonInterface: commonInterface{
+			name:                 "classic-support",
+			summary:              classicSupportSummary,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
+			baseDeclarationPlugs: classicSupportBaseDeclarationPlugs,
+			baseDeclarationSlots: classicSupportBaseDeclarationSlots,
+			// handled by AppArmorConnectedPlug
+			connectedPlugAppArmor: "",
+			connectedPlugSecComp:  classicSupportPlugSecComp,
+		},
 	})
 }

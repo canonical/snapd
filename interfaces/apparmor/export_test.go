@@ -106,3 +106,7 @@ func (b *Backend) SetupSnapConfineReexec(info *snap.Info) error {
 func (s *Specification) SnippetsForTag(tag string) []string {
 	return s.snippetsForTag(tag)
 }
+
+func NewSnippetKey(key string) SnippetKey {
+	return newSnippetKey(key)
+}

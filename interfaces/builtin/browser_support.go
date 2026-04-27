@@ -110,7 +110,6 @@ deny @{PROC}/@{pid}/attr/{,apparmor/}current r,
 # when using the chromium content api file chooser due to a (harmless) glib
 # warning and the noisy AppArmor denial.
 owner @{PROC}/@{pid}/mounts r,
-owner @{PROC}/@{pid}/mountinfo r,
 
 # Since snapd still uses SECCOMP_RET_KILL, we have added a workaround rule to
 # allow mknod on character devices since chromium unconditionally performs
@@ -410,6 +409,7 @@ func (iface *browserSupportInterface) AppArmorConnectedPlug(spec *apparmor.Speci
 	} else {
 		spec.SetSuppressPtraceTrace()
 	}
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
 	return nil
 }
 

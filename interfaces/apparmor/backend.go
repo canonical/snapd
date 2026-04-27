@@ -671,6 +671,15 @@ func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppS
 	content = make(map[string]osutil.FileState, len(runnables))
 	snapInfo := appSet.Info()
 
+	// add base snippets to the spec, unless it's an unjailed classic snap. These
+	// will be present in the final profile if no interface overrides them with a
+	// more specific snippet of the same key
+	if !opts.Classic || opts.JailMode {
+		for key, snippet := range basePrioritizedSnippets {
+			spec.AddBasePrioritizedSnippet(snippet, key)
+		}
+	}
+
 	// Add profile for apps and hooks.
 	for _, r := range runnables {
 		b.addContent(r.SecurityTag, snapInfo, r.CommandName, opts, spec.SnippetForTag(r.SecurityTag), content, spec)
