@@ -608,6 +608,68 @@ func (s *changeSuite) TestNeededChangesSyntheticNotReusedWhenContentMountDesired
 	})
 }
 
+// This is a variation of
+// TestNeededChangesSyntheticNotReusedWhenContentMountDesired which assumes that
+// 2 things have changed in the desired profile:
+// - provider-1 is disconnected (only present in the current profile)
+// - provider-2 is listed in the desired profile
+func (s *changeSuite) TestNeededChangesMimicTornDownWhenNeededByEntryNotDesired(c *C) {
+	// At planning time the mimic is still mounted, so provider-2's target
+	// directory exists on the tmpfs.
+	restore := update.MockIsDirectory(func(path string) bool {
+		return path == "/snap/name/42/provider-2"
+	})
+	defer restore()
+
+	// After connecting provider-1, a writable mimic was created over
+	// /snap/name/42. The current profile reflects the mimic state.
+	// This is the same starting point as
+	// TestNeededChangesSyntheticNotReusedWhenContentMountDesired.
+	current := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "tmpfs", Dir: "/snap/name/42", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/var/lib/snapd/hostfs/snap/name/42/provider-2", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/var/lib/snapd/hostfs/snap/name/42/bin", Dir: "/snap/name/42/bin",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/var/lib/snapd/hostfs/snap/name/42/meta", Dir: "/snap/name/42/meta",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1")}},
+		{Name: "/snap/provider-1/x1", Dir: "/snap/name/42/provider-1",
+			Options: []string{"bind", "ro"}},
+	}}
+
+	// Provider-1 is disconnected, provider-2 is now connected.
+	// The needed-by target (/snap/name/42/provider-1) is no longer in
+	// the desired profile, so the synthetic reuse block is never entered.
+	// The tmpfs at /snap/name/42 fails the normal reuse check (no desired
+	// entry at that Dir), setting skipDir which cascades to all children.
+	// The entire mimic tree is torn down and provider-2 is freshly mounted.
+	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{
+		{Name: "/snap/provider-2/x1", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro"}},
+	}}
+
+	changes := update.NeededChanges(current, desired)
+
+	c.Assert(changes, DeepEquals, []*update.Change{
+		// Unmount phase (reverse of current profile order):
+		// Everything is unmounted because nothing is reused.
+		{Entry: osutil.MountEntry{Name: "/snap/provider-1/x1", Dir: "/snap/name/42/provider-1",
+			Options: []string{"bind", "ro", osutil.XSnapdDetach()}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/var/lib/snapd/hostfs/snap/name/42/meta", Dir: "/snap/name/42/meta",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1"), osutil.XSnapdDetach()}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/var/lib/snapd/hostfs/snap/name/42/bin", Dir: "/snap/name/42/bin",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1"), osutil.XSnapdDetach()}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "/var/lib/snapd/hostfs/snap/name/42/provider-2", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro", osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1"), osutil.XSnapdDetach()}}, Action: update.Unmount},
+		{Entry: osutil.MountEntry{Name: "tmpfs", Dir: "/snap/name/42", Type: "tmpfs",
+			Options: []string{osutil.XSnapdSynthetic(), osutil.XSnapdNeededBy("/snap/name/42/provider-1"), osutil.XSnapdDetach()}}, Action: update.Unmount},
+		// Mount phase: provider-2 content mount is freshly created.
+		{Entry: osutil.MountEntry{Name: "/snap/provider-2/x1", Dir: "/snap/name/42/provider-2",
+			Options: []string{"bind", "ro"}}, Action: update.Mount},
+	})
+}
+
 func (s *changeSuite) TestRuntimeUsingSymlinks(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	defer func() {
