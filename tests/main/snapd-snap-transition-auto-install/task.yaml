@@ -8,7 +8,7 @@ details: |
 
 # Exclude Ubuntu Core systems - require proper remodeling
 # Simplify test by limiting system to ubuntu 22.04 amd64
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-24.04-64]
 
 environment:
     SNAPD_SRC/deb:  "deb"
@@ -17,6 +17,9 @@ environment:
 skip:
     - reason: This test needs snapd deb built from local
       if: tests.info is-snapd-from-archive
+    - reason: This test needs the modified core snap
+      if: |
+        [ "$MODIFY_CORE_SNAP_FOR_REEXEC" = "0" ]
 
 prepare: |    
     # Expect system preparation stage installed built snapd and core snaps.
@@ -29,20 +32,19 @@ prepare: |
     systemctl restart snapd.service
 
     # Install deb + core before introduction of snapd auto-install
-    # on classic systems.
-    # deb:  snapd | Aug 2024 | 2.63+22.04ubuntu0.1            | http://archive.ubuntu.com/ubuntu/pool/main/s/snapd/2.63+22.04ubuntu0.1_amd64.deb
-    # deb:  snapd | Apr 2022 | 2.55.3+22.04                   | http://archive.ubuntu.com/ubuntu/pool/main/s/snapd/2.55.3+22.04_amd64.deb
+    # on classic systems, which was introduced in 2.65
+    # deb:  snapd | Mar 2024 | 2.62+24.04build1
     # snap: core  | Jun 2024 | 16-2.61.4-20240607 (rev 17200) | https://snapcraft.io/core/releases
     
     # 'deb' : transition snapd deb to re-exec from snapd snap
     # 'core': transition re-exec from snapd in core snap to re-exec from snapd snap
-    if [ "$SNAPD_SRC" = "deb" ]; then
-        # core < deb, exec snapd deb
-        apt install -y --allow-downgrades snapd=2.63+22.04ubuntu0.1
-    else
+    # core => deb, re-exec snapd from core snap
+    if [ "$SNAPD_SRC" = "core" ]; then
         # core => deb, re-exec snapd from core snap
-        apt install -y --allow-downgrades snapd=2.55.3+22.04
+        apt install -y --allow-downgrades snapd="2.62+24.04build1"
+        tests.cleanup defer sudo dpkg -i "${GOHOME}"/snapd_*.deb
     fi
+
     snap install core --revision=17200 # 16-2.61.4-20240607
 
     # installation of core should not trigger prerequisites, but let's double check snapd is not installed
