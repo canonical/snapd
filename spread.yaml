@@ -141,6 +141,9 @@ environment:
     SNAPD_LOG_SNAP_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAPD_LOG_SNAP_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
     SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
 
+    GENERATE_COVERAGE: '$(HOST: echo "${SPREAD_GENERATE_COVERAGE:-false}")'
+    GOCOVERDIR: $TESTSTMP/coverage
+
     # Whether snapd should skip early refreshes.
     SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
@@ -1063,6 +1066,7 @@ artifacts:
     - feature-tags
     # Populated with feature tag information when SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS is set.
     - state-locks
+    - coverage-results
 
 exclude:
     - .git

@@ -549,6 +549,7 @@ prepare_classic() {
         prepare_reexec_override
         prepare_state_lock "SNAPD PROJECT"
         prepare_tag_features
+        prepare_generate_coverage
         prepare_memory_limit_override
         disable_refreshes
 
@@ -1870,6 +1871,38 @@ EOF
     fi
 }
 
+prepare_generate_coverage() {
+    CONF_FILE="/etc/systemd/system/snapd.service.d/99-coverage.conf"
+    RESTART=false
+
+    if [ "$GENERATE_COVERAGE" = "true" ]; then
+        # Generate the config file when it does not exist and when the threshold has changed different
+        if ! [ -f "$CONF_FILE" ]; then
+            cat <<EOF > "$CONF_FILE"
+[Service]
+Environment=SNAPPY_TESTING=1
+Environment=SNAPD_DEBUG=1
+Environment=GOCOVERDIR=$TESTSTMP/coverage
+EOF
+            mkdir -p "$TESTSTMP/coverage"
+            # cp /usr/lib/systemd/system/snapd.service /usr/lib/systemd/system/~snapd.service.orig
+            # sed -i 's/^ExecStart=.*/& -cover/' /usr/lib/systemd/system/snapd.service
+            RESTART=true
+        fi
+    elif [ -f "$CONF_FILE" ]; then
+        rm -f "$CONF_FILE"
+        # mv /usr/lib/systemd/system/~snapd.service.orig /usr/lib/systemd/system/snapd.service
+        RESTART=true
+    fi
+
+    if [ "$RESTART" = "true" ]; then
+        # the service setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        systemctl restart snapd
+    fi
+}
+
 prepare_tag_features(){
     CONF_FILE="/etc/systemd/system/snapd.service.d/99-feature-tags.conf"
     RESTART=false
@@ -2024,6 +2057,7 @@ prepare_ubuntu_core() {
         prepare_memory_limit_override
         prepare_state_lock "SNAPD PROJECT"
         prepare_tag_features
+        prepare_generate_coverage
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

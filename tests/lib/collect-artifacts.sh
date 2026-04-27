@@ -38,6 +38,13 @@ locks(){
     cp -f "$TESTSTMP"/snapd_lock_traces "$task_dir"
 }
 
+coverage() {
+    # Copy the coverage files to the artifacts directory
+    local task_dir
+    task_dir="$(_prepare_artifacts_path coverage-results)"
+    cp -f "$TESTSTMP"/coverage/* "$task_dir"
+}
+
 if [ "$#" == 0 ]; then
     echo "collect-artifacts: Illegal number of parameters"
     exit 1
@@ -72,6 +79,12 @@ case "$artifact" in
             exit
         fi
         locks
+        ;;
+    coverage)
+        if [ "$GENERATE_COVERAGE" = "false" ]; then
+            exit
+        fi
+        coverage
         ;;
     *)
         echo "collect-artifacts: unsupported argument: $1"
