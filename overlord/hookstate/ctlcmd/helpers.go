@@ -446,15 +446,20 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	}
 
 	if !hctx.IsEphemeral() {
-		// Differently to service control commands, we always queue the
-		// management tasks if run from a hook.
-		err := queueCommand(hctx, tss)
+		var err error
 
 		// If the context is non-ephemeral, we don't support async because we are just queuing a change in the first place.
 		// In the future this could be made non-queuing, but for now we just return the error.
 		if cmd.async {
 			err = fmt.Errorf("internal error: cannot run snap management command asynchronously from a non-ephemeral context")
 		}
+
+		// Differently to service control commands, we always queue the
+		// management tasks if run from a hook.
+		if err == nil {
+			err = queueCommand(hctx, tss)
+		}
+		
 		return "", err
 	}
 
