@@ -11,8 +11,7 @@ details: |
     is mounted in recover mode too and the host data is accessible.
 
 systems:
-  - ubuntu-core-20-*
-  - ubuntu-core-22-*
+  - ubuntu-core-2*
 
 restore: |
     rm -f /writable/systems.json.run
