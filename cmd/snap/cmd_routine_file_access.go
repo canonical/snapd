@@ -106,14 +106,19 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 		}
 	}
 
-	// XXX: should features.AppArmorPrompting.IsEnabled() be used instead of
-	// querying the API for /v2/system-info?
-	sysInfo, err := x.client.SysInfo()
-	if err != nil {
-		return fmt.Errorf("cannot get system info: %w", err)
+	var promptingRunning bool
+	// Avoid checking prompting unless it is relevant, i.e. has an interface
+	// which is mediated by prompting.
+	if hasHome {
+		// XXX: should features.AppArmorPrompting.IsEnabled() be used instead of
+		// querying the API for /v2/system-info?
+		sysInfo, err := x.client.SysInfo()
+		if err != nil {
+			return err
+		}
+		promptingFeatureInfo, ok := sysInfo.Features[features.AppArmorPrompting.String()]
+		promptingRunning = ok && promptingFeatureInfo.Supported && promptingFeatureInfo.Enabled
 	}
-	promptingFeatureInfo, ok := sysInfo.Features[features.AppArmorPrompting.String()]
-	promptingRunning := ok && promptingFeatureInfo.Supported && promptingFeatureInfo.Enabled
 
 	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, promptingRunning, path)
 	if err != nil {
