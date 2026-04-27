@@ -1245,17 +1245,17 @@ func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices
 
 		var unitsToRestart []string
 
-		// If the service is activated, then we must also consider it's activators
-		// as long as we are not requesting a reload. For activated units reload
-		// is not a supported action. In that case treat it like a non-activated
-		// service.
-		if len(st.ActivatorUnitStatuses()) != 0 && !opts.Reload {
-			// Restart any activators first and operate normally on these
-			for _, act := range st.ActivatorUnitStatuses() {
-				// Use the primary name here for shouldRestart, as the caller
-				// will never refer directly to the sub-services.
-				if shouldRestart(act.Active, act.Enabled, unitName) {
-					unitsToRestart = append(unitsToRestart, act.Name)
+		// If the service is activated, then we must also consider its activators.
+		// On reload we skip activators and only operate on the active primary
+		// unit.
+		if len(st.ActivatorUnitStatuses()) != 0 {
+			if !opts.Reload {
+				for _, act := range st.ActivatorUnitStatuses() {
+					// Use the primary name here for shouldRestart, as the caller
+					// will never refer directly to the sub-services.
+					if shouldRestart(act.Active, act.Enabled, unitName) {
+						unitsToRestart = append(unitsToRestart, act.Name)
+					}
 				}
 			}
 
@@ -1287,15 +1287,16 @@ func restartServicesByStatus(svcsSts []*internal.ServiceStatus, explicitServices
 	return nil
 }
 
-// Restart or reload active services in `svcs`.
-// If reload flag is set then "systemctl reload-or-restart" is attempted.
-// The services mentioned in `explicitServices` should be a subset of the
-// services in svcs. The services included in explicitServices are always
-// restarted, regardless of their state. The services in the `svcs` argument
-// are only restarted if they are active, so if a service is meant to be
-// restarted no matter it's state, it should be included in the
-// explicitServices list.
-// The list of explicitServices needs to use systemd unit names.
+// RestartServices restarts or reloads services in `svcs`. If reload flag is set
+// then "systemctl reload-or-restart" is attempted. For activated services,
+// reload skips activators and only applies to the active primary unit. The
+// services mentioned in `explicitServices` should be a subset of the services
+// in svcs. For ordinary services, entries in `explicitServices` are always
+// restarted regardless of their state. For activated services,
+// `explicitServices` and AlsoEnabledNonActive only affect activators; the
+// primary unit is still only restarted or reloaded when it is already active.
+// The list of `explicitServices` needs to use systemd unit names.
+//
 // TODO: change explicitServices format to be less unusual, more consistent
 // (introduce AppRef?)
 func RestartServices(apps []*snap.AppInfo, explicitServices []string,

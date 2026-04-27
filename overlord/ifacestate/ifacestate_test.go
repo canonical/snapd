@@ -3195,6 +3195,162 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlots(c *C) {
 	c.Check(newConns, DeepEquals, []string{"consumer:plug producer:slot"})
 }
 
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectParallelInstalledSlotSnapInstallingConsumer(c *C) {
+	s.testDoSetupSnapSecurityNoAutoConnectParallelInstalledSlotSnap(c, installingConsumer)
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityNoAutoConnectParallelInstalledSlotSnapInstallingProducer(c *C) {
+	s.testDoSetupSnapSecurityNoAutoConnectParallelInstalledSlotSnap(c, installingProducer)
+}
+
+const (
+	installingConsumer = iota
+	installingProducer
+)
+
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityNoAutoConnectParallelInstalledSlotSnap(c *C, scenario int) {
+	// The auto-connect task will not auto-connect to parallel installed slot snaps.
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	// Add an OS snap.
+	s.mockSnap(c, coreSnapYaml)
+	// Add a parallel-installed producer snap with a "slot" slot of the "test" interface.
+	prodSnapInfo := s.mockSnapInstance(c, "producer_instance", fmt.Sprintf(producerYamlTemplate, "producer"))
+	// Add a consumer snap with an unconnected plug (interface "test")
+	consSnapInfo := s.mockSnap(c, consumerYaml)
+
+	// Initialize the manager. This registers all snaps.
+	mgr := s.manager(c)
+
+	var change *state.Change
+	switch scenario {
+	case installingConsumer:
+		// setup-snap-security task as if we're installing the "consumer"
+		change = s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: consSnapInfo.SnapName(),
+				Revision: consSnapInfo.Revision,
+			},
+		})
+	case installingProducer:
+		// setup-snap-security task as if we're installing the "producer_instance"
+		change = s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: prodSnapInfo.SnapName(),
+				Revision: prodSnapInfo.Revision,
+			},
+			InstanceKey: "instance",
+		})
+	}
+
+	// Run the change and let it finish
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that no auto-connections were made - the only slot candidate
+	// was from a parallel installed snap which is disallowed.
+	var conns map[string]any
+	err := s.state.Get("conns", &conns)
+	if !errors.Is(err, state.ErrNoState) {
+		c.Assert(err, IsNil)
+		c.Check(conns, HasLen, 0)
+	}
+
+	// Ensure that no connections exist in the repository.
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 0)
+
+	// A manual connection to the parallel installed snap is possible.
+	connectChange := s.state.NewChange("connect", "manual connect")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer_instance", "slot")
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 5)
+	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+	connectChange.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+
+	c.Assert(connectChange.Err(), IsNil)
+	c.Assert(connectChange.Status(), Equals, state.DoneStatus)
+
+	// Connection is established
+	ifaces = repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer_instance", Name: "slot"}}})
+}
+
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsParallelInstalledPlugSnap(c *C) {
+	// The auto-connect task will auto-connect plugs of a parallel installed snap
+	// to compatible slots of regular (non-parallel installed) snaps.
+	s.MockModel(c, nil)
+
+	// Mock the interface that will be used by the test
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
+	// Add an OS snap.
+	s.mockSnap(c, coreSnapYaml)
+	// Add a regular producer snap with a "slot" slot of the "test" interface.
+	s.mockSnap(c, producerYaml)
+	// Add a parallel-installed consumer snap with a "plug" plug of the "test" interface.
+	snapInfo := s.mockSnapInstance(c, "consumer_instance", fmt.Sprintf(consumerYamlTemplate, "consumer"))
+
+	// Initialize the manager. This registers all snaps.
+	mgr := s.manager(c)
+
+	// Run the setup-snap-security task for the parallel-installed consumer.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.SnapName(),
+			Revision: snapInfo.Revision,
+		},
+		InstanceKey: "instance",
+	})
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that the parallel-installed consumer's plug was auto-connected
+	// to the regular producer's slot.
+	var conns map[string]any
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]any{
+		"consumer_instance:plug producer:slot": map[string]any{
+			"interface": "test", "auto": true,
+			"plug-static": map[string]any{"attr1": "value1"},
+			"slot-static": map[string]any{"attr2": "value2"},
+		},
+	})
+
+	// Ensure that the connection exists in the repository.
+	repo := mgr.Repository()
+	ifaces := repo.Interfaces()
+	c.Assert(ifaces.Connections, HasLen, 1)
+	c.Check(ifaces.Connections, DeepEquals, []*interfaces.ConnRef{{
+		PlugRef: interfaces.PlugRef{Snap: "consumer_instance", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}})
+}
+
 // The auto-connect task will auto-connect slots with viable multiple candidates.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsSlotsMultiplePlugs(c *C) {
 	s.MockModel(c, nil)

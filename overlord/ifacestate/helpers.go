@@ -984,13 +984,33 @@ func filterUbuntuCoreSlots(candidates []*snap.SlotInfo, arities []interfaces.Sid
 	return candidates, arities
 }
 
-// addAutoConnections adds to newconns any applicable auto-connections
-// from the given plugs to corresponding candidates slots after
-// filtering them with optional filter and against preexisting
-// conns. cannotAutoConnectLog is called to build a log message in
-// case no applicable pair was found. conflictError is called
-// to handle checkAutoconnectConflicts errors.
-func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo, filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState, cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string, conflictError func(*state.Retry, error) error) error {
+func filterOutParallelInstallsSlots(candidates []*snap.SlotInfo, arities []interfaces.SideArity) ([]*snap.SlotInfo, []interfaces.SideArity) {
+	var withoutParallelInstalled []*snap.SlotInfo
+	var withoutParallelInstalledArities []interfaces.SideArity
+
+	for i, candSlot := range candidates {
+		if candSlot.Snap.InstanceKey != "" {
+			continue
+		}
+		withoutParallelInstalled = append(withoutParallelInstalled, candSlot)
+		withoutParallelInstalledArities = append(withoutParallelInstalledArities, arities[i])
+	}
+
+	return withoutParallelInstalled, withoutParallelInstalledArities
+}
+
+// addAutoConnections adds to newconns any applicable auto-connections from the
+// given plugs to corresponding candidates slots after filtering them with
+// optional filter and against preexisting conns. Candidate slots from parallel
+// installed snaps are filtered-out and are not used for establishing
+// connections. cannotAutoConnectLog is called to build a log message in case no
+// applicable pair was found. conflictError is called to handle
+// checkAutoconnectConflicts errors.
+func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[string]*interfaces.ConnRef, plugs []*snap.PlugInfo,
+	filter func([]*snap.SlotInfo) []*snap.SlotInfo, conns map[string]*schema.ConnState,
+	cannotAutoConnectLog func(plug *snap.PlugInfo, candRefs []string) string,
+	conflictError func(*state.Retry, error) error,
+) error {
 	for _, plug := range plugs {
 		candSlots, arities := c.repo.AutoConnectCandidateSlots(plug.Snap.InstanceName(), plug.Name, c.check)
 
@@ -1004,6 +1024,13 @@ func (c *autoConnectChecker) addAutoConnections(task *state.Task, newconns map[s
 		// want to ignore any candidates in ubuntu-core and
 		// simply go with those from the new core snap.
 		candSlots, arities = filterUbuntuCoreSlots(candSlots, arities)
+
+		// Filter out slots from parallel installed snaps.
+		// TODO:parallel-installs: figure out the policy for auto connections
+		// and parallel installed slot side snaps. Note, this could be applied
+		// earlier, but doing it here ensures that the policy is applied in a
+		// centralized fashion.
+		candSlots, arities = filterOutParallelInstallsSlots(candSlots, arities)
 
 		applicable := candSlots
 		// candidate arity check

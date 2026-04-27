@@ -1,0 +1,80 @@
+Source: snapd
+Section: devel
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Build-Depends: autoconf,
+               autoconf-archive,
+               automake,
+               autotools-dev,
+               bash-completion,
+               ca-certificates,
+               dbus,
+               debhelper (>= 12),
+               dh-apparmor,
+               dh-autoreconf,
+               dh-golang,
+               fakeroot,
+               flake8,
+               gcc-multilib [amd64],
+               gettext,
+               gnupg2,
+               golang-go (>=2:1.18~),
+               grub-common,
+               indent,
+               init-system-helpers,
+               libapparmor-dev,
+               libblkid-dev,
+               libcap-dev,
+               libfuse3-dev,
+               libglib2.0-dev,
+               liblzma-dev,
+               liblzo2-dev,
+               libseccomp-dev,
+               libudev-dev,
+               m4,
+               openssh-client,
+               pkg-config,
+               python3,
+               python3-bs4,
+               python3-docutils,
+               python3-markdown,
+               python3-pytest,
+               squashfs-tools,
+               tzdata,
+               systemd-dev,
+               xfslibs-dev
+Standards-Version: 3.9.7
+Homepage: https://github.com/canonical/snapd
+Vcs-Browser: https://github.com/canonical/snapd
+Vcs-Git: https://github.com/canonical/snapd.git
+
+Package: golang-github-snapcore-snapd-dev
+Architecture: all
+Depends: ${misc:Depends}
+Description: snappy development go packages.
+ Use these to use the snappy API.
+
+Package: snapd
+Architecture: any
+Depends: adduser,
+         apparmor,
+         ca-certificates,
+         fuse3,
+         libcap2-bin,
+         openssh-client,
+         squashfs-tools,
+         systemd,
+         udev,
+         ${dbussession:Depends},
+         ${misc:Depends},
+         ${shlibs:Depends}
+Recommends: gnupg
+Suggests: zenity | kdialog
+Built-Using: ${Built-Using} ${misc:Built-Using}
+Description: Daemon and tooling that enable snap packages
+ Install, configure, refresh and remove snap packages. Snaps are
+ 'universal' packages that work across many different Linux systems,
+ enabling secure distribution of the latest apps and utilities for
+ cloud, servers, desktops and the internet of things.
+ .
+ Start with 'snap list' to see installed snaps.

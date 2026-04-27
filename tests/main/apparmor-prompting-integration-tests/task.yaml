@@ -28,6 +28,7 @@ environment:
     VARIANT/download_file_safer: download_file_safer
     VARIANT/read_single_allow: read_single_allow
     VARIANT/read_single_deny: read_single_deny
+    VARIANT/special_characters: special_characters
     VARIANT/timespan_allow: timespan_allow
     VARIANT/timespan_deny: timespan_deny
     VARIANT/write_read_multiple_actioned_by_other_pid_allow_deny: write_read_multiple_actioned_by_other_pid_allow_deny

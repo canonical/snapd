@@ -179,12 +179,19 @@ func (c component) componentRegex() string {
 
 var escapeFinder = regexp.MustCompile(`\\(.)`)
 
-// unescapeLiteral removes any `\` characters which are used to escape another
-// character. Note that escaped `\` characters are not removed, since they are
+// unescapeLiteral removes any '\' characters which are used to escape another
+// character. Note that escaped '\' characters are not removed, since they are
 // not acting as an escape character in those instances. That is, `\\` is
 // reduced to `\`.
 func unescapeLiteral(literal string) string {
 	return escapeFinder.ReplaceAllString(literal, "${1}")
+}
+
+var escaper = regexp.MustCompile(`([\*\?\[\]\{\}\\])`)
+
+// EscapeLiteralPath escapes any special characters from the given path.
+func EscapeLiteralPath(path string) string {
+	return escaper.ReplaceAllString(path, `\${1}`)
 }
 
 type PatternVariant struct {
