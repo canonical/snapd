@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil/user"
 )
 
@@ -52,7 +53,7 @@ func (s *SnapRoutineFileAccessSuite) SetUpTest(c *C) {
 	}))
 }
 
-func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRemovableMedia bool) {
+func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRemovableMedia, promptingSupported, promptingEnabled bool) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/snaps/hello":
@@ -101,6 +102,21 @@ func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRe
 				"type":   "sync",
 				"result": result,
 			})
+		case "/v2/system-info":
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/system-info")
+			sysInfo := client.SysInfo{
+				Features: map[string]features.FeatureInfo{
+					features.AppArmorPrompting.String(): {
+						Supported: promptingSupported,
+						Enabled:   promptingEnabled,
+					},
+				},
+			}
+			EncodeResponseBody(c, w, map[string]any{
+				"type":   "sync",
+				"result": sysInfo,
+			})
 		default:
 			c.Fatalf("unexpected request: %v", r)
 		}
@@ -136,7 +152,7 @@ func (s *SnapRoutineFileAccessSuite) checkBasicAccess(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessDefault(c *C) {
-	s.setUpClient(c, false, false, false)
+	s.setUpClient(c, false, false, false, false, false)
 	s.checkBasicAccess(c)
 
 	// No access to root
@@ -150,7 +166,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessDefault(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessClassicConfinement(c *C) {
-	s.setUpClient(c, true, false, false)
+	s.setUpClient(c, true, false, false, false, false)
 
 	// Classic confinement snaps run in the host file system
 	// namespace, so have access to everything.
@@ -162,7 +178,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessClassicConfinement(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterface(c *C) {
-	s.setUpClient(c, false, true, false)
+	s.setUpClient(c, false, true, false, false, false)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -172,8 +188,41 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterface(c *C) {
 	s.checkAccess(c, filepath.Join(s.fakeHome, ".config"), "hidden\n")
 }
 
+func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingUnsupportedOrDisabled(c *C) {
+	// Prompting supported but not enabled
+	s.setUpClient(c, false, true, false, true, false)
+	s.checkBasicAccess(c)
+
+	// Access to non-hidden files in the home directory
+	s.checkAccess(c, s.fakeHome, "read-write\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, "Documents/foo.txt"), "read-write\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, "Documents/.hidden"), "read-write\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, ".config"), "hidden\n")
+
+	// Prompting enabled but not supported
+	s.setUpClient(c, false, true, false, false, true)
+	s.checkBasicAccess(c)
+
+	// Access to non-hidden files in the home directory
+	s.checkAccess(c, s.fakeHome, "read-write\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, "Documents/foo.txt"), "read-write\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, "Documents/.hidden"), "read-write\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, ".config"), "hidden\n")
+}
+
+func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingSupportedAndEnabled(c *C) {
+	s.setUpClient(c, false, true, false, true, true)
+	s.checkBasicAccess(c)
+
+	// Access to non-hidden files in the home directory
+	s.checkAccess(c, s.fakeHome, "hidden\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, "Documents/foo.txt"), "hidden\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, "Documents/.hidden"), "hidden\n")
+	s.checkAccess(c, filepath.Join(s.fakeHome, ".config"), "hidden\n")
+}
+
 func (s *SnapRoutineFileAccessSuite) TestAccessRemovableMedia(c *C) {
-	s.setUpClient(c, false, false, true)
+	s.setUpClient(c, false, false, true, false, false)
 	s.checkBasicAccess(c)
 
 	s.checkAccess(c, "/mnt", "read-write\n")

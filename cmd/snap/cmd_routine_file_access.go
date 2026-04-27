@@ -28,6 +28,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -105,7 +106,16 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 		}
 	}
 
-	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, path)
+	// XXX: should features.AppArmorPrompting.IsEnabled() be used instead of
+	// querying the API for /v2/system-info?
+	sysInfo, err := x.client.SysInfo()
+	if err != nil {
+		return fmt.Errorf("cannot get system info: %w", err)
+	}
+	promptingFeatureInfo, ok := sysInfo.Features[features.AppArmorPrompting.String()]
+	promptingRunning := ok && promptingFeatureInfo.Supported && promptingFeatureInfo.Enabled
+
+	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, promptingRunning, path)
 	if err != nil {
 		return err
 	}
@@ -143,7 +153,7 @@ func pathHasPrefix(path, prefix []string) bool {
 	return true
 }
 
-func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia bool, path string) (FileAccess, error) {
+func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, promptingRunning bool, path string) (FileAccess, error) {
 	// Classic confinement snaps run in the host system namespace,
 	// so can see everything.
 	if snap.Confinement == client.ClassicConfinement {
@@ -204,8 +214,10 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 		}
 		// If the home interface is connected, the snap has
 		// access to other files in home, except top-level dot
-		// files.
-		if hasHome {
+		// files. If prompting is running, then the file access
+		// should be proxied, so we don't get a prompt to use a
+		// file which has been chosen via a portal.
+		if hasHome && !promptingRunning {
 			if len(pathInHome) == 0 || !strings.HasPrefix(pathInHome[0], ".") {
 				return FileAccessReadWrite, nil
 			}
