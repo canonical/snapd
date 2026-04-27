@@ -11,6 +11,9 @@ environment:
     PARALLEL_INSTANCES/no_parallel: false
 
 prepare: |
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    echo "$SNAP_MOUNT_DIR" > start-mount-dir
+
     snap set system experimental.user-daemons=true
     # although state reset should clean that up
     tests.cleanup defer snap unset system experimental.user-daemons
@@ -18,7 +21,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
     # install twice
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
-    
+
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
     tests.cleanup defer snap remove --purge test-snapd-user-service
@@ -30,6 +33,22 @@ prepare: |
         "$TESTSTOOLS"/snaps-state install-local-as test-snapd-service test-snapd-service_foo
         tests.cleanup defer snap remove --purge test-snapd-service_foo
     fi
+
+restore: |
+    # normally we should use tests.cleanup defer, but in this case, the
+    # restoration steps are more complicated
+    tests.systemd stop-unit snapd.service
+    echo "Ensure all snaps are gone"
+    snapd.tool exec snap-mgmt --purge
+    if test -L /snap ; then
+        rm /snap
+    fi
+
+    START_MOUNT_DIR="$(cat start-mount-dir)"
+    test -n "$START_MOUNT_DIR"
+    mkdir -p "$START_MOUNT_DIR"
+    # verify that the mount directory now is the same as we started
+    test "$(os.paths snap-mount-dir)" = "$START_MOUNT_DIR"
 
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
