@@ -3146,7 +3146,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
-	removals := map[string]bool{}
+	removals := map[string]bool{snapst.InstanceName(): true}
 	ts, snapshotSize, err := removeTasks(st, &snapst, removals, revision, flags)
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
@@ -3460,6 +3460,22 @@ func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
 	return nil
 }
 
+func fallbackToCore(st *state.State) bool {
+	fallbackToCore := false
+	var core16Snapst SnapState
+	err := Get(st, "core16", &core16Snapst)
+	if err != nil || !core16Snapst.IsInstalled() {
+		// core16 is not installed
+		var coreSnapst SnapState
+		err := Get(st, "core", &coreSnapst)
+		if err == nil && coreSnapst.IsInstalled() {
+			// core is installed
+			fallbackToCore = true
+		}
+	}
+	return fallbackToCore
+}
+
 func baseForApp(snapst *SnapState, fallbackToCore bool) string {
 	// if core is installed, snaps with base core16 use core instead
 	baseName := snapst.Base
@@ -3514,19 +3530,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		return typeI.SortsBefore(typeJ)
 	})
 
-	fallbackToCore := false
-	var core16Snapst SnapState
-	err := Get(st, "core16", &core16Snapst)
-	if err != nil || !core16Snapst.IsInstalled() {
-		// core16 is not installed
-		var coreSnapst SnapState
-		err := Get(st, "core", &coreSnapst)
-		if err == nil && coreSnapst.IsInstalled() {
-			// core is installed
-			fallbackToCore = true
-		}
-	}
-
+	useCoreForCore16 := fallbackToCore(st)
 	removed := make([]string, 0, len(snapsts))
 	tasksets := make([]*state.TaskSet, 0, len(snapsts))
 	// keeps track of the taskset created to remove a snap
@@ -3548,7 +3552,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		// for apps, check if the base it uses is being removed as well
 		// and make the base's remove taskset wait for the app's
 		if typ == snap.TypeApp {
-			base := baseForApp(&snapst, fallbackToCore)
+			base := baseForApp(&snapst, useCoreForCore16)
 			if removals[base] {
 				baseTs := snapToTaskSet[base]
 				serializeTaskSets(baseTs, ts)

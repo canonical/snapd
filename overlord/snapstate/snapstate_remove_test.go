@@ -2166,6 +2166,63 @@ func (s *snapmgrTestSuite) TestRemoveAppAndBase(c *C) {
 	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
 }
 
+func (s *snapmgrTestSuite) TestRemoveAppAndCore16(c *C) {
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core20")))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\ntype: app\nbase: core16", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+		Base:     "core16",
+	})
+
+	si2 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: core\nversion: 1.0\ntype: base\n", si2)
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
+		Current:  si2.Revision,
+		SnapType: string(snap.TypeOS),
+	})
+
+	// some-app should fall back to using core as base
+	_, _, err := snapstate.RemoveMany(s.state, []string{"core"}, nil)
+	c.Check(err, ErrorMatches, "snap \"core\" is not removable: snap is being used by snap some-snap.")
+
+	// removing core should succeed when removing some-app as well
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"core", "some-snap"}, nil)
+	c.Check(err, IsNil)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "core"})
+	// check that the tasks for the bases depend on the tasks for the app
+	baseFirstTask := tss[1].Tasks()[0]
+	appLastTask := tss[0].Tasks()[len(tss[0].Tasks())-1]
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
+
+	si3 := &snap.SideInfo{RealName: "core16", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: core16\nversion: 1.0\ntype: base\n", si3)
+	snapstate.Set(s.state, "core16", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
+		Current:  si3.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	// some-app should not fall back to using core as base since core16 is installed
+	_, _, err = snapstate.RemoveMany(s.state, []string{"core16"}, nil)
+	c.Check(err, ErrorMatches, "snap \"core16\" is not removable: snap is being used by snap some-snap.")
+
+	// removing core16 should succeed when removing some-app as well
+	removed, tss, err = snapstate.RemoveMany(s.state, []string{"core16", "some-snap"}, nil)
+	c.Check(err, IsNil)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "core16"})
+	// check that the tasks for the bases depend on the tasks for the app
+	baseFirstTask = tss[1].Tasks()[0]
+	appLastTask = tss[0].Tasks()[len(tss[0].Tasks())-1]
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
+}
+
 func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
