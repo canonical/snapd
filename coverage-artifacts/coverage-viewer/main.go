@@ -2,10 +2,15 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"net/http"
 	"os"
@@ -58,12 +63,23 @@ type sourceResponse struct {
 	Lines      []lineData `json:"lines"`
 }
 
+type functionsByFileJSON struct {
+	Test  string                 `json:"test"`
+	Files []functionsByFileEntry `json:"files"`
+}
+
+type functionsByFileEntry struct {
+	Path             string   `json:"path"`
+	CoveredFunctions []string `json:"covered_functions"`
+}
+
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8099", "HTTP listen address")
 	repoRoot := flag.String("repo-root", ".", "path to snapd repository root")
 	resultsDir := flag.String("results-dir", "coverage-artifacts/coverage-results", "path to raw coverage result directories")
 	listCoveredFiles := flag.Bool("list-covered-files", false, "print files with at least one covered line for a given test and exit")
-	testName := flag.String("test", "", "test directory name under coverage-results (required with -list-covered-files)")
+	functionsJSON := flag.Bool("functions-json", false, "print JSON with covered functions per file for a given test and exit")
+	testName := flag.String("test", "", "test directory name under coverage-results (required with -list-covered-files and -functions-json)")
 	flag.Parse()
 
 	absRepoRoot, err := filepath.Abs(*repoRoot)
@@ -105,6 +121,16 @@ func main() {
 		return
 	}
 
+	if *functionsJSON {
+		if strings.TrimSpace(*testName) == "" {
+			log.Fatalf("cannot print functions JSON: provide -test")
+		}
+		if err := a.printFunctionsJSON(*testName); err != nil {
+			log.Fatalf("cannot print functions JSON: %v", err)
+		}
+		return
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", a.handleIndex)
 	mux.HandleFunc("/api/tests", a.handleTests)
@@ -137,6 +163,140 @@ func (a *app) printCoveredFiles(testName string) error {
 		fmt.Println(path)
 	}
 	return nil
+}
+
+func (a *app) printFunctionsJSON(testName string) error {
+	coverage, err := a.loadCoverage(testName)
+	if err != nil {
+		return err
+	}
+
+	paths := make([]string, 0, len(coverage.Files))
+	for path, fileCov := range coverage.Files {
+		if len(fileCov.Covered) > 0 {
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+
+	payload := functionsByFileJSON{
+		Test:  testName,
+		Files: make([]functionsByFileEntry, 0, len(paths)),
+	}
+
+	for _, path := range paths {
+		fileCov := coverage.Files[path]
+		covered, err := a.extractCoveredFunctions(path, fileCov)
+		if err != nil {
+			return err
+		}
+		payload.Files = append(payload.Files, functionsByFileEntry{
+			Path:             path,
+			CoveredFunctions: covered,
+		})
+	}
+
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(payload)
+}
+
+func (a *app) extractCoveredFunctions(filePath string, fileCov *lineCoverage) ([]string, error) {
+	sourcePath, err := a.sourcePath(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	fset := token.NewFileSet()
+	astFile, err := parser.ParseFile(fset, sourcePath, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse %s: %v", filePath, err)
+	}
+
+	coveredSet := make(map[string]struct{})
+	for _, decl := range astFile.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil {
+			continue
+		}
+		start := fset.Position(fn.Body.Lbrace).Line
+		end := fset.Position(fn.Body.Rbrace).Line
+		if !hasCoveredLineInRange(fileCov.Covered, start, end) {
+			continue
+		}
+		coveredSet[funcDeclName(fset, fn)] = struct{}{}
+	}
+
+	covered := mapKeysSorted(coveredSet)
+	return covered, nil
+}
+
+func hasCoveredLineInRange(covered map[int]struct{}, start, end int) bool {
+	for ln := range covered {
+		if ln >= start && ln <= end {
+			return true
+		}
+	}
+	return false
+}
+
+func mapKeysSorted(m map[string]struct{}) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func formatNode(fset *token.FileSet, n ast.Node) string {
+	var buf bytes.Buffer
+	if err := format.Node(&buf, fset, n); err != nil {
+		return "<unknown>"
+	}
+	return strings.Join(strings.Fields(strings.TrimSpace(buf.String())), " ")
+}
+
+func callExprName(fset *token.FileSet, expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return e.Name
+	case *ast.SelectorExpr:
+		left := callExprName(fset, e.X)
+		if left == "" || left == "<unknown>" {
+			return e.Sel.Name
+		}
+		return left + "." + e.Sel.Name
+	case *ast.ParenExpr:
+		return callExprName(fset, e.X)
+	case *ast.StarExpr:
+		return callExprName(fset, e.X)
+	case *ast.UnaryExpr:
+		return callExprName(fset, e.X)
+	case *ast.CallExpr:
+		return callExprName(fset, e.Fun) + "()"
+	case *ast.IndexExpr:
+		return callExprName(fset, e.X)
+	case *ast.IndexListExpr:
+		return callExprName(fset, e.X)
+	case *ast.CompositeLit:
+		if e.Type != nil {
+			return callExprName(fset, e.Type)
+		}
+		return "<composite>"
+	case *ast.FuncLit:
+		return "<func-literal>"
+	default:
+		return formatNode(fset, expr)
+	}
+}
+
+func funcDeclName(fset *token.FileSet, fn *ast.FuncDecl) string {
+	if fn.Recv == nil || len(fn.Recv.List) == 0 {
+		return fn.Name.Name
+	}
+	recv := formatNode(fset, fn.Recv.List[0].Type)
+	return fmt.Sprintf("(%s).%s", recv, fn.Name.Name)
 }
 
 func readModulePath(repoRoot string) (string, error) {
