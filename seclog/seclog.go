@@ -41,27 +41,22 @@ const (
 )
 
 // String returns a name for the level. If the level has a name, then that name
-// in uppercase is returned. If the level is between named values, then an
-// integer is appended to the uppercased name.
+// in uppercase is returned. Otherwise, a string of the form "UKNOWN(<number>)"
+// is returned.
 func (l Level) String() string {
-	str := func(base string, val Level) string {
-		if val == 0 {
-			return base
-		}
-		return fmt.Sprintf("%s%+d", base, val)
-	}
-
-	switch {
-	case l < LevelInfo:
-		return str("DEBUG", l-LevelDebug)
-	case l < LevelWarn:
-		return str("INFO", l-LevelInfo)
-	case l < LevelError:
-		return str("WARN", l-LevelWarn)
-	case l < LevelCritical:
-		return str("ERROR", l-LevelError)
+	switch l {
+	case LevelDebug:
+		return "DEBUG"
+	case LevelInfo:
+		return "INFO"
+	case LevelWarn:
+		return "WARN"
+	case LevelError:
+		return "ERROR"
+	case LevelCritical:
+		return "CRITICAL"
 	default:
-		return str("CRITICAL", l-LevelCritical)
+		return fmt.Sprintf("UNKNOWN(%d)", int(l))
 	}
 }
 

@@ -66,14 +66,14 @@ func (s *SecLogSuite) TestString(c *C) {
 	}
 
 	expected := []string{
-		"DEBUG-1",
+		"UNKNOWN(0)",
 		"DEBUG",
 		"INFO",
 		"WARN",
 		"ERROR",
 		"CRITICAL",
 		"CRITICAL",
-		"CRITICAL+2",
+		"UNKNOWN(7)",
 	}
 
 	c.Assert(len(levels), Equals, len(expected))
