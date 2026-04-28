@@ -10,8 +10,6 @@ At the beginning of every six-month cycle, in agreement with stakeholders, snapd
 
 ## Release process
 
-The snapd release process consists of putting together content, crafting changelogs, testing, building and releasing both snaps and debs along with cross-distro artifacts, and publicizing the release.
-
 ### Overview
 
 ```mermaid
@@ -35,19 +33,16 @@ flowchart TD
     style w4 fill:#222,stroke:#333
 
     subgraph t0 [" "]
-        T0L["<b>Prepare release content - 6 weeks</b>"]:::label
+        T0L["<b>Prepare release content - 1 day</b>"]:::label
         subgraph w0 [" "]
-            PR1["PR 1 testing"]:::qa
-            PR2["PR 2 testing"]:::qa
-            PRN["PR N testing"]:::qa
-            PR1 & PR2 & PRN --> D1{{"Review release content"}}:::decision
+            D1{{"Agree on release content"}}:::decision
         end
     end
 
-    D1 --> RT["Release testing"]:::qa
+    D1 --> RT["Test release"]:::qa
 
     subgraph t1 [" "]
-        T1L["<b>Build and sanity check artifacts - 1 week</b>"]:::label
+        T1L["<b>Build beta artifacts - 1 week</b>"]:::label
         subgraph w1 [" "]
             RT
             BS["Build snaps"]:::qa
@@ -88,7 +83,7 @@ flowchart TD
     subgraph t4 [" "]
         T4L["<b>Release - 1 week</b>"]:::label
         subgraph w4 [" "]
-            SS["Stable release (snap)"]:::external
+            SS["Progressive stable release (snap)"]:::external
             IR["Interim/LTS releases deb<br/>(-updates)"]:::sru
         end
     end
@@ -116,26 +111,30 @@ The release process produces the following:
 - GitHub release https://github.com/canonical/snapd/releases
 - Cross-distro artifacts https://snapcraft.io/docs/reference/administration/distribution-support/
 
+*Note: documentation is produced separately from the [snap-docs repository](github.com/canonical/snap-docs)*
+
 ### Prerequisites
 
-The complete set of prerequisites for all release process steps, including optional ones, is as follows:
+The complete set of prerequisites for all release process steps is as follows:
 - permission from snapd manager to release snapd snap to latest/beta
 - a GPG key in both [GitHub](https://docs.github.com/en/authentication/managing-commit-signature-verification/adding-a-gpg-key-to-your-github-account) and [Launchpad](https://documentation.ubuntu.com/launchpad/user/how-to/import-openpgp-key/)
 - ability to create a release branch and push a tag to the snapd GitHub repository
 - snappy-dev group membership in Launchpad
 - ability to promote snapd via snapcraft (you can check if you have permission by running `snapcraft status snapd`)
-- (optional) permission to run autopkgtests in Launchpad (autopkgtest-requesters group membership; request via debcrafters)
-- (optional) permission to re-trigger failing autopkgtests running on -proposed (request via debcrafters)
+- permission to run autopkgtests in Launchpad (autopkgtest-requesters group membership; request via debcrafters)
+- permission to re-trigger failing autopkgtests running on -proposed (request via debcrafters)
 
 # Full Release Process
 
 ## Prepare release content
 
-**Time: 6 weeks**
+**Time: 1 day**
 
 ### Summary
 
-During the content preparation phase, PRs are created, tagged with the relevant milestone, and merged to master. As the cutoff approaches, the team should regularly check the GitHub milestone and work together to merge the content targeted for the release. One week before the cut date, the team should ensure any broken tests on master are diagnosed and fixed. On the cut date, the release engineer creates a new release branch and opens a PR against that branch with changelogs covering all relevant release content. CI testing on that PR kicks off the next phase: building and sanity-checking artifacts.
+*Note: Leading up to the cut date, the release engineer should ensure that the master branch does not contain broken tests.*
+
+On the cut date, the release engineer creates a new release branch and opens a PR against that branch with changelogs covering all relevant release content. CI testing on that PR kicks off the next phase: building beta artifacts.
 
 ### Steps
 
@@ -144,7 +143,7 @@ During the content preparation phase, PRs are created, tagged with the relevant 
 Prerequisites
 - release branch creation rights
 
-Create a branch named `release/<version-number>` from the master branch on [github.com/canonical/snapd](https://github.com/canonical/snapd). If you are creating a dot release, do not create a new branch; use the corresponding `release/<major>.<minor>` branch instead.
+Create a branch named `release/<version-number>` from the master branch on [github.com/canonical/snapd](https://github.com/canonical/snapd). If you are creating a patch release, do not create a new branch; use the corresponding `release/2.XX` branch instead.
 
 #### 2. Create a new SRU tracking bug in Launchpad
 
@@ -152,7 +151,7 @@ Create the bug under https://bugs.launchpad.net/ubuntu/+source/snapd (and not ht
 
 It should be named `[SRU] <version>`
 
-NOTE: All releases require their own new SRU bug, except dot releases that are intended to supersede a previous release, whether major or dot, that will not be released.
+NOTE: As a general rule, all releases require their own new SRU bug. The exception is patch releases that are intended to supersede a previous release that will not be pursued any further.
 
 Besides listing the Ubuntu release targets in the description, also select them as release targets. To do that, use the "Target to series" link and select the relevant releases. Once selected, they will appear in the table near the top of the page.
 
@@ -198,24 +197,14 @@ Verification required:
 - Perform release upgrades from <short name of earliest supported target release> to <short name of latest supported release>
 ```
 
-##### Examples of previous releases
+##### Notable examples illustrating selected edge cases and fully completed releases:
 
-- [2.75.2](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2143882)
 - [2.74.1 - supersede example](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2138629)
 - [2.73](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2132084)
-- [2.72](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2124239)
-- [2.71](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2118396)
-- [2.70](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2112209)
-- [2.69](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2105854)
+- [2.70 - unreleased](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2112209)
 - [2.68](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2098137)
-- [2.67](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2089691)
-- [2.66](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2083490)
 - [2.65.1 - Feature freeze exception](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2078050)
-- [2.65](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2077473)
-- [2.64](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2072986)
-- [2.63](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2061179)
-- [2.62](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2058277)
-- [2.61.3 - dot release example](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2039017)
+- [2.61.3 - patch release example](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2039017)
 
 #### 3. Curate list of changes for NEWS.md
 
@@ -229,8 +218,14 @@ NEWS.md properties:
 - summarized comments should be grouped in an order that is helpful to the audience, e.g. new features, bugfixes, and interface changes grouped together
 
 Steps:
-- (Optional) Use a script to gather all PRs in the release and create a spreadsheet to work from.
-    - A spreadsheet makes it easier to group PRs and filter out test-only and non-functional changes.
+- (Optional) Use a script to gather all PRs in the release and create a spreadsheet to work from to make it easier to group PRs and filter out test-only and non-functional changes.
+    ```
+    commit_hash_prev=
+    commit_hash_curr=
+    commit_prev_date=$(git show -s --format=%ci $commit_hash_prev | xargs -I{} date -d "{}" --utc +%Y-%m-%dT%H:%M:%SZ)
+    commit_curr_date=$(git show -s --format=%ci $commit_hash_curr | xargs -I{} date -d "{}" --utc +%Y-%m-%dT%H:%M:%SZ)
+    gh pr list --limit 500 --repo=canonical/snapd --base=master --state=merged --search "merged:$commit_prev_date..$commit_curr_date" --json number,title,author,mergedAt,labels,files | jq -r 'sort_by(.mergedAt) | reverse | .[] | ["https://github.com/canonical/snapd/pull/" + (.number|tostring), .title, .author.login, (.mergedAt | sub("T"; " ") | sub("Z"; "")), (.labels | map(.name) | join(", ")), (.files | map(.path) | join(", "))] | @csv' > pr_data.csv
+    ```
 - Ask the relevant feature developers to help summarize grouped comments.
 - Go through each PR and note any references to Launchpad bugs. If the PR fixes a bug and the bug is not tagged against the corresponding milestone, add it to the Launchpad bug.
 - All Launchpad bugs resolved by the release should be listed with their Launchpad number as follows: `LP: #<lp-number> <rest of comment>`. Each Launchpad bug under the corresponding milestone (`https://Launchpad.net/snapd/+milestone/<version>`) should have an entry. If the list doesn't exactly match, remove the milestone from LP bugs that are not included in the release.
@@ -249,14 +244,13 @@ Steps:
 	- One can update [this query](https://github.com/snapcore/snapd/pulls?q=-label%3Acherry-picked+is%3Apr+milestone%3A2.61+sort%3Aupdated-desc) to see which PRs target the release but have not yet been cherry-picked.
 3. Update NEWS.md with the list created in the previous section
 4. Generate changelogs using the NEWS.md created in the previous step
-	- Run the changelog script as follows: `DEBEMAIL="<name> <email>" release-tools/changelog.py <version> <sru bug number> NEWS.md` 
-		- e.g. `DEBEMAIL="Katie May <katie.may@canonical.com>" release-tools/changelog.py 2.75.2 2143882 NEWS.md`
+	- Run the changelog script as follows: `DEBEMAIL="<name> <email>" release-tools/changelog.py <version> <sru bug number> NEWS.md`
     - Do not commit the generated markdown file `snapd-<version>-GitHub-release.md`. You can use it to help create the GitHub release if needed; otherwise, ignore it.
 	- Double-check changed files
 		- `git diff | diffstat`
 		- `git diff release/2.75 | diffstat` (any recent previous tag will do)
         - The same files should get touched, all within `packaging/tree`.
-	- If you are generating changelogs for a version that supersedes the major version, remove `New upstream releases, LP#<lp-number>` from the previous version. The `+<ubuntu release>` and the release name from the previous version should match those of the current minor version.
+	- If you are generating changelogs for a version that supersedes a previous version, remove `New upstream releases, LP#<lp-number>` from the previous version. The `+<ubuntu release>` and the release name from the previous version should match those of the current patch version.
 5. Commit NEWS.md and the changelog updates as `release: <version>` on your personal branch
 6. Open the PR against `release/<version>`
     - The PR description should be formatted as follows. Only include the cherry-picked section if you have cherry-picked commits:
@@ -277,7 +271,7 @@ Steps:
 		```
 7. Add the "Run nested" label, then add the senior engineer and all team members who have content in NEWS.md as reviewers.
 
-## Build and sanity-check artifacts
+## Build beta artifacts
 
 **Time: 1 week**
 
@@ -289,7 +283,7 @@ The phase begins by testing the PR created against the release branch at the end
 
 #### 1. Test release PR and merge it
 
-1. Once the PR is approved, rerun tests as many times as necessary to get past flaky failures. 
+1. Once the PR is approved, rerun tests as many times as necessary to get past intermittent failures.
 2. Once stabilized, analyze test results to ensure all failures are understood and do not have an impact on the release quality. If any failures remain, add a comment on the PR for each failure, explaining its irrelevance.
 3. Use rebase-merge to merge the PR into the `release/<version>` branch.
 
@@ -316,11 +310,7 @@ Push the version tag to the canonical/snapd repo by following the steps:
 	2. You should use a regular merge commit to merge it (not squash and merge, not rebase and merge)
 4. Once merged, the tag's commit should be found on the master branch `git branch --contains <tag/tag-commit>`
 
-#### 4. Garden the GitHub milestone
-
-Ensure that only future milestones remain, or that there is a single open milestone.
-
-#### 5. Create snapd snap builds for `beta/<version>` on Launchpad
+#### 4. Create snapd snap builds for `beta/<version>` on Launchpad
 
 **IMPORTANT: Only trigger the snapd snap builds once you see the tag has been imported to Launchpad. The version is derived from the tag, so its absence will incorrectly produce `<version>+git`**
 
@@ -332,7 +322,7 @@ Ensure that only future milestones remain, or that there is a single open milest
 6. Once you are done setting it up, save, click on the package (https://launchpad.net/~snappy-dev/+snap/snapd-2.XX), and request builds.
 7. Once the builds have completed, ensure the versions are correct by checking `snapcraft status snapd | grep beta/<version>`
 
-#### 6. Release to latest/beta
+#### 5. Release to latest/beta
 
 Prerequisites:
 - You have the necessary snapcraft permissions to promote the snapd snap
@@ -343,15 +333,17 @@ Steps:
 1. Sync with the QA person on the team in charge of beta testing to make sure we can go to beta. For example, if a previous release has not yet made it to candidate, we would need to hold off on promoting.
 2. Find the revisions for the snap you just pushed. It will be `beta/<version>`. You can find the revisions by running `snapcraft status snapd`
 3. For each architectural build, you have a unique revision number. You release by running `snapcraft release snapd <revision-number> beta`. You will run that command for each individual revision number.
+4. Update internal roadmap tracking, for example by marking Jira epics and releases as completed.
+5. Update GitHub milestones to close the released milestone
 
-#### 7. Post-beta steps
+#### 6. Post-beta steps
 
 1. Let snapd QA know that snapd was promoted to beta so they can verify that testing has started.
 2. Contact the assigned tester from cert, clarify timeline and priority, and ask them to contact us immediately for any unexpected issues.
 3. Update https://forum.snapcraft.io/t/the-snapd-roadmap/1973 with release notes content, the correct date, and a green checkbox for beta.
 4. Once snapd beta testing and certification testing have concluded, sync with snapd QA and promote to candidate.
 
-#### 8. Build snapd debs and tarballs
+#### 7. Build snapd debs and tarballs
 
 *Note: It may sometimes be necessary to add content to the debs that is not in the snap (e.g. to fix an autopkgtest). The preferred way of doing so is to open a PR against the release branch with the cherry-picked changes.*
 
@@ -380,22 +372,22 @@ sudo apt build-dep .
 	3. Build the package from the directory `build-area/snapd-<version>` (`dpkg-buildpackage -S`)
 6. Create the source tarballs from the `build-area` directory: `../snapd/release-tools/repack-debian-tarball.sh ./snapd_<version>.tar.xz`
 
-#### 9. Upload tarballs to GitHub release
+#### 8. Upload tarballs to GitHub release
 
 From the previous step, the `repack-debian-tarball.sh` script will have created the following files:
 - `snapd_<version>.no-vendor.tar.xz`
--  `snapd_<version>.only-vendor.tar.xz`
+- `snapd_<version>.only-vendor.tar.xz`
 - `snapd_<version>.vendor.tar.xz`
 
 1. Create a GitHub release under https://github.com/canonical/snapd/releases, following the example of previous releases. The `changelog.py` script from the changelog generation step creates a markdown file that can be used here, or you can use NEWS.md and `sed`.
 2. Upload the three above-mentioned artifacts to that release
 3. Save it as a draft. It should only be published when beta testing has completed. Leave "Set as a pre-release" unchecked.
 
-#### 10. (Optional but highly recommended) Use a testing PPA to test builds and autopkgtests
+#### 9. Use a testing PPA to test builds and autopkgtests
 
 ##### Why do this step?
 
-Once you have uploaded packages to a PPA, there is no going back. You cannot modify the packages. If there is a problem that causes the builds to fail and you've uploaded to snappy-dev, then there's no way to fix the issue beyond incrementing the version. If you upload first to a test PPA, you can fix issues before uploading to snappy-dev without incrementing the version.
+Once you have uploaded packages to a PPA, there is no going back. You cannot modify the packages. If there is a problem that causes the builds to fail and you've uploaded to snappy-dev, then there's no way to fix the issue beyond incrementing the version. If you upload first to a test PPA, you can fix issues before uploading to snappy-dev without incrementing the version. This step may be skipped in exceptional circumstances.
 
 Prerequisites:
 - You have permission to run autopkgtests on Launchpad (membership in autopkgtests-requesters group)
@@ -408,7 +400,7 @@ Prerequisites:
 6. If you have never run autopkgtests, follow instructions in https://documentation.ubuntu.com/project/contributors/bug-fix/run-package-tests/index.html to set up your environment
 7. Use `ppa tests --show-url ppa:<launchpad-name>/<ppa-name> --release <distro code name>` to trigger tests and see results
 
-#### 11. Upload to snappy-dev/image PPA
+#### 10. Upload to snappy-dev/image PPA
 
 1. For each package created (found in `build-area`), upload it to snappy-dev PPA (`dput ppa:snappy-dev/image snapd_<version>+ubuntu<target-version>_source.changes`)
 2. Ensure all the builds succeed by watching https://launchpad.net/~snappy-dev/+archive/ubuntu/image/+packages?field.name_filter=snapd&field.status_filter=published
@@ -456,7 +448,7 @@ Steps:
 3. Confirm that the proposed fix or approach resolves the issue and report the results on the Launchpad bug.
 
 Notes:
-- If a bug was already verified in a major release (for example, 2.74), it does not need to be re-verified for a minor release (for example, 2.74.1).
+- If a bug was already verified in a release (for example, 2.74), it does not need to be re-verified for a patch release (for example, 2.74.1).
 - If a bug is explicitly marked in the test template as affecting snapd or Ubuntu Core only, you do not need to verify it across different Ubuntu release versions.
 - If the original reporter is external to the organization, encourage them to help verify the fix.
 - If the original reporter is internal to the organization, contact them and ask for testing support.
