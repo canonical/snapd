@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 
 	"golang.org/x/sys/unix"
@@ -50,6 +51,8 @@ func SdNotify(notifyState string) error {
 // SdNotifyWithFds sends the given state string notification and file
 // descriptors associated with passed files to systemd.
 //
+// Caller is responsible for closing the passed files.
+//
 // inspired by libsystemd/sd-daemon/sd-daemon.c from the systemd source
 func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 	if notifyState == "" {
@@ -58,11 +61,6 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 
 	if len(files) == 0 {
 		return fmt.Errorf("at least one file is required")
-	}
-
-	fds := make([]int, len(files))
-	for i := range files {
-		fds[i] = int(files[i].Fd())
 	}
 
 	conn, err := sdNotifyConn()
@@ -78,6 +76,11 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 
 	var sendMsgErr error
 	err = rawConn.Control(func(sdNotifyFd uintptr) {
+		fds := make([]int, len(files))
+		for i := range files {
+			fds[i] = int(files[i].Fd())
+		}
+
 		rights := unix.UnixRights(fds...)
 		creds := unix.UnixCredentials(&unix.Ucred{
 			Pid: int32(os.Getpid()),
@@ -86,6 +89,9 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 		})
 		oob := append(creds, rights...)
 		sendMsgErr = unix.Sendmsg(int(sdNotifyFd), []byte(notifyState), oob, nil, 0)
+
+		// Ensure finalizer is not called for passed files.
+		runtime.KeepAlive(files)
 	})
 	if err != nil {
 		return err

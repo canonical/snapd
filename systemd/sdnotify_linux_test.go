@@ -63,7 +63,9 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 		defer os.Unsetenv("NOTIFY_SOCKET")
 
 		if withFds {
-			c.Check(systemd.SdNotifyWithFds("something", os.NewFile(1, "")), ErrorMatches, t.errStr)
+			f, err := os.OpenFile(filepath.Join(c.MkDir(), "test"), os.O_RDWR|os.O_CREATE, 0644)
+			c.Assert(err, IsNil)
+			c.Check(systemd.SdNotifyWithFds("something", f), ErrorMatches, t.errStr)
 		} else {
 			c.Check(systemd.SdNotify("something"), ErrorMatches, t.errStr)
 		}
