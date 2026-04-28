@@ -54,7 +54,7 @@ prepare: |
     . "$TESTSLIB/systems.sh"
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    if os.query is-fedora || os.query is-arch-linux; then
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
         # set up classic execution support
         ln -sf "$SNAP_MOUNT_DIR" /snap
         tests.cleanup defer rm -f /snap
