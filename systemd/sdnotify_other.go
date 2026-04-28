@@ -33,6 +33,6 @@ func SdNotify(notifyState string) error {
 	return errUnsupported
 }
 
-func SdNotifyWithFds(notifyState string, fds ...int) error {
+func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 	return errUnsupported
 }

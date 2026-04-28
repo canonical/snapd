@@ -44,11 +44,11 @@ func (sd *sdNotifyTestSuite) TestSdNotifyMissingNotifyState(c *C) {
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsMissingNotifyState(c *C) {
-	c.Check(systemd.SdNotifyWithFds("", 1, 2), ErrorMatches, "invalid empty notify state")
+	c.Check(systemd.SdNotifyWithFds(""), ErrorMatches, "invalid empty notify state")
 }
 
 func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsMissingFds(c *C) {
-	c.Check(systemd.SdNotifyWithFds("some-state"), ErrorMatches, "at least one file descriptor is required")
+	c.Check(systemd.SdNotifyWithFds("some-state"), ErrorMatches, "at least one file is required")
 }
 
 func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
@@ -63,7 +63,7 @@ func (sd *sdNotifyTestSuite) testSdNotifyWrongNotifySocket(c *C, withFds bool) {
 		defer os.Unsetenv("NOTIFY_SOCKET")
 
 		if withFds {
-			c.Check(systemd.SdNotifyWithFds("something", 1, 2), ErrorMatches, t.errStr)
+			c.Check(systemd.SdNotifyWithFds("something", os.NewFile(1, "")), ErrorMatches, t.errStr)
 		} else {
 			c.Check(systemd.SdNotify("something"), ErrorMatches, t.errStr)
 		}
@@ -204,20 +204,22 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
 			ch <- true
 		}()
 
-		fd1, err := unix.Open(filepath.Join(tmpdir, "file-1"), unix.O_RDWR|unix.O_CREAT, 0644)
+		f1, err := os.OpenFile(filepath.Join(tmpdir, "file-1"), os.O_RDWR|os.O_CREATE, 0644)
 		c.Assert(err, IsNil)
-		_, err = unix.Write(fd1, []byte("hello-1"))
+		defer f1.Close()
+		_, err = f1.Write([]byte("hello-1"))
 		c.Assert(err, IsNil)
 
-		fd2, err := unix.Open(filepath.Join(tmpdir, "file-2"), unix.O_RDWR|unix.O_CREAT, 0644)
+		f2, err := os.OpenFile(filepath.Join(tmpdir, "file-2"), os.O_RDWR|os.O_CREATE, 0644)
 		c.Assert(err, IsNil)
-		_, err = unix.Write(fd2, []byte("hello-2"))
+		defer f2.Close()
+		_, err = f2.Write([]byte("hello-2"))
 		c.Assert(err, IsNil)
 
 		c.Check(filepath.Join(tmpdir, "file-1"), testutil.FileEquals, "hello-1")
 		c.Check(filepath.Join(tmpdir, "file-2"), testutil.FileEquals, "hello-2")
 
-		err = systemd.SdNotifyWithFds("something", fd1, fd2)
+		err = systemd.SdNotifyWithFds("something", f1, f2)
 		c.Assert(err, IsNil)
 
 		<-ch
@@ -229,8 +231,5 @@ func (sd *sdNotifyTestSuite) TestSdNotifyWithFdsIntegration(c *C) {
 		c.Check(creds.Pid, Equals, int32(os.Getpid()))
 		c.Check(creds.Uid, Equals, uint32(os.Getuid()))
 		c.Check(creds.Gid, Equals, uint32(os.Getgid()))
-
-		unix.Close(fd1)
-		unix.Close(fd2)
 	}
 }

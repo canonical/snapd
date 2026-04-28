@@ -49,16 +49,21 @@ func SdNotify(notifyState string) error {
 }
 
 // SdNotifyWithFds sends the given state string notification and file
-// descriptors to systemd.
+// descriptors associated with passed files to systemd.
 //
 // inspired by libsystemd/sd-daemon/sd-daemon.c from the systemd source
-func SdNotifyWithFds(notifyState string, fds ...int) error {
+func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 	if notifyState == "" {
 		return fmt.Errorf("invalid empty notify state")
 	}
 
-	if len(fds) == 0 {
-		return fmt.Errorf("at least one file descriptor is required")
+	if len(files) == 0 {
+		return fmt.Errorf("at least one file is required")
+	}
+
+	fds := make([]int, len(files))
+	for i := range files {
+		fds[i] = int(files[i].Fd())
 	}
 
 	conn, err := sdNotifyConn()
