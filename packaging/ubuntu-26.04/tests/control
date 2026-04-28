@@ -1,0 +1,10 @@
+Tests: integrationtests
+Restrictions: allow-stderr, rw-build-tree, needs-root, breaks-testbed, isolation-machine
+Depends: ca-certificates,
+         git,
+         locales,
+         net-tools,
+         netcat-openbsd,
+         openssh-server,
+         snapd,
+         @builddeps@

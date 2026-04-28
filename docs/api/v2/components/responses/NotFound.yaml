@@ -28,3 +28,5 @@ content:
             - $ref: '../errors/NotFoundError.yaml'
             - $ref: '../errors/UserNotFoundError.yaml'
             - $ref: '../errors/SnapNotInstalledError.yaml'
+            - $ref: '../errors/PromptingPromptNotFoundError.yaml'
+            - $ref: '../errors/PromptingRuleNotFoundError.yaml'

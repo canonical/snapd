@@ -622,3 +622,171 @@ func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
 		c.Assert(snapfile, Equals, "")
 	}
 }
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetExists(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "import"), 0755), IsNil)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, IsNil)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetMissing(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target \$SNAP/import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetNotDirectory(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "import"), []byte(""), 0644), IsNil)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target \$SNAP/import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetOldBaseSkipped(c *C) {
+	const snapYamlTemplate = `name: hello
+version: 0
+base: %s
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`
+	for _, base := range []string{"core", "core18", "core20", "core22", "core24"} {
+		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, base))
+		var buf bytes.Buffer
+		err := pack.CheckSkeleton(&buf, sourceDir)
+		c.Assert(err, IsNil, Commentf("base: %s", base))
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetBareBase(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: bare
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target \$SNAP/import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetEmptyBase(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, IsNil)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetRuntimePathSkipped(c *C) {
+	const snapYamlTemplate = `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: %s/import
+`
+	for _, prefix := range []string{"$SNAP_DATA", "$SNAP_COMMON"} {
+		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, prefix))
+		var buf bytes.Buffer
+		err := pack.CheckSkeleton(&buf, sourceDir)
+		c.Assert(err, IsNil, Commentf("target prefix: %s", prefix))
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetNoPrefix(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetEdgeCases(c *C) {
+	const snapYamlTemplate = `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: %s
+`
+	for _, tc := range []struct {
+		target string
+		ok     bool
+	}{
+		// all of these resolve to $SNAP and validation is always successful
+		{"$SNAP", true},
+		{"$SNAP/", true},
+		{"/", true},
+		// /path has implicit $SNAP prefix, leading / is stripped
+		{"/import", false},
+	} {
+		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, tc.target))
+		var buf bytes.Buffer
+		err := pack.CheckSkeleton(&buf, sourceDir)
+		if tc.ok {
+			c.Assert(err, IsNil, Commentf("target: %s", tc.target))
+		} else {
+			c.Assert(err, ErrorMatches, `content interface plug "shared-data" target.*must exist and must be a directory.*`, Commentf("target: %s", tc.target))
+		}
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetMultiplePlugs(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ plug-existing:
+  interface: content
+  target: $SNAP/existing
+ plug-missing:
+  interface: content
+  target: $SNAP/missing
+`)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "existing"), 0755), IsNil)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "plug-missing" target \$SNAP/missing must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}

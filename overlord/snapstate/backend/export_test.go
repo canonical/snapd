@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -75,4 +76,12 @@ func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsM
 
 func MockCgroupKillSnapProcesses(f func(ctx context.Context, snapName string) error) func() {
 	return testutil.Mock(&cgroupKillSnapProcesses, f)
+}
+
+func MockWrappersStartServices(f func(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error) func() {
+	return testutil.Mock(&wrappersStartServices, f)
+}
+
+func MockWrappersStopServices(f func(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, opts *wrappers.StopServicesOptions, reason snap.ServiceStopReason, inter wrappers.Interacter, tm timings.Measurer) error) func() {
+	return testutil.Mock(&wrappersStopServices, f)
 }

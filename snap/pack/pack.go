@@ -24,6 +24,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/kernel"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // this could be shipped as a file like "info", and save on the memory and the
@@ -92,6 +94,58 @@ func debArchitecture(info *snap.Info) string {
 	}
 }
 
+// validateContentPlugTargets checks that content interface plug target
+// directories exist in the snap source tree. This check only applies to
+// snaps with base core26 or later.
+func validateContentPlugTargets(container snap.Container, info *snap.Info) error {
+	// An empty base is equivalent to "core".
+	base := info.Base
+	if base == "" {
+		base = "core"
+	}
+	// Content plug target validation does not apply to bases
+	// before core26.
+	excluded := []string{
+		"core", "core18", "core20", "core22", "core24",
+	}
+	if strutil.ListContains(excluded, base) {
+		return nil
+	}
+
+	for plugName, plug := range info.Plugs {
+		if plug.Interface != "content" {
+			continue
+		}
+		var target string
+		if err := plug.Attr("target", &target); err != nil || target == "" {
+			continue
+		}
+		// Only $SNAP paths (or paths with no variable prefix) can be checked at
+		// pack time; $SNAP_DATA and $SNAP_COMMON are read-write runtime
+		// directories and mount points can be created as needed.
+		if strings.HasPrefix(target, "$SNAP_DATA") || strings.HasPrefix(target, "$SNAP_COMMON") {
+			continue
+		}
+		// split cleanup in 2 steps so that we handle all possible weird cases:
+		// - $SNAP   # weird but accepted
+		// - $SNAP/  # same as above
+		// - path    # implicit $SNAP/
+		// - /path   # implicit $SNAP/
+		// - /       # implicit $SNAP/
+		relPath := strings.TrimPrefix(target, "$SNAP")
+		relPath = strings.TrimPrefix(relPath, "/")
+		if relPath == "" {
+			// only the $SNAP and/or / combination prefix was present
+			continue
+		}
+		fi, err := container.Lstat(relPath)
+		if err != nil || !fi.IsDir() {
+			return fmt.Errorf("content interface plug %q target %v must exist and must be a directory, ensure it is present in the snap or created before packing", plugName, target)
+		}
+	}
+	return nil
+}
+
 // CheckSkeleton attempts to validate snap data in source directory
 func CheckSkeleton(w io.Writer, sourceDir string) error {
 	yaml, err := os.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
@@ -124,6 +178,12 @@ func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
 	if err := snap.ValidateSnapContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
+	if err := validateContentPlugTargets(container, info); err != nil {
+		return nil, err
+	}
+	// TODO: validate content interface slot source (read/write) paths
+	// exist in the snap source tree, see validateContentPlugTargets.
+
 	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
 		return nil, err
 	}

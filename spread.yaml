@@ -1580,6 +1580,19 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
+    tests/release/:
+        summary: Tests for snapd during the release process
+        systems: [ubuntu-1*, ubuntu-2*]
+        environment:
+            CORE_CHANNEL: stable
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        # This suite does not have restore steps due to the destructive
+        # nature of its tests that will cause the vanila restore scripts to
+        # fail. The tests in this suite are all meant to be run in isolation.
+
     tests/upgrade/:
         summary: Tests for snapd upgrade
         # Test cases are not yet ported to openSUSE that is why we keep

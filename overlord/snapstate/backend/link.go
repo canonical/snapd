@@ -39,6 +39,8 @@ import (
 )
 
 var wrappersAddSnapdSnapServices = wrappers.AddSnapdSnapServices
+var wrappersStartServices = wrappers.StartServices
+var wrappersStopServices = wrappers.StopServices
 var cgroupKillSnapProcesses = cgroup.KillSnapProcesses
 
 // LinkContext carries additional information about the current or the previous
@@ -244,11 +246,25 @@ func (b Backend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revisio
 
 func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
 	opts := &wrappers.StartServicesOptions{Enable: true}
-	return wrappers.StartServices(apps, disabledSvcs, opts, meter, tm)
+	return wrappersStartServices(apps, disabledSvcs, opts, meter, tm)
 }
 
-func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StopServices(apps, removedSvcs, nil, reason, meter, tm)
+func (b Backend) StopServices(apps []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, reason snap.ServiceStopReason, undoer Undoer, meter progress.Meter, tm timings.Measurer) error {
+	// Register the undo before stopping so that services are
+	// started again even when StopServices fails partway through
+	// (some services stopped, then an error on a later one).
+	undoer.AddUndo(func() error {
+		// Services need to be sorted according to their Before
+		// and After requirements
+		startupOrdered, err := snap.SortServices(apps)
+		if err != nil {
+			return fmt.Errorf("cannot sort services for undo: %v", err)
+		}
+		// StartServices filters out disabled services, so only
+		// previously enabled services will be started again.
+		return b.StartServices(startupOrdered, disabledSvcs, meter, tm)
+	})
+	return wrappersStopServices(apps, removedSvcs, nil, reason, meter, tm)
 }
 
 func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
