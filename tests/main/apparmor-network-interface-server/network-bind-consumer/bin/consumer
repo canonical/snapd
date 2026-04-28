@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+
+# This is a copy of tests/main/interfaces-network-bind/network-bind-consumer/bin/consumer,
+# but modified to listen on all interfaces instead of just localhost
+
+import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class testRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+
+        message = b"<!doctype html>ok\n"
+        self.wfile.write(message)
+
+def run():
+    # Allow traffic from all interfaces
+    server_address = ('0.0.0.0', 8081)
+    httpd = HTTPServer(server_address, testRequestHandler)
+    httpd.serve_forever()
+
+if __name__ == '__main__':
+  sys.exit(run())
