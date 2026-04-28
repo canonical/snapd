@@ -684,6 +684,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		keyslots        []fdestate.KeyslotRef
 		authMode        device.AuthMode
 		noOpt           bool
+		sameAuth        bool
 		errOn           []string
 		expectedChanges []string
 		expectedUndos   []string
@@ -766,6 +767,19 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 			authMode:    device.AuthModeNone,
 			expectedErr: `internal error: unexpected auth-mode "none"`,
 		},
+		{
+			keyslots:        []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:        device.AuthModePassphrase,
+			sameAuth:        true,
+			expectedChanges: []string{"/dev/disk/by-uuid/data:default"},
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePassphrase,
+			sameAuth:    true,
+			errOn:       []string{"change:/dev/disk/by-uuid/data:default"},
+			expectedErr: `cannot change passphrase for \(container-role: "system-data", name: "default"\): change error on /dev/disk/by-uuid/data:default`,
+		},
 	}
 	for idx, tc := range tcs {
 		task := s.st.NewTask("fde-change-auth", "test")
@@ -775,6 +789,9 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		old, new := "old", "new"
 		if tc.authMode == device.AuthModePIN {
 			old, new = "1234", "4321"
+		}
+		if tc.sameAuth {
+			old, new = "same", "same"
 		}
 		if !tc.noOpt {
 			s.st.Unlock()
