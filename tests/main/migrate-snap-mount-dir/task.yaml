@@ -14,6 +14,18 @@ prepare: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     echo "$SNAP_MOUNT_DIR" > start-mount-dir
 
+    if [ "$SNAP_MOUNT_DIR" != "/snap" ]; then
+        # openSUSE supports both locations, but defaults to /var/lib/snapd/snap
+        tests.systemd stop-unit snapd.service
+        echo "Ensure all snaps are gone"
+        snapd.tool exec snap-mgmt --purge
+
+        mkdir -p /snap
+
+        systemctl start snapd.service
+        snap wait system seed.loaded
+    fi
+
     snap set system experimental.user-daemons=true
     # although state reset should clean that up
     tests.cleanup defer snap unset system experimental.user-daemons
