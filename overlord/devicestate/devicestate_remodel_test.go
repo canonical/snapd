@@ -6332,8 +6332,12 @@ plugs:
     default-provider: foo-content
 `
 	missing := ""
+	var files [][]string
 	if strutil.ListContains(missingWhat, "base") {
 		missing += "base: foo-base\n"
+		files = [][]string{
+			{"data-dir/", ""},
+		}
 	} else {
 		missing += "base: core20\n"
 	}
@@ -6343,7 +6347,7 @@ plugs:
 	}
 	fooYaml = strings.Replace(fooYaml, "@MISSING@", missing, 1)
 	// the gadget needs to be mocked
-	info := snaptest.MakeSnapFileAndDir(c, fooYaml, nil, &snap.SideInfo{
+	info := snaptest.MakeSnapFileAndDir(c, fooYaml, files, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
 		Revision: snap.R(1),
 		RealName: "foo-missing-deps",
@@ -6588,7 +6592,9 @@ plugs:
     target: $SNAP/data-dir
     default-provider: foo-content
 `
-	fooInfo := snaptest.MakeSnapFileAndDir(c, fooYaml, nil, &snap.SideInfo{
+	fooInfo := snaptest.MakeSnapFileAndDir(c, fooYaml, [][]string{
+		{"data-dir/"},
+	}, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("foo-missing-deps"),
 		Revision: snap.R(1),
 		RealName: "foo-missing-deps",
@@ -6644,7 +6650,9 @@ plugs:
     default-provider: foo-content
 `
 	// the gadget needs to be mocked
-	barInfo := snaptest.MakeSnapFileAndDir(c, barYaml, nil, &snap.SideInfo{
+	barInfo := snaptest.MakeSnapFileAndDir(c, barYaml, [][]string{
+		{"data-dir/"},
+	}, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("bar-missing-deps"),
 		Revision: snap.R(1),
 		RealName: "bar-missing-deps",

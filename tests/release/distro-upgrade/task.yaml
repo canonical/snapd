@@ -1,0 +1,113 @@
+summary: Check that with the new snapd installed, we can upgrade the distro without issues.
+
+details: |
+    This test performs a series of distro upgrades until it reaches the latest devel version.
+    It should be triggered from the earliest supported LTS version still in standard maintanence.
+    It can run against a snap, a spread-built deb, debs from a custom PPA, or from proposed.
+    After each upgrade, it checks that snapd is still working correctly and performs some simple smoke checks.
+    It expects to have done an upgrade to the latest LTS, the latest interim release and the latest devel release.
+    This spread test has artifacts to verify snapd versions at each upgrade. Each file is named after its
+    distro's codename and contains the output of `snap version --verbose` on that distro.
+    Env for running on snappy-dev: SPREAD_SNAP_REEXEC=0 SPREAD_PPA_VALIDATION_NAME=ppa:snappy-dev/image
+    Env for running on proposed: SPREAD_SNAP_REEXEC=0 SPREAD_SRU_VALIDATION=1
+
+# This test should only be run on the lowest supported version of ubuntu for a given release
+systems:
+    - ubuntu-2*
+
+manual: true
+
+warn-timeout: 10m
+kill-timeout: 90m
+
+artifacts: 
+    - snapd-versions
+
+prepare: |
+    snap install go-example-webserver
+    snap install test-snapd-sh
+    snap install test-snapd-auto-aliases
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
+
+    snap connections go-example-webserver > webserver-connections.txt
+    snap list | grep -v "^snapd[[:space:]]" > snap-list.txt
+    sed -i 's/Prompt=never/Prompt=normal/' /etc/update-manager/release-upgrades
+    if not tests.info is-reexec-in-use && tests.info is-snapd-from-archive; then
+        . /etc/os-release
+        version_id_re="${VERSION_ID//./\\.}"
+        snap version | grep -E '^snap[[:space:]]' | MATCH "[0-9]+[.][0-9]+([.][0-9]+)?([.][0-9]+)?[+]ubuntu${version_id_re}([.][0-9]+)?"
+        snap version | grep -E '^snapd[[:space:]]' | MATCH "[0-9]+[.][0-9]+([.][0-9]+)?([.][0-9]+)?[+]ubuntu${version_id_re}([.][0-9]+)?"
+    else
+        snap version | grep -E '^snap[[:space:]]' | MATCH "1337[.][0-9]+([.][0-9]+)?([.][0-9]+)?"
+        snap version | grep -E '^snapd[[:space:]]' | MATCH "1337[.][0-9]+([.][0-9]+)?([.][0-9]+)?"
+    fi
+    snap version | grep -E '^snapd[[:space:]]' | awk '{print $2}' | sed 's/+ubuntu.*//' > initial-snapd-version.txt
+
+    mkdir snapd-versions
+
+restore: |
+    snap remove --purge go-example-webserver
+    snap remove --purge test-snapd-sh
+    snap remove --purge test-snapd-auto-aliases
+    snap remove --purge test-snapd-classic-confinement
+    sed -i 's/Prompt=normal/Prompt=never/' /etc/update-manager/release-upgrades
+
+execute: |
+    # Don't fail the test if the distro is missing the latest snapd version. Sometimes one distro
+    # doesn't have the latest yet.
+    ./check-snapd-version.sh "$(cat initial-snapd-version.txt)" || [ "$SRU_VALIDATION" = "1" ]
+    snap version --verbose > snapd-versions/"$(lsb_release -c -s)"
+
+    while not os.query is-ubuntu-devel; do
+        # We can only upgrade the distro if we have all upgrades installed
+        apt update
+        apt upgrade -y
+        if [[ "$SPREAD_REBOOT" = 0 ]]; then
+            REBOOT
+        fi
+        devel_option=
+        if os.query is-ubuntu-interim; then
+            devel_option="-d"
+        fi
+
+        echo "Upgrading $(grep -oP 'CODENAME=\K.*' /etc/os-release | head -1)"
+        sudo do-release-upgrade "$devel_option" -f DistUpgradeViewNonInteractive
+
+        if [ "$SRU_VALIDATION" = "1" ] || [ -n "$PPA_VALIDATION_NAME" ]; then
+            #shellcheck source=tests/lib/pkgdb.sh
+            . "$TESTSLIB"/pkgdb.sh
+            distro_install_build_snapd
+        fi
+
+        #shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        prepare_each_classic
+
+        ./check-snapd.sh
+        # Don't fail the test if the distro is missing the latest snapd version. Sometimes one distro
+        # doesn't have the latest yet.
+        ./check-snapd-version.sh "$(cat initial-snapd-version.txt)" || [ "$SRU_VALIDATION" = "1" ]
+        snap version --verbose > snapd-versions/"$(lsb_release -c -s)"
+
+        if os.query is-ubuntu-latest-lts; then
+            touch lts-upgrade-done
+        elif os.query is-ubuntu-interim; then
+            touch interim-upgrade-done
+        elif os.query is-ubuntu-devel; then
+            touch devel-upgrade-done
+        fi
+        SPREAD_REBOOT=0
+    done
+
+    if not [ -f lts-upgrade-done ]; then
+        echo "We should have done an LTS upgrade but didn't"
+        exit 1
+    fi
+    if not [ -f interim-upgrade-done ]; then
+        echo "We should have done an interim upgrade but didn't"
+        exit 1
+    fi
+    if not [ -f devel-upgrade-done ]; then
+        echo "We should have done a devel upgrade but didn't"
+        exit 1
+    fi

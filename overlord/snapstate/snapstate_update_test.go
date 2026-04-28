@@ -1424,12 +1424,12 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 			revno: snap.R(11),
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:       "stop-snap-services:refresh",
 			path:     filepath.Join(dirs.SnapMountDir, "services-snap/7"),
 			services: []string{"svc1", "svc2", "svc3"},
-		},
-		{
-			op: "current-snap-service-states",
 		},
 	}
 	// aliases removal is skipped when refresh-app-awareness-ux is enabled
@@ -1816,12 +1816,12 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 			revno: snap.R(11),
 		},
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:       "stop-snap-services:refresh",
 			path:     filepath.Join(dirs.SnapMountDir, "services-snap_instance/7"),
 			services: []string{"svc1", "svc2", "svc3"},
-		},
-		{
-			op: "current-snap-service-states",
 		},
 	}
 	// aliases removal is skipped when refresh-app-awareness-ux is enabled
@@ -19715,14 +19715,14 @@ func (s *snapmgrTestSuite) TestStopSnapServicesComputesRemovedServices(c *C) {
 
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
+			op: "current-snap-service-states",
+		},
+		{
 			op:       "stop-snap-services:refresh",
 			path:     oldInfo.MountDir(),
 			services: []string{"bar-svc", "baz-svc", "foo-svc"},
-			// bar-svc is removed and baz-svc is turned into a "normal" app
+			// baz-svc is removed and bar-svc is turned into a "normal" app
 			removedServices: []string{"bar-svc", "baz-svc"},
-		},
-		{
-			op: "current-snap-service-states",
 		},
 	})
 }

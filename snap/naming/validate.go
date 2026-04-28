@@ -315,12 +315,15 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 
 var archIsISASupportedByCPU = arch.IsISASupportedByCPU
 
-type IsaError struct {
+// ISAError is a wrapper for errors returned while validating ISA assumes flags.
+type ISAError struct {
+	// Flag is of the form isa-<arch>-<isa_val>.
 	Flag string
-	Err  error
+	// Err is the wrapped error.
+	Err error
 }
 
-func (e *IsaError) Error() string {
+func (e *ISAError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Flag, e.Err)
 }
 
@@ -347,7 +350,7 @@ func validateAssumedISAArch(flag string, currentArchitecture string) error {
 	}
 
 	if err := archIsISASupportedByCPU(tokens[2]); err != nil {
-		return &IsaError{Flag: flag, Err: err}
+		return &ISAError{Flag: flag, Err: err}
 	}
 
 	return nil
