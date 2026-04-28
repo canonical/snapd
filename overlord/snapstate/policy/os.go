@@ -89,5 +89,5 @@ func (p *osPolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev s
 		return errRequired
 	}
 
-	return baseUsedByIgnoringRemovals(st, "", removals)
+	return validateBaseUsedByAllRemoved(st, "", removals)
 }

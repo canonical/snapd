@@ -3460,7 +3460,7 @@ func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
 	return nil
 }
 
-func fallbackToCore(st *state.State) bool {
+func fallbackToCoreForCore16(st *state.State) bool {
 	fallbackToCore := false
 	var core16Snapst SnapState
 	err := Get(st, "core16", &core16Snapst)
@@ -3531,7 +3531,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		return typeI.SortsBefore(typeJ)
 	})
 
-	useCoreForCore16 := fallbackToCore(st)
+	fallbackToCore := fallbackToCoreForCore16(st)
 	removed := make([]string, 0, len(snapsts))
 	tasksets := make([]*state.TaskSet, 0, len(snapsts))
 	// keeps track of the taskset created to remove a snap
@@ -3549,7 +3549,7 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		// well and make the base's remove taskset wait for the app's/gadget's
 		typ, _ := snapst.Type()
 		if typ == snap.TypeApp || typ == snap.TypeGadget {
-			base := baseForAppAndGadget(&snapst, useCoreForCore16)
+			base := baseForAppAndGadget(&snapst, fallbackToCore)
 			if removals[base] {
 				baseTs := snapToTaskSet[base]
 				serializeTaskSets(ts, baseTs)
