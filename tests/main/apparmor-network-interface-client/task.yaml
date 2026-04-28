@@ -121,7 +121,7 @@ execute: |
     echo "Patch the snap's AppArmor profile to permit only $VETH0"
     PROFILE=/var/lib/snapd/apparmor/profiles/snap.network-consumer.network-consumer
     echo "As nameservice abstraction includes broad network access, and it seems that"
-    echo "currently 'deny network interface=<IFACE>' doesn't work, so "
+    echo "currently 'deny network interface=<IFACE>' doesn't work, so"
     echo "comment it out to avoid interfering with our specific interface rules"
     sed -i "s/^#include <abstractions\/nameservice>/# #include <abstractions\/nameservice>/" "$PROFILE"
     sed -i "s#^}#network interface=${VETH0},\n}#" "$PROFILE"
@@ -134,14 +134,15 @@ execute: |
 
     echo "Snap is denied access through the restricted interface ($VETH1 → $SERVER_IP_IFACE1)"
     if network-consumer "http://${SERVER_IP_IFACE1}:${PORT_IFACE1}" &>net-iface1.output; then
-        echo "Expected connection refused when accessing via $VETH1"
+        echo "Error: Expected connection refused when accessing via $VETH1"
         exit 1
     fi
+    tests.cleanup defer rm net-iface1.output
     MATCH "Connection refused" < net-iface1.output
 
     echo "Disconnecting the network plug blocks all network access"
     snap disconnect "${SNAP_NAME}:network"
     if network-consumer "http://${SERVER_IP_IFACE0}:${PORT_IFACE0}" &>/dev/null; then
-        echo "Expected network access to be blocked after plug disconnect"
+        echo "Error: Expected network access to be blocked after plug disconnect"
         exit 1
     fi
