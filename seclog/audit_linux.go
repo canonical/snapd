@@ -1,0 +1,127 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2026 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package seclog
+
+import (
+	"fmt"
+	"io"
+	"sync/atomic"
+	"syscall"
+
+	"github.com/snapcore/snapd/arch"
+)
+
+const (
+	// AUDIT_TRUSTED_APP is the audit message type for trusted application messages.
+	// See https://github.com/linux-audit/audit-userspace/blob/a54613b2b6233669972d55f1f5463ae4757700be/lib/audit-records.h#L75
+	auditTrustedApp = 1121
+)
+
+// netlinkOps abstracts the syscall operations needed to open,
+// send to, and close a netlink socket. Production code uses [realNetlinkOps];
+// tests can substitute a recording or stubbing implementation.
+type netlinkOps interface {
+	Socket(domain, typ, proto int) (int, error)
+	Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error
+	Close(fd int) error
+}
+
+// realNetlinkOps delegates every operation to the corresponding syscall.
+type realNetlinkOps struct{}
+
+func (realNetlinkOps) Socket(domain, typ, proto int) (int, error) {
+	return syscall.Socket(domain, typ, proto)
+}
+
+func (realNetlinkOps) Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error {
+	return syscall.Sendto(fd, payload, flags, to)
+}
+
+func (realNetlinkOps) Close(fd int) error {
+	return syscall.Close(fd)
+}
+
+var netlink netlinkOps = realNetlinkOps{}
+
+// OpenAuditWriter opens a netlink audit socket and returns an [AuditWriter]
+// that sends each written payload as an AUDIT_TRUSTED_APP.
+func OpenAuditWriter() (io.WriteCloser, error) {
+	// SOCK_CLOEXEC prevents the fd from leaking to child processes.
+	fd, err := netlink.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, syscall.NETLINK_AUDIT)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open audit socket: %v", err)
+	}
+	return &AuditWriter{fd: fd}, nil
+}
+
+// AuditWriter sends messages to the kernel audit subsystem via a netlink
+// socket. Each Write call sends the payload as an AUDIT_TRUSTED_APP.
+//
+// The writer is safe for sequential use; concurrent use requires external
+// synchronization.
+type AuditWriter struct {
+	fd  int
+	seq atomic.Uint32
+}
+
+// Write sends payload as an AUDIT_TRUSTED_APP netlink message.
+// The returned byte count reflects only the original payload length.
+func (aw *AuditWriter) Write(payload []byte) (int, error) {
+	msg := aw.buildMessage(payload)
+	addr := &syscall.SockaddrNetlink{
+		Family: syscall.AF_NETLINK,
+		Pid:    0, // kernel
+	}
+	if err := netlink.Sendto(aw.fd, msg, 0, addr); err != nil {
+		return 0, fmt.Errorf("cannot send audit message: %v", err)
+	}
+	return len(payload), nil
+}
+
+// Close closes the underlying netlink socket.
+func (aw *AuditWriter) Close() error {
+	return netlink.Close(aw.fd)
+}
+
+// buildMessage constructs a raw netlink message containing the given payload.
+// The header layout follows struct nlmsghdr from
+// https://github.com/torvalds/linux/blob/254f49634ee16a731174d2ae34bc50bd5f45e731/include/uapi/linux/netlink.h#L45
+func (aw *AuditWriter) buildMessage(payload []byte) []byte {
+	totalLen := syscall.SizeofNlMsghdr + uint32(len(payload))
+	buf := make([]byte, nlmsgAlign(totalLen))
+
+	// Write header in native byte order (netlink uses host endianness).
+	// TODO: Upgrade from fire-and-forget to use NLM_F_ACK and handle
+	// acknowledgments.
+	arch.Endian().PutUint32(buf[0:4], totalLen)
+	arch.Endian().PutUint16(buf[4:6], auditTrustedApp)
+	arch.Endian().PutUint16(buf[6:8], syscall.NLM_F_REQUEST) // fire-and-forget, no ACK
+	arch.Endian().PutUint32(buf[8:12], aw.seq.Add(1))
+	arch.Endian().PutUint32(buf[12:16], 0)
+
+	// Write payload.
+	copy(buf[syscall.SizeofNlMsghdr:], payload)
+	return buf
+}
+
+// nlmsgAlign rounds up to the nearest 4-byte boundary per NLMSG_ALIGN.
+func nlmsgAlign(size uint32) uint32 {
+	return (size + 3) &^ 3
+}
