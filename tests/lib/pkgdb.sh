@@ -887,6 +887,7 @@ pkg_dependencies_opensuse(){
         udisks2
         upower
         uuidd
+        xdelta3
         xdg-user-dirs
         xdg-utils
         zsh
