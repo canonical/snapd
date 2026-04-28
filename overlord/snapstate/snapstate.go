@@ -3476,7 +3476,7 @@ func fallbackToCore(st *state.State) bool {
 	return fallbackToCore
 }
 
-func baseForApp(snapst *SnapState, fallbackToCore bool) string {
+func baseForAppAndGadget(snapst *SnapState, fallbackToCore bool) string {
 	// if core is installed, snaps with base core16 use core instead
 	baseName := snapst.Base
 	if baseName == "" {
@@ -3524,7 +3524,8 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 
 	// first snapd, core, kernel, bases, gadget, then app
 	sort.Slice(snapsts, func(i, j int) bool {
-		// TODO: handle getting errors from Type
+		// Type() only fails if the snap is not installed which is checked
+		// before constructing snapsts
 		typeI, _ := snapsts[i].Type()
 		typeJ, _ := snapsts[j].Type()
 		return typeI.SortsBefore(typeJ)
@@ -3544,18 +3545,14 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 			return nil, nil, err
 		}
 
-		typ, err := snapst.Type()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// for apps, check if the base it uses is being removed as well
-		// and make the base's remove taskset wait for the app's
-		if typ == snap.TypeApp {
-			base := baseForApp(&snapst, useCoreForCore16)
+		// for apps/gadgets, check if the base it uses is being removed as
+		// well and make the base's remove taskset wait for the app's/gadget's
+		typ, _ := snapst.Type()
+		if typ == snap.TypeApp || typ == snap.TypeGadget {
+			base := baseForAppAndGadget(&snapst, useCoreForCore16)
 			if removals[base] {
 				baseTs := snapToTaskSet[base]
-				serializeTaskSets(baseTs, ts)
+				serializeTaskSets(ts, baseTs)
 			}
 		}
 

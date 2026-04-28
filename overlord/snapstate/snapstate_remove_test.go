@@ -2130,7 +2130,7 @@ func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
 	c.Check(ts, HasLen, 2)
 }
 
-func (s *snapmgrTestSuite) TestRemoveAppAndBase(c *C) {
+func (s *snapmgrTestSuite) TestRemoveAppGadgetAndBase(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2143,27 +2143,47 @@ func (s *snapmgrTestSuite) TestRemoveAppAndBase(c *C) {
 		Base:     "some-base",
 	})
 
-	si2 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
-	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si2)
-	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+	si2 := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-gadget\nversion: 1.0\ntype: gadget\nbase: some-base", si2)
+	snapstate.Set(s.state, "some-gadget", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
 		Current:  si2.Revision,
+		SnapType: string(snap.TypeGadget),
+		Base:     "some-base",
+	})
+
+	si3 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si3)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
+		Current:  si3.Revision,
 		SnapType: string(snap.TypeBase),
 	})
 
+	// removing the base should only succeed when both some-snap and some-gadget
+	// are also removed
 	_, _, err := snapstate.RemoveMany(s.state, []string{"some-base"}, nil)
+	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snaps some-gadget and some-snap.")
+
+	_, _, err = snapstate.RemoveMany(s.state, []string{"some-base", "some-snap"}, nil)
+	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snap some-gadget.")
+
+	_, _, err = snapstate.RemoveMany(s.state, []string{"some-base", "some-gadget"}, nil)
 	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snap some-snap.")
 
-	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-base", "some-snap"}, nil)
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-base", "some-snap", "some-gadget"}, nil)
 	c.Check(err, IsNil)
 
-	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
-	c.Check(tss, HasLen, 2)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base", "some-gadget"})
+	c.Check(tss, HasLen, 3)
 
-	// check that the tasks for the bases depend on the tasks for the app
-	baseFirstTask := tss[1].Tasks()[0]
-	appLastTask := tss[0].Tasks()[len(tss[0].Tasks())-1]
+	// check that the tasks for the bases depend on the tasks for the app and gadget
+	baseFirstTask := tss[0].Tasks()[0]
+	gadgetLastTask := tss[1].Tasks()[len(tss[1].Tasks())-1]
+	appLastTask := tss[2].Tasks()[len(tss[2].Tasks())-1]
 	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, gadgetLastTask)
+
 }
 
 func (s *snapmgrTestSuite) TestRemoveAppAndCore16(c *C) {
@@ -2197,8 +2217,8 @@ func (s *snapmgrTestSuite) TestRemoveAppAndCore16(c *C) {
 	c.Check(err, IsNil)
 	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "core"})
 	// check that the tasks for the bases depend on the tasks for the app
-	baseFirstTask := tss[1].Tasks()[0]
-	appLastTask := tss[0].Tasks()[len(tss[0].Tasks())-1]
+	baseFirstTask := tss[0].Tasks()[0]
+	appLastTask := tss[1].Tasks()[len(tss[1].Tasks())-1]
 	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
 
 	si3 := &snap.SideInfo{RealName: "core16", Revision: snap.R(1)}
@@ -2218,8 +2238,8 @@ func (s *snapmgrTestSuite) TestRemoveAppAndCore16(c *C) {
 	c.Check(err, IsNil)
 	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "core16"})
 	// check that the tasks for the bases depend on the tasks for the app
-	baseFirstTask = tss[1].Tasks()[0]
-	appLastTask = tss[0].Tasks()[len(tss[0].Tasks())-1]
+	baseFirstTask = tss[0].Tasks()[0]
+	appLastTask = tss[1].Tasks()[len(tss[1].Tasks())-1]
 	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
 }
 
