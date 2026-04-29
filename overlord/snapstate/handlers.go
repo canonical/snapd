@@ -3505,15 +3505,10 @@ func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	startupOrdered, err := snap.SortServices(svcs)
-	if err != nil {
-		return err
-	}
-
 	pb := NewTaskProgressAdapterUnlocked(t)
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, &wrappers.DisabledServices{
+	err = m.backend.StartServices(svcs, &wrappers.DisabledServices{
 		SystemServices: missingSvcsOverview.FoundSystemServices,
 		UserServices:   missingSvcsOverview.FoundUserServices,
 	}, pb, perfTimings)
@@ -3715,11 +3710,6 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	startupOrdered, err := snap.SortServices(svcs)
-	if err != nil {
-		return err
-	}
-
 	var oldLastActiveDisabledServices []string
 	var oldLastActiveDisabledUserServices map[int][]string
 	if err := t.Get("old-last-active-disabled-services", &oldLastActiveDisabledServices); err != nil && !errors.Is(err, state.ErrNoState) {
@@ -3738,7 +3728,7 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Unlock()
-	err = m.backend.StartServices(startupOrdered, &disabledServices, progress.Null, perfTimings)
+	err = m.backend.StartServices(svcs, &disabledServices, progress.Null, perfTimings)
 	st.Lock()
 	if err != nil {
 		return err
