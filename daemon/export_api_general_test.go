@@ -55,10 +55,6 @@ func MockWarningsAccessors(okay func(*state.State, time.Time) int, all func(*sta
 	}
 }
 
-type (
-	ChangeInfo = changeInfo
-)
-
 func MockSnapstateSnapsAffectedByTask(f func(t *state.Task) ([]string, error)) (restore func()) {
 	old := snapstateSnapsAffectedByTask
 	snapstateSnapsAffectedByTask = f

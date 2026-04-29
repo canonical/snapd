@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -950,9 +951,9 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, []*daemon.ChangeInfo(nil))
+	c.Assert(rsp.Result, check.FitsTypeOf, []*ctlcmd.ChangeInfo(nil))
 
-	res := rsp.Result.([]*daemon.ChangeInfo)
+	res := rsp.Result.([]*ctlcmd.ChangeInfo)
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `install`)
 
@@ -986,9 +987,9 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, []*daemon.ChangeInfo(nil))
+	c.Assert(rsp.Result, check.FitsTypeOf, []*ctlcmd.ChangeInfo(nil))
 
-	res := rsp.Result.([]*daemon.ChangeInfo)
+	res := rsp.Result.([]*ctlcmd.ChangeInfo)
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `service-control`)
 
