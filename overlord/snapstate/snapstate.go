@@ -3170,8 +3170,8 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 // removeTasks provides the task set to remove snap name after taking a snapshot
 // if flags.Purge is not true, it also computes an estimate of the latter size.
 func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, revision snap.Revision, flags *RemoveFlags) (removeTs *state.TaskSet, snapshotSize uint64, err error) {
-	name := snapst.InstanceName()
-	if err := CheckChangeConflict(st, name, nil); err != nil {
+	instanceName := snapst.InstanceName()
+	if err := CheckChangeConflict(st, instanceName, nil); err != nil {
 		return nil, 0, err
 	}
 
@@ -3192,19 +3192,19 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 				if len(snapst.Sequence.Revisions) > 1 {
 					msg += " (revert first?)"
 				}
-				return nil, 0, fmt.Errorf(msg, revision, name)
+				return nil, 0, fmt.Errorf(msg, revision, instanceName)
 			}
 			active = false
 		}
 
 		if !revisionInSequence(snapst, revision) {
-			return nil, 0, &snap.NotInstalledError{Snap: name, Rev: revision}
+			return nil, 0, &snap.NotInstalledError{Snap: instanceName, Rev: revision}
 		}
 
 		removeAll = len(snapst.Sequence.Revisions) == 1
 	}
 
-	info, err := Info(st, name, revision)
+	info, err := Info(st, instanceName, revision)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -3212,14 +3212,14 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 	// check if this is something that can be removed
 	err = canRemove(st, info, snapst, removeAll, deviceCtx, removals)
 	if err != nil {
-		return nil, 0, fmt.Errorf("snap %q is not removable: %v", name, err)
+		return nil, 0, fmt.Errorf("snap %q is not removable: %v", instanceName, err)
 	}
 
 	// main/current SnapSetup
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
 			SnapID:   info.SnapID,
-			RealName: snap.InstanceSnap(name),
+			RealName: snap.InstanceSnap(instanceName),
 			Revision: revision,
 		},
 		Type: info.Type(),
@@ -3244,7 +3244,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 	var prev *state.Task
 	var stopSnapServices *state.Task
 	if active {
-		stopSnapServices = st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
+		stopSnapServices = st.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), instanceName))
 		stopSnapServices.Set("snap-setup", snapsup)
 		stopSnapServices.Set("stop-reason", snap.StopReasonRemove)
 		addNext(state.NewTaskSet(stopSnapServices))
@@ -3283,7 +3283,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 		if !removeAll {
 			return nil, 0, fmt.Errorf("cannot terminate running apps unless all revisions are removed")
 		}
-		stopSnapApps := st.NewTask("kill-snap-apps", fmt.Sprintf(i18n.G("Kill running snap %q apps"), name))
+		stopSnapApps := st.NewTask("kill-snap-apps", fmt.Sprintf(i18n.G("Kill running snap %q apps"), instanceName))
 		stopSnapApps.Set("snap-setup", snapsup)
 		stopSnapApps.Set("kill-reason", snap.KillReasonRemove)
 		if prev != nil {
@@ -3296,7 +3296,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 	// 'purge' flag disables automatic snapshot for given remove op
 	if !flags.Purge {
 		if tp, _ := snapst.Type(); tp == snap.TypeApp && removeAll {
-			ts, err := AutomaticSnapshot(st, name)
+			ts, err := AutomaticSnapshot(st, instanceName)
 			if err == nil {
 				tr := config.NewTransaction(st)
 				checkDiskSpaceRemove, err := features.Flag(tr, features.CheckDiskSpaceRemove)
@@ -3304,7 +3304,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 					return nil, 0, err
 				}
 				if checkDiskSpaceRemove {
-					snapshotSize, err = EstimateSnapshotSize(st, name, nil)
+					snapshotSize, err = EstimateSnapshotSize(st, instanceName, nil)
 					if err != nil {
 						return nil, 0, err
 					}
@@ -3321,17 +3321,17 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 	if active { // unlink
 		var tasks []*state.Task
 
-		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), name))
+		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(i18n.G("Remove aliases for snap %q"), instanceName))
 		removeAliases.WaitFor(prev) // prev is not needed beyond here
 		removeAliases.Set("snap-setup-task", stopSnapServices.ID())
 		removeAliases.Set("remove-reason", removeAliasesReasonRemove)
 
-		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
+		unlink := st.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), instanceName))
 		unlink.Set("snap-setup-task", stopSnapServices.ID())
 		unlink.Set("unlink-reason", unlinkSnapReasonRemove)
 		unlink.WaitFor(removeAliases)
 
-		removeSecurity := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), name, revision))
+		removeSecurity := st.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), instanceName, revision))
 		removeSecurity.WaitFor(unlink)
 		removeSecurity.Set("snap-setup-task", stopSnapServices.ID())
 
@@ -3345,7 +3345,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 		for i := len(si) - 1; i >= 0; i-- {
 			if i != currentIndex {
 				si := si[i]
-				ts, err := removeInactiveRevision(st, snapst, name,
+				ts, err := removeInactiveRevision(st, snapst, instanceName,
 					info.SnapID, si.Revision, snapsup.Type)
 				if err != nil {
 					return nil, 0, err
@@ -3356,7 +3356,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 		// add tasks for removing the current revision last,
 		// this is then also when common data will be removed
 		if currentIndex >= 0 {
-			ts, err := removeInactiveRevision(st, snapst, name,
+			ts, err := removeInactiveRevision(st, snapst, instanceName,
 				info.SnapID, si[currentIndex].Revision, snapsup.Type)
 			if err != nil {
 				return nil, 0, err
@@ -3364,7 +3364,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 			addNext(ts)
 		}
 	} else {
-		ts, err := removeInactiveRevision(st, snapst, name, info.SnapID, revision,
+		ts, err := removeInactiveRevision(st, snapst, instanceName, info.SnapID, revision,
 			snapsup.Type)
 		if err != nil {
 			return nil, 0, err
@@ -3476,17 +3476,29 @@ func fallbackToCoreForCore16(st *state.State) bool {
 	return fallbackToCore
 }
 
-func baseForAppAndGadget(snapst *SnapState, fallbackToCore bool) string {
-	// if core is installed, snaps with base core16 use core instead
-	baseName := snapst.Base
-	if baseName == "" {
-		return "core"
+// Returns the set of bases of all the revisions of the given snap.
+func basesForAppAndGadget(snapst *SnapState, fallbackToCore bool) []string {
+	sis := snapst.Sequence.SideInfos()
+	bases := make([]string, 0, len(sis))
+	instanceName := snapst.InstanceName()
+	for _, si := range sis {
+		snapInfo, err := snap.ReadInfo(instanceName, si)
+		if err == nil {
+			if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {
+				continue
+			}
+			baseName := snapInfo.Base
+			// if core is installed and core16 is not,
+			// snaps with base core16 use core instead
+			if baseName == "" || fallbackToCore && baseName == "core16" {
+				bases = append(bases, "core")
+			} else {
+				bases = append(bases, baseName)
+			}
+		}
 	}
 
-	if fallbackToCore && baseName == "core16" {
-		return "core"
-	}
-	return baseName
+	return unique(bases)
 }
 
 // RemoveMany removes everything from the given list of names.
@@ -3539,26 +3551,30 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	var totalSnapshotsSize uint64
 
 	for _, snapst := range snapsts {
-		name := snapst.InstanceName()
+		instanceName := snapst.InstanceName()
 		ts, snapshotSize, err := removeTasks(st, &snapst, removals, snap.R(0), flags)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		// for apps/gadgets, check if the base it uses is being removed as
-		// well and make the base's remove taskset wait for the app's/gadget's
+		// for apps/gadgets, check if the any of their revision's base is
+		// removed and make that base's remove taskset wait for the app's/gadget's.
 		typ, _ := snapst.Type()
 		if typ == snap.TypeApp || typ == snap.TypeGadget {
-			base := baseForAppAndGadget(&snapst, fallbackToCore)
-			if removals[base] {
-				baseTs := snapToTaskSet[base]
-				serializeTaskSets(ts, baseTs)
+			bases := basesForAppAndGadget(&snapst, fallbackToCore)
+			for _, base := range bases {
+				if removals[base] {
+					// since snapst is sorted to handle apps/gadgets after bases,
+					// if a base is being removed, its taskset will be stored already
+					baseTs := snapToTaskSet[base]
+					serializeTaskSets(ts, baseTs)
+				}
 			}
 		}
 
 		totalSnapshotsSize += snapshotSize
-		removed = append(removed, name)
-		snapToTaskSet[name] = ts
+		removed = append(removed, instanceName)
+		snapToTaskSet[instanceName] = ts
 
 		ts.JoinLane(st.NewLane())
 		tasksets = append(tasksets, ts)
