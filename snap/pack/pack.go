@@ -106,6 +106,9 @@ func validateContentPlugTargets(container snap.Container, info *snap.Info) error
 		if err := plug.Attr("target", &target); err != nil || target == "" {
 			continue
 		}
+		// Only $SNAP paths (or paths with no variable prefix) can be checked at
+		// pack time; $SNAP_DATA and $SNAP_COMMON are read-write runtime
+		// directories and mount points can be created as needed.
 		if strings.HasPrefix(target, "$SNAP_DATA") || strings.HasPrefix(target, "$SNAP_COMMON") {
 			continue
 		}
