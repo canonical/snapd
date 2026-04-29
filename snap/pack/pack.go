@@ -193,7 +193,7 @@ func validateLayoutPaths(container snap.Container, info *snap.Info) error {
 		if layout.Bind != "" && (err != nil || !fi.IsDir()) {
 			return fmt.Errorf("layout %q source %q must exist and be a directory, ensure it is present in the snap or created before packing", layoutPath, source)
 		}
-		if layout.BindFile != "" && (err != nil || fi.IsDir()) {
+		if layout.BindFile != "" && (err != nil || !fi.Mode().IsRegular()) {
 			return fmt.Errorf("layout %q source %q must exist and be a file, ensure it is present in the snap or created before packing", layoutPath, source)
 		}
 	}

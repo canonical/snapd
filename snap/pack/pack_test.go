@@ -796,7 +796,7 @@ type layoutSourceTestCase struct {
 	base     string
 	layout   string   // layout fragment (indented, under "layout:" key)
 	plugs    string   // plugs fragment (indented, under "plugs:" key)
-	create   []string // paths to create: trailing "/" = dir, otherwise file
+	create   []string // paths to create: trailing "/" = dir, 'A -> B' = symlink A pointing to B, otherwise a file
 	errMatch string   // expected error regex, "" = no error expected
 }
 
@@ -811,10 +811,16 @@ func (s *packSuite) checkSkeletonLayoutPath(c *C, tc layoutSourceTestCase) {
 
 	sourceDir := makeExampleSnapSourceDir(c, yamlStr)
 	for _, f := range tc.create {
-		path := filepath.Join(sourceDir, f)
-		if strings.HasSuffix(f, "/") {
+		if before, after, ok := strings.Cut(f, " -> "); ok {
+			// "name -> target" creates a symlink
+			path := filepath.Join(sourceDir, before)
+			c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
+			c.Assert(os.Symlink(after, path), IsNil)
+		} else if strings.HasSuffix(f, "/") {
+			path := filepath.Join(sourceDir, f)
 			c.Assert(os.MkdirAll(path, 0755), IsNil)
 		} else {
+			path := filepath.Join(sourceDir, f)
 			c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
 			c.Assert(os.WriteFile(path, []byte(""), 0644), IsNil)
 		}
@@ -893,6 +899,12 @@ func (s *packSuite) TestCheckSkeletonLayoutSourceInvalid(c *C) {
 			base:     "core26",
 			layout:   " /opt/foo.conf:\n  bind-file: $SNAP/foo.conf\n",
 			create:   []string{"foo.conf/"},
+			errMatch: `layout "/opt/foo.conf" source "\$SNAP/foo.conf" must exist and be a file, ensure it is present in the snap or created before packing`,
+		}, {
+			summary:  "bind-file source is a symlink not file",
+			base:     "core26",
+			layout:   " /opt/foo.conf:\n  bind-file: $SNAP/foo.conf\n",
+			create:   []string{"foo.conf -> some-target"},
 			errMatch: `layout "/opt/foo.conf" source "\$SNAP/foo.conf" must exist and be a file, ensure it is present in the snap or created before packing`,
 		}, {
 			summary:  "tmpfs under $SNAP directory missing",
