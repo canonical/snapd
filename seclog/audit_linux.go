@@ -60,7 +60,7 @@ func (realNetlinkOps) Close(fd int) error {
 
 var netlink netlinkOps = realNetlinkOps{}
 
-// OpenAuditWriter opens a netlink audit socket and returns an [AuditWriter]
+// OpenAuditWriter opens a netlink audit socket and returns an [io.WriteCloser]
 // that sends each written payload as an AUDIT_TRUSTED_APP.
 func OpenAuditWriter() (io.WriteCloser, error) {
 	// SOCK_CLOEXEC prevents the fd from leaking to child processes.
@@ -71,11 +71,7 @@ func OpenAuditWriter() (io.WriteCloser, error) {
 	return &AuditWriter{fd: fd}, nil
 }
 
-// AuditWriter sends messages to the kernel audit subsystem via a netlink
-// socket. Each Write call sends the payload as an AUDIT_TRUSTED_APP.
-//
-// The writer is safe for sequential use; concurrent use requires external
-// synchronization.
+// AuditWriter implements [io.WriteCloser].
 type AuditWriter struct {
 	fd  int
 	seq atomic.Uint32
@@ -83,12 +79,14 @@ type AuditWriter struct {
 
 // Write sends payload as an AUDIT_TRUSTED_APP netlink message.
 // The returned byte count reflects only the original payload length.
+// Concurrent use requires external synchronization.
 func (aw *AuditWriter) Write(payload []byte) (int, error) {
 	msg := aw.buildMessage(payload)
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
 		Pid:    0, // kernel
 	}
+	// TODO: request and handle ACK from kernel audit subsystem
 	if err := netlink.Sendto(aw.fd, msg, 0, addr); err != nil {
 		return 0, fmt.Errorf("cannot send audit message: %v", err)
 	}

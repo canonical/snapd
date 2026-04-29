@@ -72,7 +72,7 @@ func (l *slogLogger) LogAny(event Event, description string, attrs ...Attr) {
 		slogAttrs = append(slogAttrs, slog.Any(a.Key, a.Value))
 	}
 	l.logger.LogAttrs(
-		context.Background(),
+		context.TODO(),
 		slog.Level(event.Level),
 		description,
 		slogAttrs...,
