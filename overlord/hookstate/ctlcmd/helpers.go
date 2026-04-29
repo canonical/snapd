@@ -425,8 +425,15 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	st := hctx.State()
 	var tss []*state.TaskSet
 	var cmdStr, cmdVerb string
-
 	var changeKind string
+
+	// If the context is non-ephemeral, we don't support async because we are just queuing a change in the first place.
+	// In the future this could be made non-queuing, but for now we just return the error.
+	if cmd.async && !hctx.IsEphemeral() {
+		err := fmt.Errorf("internal error: cannot run snap management command asynchronously from a non-ephemeral context")
+		return "", err
+	}
+
 	switch cmd.operation {
 	case installManagementCommand:
 		tss, err = createSnapctlInstallTasks(hctx, cmd)
@@ -446,20 +453,9 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	}
 
 	if !hctx.IsEphemeral() {
-		var err error
-
-		// If the context is non-ephemeral, we don't support async because we are just queuing a change in the first place.
-		// In the future this could be made non-queuing, but for now we just return the error.
-		if cmd.async {
-			err = fmt.Errorf("internal error: cannot run snap management command asynchronously from a non-ephemeral context")
-		}
-
 		// Differently to service control commands, we always queue the
 		// management tasks if run from a hook.
-		if err == nil {
-			err = queueCommand(hctx, tss)
-		}
-
+		err := queueCommand(hctx, tss)
 		return "", err
 	}
 

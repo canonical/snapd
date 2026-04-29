@@ -46,12 +46,9 @@ execute: |
     return 1
   }
 
-  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-  snap_rev=$(readlink "$SNAP_MOUNT_DIR/test-snapctl-no-wait/current")
-
   echo "Verify both components are installed before removal"
-  test -d "$SNAP_MOUNT_DIR/test-snapctl-no-wait/components/$snap_rev/comp1"
-  test -d "$SNAP_MOUNT_DIR/test-snapctl-no-wait/components/$snap_rev/comp2"
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp1'
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp2'
 
   echo "Remove comp1 via snapctl --no-wait, capturing change ID from stdout"
   CHANGE_ID_1=$(snap run --shell test-snapctl-no-wait.app -c 'snapctl remove +comp1 --no-wait')
@@ -71,14 +68,9 @@ execute: |
   wait_for_change "$CHANGE_ID_2"
 
   echo "Verify both components have been removed"
-  test ! -d "$SNAP_MOUNT_DIR/test-snapctl-no-wait/components/$snap_rev/comp1"
-  test ! -d "$SNAP_MOUNT_DIR/test-snapctl-no-wait/components/$snap_rev/comp2"
+  snap components test-snapctl-no-wait | NOMATCH 'test-snapctl-no-wait\+comp1'
+  snap components test-snapctl-no-wait | NOMATCH 'test-snapctl-no-wait\+comp2'
 
   echo "is-ready still exits 0 for already-completed changes"
   snap run --shell test-snapctl-no-wait.app -c "snapctl is-ready $CHANGE_ID_1"
   snap run --shell test-snapctl-no-wait.app -c "snapctl is-ready $CHANGE_ID_2"
-
-  echo "is-ready exits 1 (not ready) is not returned for a completed change"
-  exit_code=0
-  snap run --shell test-snapctl-no-wait.app -c "snapctl is-ready $CHANGE_ID_1" || exit_code=$?
-  test "$exit_code" -ne 1

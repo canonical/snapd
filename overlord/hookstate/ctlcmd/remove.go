@@ -60,7 +60,9 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(c.stdout, "%s", id)
+	if c.NoWait {
+		fmt.Fprintf(c.stdout, "%s", id)
+	}
 
 	return nil
 }
