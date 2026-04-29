@@ -3460,24 +3460,29 @@ func checkSnapDirsInNFSMount(st *state.State, flags *RemoveFlags) error {
 	return nil
 }
 
-func fallbackToCoreForCore16(st *state.State) bool {
-	fallbackToCore := false
-	var core16Snapst SnapState
-	err := Get(st, "core16", &core16Snapst)
-	if err != nil || !core16Snapst.IsInstalled() {
-		// core16 is not installed
-		var coreSnapst SnapState
-		err := Get(st, "core", &coreSnapst)
-		if err == nil && coreSnapst.IsInstalled() {
-			// core is installed
-			fallbackToCore = true
+// basesInUseForSequence returns the set of bases used by all revisions of the
+// given snap,
+func basesInUseForSequence(st *state.State, snapst *SnapState) ([]string, error) {
+	baseInUse := func(info *snap.Info) (string, error) {
+		switch info.Base {
+		case "":
+			return "core", nil
+		case "core16":
+			// if core is installed and core16 is not, snaps with base core16
+			// use core instead
+			ok, err := isInstalled(st, "core16")
+			if err != nil {
+				return "", err
+			}
+			if ok {
+				return "core16", nil
+			}
+			return "core", nil
+		default:
+			return info.Base, nil
 		}
 	}
-	return fallbackToCore
-}
 
-// Returns the set of bases of all the revisions of the given snap.
-func basesForAppAndGadget(snapst *SnapState, fallbackToCore bool) []string {
 	sis := snapst.Sequence.SideInfos()
 	bases := make([]string, 0, len(sis))
 	instanceName := snapst.InstanceName()
@@ -3487,18 +3492,17 @@ func basesForAppAndGadget(snapst *SnapState, fallbackToCore bool) []string {
 			if typ := snapInfo.Type(); typ != snap.TypeApp && typ != snap.TypeGadget {
 				continue
 			}
-			baseName := snapInfo.Base
-			// if core is installed and core16 is not,
-			// snaps with base core16 use core instead
-			if baseName == "" || fallbackToCore && baseName == "core16" {
-				bases = append(bases, "core")
-			} else {
-				bases = append(bases, baseName)
+
+			baseName, err := baseInUse(snapInfo)
+			if err != nil {
+				return nil, err
 			}
+
+			bases = append(bases, baseName)
 		}
 	}
 
-	return unique(bases)
+	return unique(bases), nil
 }
 
 // RemoveMany removes everything from the given list of names.
@@ -3543,7 +3547,6 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 		return typeI.SortsBefore(typeJ)
 	})
 
-	fallbackToCore := fallbackToCoreForCore16(st)
 	removed := make([]string, 0, len(snapsts))
 	tasksets := make([]*state.TaskSet, 0, len(snapsts))
 	// keeps track of the taskset created to remove a snap
@@ -3557,18 +3560,17 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 			return nil, nil, err
 		}
 
-		// for apps/gadgets, check if the any of their revision's base is
-		// removed and make that base's remove taskset wait for the app's/gadget's.
-		typ, _ := snapst.Type()
-		if typ == snap.TypeApp || typ == snap.TypeGadget {
-			bases := basesForAppAndGadget(&snapst, fallbackToCore)
-			for _, base := range bases {
-				if removals[base] {
-					// since snapst is sorted to handle apps/gadgets after bases,
-					// if a base is being removed, its taskset will be stored already
-					baseTs := snapToTaskSet[base]
-					serializeTaskSets(ts, baseTs)
-				}
+		// For apps/gadgets, check if the any of their revisions' bases are
+		// removed and make those bases' remove tasksets wait for the app's/gadget's.
+		bases, err := basesInUseForSequence(st, &snapst)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, base := range bases {
+			if baseTS := snapToTaskSet[base]; baseTS != nil {
+				// Since snapst is sorted to handle apps/gadgets after bases,
+				// if a base is being removed, its taskset will be stored already.
+				serializeTaskSets(ts, baseTS)
 			}
 		}
 
