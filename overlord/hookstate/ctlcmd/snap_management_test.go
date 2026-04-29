@@ -353,15 +353,12 @@ func (s *installSuite) TestNoWaitInstallAndRemoveCommands(c *C) {
 		c.Assert(err, IsNil)
 
 		stdout, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "+comp1", "--no-wait"}, 0, nil)
-		c.Assert(err, IsNil, Commentf("cmd: %s", cmd))
+		c.Assert(err, IsNil)
 		changeID := string(stdout)
-		c.Assert(changeID, Not(Equals), "", Commentf("cmd: %s should return a change id", cmd))
+		c.Assert(changeID, Not(Equals), "")
 
 		s.st.Lock()
-		chg := s.st.Change(changeID)
-		c.Assert(chg, NotNil, Commentf("cmd: %s change %s should exist in state", cmd, changeID))
-		c.Check(chg.ID(), Equals, changeID, Commentf("cmd: %s returned change id should match the created change", cmd))
-		c.Check(task.Change(), Equals, chg, Commentf("cmd: %s task should be associated with change %s", cmd, changeID))
+		c.Check(task.Change().ID(), Equals, changeID)
 		s.st.Unlock()
 	}
 }

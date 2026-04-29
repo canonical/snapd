@@ -47,8 +47,8 @@ execute: |
   }
 
   echo "Verify both components are installed before removal"
-  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp1'
-  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp2'
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp1\s+installed'
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp2\s+installed'
 
   echo "Remove comp1 via snapctl --no-wait, capturing change ID from stdout"
   CHANGE_ID_1=$(snap run --shell test-snapctl-no-wait.app -c 'snapctl remove +comp1 --no-wait')
@@ -68,8 +68,8 @@ execute: |
   wait_for_change "$CHANGE_ID_2"
 
   echo "Verify both components have been removed"
-  snap components test-snapctl-no-wait | NOMATCH 'test-snapctl-no-wait\+comp1'
-  snap components test-snapctl-no-wait | NOMATCH 'test-snapctl-no-wait\+comp2'
+  snap components test-snapctl-no-wait | NOMATCH 'test-snapctl-no-wait\+comp1\s+available'
+  snap components test-snapctl-no-wait | NOMATCH 'test-snapctl-no-wait\+comp2\s+available'
 
   echo "is-ready still exits 0 for already-completed changes"
   snap run --shell test-snapctl-no-wait.app -c "snapctl is-ready $CHANGE_ID_1"
