@@ -46,7 +46,7 @@ func (s *SecLogSuite) SetUpTest(c *C) {
 	// No cleanup of the global logger is needed: every suite that
 	// uses seclog calls Setup in its own SetUpTest, replacing any
 	// leftover logger from a previous suite.
-	seclog.Setup(seclogtest.NewMockSecurityLogger(s.buf))
+	seclog.Setup(seclogtest.MockSecurityLogger(s.buf))
 }
 
 func (s *SecLogSuite) TearDownTest(c *C) {
@@ -76,8 +76,6 @@ func (s *SecLogSuite) TestString(c *C) {
 		"UNKNOWN(7)",
 	}
 
-	c.Assert(len(levels), Equals, len(expected))
-
 	obtained := make([]string, 0, len(levels))
 
 	for _, level := range levels {
@@ -93,17 +91,17 @@ func (s *SecLogSuite) TestSnapdUserString(c *C) {
 		ID: 42, StoreUserEmail: "a@b.com", StoreUserName: "jdoe",
 	}.String(), Equals, "42:a@b.com:jdoe")
 
-	// All fields zero/empty — all "unknown".
-	c.Check(seclog.SnapdUser{}.String(), Equals, "unknown:unknown:unknown")
+	// All fields zero/empty — all "<unknown>".
+	c.Check(seclog.SnapdUser{}.String(), Equals, "<unknown>:<unknown>:<unknown>")
 
 	// Only ID set.
-	c.Check(seclog.SnapdUser{ID: 7}.String(), Equals, "7:unknown:unknown")
+	c.Check(seclog.SnapdUser{ID: 7}.String(), Equals, "7:<unknown>:<unknown>")
 
 	// Only email set.
-	c.Check(seclog.SnapdUser{StoreUserEmail: "x@y.z"}.String(), Equals, "unknown:x@y.z:unknown")
+	c.Check(seclog.SnapdUser{StoreUserEmail: "x@y.z"}.String(), Equals, "<unknown>:x@y.z:<unknown>")
 
 	// Only username set.
-	c.Check(seclog.SnapdUser{StoreUserName: "root"}.String(), Equals, "unknown:unknown:root")
+	c.Check(seclog.SnapdUser{StoreUserName: "root"}.String(), Equals, "<unknown>:<unknown>:root")
 }
 
 func (s *SecLogSuite) TestReasonString(c *C) {
@@ -112,14 +110,14 @@ func (s *SecLogSuite) TestReasonString(c *C) {
 		Code: seclog.ReasonInvalidCredentials, Message: "bad password",
 	}.String(), Equals, "invalid-credentials:bad password")
 
-	// Both fields empty — all "unknown".
-	c.Check(seclog.Reason{}.String(), Equals, "unknown:unknown")
+	// Both fields empty — all "<unknown>".
+	c.Check(seclog.Reason{}.String(), Equals, "<unknown>:<unknown>")
 
 	// Only code set.
-	c.Check(seclog.Reason{Code: seclog.ReasonInternal}.String(), Equals, "internal:unknown")
+	c.Check(seclog.Reason{Code: seclog.ReasonInternal}.String(), Equals, "internal:<unknown>")
 
 	// Only message set.
-	c.Check(seclog.Reason{Message: "something broke"}.String(), Equals, "unknown:something broke")
+	c.Check(seclog.Reason{Message: "something broke"}.String(), Equals, "<unknown>:something broke")
 }
 
 func (s *SecLogSuite) TestSetupSuccess(c *C) {
@@ -134,7 +132,7 @@ func (s *SecLogSuite) TestSetupReplacesExistingLogger(c *C) {
 
 	// Replace with a second logger.
 	secondBuf := &bytes.Buffer{}
-	seclog.Setup(seclogtest.NewMockSecurityLogger(secondBuf))
+	seclog.Setup(seclogtest.MockSecurityLogger(secondBuf))
 
 	// New events go to the second logger, not the first.
 	s.buf.Reset()

@@ -29,24 +29,24 @@ import (
 	"github.com/snapcore/snapd/seclog"
 )
 
-// MockSecurityLogger implements seclog.SecurityLogger and writes event
+// mockLogger implements seclog.SecurityLogger and writes event
 // names plus key identifying data to a buffer. This lets tests verify
 // that the right events are emitted without depending on slog or JSON.
-type MockSecurityLogger struct {
+type mockLogger struct {
 	buf *bytes.Buffer
 }
 
-// Ensure MockSecurityLogger implements seclog.SecurityLogger.
-var _ seclog.SecurityLogger = (*MockSecurityLogger)(nil)
+// Ensure mockLogger implements seclog.SecurityLogger.
+var _ seclog.SecurityLogger = (*mockLogger)(nil)
 
-// NewMockSecurityLogger returns a MockSecurityLogger that writes to the
+// MockSecurityLogger returns a [seclog.SecurityLogger] that writes to the
 // given buffer.
-func NewMockSecurityLogger(buf *bytes.Buffer) *MockSecurityLogger {
-	return &MockSecurityLogger{buf: buf}
+func MockSecurityLogger(buf *bytes.Buffer) seclog.SecurityLogger {
+	return &mockLogger{buf: buf}
 }
 
 // LogAny implements [seclog.SecurityLogger.LogAny].
-func (m *MockSecurityLogger) LogAny(event seclog.Event, description string, attrs ...seclog.Attr) {
+func (m *mockLogger) LogAny(event seclog.Event, description string, attrs ...seclog.Attr) {
 	fmt.Fprintf(m.buf, "%s %s", event.Name, description)
 	for _, a := range attrs {
 		fmt.Fprintf(m.buf, " [%s=%#v]", a.Key, a.Value)
@@ -54,14 +54,14 @@ func (m *MockSecurityLogger) LogAny(event seclog.Event, description string, attr
 	fmt.Fprintln(m.buf)
 }
 
-// NewMockSlogLogger returns a buffer and a constructor function matching the
+// MockSlogLogger returns a buffer and a constructor function matching the
 // seclog.NewSlogLogger signature. The constructor ignores its arguments and
-// returns a MockSecurityLogger backed by the buffer. This is intended for
+// returns a mockLogger backed by the buffer. This is intended for
 // mocking the newSlogLogger variable in tests.
-func NewMockSlogLogger() (*bytes.Buffer, func(io.Writer, string, seclog.Level) seclog.SecurityLogger) {
+func MockSlogLogger() (*bytes.Buffer, func(io.Writer, string, seclog.Level) seclog.SecurityLogger) {
 	buf := &bytes.Buffer{}
-	fn := func(_ io.Writer, _ string, _ seclog.Level) seclog.SecurityLogger {
-		return NewMockSecurityLogger(buf)
+	fn := func(io.Writer, string, seclog.Level) seclog.SecurityLogger {
+		return MockSecurityLogger(buf)
 	}
 	return buf, fn
 }

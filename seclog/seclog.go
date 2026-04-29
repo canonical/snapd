@@ -27,6 +27,9 @@ import (
 	"github.com/snapcore/snapd/logger"
 )
 
+// unknown is the placeholder for empty fields in descriptions.
+const unknown = "<unknown>"
+
 // Level is the importance or severity of a log event.
 // The higher the level, the more severe the event.
 type Level int
@@ -40,9 +43,7 @@ const (
 	LevelCritical Level = 5
 )
 
-// String returns a name for the level. If the level has a name, then that name
-// in uppercase is returned. Otherwise, a string of the form "UKNOWN(<number>)"
-// is returned.
+// String returns a name for the level.
 func (l Level) String() string {
 	switch l {
 	case LevelDebug:
@@ -61,9 +62,6 @@ func (l Level) String() string {
 }
 
 // SnapdUser represents the identity of a user for security log events.
-// The slog output schema is defined by [SnapdUser.LogValue], which
-// renders Expiration as "never" for zero values instead of emitting a
-// zero-value datetime.
 type SnapdUser struct {
 	ID             int64     `json:"snapd-user-id"`
 	StoreUserName  string    `json:"store-user-name"`
@@ -73,10 +71,8 @@ type SnapdUser struct {
 
 // String returns a colon-separated description of the user in the form
 // "<ID>:<StoreUserEmail>:<StoreUserName>". Fields that are unset use
-// "unknown" as a placeholder. A zero ID is treated as unset.
+// "<unknown>" as a placeholder. A zero ID means unset.
 func (u SnapdUser) String() string {
-	const unknown = "unknown"
-
 	id := unknown
 	if u.ID != 0 {
 		id = fmt.Sprintf("%d", u.ID)
@@ -115,8 +111,6 @@ type Reason struct {
 // "<Code>:<Message>". Fields that are unset use "unknown" as a
 // placeholder.
 func (r Reason) String() string {
-	const unknown = "unknown"
-
 	code := unknown
 	if r.Code != "" {
 		code = r.Code
@@ -156,7 +150,8 @@ type SecurityLogger interface {
 
 var (
 	globalLogger SecurityLogger = NewNopLogger()
-	lock         sync.Mutex
+	// lock guards globalLogger reads and writes.
+	lock sync.Mutex
 )
 
 // Setup activates the security logger, replacing any previously
@@ -172,10 +167,11 @@ func Setup(l SecurityLogger) {
 
 // LogLoggerEnabled logs that the security logger has been enabled.
 func LogLoggerEnabled() {
+	logger.Noticef("security logger enabled")
+
 	lock.Lock()
 	defer lock.Unlock()
 
-	logger.Noticef("security logger enabled")
 	globalLogger.LogAny(
 		Event{Category: "SYS", Name: "sys_logging_enabled", Level: LevelInfo},
 		"Security logging enabled",
@@ -184,10 +180,11 @@ func LogLoggerEnabled() {
 
 // LogLoggerDisabled logs that the security logger has been disabled.
 func LogLoggerDisabled() {
+	logger.Noticef("security logger disabled")
+
 	lock.Lock()
 	defer lock.Unlock()
 
-	logger.Noticef("security logger disabled")
 	globalLogger.LogAny(
 		Event{Category: "SYS", Name: "sys_logging_disabled", Level: LevelCritical},
 		"Security logging disabled",

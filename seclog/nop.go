@@ -25,6 +25,7 @@ type nopLogger struct{}
 // Ensure [nopLogger] implements [SecurityLogger].
 var _ SecurityLogger = (*nopLogger)(nil)
 
+// NewNopLogger returns a [SecurityLogger] that silently discards all events.
 func NewNopLogger() SecurityLogger {
 	return nopLogger{}
 }
