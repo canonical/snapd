@@ -57,6 +57,10 @@ var (
 	snapctlRemoveChangeKind  = swfeats.RegisterChangeKind("snapctl-remove")
 )
 
+var (
+	changeNotFoundError = "change %q not found"
+)
+
 func init() {
 	finalTasks = make(map[string]bool, len(snapstate.FinalTasks))
 	for _, kind := range snapstate.FinalTasks {
@@ -64,7 +68,7 @@ func init() {
 	}
 }
 
-const snapctlDebounceWindow = 200 * time.Millisecond
+const snapctlDebounceWindow = 100 * time.Millisecond
 
 // finalSeedTask is the last task that should run during seeding. This is used
 // in the special handling of the "seed" change, which requires that we
@@ -674,17 +678,17 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	chg := st.Change(changeID)
 
 	if chg == nil {
-		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+		return state.DefaultStatus, fmt.Errorf(changeNotFoundError, changeID)
 	}
 
 	var initiatorSnapName string
 	err := chg.Get("initiated-by-snap", &initiatorSnapName)
 	if err != nil {
-		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+		return state.DefaultStatus, fmt.Errorf(changeNotFoundError, changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+		return state.DefaultStatus, fmt.Errorf(changeNotFoundError, changeID)
 	}
 
 	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
@@ -793,8 +797,9 @@ func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
 	st.Cache(key, accessed.UnixNano())
 }
 
-// changeStatus checks if the change is ready, if it is, it returns the status, otherwise st.Doing.
-func changeStatus(hctx *hookstate.Context, changeID string) (state.Change, error) {
+// getAssociatedChange returns a change associated with the snapctl context and passed change ID,
+// otherwise nil with error
+func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Change, error) {
 	callerSnapName := hctx.InstanceName()
 
 	st := hctx.State()
@@ -804,55 +809,29 @@ func changeStatus(hctx *hookstate.Context, changeID string) (state.Change, error
 	chg := st.Change(changeID)
 
 	if chg == nil {
-		return state.Change{}, fmt.Errorf("change %q not found", changeID)
+		return nil, fmt.Errorf(changeNotFoundError, changeID)
 	}
 
 	var initiatorSnapName string
 	err := chg.Get("initiated-by-snap", &initiatorSnapName)
 	if err != nil {
-		return state.Change{}, fmt.Errorf("could not find initiator attribute for change %q", changeID)
+		return nil, fmt.Errorf(changeNotFoundError, changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return state.Change{}, fmt.Errorf("change %q was initiated by another snap", changeID)
+		return nil, fmt.Errorf(changeNotFoundError, changeID)
 	}
 
-	lastAccess := st.Cached(fmt.Sprintf("snapctl-%s-last-accessed", callerSnapName))
-	st.Cache(fmt.Sprintf("snapctl-%s-last-accessed", hctx.InstanceName()), time.Now().UnixNano())
-
-	// Compute how long to wait before checking the change status.
-	var toWait time.Duration
-	if lastAccess != nil {
-		lastAccessNano, ok := lastAccess.(int64)
-		if !ok {
-			return state.Change{}, fmt.Errorf("invalid last accessed time format for change %q", changeID)
-		}
-		toWait = 200*time.Millisecond - time.Since(time.Unix(0, lastAccessNano))
+	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
+	if err != nil {
+		return nil, err
 	}
 
 	st.Unlock()
+	<-timeAfter(wait)
+	st.Lock()
 
-	ready := chg.Ready()
-
-	if toWait <= 0 {
-		select {
-		case <-ready:
-			st.Lock()
-			return *chg, nil
-		default:
-			st.Lock()
-			return state.Change{}, nil
-		}
-	}
-
-	select {
-	case <-ready:
-		st.Lock()
-		return *chg, nil
-	case <-timeAfter(toWait):
-		st.Lock()
-		return state.Change{}, nil
-	}
+	return chg, nil
 }
 
 // getAttribute unmarshals into result the value of the provided key from attributes map.

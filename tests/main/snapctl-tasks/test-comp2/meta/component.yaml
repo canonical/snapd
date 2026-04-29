@@ -1,0 +1,5 @@
+component: test-snapctl-tasks+comp2
+type: standard
+version: 1.0
+summary: Second test component for snapctl tasks
+description: Second test component for snapctl tasks
