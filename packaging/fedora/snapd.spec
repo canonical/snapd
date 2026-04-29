@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.75.2
+Version:        2.75.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1009,6 +1009,10 @@ fi
 %endif
 
 %changelog
+* Wed Apr 29 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.75.3
+ - FDE: update secboot to revision 3f8b98c2db70
+
 * Mon Mar 30 2026 Katie May <katie.may@canonical.com>
 - New upstream release 2.75.2
  - Interfaces: network-setup-*| allow running python binaries from

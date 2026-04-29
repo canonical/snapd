@@ -1,3 +1,10 @@
+snapd (2.75.3) xenial; urgency=medium
+
+  * New upstream release, LP: #2143882
+    - FDE: update secboot to revision 3f8b98c2db70
+
+ -- Katie May <katie.may@canonical.com>  Wed, 29 Apr 2026 16:43:31 +0200
+
 snapd (2.75.2) xenial; urgency=medium
 
   * New upstream release, LP: #2143882
