@@ -95,6 +95,20 @@ func debArchitecture(info *snap.Info) string {
 	}
 }
 
+// isDir checks whether relPath exists and is a directory inside the snap
+// container.
+func isDir(container snap.Container, relPath string) bool {
+	fi, err := container.Lstat(relPath)
+	return err == nil && fi.IsDir()
+}
+
+// isRegularFile checks whether relPath exists and is a regular file inside the
+// snap container.
+func isRegularFile(container snap.Container, relPath string) bool {
+	fi, err := container.Lstat(relPath)
+	return err == nil && fi.Mode().IsRegular()
+}
+
 // validateContentPlugTargets checks that content interface plug target
 // directories exist in the snap directory tree.
 func validateContentPlugTargets(container snap.Container, info *snap.Info) error {
@@ -124,8 +138,7 @@ func validateContentPlugTargets(container snap.Container, info *snap.Info) error
 			// only the $SNAP and/or / combination prefix was present
 			continue
 		}
-		fi, err := container.Lstat(relPath)
-		if err != nil || !fi.IsDir() {
+		if !isDir(container, relPath) {
 			return fmt.Errorf("content interface plug %q target %v must exist and must be a directory, ensure it is present in the snap or created before packing", plugName, target)
 		}
 	}
@@ -160,8 +173,7 @@ func validateLayoutPaths(container snap.Container, info *snap.Info) error {
 			if relPath == "" {
 				continue
 			}
-			fi, err := container.Lstat(relPath)
-			if err != nil || !fi.IsDir() {
+			if !isDir(container, relPath) {
 				return fmt.Errorf("layout %q must exist as a directory in the snap, ensure it is present or created before packing", layoutPath)
 			}
 			continue
@@ -189,11 +201,10 @@ func validateLayoutPaths(container snap.Container, info *snap.Info) error {
 			continue
 		}
 
-		fi, err := container.Lstat(relPath)
-		if layout.Bind != "" && (err != nil || !fi.IsDir()) {
+		if layout.Bind != "" && !isDir(container, relPath) {
 			return fmt.Errorf("layout %q source %q must exist and be a directory, ensure it is present in the snap or created before packing", layoutPath, source)
 		}
-		if layout.BindFile != "" && (err != nil || !fi.Mode().IsRegular()) {
+		if layout.BindFile != "" && !isRegularFile(container, relPath) {
 			return fmt.Errorf("layout %q source %q must exist and be a file, ensure it is present in the snap or created before packing", layoutPath, source)
 		}
 	}
