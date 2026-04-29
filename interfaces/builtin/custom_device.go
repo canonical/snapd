@@ -70,6 +70,10 @@ var (
 
 	// Validating regexp for udev tag values (all but kernel devices)
 	customDeviceUDevValueRegexp = regexp.MustCompile(`^[^"{}\\]+$`)
+
+	// must be 3 or 4 digit octal values as string (e.g. [0]644) with no
+	// preceding or following characters.
+	customDeviceUDevFileModeRegexp = regexp.MustCompile(`^[0-7]{3,4}$`)
 )
 
 // customDeviceInterface allows sharing customDevice between snaps
@@ -116,6 +120,19 @@ func (iface *customDeviceInterface) validatePaths(attrName string, paths []strin
 		if err := iface.validateFilePath(path, attrName); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (iface *customDeviceInterface) validateUDevModeValue(value any) error {
+	stringValue, ok := value.(string)
+	if !ok {
+		return fmt.Errorf(`value "%v" is not a string, octal mode must be quoted e.g. " mode: '0644' "`, value)
+	}
+
+	if !customDeviceUDevFileModeRegexp.MatchString(stringValue) {
+		return fmt.Errorf(`value "%v" is not a valid octal file mode string e.g. "[0]644"`, stringValue)
 	}
 
 	return nil
@@ -187,6 +204,8 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]any,
 				break
 			}
 			kernelVal = value.(string)
+		case "mode":
+			err = iface.validateUDevModeValue(value)
 		case "attributes", "environment":
 			err = iface.validateUDevValueMap(value)
 		case "for-device":
@@ -455,6 +474,10 @@ func (iface *customDeviceInterface) UDevConnectedPlug(spec *udev.Specification, 
 
 		if subsystem, ok := udevTaggingRule["subsystem"].(string); ok {
 			fmt.Fprintf(rule, `, SUBSYSTEM=="%s"`, subsystem)
+		}
+
+		if mode, ok := udevTaggingRule["mode"].(string); ok {
+			fmt.Fprintf(rule, `, MODE="%s"`, mode)
 		}
 
 		environment := iface.extractStringMapAttribute(udevTaggingRule, "environment")

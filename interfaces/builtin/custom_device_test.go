@@ -346,6 +346,41 @@ apps:
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: foo\n      for-device: 1234",
 			`custom-device "udev-tagging" invalid "for-device" tag: "for-device" must be a string, but got int64: 1234`,
 		},
+		// mode validation: non-string
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: 660",
+			`custom-device "udev-tagging" invalid "mode" tag: value "660" is not a string, octal mode must be quoted e\.g\. " mode: '0644' "`,
+		},
+		// mode validation: too short (2 digits)
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"66\"",
+			`custom-device "udev-tagging" invalid "mode" tag: value "66" is not a valid octal file mode string e\.g\. "\[0\]644"`,
+		},
+		// mode validation: too long (5 digits)
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"06660\"",
+			`custom-device "udev-tagging" invalid "mode" tag: value "06660" is not a valid octal file mode string e\.g\. "\[0\]644"`,
+		},
+		// mode validation: non-octal digit (8 is not octal)
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"688\"",
+			`custom-device "udev-tagging" invalid "mode" tag: value "688" is not a valid octal file mode string e\.g\. "\[0\]644"`,
+		},
+		// mode validation: non-octal digit (9 is not octal)
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"0699\"",
+			`custom-device "udev-tagging" invalid "mode" tag: value "0699" is not a valid octal file mode string e\.g\. "\[0\]644"`,
+		},
+		// mode validation: alphabetic characters
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"rw-\"",
+			`custom-device "udev-tagging" invalid "mode" tag: value "rw-" is not a valid octal file mode string e\.g\. "\[0\]644"`,
+		},
+		// mode validation: leading/trailing spaces
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \" 660\"",
+			`custom-device "udev-tagging" invalid "mode" tag: value " 660" is not a valid octal file mode string e\.g\. "\[0\]644"`,
+		},
 	}
 
 	for _, testData := range data {
@@ -727,6 +762,73 @@ apps:
 # custom-device
 KERNEL=="msr[0-9]*", SUBSYSTEM=="msr", TAG+="snap_consumer_app"
 TAG=="snap_consumer_app", SUBSYSTEM!="module", SUBSYSTEM!="subsystem", RUN+="%s/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`[1:], dirs.DistroLibExecDir))
+}
+
+func (s *CustomDeviceInterfaceSuite) TestUDevSpecMode(c *C) {
+	const slotYamlTemplate = `name: provider
+version: 0
+slots:
+ hwdev:
+  interface: custom-device
+  custom-device: mydev
+  devices:
+    - /dev/mydev
+  udev-tagging:
+    - kernel: mydev
+      %s
+apps:
+ app:
+  slots: [hwdev]
+`
+	data := []struct {
+		taggingYaml  string
+		expectedMode string
+	}{
+		// 3-digit octal, no leading zero
+		{
+			`mode: "660"`,
+			`MODE="660"`,
+		},
+		// 4-digit octal with leading zero
+		{
+			`mode: "0660"`,
+			`MODE="0660"`,
+		},
+		// world-writable 3-digit
+		{
+			`mode: "666"`,
+			`MODE="666"`,
+		},
+		// world-writable 4-digit
+		{
+			`mode: "0666"`,
+			`MODE="0666"`,
+		},
+		// restrictive owner-only
+		{
+			`mode: "600"`,
+			`MODE="600"`,
+		},
+		// execute bits included
+		{
+			`mode: "755"`,
+			`MODE="755"`,
+		},
+	}
+
+	for _, testData := range data {
+		testLabel := Commentf("tagging yaml: %s", testData.taggingYaml)
+		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+		c.Assert(err, IsNil, testLabel)
+		spec := udev.NewSpecification(appSet)
+		snapYaml := fmt.Sprintf(slotYamlTemplate, testData.taggingYaml)
+		slot, _ := MockConnectedSlot(c, snapYaml, nil, "hwdev")
+		c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil, testLabel)
+		snippets := spec.Snippets()
+
+		all := strings.Join(snippets, "\n")
+		c.Check(all, testutil.Contains, testData.expectedMode, testLabel)
+	}
 }
 
 func (s *CustomDeviceInterfaceSuite) TestAutoConnect(c *C) {
