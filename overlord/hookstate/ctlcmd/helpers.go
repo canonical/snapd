@@ -459,7 +459,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 		if err == nil {
 			err = queueCommand(hctx, tss)
 		}
-		
+
 		return "", err
 	}
 
