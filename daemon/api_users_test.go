@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -113,6 +114,11 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 
 	s.expectLoginAccess()
 
+	var loggedUser seclog.SnapdUser
+	s.AddCleanup(daemon.MockSeclogLogLoginSuccess(func(user seclog.SnapdUser) {
+		loggedUser = user
+	}))
+
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
@@ -149,12 +155,21 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+
+	// security log was called with the right user details
+	c.Check(loggedUser.ID, check.Equals, int64(1))
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
 }
 
 func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	state := s.d.Overlord().State()
 
 	s.expectLoginAccess()
+
+	var loggedUser seclog.SnapdUser
+	s.AddCleanup(daemon.MockSeclogLogLoginSuccess(func(user seclog.SnapdUser) {
+		loggedUser = user
+	}))
 
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
@@ -191,6 +206,11 @@ func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+
+	// security log was called with the right user details
+	c.Check(loggedUser.ID, check.Equals, int64(1))
+	c.Check(loggedUser.StoreUserName, check.Equals, "username")
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
 }
 
 func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
@@ -405,6 +425,13 @@ func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
 func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	s.expectLoginAccess()
 
+	var loggedUser seclog.SnapdUser
+	var loggedReason seclog.Reason
+	s.AddCleanup(daemon.MockSeclogLogLoginFailure(func(user seclog.SnapdUser, reason seclog.Reason) {
+		loggedUser = user
+		loggedReason = reason
+	}))
+
 	s.err = store.ErrAuthenticationNeeds2fa
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
@@ -413,10 +440,20 @@ func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorRequired)
+
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
+	c.Check(loggedReason.Code, check.Equals, seclog.ReasonTwoFactorRequired)
 }
 
 func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	s.expectLoginAccess()
+
+	var loggedUser seclog.SnapdUser
+	var loggedReason seclog.Reason
+	s.AddCleanup(daemon.MockSeclogLogLoginFailure(func(user seclog.SnapdUser, reason seclog.Reason) {
+		loggedUser = user
+		loggedReason = reason
+	}))
 
 	s.err = store.Err2faFailed
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
@@ -426,10 +463,20 @@ func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorFailed)
+
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
+	c.Check(loggedReason.Code, check.Equals, seclog.ReasonTwoFactorFailed)
 }
 
 func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	s.expectLoginAccess()
+
+	var loggedUser seclog.SnapdUser
+	var loggedReason seclog.Reason
+	s.AddCleanup(daemon.MockSeclogLogLoginFailure(func(user seclog.SnapdUser, reason seclog.Reason) {
+		loggedUser = user
+		loggedReason = reason
+	}))
 
 	s.err = store.ErrInvalidCredentials
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
@@ -439,6 +486,10 @@ func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Message, check.Equals, "invalid credentials")
+
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
+	c.Check(loggedReason.Code, check.Equals, seclog.ReasonInvalidCredentials)
+	c.Check(loggedReason.Message, check.Equals, "invalid credentials")
 }
 
 func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
@@ -467,6 +518,34 @@ func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindPasswordPolicy)
 	c.Check(rspe.Value, check.DeepEquals, s.err)
+}
+
+func (s *userSuite) TestLoginUserPersistError(c *check.C) {
+	s.expectLoginAccess()
+
+	var loggedUser seclog.SnapdUser
+	var loggedReason seclog.Reason
+	s.AddCleanup(daemon.MockSeclogLogLoginFailure(func(user seclog.SnapdUser, reason seclog.Reason) {
+		loggedUser = user
+		loggedReason = reason
+	}))
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	// Pass a user whose ID does not exist in the auth state, so
+	// auth.UpdateUser returns ErrInvalidUser.
+	fakeUser := &auth.UserState{ID: 99999, Username: "username", Email: "email@.com"}
+	rspe := s.errorReq(c, req, fakeUser, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Matches, "cannot persist authentication details: .*")
+
+	c.Check(loggedUser.StoreUserEmail, check.Equals, "email@.com")
+	c.Check(loggedUser.StoreUserName, check.Equals, "username")
+	c.Check(loggedReason.Message, check.Matches, "cannot persist authentication details: .*")
 }
 
 func (s *userSuite) TestPostCreateUser(c *check.C) {

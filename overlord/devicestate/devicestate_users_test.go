@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -989,4 +990,89 @@ func (s *usersSuite) TestCreateUserMissingEmail(c *check.C) {
 	c.Check(err.Error(), check.Matches, `cannot create user: 'email' field is empty`)
 	c.Check(s.errorIsInternal(err), check.Equals, false)
 	c.Check(createdUser, check.IsNil)
+}
+
+func (s *usersSuite) TestCreateUserLogsSystemUserCreated(c *check.C) {
+	s.userInfoExpectedEmail = "popper@lse.ac.uk"
+	s.userInfoResult = &store.User{
+		Username:         "karl",
+		SSHKeys:          []string{"ssh1"},
+		OpenIDIdentifier: "xxyyzz",
+	}
+
+	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		return nil
+	})()
+
+	var loggedUser seclog.SystemUser
+	var loggedOpts seclog.AddOptions
+	defer devicestate.MockSeclogLogSystemUserCreated(func(user seclog.SystemUser, opts seclog.AddOptions) {
+		loggedUser = user
+		loggedOpts = opts
+	})()
+
+	s.state.Lock()
+	_, err := devicestate.CreateUser(s.state, true, "popper@lse.ac.uk", time.Time{})
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	c.Check(loggedUser.SystemUserName, check.Equals, "karl")
+	c.Check(loggedOpts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
+	c.Check(loggedOpts.Sudoer, check.Equals, true)
+	c.Check(loggedOpts.Known, check.Equals, false)
+}
+
+func (s *usersSuite) TestCreateKnownUsersLogsSystemUserCreated(c *check.C) {
+	s.makeSystemUsers(c, []map[string]any{goodUser})
+
+	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		return nil
+	})()
+
+	var loggedUser seclog.SystemUser
+	var loggedOpts seclog.AddOptions
+	defer devicestate.MockSeclogLogSystemUserCreated(func(user seclog.SystemUser, opts seclog.AddOptions) {
+		loggedUser = user
+		loggedOpts = opts
+	})()
+
+	s.state.Lock()
+	_, err := devicestate.CreateKnownUsers(s.state, false, "foo@bar.com")
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	c.Check(loggedUser.SystemUserName, check.Equals, "guy")
+	c.Check(loggedOpts.Known, check.Equals, true)
+	c.Check(loggedOpts.Sudoer, check.Equals, false)
+}
+
+func (s *usersSuite) TestRemoveUserLogsSystemUserRemoved(c *check.C) {
+	s.state.Lock()
+	_, err := auth.NewUser(s.state, auth.NewUserParams{
+		Username:   "some-user",
+		Email:      "email@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	defer devicestate.MockOsutilDelUser(func(username string, opts *osutil.DelUserOptions) error {
+		return nil
+	})()
+
+	var loggedUser seclog.SystemUser
+	var loggedOpts seclog.RemoveOptions
+	defer devicestate.MockSeclogLogSystemUserRemoved(func(user seclog.SystemUser, opts seclog.RemoveOptions) {
+		loggedUser = user
+		loggedOpts = opts
+	})()
+
+	s.state.Lock()
+	_, err = devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{Force: true})
+	s.state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	c.Check(loggedUser.SystemUserName, check.Equals, "some-user")
+	c.Check(loggedOpts.Force, check.Equals, true)
 }

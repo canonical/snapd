@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,6 +51,14 @@ func MockDeviceStateRemoveUser(removeUser func(st *state.State, username string,
 	restore = testutil.Backup(&deviceStateRemoveUser)
 	deviceStateRemoveUser = removeUser
 	return restore
+}
+
+func MockSeclogLogLoginSuccess(f func(user seclog.SnapdUser)) (restore func()) {
+	return testutil.Mock(&seclogLogLoginSuccess, f)
+}
+
+func MockSeclogLogLoginFailure(f func(user seclog.SnapdUser, reason seclog.Reason)) (restore func()) {
+	return testutil.Mock(&seclogLogLoginFailure, f)
 }
 
 type (

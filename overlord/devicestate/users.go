@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -41,6 +42,9 @@ var (
 	osutilAddUser = osutil.AddUser
 	osutilDelUser = osutil.DelUser
 	userLookup    = user.Lookup
+
+	seclogLogSystemUserCreated = seclog.LogSystemUserCreated
+	seclogLogSystemUserRemoved = seclog.LogSystemUserRemoved
 )
 
 // UserError is returned when invalid or insufficient data is supplied,
@@ -78,7 +82,7 @@ func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time
 	}
 
 	opts.Sudoer = sudoer
-	return addUser(st, username, email, expiration, opts)
+	return addUser(st, username, email, expiration, opts, false)
 }
 
 // CreateKnownUsers creates known users. The user details are fetched
@@ -107,7 +111,7 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 	}
 
 	opts.Sudoer = sudoer
-	createdUser, err := addUser(st, username, email, expiration, opts)
+	createdUser, err := addUser(st, username, email, expiration, opts, true)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +154,13 @@ func RemoveUser(st *state.State, username string, opts *RemoveUserOptions) (*aut
 	if err != nil && err != auth.ErrInvalidUser {
 		return nil, err
 	}
+
+	seclogLogSystemUserRemoved(seclog.SystemUser{
+		SystemUserName: username,
+	}, seclog.RemoveOptions{
+		Force: opts.Force,
+	})
+
 	return u, nil
 }
 
@@ -199,7 +210,7 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	}
 
 	addUserOpts.Sudoer = sudoer
-	return addUser(state, username, email, expiration, addUserOpts)
+	return addUser(state, username, email, expiration, addUserOpts, true)
 }
 
 var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error) {
@@ -334,7 +345,7 @@ func setupLocalUser(state *state.State, username, email string, expiration time.
 	return nil
 }
 
-func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions) (*CreatedUser, error) {
+func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions, known bool) (*CreatedUser, error) {
 	opts.ExtraUsers = !release.OnClassic
 	if err := osutilAddUser(username, opts); err != nil {
 		return nil, fmt.Errorf("cannot add user %q: %s", username, err)
@@ -342,6 +353,16 @@ func addUser(state *state.State, username string, email string, expiration time.
 	if err := setupLocalUser(state, username, email, expiration); err != nil {
 		return nil, err
 	}
+
+	seclogLogSystemUserCreated(seclog.SystemUser{
+		SystemUserName: username,
+	}, seclog.AddOptions{
+		Gecos:               opts.Gecos,
+		Sudoer:              opts.Sudoer,
+		ExtraUsers:          opts.ExtraUsers,
+		ForcePasswordChange: opts.ForcePasswordChange,
+		Known:               known,
+	})
 
 	return &CreatedUser{
 		Username: username,

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -68,6 +69,9 @@ var (
 	deviceStateCreateUser       = devicestate.CreateUser
 	deviceStateCreateKnownUsers = devicestate.CreateKnownUsers
 	deviceStateRemoveUser       = devicestate.RemoveUser
+
+	seclogLogLoginSuccess = seclog.LogLoginSuccess
+	seclogLogLoginFailure = seclog.LogLoginFailure
 )
 
 // userResponseData contains the data releated to user creation/login/query
@@ -82,6 +86,17 @@ type userResponseData struct {
 }
 
 var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
+
+// loginError logs a login failure to the security audit log and returns resp
+// unchanged. It is a convenience wrapper so that each error return path in
+// loginUser can log with a single call.
+func loginError(resp *apiError, snapdUser seclog.SnapdUser, code string) *apiError {
+	seclogLogLoginFailure(snapdUser, seclog.Reason{
+		Code:    code,
+		Message: resp.Message,
+	})
+	return resp
+}
 
 func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	var loginData struct {
@@ -116,41 +131,53 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
+	// Build the user identity for security audit logging. At this
+	// point we know the email and optional username; the numeric ID
+	// is only available after successful authentication.
+	snapdUser := seclog.SnapdUser{
+		StoreUserName:  loginData.Username,
+		StoreUserEmail: loginData.Email,
+	}
+
 	overlord := c.d.overlord
 	st := overlord.State()
 	theStore := storeFrom(c.d)
 	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
-		return &apiError{
+		return loginError(&apiError{
 			Status:  401,
 			Message: err.Error(),
 			Kind:    client.ErrorKindTwoFactorRequired,
-		}
+		}, snapdUser, seclog.ReasonTwoFactorRequired)
 	case store.Err2faFailed:
-		return &apiError{
+		return loginError(&apiError{
 			Status:  401,
 			Message: err.Error(),
 			Kind:    client.ErrorKindTwoFactorFailed,
-		}
+		}, snapdUser, seclog.ReasonTwoFactorFailed)
 	default:
 		switch err := err.(type) {
 		case store.InvalidAuthDataError:
-			return &apiError{
+			return loginError(&apiError{
 				Status:  400,
 				Message: err.Error(),
 				Kind:    client.ErrorKindInvalidAuthData,
 				Value:   err,
-			}
+			}, snapdUser, seclog.ReasonInvalidAuthData)
 		case store.PasswordPolicyError:
-			return &apiError{
+			return loginError(&apiError{
 				Status:  401,
 				Message: err.Error(),
 				Kind:    client.ErrorKindPasswordPolicy,
 				Value:   err,
-			}
+			}, snapdUser, seclog.ReasonPasswordPolicy)
 		}
-		return Unauthorized(err.Error())
+		reason := seclog.ReasonInternal
+		if err == store.ErrInvalidCredentials {
+			reason = seclog.ReasonInvalidCredentials
+		}
+		return loginError(Unauthorized(err.Error()), snapdUser, reason)
 	case nil:
 		// continue
 	}
@@ -172,8 +199,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Unlock()
 	if err != nil {
-		return InternalError("cannot persist authentication details: %v", err)
+		return loginError(InternalError("cannot persist authentication details: %v", err), snapdUser, seclog.ReasonInternal)
 	}
+
+	snapdUser.ID = int64(user.ID)
+	snapdUser.StoreUserName = user.Username
+	snapdUser.StoreUserEmail = user.Email
+	snapdUser.Expiration = user.Expiration
+	seclogLogLoginSuccess(snapdUser)
 
 	result := userResponseData{
 		ID:         user.ID,

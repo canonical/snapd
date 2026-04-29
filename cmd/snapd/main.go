@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/syscheck"
@@ -41,13 +42,33 @@ import (
 
 var (
 	syscheckCheckSystem = syscheck.CheckSystem
+	seclogSetup         = seclog.Setup
+	seclogDisable       = seclog.Disable
 )
+
+const secLogAppID = "canonical.snapd.snapd"
+const secLogMinLevel seclog.Level = seclog.LevelInfo
+
+func setupSecurityLogger() {
+	if err := seclogSetup(seclog.ImplSlog, seclog.SinkAudit, secLogAppID, secLogMinLevel); err != nil {
+		logger.Noticef("WARNING: %v", err)
+	}
+}
+
+func disableSecurityLogger() {
+	if err := seclogDisable(); err != nil {
+		logger.Noticef("WARNING: cannot disable security logger: %v", err)
+	}
+}
 
 func init() {
 	logger.SimpleSetup(nil)
 }
 
 func main() {
+	setupSecurityLogger()
+	defer disableSecurityLogger()
+
 	// When preseeding re-exec is not used
 	if snapdenv.Preseeding() {
 		logger.Noticef("running for preseeding")
