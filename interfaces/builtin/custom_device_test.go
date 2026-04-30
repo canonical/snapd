@@ -342,6 +342,10 @@ apps:
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: foo\n      for-device: /dev/bar",
 			`custom-device "udev-tagging" invalid "for-device" tag: cannot find matching device "/dev/bar"`,
 		},
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: foo\n      for-device: 1234",
+			`custom-device "udev-tagging" invalid "for-device" tag: cannot find matching device "1234"`,
+		},
 	}
 
 	for _, testData := range data {
