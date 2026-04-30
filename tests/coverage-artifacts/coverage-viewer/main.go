@@ -76,7 +76,7 @@ type functionsByFileEntry struct {
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8099", "HTTP listen address")
 	repoRoot := flag.String("repo-root", ".", "path to snapd repository root")
-	resultsDir := flag.String("results-dir", "coverage-artifacts/coverage-results", "path to raw coverage result directories (absolute or relative to current working directory)")
+	resultsDir := flag.String("results-dir", "tests/coverage-artifacts/coverage-results", "path to raw coverage result directories (absolute or relative to current working directory)")
 	listCoveredFiles := flag.Bool("list-covered-files", false, "print files with at least one covered line for a given test and exit")
 	functionsJSON := flag.Bool("functions-json", false, "print JSON with covered functions per file for a given test and exit")
 	testName := flag.String("test", "", "test directory name under coverage-results (required with -list-covered-files and -functions-json)")
@@ -906,8 +906,8 @@ const indexHTML = `<!doctype html>
         fileList.innerHTML = '<div class="empty">Could not load files for selected test.</div>';
         return;
       }
-      const data = await res.json();
-      files = data.files || [];
+	const data = await res.json();
+	files = (data.files || []).filter(f => Number(f.percent) > 0);
       renderFileList();
     }
 
