@@ -1070,9 +1070,11 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 				"id":         t2.ID(),
 				"kind":       "activate",
 				"summary":    "2...",
-				"status":     "Do",
-				"progress":   map[string]any{"label": "", "done": 0., "total": 1.},
+				"status":     "Error",
+				"log":        []any{"2016-04-21T01:02:03Z ERROR activate failed"},
+				"progress":   map[string]any{"label": "", "done": 1., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
+				"ready-time": "2016-04-21T01:02:03Z",
 			},
 		},
 		"data": map[string]any{
