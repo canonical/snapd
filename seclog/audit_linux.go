@@ -21,7 +21,6 @@ package seclog
 
 import (
 	"fmt"
-	"io"
 	"sync/atomic"
 	"syscall"
 
@@ -60,9 +59,9 @@ func (realNetlinkOps) Close(fd int) error {
 
 var netlink netlinkOps = realNetlinkOps{}
 
-// OpenAuditWriter opens a netlink audit socket and returns an [io.WriteCloser]
+// OpenAuditWriter opens a netlink audit socket and returns an [AuditWriter]
 // that sends each written payload as an AUDIT_TRUSTED_APP.
-func OpenAuditWriter() (io.WriteCloser, error) {
+func OpenAuditWriter() (*AuditWriter, error) {
 	// SOCK_CLOEXEC prevents the fd from leaking to child processes.
 	fd, err := netlink.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, syscall.NETLINK_AUDIT)
 	if err != nil {

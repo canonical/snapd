@@ -126,9 +126,7 @@ func (s *AuditSuite) TestClose(c *C) {
 	writer, err := seclog.OpenAuditWriter()
 	c.Assert(err, IsNil)
 
-	closer, ok := writer.(interface{ Close() error })
-	c.Assert(ok, Equals, true)
-	err = closer.Close()
+	err = writer.Close()
 	c.Assert(err, IsNil)
 	c.Check(mock.closedFDs, DeepEquals, []int{7})
 }
