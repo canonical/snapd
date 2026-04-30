@@ -684,7 +684,7 @@ var modeDescs = mixinDescs{
 	// TRANSLATORS: This should not start with a lowercase letter.
 	"classic": i18n.G("Confirm installation of a snap that uses classic confinement"),
 	// TRANSLATORS: This should not start with a lowercase letter.
-	"devmode": i18n.G("Put strictly confined snap in development mode and disable security confinement"),
+	"devmode": i18n.G("Enable development mode, relaxing confinement for strict snaps or confirming devmode snap installation"),
 	// TRANSLATORS: This should not start with a lowercase letter.
 	"jailmode": i18n.G("Put snap in enforced confinement mode"),
 }
