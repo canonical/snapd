@@ -28,6 +28,10 @@ SuccessExitStatus=42
 RestartPreventExitStatus=42
 KillMode=process
 KeyringMode=shared
+FileDescriptorStoreMax=1024
+# Should this be enabled to survive soft reboots and service stop/start
+# starting with systmed v254+?
+#FileDescriptorStorePreserve=yes
 
 [Install]
 WantedBy=multi-user.target
