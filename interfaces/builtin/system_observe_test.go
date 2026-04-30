@@ -115,9 +115,7 @@ func (s *SystemObserveInterfaceSuite) TestMountPermanentPlug(c *C) {
 	// mount for it
 	fakeBootDir := filepath.Join(tmpdir, "/boot")
 	c.Assert(os.MkdirAll(fakeBootDir, 0777), IsNil)
-	file, err := os.OpenFile(filepath.Join(fakeBootDir, "config-5.10"), os.O_CREATE, 0644)
-	c.Assert(err, IsNil)
-	c.Assert(file.Close(), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(fakeBootDir, "config-5.10"), nil, 0o644), IsNil)
 
 	mountSpec := &mount.Specification{}
 	c.Assert(mountSpec.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
