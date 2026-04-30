@@ -336,6 +336,33 @@ Push the version tag to the canonical/snapd repo by following the steps:
 6. Once you are done setting it up, save, click on the package (https://launchpad.net/~snappy-dev/+snap/snapd-2.XX), and request builds.
 7. Once the builds have completed, ensure the versions are correct by checking `snapcraft status snapd | grep beta/<version>`
 
+##### 4.1 Create snapd FIPS builds for `fips-updates/beta/<version>` on Launchpad
+
+Prerequisites:
+- You are a member of [Ubuntu Core/Snapd FIPS team](https://launchpad.net/~uc-snapd-fips) - if not, ask for an invite.
+- You have access to a FIPS enabled Ubuntu 24.04 or 22.04 system. An LXD VM which you can set up by running `pro attach <my-token> && pro enable fips-updates` is sufficient.
+
+Repeat steps 1-4 from section 4, then:
+5. In yet another window open the [snapd-fips package edit page](https://launchpad.net/~ubuntu-advantage/fips-cc-stig/+snap/snapd-fips/+edit) for reference.
+6. Set `snapd-fips-<2.XX>` as the recipe name. The recipe **MUST** be owned by `ubuntu-advantage` and associated with `fips-cc-stig` project. The build **MUST** be done using `~ubuntu-advantage/ubuntu/pro-fips-updates` PPA for FIPS modules to be automatically located at build time. Use the same branch as for the non-FIPS build. Configure automatic store upload to `fips-updates/beta/<version>` branch. Only select `amd64` and `arm64` architectures. Save the package and request builds, double check that the right PPA is used for the builds.
+7. Once the builds have completed, ensure the versions are correct by checking `snapcraft status snapd | grep fips-updates/beta/<version>`. The snap version should be `2.XX+fips`.
+
+**IMPORTANT: the `+fips` suffix is added automatically at build time once the relevant FIPS modules were found. If the suffix is missing, ensure that a correct PPA was enabled during the build.**
+
+Post-build verification steps;
+8. In a FIPS enabled VM (confirm by `/proc/sys/crypto/fips_enabled` contains `1`), install snapd snap from the build branch.
+9. Confirm snapd snap version. Confirm the FIPS provider module is used at runtime by running: `pmap -p $(pidof snapd) |grep fips.so`.
+   Example:
+   ```
+   root@vu3-2404-pro-fips:~# pmap -p $(pidof snapd) |grep fips.so
+   0000791b7697f000    100K r---- /snap/snapd/26976/usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
+   0000791b76998000   1068K r-x-- /snap/snapd/26976/usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
+   0000791b76aa3000    236K r---- /snap/snapd/26976/usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
+   0000791b76ade000      4K ----- /snap/snapd/26976/usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
+   0000791b76adf000     88K r---- /snap/snapd/26976/usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
+   0000791b76af5000      4K rw--- /snap/snapd/26976/usr/lib/x86_64-linux-gnu/ossl-modules-3/fips.so
+   ```
+
 #### 5. Release to latest/beta
 
 Prerequisites:
@@ -349,6 +376,11 @@ Steps:
 3. For each architectural build, you have a unique revision number. You release by running `snapcraft release snapd <revision-number> beta`. You will run that command for each individual revision number.
 4. Update internal roadmap tracking, for example by marking Jira epics and releases as completed.
 5. Update GitHub milestones to close the released milestone
+
+##### 5.1 Release of FIPS artifact to fips-updates/beta
+
+1. Find the revisions for the snap in `fips-updates/beta/<version>` branch.
+2. For each architecture build (`amd64` and `arm64`), release it to `fips-updates` track by running `snapcraft release snapd <revision-number> fips-updates/beta`.
 
 #### 6. Post-beta steps
 
