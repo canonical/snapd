@@ -834,6 +834,32 @@ apps:
 		all := strings.Join(snippets, "\n")
 		c.Check(all, testutil.Contains, testData.expectedMode, testLabel)
 	}
+
+	// Verify that mode coexists correctly with other tagging attributes
+	// without garbling the output.
+	const combinedTaggingYaml = `mode: "0660"
+      subsystem: input
+      attributes:
+        attr1: one
+        attr2: two
+      environment:
+        env1: first
+        env2: second|other`
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := udev.NewSpecification(appSet)
+	snapYaml := fmt.Sprintf(slotYamlTemplate, combinedTaggingYaml)
+	slot, _ := MockConnectedSlot(c, snapYaml, nil, "hwdev")
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, slot), IsNil)
+	snippets := spec.Snippets()
+	all := strings.Join(snippets, "\n")
+	c.Check(all, testutil.Contains, `KERNEL=="mydev"`)
+	c.Check(all, testutil.Contains, `SUBSYSTEM=="input"`)
+	c.Check(all, testutil.Contains, `MODE="0660"`)
+	c.Check(all, testutil.Contains, `ATTR{attr1}=="one"`)
+	c.Check(all, testutil.Contains, `ATTR{attr2}=="two"`)
+	c.Check(all, testutil.Contains, `ENV{env1}=="first"`)
+	c.Check(all, testutil.Contains, `ENV{env2}=="second|other"`)
 }
 
 func (s *CustomDeviceInterfaceSuite) TestAutoConnect(c *C) {
