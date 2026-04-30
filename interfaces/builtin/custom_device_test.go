@@ -349,7 +349,7 @@ apps:
 		// mode validation: non-string
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: 660",
-			`custom-device "udev-tagging" invalid "mode" tag: value "660" is not a string, octal mode must be quoted e\.g\. " mode: '0644' "`,
+			"custom-device \"udev-tagging\" invalid \"mode\" tag: value \"660\" is not a string, octal mode must be quoted e\\.g\\. `mode: '0644'`",
 		},
 		// mode validation: too short (2 digits)
 		{

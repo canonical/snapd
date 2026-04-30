@@ -129,7 +129,7 @@ func (iface *customDeviceInterface) validatePaths(attrName string, paths []strin
 func (iface *customDeviceInterface) validateUDevModeValue(value any) error {
 	stringValue, ok := value.(string)
 	if !ok {
-		return fmt.Errorf(`value "%v" is not a string, octal mode must be quoted e.g. " mode: '0644' "`, value)
+		return fmt.Errorf("value \"%v\" is not a string, octal mode must be quoted e.g. `mode: '0644'`", value)
 	}
 
 	if !customDeviceUDevFileModeRegexp.MatchString(stringValue) {
