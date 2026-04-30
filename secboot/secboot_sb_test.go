@@ -1654,6 +1654,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 			// add options for legacy PCR configuration
 			expectedOptions = append(
 				expectedOptions,
+				sb_efi.WithAllowSecureBootUserMode(),
 				sb_efi.WithSecureBootPolicyProfile(),
 				sb_efi.WithBootManagerCodeProfile(),
 			)
