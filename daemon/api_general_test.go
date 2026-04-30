@@ -1020,15 +1020,13 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 
 	t2 := st.NewTask("activate", "2...")
 	chg1.AddTask(t2)
-	t2.SetStatus(state.ErrorStatus)
-	t2.Errorf("activate failed")
+	// Setting 'snap-setup' to something that cant be parsed allows us to test that missing data is ignored
+	// and doesn't cause the whole task to be missing from the output
+	t2.Set("snap-setup", "some-snap")
 
 	chg := st.Change(chg1.ID())
 	chg.Set("api-data", map[string]int{"n": 42})
 	st.Unlock()
-
-	// Existing mock function would make task 1 (download) report some-snap as affected snap,
-	// and task 2 (activate) report an error which should be ignored. task 3 (unlink) has no error
 
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/changes/"+chg1.ID(), nil)
@@ -1067,11 +1065,9 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 				"id":         t2.ID(),
 				"kind":       "activate",
 				"summary":    "2...",
-				"status":     "Error",
-				"log":        []any{"2016-04-21T01:02:03Z ERROR activate failed"},
-				"progress":   map[string]any{"label": "", "done": 1., "total": 1.},
+				"status":     "Do",
+				"progress":   map[string]any{"label": "", "done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
-				"ready-time": "2016-04-21T01:02:03Z",
 			},
 		},
 		"data": map[string]any{
