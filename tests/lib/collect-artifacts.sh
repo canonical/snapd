@@ -42,7 +42,7 @@ coverage() {
     # Copy the coverage files to the artifacts directory
     local task_dir
     task_dir="$(_prepare_artifacts_path coverage-results)"
-    cp -f "$TESTSTMP"/coverage/* "$task_dir"
+    cp -f "$TESTSTMP"/coverage/* "$task_dir" || true
 }
 
 if [ "$#" == 0 ]; then
