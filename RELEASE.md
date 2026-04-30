@@ -318,7 +318,7 @@ Push the version tag to the canonical/snapd repo by following the steps:
 2. Click "import now" to import the codebase
 3. Click on https://code.launchpad.net/~snappy-dev/snapd/+git/snapd/+ref/release/2.XX and attempt to browse the code. It will probably not work, but if it does work, then you can confirm the presence of the git tag.
 4. Go back to the `release/2.XX` branch (https://code.launchpad.net/~snappy-dev/snapd/+git/snapd/+ref/release/2.XX) and click "Create snap package" (https://code.launchpad.net/~snappy-dev/snapd/+git/snapd/+ref/release/2.XX/+new-snap).
-5. In a different window, open a [previous package in edit mode](https://launchpad.net/~snappy-dev/+snap/snapd-2.74/+edit), and copy that configuration to the newly created package. Change the recipe and branch name.
+5. In a different window, open a [previous package in edit mode](https://launchpad.net/~snappy-dev/+snap/snapd-2.74/+edit), and copy that configuration to the newly created package. Change the recipe name to `snapd-2.XX` and branch name to `release/2.XX`.
 6. Once you are done setting it up, save, click on the package (https://launchpad.net/~snappy-dev/+snap/snapd-2.XX), and request builds.
 7. Once the builds have completed, ensure the versions are correct by checking `snapcraft status snapd | grep beta/<version>`
 
