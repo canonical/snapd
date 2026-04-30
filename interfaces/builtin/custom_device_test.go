@@ -371,6 +371,11 @@ apps:
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"0699\"",
 			`custom-device "udev-tagging" invalid "mode" tag: value "0699" is not a valid octal file mode string e\.g\. "\[0\]644"`,
 		},
+		// mode validation: non-zero leading digit in 4-digit form
+		{
+			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"1660\"",
+			`custom-device "udev-tagging" invalid "mode" tag: value "1660" is not a valid octal file mode string e\.g\. "\[0\]644"`,
+		},
 		// mode validation: alphabetic characters
 		{
 			"devices: [/dev/null]\n  udev-tagging:\n    - kernel: \"null\"\n      mode: \"rw-\"",

@@ -72,8 +72,9 @@ var (
 	customDeviceUDevValueRegexp = regexp.MustCompile(`^[^"{}\\]+$`)
 
 	// must be 3 or 4 digit octal values as string (e.g. [0]644) with no
-	// preceding or following characters.
-	customDeviceUDevFileModeRegexp = regexp.MustCompile(`^[0-7]{3,4}$`)
+	// preceding or following characters. If 4 digits, first digit must be 0
+	// since the first digit is not relevant to device nodes.
+	customDeviceUDevFileModeRegexp = regexp.MustCompile(`^(0?)[0-7]{3}$`)
 )
 
 // customDeviceInterface allows sharing customDevice between snaps
