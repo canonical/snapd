@@ -925,6 +925,7 @@ func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowIns
 
 		var options []sb_efi.PCRProfileOption
 		options = append(options,
+			sb_efi.WithAllowSecureBootUserMode(),
 			sb_efi.WithSecureBootPolicyProfile(),
 			sb_efi.WithBootManagerCodeProfile(),
 			sb_efi.WithSignatureDBUpdates(updateDB...),
