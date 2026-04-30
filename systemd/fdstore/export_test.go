@@ -54,12 +54,16 @@ func MockSdNotify(f func(notifyState string) error) (restore func()) {
 	return testutil.Mock(&sdNotify, f)
 }
 
-func MockSdNotifyWithFds(f func(notifyState string, fds ...int) error) (restore func()) {
+func MockSdNotifyWithFds(f func(notifyState string, files ...*os.File) error) (restore func()) {
 	return testutil.Mock(&sdNotifyWithFds, f)
 }
 
 func MockNetFileListener(f func(f *os.File) (ln net.Listener, err error)) (restore func()) {
 	return testutil.Mock(&netFileListener, f)
+}
+
+func MockOsFileClose(f func(*os.File) error) (restore func()) {
+	return testutil.Mock(&osFileClose, f)
 }
 
 func KnownFdNames() map[FdName]bool {

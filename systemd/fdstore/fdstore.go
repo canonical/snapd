@@ -20,6 +20,7 @@
 package fdstore
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -61,6 +62,7 @@ var (
 	osUnsetenv      = os.Unsetenv
 	osLookupEnv     = os.LookupEnv
 	osGetpid        = os.Getpid
+	osFileClose     = (*os.File).Close
 	unixCloseOnExec = unix.CloseOnExec
 	unixDup         = unix.Dup
 	sdNotify        = systemd.SdNotify
@@ -157,10 +159,29 @@ func initFdstore() {
 	return
 }
 
+var ErrUnsupportedSystemdVersion = errors.New("unsupported systemd version")
+var ErrNotFound = errors.New("file descriptor not found")
+
+func checkSystemdVersion() error {
+	// FDNAME=... was added in systemd v233, but for the sake
+	// of being consistent with removal (FDSTOREREMOVE=1 was
+	// added in systemd v236), require at least systemd v236.
+	//
+	// https://www.freedesktop.org/software/systemd/man/latest/sd_pid_notify_with_fds.html#FDNAME=%E2%80%A6
+	if err := systemd.EnsureAtLeast(236); err != nil {
+		return fmt.Errorf("%w: %v", ErrUnsupportedSystemdVersion, err)
+	}
+	return nil
+}
+
 // Remove removes file descriptors from systemd given their name.
 // Remove cannot remove activation sockets.
 func Remove(name FdName) (err error) {
 	initFdstore()
+
+	if err := checkSystemdVersion(); err != nil {
+		return fmt.Errorf("cannot remove file descriptor from fdstore: %w", err)
+	}
 
 	if name.isSocket() {
 		// Activation sockets can only be passed down from systemd
@@ -177,35 +198,34 @@ func Remove(name FdName) (err error) {
 //
 // Caller must hold the fdstore lock.
 func remove(name FdName) (err error) {
-	// FDSTOREREMOVE=1 was added in systemd v236
-	//
-	// https://www.freedesktop.org/software/systemd/man/latest/sd_pid_notify_with_fds.html#FDSTOREREMOVE=1
-	if err := systemd.EnsureAtLeast(236); err != nil {
-		return fmt.Errorf("cannot remove file descriptor from fdstore: %v", err)
-	}
-
 	state := fmt.Sprintf("FDSTOREREMOVE=1\nFDNAME=%s", name)
 	if err := sdNotify(state); err != nil {
 		return err
 	}
 
-	// Note: Removing the all references of os.File will impicitly
-	// close opened fds by finalizer for os.File so no need to
-	// explicitly call close.
+	for _, f := range fdstore[name] {
+		osFileClose(f)
+	}
 	delete(fdstore, name)
 	return nil
 }
 
-// Get retrieves file descriptor passed from systemd by its name.
-// close-on-exec is set on the returned file descriptor. An error is
-// returned if no matching file descriptor is found, if more than one
+// Get retrieves a duplicate of the file descriptor passed from systemd by
+// its name. close-on-exec is set on the returned file descriptor. An error
+// is returned if no matching file descriptor is found, if more than one
 // matching file descriptors are found or if the passed name corresponds
 // to a socket (i.e. ends in ".socket"). To get activation sockets use
 // fdstore.ActivationListeners() instead.
 //
-// It is the caller's responsibility to close f when finished.
+// The fdstore holds a copy of the file descriptor, the caller needs to
+// call Remove() on top of closing all privately held references in order
+// to release all resources associated with a given fd.
 func Get(name FdName) (f *os.File, retErr error) {
 	initFdstore()
+
+	if err := checkSystemdVersion(); err != nil {
+		return nil, fmt.Errorf("cannot get file descriptor from fdstore: %w", err)
+	}
 
 	mu.RLock()
 	defer mu.RUnlock()
@@ -219,8 +239,8 @@ func Get(name FdName) (f *os.File, retErr error) {
 	}
 
 	fds := fdstore[name]
-	if len(fds) != 1 {
-		return nil, fmt.Errorf("%s: no matching file descriptor found", errPrefix)
+	if len(fds) == 0 {
+		return nil, fmt.Errorf("%s: %w", errPrefix, ErrNotFound)
 	} else if len(fds) > 1 {
 		return nil, fmt.Errorf("%s: found more than one matching file descriptors", errPrefix)
 	}
@@ -245,17 +265,13 @@ func Get(name FdName) (f *os.File, retErr error) {
 //   - The file descriptors can be retrieved by calling Get().
 //   - Only a single file descriptor can associated with a FdName.
 //
-// It is the caller's responsibility to close f when finished.
+// Maintains a copy of the underlying file descriptor internally. It
+// is the caller's responsibility to close f when finished.
 func Add(name FdName, f *os.File) (retErr error) {
 	initFdstore()
 
-	// FDNAME=... was added in systemd v233, but for the sake
-	// of being consistent with removal (FDSTOREREMOVE=1 was
-	// added in systemd v236), require at least systemd v236.
-	//
-	// https://www.freedesktop.org/software/systemd/man/latest/sd_pid_notify_with_fds.html#FDNAME=%E2%80%A6
-	if err := systemd.EnsureAtLeast(236); err != nil {
-		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
+	if err := checkSystemdVersion(); err != nil {
+		return fmt.Errorf("cannot add file descriptor to fdstore: %w", err)
 	}
 
 	mu.Lock()
@@ -284,7 +300,7 @@ func Add(name FdName, f *os.File) (retErr error) {
 	duplicatedFile := os.NewFile(uintptr(duplicatedFd), string(name))
 
 	state := fmt.Sprintf("FDSTORE=1\nFDNAME=%s", name)
-	if err := sdNotifyWithFds(state, duplicatedFd); err != nil {
+	if err := sdNotifyWithFds(state, duplicatedFile); err != nil {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
 	}
 

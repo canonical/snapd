@@ -45,6 +45,7 @@ type fdstoreTestSuite struct {
 	sdNotifyCalls  []string
 	errOn          []string
 	closeOnExecFds []int
+	closeFds       []int
 	lastDupFd      int
 	duplicatedFds  []int
 }
@@ -56,6 +57,7 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.sdNotifyCalls = nil
 	s.errOn = nil
 	s.closeOnExecFds = nil
+	s.closeFds = nil
 	s.lastDupFd = 1000
 	s.duplicatedFds = nil
 
@@ -81,7 +83,11 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 		s.sdNotifyCalls = append(s.sdNotifyCalls, call)
 		return nil
 	}))
-	s.AddCleanup(fdstore.MockSdNotifyWithFds(func(notifyState string, fds ...int) error {
+	s.AddCleanup(fdstore.MockSdNotifyWithFds(func(notifyState string, files ...*os.File) error {
+		fds := make([]int, len(files))
+		for i := range files {
+			fds[i] = int(files[i].Fd())
+		}
 		call := fmt.Sprintf("sd-notify-with-fds: %s %v", notifyState, fds)
 		if strutil.ListContains(s.errOn, call) {
 			return errors.New("boom!")
@@ -96,6 +102,10 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 		s.duplicatedFds = append(s.duplicatedFds, oldfd)
 		s.lastDupFd++
 		return s.lastDupFd, nil
+	}))
+	s.AddCleanup(fdstore.MockOsFileClose(func(f *os.File) error {
+		s.closeFds = append(s.closeFds, int(f.Fd()))
+		return nil
 	}))
 	s.AddCleanup(systemd.MockSystemdVersion(236, nil))
 	s.AddCleanup(fdstore.Clear)
@@ -119,11 +129,12 @@ func (s *fdstoreTestSuite) TestGet(c *C) {
 
 	// more checks
 	file, err = fdstore.Get("no-fd") // doesn't exist
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "no-fd": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "no-fd": file descriptor not found`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrNotFound)
 	c.Check(file, IsNil)
 	file, err = fdstore.Get("invalid") // should have been pruned by initialization
 	c.Check(file, IsNil)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "invalid": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "invalid": file descriptor not found`)
 	file, err = fdstore.Get("snapd.socket") // sockets are not returned
 	c.Assert(err, ErrorMatches, `internal error: cannot get file descriptor named "snapd.socket": socket found, use ActivationListeners instead`)
 	c.Check(file, IsNil)
@@ -142,6 +153,15 @@ func (s *fdstoreTestSuite) TestGet(c *C) {
 	c.Check(s.closeOnExecFds, DeepEquals, []int{3, 4, 5, 6, 7, 1999, 2000})
 }
 
+func (s *fdstoreTestSuite) TestGetLowSystemdVersionError(c *C) {
+	restore := systemd.MockSystemdVersion(235, nil)
+	defer restore()
+
+	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
+}
+
 func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
 	s.fakeEnv["LISTEN_PID"] = "1999" // not 1984
 	s.fakeEnv["LISTEN_FDS"] = "3"
@@ -152,7 +172,7 @@ func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
 	c.Check(err, IsNil)
 	c.Check(listeners, IsNil)
 	_, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	// passed environment variables are cleared
 	c.Assert(s.fakeEnv, HasLen, 0)
@@ -160,7 +180,7 @@ func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
 
 func (s *fdstoreTestSuite) TestInitNoFds(c *C) {
 	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 	listeners, err := fdstore.ActivationListeners()
 	c.Check(err, IsNil)
 	c.Check(listeners, IsNil)
@@ -172,7 +192,7 @@ func (s *fdstoreTestSuite) TestInitEnvMismatchError(c *C) {
 	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:other.socket:memfd-secret-state"
 
 	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 	listeners, err := fdstore.ActivationListeners()
 	c.Check(err, IsNil)
 	c.Check(listeners, IsNil)
@@ -182,7 +202,7 @@ func (s *fdstoreTestSuite) TestAdd(c *C) {
 	s.lastDupFd = 1973
 
 	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), IsNil)
 	// 7 is duplicated as 1974
@@ -228,14 +248,14 @@ func (s *fdstoreTestSuite) TestAddSdNotifyError(c *C) {
 	s.errOn = []string{"sd-notify-with-fds: FDSTORE=1\nFDNAME=memfd-secret-state [2027]"}
 
 	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: boom!`)
 	// duplicated (as 2027) before sd-notify error
 	c.Check(s.duplicatedFds, DeepEquals, []int{7})
 
 	_, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
-	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": no matching file descriptor found`)
+	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	// 8 is duplicated as 2028
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(8, "")), IsNil)
@@ -249,7 +269,9 @@ func (s *fdstoreTestSuite) TestAddLowSystemdVersionError(c *C) {
 	restore := systemd.MockSystemdVersion(235, nil)
 	defer restore()
 
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: systemd version 235 is too old \(expected at least 236\)`)
+	err := fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
+	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 }
@@ -267,7 +289,9 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 	c.Check(file.Fd(), Equals, uintptr(1001))
 	c.Check(s.duplicatedFds, DeepEquals, []int{3})
 
+	c.Check(s.closeFds, DeepEquals, []int(nil))
 	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), IsNil)
+	c.Check(s.closeFds, DeepEquals, []int{3})
 
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), IsNil)
 	// 7 is duplicated as 1002
@@ -287,6 +311,7 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 	})
 	// 1001 and 1003 are duplicated from Get, 1002 is duplicated from Add
 	c.Check(s.closeOnExecFds, DeepEquals, []int{3, 4, 5, 1001, 1002, 1003})
+	c.Check(s.closeFds, DeepEquals, []int{3})
 }
 
 func (s *fdstoreTestSuite) TestRemoveSdNotifyError(c *C) {
@@ -314,7 +339,9 @@ func (s *fdstoreTestSuite) TestRemoveLowSystemdVersionError(c *C) {
 	restore := systemd.MockSystemdVersion(235, nil)
 	defer restore()
 
-	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, `cannot remove file descriptor from fdstore: systemd version 235 is too old \(expected at least 236\)`)
+	err := fdstore.Remove(fdstore.FdNameMemfdSecretState)
+	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
+	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
 
 	c.Check(s.sdNotifyCalls, HasLen, 0)
 	c.Check(s.closeOnExecFds, DeepEquals, []int{3, 4})
