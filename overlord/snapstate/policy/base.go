@@ -64,10 +64,12 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	}
 
 	// here we use that bases can't be instantiated (InstanceName == SnapName always)
-	return validateBaseUsedByAllRemoved(st, name, removals)
+	return validateBaseOnlyUsedByRemoved(st, name, removals)
 }
 
-func validateBaseUsedByAllRemoved(st *state.State, baseName string, removals map[string]bool) error {
+// validateBaseOnlyUsedByRemoved checks that the base is only used by snaps
+// being removed alongside it.
+func validateBaseOnlyUsedByRemoved(st *state.State, baseName string, removals map[string]bool) error {
 	usedBy, err := baseUsedBy(st, baseName)
 	if err != nil {
 		return err
