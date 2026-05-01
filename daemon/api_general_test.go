@@ -1000,6 +1000,8 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	c.Assert(rec.Code, check.Equals, 200)
 }
 
+// This test relies on ctlcmd.StateChangeToChangeInfo(), which was moved from
+// the daemon package to the ctlcmd package.
 func (s *generalSuite) TestStateChange(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()

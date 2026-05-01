@@ -71,6 +71,11 @@ const snapctlDebounceWindow = 200 * time.Millisecond
 // properly organize the hook tasks in the chain of tasks in the change.
 const finalSeedTask = "mark-seeded"
 
+// To unmarshal the data needed for `snap tasks`, we need access
+// to all struct fields that client.Change has. However, Change.data is an
+// unexported field, so we cannot unmarshal into it directly. There is a
+// changeAndData struct in the client package with all exported fields, but the
+// struct itself is not exported.
 type ChangeInfo struct {
 	ID      string      `json:"id"`
 	Kind    string      `json:"kind"`
@@ -106,7 +111,10 @@ type taskInfoProgress struct {
 	Total int    `json:"total"`
 }
 
-func StateChangeToClientChange(chg *state.Change) *ChangeInfo {
+// To unmarshal the data needed for `snap tasks`, we need access
+// to all struct fields that client.Change has. However, due to unexported
+// fields, we use ChangeInfo instead.
+func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 	status := chg.Status()
 	chgInfo := &ChangeInfo{
 		ID:      chg.ID(),

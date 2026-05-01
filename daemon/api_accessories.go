@@ -51,5 +51,5 @@ func getAccessoriesChange(c *Command, r *http.Request, user *auth.UserState) Res
 		return NotFound("cannot find change with id %q", chID)
 	}
 
-	return SyncResponse(ctlcmd.StateChangeToClientChange(chg))
+	return SyncResponse(ctlcmd.StateChangeToChangeInfo(chg))
 }

@@ -295,7 +295,7 @@ func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return NotFound("cannot find change with id %q", chID)
 	}
 
-	return SyncResponse(ctlcmd.StateChangeToClientChange(chg))
+	return SyncResponse(ctlcmd.StateChangeToChangeInfo(chg))
 }
 
 func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -352,7 +352,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		if !filter(chg) {
 			continue
 		}
-		chgInfos = append(chgInfos, ctlcmd.StateChangeToClientChange(chg))
+		chgInfos = append(chgInfos, ctlcmd.StateChangeToChangeInfo(chg))
 	}
 	return SyncResponse(chgInfos)
 }
@@ -390,7 +390,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	// actually ask to proceed with the abort
 	ensureStateSoon(state)
 
-	return SyncResponse(ctlcmd.StateChangeToClientChange(chg))
+	return SyncResponse(ctlcmd.StateChangeToChangeInfo(chg))
 }
 
 var (
