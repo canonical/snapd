@@ -684,6 +684,7 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	addTemporaryRecoveryKeys := st.NewTask("fde-add-recovery-keys", "Add temporary recovery key slots")
 	addTemporaryRecoveryKeys.Set("recovery-key-id", recoveryKeyID)
 	addTemporaryRecoveryKeys.Set("keyslots", tmpKeyslotRefs)
+	addTemporaryRecoveryKeys.Set("remove-all-on-error", true)
 	ts.AddTask(addTemporaryRecoveryKeys)
 
 	removeOldRecoveryKeys := st.NewTask("fde-remove-keys", "Remove old recovery key slots")

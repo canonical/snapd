@@ -57,6 +57,11 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		return err
 	}
 
+	var removeAllOnError bool
+	if err := t.Get("remove-all-on-error", &removeAllOnError); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	// XXX: unlock state and let conflict detection handle the rest?
 
 	containers, err := m.GetEncryptedContainers()
@@ -76,10 +81,11 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		if err == nil {
 			return
 		}
-		// TODO:FDEM: a dedicated clean up for stray tmp key slots (recovery or not)
-		// is needed to account for left-over tmp key slot from a failed re-run for
-		// example.
-		for _, keyslotRef := range addedKeyslots {
+		target := addedKeyslots
+		if removeAllOnError {
+			target = keyslotRefs
+		}
+		for _, keyslotRef := range target {
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
