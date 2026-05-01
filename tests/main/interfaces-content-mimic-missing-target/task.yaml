@@ -34,14 +34,14 @@ execute: |
     echo "Connect provider-2 to the plug whose target DOES exist in the snap"
     snap connect test-snapd-consumer:provider-2 test-snapd-provider-2:provider
 
-    echo "Verify content from provider-2 is NOT visible"
+    echo "Verify content from provider-2 is visible"
     #shellcheck disable=SC2016
-    not test-snapd-consumer.app -c 'cat $SNAP/provider-2/content' |& MATCH '/provider-2/content: No such file or directory'
+    test-snapd-consumer.app -c 'cat $SNAP/provider-2/content' | MATCH "content of test-snapd-provider-2"
 
-    echo "Discard the snap's mount namespace so that we start from scratch"
+    echo "Discard the snap's mount namespace and verify both remain visible from scratch"
     snapd.tool exec snap-discard-ns test-snapd-consumer
 
-    echo "Both content files are now visible"
+    echo "Both content files are still visible after namespace recreation"
     #shellcheck disable=SC2016
     test-snapd-consumer.app -c 'cat $SNAP/provider-1/content' | MATCH "content of test-snapd-provider-1"
     #shellcheck disable=SC2016

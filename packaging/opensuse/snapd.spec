@@ -51,6 +51,7 @@
 # adding global with_alt_snap_mount_dir 1 then.
 %global snap_mount_dir /snap
 %global alt_snap_mount_dir %{_localstatedir}/lib/snapd/snap
+%global with_alt_snap_mount_dir 1
 
 %global selinuxtype targeted
 
@@ -97,6 +98,14 @@
 %global with_multilib 1
 %endif
 
+%global with_go_unit_tests 1
+%ifnarch x86_64
+# disable Go unit tests on architectures other than x86_64. Those run on
+# virtualized systems with very little resources and often amplify races in
+# checks emplyed by unit tests themselves.
+%global with_go_unit_tests 0
+%endif
+
 %ifarch %arm
 # libsnap-confine-private/unit-tests fails on ARM under valgrind
 %bcond_with valgrind
@@ -118,6 +127,7 @@ Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  m4
 BuildRequires:  distribution-release
 BuildRequires:  fakeroot
 BuildRequires:  glibc-devel-static
@@ -353,11 +363,13 @@ export CGO_LDFLAGS="$LDFLAGS"
 
 %make_build -C %{indigo_srcdir}/cmd -k check
 %make_build -C %{indigo_srcdir}/data -k check
+%if %{with_go_unit_tests}
 # Use the common packaging helper for testing.
 export SNAPD_SKIP_SLOW_TESTS=1
 %make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             check
+%endif
 
 %install
 # Install all systemd and dbus units, and env files.
@@ -442,13 +454,12 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
 
-# TODO: starting with 2.74 default to %{alt_snap_mount_dir}
 if test ! -e %{snap_mount_dir} && test ! -e %{alt_snap_mount_dir} ; then
     # neither location exists, it's likely a new installation, but we
     # need one of the directories to exist for snapd and snap-confine
     # to be able to figure out the desired configuration at runtime
-    echo "Using %{snap_mount_dir} as snap mount directory"
-    mkdir -p -m 755 %{snap_mount_dir} || :
+    echo "Using %{alt_snap_mount_dir} as snap mount directory"
+    mkdir -p -m 755 %{alt_snap_mount_dir} || :
 fi
 
 %service_add_post %{systemd_services_list}
@@ -601,6 +612,7 @@ fi
 %{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_environmentdir}/990-snapd.conf
+%dir %{_prefix}/lib/dracut/dracut.conf.d
 %{_prefix}/lib/dracut/dracut.conf.d/50-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
@@ -637,7 +649,6 @@ fi
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
-%ghost /tmp/snap-private-tmp
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}

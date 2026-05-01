@@ -37,6 +37,18 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
+// ConflictOptions contains optional settings for conflict checks triggered by
+// nested operations that were spawned from an existing change.
+type ConflictOptions struct {
+	// FromChange is the change that triggered the operation.
+	FromChange string
+	// DoNotIgnoreFromChangeInTaskConflictCheck makes task-level conflict checks
+	// continue to inspect tasks in FromChange while still ignoring FromChange
+	// for exclusive change conflicts. This is for internal use by nested
+	// operations spawned from an existing change.
+	DoNotIgnoreFromChangeInTaskConflictCheck bool
+}
+
 // Options contains optional parameters for the snapstate operations. All of
 // these fields are optional and can be left unset. The options in this struct
 // apply to all snaps that are part of an operation. Options that apply to
@@ -53,8 +65,7 @@ type Options struct {
 	// track of all snaps (explicitly requested and implicitly required snaps)
 	// that might need to be installed during the operation.
 	PrereqTracker PrereqTracker
-	// FromChange is the change that triggered the operation.
-	FromChange string
+	ConflictOptions
 	// Seed should be true while seeding the device. This indicates that we
 	// shouldn't require that the device is seeded before installing/updating
 	// snaps.
@@ -893,9 +904,9 @@ func InstallWithGoal(ctx context.Context, st *state.State, goal InstallGoal, opt
 		}
 
 		installTS, err := doInstallOrPreDownload(st, &t.snapst, &snapsup, compsups, installContext{
-			FromChange:    opts.FromChange,
-			DeviceCtx:     opts.DeviceCtx,
-			SkipConfigure: opts.Flags.SkipConfigure,
+			ConflictOptions: opts.ConflictOptions,
+			DeviceCtx:       opts.DeviceCtx,
+			SkipConfigure:   opts.Flags.SkipConfigure,
 		})
 		if err != nil {
 			return nil, nil, err

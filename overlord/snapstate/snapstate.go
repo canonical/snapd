@@ -723,11 +723,11 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	})
 
 	_, ts, err := InstallOne(ctx, st, target, Options{
-		Flags:         flags,
-		UserID:        userID,
-		FromChange:    fromChange,
-		PrereqTracker: prqt,
-		DeviceCtx:     deviceCtx,
+		Flags:           flags,
+		UserID:          userID,
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
+		PrereqTracker:   prqt,
+		DeviceCtx:       deviceCtx,
 	})
 	if err != nil {
 		return nil, err
@@ -759,11 +759,11 @@ func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name
 	})
 
 	_, ts, err := InstallOne(context.Background(), st, target, Options{
-		Flags:         flags,
-		UserID:        userID,
-		FromChange:    fromChange,
-		PrereqTracker: prqt,
-		DeviceCtx:     deviceCtx,
+		Flags:           flags,
+		UserID:          userID,
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
+		PrereqTracker:   prqt,
+		DeviceCtx:       deviceCtx,
 	})
 	if err != nil {
 		return nil, err
@@ -1295,10 +1295,10 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 
 	goal := StoreUpdateGoal(updates...)
 	return UpdateWithGoal(ctx, st, goal, filter, Options{
-		Flags:      *flags,
-		UserID:     userID,
-		FromChange: fromChange,
-		DeviceCtx:  nil,
+		Flags:           *flags,
+		UserID:          userID,
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
+		DeviceCtx:       nil,
 	})
 }
 
@@ -1561,7 +1561,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 	if len(mustPruneAutoAliases) != 0 {
 		var err error
-		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, opts.FromChange, func(snapName string, _ *state.TaskSet) {
+		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, opts.ConflictOptions, func(snapName string, _ *state.TaskSet) {
 			if nameSet[snapName] {
 				reportUpdated[snapName] = true
 			}
@@ -1627,7 +1627,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		// Do not set any default restart boundaries, we do it when we have access to all
 		// the task-sets in preparation for single-reboot.
 		sts, err := doInstallOrPreDownload(st, &up.SnapState, &up.Setup, up.Components, installContext{
-			FromChange:          opts.FromChange,
+			ConflictOptions:     opts.ConflictOptions,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
 		})
@@ -1655,7 +1655,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, opts.DeviceCtx)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, opts)
 	if err != nil {
 		return nil, false, nil, err
 	}
@@ -1670,7 +1670,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 	}
 
 	if len(newAutoAliases) != 0 {
-		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, opts.FromChange, scheduleUpdate)
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, opts.ConflictOptions, scheduleUpdate)
 		if err != nil {
 			return nil, false, nil, err
 		}
@@ -1724,7 +1724,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		return nil, nil
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName(), nil, opts.FromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName(), nil, opts.ConflictOptions); err != nil {
 		return nil, err
 	}
 
@@ -1833,7 +1833,7 @@ func reRefreshSummary(updated []string, flags *Flags) string {
 	return msg
 }
 
-func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, fromChange string, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
+func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, copts ConflictOptions, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
 	msg := i18n.G("Refresh aliases for snap %q")
@@ -1842,7 +1842,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 		msg = i18n.G("Prune automatic aliases for snap %q")
 	}
 	for instanceName, aliases := range delta {
-		if err := checkChangeConflictIgnoringOneChange(st, instanceName, nil, fromChange); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, instanceName, nil, copts); err != nil {
 			if refreshAll {
 				// doing "refresh all", just skip this snap
 				logger.Noticef("cannot %s automatic aliases for snap %q: %v", op, instanceName, err)
@@ -2227,11 +2227,11 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	})
 
 	return UpdateOne(context.Background(), st, goal, nil, Options{
-		Flags:         flags,
-		UserID:        userID,
-		DeviceCtx:     deviceCtx,
-		FromChange:    fromChange,
-		PrereqTracker: prqt,
+		Flags:           flags,
+		UserID:          userID,
+		DeviceCtx:       deviceCtx,
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
+		PrereqTracker:   prqt,
 	})
 }
 
@@ -2259,11 +2259,11 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 		RevOpts:      *opts,
 	})
 	return UpdateOne(context.Background(), st, goal, nil, Options{
-		Flags:         flags,
-		UserID:        userID,
-		DeviceCtx:     deviceCtx,
-		PrereqTracker: prqt,
-		FromChange:    fromChange,
+		Flags:           flags,
+		UserID:          userID,
+		DeviceCtx:       deviceCtx,
+		PrereqTracker:   prqt,
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
 	})
 }
 
@@ -2366,7 +2366,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 			continue
 		}
 
-		if err := checkChangeConflictIgnoringOneChange(st, name, &t.snapst, fromChange); err != nil {
+		if err := checkChangeConflictIgnoringOneChange(st, name, &t.snapst, ConflictOptions{FromChange: fromChange}); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", name, err)
 		} else {
 			updates = append(updates, name)
@@ -2511,10 +2511,10 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 
 	const userID = 0
 	_, updateTss, err := doPotentiallySplitUpdate(st, nil, updates, Options{
-		Flags:      *flags,
-		UserID:     userID,
-		FromChange: fromChange,
-		DeviceCtx:  deviceCtx,
+		Flags:           *flags,
+		UserID:          userID,
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
+		DeviceCtx:       deviceCtx,
 	})
 	if err != nil {
 		return nil, err
@@ -2689,7 +2689,7 @@ func LinkNewBaseOrKernel(st *state.State, name string, fromChange string, device
 		return nil, err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, name, nil, ConflictOptions{FromChange: fromChange}); err != nil {
 		return nil, err
 	}
 
@@ -2874,7 +2874,7 @@ func SwitchToNewGadget(st *state.State, name string, fromChange string) (*state.
 		return nil, err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, name, nil, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, name, nil, ConflictOptions{FromChange: fromChange}); err != nil {
 		return nil, err
 	}
 
@@ -3607,7 +3607,9 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 		})
 	}
 
-	installTS, err := doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{FromChange: fromChange})
+	installTS, err := doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
+	})
 	if err != nil {
 		return nil, err
 	}

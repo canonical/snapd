@@ -21,6 +21,8 @@
 package fdestate_test
 
 import (
+	"crypto"
+	"crypto/hmac"
 	"errors"
 	"fmt"
 	"os"
@@ -941,12 +943,12 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
 		},
 		{
-			authMode: device.AuthModePassphrase, noVolumesAuth: true,
-			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
+			authMode: device.AuthModePassphrase, recoveryMode: true,
+			expectedAdds: []string{"/dev/disk/by-uuid/data:tmp-default"},
 		},
 		{
-			authMode: device.AuthModePassphrase, recoveryMode: true,
-			expectedErr: `cannot add platform keys if FDE is not active \(current state: recovery\)`,
+			authMode: device.AuthModePassphrase, noVolumesAuth: true,
+			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
 		},
 		{
 			authMode:    device.AuthModePassphrase,
@@ -1074,6 +1076,32 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 
 		c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
 
+		salt := []byte{1, 2, 3, 4}
+		primaryKey := []byte{5, 6, 7, 8}
+
+		defer fdestate.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFiles []string) ([]byte, error) {
+			c.Check(devices, DeepEquals, []string{
+				"/dev/disk/by-uuid/data",
+				"/dev/disk/by-uuid/save",
+			})
+			c.Check(fallbackKeyFiles, HasLen, 0)
+			return primaryKey, nil
+		})()
+
+		h := hmac.New(crypto.Hash(crypto.SHA256).New, salt[:])
+		h.Write(primaryKey)
+		digest := h.Sum(nil)
+
+		var fdeSt fdestate.FdeState
+		err := s.st.Get("fde", &fdeSt)
+		c.Assert(err, IsNil)
+		fdeSt.PrimaryKeys[0] = fdestate.PrimaryKeyInfo{fdestate.KeyDigest{
+			Algorithm: secboot.HashAlg(crypto.SHA256),
+			Salt:      salt,
+			Digest:    digest,
+		}}
+		s.st.Set("fde", &fdeSt)
+
 		task := s.st.NewTask("fde-add-platform-keys", "test")
 		task.Set("keyslots", tc.keyslots)
 		task.Set("auth-mode", tc.authMode)
@@ -1170,6 +1198,32 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeysIdempotence(c *C) {
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	salt := []byte{1, 2, 3, 4}
+	primaryKey := []byte{5, 6, 7, 8}
+
+	defer fdestate.MockSecbootGetPrimaryKey(func(devices []string, fallbackKeyFiles []string) ([]byte, error) {
+		c.Check(devices, DeepEquals, []string{
+			"/dev/disk/by-uuid/data",
+			"/dev/disk/by-uuid/save",
+		})
+		c.Check(fallbackKeyFiles, HasLen, 0)
+		return primaryKey, nil
+	})()
+
+	h := hmac.New(crypto.Hash(crypto.SHA256).New, salt[:])
+	h.Write(primaryKey)
+	digest := h.Sum(nil)
+
+	var fdeSt fdestate.FdeState
+	err := s.st.Get("fde", &fdeSt)
+	c.Assert(err, IsNil)
+	fdeSt.PrimaryKeys[0] = fdestate.PrimaryKeyInfo{fdestate.KeyDigest{
+		Algorithm: secboot.HashAlg(crypto.SHA256),
+		Salt:      salt,
+		Digest:    digest,
+	}}
+	s.st.Set("fde", &fdeSt)
 
 	keyslotRefs := []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default-0"},

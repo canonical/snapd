@@ -23,7 +23,6 @@ package fdestate_test
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -901,18 +900,6 @@ func (s *fdeMgrSuite) TestReplacePlatformKeyErrors(c *C) {
 	badKeyslot = fdestate.KeyslotRef{ContainerRole: "system-data", Name: "default"}
 	_, err = fdestate.ReplacePlatformKey(s.st, nil, []fdestate.KeyslotRef{badKeyslot})
 	c.Assert(err, ErrorMatches, `invalid key slot reference \(container-role: "system-data", name: "default"\): unsupported type "recovery", expected "platform"`)
-
-	// recovery mode
-	s.createUnlockedState(c, sb.ActivationSucceededWithRecoveryKey)
-	s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
-
-	_, err = fdestate.ReplacePlatformKey(s.st, nil, nil)
-	c.Assert(err, ErrorMatches, `cannot replace platform keys if FDE is not active \(current state: recovery\)`)
-	// cleanup
-	c.Assert(os.RemoveAll(filepath.Join(dirs.SnapBootstrapRunDir, "unlocked.json")), IsNil)
-
-	s.createUnlockedState(c, sb.ActivationSucceededWithPlatformKey)
-	s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
 
 	// change conflict with fde changes
 	chg := s.st.NewChange("fde-change-passphrase", "")

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 show_help() {
-	echo "usage: tests.invariant check [INVARIANT...]"
+	echo "usage: tests.invariant [check|set] [INVARIANT...]"
 	echo
-	echo "Supported invariants:"
+	echo "Supported invariants for 'check' action:"
 	echo "    root-files-in-home: most of /home/* does not contain root-owned files"
 	echo "    crashed-snap-confine: $TESTSTMP/snap.rootfs_* does not exist"
 	echo "    lxcfs-mounted: /var/lib/lxcfs is a mount point"
@@ -11,6 +11,10 @@ show_help() {
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 	echo "    segmentation-violations: snapd must not have segmentation-violation errors in journal logs"
+    echo "    snap-mount-dir: assert that reported snap mount directory is the same as at test start"
+    echo
+    echo "Supported invariants for 'set' action:"
+    echo "    snap-mount-dir <dir>: set the snap mount directory expected by the invariant check"
 }
 
 if [ $# -eq 0 ]; then
@@ -33,6 +37,10 @@ while [ $# -gt 0 ]; do
 			action=check
 			shift
 			;;
+        set)
+            action="set"
+            shift
+            ;;
 		-*)
 			echo "tests.invariant: unsupported argument $1" >&2
 			exit 1
@@ -217,6 +225,42 @@ check_fakestore_cleaned() {
     fi
 }
 
+set_snap_mount_dir() {
+    initial_mount_dir="$1"
+    if test -z "$initial_mount_dir" ; then
+        echo "initial snap mount directory cannot be empty"
+        exit 1
+    fi
+    echo "$initial_mount_dir" > "$TESTSTMP/tests.invariant.initial-snap-mount-dir"
+}
+
+check_snap_mount_dir() {
+	n="$1" # invariant name
+    local expected_mount_dir
+    local current_mount_dir
+
+    if [ ! -f "$TESTSTMP/tests.invariant.initial-snap-mount-dir" ]; then
+        echo "tests.invariant: initial snap mount directory not configured, run 'set snap-mount-dir' first"
+        return 1
+    fi
+
+    expected_mount_dir="$(cat "$TESTSTMP/tests.invariant.initial-snap-mount-dir")"
+    test -n "$expected_mount_dir"
+    current_mount_dir="$(os.paths snap-mount-dir)"
+    if [ "$current_mount_dir" != "$expected_mount_dir" ]; then
+        echo "tests.invariant: unexpected snap-mount-directory, expected $expected_mount_dir, got $current_mount_dir" \
+            > "$TESTSTMP/tests.invariant.$n"
+    else
+        rm -f "$TESTSTMP/tests.invariant.$n"
+    fi
+
+	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
+		echo "tests.invariant: snap mount directory change detected" >&2
+		cat "$TESTSTMP/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -249,6 +293,9 @@ check_invariant() {
 		check-fakestore-cleaned)
 			check_fakestore_cleaned
 			;;
+        snap-mount-dir)
+            check_snap_mount_dir "$1"
+            ;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -268,6 +315,7 @@ main() {
 	cgroups
 	segmentation-violations
 	check-fakestore-cleaned
+    snap-mount-dir
 	"
 
 	case "$action" in
@@ -291,6 +339,18 @@ main() {
 				exit 1
 			fi
 			;;
+        set)
+            case "$1" in
+                 snap-mount-dir)
+                    shift
+                    set_snap_mount_dir "$*"
+                    ;;
+                 *)
+                     echo "tests.invariant: unsupported set action"
+                     exit 1
+                     ;;
+            esac
+            ;;
 		*)
 			echo "tests.invariant: unknown action $action" >&2
 			exit 1

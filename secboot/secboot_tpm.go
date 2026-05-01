@@ -1399,20 +1399,10 @@ func FindFreeHandle() (uint32, error) {
 }
 
 // AddContainerRecoveryKey adds a new TPM protected key to specified device.
-//
-// Note: The unlock and primary keys are implicitly obtained from the kernel
-// keyring so this will not work if the disk was unlocked with a recovery key
-// during boot.
 func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKeyParams) (err error) {
 	var pcrProfile sb_tpm2.PCRProtectionProfile
 	if _, err := mu.UnmarshalFromBytes(params.PCRProfile, &pcrProfile); err != nil {
 		return fmt.Errorf("cannot unmarshal PCR profile: %v", err)
-	}
-
-	// this will fail if the disk was unlocked with a recovery key during boot.
-	primaryKey, err := sbGetPrimaryKeyFromKernel(defaultKeyringPrefix, devicePath, false)
-	if err != nil {
-		return fmt.Errorf("cannot get primary key from kernel keyring for unlocked disk %s: %v", devicePath, err)
 	}
 
 	unlockKey, err := sbGetDiskUnlockKeyFromKernel(defaultKeyringPrefix, devicePath, false)
@@ -1433,7 +1423,7 @@ func AddContainerTPMProtectedKey(devicePath, slotName string, params *ProtectKey
 		PCRProfile:             &pcrProfile,
 		Role:                   params.KeyRole,
 		PCRPolicyCounterHandle: tpm2.Handle(params.PCRPolicyCounterHandle),
-		PrimaryKey:             primaryKey,
+		PrimaryKey:             params.PrimaryKey,
 	}
 
 	protectedKey, _, newKey, err := newTPMProtectedKey(tpm, creationParams, params.VolumesAuth)

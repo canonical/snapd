@@ -73,6 +73,9 @@ override, taking the snap back to the current revision of the channel it's
 tracking.
 
 Use --name to set the instance name when installing from snap file.
+
+Installation of snaps built with classic confinement requires explicit
+confirmation by passing --classic.
 `)
 
 var longRemoveHelp = i18n.G(`
@@ -679,9 +682,9 @@ type modeMixin struct {
 
 var modeDescs = mixinDescs{
 	// TRANSLATORS: This should not start with a lowercase letter.
-	"classic": i18n.G("Put snap in classic mode and disable security confinement"),
+	"classic": i18n.G("Confirm installation of a snap that uses classic confinement"),
 	// TRANSLATORS: This should not start with a lowercase letter.
-	"devmode": i18n.G("Put snap in development mode and disable security confinement"),
+	"devmode": i18n.G("Enable development mode, relaxing confinement for strict snaps or confirming devmode snap installation"),
 	// TRANSLATORS: This should not start with a lowercase letter.
 	"jailmode": i18n.G("Put snap in enforced confinement mode"),
 }

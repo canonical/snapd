@@ -690,9 +690,18 @@ prepare_suite() {
         snap set system journal.persistent=true
     fi
 
+    initial_mount_dir="$(os.paths snap-mount-dir)"
+    tests.invariant set snap-mount-dir "$initial_mount_dir"
+    # capture the snap mount directory, which should have been created by
+    # package installation
+    echo "$initial_mount_dir" | MATCH "(/var/lib/snapd)?/snap"
+
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+
+    # make sure that reset did not break anything
+    tests.invariant check snap-mount-dir
 }
 
 prepare_suite_each() {

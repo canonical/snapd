@@ -298,6 +298,7 @@ func delayedCrossMgrInit() {
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
 	snapstate.SeedRefreshTasks = SeedRefreshTasks
+	snapstate.AppendSeedRefreshSetupTaskIDs = AppendSeedRefreshSetupTaskIDs
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -533,10 +534,10 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 
 		_, ts, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
-			DeviceCtx:     r.deviceCtx,
-			FromChange:    r.fromChange,
-			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true, Required: true, NoDelayedSideEffects: true},
+			DeviceCtx:       r.deviceCtx,
+			ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+			PrereqTracker:   r.tracker,
+			Flags:           snapstate.Flags{NoReRefresh: true, Required: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
@@ -619,10 +620,10 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 
 		ts, err := snapstateUpdateOne(ctx, st, goal, nil, snapstate.Options{
-			DeviceCtx:     r.deviceCtx,
-			FromChange:    r.fromChange,
-			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true, NoDelayedSideEffects: true},
+			DeviceCtx:       r.deviceCtx,
+			ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+			PrereqTracker:   r.tracker,
+			Flags:           snapstate.Flags{NoReRefresh: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
@@ -915,9 +916,9 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 			}
 
 			ts, err := snapstateInstallComponentPath(st, lc.SideInfo, info, lc.Path, snapstate.Options{
-				DeviceCtx:     r.deviceCtx,
-				FromChange:    r.fromChange,
-				PrereqTracker: r.tracker,
+				DeviceCtx:       r.deviceCtx,
+				ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+				PrereqTracker:   r.tracker,
 			})
 			if err != nil {
 				return nil, err
@@ -931,9 +932,9 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 	}
 
 	return snapstateInstallComponents(ctx, st, components, info, r.vsets, snapstate.Options{
-		DeviceCtx:     r.deviceCtx,
-		FromChange:    r.fromChange,
-		PrereqTracker: r.tracker,
+		DeviceCtx:       r.deviceCtx,
+		ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+		PrereqTracker:   r.tracker,
 	})
 }
 
@@ -1815,6 +1816,37 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 		Finalize: finalize,
 		Remove:   removals,
 	}, nil
+}
+
+// AppendSeedRefreshSetupTaskIDs appends unique setup task IDs to the
+// create-recovery-system task recovery-system-setup payload.
+func AppendSeedRefreshSetupTaskIDs(create *state.Task, snapSetupTask string, compSetupTasks []string) error {
+	setup, err := taskRecoverySystemSetup(create)
+	if err != nil {
+		return err
+	}
+
+	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTask)
+	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTasks...)
+
+	return setTaskRecoverySystemSetup(create, setup)
+}
+
+func appendUnique(slice []string, additions ...string) []string {
+	seen := make(map[string]bool, len(slice))
+	for _, id := range slice {
+		seen[id] = true
+	}
+
+	for _, id := range additions {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		slice = append(slice, id)
+		seen[id] = true
+	}
+
+	return slice
 }
 
 // seedRefreshLabelsToRemove returns the existing seed-refresh systems that
