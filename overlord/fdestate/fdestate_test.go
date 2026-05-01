@@ -764,6 +764,10 @@ func (s *fdeMgrSuite) testReplacePlatformKey(c *C, authMode device.AuthMode, def
 	var tskKeyslots []fdestate.KeyslotRef
 	c.Assert(tsks[0].Get("keyslots", &tskKeyslots), IsNil)
 	c.Check(tskKeyslots, DeepEquals, tmpKeyslots)
+	// check all tmp keys will be removed on error
+	var tskRemoveAll bool
+	c.Assert(tsks[0].Get("remove-all-on-error", &tskRemoveAll), IsNil)
+	c.Check(tskRemoveAll, Equals, true)
 	var tskAuthMode device.AuthMode
 	c.Assert(tsks[0].Get("auth-mode", &tskAuthMode), IsNil)
 	c.Check(tskAuthMode, Equals, authMode)

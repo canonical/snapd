@@ -297,6 +297,11 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		return fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
 	}
 
+	var removeAllOnError bool
+	if err := t.Get("remove-all-on-error", &removeAllOnError); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	var keyslotRoles map[string][]string
 	if err := t.Get("roles", &keyslotRoles); err != nil {
 		return err
@@ -336,7 +341,11 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		if err == nil {
 			return
 		}
-		for _, keyslotRef := range addedKeyslots {
+		target := addedKeyslots
+		if removeAllOnError {
+			target = keyslotRefs
+		}
+		for _, keyslotRef := range target {
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
