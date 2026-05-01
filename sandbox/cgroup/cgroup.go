@@ -43,12 +43,6 @@ const (
 	cgroupMountPoint = "/sys/fs/cgroup"
 )
 
-var (
-	// Filesystem root defined locally to avoid dependency on the 'dirs'
-	// package
-	rootPath = "/"
-)
-
 const (
 	// Separate block, because iota is fun
 	Unknown = iota
@@ -62,9 +56,6 @@ var (
 )
 
 func init() {
-	dirs.AddRootDirCallback(func(root string) {
-		rootPath = root
-	})
 	probeVersion, probeErr = probeCgroupVersion()
 	// handles error case gracefully
 	pickVersionSpecificImpl()
@@ -98,11 +89,11 @@ func fsTypeForPathImpl(path string) (int64, error) {
 // ProcPidPath returns the path to the cgroup file under /proc for the given
 // process id.
 func ProcPidPath(pid int) string {
-	return filepath.Join(rootPath, fmt.Sprintf("proc/%v/cgroup", pid))
+	return filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
 }
 
 func probeCgroupVersion() (version int, err error) {
-	cgroupMount := filepath.Join(rootPath, cgroupMountPoint)
+	cgroupMount := filepath.Join(dirs.GlobalRootDir, cgroupMountPoint)
 	typ, err := fsTypeForPath(cgroupMount)
 	if err != nil {
 		return Unknown, fmt.Errorf("cannot determine cgroup version: %v", err)
