@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
@@ -58,8 +59,7 @@ func (s *apparmorSuite) TestDecodeLabelUnrecognisedSnapLabel(c *C) {
 
 func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 	d := c.MkDir()
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
+	dirs.SetRootDir(d)
 
 	// when the new file exists we use that one
 	newProcFile := filepath.Join(d, "proc/42/attr/apparmor/current")
@@ -79,8 +79,7 @@ func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 
 func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
 	d := c.MkDir()
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
+	dirs.SetRootDir(d)
 
 	// When no /proc/$pid/attr/current exists, assume unconfined
 	_, _, _, err := apparmor.SnapAppFromPid(42)

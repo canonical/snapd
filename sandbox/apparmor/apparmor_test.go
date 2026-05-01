@@ -271,8 +271,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	d := c.MkDir()
 
 	// Pretend that apparmor kernel features directory doesn't exist.
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
+	dirs.SetRootDir(d)
 	features, err := apparmor.ProbeKernelFeatures()
 	c.Assert(os.IsNotExist(err), Equals, true)
 	c.Check(features, DeepEquals, []string{})
@@ -397,8 +396,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C)
 	d := c.MkDir()
 
 	// Pretend that apparmor kernel features directory doesn't exist.
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
+	dirs.SetRootDir(d)
 	version, err := apparmor.ProbeKernelFeaturesPermstable32Version()
 	c.Assert(os.IsNotExist(err), Equals, true)
 	c.Check(version, Equals, int64(0))
@@ -613,14 +611,13 @@ func (s *apparmorSuite) TestInterfaceSystemKey(c *C) {
 	apparmor.FreshAppArmorAssessment()
 
 	d := c.MkDir()
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
+	dirs.SetRootDir(d)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
-	restore = apparmor.MockParserSearchPath(mockParserCmd.BinDir())
+	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
 
 	apparmor.ProbedLevel()
@@ -655,14 +652,13 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 	apparmor.FreshAppArmorAssessment()
 
 	d := c.MkDir()
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
+	dirs.SetRootDir(d)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "network"), 0755), IsNil)
 
 	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", fakeParserScript("4.0.1"))
 	defer mockParserCmd.Restore()
-	restore = apparmor.MockParserSearchPath(mockParserCmd.BinDir())
+	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
 
 	features, err := apparmor.KernelFeatures()
@@ -689,8 +685,7 @@ func (s *apparmorSuite) TestFeaturesProbedOnce(c *C) {
 
 func (s *apparmorSuite) TestPromptingSupported(c *C) {
 	d := c.MkDir()
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
+	dirs.SetRootDir(d)
 
 	goodKernelFeatures := []string{"policy:permstable32:prompt"}
 	goodKernelFeaturesWithNotify := []string{"policy:permstable32:prompt", "policy:notify", "policy:notify:user:file"}
@@ -770,7 +765,7 @@ func (s *apparmorSuite) TestPromptingSupported(c *C) {
 	// Create a file at the notify path, doesn't matter what kind of file.
 	// The actual file is a socket, but a directory will do here for convenience.
 	c.Assert(os.MkdirAll(apparmor.NotifySocketPath, 0o755), IsNil)
-	restore = apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
+	restore := apparmor.MockFeatures(goodKernelFeatures, nil, goodParserFeatures, nil)
 	defer restore()
 
 	supported, reason := apparmor.PromptingSupported()
