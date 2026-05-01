@@ -187,3 +187,7 @@ func MockOsutilBootID(f func() (string, error)) (restore func()) {
 func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState) bool) (restore func()) {
 	return testutil.Mock(&secbootShouldAttemptRepair, f)
 }
+
+func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFiles []string) ([]byte, error)) (restore func()) {
+	return testutil.Mock(&secbootGetPrimaryKey, f)
+}

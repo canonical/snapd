@@ -1481,8 +1481,9 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
-        backends: [google, qemu]
+        backends: [google, qemu, garden]
         prepare-each: |
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
@@ -1636,6 +1637,7 @@ suites:
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
             prepare_classic
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/reset.sh --reuse-core
             #shellcheck source=tests/lib/prepare.sh
@@ -1779,6 +1781,7 @@ suites:
                 . "$TESTSLIB"/core-initrd.sh
                 build_and_install_initramfs_deb
             fi
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
 
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
@@ -1847,6 +1850,7 @@ suites:
 
             tests.nested prepare
             tests.nested build-image classic
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm classic
@@ -1920,6 +1924,7 @@ suites:
 
             tests.nested prepare
             tests.nested build-image core
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core
@@ -1993,6 +1998,7 @@ suites:
 
             tests.nested prepare
             tests.nested build-image core
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core --param-cpus "$NESTED_CPUS" --param-mem "$NESTED_MEM"

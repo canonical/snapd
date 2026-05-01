@@ -13,14 +13,8 @@ restore: |
     snap set system experimental.user-daemons=false
 
 execute: |
-    case "$SPREAD_SYSTEM" in
-        amazon-*|arch-*|centos-*|fedora-*)
-            SNAP_BIN="/var/lib/snapd/snap/bin"
-            ;;
-        *)
-            SNAP_BIN="/snap/bin"
-            ;;
-    esac
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    SNAP_BIN="$SNAP_MOUNT_DIR/bin"
 
     echo "Test that the non-daemon apps have binaries"
     test -L "$SNAP_BIN"/test-snapd-graphical-user-daemons.normal

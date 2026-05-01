@@ -2230,6 +2230,27 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
 	c.Check(labels, testutil.DeepUnsortedMatches, []string{"old-seed-refresh-1", "old-seed-refresh-2"})
 }
 
+func (s *deviceMgrSuite) TestAppendSeedRefreshSetupTaskIDs(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	create := s.state.NewTask("create-recovery-system", "...")
+	create.Set("recovery-system-setup", &devicestate.RecoverySystemSetup{
+		Label:               "20260227",
+		Directory:           filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "20260227"),
+		SnapSetupTasks:      []string{"snap-1"},
+		ComponentSetupTasks: []string{"comp-1"},
+	})
+
+	c.Assert(devicestate.AppendSeedRefreshSetupTaskIDs(create, "snap-2", []string{"comp-2", "comp-1"}), IsNil)
+	c.Assert(devicestate.AppendSeedRefreshSetupTaskIDs(create, "snap-1", []string{"comp-3"}), IsNil)
+
+	var setup devicestate.RecoverySystemSetup
+	c.Assert(create.Get("recovery-system-setup", &setup), IsNil)
+	c.Check(setup.SnapSetupTasks, DeepEquals, []string{"snap-1", "snap-2"})
+	c.Check(setup.ComponentSetupTasks, DeepEquals, []string{"comp-1", "comp-2", "comp-3"})
+}
+
 func (s *deviceMgrSuite) TestRemoveRecoverySystemBlockedWhenAnotherRemovalRunning(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

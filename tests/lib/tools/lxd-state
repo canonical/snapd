@@ -8,7 +8,12 @@ show_help() {
 
 prepare_snap(){
     echo "lxd-state: installing lxd snap"
-    snap install lxd --channel="$LXD_SNAP_CHANNEL"
+    channel="${LXD_SNAP_CHANNEL}"
+    if os.query is_ubuntu_le 20.04; then
+        # LXD 6 is not supported on older systems. Use 5.21 instead.
+        channel="5.21/${channel#*/}"
+    fi
+    snap install lxd --channel="$channel"
 
     if tests.pkgs is-installed lxd; then
         echo "lxd-state: remove the lxd pkg (some images carry them) to ensure we use the snap"

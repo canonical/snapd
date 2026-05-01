@@ -8,9 +8,9 @@ details: |
 execute: |
     # Invariant tool presents the usage screen when invoked without arguments
     # or with the -h or --help options.
-    tests.invariant | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
-    tests.invariant -h | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
-    tests.invariant --help | MATCH 'usage: tests.invariant check \[INVARIANT...\]'
+    tests.invariant | MATCH 'usage: tests.invariant \[check|set\] \[INVARIANT...\]'
+    tests.invariant -h | MATCH 'usage: tests.invariant \[check|set\] \[INVARIANT...\]'
+    tests.invariant --help | MATCH 'usage: tests.invariant \[check|set\] \[INVARIANT...\]'
 
     # When invoked with "check" argument, it runs either all invariants
     # or the specified set of invariants.
@@ -69,3 +69,27 @@ execute: |
         systemctl stop superfluous-dbus.service
         tests.invariant check stray-dbus-daemon 2>&1 | MATCH 'tests.invariant: stray-dbus-daemon ok'
     fi
+
+    # Invariant tool detects changes in snap mount directory reported by os.paths
+    os_paths_path="$(readlink -f "$(command -v os.paths)")"
+    cat <<'EOF' > fake-os.paths
+    #!/bin/sh
+    echo "/foo"
+    EOF
+    chmod +x fake-os.paths
+    unshare -m sh -c "
+    mount -o bind ./fake-os.paths $os_paths_path
+    tests.invariant check snap-mount-dir
+    " |& MATCH "tests.invariant: snap mount directory change detected"
+
+    # snap-mount-dir check expects a bit of initial state to be configured
+    mv "$TESTSTMP/tests.invariant.initial-snap-mount-dir" \
+        "$TESTSTMP/tests.invariant.initial-snap-mount-dir.backup"
+    # XXX any 'full' invariant checks will fail at this point because we added a
+    # deferred call
+    tests.cleanup defer mv "$TESTSTMP/tests.invariant.initial-snap-mount-dir.backup" \
+        "$TESTSTMP/tests.invariant.initial-snap-mount-dir"
+    tests.invariant check snap-mount-dir | MATCH 'tests.invariant: initial snap mount directory not configured'
+    # set the initial directory
+    tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
+    tests.invariant check snap-mount-dir

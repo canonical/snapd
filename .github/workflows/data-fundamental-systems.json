@@ -2,7 +2,7 @@
     "include": [
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "debian-req (fundamental)",
+        "group": "debian-req",
         "backend": "openstack",
         "alternative-backend": "google-distro-1", 
         "systems": "debian-12-64",
@@ -11,7 +11,7 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-focal (fundamental)",
+        "group": "ubuntu-focal",
         "backend": "openstack",
         "alternative-backend": "google",
         "systems": "ubuntu-20.04-64",
@@ -20,7 +20,7 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-noble (fundamental)",
+        "group": "ubuntu-noble",
         "backend": "openstack",
         "alternative-backend": "google",
         "systems": "ubuntu-24.04-64",
@@ -29,7 +29,7 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-core-18 (fundamental)",
+        "group": "ubuntu-core-18",
         "backend": "openstack",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-18-64",
@@ -38,7 +38,7 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-core-20 (fundamental)",
+        "group": "ubuntu-core-20",
         "backend": "openstack",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-20-64",
@@ -47,7 +47,7 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-core-24 (fundamental)",
+        "group": "ubuntu-core-24",
         "backend": "openstack",
         "alternative-backend": "google-core",
         "systems": "ubuntu-core-24-64",

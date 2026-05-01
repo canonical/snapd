@@ -46,8 +46,8 @@ import (
 type installContext struct {
 	SkipConfigure       bool
 	NoRestartBoundaries bool
-	FromChange          string
-	DeviceCtx           DeviceContext
+	ConflictOptions
+	DeviceCtx DeviceContext
 }
 
 // snapInstallTaskSet captures the task ranges involved in a snap installation.
@@ -150,7 +150,7 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 	})
 
 	componentTSS, err := splitComponentTasksForInstall(
-		sc.compsups, st, sc.snapst, sc.snapsup, prepare, ic.FromChange)
+		sc.compsups, st, sc.snapst, sc.snapsup, prepare, ic.ConflictOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -841,7 +841,7 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 		return err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, ic.FromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, ic.ConflictOptions); err != nil {
 		return err
 	}
 
@@ -918,11 +918,11 @@ func splitComponentTasksForInstall(
 	snapst *SnapState,
 	snapsup *SnapSetup,
 	snapsupTask *state.Task,
-	fromChange string,
+	copts ConflictOptions,
 ) (multiComponentInstallTaskSet, error) {
 	componentTSS := make([]componentInstallTaskSet, 0, len(compsups))
 	for _, compsup := range compsups {
-		cts, err := doInstallComponent(st, snapst, compsup, snapsup, snapsupTask, nil, nil, fromChange)
+		cts, err := doInstallComponent(st, snapst, compsup, snapsup, snapsupTask, nil, nil, copts)
 		if err != nil {
 			return multiComponentInstallTaskSet{}, fmt.Errorf("cannot install component %q: %v", compsup.CompSideInfo.Component, err)
 		}

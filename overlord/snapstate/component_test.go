@@ -361,7 +361,7 @@ func (s *snapmgrTestSuite) testComponentRemoveValidationSet(c *C, targetSnapName
 		return vss, nil
 	})
 
-	_, err = snapstate.RemoveComponentTasks(s.state, snapSt, compSt, info, nil, "")
+	_, err = snapstate.RemoveComponentTasks(s.state, snapSt, compSt, info, nil, snapstate.ConflictOptions{})
 
 	if expectedErrorMsg != "" {
 		c.Assert(err, NotNil)

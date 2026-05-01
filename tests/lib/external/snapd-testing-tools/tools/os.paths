@@ -9,6 +9,8 @@ show_help() {
 snap_mount_dir() {
     if os.query is-fedora || os.query is-amazon-linux || os.query is-centos || os.query is-arch-linux; then
         echo "/var/lib/snapd/snap"
+    elif os.query is-opensuse && [ -d /var/lib/snapd/snap ]; then
+        echo "/var/lib/snapd/snap"
     else
         echo "/snap"
     fi

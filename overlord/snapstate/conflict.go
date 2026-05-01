@@ -256,13 +256,14 @@ func CheckChangeConflictRunExclusively(st *state.State, newChangeKind string) er
 	return checkChangeConflictExclusiveKinds(st, newChangeKind, "")
 }
 
-// isIrrelevantChange checks if a change is ready or it can be ignored
-// if matching the passed ID, for conflict checking purposes.
-func isIrrelevantChange(chg *state.Change, ignoreChangeID string) bool {
+// isIrrelevantChange checks if a change is ready or it can be ignored if it
+// matches the ID in the given options. We will still consider this change if
+// the given options indicates that we must still consider the given change ID.
+func isIrrelevantChange(chg *state.Change, opts ConflictOptions) bool {
 	if chg == nil || chg.IsReady() {
 		return true
 	}
-	if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+	if opts.FromChange != "" && chg.ID() == opts.FromChange && !opts.DoNotIgnoreFromChangeInTaskConflictCheck {
 		return true
 	}
 	switch chg.Kind() {
@@ -298,19 +299,23 @@ func isIrrelevantChange(chg *state.Change, ignoreChangeID string) bool {
 // It's like CheckChangeConflict, but for multiple snaps, and does not
 // check snapst.
 func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChangeID string) error {
+	return checkChangeConflictManyWithOptions(st, instanceNames, ConflictOptions{FromChange: ignoreChangeID})
+}
+
+func checkChangeConflictManyWithOptions(st *state.State, instanceNames []string, opts ConflictOptions) error {
 	snapMap := make(map[string]bool, len(instanceNames))
 	for _, k := range instanceNames {
 		snapMap[k] = true
 	}
 
 	// check whether there are other changes that need to run exclusively
-	if err := CheckChangeConflictExclusiveKinds(st, ignoreChangeID); err != nil {
+	if err := CheckChangeConflictExclusiveKinds(st, opts.FromChange); err != nil {
 		return err
 	}
 
 	for _, task := range st.Tasks() {
 		chg := task.Change()
-		if isIrrelevantChange(chg, ignoreChangeID) {
+		if isIrrelevantChange(chg, opts) {
 			continue
 		}
 
@@ -338,11 +343,11 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 // progress. It also ensures that snapst (if not nil) did not get
 // modified. If a conflict is detected an error is returned.
 func CheckChangeConflict(st *state.State, instanceName string, snapst *SnapState) error {
-	return checkChangeConflictIgnoringOneChange(st, instanceName, snapst, "")
+	return checkChangeConflictIgnoringOneChange(st, instanceName, snapst, ConflictOptions{})
 }
 
-func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, snapst *SnapState, ignoreChangeID string) error {
-	if err := CheckChangeConflictMany(st, []string{instanceName}, ignoreChangeID); err != nil {
+func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, snapst *SnapState, opts ConflictOptions) error {
+	if err := checkChangeConflictManyWithOptions(st, []string{instanceName}, opts); err != nil {
 		return err
 	}
 

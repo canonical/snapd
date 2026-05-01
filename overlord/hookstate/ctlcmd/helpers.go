@@ -407,7 +407,7 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 		return nil, err
 	}
 	return snapstateInstallComponents(context.TODO(), st, cmd.components, info, vsets,
-		snapstate.Options{ExpectOneSnap: true, FromChange: changeIDIfNotEphemeral(hctx)})
+		snapstate.Options{ExpectOneSnap: true, ConflictOptions: snapstate.ConflictOptions{FromChange: changeIDIfNotEphemeral(hctx)}})
 }
 
 func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (tss []*state.TaskSet, err error) {
@@ -417,7 +417,7 @@ func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (t
 
 	return snapstateRemoveComponents(st, hctx.InstanceName(), cmd.components,
 		snapstate.RemoveComponentsOpts{RefreshProfile: true,
-			FromChange: changeIDIfNotEphemeral(hctx)})
+			ConflictOptions: snapstate.ConflictOptions{FromChange: changeIDIfNotEphemeral(hctx)}})
 }
 
 func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) error {

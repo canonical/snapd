@@ -5123,7 +5123,6 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 		tpmErr              error
 		sealErr             error
 		addErr              error
-		primaryKeyErr       error
 		unlockKeyErr        error
 		keydataWriteErr     error
 		sealCalls           int
@@ -5133,7 +5132,6 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 	}{
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, sealCalls: 1},
-		{tpmEnabled: true, primaryKeyErr: mockErr, expectedErr: "cannot get primary key from kernel keyring for unlocked disk /dev/foo: some error"},
 		{tpmEnabled: true, unlockKeyErr: mockErr, expectedErr: "cannot get unlock key from kernel keyring for unlocked disk /dev/foo: some error"},
 		{tpmEnabled: true, tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "cannot seal key: some error"},
@@ -5148,13 +5146,6 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 
 		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, false)
 		c.Assert(err, IsNil)
-
-		defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.PrimaryKey, error) {
-			c.Check(prefix, Equals, "ubuntu-fde")
-			c.Check(devicePath, Equals, "/dev/foo")
-			c.Check(remove, Equals, false)
-			return sb.PrimaryKey{'p', 'r', 'i', 'm', 'a', 'r', 'y'}, tc.primaryKeyErr
-		})()
 
 		defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
 			c.Check(prefix, Equals, "ubuntu-fde")
@@ -5230,6 +5221,7 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 			PCRPolicyCounterHandle: 12,
 			KeyRole:                "somerole",
 			VolumesAuth:            tc.volumesAuth,
+			PrimaryKey:             sb.PrimaryKey{'p', 'r', 'i', 'm', 'a', 'r', 'y'},
 		}
 		err = secboot.AddContainerTPMProtectedKey("/dev/foo", "bar", &params)
 

@@ -146,7 +146,7 @@ func InstallComponents(
 		// the component task chains. this results in multiple parallel tasks
 		// (one per component) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
-		cts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
+		cts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.ConflictOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -303,7 +303,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	cts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, "")
+	cts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, ConflictOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +371,7 @@ func newComponentInstallChoreographer(
 	snapsup *SnapSetup,
 	snapst *SnapState,
 	compsup *ComponentSetup,
-	fromChange string,
+	copts ConflictOptions,
 	snapsupTask, setupSecurityTask, kmodSetupTask *state.Task,
 ) (*componentInstallChoreographer, error) {
 	if compsup.SkipAssertionsDownload {
@@ -400,7 +400,7 @@ func newComponentInstallChoreographer(
 	}
 
 	// we consider the same conflicts as if the component was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, copts); err != nil {
 		return nil, err
 	}
 
@@ -655,10 +655,10 @@ func doInstallComponent(
 	snapsup *SnapSetup,
 	snapsupTask *state.Task,
 	setupSecurity, kmodSetup *state.Task,
-	fromChange string,
+	copts ConflictOptions,
 ) (componentInstallTaskSet, error) {
 	cc, err := newComponentInstallChoreographer(
-		st, snapsup, snapst, &compsup, fromChange,
+		st, snapsup, snapst, &compsup, copts,
 		snapsupTask, setupSecurity, kmodSetup,
 	)
 	if err != nil {
@@ -675,7 +675,7 @@ func doInstallComponent(
 
 type RemoveComponentsOpts struct {
 	RefreshProfile bool
-	FromChange     string
+	ConflictOptions
 }
 
 // RemoveComponents returns a taskset that removes the components in compName
@@ -716,7 +716,7 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 				CompRev:   snap.R(0),
 			}
 		}
-		ts, err := removeComponentTasks(st, &snapst, compst, info, setupSecurity, opts.FromChange)
+		ts, err := removeComponentTasks(st, &snapst, compst, info, setupSecurity, opts.ConflictOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -730,12 +730,12 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 	return tss, nil
 }
 
-func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task, fromChange string) (*state.TaskSet, error) {
+func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task, copts ConflictOptions) (*state.TaskSet, error) {
 	instName := info.InstanceName()
 
 	// For the moment we consider the same conflicts as if the component
 	// was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, copts); err != nil {
 		return nil, err
 	}
 
