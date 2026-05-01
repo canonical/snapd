@@ -684,6 +684,14 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	addTemporaryRecoveryKeys := st.NewTask("fde-add-recovery-keys", "Add temporary recovery key slots")
 	addTemporaryRecoveryKeys.Set("recovery-key-id", recoveryKeyID)
 	addTemporaryRecoveryKeys.Set("keyslots", tmpKeyslotRefs)
+	// Remove all tmp keyslots during cleanup in case of erroring after
+	// a re-run (e.g. after system or snapd restart) where the context
+	// of the added keyslots might have been lost due to a restart and
+	// the keyslots will not be cleaned up automatically.
+	//
+	// Note that it is fine to remove all added keys because the original
+	// keyslots being replaced are only removed after the tmp keys have
+	// been successfully added.
 	addTemporaryRecoveryKeys.Set("remove-all-on-error", true)
 	ts.AddTask(addTemporaryRecoveryKeys)
 
@@ -920,6 +928,14 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 	addTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
 	addTemporaryKeys.Set("auth-mode", authMode)
 	addTemporaryKeys.Set("roles", tmpKeyslotRoles)
+	// Remove all tmp keyslots during cleanup in case of erroring after
+	// a re-run (e.g. after system or snapd restart) where the context
+	// of the added keyslots might have been lost due to a restart and
+	// the keyslots will not be cleaned up automatically.
+	//
+	// Note that it is fine to remove all added keys because the original
+	// keyslots being replaced are only removed after the tmp keys have
+	// been successfully added.
 	addTemporaryKeys.Set("remove-all-on-error", true)
 	ts.AddTask(addTemporaryKeys)
 
