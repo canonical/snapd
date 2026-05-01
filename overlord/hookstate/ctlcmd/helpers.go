@@ -81,7 +81,7 @@ type ChangeInfo struct {
 	Kind    string      `json:"kind"`
 	Summary string      `json:"summary"`
 	Status  string      `json:"status"`
-	Tasks   []*taskInfo `json:"tasks,omitempty"`
+	Tasks   []TaskInfo `json:"tasks,omitempty"`
 	Ready   bool        `json:"ready"`
 	Err     string      `json:"err,omitempty"`
 
@@ -91,13 +91,13 @@ type ChangeInfo struct {
 	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
-type taskInfo struct {
+type TaskInfo struct {
 	ID       string           `json:"id"`
 	Kind     string           `json:"kind"`
 	Summary  string           `json:"summary"`
 	Status   string           `json:"status"`
 	Log      []string         `json:"log,omitempty"`
-	Progress taskInfoProgress `json:"progress"`
+	Progress TaskInfoProgress `json:"progress"`
 
 	SpawnTime time.Time  `json:"spawn-time,omitzero"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
@@ -105,7 +105,7 @@ type taskInfo struct {
 	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
-type taskInfoProgress struct {
+type TaskInfoProgress struct {
 	Label string `json:"label"`
 	Done  int    `json:"done"`
 	Total int    `json:"total"`
@@ -134,17 +134,17 @@ func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 	}
 
 	tasks := chg.Tasks()
-	taskInfos := make([]*taskInfo, len(tasks))
+	taskInfos := make([]TaskInfo, len(tasks))
 	for j, t := range tasks {
 		label, done, total := t.Progress()
 
-		taskInfo := &taskInfo{
+		taskInfo := TaskInfo{
 			ID:      t.ID(),
 			Kind:    t.Kind(),
 			Summary: t.Summary(),
 			Status:  t.Status().String(),
 			Log:     t.Log(),
-			Progress: taskInfoProgress{
+			Progress: TaskInfoProgress{
 				Label: label,
 				Done:  done,
 				Total: total,
