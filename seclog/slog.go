@@ -156,16 +156,16 @@ func (h *errorAwareHandler) Enabled(ctx context.Context, l slog.Level) bool {
 func (h *errorAwareHandler) Handle(ctx context.Context, r slog.Record) error {
 	if err := h.inner.Handle(ctx, r); err != nil {
 		n := h.consecutiveFails.Add(1)
-		if n <= writeFailureThreshold {
-			logger.Noticef("security log write failed: %v", err)
+		if n < writeFailureThreshold {
+			logger.Noticef("WARNING: security log write failed: %v", err)
 		}
 		if n == writeFailureThreshold {
-			logger.Noticef("security log write failed %d times, suppressing further errors", writeFailureThreshold)
+			logger.Noticef("WARNING: security log write failed %d times, further failures will not be reported", writeFailureThreshold)
 		}
 		return err
 	}
-	if h.consecutiveFails.Swap(0) >= writeFailureThreshold {
-		logger.Noticef("security log write recovered")
+	if n := h.consecutiveFails.Swap(0); n >= writeFailureThreshold {
+		logger.Noticef("security log write recovered following %d failures", n)
 	}
 	return nil
 }

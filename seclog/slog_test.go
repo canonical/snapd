@@ -286,10 +286,10 @@ func (s *SlogSuite) TestWriteFailureSuppressedAfterThreshold(c *C) {
 	}
 
 	output := logBuf.String()
-	// First 3 failures are reported individually.
-	c.Check(strings.Count(output, "security log write failed: disk full"), Equals, 3)
+	// First 2 failures are reported individually.
+	c.Check(strings.Count(output, "security log write failed: disk full"), Equals, 2)
 	// The suppression message appears exactly once.
-	c.Check(strings.Count(output, "suppressing further errors"), Equals, 1)
+	c.Check(strings.Count(output, "further failures will not be reported"), Equals, 1)
 }
 
 func (s *SlogSuite) TestWriteRecoveryIsLogged(c *C) {
@@ -309,7 +309,7 @@ func (s *SlogSuite) TestWriteRecoveryIsLogged(c *C) {
 	w.failing = false
 	sl.LogEvent(evt, "recovered")
 
-	c.Check(logBuf.String(), testutil.Contains, "security log write recovered")
+	c.Check(logBuf.String(), testutil.Contains, "security log write recovered following 4 failures")
 	c.Check(w.buf.Len() > 0, Equals, true)
 }
 

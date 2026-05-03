@@ -59,6 +59,12 @@ func (realNetlinkOps) Close(fd int) error {
 
 var netlink netlinkOps = realNetlinkOps{}
 
+// AuditWriter implements [io.WriteCloser].
+type AuditWriter struct {
+	fd  int
+	seq atomic.Uint32
+}
+
 // OpenAuditWriter opens a netlink audit socket and returns an [AuditWriter]
 // that sends each written payload as an AUDIT_TRUSTED_APP.
 func OpenAuditWriter() (*AuditWriter, error) {
@@ -68,12 +74,6 @@ func OpenAuditWriter() (*AuditWriter, error) {
 		return nil, fmt.Errorf("cannot open audit socket: %v", err)
 	}
 	return &AuditWriter{fd: fd}, nil
-}
-
-// AuditWriter implements [io.WriteCloser].
-type AuditWriter struct {
-	fd  int
-	seq atomic.Uint32
 }
 
 // Write sends payload as an AUDIT_TRUSTED_APP netlink message.
