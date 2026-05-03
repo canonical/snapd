@@ -104,7 +104,7 @@ func orderedKeys(data []byte) ([]string, error) {
 	return keys, nil
 }
 
-func (s *SlogSuite) TestLogAny(c *C) {
+func (s *SlogSuite) TestLogEvent(c *C) {
 	logger := seclog.NewSlogLogger(s.buf, s.appID, seclog.LevelInfo)
 	c.Assert(logger, NotNil)
 
@@ -113,7 +113,7 @@ func (s *SlogSuite) TestLogAny(c *C) {
 		Event string `json:"event"`
 	}
 
-	logger.LogAny(
+	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
 		"Something happened",
 	)
@@ -138,7 +138,7 @@ func (s *SlogSuite) TestLogAny(c *C) {
 	})
 }
 
-func (s *SlogSuite) TestLogAnyWithAttrs(c *C) {
+func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 	logger := seclog.NewSlogLogger(s.buf, s.appID, seclog.LevelInfo)
 	c.Assert(logger, NotNil)
 
@@ -163,7 +163,7 @@ func (s *SlogSuite) TestLogAnyWithAttrs(c *C) {
 		StoreUserName:  "jdoe",
 	}
 	reason := seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"}
-	logger.LogAny(
+	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelWarn},
 		fmt.Sprintf("User %s caused an issue: %s", user.String(), reason.String()),
 		seclog.Attr{Key: "user", Value: user},
@@ -199,7 +199,7 @@ func (s *SlogSuite) TestLogAnyWithAttrs(c *C) {
 	})
 }
 
-func (s *SlogSuite) TestLogAnyWithLogValuer(c *C) {
+func (s *SlogSuite) TestLogEventWithLogValuer(c *C) {
 	logger := seclog.NewSlogLogger(s.buf, s.appID, seclog.LevelInfo)
 	c.Assert(logger, NotNil)
 
@@ -214,7 +214,7 @@ func (s *SlogSuite) TestLogAnyWithLogValuer(c *C) {
 		ID:         42,
 		Expiration: expiry,
 	}
-	logger.LogAny(
+	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
 		"test",
 		seclog.Attr{Key: "user", Value: user},
@@ -231,14 +231,14 @@ func (s *SlogSuite) TestLevelFiltering(c *C) {
 	c.Assert(logger, NotNil)
 
 	// LevelInfo is below LevelWarn — should be filtered out
-	logger.LogAny(
+	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
 		"Should be filtered",
 	)
 	c.Check(s.buf.Len(), Equals, 0)
 
 	// LevelWarn meets the threshold — should be emitted
-	logger.LogAny(
+	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelWarn},
 		"Should pass",
 	)
@@ -265,7 +265,7 @@ func (s *SlogSuite) TestWriteFailureIsLogged(c *C) {
 	w := &failWriter{failing: true}
 	sl := seclog.NewSlogLogger(w, s.appID, seclog.LevelInfo)
 
-	sl.LogAny(
+	sl.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
 		"should fail",
 	)
@@ -282,7 +282,7 @@ func (s *SlogSuite) TestWriteFailureSuppressedAfterThreshold(c *C) {
 
 	evt := seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo}
 	for i := 0; i < 5; i++ {
-		sl.LogAny(evt, fmt.Sprintf("attempt %d", i))
+		sl.LogEvent(evt, fmt.Sprintf("attempt %d", i))
 	}
 
 	output := logBuf.String()
@@ -302,12 +302,12 @@ func (s *SlogSuite) TestWriteRecoveryIsLogged(c *C) {
 	evt := seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo}
 	// Exceed the threshold.
 	for i := 0; i < 4; i++ {
-		sl.LogAny(evt, "fail")
+		sl.LogEvent(evt, "fail")
 	}
 
 	// Recover.
 	w.failing = false
-	sl.LogAny(evt, "recovered")
+	sl.LogEvent(evt, "recovered")
 
 	c.Check(logBuf.String(), testutil.Contains, "security log write recovered")
 	c.Check(w.buf.Len() > 0, Equals, true)
@@ -322,12 +322,12 @@ func (s *SlogSuite) TestNoRecoveryMessageBelowThreshold(c *C) {
 
 	evt := seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo}
 	// Fail twice (below threshold of 3).
-	sl.LogAny(evt, "fail 1")
-	sl.LogAny(evt, "fail 2")
+	sl.LogEvent(evt, "fail 1")
+	sl.LogEvent(evt, "fail 2")
 
 	// Recover — no recovery message expected since threshold was not reached.
 	w.failing = false
-	sl.LogAny(evt, "ok")
+	sl.LogEvent(evt, "ok")
 
 	c.Check(strings.Contains(logBuf.String(), "security log write recovered"), Equals, false)
 }

@@ -61,8 +61,8 @@ type slogLogger struct {
 	logger *slog.Logger
 }
 
-// LogAny implements [SecurityLogger.LogAny].
-func (l *slogLogger) LogAny(event Event, description string, attrs ...Attr) {
+// LogEvent implements [SecurityLogger.LogEvent].
+func (l *slogLogger) LogEvent(event Event, description string, attrs ...Attr) {
 	slogAttrs := make([]slog.Attr, 0, len(attrs)+2)
 	slogAttrs = append(slogAttrs,
 		slog.Attr{Key: "category", Value: slog.StringValue(event.Category)},
