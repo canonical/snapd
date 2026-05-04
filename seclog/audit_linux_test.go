@@ -21,7 +21,6 @@ package seclog_test
 
 import (
 	"fmt"
-	"slices"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -49,7 +48,7 @@ func (m *mockSyscallOps) Socket(domain, typ, proto int) (int, error) {
 }
 
 func (m *mockSyscallOps) Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error {
-	m.sendtoData = slices.Clone(payload)
+	m.sendtoData = append([]byte(nil), payload...)
 	return m.sendtoErr
 }
 
