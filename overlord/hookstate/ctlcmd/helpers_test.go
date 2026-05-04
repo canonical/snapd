@@ -34,7 +34,10 @@ type helperSuite struct {
 
 var _ = Suite(&helperSuite{})
 
-func setupChange() (*state.State, string, *state.Change) {
+// TestStateChangeToChangeInfo tests the StateChangeToChangeInfo function,
+// verifying that state changes are correctly converted to ChangeInfo structs
+// and that the data can be successfully marshaled and unmarshaled.
+func (s *helperSuite) TestStateChangeToChangeInfo(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -51,25 +54,12 @@ func setupChange() (*state.State, string, *state.Change) {
 		"kind":       "install-components",
 	})
 
-	return st, chg.ID(), chg
-}
-
-// TestStateChangeToChangeInfo tests the StateChangeToChangeInfo function,
-// verifying that state changes are correctly converted to ChangeInfo structs
-// and that the data can be successfully marshalled and unmarshalled.
-func (s *helperSuite) TestStateChangeToChangeInfo(c *C) {
-	st, changeID, _ := setupChange()
-
-	st.Lock()
-	chg := st.Change(changeID)
-	c.Assert(chg, NotNil)
-
 	// Convert the state.Change to ChangeInfo
+	c.Assert(chg, NotNil)
 	changeInfo := ctlcmd.StateChangeToChangeInfo(chg)
-	st.Unlock()
 
 	// Verify basic change information
-	c.Check(changeInfo.ID, Equals, changeID)
+	c.Check(changeInfo.ID, Equals, chg.ID())
 	c.Check(changeInfo.Kind, Equals, "snapctl-install")
 	c.Check(changeInfo.Summary, Equals, "install components for test-snap")
 	c.Check(changeInfo.Status, Equals, "Done")
@@ -93,5 +83,4 @@ func (s *helperSuite) TestStateChangeToChangeInfo(c *C) {
 	// Verify change-level data (api-data)
 	c.Assert(changeInfo.Data, NotNil)
 	c.Assert(changeInfo.Data["snap-names"], NotNil)
-
 }
