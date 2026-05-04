@@ -20,12 +20,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
 
 	"github.com/jessevdk/go-flags"
-
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -51,6 +51,7 @@ type cmdChanges struct {
 type cmdTasks struct {
 	timeMixin
 	changeIDMixin
+	Format string `long:"format" required:"false"`
 }
 
 func init() {
@@ -58,7 +59,9 @@ func init() {
 		func() flags.Commander { return &cmdChanges{} }, timeDescs, nil)
 	addCommand("tasks", shortTasksHelp, longTasksHelp,
 		func() flags.Commander { return &cmdTasks{} },
-		changeIDMixinOptDesc.also(timeDescs),
+		changeIDMixinOptDesc.also(timeDescs).also(map[string]string{
+			"format": i18n.G("Output format (json)."),
+		}),
 		changeIDMixinArgDesc).alias = "change"
 }
 
@@ -158,6 +161,15 @@ func (c *cmdTasks) showChange(chid string) error {
 	chg, err := queryChange(c.client, chid)
 	if err != nil {
 		return err
+	}
+
+	if c.Format == "json" {
+		data, err := json.Marshal(chg)
+		if err != nil {
+			return err
+		}
+		fmt.Fprint(Stdout, string(data))
+		return nil
 	}
 
 	w := tabWriter()
