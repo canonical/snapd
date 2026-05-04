@@ -62,7 +62,7 @@ var sys syscallOps = realSyscallOps{}
 // AuditWriter implements [io.WriteCloser].
 type AuditWriter struct {
 	fd  int
-	seq atomic.Uint32
+	seq uint32
 }
 
 // OpenAuditWriter opens a netlink audit socket and returns an [AuditWriter]
@@ -133,9 +133,9 @@ func nlmsgAlign(size uint32) uint32 {
 // nextSeq returns the next non-zero sequence number, skipping zero on
 // wrap to allow unambiguous ACK matching (mirrors audit-userspace).
 func (aw *AuditWriter) nextSeq() uint32 {
-	s := aw.seq.Add(1)
+	s := atomic.AddUint32(&aw.seq, 1)
 	if s == 0 {
-		s = aw.seq.Add(1)
+		s = atomic.AddUint32(&aw.seq, 1)
 	}
 	return s
 }

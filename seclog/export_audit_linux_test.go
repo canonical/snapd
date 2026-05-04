@@ -20,6 +20,8 @@
 package seclog
 
 import (
+	"sync/atomic"
+
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,7 +36,7 @@ func AuditWriterBuildMessage(aw *AuditWriter, payload []byte) []byte {
 }
 
 func AuditWriterSetSeq(aw *AuditWriter, val uint32) {
-	aw.seq.Store(val)
+	atomic.StoreUint32(&aw.seq, val)
 }
 
 func MockSyscallOps(ops syscallOps) (restore func()) {
