@@ -30,7 +30,7 @@ var (
 	GenerateCACertificates = generateCACertificates
 )
 
-func MockGenerateCertificateDatabase(f func() error) func() {
+func MockGenerateCertificateDatabase(f func(mergedPath string) error) func() {
 	restore := testutil.Backup(&GenerateCertificateDatabase)
 	GenerateCertificateDatabase = f
 	return restore

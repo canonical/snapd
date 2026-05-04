@@ -705,7 +705,7 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c
 	old := []byte("old-ca-bundle")
 	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), old, 0o644), IsNil)
 
-	err = certstate.GenerateCertificateDatabase()
+	err = certstate.GenerateCertificateDatabase(mergedDir)
 	c.Assert(err, IsNil)
 
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
@@ -730,11 +730,12 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBlocksBaseCertByDigest(c
 	blockedDigest := digestForPEM(c, aPEM)
 	c.Assert(os.WriteFile(filepath.Join(blockedDir, blockedDigest+".crt"), []byte("x"), 0o644), IsNil)
 
-	err = certstate.GenerateCertificateDatabase()
+	mergedPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	err = certstate.GenerateCertificateDatabase(mergedPath)
 	c.Assert(err, IsNil)
 
-	mergedPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
-	out, err := os.ReadFile(mergedPath)
+	bundlePath := filepath.Join(mergedPath, "ca-certificates.crt")
+	out, err := os.ReadFile(bundlePath)
 	c.Assert(err, IsNil)
 	c.Check(bytes.Contains(out, aPEM), Equals, false)
 	c.Check(bytes.Contains(out, bPEM), Equals, true)

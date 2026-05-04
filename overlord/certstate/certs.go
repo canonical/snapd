@@ -492,7 +492,7 @@ func ensureDirectories() error {
 var GenerateCertificateDatabase = GenerateCertificateDatabaseImpl
 
 // GenerateCertificateDatabaseImpl generates a merged certificate directory at
-// /var/lib/snapd/pki/v1/merged/ that mirrors the system /etc/ssl/certs layout.
+// the given directory that mirrors the system /etc/ssl/certs layout.
 // It combines:
 //   - /etc/ssl/certs/ (base certificates from the system)
 //   - /var/lib/snapd/pki/v1/added/ (user added certificates)
@@ -501,7 +501,7 @@ var GenerateCertificateDatabase = GenerateCertificateDatabaseImpl
 // The resulting directory contains individual certificate links plus a combined
 // ca-certificates.crt bundle. The directory is built in a temporary location
 // and atomically swapped into place.
-func GenerateCertificateDatabaseImpl() error {
+func GenerateCertificateDatabaseImpl(mergedPath string) error {
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
@@ -510,9 +510,7 @@ func GenerateCertificateDatabaseImpl() error {
 	if err != nil {
 		return err
 	}
-
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	return generateCACertificates(certs, mergedDir)
+	return generateCACertificates(certs, mergedPath)
 }
 
 // certificatePathWithExtension returns a path under dir for a certificate name

@@ -78,7 +78,7 @@ func (s *certMgrTestSuite) settle(c *C) {
 
 func (s *certMgrTestSuite) TestEnsureCallsUpdateCertificateDatabase(c *C) {
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockGenerateCertificateDatabase(func(_ string) error {
 		called = true
 		return nil
 	})
@@ -102,7 +102,7 @@ func (s *certMgrTestSuite) TestEnsureCallsUpdateCertificateDatabase(c *C) {
 
 func (s *certMgrTestSuite) TestEnsureDoesNothingWhenNotSeeded(c *C) {
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockGenerateCertificateDatabase(func(_ string) error {
 		called = true
 		return nil
 	})
@@ -115,7 +115,7 @@ func (s *certMgrTestSuite) TestEnsureDoesNothingWhenNotSeeded(c *C) {
 
 func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockGenerateCertificateDatabase(func(_ string) error {
 		called = true
 		return nil
 	})
@@ -140,7 +140,7 @@ func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
 
 func (s *certMgrTestSuite) TestEnsureSkipsWhenNoBaseCertsDir(c *C) {
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockGenerateCertificateDatabase(func(_ string) error {
 		called = true
 		return nil
 	})
@@ -161,7 +161,7 @@ func (s *certMgrTestSuite) TestEnsureSkipsWhenNoBaseCertsDir(c *C) {
 
 func (s *certMgrTestSuite) TestEnsureRunsOnlyOnce(c *C) {
 	var calls int
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockGenerateCertificateDatabase(func(_ string) error {
 		calls++
 		return nil
 	})
@@ -188,7 +188,7 @@ func (s *certMgrTestSuite) TestEnsureRunsOnlyOnce(c *C) {
 }
 
 func (s *certMgrTestSuite) TestEnsurePropagatesGenerateError(c *C) {
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockGenerateCertificateDatabase(func(_ string) error {
 		return errors.New("boom")
 	})
 	defer restore()
@@ -233,6 +233,10 @@ func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) 
 	c.Assert(err, IsNil)
 	c.Check(bytes.Contains(out, certA), Equals, true)
 	c.Check(bytes.Contains(out, certB), Equals, true)
+
+	backupPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
+	_, err = os.Stat(backupPath)
+	c.Check(err, IsNil)
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C) {
@@ -266,9 +270,12 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, current)
+
+	_, err = os.Stat(mergedDir + ".staged")
+	c.Check(os.IsNotExist(err), Equals, true)
 }
 
-func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError(c *C) {
+func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedLeavesEmptyDir(c *C) {
 	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 	certA, _, err := makeTestCertPEM("A")
@@ -297,9 +304,14 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError
 	c.Check(tasks[1].Kind(), Equals, "error-trigger")
 	c.Check(tasks[1].Status(), Equals, state.ErrorStatus)
 
-	_, err = os.Stat(mergedDir)
-	c.Check(os.IsNotExist(err), Equals, true)
+	info, err := os.Stat(mergedDir)
+	c.Assert(err, IsNil)
+	c.Check(info.IsDir(), Equals, true)
 
-	_, err = os.Stat(mergedDir + ".old")
+	entries, err := os.ReadDir(mergedDir)
+	c.Assert(err, IsNil)
+	c.Check(entries, HasLen, 0)
+
+	_, err = os.Stat(mergedDir + ".staged")
 	c.Check(os.IsNotExist(err), Equals, true)
 }

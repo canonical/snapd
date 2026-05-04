@@ -20,6 +20,7 @@ package certstate
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/strutil"
 	"gopkg.in/tomb.v2"
 )
 
@@ -83,7 +83,8 @@ func (m *CertManager) Ensure() error {
 	// Create the update CA certificate database, this is likely a first
 	// run on a pre-existing system after this was introduced.
 	logger.Noticef("No CA certificate database found, generating it now")
-	return GenerateCertificateDatabase()
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	return GenerateCertificateDatabase(mergedDir)
 }
 
 func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
@@ -97,30 +98,40 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 	}
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	backupDir := mergedDir + ".old"
-
-	// Backup the existing merged directory so we can restore on undo.
-	// If the merged directory doesn't exist, that's fine,
-	// we'll just ignore it and remove the backup on undo.
-	if err := osutil.AtomicRename(mergedDir, backupDir); err != nil && !os.IsNotExist(err) {
+	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
+	if err := os.RemoveAll(stagedDir); err != nil {
 		return err
 	}
 
-	if err := GenerateCertificateDatabase(); err != nil {
-		rerr := osutil.AtomicRename(backupDir, mergedDir)
-		// TODO:GOVERSION: use errors.Join
-		return strutil.JoinErrors(err, rerr)
+	// SwapDirs requires both paths to exist, so create an empty merged
+	// directory when there is no prior certificate database yet.
+	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create merged certificates directory: %v", err)
 	}
-	return nil
+
+	if err := GenerateCertificateDatabase(stagedDir); err != nil {
+		return err
+	}
+
+	// Swap the new certificate database into place.
+	return osutil.SwapDirs(stagedDir, mergedDir)
 }
 
 func (m *CertManager) undoUpdateCertificateDatabase(_ *state.Task, _ *tomb.Tomb) error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	backupDir := mergedDir + ".old"
+	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
 
-	// Remove the newly generated directory and restore the backup.
-	os.RemoveAll(mergedDir)
-	if err := os.Rename(backupDir, mergedDir); err != nil && !os.IsNotExist(err) {
+	if exists, isDir, err := osutil.DirExists(stagedDir); err != nil {
+		return err
+	} else if !exists || !isDir {
+		return fmt.Errorf("cannot undo certificate database update: missing backup directory %q", stagedDir)
+	}
+
+	if err := osutil.SwapDirs(stagedDir, mergedDir); err != nil {
+		return err
+	}
+
+	if err := os.RemoveAll(stagedDir); err != nil {
 		return err
 	}
 	return nil

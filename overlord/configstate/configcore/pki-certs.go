@@ -24,8 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
@@ -201,6 +204,29 @@ func ensureCertificateState(fp string, cert certificate) error {
 	return nil
 }
 
+// generateCertificateDatabase does a best-effort of performing an
+// atomic update of the existing cert database.
+func generateCertificateDatabase() error {
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
+	if err := os.RemoveAll(stagedDir); err != nil {
+		return err
+	}
+
+	// SwapDirs requires both paths to exist, so create an empty merged
+	// directory when there is no prior certificate database yet.
+	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+	}
+
+	if err := certstate.GenerateCertificateDatabase(stagedDir); err != nil {
+		return err
+	}
+
+	// Swap the new certificate database into place.
+	return osutil.SwapDirs(stagedDir, mergedDir)
+}
+
 func handleCustomCertificateRequest(tr RunTransaction, opts *fsOnlyContext) error {
 	certs, err := gatherCertificates(tr)
 	if err != nil {
@@ -300,7 +326,7 @@ func handleCustomCertificateRequest(tr RunTransaction, opts *fsOnlyContext) erro
 			return fmt.Errorf("invalid state value for custom certificate %q: %q", cert.Name, cert.State)
 		}
 	}
-	return certstate.GenerateCertificateDatabase()
+	return generateCertificateDatabase()
 }
 
 func validateCustomCertificateRequest(tr RunTransaction) error {
