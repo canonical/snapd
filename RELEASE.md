@@ -441,7 +441,10 @@ Steps:
 			1. Replace `&trigger=snapd%2F2.73%2Bubuntu24.04` with `&trigger=migration-reference/0`
 			2. Navigate to https://autopkgtest.ubuntu.com/request.cgi?release=noble&arch=s390x&package=livecd-rootfs&trigger=migration-reference/0
 
-The upload queue can be checked by updating the link https://launchpad.net/ubuntu/resolute/+queue?queue_state=1&queue_text=snapd
+##### Useful links
+- [Upload queue](https://launchpad.net/ubuntu/resolute/+queue?queue_state=1&queue_text=snapd)
+- [SRU status](https://ubuntu-archive-team.ubuntu.com/pending-sru.html)
+- [Update excuses](https://ubuntu-archive-team.ubuntu.com/proposed-migration/update_excuses.html)
 
 #### 2. Run snapd QA tests on proposed
 
