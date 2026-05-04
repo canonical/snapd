@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type NetlinkOps = netlinkOps
+type SyscallOps = syscallOps
 
 var NlmsgAlign = nlmsgAlign
 
@@ -33,6 +33,6 @@ func AuditWriterBuildMessage(aw *AuditWriter, payload []byte) []byte {
 	return aw.buildMessage(payload)
 }
 
-func MockNetlinkOps(ops netlinkOps) (restore func()) {
-	return testutil.Mock(&netlink, ops)
+func MockSyscallOps(ops syscallOps) (restore func()) {
+	return testutil.Mock(&sys, ops)
 }

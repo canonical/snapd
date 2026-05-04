@@ -33,31 +33,31 @@ const (
 	auditTrustedApp = 1121
 )
 
-// netlinkOps abstracts the syscall operations needed to open,
-// send to, and close a netlink socket. Production code uses [realNetlinkOps];
+// syscallOps abstracts the syscall operations needed to open,
+// send to, and close a netlink socket. Production code uses [realSyscallOps];
 // tests can substitute a recording or stubbing implementation.
-type netlinkOps interface {
+type syscallOps interface {
 	Socket(domain, typ, proto int) (int, error)
 	Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error
 	Close(fd int) error
 }
 
-// realNetlinkOps delegates every operation to the corresponding syscall.
-type realNetlinkOps struct{}
+// realSyscallOps delegates every operation to the corresponding syscall.
+type realSyscallOps struct{}
 
-func (realNetlinkOps) Socket(domain, typ, proto int) (int, error) {
+func (realSyscallOps) Socket(domain, typ, proto int) (int, error) {
 	return syscall.Socket(domain, typ, proto)
 }
 
-func (realNetlinkOps) Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error {
+func (realSyscallOps) Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error {
 	return syscall.Sendto(fd, payload, flags, to)
 }
 
-func (realNetlinkOps) Close(fd int) error {
+func (realSyscallOps) Close(fd int) error {
 	return syscall.Close(fd)
 }
 
-var netlink netlinkOps = realNetlinkOps{}
+var sys syscallOps = realSyscallOps{}
 
 // AuditWriter implements [io.WriteCloser].
 type AuditWriter struct {
@@ -69,7 +69,7 @@ type AuditWriter struct {
 // that sends each written payload as an AUDIT_TRUSTED_APP.
 func OpenAuditWriter() (*AuditWriter, error) {
 	// SOCK_CLOEXEC prevents the fd from leaking to child processes.
-	fd, err := netlink.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, syscall.NETLINK_AUDIT)
+	fd, err := sys.Socket(syscall.AF_NETLINK, syscall.SOCK_RAW|syscall.SOCK_CLOEXEC, syscall.NETLINK_AUDIT)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open audit socket: %v", err)
 	}
@@ -86,7 +86,7 @@ func (aw *AuditWriter) Write(payload []byte) (int, error) {
 		Pid:    0, // kernel
 	}
 	// TODO: request and handle ACK from kernel audit subsystem
-	if err := netlink.Sendto(aw.fd, msg, 0, addr); err != nil {
+	if err := sys.Sendto(aw.fd, msg, 0, addr); err != nil {
 		return 0, fmt.Errorf("cannot send audit message: %v", err)
 	}
 	return len(payload), nil
@@ -94,7 +94,7 @@ func (aw *AuditWriter) Write(payload []byte) (int, error) {
 
 // Close closes the underlying netlink socket.
 func (aw *AuditWriter) Close() error {
-	return netlink.Close(aw.fd)
+	return sys.Close(aw.fd)
 }
 
 // buildMessage constructs a raw netlink message containing the given payload.

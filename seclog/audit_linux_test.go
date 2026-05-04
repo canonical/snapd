@@ -34,8 +34,8 @@ type AuditSuite struct{}
 
 var _ = Suite(&AuditSuite{})
 
-// mockNetlinkOps records calls and returns configurable results.
-type mockNetlinkOps struct {
+// mockSyscallOps records calls and returns configurable results.
+type mockSyscallOps struct {
 	socketFD   int
 	socketErr  error
 	sendtoData []byte
@@ -44,28 +44,28 @@ type mockNetlinkOps struct {
 	closeErr   error
 }
 
-func (m *mockNetlinkOps) Socket(domain, typ, proto int) (int, error) {
+func (m *mockSyscallOps) Socket(domain, typ, proto int) (int, error) {
 	return m.socketFD, m.socketErr
 }
 
-func (m *mockNetlinkOps) Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error {
+func (m *mockSyscallOps) Sendto(fd int, payload []byte, flags int, to syscall.Sockaddr) error {
 	m.sendtoData = slices.Clone(payload)
 	return m.sendtoErr
 }
 
-func (m *mockNetlinkOps) Close(fd int) error {
+func (m *mockSyscallOps) Close(fd int) error {
 	m.closedFDs = append(m.closedFDs, fd)
 	return m.closeErr
 }
 
-// Ensure mockNetlinkOps satisfies the interface.
-var _ seclog.NetlinkOps = (*mockNetlinkOps)(nil)
+// Ensure mockSyscallOps satisfies the interface.
+var _ seclog.SyscallOps = (*mockSyscallOps)(nil)
 
 func (s *AuditSuite) TestOpenSuccess(c *C) {
-	mock := &mockNetlinkOps{
+	mock := &mockSyscallOps{
 		socketFD: 42,
 	}
-	restore := seclog.MockNetlinkOps(mock)
+	restore := seclog.MockSyscallOps(mock)
 	defer restore()
 
 	writer, err := seclog.OpenAuditWriter()
@@ -74,10 +74,10 @@ func (s *AuditSuite) TestOpenSuccess(c *C) {
 }
 
 func (s *AuditSuite) TestOpenSocketError(c *C) {
-	mock := &mockNetlinkOps{
+	mock := &mockSyscallOps{
 		socketErr: fmt.Errorf("permission denied"),
 	}
-	restore := seclog.MockNetlinkOps(mock)
+	restore := seclog.MockSyscallOps(mock)
 	defer restore()
 
 	_, err := seclog.OpenAuditWriter()
@@ -85,10 +85,10 @@ func (s *AuditSuite) TestOpenSocketError(c *C) {
 }
 
 func (s *AuditSuite) TestWriteSuccess(c *C) {
-	mock := &mockNetlinkOps{
+	mock := &mockSyscallOps{
 		socketFD: 7,
 	}
-	restore := seclog.MockNetlinkOps(mock)
+	restore := seclog.MockSyscallOps(mock)
 	defer restore()
 
 	writer, err := seclog.OpenAuditWriter()
@@ -102,11 +102,11 @@ func (s *AuditSuite) TestWriteSuccess(c *C) {
 }
 
 func (s *AuditSuite) TestWriteSendtoError(c *C) {
-	mock := &mockNetlinkOps{
+	mock := &mockSyscallOps{
 		socketFD:  7,
 		sendtoErr: fmt.Errorf("no buffer space"),
 	}
-	restore := seclog.MockNetlinkOps(mock)
+	restore := seclog.MockSyscallOps(mock)
 	defer restore()
 
 	writer, err := seclog.OpenAuditWriter()
@@ -117,10 +117,10 @@ func (s *AuditSuite) TestWriteSendtoError(c *C) {
 }
 
 func (s *AuditSuite) TestClose(c *C) {
-	mock := &mockNetlinkOps{
+	mock := &mockSyscallOps{
 		socketFD: 7,
 	}
-	restore := seclog.MockNetlinkOps(mock)
+	restore := seclog.MockSyscallOps(mock)
 	defer restore()
 
 	writer, err := seclog.OpenAuditWriter()
