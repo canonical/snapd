@@ -98,9 +98,8 @@ owner /run/user/[0-9]*/doc/{,*/} r,
 # the user guided the access and can specify anything DAC allows.
 /run/user/[0-9]*/doc/*/** rw,
 
-# Allow Wine/Proton to execute files that are accessed using the Document Portal.
-# This does not replace the home or removable-media interfaces, but it can be useful for running installers.
-/run/user/[0-9]*/doc/*/** m,
+# Permission for Wine to execute files that were accessed via the Document Portal.
+/run/user/[0-9]*/doc/*/** ix,
 
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
