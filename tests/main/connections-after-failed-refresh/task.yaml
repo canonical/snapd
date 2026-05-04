@@ -26,6 +26,7 @@ execute: |
 
   echo "Verify that interfaces of the snap are connected"
   snap connections test-snap | MATCH "^home +test-snap:home +:home"
+  snap connections test-snap | MATCH "^network-bind +test-snap:network-bind +:network-bind"
   snap connections test-snap | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
   snap connections test-snap | MATCH "^system-observe +test-snap:system-observe +:system-observe"
 
@@ -38,6 +39,7 @@ execute: |
 
   echo "Interfaces are still connected"
   snap connections test-snap | MATCH "^home +test-snap:home +:home"
+  snap connections test-snap | MATCH "^network-bind +test-snap:network-bind +:network-bind"
   snap connections test-snap | MATCH "^system-observe +test-snap:system-observe +:system-observe"
   snap connections test-snap | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
 
@@ -49,6 +51,7 @@ execute: |
 
   echo "Interfaces are still connected"
   snap connections test-snap | MATCH "^home +test-snap:home +:home"
+  snap connections test-snap | MATCH "^network-bind +test-snap:network-bind +:network-bind"
   snap connections test-snap | MATCH "^system-observe +test-snap:system-observe +:system-observe"
   snap connections test-snap | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
 
