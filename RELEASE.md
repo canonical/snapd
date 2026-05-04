@@ -33,7 +33,7 @@ flowchart TD
     style w4 fill:#222,stroke:#333
 
     subgraph t0 [" "]
-        T0L["<b>Prepare release content - 1 day</b>"]:::label
+        T0L["<b>Prepare release content - 1 week</b>"]:::label
         subgraph w0 [" "]
             D1{{"Agree on release content"}}:::decision
         end
@@ -46,7 +46,7 @@ flowchart TD
         subgraph w1 [" "]
             RT
             BS["Build snaps"]:::qa
-            BD["Build deps"]:::sru --> QS["QA testing<br/>(snappy-dev/image)"]:::qa
+            BD["Build debs"]:::sru --> QS["QA testing<br/>(snappy-dev/image)"]:::qa
         end
     end
     RT --> BS & BD
@@ -128,7 +128,7 @@ The complete set of prerequisites for all release process steps is as follows:
 
 ## Prepare release content
 
-**Time: 1 day**
+**Time: 1 week**
 
 ### Summary
 
@@ -159,7 +159,7 @@ Also subscribe relevant parties to the bug. In addition to key stakeholders, sub
 - [ubuntu-sru](https://launchpad.net/~ubuntu-sru)
 - [sru-verification-interest-group-snapd](https://launchpad.net/~sru-verification-interest-group-snapd)
 
-Base template:
+Launchpad SRU Bug description template:
 
 ```
 New Snapd release <version> is required for <list of short name Ubuntu releases>.
@@ -212,10 +212,13 @@ NEWS.md contains the list of functional changes in each snapd release for snapd 
 
 NEWS.md properties:
 - it should contain a full, linear, historical record of candidate releases
-- it should not include tests or non-functional changes
+- it should not include tests, non-functional changes, or fixes issued for bugs created inside the same release
 - it should cover each externally relevant PR
 - comments should be concise and understandable
 - summarized comments should be grouped in an order that is helpful to the audience, e.g. new features, bugfixes, and interface changes grouped together
+- all comments that share the same theme should contain the same prefix
+- interface modifications should contain the "Interfaces" prefix followed by the interface name and formatted as follows `Interfaces: <interface-name>| <comment>`
+- all Launchpad bug fixes should be prefixed with `LP: #<lp-number>` before the comment
 
 Steps:
 - (Optional) Use a script to gather all PRs in the release and create a spreadsheet to work from to make it easier to group PRs and filter out test-only and non-functional changes.
@@ -230,7 +233,18 @@ Steps:
 - Go through each PR and note any references to Launchpad bugs. If the PR fixes a bug and the bug is not tagged against the corresponding milestone, add it to the Launchpad bug.
 - All Launchpad bugs resolved by the release should be listed with their Launchpad number as follows: `LP: #<lp-number> <rest of comment>`. Each Launchpad bug under the corresponding milestone (`https://Launchpad.net/snapd/+milestone/<version>`) should have an entry. If the list doesn't exactly match, remove the milestone from LP bugs that are not included in the release.
 
-#### 4. Create release PR
+#### 4. Add and fill out SRU test template for each linked bug
+
+Prerequisites:
+- The Launchpad release milestone contains all and only Launchpad bugs from the release being prepared.
+
+Modify each SRU bug linked to the release milestone by adding the [SRU test template](https://documentation.ubuntu.com/project/SRU/reference/bug-template/#reference-sru-bug-template) at the beginning of the bug, followed by `---original---` and the original bug's text. Each part of the template should be filled out with relevant information for the bug.
+
+Examples:
+- [Bug that is verified using automated snapd testing](https://bugs.launchpad.net/snapd/+bug/2068493)
+- [Bug that requires manual verification](https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/2116949)
+
+#### 5. Create release PR
 
 Prerequisites
 - Python packages: python-debian, bs4, markdown
@@ -250,7 +264,7 @@ Steps:
 		- `git diff | diffstat`
 		- `git diff release/2.75 | diffstat` (any recent previous tag will do)
         - The same files should get touched, all within `packaging/tree`.
-	- If you are generating changelogs for a version that supersedes a previous version, remove `New upstream releases, LP#<lp-number>` from the previous version. The `+<ubuntu release>` and the release name from the previous version should match those of the current patch version.
+	- If you are generating changelogs for a version that supersedes a previous version, remove `New upstream releases, LP: #<lp-number>` from the previous version. The `+<ubuntu release>` and the release name from the previous version should match those of the current patch version.
 5. Commit NEWS.md and the changelog updates as `release: <version>` on your personal branch
 6. Open the PR against `release/<version>`
     - The PR description should be formatted as follows. Only include the cherry-picked section if you have cherry-picked commits:
@@ -362,7 +376,7 @@ sudo apt build-dep .
 ##### Steps
  
 1. Check out the `release/<version>` branch
-2. Since the `debian` symlink was removed from the source, create the `debian` folder symlink: `ln -sfn packaging/ubuntu-16.04 debian`
+2. Since the `debian` symlink was removed from the source, create the `debian` folder symlink. For resolute: `ln -sfn packaging/ubuntu-26.04 debian` and for all others: `ln -sfn packaging/ubuntu-16.04 debian`
 3. Commit the changes, but **do not push**.
 4. Run `gbp buildpackage -S --git-ignore-branch --git-no-purge`. The `--git-no-purge` option is important so we correctly retain the source tree. You may also need to specify `--git-ignore-new` if you have untracked files in your local git repo. You should now have a `build-area` folder one directory up.
 5. For each target release, update the changelogs in `build-area/snapd-<version>` to reflect that target, then build the package.
