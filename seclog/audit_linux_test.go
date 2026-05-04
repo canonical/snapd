@@ -137,12 +137,12 @@ func (s *AuditSuite) TestBuildMessageHeaderLayout(c *C) {
 	payload := []byte("hello")
 	msg := seclog.AuditWriterBuildMessage(aw, payload)
 
-	// Total length: 16 (header) + 5 (payload) = 21, aligned to 24.
+	// Total length: NLMSG_SPACE(5 + 1) = align(22) = 24.
 	c.Assert(len(msg), Equals, 24)
 
 	// nlmsghdr fields in native byte order.
 	totalLen := arch.Endian().Uint32(msg[0:4])
-	c.Check(totalLen, Equals, uint32(21))
+	c.Check(totalLen, Equals, uint32(24))
 
 	msgType := arch.Endian().Uint16(msg[4:6])
 	c.Check(msgType, Equals, uint16(seclog.AuditTrustedApp))
@@ -159,8 +159,9 @@ func (s *AuditSuite) TestBuildMessageHeaderLayout(c *C) {
 	// Payload follows header.
 	c.Check(string(msg[syscall.SizeofNlMsghdr:syscall.SizeofNlMsghdr+5]), Equals, "hello")
 
-	// Padding bytes after payload should be zero.
+	// NUL byte for kernel null-termination.
 	c.Check(msg[21], Equals, byte(0))
+	// Padding bytes should be zero.
 	c.Check(msg[22], Equals, byte(0))
 	c.Check(msg[23], Equals, byte(0))
 }
@@ -181,15 +182,32 @@ func (s *AuditSuite) TestBuildMessageSequenceIncrements(c *C) {
 	c.Check(seq3, Equals, uint32(3))
 }
 
+func (s *AuditSuite) TestBuildMessageSequenceSkipsZero(c *C) {
+	aw := &seclog.AuditWriter{}
+
+	// Set sequence just before wraparound.
+	seclog.AuditWriterSetSeq(aw, ^uint32(0)) // math.MaxUint32
+
+	msg1 := seclog.AuditWriterBuildMessage(aw, []byte("x"))
+	msg2 := seclog.AuditWriterBuildMessage(aw, []byte("y"))
+
+	seq1 := arch.Endian().Uint32(msg1[8:12])
+	seq2 := arch.Endian().Uint32(msg2[8:12])
+
+	// Should skip 0 and go to 1, then 2.
+	c.Check(seq1, Equals, uint32(1))
+	c.Check(seq2, Equals, uint32(2))
+}
+
 func (s *AuditSuite) TestBuildMessageAlignedPayload(c *C) {
 	aw := &seclog.AuditWriter{}
 
-	// Payload of exactly 4 bytes: total = 20 which is already aligned.
+	// Payload of exactly 4 bytes: NLMSG_SPACE(4 + 1) = align(21) = 24.
 	msg := seclog.AuditWriterBuildMessage(aw, []byte("abcd"))
-	c.Check(len(msg), Equals, 20)
+	c.Check(len(msg), Equals, 24)
 
 	totalLen := arch.Endian().Uint32(msg[0:4])
-	c.Check(totalLen, Equals, uint32(20))
+	c.Check(totalLen, Equals, uint32(24))
 }
 
 func (s *AuditSuite) TestBuildMessageEmptyPayload(c *C) {
@@ -197,11 +215,11 @@ func (s *AuditSuite) TestBuildMessageEmptyPayload(c *C) {
 
 	msg := seclog.AuditWriterBuildMessage(aw, []byte{})
 
-	// 16-byte header, already aligned.
-	c.Check(len(msg), Equals, 16)
+	// NLMSG_SPACE(0 + 1) = align(17) = 20.
+	c.Check(len(msg), Equals, 20)
 
 	totalLen := arch.Endian().Uint32(msg[0:4])
-	c.Check(totalLen, Equals, uint32(16))
+	c.Check(totalLen, Equals, uint32(20))
 }
 
 func (s *AuditSuite) TestNlmsgAlignAlreadyAligned(c *C) {

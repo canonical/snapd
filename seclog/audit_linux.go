@@ -101,16 +101,23 @@ func (aw *AuditWriter) Close() error {
 // The header layout follows struct nlmsghdr from
 // https://github.com/torvalds/linux/blob/254f49634ee16a731174d2ae34bc50bd5f45e731/include/uapi/linux/netlink.h#L45
 func (aw *AuditWriter) buildMessage(payload []byte) []byte {
-	totalLen := syscall.SizeofNlMsghdr + uint32(len(payload))
-	buf := make([]byte, nlmsgAlign(totalLen))
+	// The kernel forcibly null-terminates the payload data. We include an extra
+	// byte to avoid overwriting message data.
+	totalLen := nlmsgAlign(syscall.SizeofNlMsghdr + uint32(len(payload)) + 1)
+	buf := make([]byte, totalLen)
 
 	// Write header in native byte order (netlink uses host endianness).
+	//   [0:4]   uint32 Length of message including header
+	//   [4:6]   uint16 Message content type
+	//   [6:8]   uint16 Flags
+	//   [8:12]  uint32 Sequence number
+	//   [12:16] uint32 Sending process port ID
 	// TODO: Upgrade from fire-and-forget to use NLM_F_ACK and handle
 	// acknowledgments.
 	arch.Endian().PutUint32(buf[0:4], totalLen)
 	arch.Endian().PutUint16(buf[4:6], auditTrustedApp)
-	arch.Endian().PutUint16(buf[6:8], syscall.NLM_F_REQUEST) // fire-and-forget, no ACK
-	arch.Endian().PutUint32(buf[8:12], aw.seq.Add(1))
+	arch.Endian().PutUint16(buf[6:8], syscall.NLM_F_REQUEST)
+	arch.Endian().PutUint32(buf[8:12], aw.nextSeq())
 	arch.Endian().PutUint32(buf[12:16], 0)
 
 	// Write payload.
@@ -121,4 +128,14 @@ func (aw *AuditWriter) buildMessage(payload []byte) []byte {
 // nlmsgAlign rounds up to the nearest 4-byte boundary per NLMSG_ALIGN.
 func nlmsgAlign(size uint32) uint32 {
 	return (size + 3) &^ 3
+}
+
+// nextSeq returns the next non-zero sequence number, skipping zero on
+// wrap to allow unambiguous ACK matching (mirrors audit-userspace).
+func (aw *AuditWriter) nextSeq() uint32 {
+	s := aw.seq.Add(1)
+	if s == 0 {
+		s = aw.seq.Add(1)
+	}
+	return s
 }

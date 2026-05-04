@@ -33,6 +33,10 @@ func AuditWriterBuildMessage(aw *AuditWriter, payload []byte) []byte {
 	return aw.buildMessage(payload)
 }
 
+func AuditWriterSetSeq(aw *AuditWriter, val uint32) {
+	aw.seq.Store(val)
+}
+
 func MockSyscallOps(ops syscallOps) (restore func()) {
 	return testutil.Mock(&sys, ops)
 }
