@@ -287,6 +287,6 @@ func (s *tasksSuite) TestTasksCommandJSONFormat(c *C) {
 
 	// Verify the change ID, status, and summary match
 	c.Assert(change["id"], Equals, changeID)
-	c.Assert(change["status"], Equals, float64(state.DoneStatus))
+	c.Assert(change["status"], Equals, "Done")
 	c.Assert(change["summary"], Equals, "json-test-change")
 }

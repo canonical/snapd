@@ -96,8 +96,9 @@ func (c *tasksCommand) Execute(args []string) error {
 
 	if c.Format == "json" {
 		st.Lock()
-		data, err := json.Marshal(change)
+		chgInfo := StateChangeToChangeInfo(change)
 		st.Unlock()
+		data, err := json.Marshal(chgInfo)
 		if err != nil {
 			return err
 		}
@@ -120,7 +121,7 @@ func (c *tasksCommand) Execute(args []string) error {
 			if status == state.DoingStatus && total > 1 {
 				summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(done)/float64(total)*100.0)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.ID(), status.String(), spawnTime, readyTime, summary)
 		}
 		st.Unlock()
 
