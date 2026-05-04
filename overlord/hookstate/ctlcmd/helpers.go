@@ -71,19 +71,20 @@ const snapctlDebounceWindow = 200 * time.Millisecond
 // properly organize the hook tasks in the chain of tasks in the change.
 const finalSeedTask = "mark-seeded"
 
+// ChangeInfo represents the information about a change that is needed for JSON marshaling.
 // To unmarshal the data needed for `snap tasks`, we need access
 // to all struct fields that client.Change has. However, Change.data is an
 // unexported field, so we cannot unmarshal into it directly. There is a
 // changeAndData struct in the client package with all exported fields, but the
 // struct itself is not exported.
 type ChangeInfo struct {
-	ID      string      `json:"id"`
-	Kind    string      `json:"kind"`
-	Summary string      `json:"summary"`
-	Status  string      `json:"status"`
+	ID      string     `json:"id"`
+	Kind    string     `json:"kind"`
+	Summary string     `json:"summary"`
+	Status  string     `json:"status"`
 	Tasks   []TaskInfo `json:"tasks,omitempty"`
-	Ready   bool        `json:"ready"`
-	Err     string      `json:"err,omitempty"`
+	Ready   bool       `json:"ready"`
+	Err     string     `json:"err,omitempty"`
 
 	SpawnTime time.Time  `json:"spawn-time,omitzero"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
@@ -91,6 +92,10 @@ type ChangeInfo struct {
 	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
+// TaskInfo represents the information about a task that is needed for JSON marshaling
+// for `snap tasks` output. It includes fields such as ID, kind, summary, status, and
+// any additional data associated with the task. The Data field is a map of string keys
+// to raw JSON messages, allowing for flexible inclusion of task-specific data in the output.
 type TaskInfo struct {
 	ID       string           `json:"id"`
 	Kind     string           `json:"kind"`
@@ -105,15 +110,18 @@ type TaskInfo struct {
 	Data map[string]*json.RawMessage `json:"data,omitempty"`
 }
 
+// TaskInfoProgress represents the progress of a task, including a label and the
+// amount of work done out of the total. Used in the TaskInfo struct to provide
+// progress information for tasks in the `snap tasks` output.
 type TaskInfoProgress struct {
 	Label string `json:"label"`
 	Done  int    `json:"done"`
 	Total int    `json:"total"`
 }
 
-// To unmarshal the data needed for `snap tasks`, we need access
-// to all struct fields that client.Change has. However, due to unexported
-// fields, we use ChangeInfo instead.
+// StateChangeToChangeInfo converts a state.Change to a ChangeInfo struct which has all
+// the exported fields needed for JSON marshaling for `snap tasks` output. It also extracts
+// the "api-data" from the change and includes it in the ChangeInfo.Data field.
 func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 	status := chg.Status()
 	chgInfo := &ChangeInfo{

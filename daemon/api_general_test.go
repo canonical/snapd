@@ -1026,8 +1026,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	// and doesn't cause the whole task to be missing from the output
 	t2.Set("snap-setup", "some-snap")
 
-	chg := st.Change(chg1.ID())
-	chg.Set("api-data", map[string]int{"n": 42})
+	chg1.Set("api-data", map[string]int{"n": 42})
 	st.Unlock()
 
 	// Execute
