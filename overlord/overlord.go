@@ -494,6 +494,7 @@ var preseedExitWithError = func(err error) {
 }
 
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
+// It can be invoked only once otherwise it panics.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	preseed := snapdenv.Preseeding()
