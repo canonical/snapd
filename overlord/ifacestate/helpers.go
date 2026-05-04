@@ -426,15 +426,103 @@ func isBroken(st *state.State, snapName string) (bool, error) {
 	return false, nil
 }
 
+func cloneConnState(connState *schema.ConnState) *schema.ConnState {
+	clone := *connState
+
+	cloneAttrs := func(attrs map[string]any) map[string]any {
+		if attrs == nil {
+			return nil
+		}
+		return utils.CopyAttributes(attrs)
+	}
+
+	clone.StaticPlugAttrs = cloneAttrs(connState.StaticPlugAttrs)
+	clone.DynamicPlugAttrs = cloneAttrs(connState.DynamicPlugAttrs)
+	clone.StaticSlotAttrs = cloneAttrs(connState.StaticSlotAttrs)
+	clone.DynamicSlotAttrs = cloneAttrs(connState.DynamicSlotAttrs)
+
+	return &clone
+}
+
+// saveChangedConnectionsForSetupProfilesRestore records original connection
+// states for setup-profiles do tasks whose undo can restore them.
+func saveChangedConnectionsForSetupProfilesRestore(task *state.Task, instanceName string, changedConns map[string]*schema.ConnState) error {
+	if len(changedConns) == 0 {
+		return nil
+	}
+
+	// undo setup-profiles also calls this code while rebuilding old profiles,
+	// but restoration data should only come from the original do path
+	if task.Status() == state.UndoingStatus {
+		return nil
+	}
+
+	// if this isn't the setup-profiles task that is going to handle the undo,
+	// then we don't need to keep track of these on the task
+	if !shouldUndoSetupProfiles(task, instanceName) {
+		return nil
+	}
+
+	var originalConns map[string]*schema.ConnState
+	err := task.Get("original-connection-states", &originalConns)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if originalConns == nil {
+		originalConns = make(map[string]*schema.ConnState)
+	}
+
+	for connID, connState := range changedConns {
+		if originalConns[connID] != nil {
+			// a setup-profiles task can be retried after saving original states
+			// and unlocking for backend setup. keep the original snapshot.
+			continue
+		}
+		originalConns[connID] = connState
+	}
+
+	task.Set("original-connection-states", originalConns)
+
+	return nil
+}
+
+// restoreConnectionsForSetupProfiles restores connection states saved on a
+// setup-profiles task.
+func restoreConnectionsForSetupProfiles(task *state.Task) error {
+	var original map[string]*schema.ConnState
+	err := task.Get("original-connection-states", &original)
+	if errors.Is(err, state.ErrNoState) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	st := task.State()
+
+	conns, err := getConns(st)
+	if err != nil {
+		return err
+	}
+
+	for connID, connState := range original {
+		conns[connID] = connState
+	}
+	setConns(st, conns)
+
+	return nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
 //
-// The return value is the list of affected snap names and their connection IDs.
-func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectionIDs []string, err error) {
+// The return value is the list of affected snap names and their connection IDs,
+// plus the original connection states that were changed.
+func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectionIDs []string, changedConns map[string]*schema.ConnState, err error) {
 	conns, err := getConns(m.state)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var policyChecker interfaces.PolicyFunc
@@ -445,21 +533,22 @@ func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectio
 	if errors.Is(err, state.ErrNoState) {
 		// everything else is a noop, as no model means no connections
 		// to reload
-		return nil, nil
+		return nil, nil, nil
 	} else if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	autoChecker, err = newAutoConnectChecker(m.state, m.repo, deviceCtx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	connChecker, err = newConnectChecker(m.state, deviceCtx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	connStateChanged := false
+	changedConns = make(map[string]*schema.ConnState)
 
 	var reloadedConnections []string
 ConnsLoop:
@@ -473,7 +562,7 @@ ConnsLoop:
 		}
 		connRef, err := interfaces.ParseConnRef(connId)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		// Apply filtering, this allows us to reload only a subset of
 		// connections (and similarly, refresh the static attributes of only a
@@ -497,13 +586,14 @@ ConnsLoop:
 				for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
 					broken, err := isBroken(m.state, snapName)
 					if err != nil {
-						return nil, err
+						return nil, nil, err
 					}
 					if broken {
 						logger.Noticef("Snap %q is broken, ignored by reloadConnections", snapName)
 						continue ConnsLoop
 					}
 				}
+				changedConns[connId] = cloneConnState(connState)
 				delete(conns, connId)
 				connStateChanged = true
 			}
@@ -540,11 +630,11 @@ ConnsLoop:
 
 		plugAppSet, err := interfaces.NewSnapAppSet(plugInfo.Snap, nil)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		slotAppSet, err := interfaces.NewSnapAppSet(slotInfo.Snap, nil)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		cplug := interfaces.NewConnectedPlug(plugInfo, plugAppSet, newStaticPlugAttrs, connState.DynamicPlugAttrs)
@@ -568,6 +658,7 @@ ConnsLoop:
 			reloadedConnections = append(reloadedConnections, connId)
 
 			if updateStaticAttrs {
+				changedConns[connId] = cloneConnState(connState)
 				connState.StaticPlugAttrs = staticPlugAttrs
 				connState.StaticSlotAttrs = staticSlotAttrs
 				connStateChanged = true
@@ -578,7 +669,7 @@ ConnsLoop:
 		setConns(m.state, conns)
 	}
 
-	return reloadedConnections, nil
+	return reloadedConnections, changedConns, nil
 }
 
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap

@@ -369,8 +369,11 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	affectedConnections, err := m.reloadConnections(snapName)
+	affectedConnections, changedConns, err := m.reloadConnections(snapName)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := saveChangedConnectionsForSetupProfilesRestore(task, snapName, changedConns); err != nil {
 		return nil, nil, err
 	}
 	return disconnectedSnaps, affectedConnections, nil
@@ -694,6 +697,9 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		FinishRestartDefault: snapsup.Type == snap.TypeSnapd,
 	}
 	if err := snapstateFinishRestart(task, snapsup, finishOpts); err != nil {
+		return err
+	}
+	if err := restoreConnectionsForSetupProfiles(task); err != nil {
 		return err
 	}
 
@@ -2003,7 +2009,7 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	// on disk are rewritten. This is ok because core/ubuntu-core have
 	// exactly the same profiles and nothing in the generated policies
 	// has the core snap-name encoded.
-	if _, err := m.reloadConnections(newName); err != nil {
+	if _, _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
 

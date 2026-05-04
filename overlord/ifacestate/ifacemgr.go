@@ -206,7 +206,7 @@ func (m *InterfaceManager) StartUp() error {
 	if err := removeStaleConnections(m.state); err != nil {
 		return err
 	}
-	if _, err := m.reloadConnections(""); err != nil {
+	if _, _, err := m.reloadConnections(""); err != nil {
 		return err
 	}
 
