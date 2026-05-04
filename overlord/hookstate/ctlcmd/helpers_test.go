@@ -46,7 +46,7 @@ func setupChange() (*state.State, string, *state.Change) {
 	task.SetStatus(state.DoneStatus)
 	task.Logf("Component prepared successfully")
 	task.SetProgress("Preparing component", 1, 1)
-	chg.Set("api-data", map[string]interface{}{
+	chg.Set("api-data", map[string]any{
 		"snap-names": []string{"test-snap"},
 		"kind":       "install-components",
 	})
