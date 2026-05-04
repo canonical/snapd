@@ -62,8 +62,8 @@ func (s *SlogSuite) TestNewSlogLogger(c *C) {
 	c.Check(logger, NotNil)
 }
 
-// baseAttrs represents the non-optional attributes that is present in
-// every record
+// baseAttrs represents the non-optional attributes that are present in
+// every record.
 type baseAttrs struct {
 	Datetime    time.Time `json:"datetime"`
 	Level       string    `json:"level"`
