@@ -167,10 +167,12 @@ func Setup(l SecurityLogger) {
 
 // LogLoggerEnabled logs that the security logger has been enabled.
 func LogLoggerEnabled() {
-	logger.Noticef("security logger enabled")
-
 	lock.Lock()
 	defer lock.Unlock()
+
+	if _, ok := globalLogger.(nopLogger); !ok {
+		logger.Noticef("security logger enabled")
+	}
 
 	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_logging_enabled", Level: LevelInfo},
@@ -180,10 +182,12 @@ func LogLoggerEnabled() {
 
 // LogLoggerDisabled logs that the security logger has been disabled.
 func LogLoggerDisabled() {
-	logger.Noticef("security logger disabled")
-
 	lock.Lock()
 	defer lock.Unlock()
+
+	if _, ok := globalLogger.(nopLogger); !ok {
+		logger.Noticef("security logger disabled")
+	}
 
 	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_logging_disabled", Level: LevelCritical},
