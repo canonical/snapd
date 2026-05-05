@@ -42,7 +42,7 @@ func newBootState20(typ snap.Type, dev snap.Device) bootState {
 			dev: dev,
 		}
 	case snap.TypeGadget:
-		return &bootState20Gadget{}
+		return &bootState20Gadget{dev: dev}
 	default:
 		panic(fmt.Sprintf("cannot make a bootState20 for snap type %q", typ))
 	}
@@ -471,7 +471,7 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount(modeenv *Modeen
 // snaps on UC20+. It is used for both setNext() and markSuccessful(),
 // with both of those methods returning bootStateUpdate20 to be used
 // with bootStateUpdate.
-type bootState20Gadget struct{}
+type bootState20Gadget struct{ dev snap.Device }
 
 func (bs20 *bootState20Gadget) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
 	return nil, nil, "", fmt.Errorf("internal error, revisions not implemented for gadget")
@@ -481,6 +481,13 @@ func (bs20 *bootState20Gadget) setNext(next snap.PlaceInfo, bootCtx NextBootCont
 	u20, err := newBootStateUpdate20(nil)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
+	}
+
+	if u20.modeenv.Gadget != next.Filename() {
+		u20.postModeenv(func() error {
+			_, err := ReconfigureRecoveryBootConfig(bs20.dev)
+			return err
+		})
 	}
 
 	u20.writeModeenv.Gadget = next.Filename()

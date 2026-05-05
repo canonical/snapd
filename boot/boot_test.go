@@ -4380,6 +4380,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
 
 	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+	c.Assert(s.bootloader.ReconfigureRecoveryBootConfigCalls, Equals, 0)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
@@ -4415,6 +4416,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
 
 	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+	c.Assert(s.bootloader.ReconfigureRecoveryBootConfigCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSame(c *C) {

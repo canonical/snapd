@@ -39,6 +39,7 @@ var (
 	_ ExtractedRecoveryKernelImageBootloader = (*piboot)(nil)
 	_ NotScriptableBootloader                = (*piboot)(nil)
 	_ RebootBootloader                       = (*piboot)(nil)
+	_ RecoveryBootConfigBootloader           = (*piboot)(nil)
 )
 
 const (
@@ -233,6 +234,20 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 		return err
 	}
 	return p.applyConfig(env, cfgFile, prefix, cfgDir, dstDir)
+}
+
+func (p *piboot) Reconfigure() error {
+	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
+	if err != nil {
+		return err
+	}
+	if env.Get("snapd_recovery_mode") == "run" && env.Get("kernel_status") != "try" {
+		trybootPath := filepath.Join(ubuntuSeedDir, "tryboot.txt")
+		if err := os.Remove(trybootPath); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("cannot remove %s: %v", trybootPath, err)
+		}
+	}
+	return p.loadAndApplyConfig(env)
 }
 
 // Writes os_prefix in RPi config.txt or tryboot.txt
