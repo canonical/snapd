@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -95,20 +96,12 @@ type TaskInfo struct {
 	Summary  string           `json:"summary"`
 	Status   string           `json:"status"`
 	Log      []string         `json:"log,omitempty"`
-	Progress TaskInfoProgress `json:"progress"`
+	Progress client.TaskProgress `json:"progress"`
 
 	SpawnTime time.Time  `json:"spawn-time,omitzero"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
 
 	Data map[string]*json.RawMessage `json:"data,omitempty"`
-}
-
-// TaskInfoProgress represents the progress of a task, including a label and the
-// amount of work done out of the total.
-type TaskInfoProgress struct {
-	Label string `json:"label"`
-	Done  int    `json:"done"`
-	Total int    `json:"total"`
 }
 
 // StateChangeToChangeInfo converts a state.Change to a ChangeInfo struct which has all
@@ -144,7 +137,7 @@ func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 			Summary: t.Summary(),
 			Status:  t.Status().String(),
 			Log:     t.Log(),
-			Progress: TaskInfoProgress{
+			Progress: client.TaskProgress{
 				Label: label,
 				Done:  done,
 				Total: total,
