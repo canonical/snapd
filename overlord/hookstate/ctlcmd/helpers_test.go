@@ -75,7 +75,7 @@ func (s *helperSuite) TestStateChangeToChangeInfo(c *C) {
 	c.Check(task1Info.Summary, Equals, "preparing components")
 	c.Check(task1Info.Status, Equals, "Done")
 	c.Assert(task1Info.Log, HasLen, 1)
-	c.Check(strings.Contains(task1Info.Log[0], "Component prepared successfully"), Equals, true)
+	c.Check(task1Info.Log[0], testutil.Contains, "Component prepared successfully")
 	c.Check(task1Info.Progress.Label, Equals, "Preparing component")
 	c.Check(task1Info.Progress.Done, Equals, 1)
 	c.Check(task1Info.Progress.Total, Equals, 1)
