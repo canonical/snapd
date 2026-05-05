@@ -74,15 +74,6 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-daily",
-        "backend": "openstack",
-        "alternative-backend": "google",
-        "systems": "ubuntu-26.04-64",
-        "tasks": "tests/...",
-        "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-core-22",
         "backend": "openstack",
         "alternative-backend": "google-core",
