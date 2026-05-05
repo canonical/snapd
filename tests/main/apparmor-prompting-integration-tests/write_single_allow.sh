@@ -9,7 +9,7 @@ if [ -z "$TIMEOUT" ] ; then
 fi
 
 echo "Attempt to write the file"
-snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/test.txt"
+snap run --shell prompt-requester.home -c "echo it is written > ${TEST_DIR}/test.txt"
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do

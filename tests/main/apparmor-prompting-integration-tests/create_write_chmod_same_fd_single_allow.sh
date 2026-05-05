@@ -11,7 +11,7 @@ if [ -z "$TIMEOUT" ] ; then
 fi
 
 echo "Compile a simple Go program to make syscalls for us"
-HELPER_PATH="$(snap run --shell prompting-client.scripted -c 'echo $HOME')/create-write-chmod"
+HELPER_PATH="$(snap run --shell prompt-requester.home -c 'echo $HOME')/create-write-chmod"
 cat > "${HELPER_PATH}.go" <<EOF
 package main
 
@@ -42,7 +42,7 @@ EOF
 go build -o "${HELPER_PATH}" "${HELPER_PATH}.go"
 
 echo "Create, write, and chmod the file"
-snap run --shell prompting-client.scripted -c "${HELPER_PATH} ${TEST_DIR}/test.txt"
+snap run --shell prompt-requester.home -c "${HELPER_PATH} ${TEST_DIR}/test.txt"
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do

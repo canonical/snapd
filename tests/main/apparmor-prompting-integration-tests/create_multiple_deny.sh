@@ -11,7 +11,7 @@ fi
 
 for name in test1.txt test2.md succeed.txt test3.pdf ; do
 	echo "Attempt to write $name"
-	snap run --shell prompting-client.scripted -c "echo $name is written > ${TEST_DIR}/${name}" || true
+	snap run --shell prompt-requester.home -c "echo $name is written > ${TEST_DIR}/${name}" || true
 done
 
 # Wait for the client to write its result and exit

@@ -19,12 +19,12 @@ echo "$FIRST_CONTENT" | tee "${TEST_DIR}/[アニメ][ゲーム動画].mkv"
 echo "$SECOND_CONTENT" | tee "${TEST_DIR}/foo*?()[]{}\\"
 
 echo "Attempt to read the first file"
-FIRST_OUTPUT="$(snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/'[アニメ][ゲーム動画].mkv'")"
+FIRST_OUTPUT="$(snap run --shell prompt-requester.home -c "cat ${TEST_DIR}/'[アニメ][ゲーム動画].mkv'")"
 
 echo "Skip reading the second file as there's an issue with the prompting-client.scripted parsing the sequence"
 # TODO: actually do the second read
 #echo "Attempt to read the second file"
-#SECOND_OUTPUT="$(snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/'foo*?()[]{}\\'")"
+#SECOND_OUTPUT="$(snap run --shell prompt-requester.home -c "cat ${TEST_DIR}/'foo*?()[]{}\\'")"
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do

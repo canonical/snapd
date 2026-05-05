@@ -11,10 +11,10 @@ if [ -z "$TIMEOUT" ] ; then
 fi
 
 echo "Create, write, and write (again) the file"
-snap run --shell prompting-client.scripted -c "touch ${TEST_DIR}/test.txt" || true
-snap run --shell prompting-client.scripted -c "echo some-content > ${TEST_DIR}/test.txt" || true
-snap run --shell prompting-client.scripted -c "echo succeed-content > ${TEST_DIR}/succeed.txt"
-snap run --shell prompting-client.scripted -c "echo other-content | tee -a ${TEST_DIR}/test.txt" || true
+snap run --shell prompt-requester.home -c "touch ${TEST_DIR}/test.txt" || true
+snap run --shell prompt-requester.home -c "echo some-content > ${TEST_DIR}/test.txt" || true
+snap run --shell prompt-requester.home -c "echo succeed-content > ${TEST_DIR}/succeed.txt"
+snap run --shell prompt-requester.home -c "echo other-content | tee -a ${TEST_DIR}/test.txt" || true
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do

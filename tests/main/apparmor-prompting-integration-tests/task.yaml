@@ -76,18 +76,14 @@ prepare: |
         fi
     fi
 
-    if [[ "$VARIANT" =~ "audio_record" ]] ; then
-        "$TESTSTOOLS"/snaps-state install-local prompt-requester
-        snap connect "prompt-requester:audio-record"
-        # TODO: probably cleaner to use prompt-requester.cat for all tests
-        # instead of using `snap run --shell prompting-client.scripted`
-    fi
-
     tests.session prepare -u test
     tests.cleanup defer tests.session restore -u test
     tests.session -u test exec sh -c 'mkdir -p "/home/test/integration-tests"'
     tests.cleanup defer rm -rf /home/test/integration-tests
     snap install prompting-client
+
+    "$TESTSTOOLS"/snaps-state install-local prompt-requester
+    snap connect "prompt-requester:audio-record"
 
 restore: |
     snap set system experimental.apparmor-prompting=false

@@ -15,16 +15,16 @@ mkdir -p "${TEST_DIR}/Downloads"
 touch "${TEST_DIR}/Downloads/existing.txt"
 
 echo "Attempt to list the contents of the downloads directory"
-if ! snap run --shell prompting-client.scripted -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
+if ! snap run --shell prompt-requester.home -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
 	echo "Failed to list contents of ${TEST_DIR}/Downloads"
 	exit 1
 fi
 
 echo "Attempt to write the file"
-snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/Downloads/test.txt"
+snap run --shell prompt-requester.home -c "echo it is written > ${TEST_DIR}/Downloads/test.txt"
 
 echo "Attempt to chmod the file after it has been written"
-snap run --shell prompting-client.scripted -c "chmod 664 ${TEST_DIR}/Downloads/test.txt"
+snap run --shell prompt-requester.home -c "chmod 664 ${TEST_DIR}/Downloads/test.txt"
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do

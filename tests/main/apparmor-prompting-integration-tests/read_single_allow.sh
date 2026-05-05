@@ -12,7 +12,7 @@ echo "Prepare the file to be read"
 echo "testing testing 1 2 3" | tee "${TEST_DIR}/test.txt"
 
 echo "Attempt to read the file"
-TEST_OUTPUT="$(snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/test.txt")"
+TEST_OUTPUT="$(snap run --shell prompt-requester.home -c "cat ${TEST_DIR}/test.txt")"
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do

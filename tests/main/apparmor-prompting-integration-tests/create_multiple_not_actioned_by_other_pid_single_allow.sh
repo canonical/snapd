@@ -16,14 +16,14 @@ if [ -z "$TIMEOUT" ] ; then
 	TIMEOUT=10
 fi
 
-WRITABLE="$(snap run --shell prompting-client.scripted -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
-snap run --shell prompting-client.scripted -c "mkdir -p $WRITABLE"
+WRITABLE="$(snap run --shell prompt-requester.home -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
+snap run --shell prompt-requester.home -c "mkdir -p $WRITABLE"
 
 for dir in test1 test2 test3 ; do
 	mkdir -p "${TEST_DIR}/${dir}"
 	name="${dir}/file.txt"
 	echo "Attempt to create $name in the background"
-	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${dir}-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${dir}-finished" &
+	snap run --shell prompt-requester.home -c "touch ${WRITABLE}/${dir}-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${dir}-finished" &
 	if ! timeout --verbose "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${dir}-started' ] ; do sleep 0.1 ; done" ; then
 		echo "failed to start create of $name within timeout period"
 		exit 1
@@ -41,7 +41,7 @@ done
 
 echo "Attempt to create test4/file.txt (for which client will reply allow single)"
 mkdir -p "${TEST_DIR}/test4"
-snap run --shell prompting-client.scripted -c "echo test4/file.txt is written > ${TEST_DIR}/test4/file.txt"
+snap run --shell prompt-requester.home -c "echo test4/file.txt is written > ${TEST_DIR}/test4/file.txt"
 
 for dir in test1 test2 test3 ; do
 	name="${dir}/file.txt"
@@ -55,7 +55,7 @@ done
 
 echo "Attempt to create test5/file.txt (for which client will reply deny forever)"
 mkdir -p "${TEST_DIR}/test5"
-snap run --shell prompting-client.scripted -c "echo test5/file.txt is written > ${TEST_DIR}/test5/file.txt" || true
+snap run --shell prompt-requester.home -c "echo test5/file.txt is written > ${TEST_DIR}/test5/file.txt" || true
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do

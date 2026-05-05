@@ -11,15 +11,15 @@ if [ -z "$TIMEOUT" ] ; then
 	TIMEOUT=10
 fi
 
-WRITABLE="$(snap run --shell prompting-client.scripted -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
-snap run --shell prompting-client.scripted -c "mkdir -p $WRITABLE"
+WRITABLE="$(snap run --shell prompt-requester.home -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
+snap run --shell prompt-requester.home -c "mkdir -p $WRITABLE"
 
 # First, queue up writes
 
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Attempt to write $name in the background"
 	echo "not written" > "${TEST_DIR}/${name}"
-	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${name}-write-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${name}-write-finished" &
+	snap run --shell prompt-requester.home -c "touch ${WRITABLE}/${name}-write-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${name}-write-finished" &
 	if ! timeout --verbose "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${name}-write-started' ] ; do sleep 0.1 ; done" ; then
 		echo "failed to start write of $name within timeout period"
 		exit 1
@@ -36,7 +36,7 @@ done
 
 echo "Attempt to write test4.txt (for which client will reply)"
 echo "not written" > "${TEST_DIR}/test4.txt"
-snap run --shell prompting-client.scripted -c "echo test4.txt is written > ${TEST_DIR}/test4.txt" || true
+snap run --shell prompt-requester.home -c "echo test4.txt is written > ${TEST_DIR}/test4.txt" || true
 
 # Reply for test4.txt will deny always write test*.txt
 
@@ -63,7 +63,7 @@ done
 
 for name in test1.txt test2.txt test3.txt ; do
 	echo "Attempt to read $name in the background"
-	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${name}-read-started; cat ${TEST_DIR}/${name} > ${WRITABLE}/${name}; touch ${WRITABLE}/${name}-read-finished" &
+	snap run --shell prompt-requester.home -c "touch ${WRITABLE}/${name}-read-started; cat ${TEST_DIR}/${name} > ${WRITABLE}/${name}; touch ${WRITABLE}/${name}-read-finished" &
 	if ! timeout --verbose "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${name}-read-started' ] ; do sleep 0.1 ; done" ; then
 		echo "failed to start read of $name within timeout period"
 		exit 1
@@ -79,7 +79,7 @@ for name in test1.txt test2.txt test3.txt ; do
 done
 
 echo "Attempt to read test4.txt (for which client will reply)"
-snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/test4.txt > ${WRITABLE}/test4.txt"
+snap run --shell prompt-requester.home -c "cat ${TEST_DIR}/test4.txt > ${WRITABLE}/test4.txt"
 
 # Reply for test4.txt will allow always read|write test*
 
@@ -107,14 +107,14 @@ done
 # create other.txt -> prompt, reply with deny (mostly to make sure the client lives long enough)
 
 echo "Attempt to create test5.txt (should be denied by original rule)"
-snap run --shell prompting-client.scripted -c "echo test5.txt is written > ${TEST_DIR}/test5.txt" || true
+snap run --shell prompt-requester.home -c "echo test5.txt is written > ${TEST_DIR}/test5.txt" || true
 if [ -f "${TEST_DIR}/test5.txt" ] ; then
 	echo "file creation unexpectedly succeeded for test5.txt"
 	exit 1
 fi
 
 echo "Attempt to create test5.md (should be allowed by previous rule)"
-snap run --shell prompting-client.scripted -c "echo test5.md is written > ${TEST_DIR}/test5.md"
+snap run --shell prompt-requester.home -c "echo test5.md is written > ${TEST_DIR}/test5.md"
 TEST_OUTPUT="$(cat "${TEST_DIR}/test5.md")"
 if [ "$TEST_OUTPUT" != "test5.md is written" ] ; then
 	echo "file creation failed for test5.md"
@@ -124,7 +124,7 @@ fi
 for name in test5.txt test5.md ; do
 	echo "Attempt to read $name (should be allowed by previous rule)"
 	echo "$name is written" > "${TEST_DIR}/${name}"
-	snap run --shell prompting-client.scripted -c "cat ${TEST_DIR}/${name} > ${WRITABLE}/${name}"
+	snap run --shell prompt-requester.home -c "cat ${TEST_DIR}/${name} > ${WRITABLE}/${name}"
 	TEST_OUTPUT="$(cat "${WRITABLE}/${name}")"
 	if [ "$TEST_OUTPUT" != "${name} is written" ] ; then
 		echo "read failed for ${name}"
@@ -133,7 +133,7 @@ for name in test5.txt test5.md ; do
 done
 
 echo "Attempt to create other.txt (should trigger prompt, which is then denied)"
-snap run --shell prompting-client.scripted -c "echo other.txt is written > ${TEST_DIR}/other.txt" || true
+snap run --shell prompt-requester.home -c "echo other.txt is written > ${TEST_DIR}/other.txt" || true
 if [ -f "${TEST_DIR}/other.txt" ] ; then
 	echo "file creation unexpectedly succeeded for other.txt"
 	exit 1

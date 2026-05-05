@@ -11,9 +11,9 @@ if [ -z "$TIMEOUT" ] ; then
 fi
 
 echo "Create, write, and chmod the file"
-snap run --shell prompting-client.scripted -c "touch ${TEST_DIR}/test.txt"
-snap run --shell prompting-client.scripted -c "echo some-content > ${TEST_DIR}/test.txt"
-snap run --shell prompting-client.scripted -c "chmod 654 ${TEST_DIR}/test.txt"
+snap run --shell prompt-requester.home -c "touch ${TEST_DIR}/test.txt"
+snap run --shell prompt-requester.home -c "echo some-content > ${TEST_DIR}/test.txt"
+snap run --shell prompt-requester.home -c "chmod 654 ${TEST_DIR}/test.txt"
 
 # Wait for the client to write its result and exit
 for i in $(seq "$TIMEOUT") ; do
