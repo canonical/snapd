@@ -444,17 +444,10 @@ func cloneConnState(connState *schema.ConnState) *schema.ConnState {
 	return &clone
 }
 
-// snapshotModifiedConnectionsForUndo records a snapshot of the connection
-// states, prior to modification. This enables the undo of setup-profiles to
-// restore them, if needed.
+// snapshotChangedConnectionsForUndo records original states for connections
+// changed by setup-profiles so undo can restore them, if needed.
 func snapshotChangedConnectionsForUndo(task *state.Task, instanceName string, changedConns map[string]*schema.ConnState) error {
 	if len(changedConns) == 0 {
-		return nil
-	}
-
-	// undo setup-profiles also calls this code while rebuilding old profiles,
-	// but restoration data should only come from the original do path
-	if task.Status() == state.UndoingStatus {
 		return nil
 	}
 
@@ -518,8 +511,8 @@ func restoreConnectionsForSetupProfiles(task *state.Task) error {
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
 //
-// The return value is the list of affected snap names and their connection IDs,
-// plus the original connection states that were changed.
+// The return value is the list of reloaded connection IDs, plus the original
+// connection states whose persisted state was changed.
 func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectionIDs []string, changedConns map[string]*schema.ConnState, err error) {
 	conns, err := getConns(m.state)
 	if err != nil {

@@ -369,7 +369,7 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	affectedConnections, changedConns, err := m.reloadConnections(snapName)
+	reloadedConns, changedConns, err := m.reloadConnections(snapName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -377,11 +377,13 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 	// if this task modified any connection states, we take a snapshot of the
 	// original connections so that we can restore them on the undo path, if
 	// needed
-	if err := snapshotChangedConnectionsForUndo(task, snapName, changedConns); err != nil {
-		return nil, nil, err
+	if task.Status() != state.UndoingStatus {
+		if err := snapshotChangedConnectionsForUndo(task, snapName, changedConns); err != nil {
+			return nil, nil, err
+		}
 	}
 
-	return disconnectedSnaps, affectedConnections, nil
+	return disconnectedSnaps, reloadedConns, nil
 }
 
 func (m *InterfaceManager) setupProfilesForAppSet(

@@ -6963,7 +6963,7 @@ version: 1
 plugs:
  plug:
   interface: content
-  content: bar
+  content: foo
   attr: old-plug
 `)
 

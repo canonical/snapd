@@ -23,6 +23,10 @@ package schema
 import "github.com/snapcore/snapd/snap"
 
 // ConnState holds properties of an interface connection.
+//
+// Note: ifacestate.cloneConnState makes a deep copy of this type. If we add any
+// more reference-like types (slices, maps) to this struct, that function needs
+// an update.
 type ConnState struct {
 	Auto      bool   `json:"auto,omitempty" yaml:"auto"`
 	ByGadget  bool   `json:"by-gadget,omitempty" yaml:"by-gadget"`
