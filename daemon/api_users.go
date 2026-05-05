@@ -84,10 +84,10 @@ type userResponseData struct {
 
 var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 
-// loginError logs a login failure to the security audit log and returns resp
+// apiLoginError logs a login failure to the security audit log and returns resp
 // unchanged. It is a convenience wrapper so that each error return path in
 // loginUser can log with a single call.
-func loginError(resp *apiError, snapdUser seclog.SnapdUser, code string) *apiError {
+func apiLoginError(resp *apiError, snapdUser seclog.SnapdUser, code string) *apiError {
 	seclog.LogLoginFailure(snapdUser, seclog.Reason{
 		Code:    code,
 		Message: resp.Message,
@@ -105,7 +105,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginData); err != nil {
-		return loginError(BadRequest("cannot decode login data from request body: %v", err),
+		return apiLoginError(BadRequest("cannot decode login data from request body: %v", err),
 			seclog.SnapdUser{}, seclog.ReasonInvalidAuthData)
 	}
 
@@ -121,7 +121,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// the "username" needs to look a lot like an email address
 	if !isEmailish(loginData.Email) {
-		return loginError(&apiError{
+		return apiLoginError(&apiError{
 			Status:  400,
 			Message: "please use a valid email address.",
 			Kind:    client.ErrorKindInvalidAuthData,
@@ -132,9 +132,9 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, seclog.ReasonInvalidAuthData)
 	}
 
-	// Build the user identity for security audit logging. At this
-	// point we know the email and optional username; the numeric ID
-	// is only available after successful authentication.
+	// Build the user identity for security audit logging. At this point we know
+	// their claimed email and optional username; the numeric ID is only
+	// available after successful authentication.
 	snapdUser := seclog.SnapdUser{
 		StoreUserName:  loginData.Username,
 		StoreUserEmail: loginData.Email,
@@ -146,13 +146,13 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
-		return loginError(&apiError{
+		return apiLoginError(&apiError{
 			Status:  401,
 			Message: err.Error(),
 			Kind:    client.ErrorKindTwoFactorRequired,
 		}, snapdUser, seclog.ReasonTwoFactorRequired)
 	case store.Err2faFailed:
-		return loginError(&apiError{
+		return apiLoginError(&apiError{
 			Status:  401,
 			Message: err.Error(),
 			Kind:    client.ErrorKindTwoFactorFailed,
@@ -160,14 +160,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	default:
 		switch err := err.(type) {
 		case store.InvalidAuthDataError:
-			return loginError(&apiError{
+			return apiLoginError(&apiError{
 				Status:  400,
 				Message: err.Error(),
 				Kind:    client.ErrorKindInvalidAuthData,
 				Value:   err,
 			}, snapdUser, seclog.ReasonInvalidAuthData)
 		case store.PasswordPolicyError:
-			return loginError(&apiError{
+			return apiLoginError(&apiError{
 				Status:  401,
 				Message: err.Error(),
 				Kind:    client.ErrorKindPasswordPolicy,
@@ -178,7 +178,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		if err == store.ErrInvalidCredentials {
 			reason = seclog.ReasonInvalidCredentials
 		}
-		return loginError(Unauthorized(err.Error()), snapdUser, reason)
+		return apiLoginError(Unauthorized(err.Error()), snapdUser, reason)
 	case nil:
 		// continue
 	}
@@ -200,7 +200,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Unlock()
 	if err != nil {
-		return loginError(InternalError("cannot persist authentication details: %v", err), snapdUser, seclog.ReasonInternal)
+		return apiLoginError(InternalError("cannot persist authentication details: %v", err), snapdUser, seclog.ReasonInternal)
 	}
 
 	snapdUser.ID = int64(user.ID)
