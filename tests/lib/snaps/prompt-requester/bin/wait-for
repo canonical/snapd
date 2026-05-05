@@ -7,8 +7,12 @@ echo "$$" > "$HOME/running.pid"
 #shellcheck disable=SC2034
 for i in $(seq 1 100) ; do
 	if [ -e "$1" ] ; then
+		# Clean up the PID file so another test doesn't mistake it for theirs
+		rm -f "$HOME/running.pid"
 		exit 0
 	fi
 	sleep 1
 done
+# Clean up the PID file so another test doesn't mistake it for theirs
+rm -f "$HOME/running.pid"
 exit 1
