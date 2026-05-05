@@ -47,7 +47,7 @@ func MockCheckRunningConditionsRetryDelay(d time.Duration) (restore func()) {
 	}
 }
 
-func MockOpenAuditWriter(f func() (io.WriteCloser, error)) (restore func()) {
+func MockOpenAuditWriter(f func() (*seclog.AuditWriter, error)) (restore func()) {
 	oldOpenAuditWriter := openAuditWriter
 	openAuditWriter = f
 	return func() {

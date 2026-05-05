@@ -99,7 +99,7 @@ func (s *userSuite) SetUpTest(c *check.C) {
 	s.loginUserDischarge = ""
 
 	s.seclogBuf = &bytes.Buffer{}
-	seclog.Setup(seclogtest.NewMockSecurityLogger(s.seclogBuf))
+	seclog.Setup(seclogtest.MockSecurityLogger(s.seclogBuf))
 	s.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
 }
 
