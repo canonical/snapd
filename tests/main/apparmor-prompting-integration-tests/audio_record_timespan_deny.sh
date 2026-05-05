@@ -36,26 +36,26 @@ WAITER_SNAP_PID="$(cat "$SNAP_HOME/running.pid")"
 # Actually trigger the request by querying the API
 ASK_BODY="{\"action\": \"ask\", \"interface\": \"audio-record\", \"pid\": $WAITER_SNAP_PID}"
 RESULT="$(echo "$ASK_BODY" | snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests")"
-echo "$RESULT" | MATCH '"status-code": 200'
-echo "$RESULT" | MATCH '"outcome": "deny"'
+echo "$RESULT" | grep '"status-code": 200'
+echo "$RESULT" | grep '"outcome": "deny"'
 
 # Trigger a second request
 ASK_BODY="{\"action\": \"ask\", \"interface\": \"audio-record\", \"pid\": $WAITER_SNAP_PID}"
 RESULT="$(echo "$ASK_BODY" | snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests")"
-echo "$RESULT" | MATCH '"status-code": 200'
-echo "$RESULT" | MATCH '"outcome": "deny"'
+echo "$RESULT" | grep '"status-code": 200'
+echo "$RESULT" | grep '"outcome": "deny"'
 
 # Trigger a third request
 ASK_BODY="{\"action\": \"ask\", \"interface\": \"audio-record\", \"pid\": $WAITER_SNAP_PID}"
 RESULT="$(echo "$ASK_BODY" | snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests")"
-echo "$RESULT" | MATCH '"status-code": 200'
-echo "$RESULT" | MATCH '"outcome": "deny"'
+echo "$RESULT" | grep '"status-code": 200'
+echo "$RESULT" | grep '"outcome": "deny"'
 
 # Trigger a fourth request
 ASK_BODY="{\"action\": \"ask\", \"interface\": \"audio-record\", \"pid\": $WAITER_SNAP_PID}"
 RESULT="$(echo "$ASK_BODY" | snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests")"
-echo "$RESULT" | MATCH '"status-code": 200'
-echo "$RESULT" | MATCH '"outcome": "deny"'
+echo "$RESULT" | grep '"status-code": 200'
+echo "$RESULT" | grep '"outcome": "deny"'
 
 echo "Wait for the rule to expire"
 sleep 10
@@ -63,8 +63,8 @@ sleep 10
 # Trigger a fifth request
 ASK_BODY="{\"action\": \"ask\", \"interface\": \"audio-record\", \"pid\": $WAITER_SNAP_PID}"
 RESULT="$(echo "$ASK_BODY" | snap debug api -X POST -H 'Content-Type: application/json' "/v2/interfaces/requests")"
-echo "$RESULT" | MATCH '"status-code": 200'
-echo "$RESULT" | MATCH '"outcome": "allow"'
+echo "$RESULT" | grep '"status-code": 200'
+echo "$RESULT" | grep '"outcome": "allow"'
 
 # Tell the waiter to stop waiting
 touch "$TARGET_FILE"
