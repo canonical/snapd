@@ -60,9 +60,11 @@ func (realSyscallOps) Close(fd int) error {
 var sys syscallOps = realSyscallOps{}
 
 // AuditWriter implements [io.WriteCloser].
+// It must be created via [OpenAuditWriter]; the zero value is not usable.
 type AuditWriter struct {
-	fd  int
-	seq uint32
+	fd     int
+	seq    uint32
+	opened bool
 }
 
 // OpenAuditWriter opens a netlink audit socket and returns an [AuditWriter]
@@ -73,13 +75,16 @@ func OpenAuditWriter() (*AuditWriter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot open audit socket: %v", err)
 	}
-	return &AuditWriter{fd: fd}, nil
+	return &AuditWriter{fd: fd, opened: true}, nil
 }
 
 // Write sends payload as an AUDIT_TRUSTED_APP netlink message.
 // The returned byte count reflects only the original payload length.
 // Concurrent use requires external synchronization.
 func (aw *AuditWriter) Write(payload []byte) (int, error) {
+	if !aw.opened {
+		return 0, fmt.Errorf("cannot send audit message: not open")
+	}
 	msg := aw.buildMessage(payload)
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
@@ -94,6 +99,10 @@ func (aw *AuditWriter) Write(payload []byte) (int, error) {
 
 // Close closes the underlying netlink socket.
 func (aw *AuditWriter) Close() error {
+	if !aw.opened {
+		return fmt.Errorf("cannot close audit writer: not open")
+	}
+	aw.opened = false
 	return sys.Close(aw.fd)
 }
 

@@ -130,6 +130,43 @@ func (s *AuditSuite) TestClose(c *C) {
 	c.Check(mock.closedFDs, DeepEquals, []int{7})
 }
 
+func (s *AuditSuite) TestCloseNotOpen(c *C) {
+	mock := &mockSyscallOps{
+		socketFD: 7,
+	}
+	restore := seclog.MockSyscallOps(mock)
+	defer restore()
+
+	writer, err := seclog.OpenAuditWriter()
+	c.Assert(err, IsNil)
+
+	err = writer.Close()
+	c.Assert(err, IsNil)
+
+	// Second close must fail.
+	err = writer.Close()
+	c.Assert(err, ErrorMatches, "cannot close audit writer: not open")
+	// Only one fd was closed.
+	c.Check(mock.closedFDs, DeepEquals, []int{7})
+}
+
+func (s *AuditSuite) TestWriteAfterClose(c *C) {
+	mock := &mockSyscallOps{
+		socketFD: 7,
+	}
+	restore := seclog.MockSyscallOps(mock)
+	defer restore()
+
+	writer, err := seclog.OpenAuditWriter()
+	c.Assert(err, IsNil)
+
+	err = writer.Close()
+	c.Assert(err, IsNil)
+
+	_, err = writer.Write([]byte("test"))
+	c.Assert(err, ErrorMatches, "cannot send audit message: not open")
+}
+
 func (s *AuditSuite) TestBuildMessageHeaderLayout(c *C) {
 	aw := &seclog.AuditWriter{}
 
