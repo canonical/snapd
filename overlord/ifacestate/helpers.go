@@ -444,9 +444,10 @@ func cloneConnState(connState *schema.ConnState) *schema.ConnState {
 	return &clone
 }
 
-// saveChangedConnectionsForSetupProfilesRestore records original connection
-// states for setup-profiles do tasks whose undo can restore them.
-func saveChangedConnectionsForSetupProfilesRestore(task *state.Task, instanceName string, changedConns map[string]*schema.ConnState) error {
+// snapshotModifiedConnectionsForUndo records a snapshot of the connection
+// states, prior to modification. This enables the undo of setup-profiles to
+// restore them, if needed.
+func snapshotChangedConnectionsForUndo(task *state.Task, instanceName string, changedConns map[string]*schema.ConnState) error {
 	if len(changedConns) == 0 {
 		return nil
 	}
@@ -463,25 +464,25 @@ func saveChangedConnectionsForSetupProfilesRestore(task *state.Task, instanceNam
 		return nil
 	}
 
-	var originalConns map[string]*schema.ConnState
-	err := task.Get("original-connection-states", &originalConns)
+	var connectionSnapshot map[string]*schema.ConnState
+	err := task.Get("changed-connection-snapshot", &connectionSnapshot)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	if originalConns == nil {
-		originalConns = make(map[string]*schema.ConnState)
+	if connectionSnapshot == nil {
+		connectionSnapshot = make(map[string]*schema.ConnState)
 	}
 
 	for connID, connState := range changedConns {
-		if originalConns[connID] != nil {
-			// a setup-profiles task can be retried after saving original states
-			// and unlocking for backend setup. keep the original snapshot.
+		if connectionSnapshot[connID] != nil {
+			// a setup-profiles task can be retried after saving the connection
+			// states and unlocking for backend setup. keep the first snapshot.
 			continue
 		}
-		originalConns[connID] = connState
+		connectionSnapshot[connID] = connState
 	}
 
-	task.Set("original-connection-states", originalConns)
+	task.Set("changed-connection-snapshot", connectionSnapshot)
 
 	return nil
 }
@@ -489,8 +490,8 @@ func saveChangedConnectionsForSetupProfilesRestore(task *state.Task, instanceNam
 // restoreConnectionsForSetupProfiles restores connection states saved on a
 // setup-profiles task.
 func restoreConnectionsForSetupProfiles(task *state.Task) error {
-	var original map[string]*schema.ConnState
-	err := task.Get("original-connection-states", &original)
+	var connectionSnapshot map[string]*schema.ConnState
+	err := task.Get("changed-connection-snapshot", &connectionSnapshot)
 	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
@@ -505,7 +506,7 @@ func restoreConnectionsForSetupProfiles(task *state.Task) error {
 		return err
 	}
 
-	for connID, connState := range original {
+	for connID, connState := range connectionSnapshot {
 		conns[connID] = connState
 	}
 	setConns(st, conns)

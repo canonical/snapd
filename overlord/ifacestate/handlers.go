@@ -373,9 +373,14 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := saveChangedConnectionsForSetupProfilesRestore(task, snapName, changedConns); err != nil {
+
+	// if this task modified any connection states, we take a snapshot of the
+	// original connections so that we can restore them on the undo path, if
+	// needed
+	if err := snapshotChangedConnectionsForUndo(task, snapName, changedConns); err != nil {
 		return nil, nil, err
 	}
+
 	return disconnectedSnaps, affectedConnections, nil
 }
 
