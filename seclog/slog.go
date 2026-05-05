@@ -79,21 +79,6 @@ func (l *slogLogger) LogEvent(event Event, description string, attrs ...Attr) {
 	)
 }
 
-// LogValue implements [slog.LogValuer], allowing SnapdUser to be
-// used directly as a structured log attribute value.
-func (u SnapdUser) LogValue() slog.Value {
-	expiration := "never"
-	if !u.Expiration.IsZero() {
-		expiration = u.Expiration.UTC().Format(time.RFC3339Nano)
-	}
-	return slog.GroupValue(
-		slog.Int64("snapd-user-id", u.ID),
-		slog.String("store-user-name", u.StoreUserName),
-		slog.String("store-user-email", u.StoreUserEmail),
-		slog.String("expiration", expiration),
-	)
-}
-
 // newJsonHandler returns a slog JSON handler configured for security logs.
 //
 // It writes newline-delimited JSON to writer and enforces a schema for the
@@ -176,4 +161,19 @@ func (h *errorAwareHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (h *errorAwareHandler) WithGroup(name string) slog.Handler {
 	return &errorAwareHandler{inner: h.inner.WithGroup(name)}
+}
+
+// LogValue implements [slog.LogValuer], allowing SnapdUser to be
+// used directly as a structured log attribute value.
+func (u SnapdUser) LogValue() slog.Value {
+	expiration := "never"
+	if !u.Expiration.IsZero() {
+		expiration = u.Expiration.UTC().Format(time.RFC3339Nano)
+	}
+	return slog.GroupValue(
+		slog.Int64("snapd-user-id", u.ID),
+		slog.String("store-user-name", u.StoreUserName),
+		slog.String("store-user-email", u.StoreUserEmail),
+		slog.String("expiration", expiration),
+	)
 }
