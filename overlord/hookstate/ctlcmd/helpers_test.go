@@ -20,8 +20,6 @@
 package ctlcmd_test
 
 import (
-	"strings"
-
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
