@@ -56,13 +56,13 @@ execute: |
   echo "tasks output for in-progress change: $OUTPUT"
 
   echo "Verify the table header is printed"
-  echo "$OUTPUT" | grep -qE "ID\s+Status"
+  echo "$OUTPUT" | MATCH "ID\s+Status"
 
   echo "Verify the change ID appears in the output"
-  echo "$OUTPUT" | grep -q "$CHANGE_ID_1"
+  echo "$OUTPUT" | MATCH "$CHANGE_ID_1"
 
   echo "Verify the change has not yet completed (status is not Done)"
-  ! echo "$OUTPUT" | grep -q "Done"
+  echo "$OUTPUT" | NOMATCH "Done"
 
   echo "Wait for comp1 removal to complete before starting second test"
   wait_for_change "$CHANGE_ID_1"
@@ -79,10 +79,10 @@ execute: |
   echo "tasks output for completed change: $OUTPUT"
 
   echo "Verify the table header is printed"
-  echo "$OUTPUT" | grep -qE "ID\s+Status"
+  echo "$OUTPUT" | MATCH "ID\s+Status"
 
   echo "Verify the change ID appears in the output"
-  echo "$OUTPUT" | grep -q "$CHANGE_ID_2"
+  echo "$OUTPUT" | MATCH "$CHANGE_ID_2"
 
   echo "Verify the change is reported as Done"
-  echo "$OUTPUT" | grep -q "Done"
+  echo "$OUTPUT" | MATCH "Done"
