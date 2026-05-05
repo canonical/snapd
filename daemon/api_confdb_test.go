@@ -384,7 +384,7 @@ func (s *confdbSuite) TestSetEmpty(c *C) {
 
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Assert(rspe.Status, Equals, 400)
-		c.Assert(rspe.Message, Equals, "cannot set confdb: request body contains no values")
+		c.Assert(rspe.Message, Equals, "cannot write confdb: request body contains no values")
 		c.Assert(called, Equals, false)
 	}
 }
@@ -702,11 +702,11 @@ func (s *confdbSuite) TestReadAccessTimeout(c *C) {
 		},
 		{
 			timeout: "-10m",
-			error:   "cannot get confdb: access timeout must be non-negative",
+			error:   "cannot read confdb: access timeout must be non-negative",
 		},
 		{
 			timeout: "invalid",
-			error:   "cannot get confdb: invalid access-timeout: \"invalid\"",
+			error:   "cannot read confdb: invalid access-timeout: \"invalid\"",
 		},
 	}
 
@@ -773,11 +773,11 @@ func (s *confdbSuite) TestWriteAccessTimeout(c *C) {
 		},
 		{
 			timeout: `-10m`,
-			error:   "cannot set confdb: access timeout must be non-negative",
+			error:   "cannot write confdb: access timeout must be non-negative",
 		},
 		{
 			timeout: `invalid`,
-			error:   "cannot set confdb: invalid access-timeout: \"invalid\"",
+			error:   "cannot write confdb: invalid access-timeout: \"invalid\"",
 		},
 	}
 

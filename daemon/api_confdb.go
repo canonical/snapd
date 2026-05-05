@@ -95,11 +95,11 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	if timeoutStr := query.Get("access-timeout"); timeoutStr != "" {
 		timeout, err := time.ParseDuration(timeoutStr)
 		if err != nil {
-			return BadRequest("cannot get confdb: invalid access-timeout: %q", timeoutStr)
+			return BadRequest("cannot read confdb: invalid access-timeout: %q", timeoutStr)
 		}
 
 		if timeout < 0 {
-			return BadRequest("cannot get confdb: access timeout must be non-negative")
+			return BadRequest("cannot read confdb: access timeout must be non-negative")
 		}
 
 		var cancel context.CancelFunc
@@ -163,18 +163,18 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if len(action.Values) == 0 {
-		return BadRequest("cannot set confdb: request body contains no values")
+		return BadRequest("cannot write confdb: request body contains no values")
 	}
 
 	ctx := r.Context()
 	if action.Options.AccessTimeout != "" {
 		timeout, err := time.ParseDuration(action.Options.AccessTimeout)
 		if err != nil {
-			return BadRequest("cannot set confdb: invalid access-timeout: %q", action.Options.AccessTimeout)
+			return BadRequest("cannot write confdb: invalid access-timeout: %q", action.Options.AccessTimeout)
 		}
 
 		if timeout < 0 {
-			return BadRequest("cannot set confdb: access timeout must be non-negative")
+			return BadRequest("cannot write confdb: access timeout must be non-negative")
 		}
 
 		var cancel context.CancelFunc
