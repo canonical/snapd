@@ -91,9 +91,8 @@ func (s *tasksSuite) TestTasksCommandInvalidArguments(c *C) {
 
 	for _, tc := range testCases {
 		_, _, err := ctlcmd.Run(ctx, tc.args, 0, nil)
-		c.Assert(err, NotNil, Commentf("Expected error for: %s", tc.description))
-		c.Assert(strings.Contains(err.Error(), "invalid number of arguments"), Equals, true,
-			Commentf("Expected 'invalid number of arguments' error for %s, got: %s", tc.description, err.Error()))
+		c.Assert(err, NotNil)
+		c.Assert(strings.Contains(err.Error(), "invalid number of arguments"), Equals, true)
 
 	}
 }
@@ -145,11 +144,11 @@ func (s *tasksSuite) TestTasksCommandDoingChange(c *C) {
 		if strings.Contains(line, "doing-change-summary") {
 			// Should have a "-" for the ready time since it's still doing
 			fields := strings.Fields(line)
-			c.Assert(len(fields) >= 4, Equals, true, Commentf("Expected at least 4 fields in output line"))
+			c.Assert(len(fields) >= 4, Equals, true)
 			found = true
 		}
 	}
-	c.Assert(found, Equals, true, Commentf("Expected to find change with 'doing-change-summary'"))
+	c.Assert(found, Equals, true)
 }
 
 // TestTasksCommandErrorChange tests output for a failed change
@@ -236,8 +235,7 @@ func (s *tasksSuite) TestTasksCommandChangeIDPresent(c *C) {
 	output := string(stdout)
 	// The task summary (set to the change summary in setupChangeAndContext) must appear,
 	// confirming the correct change's tasks are shown.
-	c.Assert(strings.Contains(output, "test-change"), Equals, true,
-		Commentf("Expected task summary 'test-change' to be in output for change %s", changeID))
+	c.Assert(strings.Contains(output, "test-change"), Equals, true)
 }
 
 // TestTasksCommandFiltersOtherSnaps tests that changes from other snaps are not accessible
@@ -258,14 +256,23 @@ func (s *tasksSuite) TestTasksCommandFiltersOtherSnaps(c *C) {
 	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output := string(stdout)
-	c.Assert(strings.Contains(output, "test-snap-change"), Equals, true,
-		Commentf("Expected to see changes from test-snap"))
+	c.Assert(strings.Contains(output, "test-snap-change"), Equals, true)
 
 	// other-snap's change should not be accessible
 	_, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, NotNil)
-	c.Assert(strings.Contains(err.Error(), "not found"), Equals, true,
-		Commentf("Expected 'not found' error for other-snap's change"))
+	c.Assert(strings.Contains(err.Error(), "not found"), Equals, true)
+}
+
+// TestTasksCommandAllowedForUnprivilegedUser verifies that "tasks" is in the
+// non-root allowlist and executes successfully when called with a non-zero UID.
+func (s *tasksSuite) TestTasksCommandAllowedForUnprivilegedUser(c *C) {
+	const unprivilegedUID = uint32(1000)
+	_, ctx, chgID := s.setupChangeAndContext(c, "test-change", state.DoneStatus)
+
+	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chgID}, unprivilegedUID, nil)
+	c.Assert(err, IsNil)
+	c.Assert(string(stdout), testutil.Contains, "Done")
 }
 
 // TestTasksCommandJSONFormat tests JSON output format
@@ -278,12 +285,7 @@ func (s *tasksSuite) TestTasksCommandJSONFormat(c *C) {
 	// Parse JSON output (single change object)
 	var change map[string]any
 	err = json.Unmarshal(stdout, &change)
-	c.Assert(err, IsNil, Commentf("Failed to unmarshal JSON output: %s", string(stdout)))
-
-	// Verify expected fields are present
-	c.Assert(change["id"], NotNil, Commentf("Expected 'id' field in JSON output"))
-	c.Assert(change["status"], NotNil, Commentf("Expected 'status' field in JSON output"))
-	c.Assert(change["summary"], NotNil, Commentf("Expected 'summary' field in JSON output"))
+	c.Assert(err, IsNil)
 
 	// Verify the change ID, status, and summary match
 	c.Assert(change["id"], Equals, changeID)

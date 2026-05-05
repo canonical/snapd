@@ -82,3 +82,50 @@ func (s *helperSuite) TestStateChangeToChangeInfo(c *C) {
 	c.Assert(changeInfo.Data, NotNil)
 	c.Assert(changeInfo.Data["snap-names"], NotNil)
 }
+
+// TestChangeInfoToClientChangeNilReadyTime verifies that ChangeInfoToClientChange
+// does not panic when ReadyTime is nil (i.e. the change/task is not yet complete).
+func (s *helperSuite) TestChangeInfoToClientChangeNilReadyTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("snapctl-install", "install components for test-snap")
+	task := st.NewTask("prepare-components", "preparing components")
+	chg.AddTask(task)
+	// Leave change and task in default (non-Done) state so ReadyTime is zero/nil
+
+	changeInfo := ctlcmd.StateChangeToChangeInfo(chg)
+	c.Assert(changeInfo.ReadyTime, IsNil)
+	c.Assert(changeInfo.Tasks[0].ReadyTime, IsNil)
+
+	// Must not panic
+	clientChg := ctlcmd.ChangeInfoToClientChange(changeInfo)
+
+	c.Check(clientChg.ReadyTime.IsZero(), Equals, true)
+	c.Assert(clientChg.Tasks, HasLen, 1)
+	c.Check(clientChg.Tasks[0].ReadyTime.IsZero(), Equals, true)
+}
+
+// TestChangeInfoToClientChangeWithReadyTime verifies that ChangeInfoToClientChange
+// correctly propagates ReadyTime when the change and task are complete.
+func (s *helperSuite) TestChangeInfoToClientChangeWithReadyTime(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("snapctl-install", "install components for test-snap")
+	task := st.NewTask("prepare-components", "preparing components")
+	chg.AddTask(task)
+	task.SetStatus(state.DoneStatus)
+
+	changeInfo := ctlcmd.StateChangeToChangeInfo(chg)
+	c.Assert(changeInfo.ReadyTime, NotNil)
+	c.Assert(changeInfo.Tasks[0].ReadyTime, NotNil)
+
+	clientChg := ctlcmd.ChangeInfoToClientChange(changeInfo)
+
+	c.Check(clientChg.ReadyTime.IsZero(), Equals, false)
+	c.Assert(clientChg.Tasks, HasLen, 1)
+	c.Check(clientChg.Tasks[0].ReadyTime.IsZero(), Equals, false)
+}

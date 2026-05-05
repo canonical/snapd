@@ -247,3 +247,13 @@ func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, false)
 }
+
+// TestIsReadyCommandAllowedForUnprivilegedUser verifies that "is-ready" is in the
+// non-root allowlist and executes successfully when called with a non-zero UID.
+func (s *isReadySuite) TestIsReadyCommandAllowedForUnprivilegedUser(c *C) {
+	const unprivilegedUID = uint32(1000)
+	_, ctx, chgID := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
+
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", chgID}, unprivilegedUID, nil)
+	c.Assert(err, IsNil)
+}

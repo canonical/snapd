@@ -57,9 +57,9 @@ var (
 	snapctlRemoveChangeKind  = swfeats.RegisterChangeKind("snapctl-remove")
 )
 
-var (
-	changeNotFoundError = "change %q not found"
-)
+func changeNotFoundError(changeID string) error {
+	return fmt.Errorf("change %q not found", changeID)
+}
 
 func init() {
 	finalTasks = make(map[string]bool, len(snapstate.FinalTasks))
@@ -165,6 +165,45 @@ func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 	}
 
 	return chgInfo
+}
+
+// small helper to dereference time pointer, returning zero time if the pointer is nil.
+func derefTimePtr(t *time.Time) time.Time {
+	if t == nil {
+		return time.Time{}
+	}
+	return *t
+}
+
+// ChangeInfoToClientChange converts a ChangeInfo struct to a client.Change struct
+// which is used for JSON marshaling. This function discards the data tagged to the change.
+func ChangeInfoToClientChange(chgInfo *ChangeInfo) *client.Change {
+	chg := client.Change{
+		ID:        chgInfo.ID,
+		Kind:      chgInfo.Kind,
+		Summary:   chgInfo.Summary,
+		Status:    chgInfo.Status,
+		Ready:     chgInfo.Ready,
+		Tasks:     make([]*client.Task, len(chgInfo.Tasks)),
+		SpawnTime: chgInfo.SpawnTime,
+		ReadyTime: derefTimePtr(chgInfo.ReadyTime),
+		Err:       chgInfo.Err,
+	}
+
+	for i, t := range chgInfo.Tasks {
+		chg.Tasks[i] = &client.Task{
+			ID:       t.ID,
+			Kind:     t.Kind,
+			Summary:  t.Summary,
+			Status:   t.Status,
+			Log:      t.Log,
+			Progress: t.Progress,
+			SpawnTime: t.SpawnTime,
+			ReadyTime: derefTimePtr(t.ReadyTime),
+		}
+	}
+
+	return &chg
 }
 
 // taskApiData returns a map similar to change data which is currently
@@ -678,17 +717,17 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	chg := st.Change(changeID)
 
 	if chg == nil {
-		return state.DefaultStatus, fmt.Errorf(changeNotFoundError, changeID)
+		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
 	var initiatorSnapName string
 	err := chg.Get("initiated-by-snap", &initiatorSnapName)
 	if err != nil {
-		return state.DefaultStatus, fmt.Errorf(changeNotFoundError, changeID)
+		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return state.DefaultStatus, fmt.Errorf(changeNotFoundError, changeID)
+		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
 	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
@@ -798,28 +837,26 @@ func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
 }
 
 // getAssociatedChange returns a change associated with the snapctl context and passed change ID,
-// otherwise nil with error
+// otherwise nil with error. This function expects the lock to be held by the caller during operation.
 func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Change, error) {
 	callerSnapName := hctx.InstanceName()
 
 	st := hctx.State()
-	st.Lock()
-	defer st.Unlock()
 
 	chg := st.Change(changeID)
 
 	if chg == nil {
-		return nil, fmt.Errorf(changeNotFoundError, changeID)
+		return nil, changeNotFoundError(changeID)
 	}
 
 	var initiatorSnapName string
 	err := chg.Get("initiated-by-snap", &initiatorSnapName)
 	if err != nil {
-		return nil, fmt.Errorf(changeNotFoundError, changeID)
+		return nil, changeNotFoundError(changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return nil, fmt.Errorf(changeNotFoundError, changeID)
+		return nil, changeNotFoundError(changeID)
 	}
 
 	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
@@ -827,9 +864,7 @@ func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Chang
 		return nil, err
 	}
 
-	st.Unlock()
 	<-timeAfter(wait)
-	st.Lock()
 
 	return chg, nil
 }

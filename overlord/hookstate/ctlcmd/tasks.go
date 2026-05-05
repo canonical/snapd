@@ -22,13 +22,11 @@ package ctlcmd
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"io"
 	"text/tabwriter"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/timeutil"
 )
 
@@ -59,19 +57,12 @@ func init() {
 	})
 }
 
-func (c *tasksCommand) newTabWriter(output io.Writer) *tabwriter.Writer {
+func newTabWriter(output io.Writer) *tabwriter.Writer {
 	minWidth := 2
 	tabWidth := 2
 	padding := 2
 	padchar := byte(' ')
 	return tabwriter.NewWriter(output, minWidth, tabWidth, padding, padchar, 0)
-}
-
-func fmtTime(t time.Time, abs bool) string {
-	if abs {
-		return t.Format(time.RFC3339)
-	}
-	return timeutil.Human(t)
 }
 
 func (c *tasksCommand) Execute(args []string) error {
@@ -84,46 +75,46 @@ func (c *tasksCommand) Execute(args []string) error {
 		return fmt.Errorf("invalid number of arguments: expected 1, got %d", len(args))
 	}
 
+	st := ctx.State()
+	st.Lock()
+	defer st.Unlock()
+
 	changeID := args[0]
-
 	change, err := getAssociatedChange(ctx, changeID)
-
 	if err != nil {
 		return err
 	}
 
-	st := ctx.State()
+	chgInfo := StateChangeToChangeInfo(change)
+	clientChg := ChangeInfoToClientChange(chgInfo)
+	tasks := clientChg.Tasks
+	
 
 	if c.Format == "json" {
-		st.Lock()
-		chgInfo := StateChangeToChangeInfo(change)
-		st.Unlock()
-		data, err := json.Marshal(chgInfo)
+		data, err := json.Marshal(clientChg)
 		if err != nil {
 			return err
 		}
+
 		fmt.Fprint(c.stdout, string(data))
 	} else {
-		w := c.newTabWriter(c.stdout)
-
+		w := newTabWriter(c.stdout)
 		fmt.Fprint(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
 
-		st.Lock()
-		for _, t := range change.Tasks() {
-			spawnTime := fmtTime(t.SpawnTime(), false)
-			readyTime := fmtTime(t.ReadyTime(), false)
-			if t.ReadyTime().IsZero() {
+		for _, t := range tasks{
+			spawnTime := timeutil.Human(t.SpawnTime)
+			readyTime := timeutil.Human(t.ReadyTime)
+			if t.ReadyTime.IsZero() {
 				readyTime = "-"
 			}
-			summary := t.Summary()
-			status := t.Status()
-			_, done, total := t.Progress()
-			if status == state.DoingStatus && total > 1 {
-				summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(done)/float64(total)*100.0)
+			summary := t.Summary
+			status := t.Status
+			pi := t.Progress
+			if status == "Doing" && pi.Total > 1 {
+				summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(pi.Done)/float64(pi.Total)*100.0)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.ID(), status.String(), spawnTime, readyTime, summary)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.ID, status, spawnTime, readyTime, summary)
 		}
-		st.Unlock()
 
 		w.Flush()
 		fmt.Fprintln(c.stdout)
