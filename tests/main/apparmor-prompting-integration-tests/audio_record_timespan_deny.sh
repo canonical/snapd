@@ -9,6 +9,7 @@ if [ -z "$TIMEOUT" ] ; then
 fi
 
 SNAP_HOME="$HOME/snap/prompt-requester/current"
+rm -f "$SNAP_HOME/running.pid" # Clean up any PID file from previous run
 
 # The audio-record interface doesn't use a target file to trigger a prompt.
 # Instead, we use a file to tell the snap to finish running. We need a snap
