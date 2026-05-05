@@ -20,12 +20,15 @@
 package configcore
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/coreos/go-systemd/unit"
@@ -41,6 +44,11 @@ func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.ntp.servers"] = true
 	supportedConfigurations["core.system.ntp.fallback-servers"] = true
+	supportedConfigurations["core.system.ntp.root-distance-max-sec"] = true
+	supportedConfigurations["core.system.ntp.poll-interval-min-sec"] = true
+	supportedConfigurations["core.system.ntp.poll-interval-max-sec"] = true
+	supportedConfigurations["core.system.ntp.connection-retry-sec"] = true
+	supportedConfigurations["core.system.ntp.save-interval-sec"] = true
 	// and register it as a external config
 	config.RegisterExternalConfig("core", "system.ntp", getNTPFromSystemHelper)
 }
@@ -50,13 +58,23 @@ var validHostname = regexp.MustCompile(`^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0
 var validIPv4 = net.ParseIP
 
 var timesyncdToSnapKeyMapping = map[string]string{
-	"NTP":         "servers",
-	"FallbackNTP": "fallback-servers",
+	"NTP":                "servers",
+	"FallbackNTP":        "fallback-servers",
+	"RootDistanceMaxSec": "root-distance-max-sec",
+	"PollIntervalMinSec": "poll-interval-min-sec",
+	"PollIntervalMaxSec": "poll-interval-max-sec",
+	"ConnectionRetrySec": "connection-retry-sec",
+	"SaveIntervalSec":    "save-interval-sec",
 }
 
 var snapToTimesyncdKeyMapping = map[string]string{
-	"servers":          "NTP",
-	"fallback-servers": "FallbackNTP",
+	"servers":               "NTP",
+	"fallback-servers":      "FallbackNTP",
+	"root-distance-max-sec": "RootDistanceMaxSec",
+	"poll-interval-min-sec": "PollIntervalMinSec",
+	"poll-interval-max-sec": "PollIntervalMaxSec",
+	"connection-retry-sec":  "ConnectionRetrySec",
+	"save-interval-sec":     "SaveIntervalSec",
 }
 
 func validateNTPSettings(tr ConfGetter) error {
@@ -68,6 +86,30 @@ func validateNTPSettings(tr ConfGetter) error {
 	for k, v := range ntpCfg {
 		if err := validateSingleNTPSetting(k, v); err != nil {
 			return fmt.Errorf("invalid NTP configuration: %v", err)
+		}
+	}
+
+	// Validate that poll-interval-min-sec > poll-interval-min-sec
+	// Use the systemd defaults if they have not been overwritten by the user
+	pollIntervalMinSecString := "32s"
+	pollIntervalMaxSecString := "2048s"
+	customPollInterval := false
+	// Validation for user submitted values has already been done
+	if minSec, exists := ntpCfg["poll-interval-min-sec"]; exists {
+		pollIntervalMinSecString, _ = mapSnapOptionValueToUnitOptionValue(minSec)
+		customPollInterval = true
+	}
+	if maxSec, exists := ntpCfg["poll-interval-max-sec"]; exists {
+		pollIntervalMaxSecString, _ = mapSnapOptionValueToUnitOptionValue(maxSec)
+		customPollInterval = true
+	}
+
+	if customPollInterval {
+		pollIntervalMinUSec, _ := convertSystemdTimespanToUs(pollIntervalMinSecString)
+		pollIntervalMaxUSec, _ := convertSystemdTimespanToUs(pollIntervalMaxSecString)
+
+		if pollIntervalMinUSec > pollIntervalMaxUSec {
+			return fmt.Errorf("invalid NTP configuration: poll-interval-min-sec (%q) cannot be greater than poll-interval-max-sec (%q)", pollIntervalMinSecString, pollIntervalMaxSecString)
 		}
 	}
 
@@ -88,6 +130,26 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 		if err := validateNTPServers(servers); err != nil {
 			return err
 		}
+		return nil
+
+	case "root-distance-max-sec", "poll-interval-min-sec", "poll-interval-max-sec", "connection-retry-sec", "save-interval-sec":
+		span, err := mapSnapOptionValueToUnitOptionValue(value)
+		if err != nil {
+			return fmt.Errorf("%v: %v", key, err)
+		}
+
+		timespanUs, err := validateSystemdTimeSpanFormat(span)
+		if err != nil {
+			return fmt.Errorf("%v: %v", key, err)
+		}
+
+		if key == "poll-interval-min-sec" && timespanUs < 16000000 {
+			return fmt.Errorf("poll-interval-min-sec: cannot be smaller than 16s.")
+		}
+		if key == "connection-retry-sec" && timespanUs < 1000000 {
+			return fmt.Errorf("connection-retry-sec: cannot be smaller than 1s.")
+		}
+
 		return nil
 
 	default:
@@ -114,6 +176,41 @@ func validateServerName(serverAddress string) error {
 		return fmt.Errorf("%q is not a valid server name", serverAddress)
 	}
 	return nil
+}
+
+func convertSystemdTimespanToUs(span string) (timeSpanUs int64, err error) {
+	// The most reliable way to parse the timespans appears to be having
+	// systemd-analyze do it
+	// We also use this to compare min and max values as input validation
+	cmd := exec.Command("systemd-analyze", "timespan", span)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("%q is not a valid systemd.time timespan", span)
+	}
+
+	// Look for the line containing "μs:" or "us:" and capture the following digits
+	re := regexp.MustCompile(`(?:μs|us):\s*(\d+)`)
+	matches := re.FindStringSubmatch(string(output))
+
+	// We did not capture the two parts of the line
+	if len(matches) < 2 {
+		return 0, fmt.Errorf("%q is not a valid systemd.time timespan", span)
+	}
+
+	// Parse the captured string digits into an int64
+	us, err := strconv.ParseInt(matches[1], 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%q is not a valid systemd.time timespan", span)
+	}
+
+	return us, nil
+}
+
+// The "parse" function is used for converting the value to a microsecond value
+// It implicitly checks its format, so we re-use it for validation
+func validateSystemdTimeSpanFormat(span string) (timeSpanUs int64, err error) {
+	return convertSystemdTimespanToUs(span)
 }
 
 func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
@@ -158,10 +255,12 @@ func serializeNTPConfiguration(config map[string]any) (result []byte) {
 	unitOptions := []*unit.UnitOption{}
 
 	for k, v := range config {
+		unitOptionKey := mapSnapOptionNameToUnitOptionName(k)
+		unitOptionValue, _ := mapSnapOptionValueToUnitOptionValue(v)
 		unitOption := *unit.NewUnitOption(
 			"Time",
-			mapKeySnapToTimesyncd(k),
-			mapValueSnapToTimesyncd(v),
+			unitOptionKey,
+			unitOptionValue,
 		)
 		unitOptions = append(unitOptions, &unitOption)
 	}
@@ -174,17 +273,20 @@ func getNTPFromSystemHelper(key string) (result any, err error) {
 	return getNTPFromSystem()
 }
 
-func mapValueTimesyncdToSnap(option *unit.UnitOption) (result any) {
+func mapUnitOptionValueToSnapOptionValue(option *unit.UnitOption) (result any) {
 	switch option.Name {
 	case "NTP", "FallbackNTP":
 		return strings.Split(option.Value, " ")
+
+	case "RootDistanceMaxSec", "PollIntervalMinSec", "PollIntervalMaxSec", "ConnectionRetrySec", "SaveIntervalSec":
+		return option.Value
 
 	default:
 		return ""
 	}
 }
 
-func mapValueSnapToTimesyncd(option any) string {
+func mapSnapOptionValueToUnitOptionValue(option any) (string, error) {
 	switch option := option.(type) {
 	case []any:
 		// Snapd will return a []any for lists. We need to check
@@ -196,18 +298,24 @@ func mapValueSnapToTimesyncd(option any) string {
 			}
 		}
 
-		return strings.Join(builder, " ")
+		return strings.Join(builder, " "), nil
+
+	case string:
+		return option, nil
+
+	case json.Number:
+		return option.String() + "s", nil
 
 	default:
-		return ""
+		return "", fmt.Errorf("invalid option type: %T", option)
 	}
 }
 
-func mapKeyTimesyncdToSnap(timesyncdOption string) string {
+func mapUnitOptionNametoSnapOptionName(timesyncdOption string) string {
 	return timesyncdToSnapKeyMapping[timesyncdOption]
 }
 
-func mapKeySnapToTimesyncd(snapOption string) string {
+func mapSnapOptionNameToUnitOptionName(snapOption string) string {
 	return snapToTimesyncdKeyMapping[snapOption]
 }
 
@@ -233,8 +341,8 @@ func getNTPFromSystem() (result map[string]any, err error) {
 	val := map[string]any{}
 
 	for _, option := range unitOptions {
-		snapOptionName := mapKeyTimesyncdToSnap(option.Name)
-		snapOptionValue := mapValueTimesyncdToSnap(option)
+		snapOptionName := mapUnitOptionNametoSnapOptionName(option.Name)
+		snapOptionValue := mapUnitOptionValueToSnapOptionValue(option)
 		val[snapOptionName] = snapOptionValue
 	}
 
