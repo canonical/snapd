@@ -1,0 +1,67 @@
+summary: Ensure that the xdg-portal-permission-store interface works
+
+details: |
+    Verify that a snap using the xdg-portal-permission-store interface can
+    access the xdg-desktop-portal PermissionStore service over the session bus.
+
+    The test starts a fake PermissionStore service outside confinement and then
+    verifies that a confined snap cannot talk to it while disconnected, but can
+    call it successfully once the plug is connected.
+
+systems:
+    - +ubuntu-18.04-*
+    - +ubuntu-2*
+    - -ubuntu-core-*
+    - -ubuntu-14.04-*
+
+skip:
+    - reason: System does not have a systemd managed D-Bus user session
+      if: |
+        ! tests.session has-session-systemd-and-dbus
+
+prepare: |
+    tests.session -u test prepare
+
+    echo "Install the PermissionStore test client snap"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-portal-permission-store
+
+    echo "Start the fake PermissionStore service on the session bus"
+    tests.session -u test exec systemd-run --user \
+        --unit test-snapd-permission-store.service \
+        python3 "$(pwd)/fake-permission-store.py"
+
+    echo "Wait for the fake service to become available"
+    retry -n 10 --wait 1 sh -c 'tests.session -u test exec dbus-send --session --print-reply --dest=org.freedesktop.impl.portal.PermissionStore /org/freedesktop/impl/portal/PermissionStore org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1'
+
+restore: |
+    snap remove --purge test-snapd-xdg-portal-permission-store || true
+    tests.session -u test exec systemctl --user stop test-snapd-permission-store.service || true
+    tests.session -u test restore
+
+debug: |
+    tests.session -u test exec systemctl --user status test-snapd-permission-store.service || true
+    tests.session -u test exec busctl --user list | grep PermissionStore || true
+
+execute: |
+    if ! snap debug sandbox-features --required apparmor:kernel:dbus; then
+        echo "Skipping: no AppArmor D-Bus mediation"
+        exit 0
+    fi
+
+    echo "The interface is initially disconnected"
+    snap interfaces -i xdg-portal-permission-store | MATCH -- '- +test-snapd-xdg-portal-permission-store:xdg-portal-permission-store'
+
+    echo "Without the connection, access is denied"
+    not tests.session -u test exec test-snapd-xdg-portal-permission-store.client
+
+    echo "When the plug is connected"
+    snap connect test-snapd-xdg-portal-permission-store:xdg-portal-permission-store
+
+    echo "The snap can talk to the PermissionStore service"
+    tests.session -u test exec test-snapd-xdg-portal-permission-store.client | MATCH '^ok$'
+
+    echo "When the plug is disconnected again"
+    snap disconnect test-snapd-xdg-portal-permission-store:xdg-portal-permission-store
+
+    echo "Access is denied again"
+    not tests.session -u test exec test-snapd-xdg-portal-permission-store.client
