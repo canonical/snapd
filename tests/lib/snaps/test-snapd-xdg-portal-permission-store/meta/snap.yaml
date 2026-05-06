@@ -1,0 +1,29 @@
+name: test-snapd-xdg-portal-permission-store
+version: 1.0
+summary: test client for xdg-portal-permission-store
+description: ...
+apps:
+  client:
+    command: bin/client.sh all
+    plugs: &permission-store-plugs
+      - xdg-portal-permission-store
+    environment: &permission-store-env
+      DBUS_BUS_NAME: org.freedesktop.impl.portal.PermissionStore
+      DBUS_OBJECT_PATH: /org/freedesktop/impl/portal/PermissionStore
+      DBUS_IFACE_NAME: org.freedesktop.impl.portal.PermissionStore
+  ping:
+    command: bin/client.sh ping
+    plugs: *permission-store-plugs
+    environment: *permission-store-env
+  introspect:
+    command: bin/client.sh introspect
+    plugs: *permission-store-plugs
+    environment: *permission-store-env
+  get-all:
+    command: bin/client.sh get-all
+    plugs: *permission-store-plugs
+    environment: *permission-store-env
+  test:
+    command: bin/client.sh test
+    plugs: *permission-store-plugs
+    environment: *permission-store-env

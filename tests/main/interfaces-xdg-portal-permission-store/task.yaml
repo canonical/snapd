@@ -1,0 +1,85 @@
+summary: Ensure that the xdg-portal-permission-store interface works
+
+details: |
+    Verify that a snap using the xdg-portal-permission-store interface can
+    access the xdg-desktop-portal PermissionStore service over the session bus.
+
+    The test starts a fake PermissionStore service outside confinement and then
+    verifies that a confined snap cannot talk to it while disconnected, but can
+    call it successfully once the plug is connected.
+
+# This test starts a user transient unit via `systemd-run --user`, and
+# Ubuntu 14.04 has special version of systemd which doesn't have StartTransientUnit API.
+systems: [-ubuntu-core-*, -ubuntu-14.04-*]
+
+environment:
+    DBUS_BUS_NAME: org.freedesktop.impl.portal.PermissionStore
+    DBUS_OBJECT_PATH: /org/freedesktop/impl/portal/PermissionStore
+    DBUS_IFACE_NAME: org.freedesktop.impl.portal.PermissionStore
+
+skip:
+    - reason: System does not have a systemd managed D-Bus user session
+      if: |
+        ! tests.session has-session-systemd-and-dbus
+
+    - reason: System does not support AppArmor D-Bus mediation
+      if: |
+        ! snap debug sandbox-features --required apparmor:kernel:dbus
+
+prepare: |
+    tests.session -u test prepare
+
+    echo "Install the PermissionStore test client snap"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-portal-permission-store
+
+    echo "Start the fake PermissionStore service on the session bus"
+    tests.session -u test exec systemd-run --user \
+        --unit test-snapd-permission-store.service \
+        env \
+            DBUS_BUS_NAME="$DBUS_BUS_NAME" \
+            DBUS_OBJECT_PATH="$DBUS_OBJECT_PATH" \
+            DBUS_IFACE_NAME="$DBUS_IFACE_NAME" \
+        python3 "$(pwd)/fake-permission-store.py"
+
+    echo "Wait for the fake service to become available"
+
+    # $DBUS_BUS_NAME and $DBUS_OBJECT_PATH are set in the test environment.
+    # shellcheck disable=SC2016
+    retry -n 10 --wait 1 sh -c 'tests.session -u test exec dbus-send --session --print-reply --dest="$DBUS_BUS_NAME" "$DBUS_OBJECT_PATH" org.freedesktop.DBus.Peer.Ping >/dev/null 2>&1'
+restore: |
+    tests.session -u test exec systemctl --user stop test-snapd-permission-store.service || true
+    tests.session -u test restore
+
+debug: |
+    tests.session -u test exec systemctl --user status test-snapd-permission-store.service || true
+    tests.session -u test exec busctl --user list | grep PermissionStore || true
+
+execute: |
+    apps="ping introspect get-all test"
+
+    echo "The interface is initially disconnected"
+    snap interfaces -i xdg-portal-permission-store | MATCH -- '- +test-snapd-xdg-portal-permission-store:xdg-portal-permission-store'
+
+    echo "Without the connection, each PermissionStore access is denied"
+    for app in $apps; do
+        not tests.session -u test exec test-snapd-xdg-portal-permission-store."$app"
+    done
+
+    echo "When the plug is connected"
+    snap connect test-snapd-xdg-portal-permission-store:xdg-portal-permission-store
+
+    echo "Each PermissionStore access succeeds"
+    for app in $apps; do
+        tests.session -u test exec test-snapd-xdg-portal-permission-store."$app" | MATCH '^ok$'
+    done
+
+    echo "The combined client also succeeds"
+    tests.session -u test exec test-snapd-xdg-portal-permission-store.client | MATCH '^ok$'
+
+    echo "When the plug is disconnected again"
+    snap disconnect test-snapd-xdg-portal-permission-store:xdg-portal-permission-store
+
+    echo "Each PermissionStore access is denied again"
+    for app in $apps; do
+        not tests.session -u test exec test-snapd-xdg-portal-permission-store."$app"
+    done
