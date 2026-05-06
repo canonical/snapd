@@ -20,7 +20,7 @@ skip:
     - reason: "Unsupported by host kernel"
       if: |
           case "$MODE/$SPREAD_SYSTEM" in
-          secret/debian-12-*|secret/ubuntu-22.04-*|secret/centos-9-*|secret/opensuse-15.6-*)
+          secret/debian-12-*|secret/ubuntu-22.04-*|secret/centos-9-*)
               # supports memfd_create, but not memfd_secret, fallthrough
               ;&
           secret/amazon-linux-2023-*)
