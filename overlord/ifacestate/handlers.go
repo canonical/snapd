@@ -395,7 +395,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	st := task.State()
 
 	snapName := appSet.InstanceName()
-	disconnectedSnaps, affectedConnections, err := m.refreshAppSetConnections(task, appSet)
+	disconnectedSnaps, reloadedConns, err := m.refreshAppSetConnections(task, appSet)
 	if err != nil {
 		return nil, err
 	}
@@ -409,7 +409,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	snapsWithConnectedSlots := make(map[string]bool)
 	newConnectedSnaps := make(map[string]bool)
 	// Identify affected snaps on either side of the connection.
-	for _, connID := range affectedConnections {
+	for _, connID := range reloadedConns {
 		connRef, err := interfaces.ParseConnRef(connID)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot parse existing connection: %w", err)
