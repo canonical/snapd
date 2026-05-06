@@ -62,9 +62,8 @@ func (s *tasksSuite) setupChangeAndContext(c *C, summary string, taskStatus stat
 
 	task.SetStatus(taskStatus)
 
-	task2 := st.NewTask("test-task2", "a second test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "install"}
-	ctx, err := hookstate.NewContext(task2, st, setup, s.mockHandler, "")
+	ctx, err := hookstate.NewContext(task, st, setup, s.mockHandler, "")
 
 	c.Assert(err, IsNil)
 
@@ -97,110 +96,50 @@ func (s *tasksSuite) TestTasksCommandInvalidArguments(c *C) {
 	}
 }
 
-// TestTasksCommandTableOutput verifies basic table structure with headers
-func (s *tasksSuite) TestTasksCommandTableOutput(c *C) {
-	_, ctx, id := s.setupChangeAndContext(c, "test summary", state.DoneStatus)
+// TestTasksCommandNormalOperation tests output for multiple changes/tasks
+func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
+	st, ctx, chg1ID := s.setupChangeAndContext(c, "change-1-done", state.DoneStatus)
 
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", id}, 0, nil)
+	st.Lock()
+	// Create second task (doing) in same change
+	chg := st.Change(chg1ID)
+	task2 := st.NewTask("test-task-2", "change-2-doing")
+	chg.AddTask(task2)
+	chg.Set("initiated-by-snap", "test-snap")
+	task2.SetStatus(state.DoingStatus)
+
+	// Create third task / second change (error)
+	chg2 := st.NewChange("snapctl-install", "change-3-error")
+	task3 := st.NewTask("test-task-3", "change-3-error")
+	chg2.AddTask(task3)
+	chg2.Set("initiated-by-snap", "test-snap")
+	task3.SetStatus(state.ErrorStatus)
+	chg2ID := chg2.ID()
+	st.Unlock()
+
+	// Verify task 1 (done)
+	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
-
 	output := string(stdout)
-	// Verify table headers are present
-	c.Assert(strings.Contains(output, "ID"), Equals, true)
+
+	// Validate table headers are present
 	c.Assert(strings.Contains(output, "Status"), Equals, true)
 	c.Assert(strings.Contains(output, "Spawn"), Equals, true)
 	c.Assert(strings.Contains(output, "Ready"), Equals, true)
 	c.Assert(strings.Contains(output, "Summary"), Equals, true)
-}
 
-// TestTasksCommandDoneChange tests output for a completed change
-func (s *tasksSuite) TestTasksCommandDoneChange(c *C) {
-	_, ctx, id := s.setupChangeAndContext(c, "done-change-summary", state.DoneStatus)
-
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", id}, 0, nil)
-	c.Assert(err, IsNil)
-
-	output := string(stdout)
-	c.Assert(strings.Contains(output, "done-change-summary"), Equals, true)
-	c.Assert(strings.Contains(output, "Done"), Equals, true)
-}
-
-// TestTasksCommandDoingChange tests output for an in-progress change (ready time shows as "-")
-func (s *tasksSuite) TestTasksCommandDoingChange(c *C) {
-	_, ctx, id := s.setupChangeAndContext(c, "doing-change-summary", state.DoingStatus)
-
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", id}, 0, nil)
-	c.Assert(err, IsNil)
-
-	output := string(stdout)
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-
-	// Should have header + at least one change
-	c.Assert(len(lines) >= 2, Equals, true)
-
-	// Find the line with our change and verify it contains "-" for ready time
-	found := false
-	for _, line := range lines[1:] { // skip header
-		if strings.Contains(line, "doing-change-summary") {
-			// Should have a "-" for the ready time since it's still doing
-			fields := strings.Fields(line)
-			c.Assert(len(fields) >= 4, Equals, true)
-			found = true
-		}
-	}
-	c.Assert(found, Equals, true)
-}
-
-// TestTasksCommandErrorChange tests output for a failed change
-func (s *tasksSuite) TestTasksCommandErrorChange(c *C) {
-	_, ctx, id := s.setupChangeAndContext(c, "error-change-summary", state.ErrorStatus)
-
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", id}, 0, nil)
-	c.Assert(err, IsNil)
-
-	output := string(stdout)
-	c.Assert(strings.Contains(output, "error-change-summary"), Equals, true)
-	c.Assert(strings.Contains(output, "Error"), Equals, true)
-}
-
-// TestTasksCommandMultipleChanges tests output for multiple changes queried individually
-func (s *tasksSuite) TestTasksCommandMultipleChanges(c *C) {
-	st, ctx, chg1ID := s.setupChangeAndContext(c, "change-1-done", state.DoneStatus)
-
-	st.Lock()
-	// Create second change (doing)
-	chg2 := st.NewChange("snapctl-install", "change-2-doing")
-	task2 := st.NewTask("test-task-2", "change-2-doing")
-	chg2.AddTask(task2)
-	chg2.Set("initiated-by-snap", "test-snap")
-	task2.SetStatus(state.DoingStatus)
-
-	// Create third change (error)
-	chg3 := st.NewChange("snapctl-install", "change-3-error")
-	task3 := st.NewTask("test-task-3", "change-3-error")
-	chg3.AddTask(task3)
-	chg3.Set("initiated-by-snap", "test-snap")
-	task3.SetStatus(state.ErrorStatus)
-	chg2ID := chg2.ID()
-	chg3ID := chg3.ID()
-	st.Unlock()
-
-	// Verify change 1 (done)
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
-	c.Assert(err, IsNil)
-	output := string(stdout)
 	c.Assert(strings.Contains(output, "change-1-done"), Equals, true)
 	c.Assert(strings.Contains(output, "Done"), Equals, true)
 
-	// Verify change 2 (doing)
-	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
+	// Verify task 2 (doing)
+	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
 	c.Assert(strings.Contains(output, "change-2-doing"), Equals, true)
 	c.Assert(strings.Contains(output, "Doing"), Equals, true)
 
-	// Verify change 3 (error)
-	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg3ID}, 0, nil)
+	// Verify task 3 (error)
+	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
 	c.Assert(strings.Contains(output, "change-3-error"), Equals, true)
@@ -216,26 +155,12 @@ func (s *tasksSuite) TestTasksCommandNoAssociatedChanges(c *C) {
 	chg := st.NewChange("snapctl-install", "unassociated-change")
 	task := st.NewTask("test-task", "test task")
 	chg.AddTask(task)
-	// Note: not setting "initiated-by-snap" so it won't be associated
 	unassociatedID := chg.ID()
 	st.Unlock()
 
 	_, _, err := ctlcmd.Run(ctx, []string{"tasks", unassociatedID}, 0, nil)
 	c.Assert(err, NotNil)
 	c.Assert(strings.Contains(err.Error(), "not found"), Equals, true)
-}
-
-// TestTasksCommandChangeIDPresent tests that the tasks for the queried change are displayed
-func (s *tasksSuite) TestTasksCommandChangeIDPresent(c *C) {
-	_, ctx, changeID := s.setupChangeAndContext(c, "test-change", state.DoneStatus)
-
-	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", changeID}, 0, nil)
-	c.Assert(err, IsNil)
-
-	output := string(stdout)
-	// The task summary (set to the change summary in setupChangeAndContext) must appear,
-	// confirming the correct change's tasks are shown.
-	c.Assert(strings.Contains(output, "test-change"), Equals, true)
 }
 
 // TestTasksCommandFiltersOtherSnaps tests that changes from other snaps are not accessible

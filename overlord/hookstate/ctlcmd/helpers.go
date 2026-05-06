@@ -191,12 +191,12 @@ func ChangeInfoToClientChange(chgInfo *ChangeInfo) *client.Change {
 
 	for i, t := range chgInfo.Tasks {
 		chg.Tasks[i] = &client.Task{
-			ID:       t.ID,
-			Kind:     t.Kind,
-			Summary:  t.Summary,
-			Status:   t.Status,
-			Log:      t.Log,
-			Progress: t.Progress,
+			ID:        t.ID,
+			Kind:      t.Kind,
+			Summary:   t.Summary,
+			Status:    t.Status,
+			Log:       t.Log,
+			Progress:  t.Progress,
 			SpawnTime: t.SpawnTime,
 			ReadyTime: derefTimePtr(t.ReadyTime),
 		}

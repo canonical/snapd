@@ -14,7 +14,7 @@ details: |
 
   - tasks returns expected output for an in-progress change, including the status that is not Done
   - tasks returns expected output for a completed change
-  
+
 prepare: |
   snap pack test-snapctl-async/
   snap pack test-comp1/
@@ -101,3 +101,12 @@ execute: |
   OUTPUT=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $CHANGE_ID_2")
   echo "$OUTPUT" | MATCH "Status"
   echo "$OUTPUT" | MATCH "Done"
+
+  echo "Query tasks for completed change ($CHANGE_ID_2)"
+  OUTPUT=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $CHANGE_ID_2")
+  echo "$OUTPUT" | MATCH "Status"
+  echo "$OUTPUT" | MATCH "Done"
+
+  echo "Ensure tasks produces valid JSON output with a Done status"
+  OUTPUT=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $CHANGE_ID_2 --format json")
+  echo "$OUTPUT" | jq -e '[.[].status == "Done"] | all'
