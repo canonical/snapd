@@ -27,6 +27,7 @@ Options:
   --forced        Add field to specify whether or not the PR was force merged.
   --skipped       Add field to specify how many tests (excluding variants) were skipped via snapd-testing-skip.
   --runtime       Add total runtime of all attempts of the Tests workflow on the last PR update before merging.
+  --test-totals   Add total number of spread tests run on the last PR update before merging.
   --all           Add all of the above fields.
   -h, --help      Show this help.
 EOF
