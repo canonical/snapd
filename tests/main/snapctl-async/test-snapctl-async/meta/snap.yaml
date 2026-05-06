@@ -6,7 +6,7 @@ apps:
     command: bin/app
 base: core24
 components:
-  comp1:
+  comp:
     type: standard
-  comp2:
-    type: standard
+    hooks:
+      remove: bin/remove-comp

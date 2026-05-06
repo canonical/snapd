@@ -1,0 +1,5 @@
+while [ -f ${SNAP_COMPONENT}/test-comp/comp-removed ]; do
+    sleep 1
+done
+
+echo "comp has been deleted."
