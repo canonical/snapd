@@ -2,6 +2,36 @@
 
 set -euo pipefail
 
+show_help() {
+    cat <<'EOF'
+Usage: github-kpis.sh (--start YYYY-MM-DD [--end YYYY-MM-DD] | --input-json PATH) [--attempts] [--forced] [--skipped] [--runtime] [--test-totals] [--all]
+
+If the script errors at any point, it will output the JSON collected before that stage.
+To resume from that JSON, save it to a file and use --input-json with the path to that file. 
+You can also use --input-json - to read from stdin.
+
+Ex: 
+To get all data for PRs merged starting from May 1st 2026 (included):
+./github-kpis.sh --start 2026-05-01 --all > pr_data.json
+
+To calculate only force merge data on a previously calculated JSON file:
+./github-kpis.sh --input-json pr_data.json --forced > pr_data_with_forced.json
+or
+cat pr_data.json | ./github-kpis.sh --input-json - --forced > pr_data_with_forced.json
+
+Options:
+  --start DATE    Required. Start merged date (inclusive).
+  --end DATE      Optional. End merged date (inclusive, day granularity).
+  --input-json    Resume from an existing JSON file instead of fetching PRs. Use - for stdin.
+  --attempts      Add number of attempts made of running the Tests workflow on the last PR update before merging.
+  --forced        Add field to specify whether or not the PR was force merged.
+  --skipped       Add field to specify how many tests (excluding variants) were skipped via snapd-testing-skip.
+  --runtime       Add total runtime of all attempts of the Tests workflow on the last PR update before merging.
+  --all           Add all of the above fields.
+  -h, --help      Show this help.
+EOF
+}
+
 gh_with_retry() {
     local output exit_code attempts=0
     while [ $attempts -lt 5 ]; do
@@ -285,36 +315,6 @@ prs() {
     fi
 
     list_prs_in_range "$start_epoch" "$end_epoch" | jq -s '.'
-}
-
-show_help() {
-    cat <<'EOF'
-Usage: github-kpis.sh (--start YYYY-MM-DD [--end YYYY-MM-DD] | --input-json PATH) [--attempts] [--forced] [--skipped] [--runtime] [--test-totals] [--all]
-
-If the script errors at any point, it will output the JSON collected up to that point. 
-To resume from that JSON, save it to a file and use --input-json with the path to that file. 
-You can also use --input-json - to read from stdin.
-
-Ex: 
-To get all data for PRs merged starting from May 1st 2026 (included):
-./github-kpis.sh --start 2026-05-01 --all > pr_data.json
-
-To calculate only force merge data on a previously calculated JSON file:
-./github-kpis.sh --input-json pr_data.json --forced > pr_data_with_forced.json
-or
-cat pr_data.json | ./github-kpis.sh --input-json - --forced > pr_data_with_forced.json
-
-Options:
-  --start DATE    Required. Start merged date (inclusive).
-  --end DATE      Optional. End merged date (inclusive, day granularity).
-  --input-json    Resume from an existing JSON file instead of fetching PRs. Use - for stdin.
-  --attempts      Add number of attempts made of running the Tests workflow on the last PR update before merging.
-  --forced        Add field to specify whether or not the PR was force merged.
-  --skipped       Add field to specify how many tests (excluding variants) were skipped via snapd-testing-skip.
-  --runtime       Add total runtime of all attempts of the Tests workflow on the last PR update before merging.
-  --all           Add all of the above fields.
-  -h, --help      Show this help.
-EOF
 }
 
 run_stage() {
