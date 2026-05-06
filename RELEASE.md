@@ -123,6 +123,8 @@ The complete set of prerequisites for all release process steps is as follows:
 - ability to promote snapd via snapcraft (you can check if you have permission by running `snapcraft status snapd`)
 - permission to run autopkgtests in Launchpad (autopkgtest-requesters group membership; request via debcrafters)
 - permission to re-trigger failing autopkgtests running on -proposed (request via debcrafters)
+- you are a member of [Ubuntu Core/Snapd FIPS team](https://launchpad.net/~uc-snapd-fips) (ask for an invite if needed)
+- you have access to a FIPS enabled Ubuntu 24.04 or 22.04 system (an LXD VM which you can set up by running `pro attach <my-token> && pro enable fips-updates` is sufficient)
 
 # Full Release Process
 
