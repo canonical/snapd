@@ -78,6 +78,7 @@ get_total_tests_run() {
             fi
             
             tmpdir=$(mktemp -d)
+            trap 'if [ -n "${tmpdir:-}" ] && [ -d "$tmpdir" ]; then rm -rf "$tmpdir"; fi' RETURN
             gh_with_retry run download "$id" --repo canonical/snapd --dir "$tmpdir" --pattern "spread-results-*"
             
             local total_tests=0
@@ -108,6 +109,8 @@ get_total_tests_run() {
             jq -c --argjson total "$total_tests" '. + {"total-tests-run": $total}' <<< "$pr"
             
             rm -rf "$tmpdir"
+            tmpdir=""
+            trap - RETURN
         fi
         progress_tick
     done < <(jq -c '.[]' <<< "$prs_json") | jq -s '.'
@@ -144,10 +147,12 @@ get_total_runtime() {
                 runtime=$(jq '(((.updatedAt | fromdateiso8601) - (.startedAt | fromdateiso8601)) / 60 | floor)' <<<"$object")
                 if ! [[ "$runtime" =~ ^[0-9]+$ ]]; then
                     echo "warning: failed to get runtime for PR #$(jq -r '.number' <<< "$pr") attempt $attempt, got: $runtime" >&2
-                    exit 0
+                    return 1
                 fi
                 if [ "$attempt" = "1" ]; then
                     first_attempt_runtime=$runtime
+                    # There are two non-fundamental systems jobs that are mutually exclusive. If both have not run, yet fundamental
+                    # jobs have, then there will be exactly two 'spread ${{ matrix.group }}' jobs.
                     if jq -r '(.jobs // []).[].name' <<<"$object" | sort | uniq -c | grep -q '2 spread ${{ matrix.group }}'; then
                         first_attempt_only_fundamental=true
                     fi
@@ -242,7 +247,7 @@ prs() {
         start_iso="$(date -u -d "@$start_epoch" +"%Y-%m-%dT%H:%M:%SZ")"
         end_iso="$(date -u -d "@$end_epoch" +"%Y-%m-%dT%H:%M:%SZ")"
 
-        json="$(gh_with_retry pr list --repo canonical/snapd --limit 1000 --search "merged:>=$start_iso merged:<=$end_iso" --json number,mergedAt,headRefOid,labels)"
+        json="$(gh_with_retry pr list --repo canonical/snapd --limit 1000 --search "merged:>=$start_iso merged:<$end_iso" --json number,mergedAt,headRefOid,labels)"
         count="$(jq 'length' <<< "$json")"
 
         if (( count < 1000 )); then
@@ -272,9 +277,11 @@ prs() {
     start_epoch="$(date -u -d "$start_date" +%s)"
 
     if [ -n "$end_date" ]; then
-        end_epoch="$(date -u -d "$end_date" +%s)"
+        # Treat end_date as day-inclusive by converting to an exclusive upper bound.
+        end_epoch="$(date -u -d "$end_date + 1 day" +%s)"
     else
-        end_epoch="$(date -u +%s)"
+        # No explicit end date: use tomorrow at current UTC time as an exclusive bound.
+        end_epoch="$(date -u -d "+ 1 day" +%s)"
     fi
 
     list_prs_in_range "$start_epoch" "$end_epoch" | jq -s '.'
@@ -341,7 +348,7 @@ main() {
     local include_skipped=false
     local include_runtime=false
     local include_test_totals=false
-    local result
+    local result=""
     local pending_steps=()
 
     if [ $# -eq 0 ]; then
