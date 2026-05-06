@@ -337,6 +337,9 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 	d[snapName][backend] = append(d[snapName][backend], item)
 }
 
+// refreshAppSetConnections refreshes repository connections for appSet and, on
+// the setup-profiles do path, records undo data for persisted connection state
+// that reloadConnections changed or dropped.
 func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
 	snapName := appSet.InstanceName()
@@ -369,16 +372,16 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	reloadedConns, changedConns, err := m.reloadConnections(snapName)
+	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(snapName)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// if this task modified any connection states, we take a snapshot of the
-	// original connections so that we can restore them on the undo path, if
+	// if this task modified any connection states, take a snapshot of the
+	// original connections so that setup-profiles' undo can restore them, if
 	// needed
 	if task.Status() != state.UndoingStatus {
-		if err := snapshotChangedConnectionsForUndo(task, snapName, changedConns); err != nil {
+		if err := snapshotChangedConnectionsForUndo(task, snapName, changedOrDroppedConns); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -706,6 +709,10 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	if err := snapstateFinishRestart(task, snapsup, finishOpts); err != nil {
 		return err
 	}
+
+	// restore any connection state snapshot saved by refreshAppSetConnections on
+	// the original setup-profiles do path before rebuilding profiles for the old
+	// revision
 	if err := restoreConnectionsForSetupProfiles(task); err != nil {
 		return err
 	}

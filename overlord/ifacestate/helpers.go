@@ -444,8 +444,9 @@ func cloneConnState(connState *schema.ConnState) *schema.ConnState {
 	return &clone
 }
 
-// snapshotChangedConnectionsForUndo records original states for connections
-// changed by setup-profiles so undo can restore them, if needed.
+// snapshotChangedConnectionsForUndo records original states for persisted
+// connections that setup-profiles changed or dropped so undo can restore them,
+// if needed.
 func snapshotChangedConnectionsForUndo(task *state.Task, instanceName string, changedConns map[string]*schema.ConnState) error {
 	if len(changedConns) == 0 {
 		return nil
@@ -458,7 +459,7 @@ func snapshotChangedConnectionsForUndo(task *state.Task, instanceName string, ch
 	}
 
 	var connectionSnapshot map[string]*schema.ConnState
-	err := task.Get("changed-connection-snapshot", &connectionSnapshot)
+	err := task.Get("changed-or-dropped-connection-snapshot", &connectionSnapshot)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -475,16 +476,16 @@ func snapshotChangedConnectionsForUndo(task *state.Task, instanceName string, ch
 		connectionSnapshot[connID] = connState
 	}
 
-	task.Set("changed-connection-snapshot", connectionSnapshot)
+	task.Set("changed-or-dropped-connection-snapshot", connectionSnapshot)
 
 	return nil
 }
 
-// restoreConnectionsForSetupProfiles restores connection states saved on a
-// setup-profiles task.
+// restoreConnectionsForSetupProfiles restores connection states saved by
+// snapshotChangedConnectionsForUndo on a setup-profiles task.
 func restoreConnectionsForSetupProfiles(task *state.Task) error {
 	var connectionSnapshot map[string]*schema.ConnState
-	err := task.Get("changed-connection-snapshot", &connectionSnapshot)
+	err := task.Get("changed-or-dropped-connection-snapshot", &connectionSnapshot)
 	if errors.Is(err, state.ErrNoState) {
 		return nil
 	}
@@ -512,8 +513,12 @@ func restoreConnectionsForSetupProfiles(task *state.Task) error {
 // affecting a given snap.
 //
 // The return value is the list of reloaded connection IDs, plus the original
-// connection states whose persisted state was changed.
-func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectionIDs []string, changedConns map[string]*schema.ConnState, err error) {
+// connection states whose persisted state was changed or dropped.
+func (m *InterfaceManager) reloadConnections(snapName string) (
+	reloadedConnectionIDs []string,
+	changedOrDroppedConns map[string]*schema.ConnState,
+	err error,
+) {
 	conns, err := getConns(m.state)
 	if err != nil {
 		return nil, nil, err
@@ -542,7 +547,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) (reloadedConnectio
 	}
 
 	connStateChanged := false
-	changedConns = make(map[string]*schema.ConnState)
+	changedOrDroppedConns = make(map[string]*schema.ConnState)
 
 	var reloadedConnections []string
 ConnsLoop:
@@ -587,7 +592,7 @@ ConnsLoop:
 						continue ConnsLoop
 					}
 				}
-				changedConns[connId] = cloneConnState(connState)
+				changedOrDroppedConns[connId] = cloneConnState(connState)
 				delete(conns, connId)
 				connStateChanged = true
 			}
@@ -652,7 +657,7 @@ ConnsLoop:
 			reloadedConnections = append(reloadedConnections, connId)
 
 			if updateStaticAttrs {
-				changedConns[connId] = cloneConnState(connState)
+				changedOrDroppedConns[connId] = cloneConnState(connState)
 				connState.StaticPlugAttrs = staticPlugAttrs
 				connState.StaticSlotAttrs = staticSlotAttrs
 				connStateChanged = true
@@ -663,7 +668,7 @@ ConnsLoop:
 		setConns(m.state, conns)
 	}
 
-	return reloadedConnections, changedConns, nil
+	return reloadedConnections, changedOrDroppedConns, nil
 }
 
 // removeConnections disconnects all connections of the snap in the repo. It should only be used if the snap
