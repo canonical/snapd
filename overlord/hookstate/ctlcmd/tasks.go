@@ -32,7 +32,7 @@ import (
 
 type tasksCommand struct {
 	baseCommand
-	Format string `long:"format" required:"false" description:"Output format (json)"`
+	Format string `long:"format" required:"false" description:"Output format (supported: json)"`
 }
 
 var shortTasksHelp = i18n.G(`Return a list of information associated with all change-ids.`)
@@ -40,10 +40,10 @@ var longTasksHelp = i18n.G(`
 Used to query the status of all change ids associated with
 snapctl commands running in asynchronous mode.
 
-$ snapctl (tasks/change) [--format FORMAT]
+$ snapctl (tasks|change) [--format FORMAT] <change-id>
   0: successfully reported change information, regardless of state of change
   1: any error (invalid change ID, permissions error)
-stdout: table of tasks, mirroring "snap changes <change-id>" output
+stdout: table of tasks, mirroring "snap tasks|change <change-id>" output
 stderr: empty for exit code 0. Contains relevant errors for exit code 1.
 `)
 
@@ -91,15 +91,12 @@ func (c *tasksCommand) Execute(args []string) error {
 	
 
 	if c.Format == "json" {
-		data, err := json.Marshal(clientChg)
-		if err != nil {
+		if err := json.NewEncoder(c.stdout).Encode(clientChg); err != nil {
 			return err
 		}
-
-		fmt.Fprint(c.stdout, string(data))
 	} else {
 		w := newTabWriter(c.stdout)
-		fmt.Fprint(w, i18n.G("ID\tStatus\tSpawn\tReady\tSummary\n"))
+		fmt.Fprint(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
 
 		for _, t := range tasks{
 			spawnTime := timeutil.Human(t.SpawnTime)
@@ -113,7 +110,7 @@ func (c *tasksCommand) Execute(args []string) error {
 			if status == "Doing" && pi.Total > 1 {
 				summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(pi.Done)/float64(pi.Total)*100.0)
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", t.ID, status, spawnTime, readyTime, summary)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
 		}
 
 		w.Flush()

@@ -167,17 +167,16 @@ func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 	return chgInfo
 }
 
-// small helper to dereference time pointer, returning zero time if the pointer is nil.
-func derefTimePtr(t *time.Time) time.Time {
-	if t == nil {
-		return time.Time{}
-	}
-	return *t
-}
-
 // ChangeInfoToClientChange converts a ChangeInfo struct to a client.Change struct
 // which is used for JSON marshaling. This function discards the data tagged to the change.
 func ChangeInfoToClientChange(chgInfo *ChangeInfo) *client.Change {
+	derefTimePtr := func(t *time.Time) time.Time {
+		if t == nil {
+			return time.Time{}
+		}
+		return *t
+	}
+
 	chg := client.Change{
 		ID:        chgInfo.ID,
 		Kind:      chgInfo.Kind,
@@ -864,7 +863,9 @@ func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Chang
 		return nil, err
 	}
 
+	st.Unlock()
 	<-timeAfter(wait)
+	st.Lock()
 
 	return chg, nil
 }
