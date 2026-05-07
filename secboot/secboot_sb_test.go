@@ -545,9 +545,8 @@ func (s *secbootSuite) TestProvisionForCVM(c *C) {
 		provisioningCalls += 1
 		c.Check(tpm, Equals, mockTpm)
 		c.Check(withCustomSRKTemplateCalls, Equals, 1)
-		c.Assert(options, HasLen, 2)
-		// options[0] is ProvisionWithoutLockout
-		c.Check(options[1], IsNil) // We cannot produce the type because of private parameters
+		c.Assert(options, HasLen, 1)
+		c.Check(options[0], IsNil) // We cannot produce the type because of private parameters
 		return nil
 	})
 	defer restore()
@@ -1109,6 +1108,9 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 		tpmErr            error
 		tpmEnabled        bool
 		mode              secboot.TPMProvisionMode
+		oldFormat         bool
+		looksLikeJson     bool
+		sameLenAsOld      bool
 		writeLockoutAuth  bool
 		provisioningErr   error
 		provisioningCalls int
@@ -1131,6 +1133,18 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 			tpmEnabled: true, mode: secboot.TPMProvisionFull, provisioningCalls: 1,
 		}, {
 			tpmEnabled: true, mode: secboot.TPMPartialReprovision, writeLockoutAuth: true,
+			oldFormat:         true,
+			provisioningCalls: 1,
+		}, {
+			tpmEnabled: true, mode: secboot.TPMPartialReprovision, writeLockoutAuth: true,
+			oldFormat: true, looksLikeJson: true,
+			provisioningCalls: 1,
+		}, {
+			tpmEnabled: true, mode: secboot.TPMPartialReprovision, writeLockoutAuth: true,
+			sameLenAsOld:      true,
+			provisioningCalls: 1,
+		}, {
+			tpmEnabled: true, mode: secboot.TPMPartialReprovision, writeLockoutAuth: true,
 			provisioningCalls: 1,
 		},
 	} {
@@ -1145,7 +1159,22 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 		})
 		defer restore()
 
-		lockoutAuthData := []byte{'l', 'o', 'c', 'k', 'o', 'u', 't', 1, 1, 1, 1, 1, 1, 1, 1, 1}
+		var lockoutAuthData []byte
+		if tc.oldFormat {
+			if tc.looksLikeJson {
+				lockoutAuthData = []byte(`{"some": "data"}`) // This has to be 16 bytes
+				c.Assert(lockoutAuthData, HasLen, 16)
+			} else {
+				lockoutAuthData = []byte{'l', 'o', 'c', 'k', 'o', 'u', 't', 1, 1, 1, 1, 1, 1, 1, 1, 1}
+				c.Assert(lockoutAuthData, HasLen, 16)
+			}
+		} else if tc.sameLenAsOld {
+			lockoutAuthData = []byte(`{"auth-value":0}`) // This has to be 16 bytes
+			c.Assert(lockoutAuthData, HasLen, 16)
+		} else {
+			lockoutAuthData = []byte(`{"auth-value": "lockout1111111"}`)
+			c.Assert(lockoutAuthData, Not(HasLen), 16)
+		}
 		if tc.writeLockoutAuth {
 			c.Assert(os.WriteFile(filepath.Join(d, "lockout-auth"), lockoutAuthData, 0644), IsNil)
 		}
@@ -1155,8 +1184,8 @@ func (s *secbootSuite) TestProvisionTPM(c *C) {
 		restore = secboot.MockSbTPMEnsureProvisioned(func(t *sb_tpm2.Connection, options ...sb_tpm2.EnsureProvisionedOption) error {
 			provisioningCalls++
 			c.Assert(t, Equals, tpm)
-			c.Check(options, HasLen, 1)
-			// options[0] is a new random lockout value
+			c.Check(options, HasLen, 2)
+			// options[1] is a new random lockout value
 			return tc.provisioningErr
 		})
 		defer restore()
