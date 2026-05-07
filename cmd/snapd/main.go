@@ -57,8 +57,7 @@ func init() {
 
 func main() {
 	// Set up security logging via the audit subsystem.
-	teardown := setupSecurityLogging()
-	defer teardown()
+	teardownSecurityLogging := setupSecurityLogging()
 
 	// When preseeding re-exec is not used
 	if snapdenv.Preseeding() {
@@ -74,7 +73,13 @@ func main() {
 	// TODO look into signal.NotifyContext
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	if err := run(ch); err != nil {
+	err := run(ch)
+
+	// Tear down security logging explicitly so that the "disabled" log
+	// entry is written before any os.Exit call
+	teardownSecurityLogging()
+
+	if err != nil {
 		if errors.Is(err, daemon.ErrRestartSocket) {
 			// Note that we don't prepend: "error: " here because
 			// ErrRestartSocket is not an error as such.
