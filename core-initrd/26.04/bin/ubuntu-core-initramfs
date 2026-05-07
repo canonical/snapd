@@ -423,6 +423,7 @@ def install_misc(dest_dir, sysroot, deb_arch):
         "/usr/bin/mount",
         "/usr/sbin/sulogin",
         "/usr/bin/tar",
+        "/usr/lib/" + deb_arch + "/libbpf.so.1",
         "/usr/lib/" + deb_arch + "/libgcc_s.so.1",
         "/usr/lib/" + deb_arch + "/libkmod.so.2",
         "/usr/lib/" + deb_arch + "/libseccomp.so.2",
