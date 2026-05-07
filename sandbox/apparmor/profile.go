@@ -134,9 +134,14 @@ var LoadProfiles = func(fnames []string, cacheDir string, flags AaParserFlags) e
 		args = append(args, "--quiet")
 	}
 
-	cmd, _, err := AppArmorParser()
+	cmd, vendored, err := AppArmorParser()
 	if err != nil {
 		return err
+	}
+
+	// if we used internal apparmor_parser, we can use the dfa cache feature
+	if vendored {
+		args = append(args, fmt.Sprintf("--dfa-cache-loc=%s/dfa", cacheDir))
 	}
 
 	cmd.Args = append(cmd.Args, args...)
