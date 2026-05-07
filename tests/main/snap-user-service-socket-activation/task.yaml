@@ -27,15 +27,15 @@ debug: |
     tests.session -u test exec systemctl --user status snapd.session-agent.service || true
     tests.session -u test exec journalctl --user || true
 
-    echo "socket file and parent permissions ==="
+    echo "socket file and parent permissions"
     ls -ld ~test ~test/snap ~test/snap/test-snapd-user-service-sockets ~test/snap/test-snapd-user-service-sockets/common || true
     ls -l ~test/snap/test-snapd-user-service-sockets/common/common.sock || true
     stat ~test/snap/test-snapd-user-service-sockets/common/common.sock || true
 
-    echo "socket listeners (user session) ==="
+    echo "socket listeners (user session)"
     tests.session -u test exec ss -xlpn | grep -F 'test-snapd-user-service-sockets/common/common.sock' || true
 
-    echo "direct nc stderr for common.sock ==="
+    echo "direct nc stderr for common.sock"
     tests.session -u test exec nc -v -w 30 -U /home/test/snap/test-snapd-user-service-sockets/common/common.sock || true
 
 execute: |
