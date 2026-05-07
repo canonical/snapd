@@ -452,6 +452,43 @@ func (cc *componentInstallChoreographer) canDiscardOldRevision() bool {
 		!cc.snapst.IsCurrentComponentRevInAnyNonCurrentSeq(csi.Component)
 }
 
+// targetSnapAlreadyHasComponentRevision reports whether a non-current target
+// snap revision already contains the desired component revision. In that case,
+// we must skip creating link-component entirely. Otherwise, the undo path
+// would end up unlinking a component that should remain linked for that
+// snap revision.
+func (cc *componentInstallChoreographer) targetSnapAlreadyHasComponentRevision() bool {
+	if !cc.snapst.IsInstalled() {
+		return false
+	}
+
+	targetSnapRevision := cc.snapsup.Revision()
+	targetCompSideInfo := cc.compsup.CompSideInfo
+
+	// only consider non-current revisions when checking for the component.
+	if cc.snapst.Current == targetSnapRevision {
+		// when operating on the current snap revision, we're either going to:
+		// * install a new component, for which we'll always need a
+		//   link-component task.
+		// * change revisions of an already present component. in that case, we
+		//   create unlink-current-component and then a later link-component.
+		return false
+	}
+
+	idx := cc.snapst.LastIndex(targetSnapRevision)
+	if idx < 0 {
+		return false
+	}
+	// the target snap revision is already present at idx
+
+	cs := cc.snapst.Sequence.ComponentStateForRev(idx, targetCompSideInfo.Component)
+	if cs == nil {
+		return false
+	}
+
+	return cs.SideInfo.Equal(targetCompSideInfo)
+}
+
 func (cc *componentInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan) ([]*state.Task, error) {
 	// Check if we already have the revision in the snaps folder (alters tasks).
 	// Note that this will search for all snap revisions in the system.
@@ -604,9 +641,9 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 	// add the link-component task to the chain. note, this isn't part of one of
 	// the spans, since callers want to be able to reference it individually
 	var maybeLink *state.Task
-	if !cc.snapsup.Revert {
-		// finalize (sets SnapState). if we're reverting, there isn't anything to
-		// change in SnapState regarding the component
+	if !cc.targetSnapAlreadyHasComponentRevision() {
+		// finalize (sets SnapState). when the target revision already contain
+		// the desired component state, there is nothing to do.
 		maybeLink = st.NewTask(
 			"link-component", fmt.Sprintf(
 				i18n.G("Make component %q (%s) available to the system"), csi.Component, csi.Revision,
