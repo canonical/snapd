@@ -58,6 +58,19 @@ func MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(f func(
 	return testutil.Mock(&deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo, f)
 }
 
+func MockDeviceManagerCurrentSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+	return testutil.Mock(&deviceManagerCurrentSystemAndGadgetAndEncryptionInfo, f)
+}
+
+func MockDeviceManagerApplyActionOnCurrentSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+	*secboot.PreinstallAction,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+	return testutil.Mock(&deviceManagerApplyActionOnCurrentSystemAndGadgetAndEncryptionInfo, f)
+}
+
 func MockDevicestateInstallFinish(f func(*state.State, string, map[string]*gadget.Volume, *devicestate.OptionalContainers) (*state.Change, error)) (restore func()) {
 	return testutil.Mock(&devicestateInstallFinish, f)
 }
@@ -80,4 +93,8 @@ func MockDevicestateGeneratePreInstallRecoveryKey(f func(st *state.State, label 
 
 func MockDeviceCheckAuthQuality(f func(mode device.AuthMode, authVal string) (device.AuthQuality, error)) (restore func()) {
 	return testutil.Mock(&deviceCheckAuthQuality, f)
+}
+
+func MockDevicestateGenerateReprovisionRecoveryKey(f func(st *state.State) (rkey keys.RecoveryKey, err error)) (restore func()) {
+	return testutil.Mock(&devicestateGenerateReprovisionRecoveryKey, f)
 }

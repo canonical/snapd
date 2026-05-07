@@ -348,6 +348,7 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 type makeRunnableOptions struct {
 	Standalone     bool
 	AfterDataReset bool
+	Reprovision    bool
 	SeedDir        string
 	StateUnlocker  Unlocker
 	UseTokens      bool
@@ -668,6 +669,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 		flags := sealKeyToModeenvFlags{
 			HookKeyProtectorFactory: protector,
 			FactoryReset:            makeOpts.AfterDataReset,
+			Reprovision:             makeOpts.Reprovision,
 			SeedDir:                 makeOpts.SeedDir,
 			StateUnlocker:           makeOpts.StateUnlocker,
 			UseTokens:               tokens,
@@ -795,5 +797,12 @@ func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSe
 	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		AfterDataReset: true,
 		SeedDir:        dirs.SnapSeedDir,
+	})
+}
+
+func MakeRunnableSystemReprovision(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup) error {
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
+		Reprovision: true,
+		SeedDir:     dirs.SnapSeedDir,
 	})
 }

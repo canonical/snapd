@@ -91,6 +91,7 @@ type sealKeyToModeenvFlags struct {
 	// FactoryReset indicates that the sealing is happening during factory
 	// reset.
 	FactoryReset bool
+	Reprovision  bool
 	// SnapsDir is set to provide a non-default directory to find
 	// run mode snaps in.
 	SnapsDir string
@@ -163,6 +164,7 @@ type SealKeyForBootChainsParams struct {
 	BootChains
 	// FactoryReset...
 	FactoryReset bool
+	Reprovision  bool
 	// UseTokens indicates that key data should be saved to the
 	// tokens of key slots. If not, they will be saved to key
 	// files.
@@ -201,6 +203,7 @@ func sealKeyToModeenvForMethod(
 ) error {
 	params := &SealKeyForBootChainsParams{
 		FactoryReset:           flags.FactoryReset,
+		Reprovision:            flags.Reprovision,
 		UseTokens:              flags.UseTokens,
 		InstallHostWritableDir: InstallHostWritableDir(model),
 		PrimaryKey:             primaryKey,

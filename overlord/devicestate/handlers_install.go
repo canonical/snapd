@@ -22,6 +22,7 @@ package devicestate
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto"
 	"encoding/hex"
 	"encoding/json"
@@ -47,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -67,6 +69,7 @@ var (
 	bootMakeRunnable                     = boot.MakeRunnableSystem
 	bootMakeRunnableStandalone           = boot.MakeRunnableStandaloneSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
+	bootMakeRunnableReprovision          = boot.MakeRunnableSystemReprovision
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	bootMakeRecoverySystemBootable       = boot.MakeRecoverySystemBootable
 	disksDMCryptUUIDFromMountPoint       = disks.DMCryptUUIDFromMountPoint
@@ -1626,4 +1629,514 @@ func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.Rec
 	st.Cache(encryptionSetupDataKey{label}, encryptSetupData)
 
 	return rkey, err
+}
+
+func convertToBootstrappedContainer(devicePath string) (secboot.BootstrappedContainer, error) {
+	bootstrapKey, err := keys.NewEncryptionKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create encryption key: %v", err)
+	}
+
+	if err := secboot.DeleteContainerKey(devicePath, "bootstrap-key"); err != nil {
+		logger.Debugf("could not delete bootstrap-key on %s", devicePath)
+	}
+
+	if err := secbootAddBootstrapKeyOnExistingDisk(devicePath, bootstrapKey); err != nil {
+		return nil, err
+	}
+
+	return secboot.CreateBootstrappedContainer(secboot.DiskUnlockKey(bootstrapKey), devicePath), nil
+}
+
+func getBootChain() ([]bootloader.BootFile, error) {
+	modeenv, err := boot.ReadModeenv(dirs.GlobalRootDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read modeenv: %w", err)
+	}
+
+	rbl, err := bootloader.Find(boot.InitramfsUbuntuSeedDir, &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find recovery bootloader: %w", err)
+	}
+
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		return nil, fmt.Errorf("internal error: recovery bootloader does not support trusted assets")
+	}
+
+	bl, err := bootloader.Find(boot.InitramfsUbuntuBootDir, &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find run bootloader: %w", err)
+	}
+
+	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
+	if !ok {
+		return nil, fmt.Errorf("internal error: run bootloader does not support kernel extraction")
+	}
+
+	info, err := ebl.TryKernel()
+	if err != nil {
+		if err == bootloader.ErrNoTryKernelRef {
+			info, err = ebl.Kernel()
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	trustedAssets, err := tbl.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
+	kernelPath := info.MountFile()
+
+	runModeBootChains, err := tbl.BootChains(bl, kernelPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// runModeBootChains is all possible run boot chains, but only one should exist (there
+	// are legacy boot chains before we registered UEFI boot entries).
+	// The "BootFile"s for the gadget part points to identifier names instead of real path, so we
+	// need to resolve those. To resolve those we need to cross check with the modeenv, and then
+	// find the file in the cache. The last one, is the kernel and should be pointing to the right place.
+	for _, runModeBootChain := range runModeBootChains {
+		var chain []bootloader.BootFile
+
+		if len(runModeBootChain) == 0 {
+			// That is not possible for a boot chain to be size 0, because that would mean there is no
+			// kernel. We should not ignore this, there are bigger problems.
+			return nil, fmt.Errorf("internal error: no file in boot chain")
+		}
+
+		ignoreChain := false
+		for _, bf := range runModeBootChain[:len(runModeBootChain)-1] {
+			path := bf.Path
+			name, ok := trustedAssets[path]
+			if !ok {
+				return nil, fmt.Errorf("internal error: unknown trusted asset %s from boot chain", path)
+			}
+			var hashes []string
+			if bf.Role == bootloader.RoleRecovery {
+				hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
+			} else {
+				hashes, ok = modeenv.CurrentTrustedBootAssets[name]
+			}
+			if !ok {
+				ignoreChain = true
+				break
+			}
+
+			// In theory we should only have one hash here. Multiple would be when we are trying
+			// a boot chain, and this should have been cleaned. It should be safe to take the last one (newest).
+			hash := hashes[len(hashes)-1]
+			p := filepath.Join(dirs.SnapBootAssetsDir, bl.Name(), fmt.Sprintf("%s-%s", name, hash))
+			chain = append(chain, bootloader.NewBootFile("", p, bf.Role))
+		}
+		if !ignoreChain {
+			return append(chain, runModeBootChain[len(runModeBootChain)-1]), nil
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find the active boot chain")
+}
+
+type reprovisionSetupData struct {
+	recoveryKey  *keys.RecoveryKey
+	checkContext *secboot.PreinstallCheckContext
+}
+
+type reprovisionSetupDataKey struct {
+}
+
+func GenerateReprovisionRecoveryKey(st *state.State) (rkey keys.RecoveryKey, err error) {
+	_, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	rkey, err = fdestateGetRecoveryKey(st, keyID)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	var data *reprovisionSetupData
+	cached := st.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		data = &reprovisionSetupData{recoveryKey: &rkey}
+	} else {
+		var ok bool
+		data, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+		data.recoveryKey = &rkey
+	}
+
+	st.Cache(reprovisionSetupDataKey{}, data)
+
+	return rkey, err
+}
+
+func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
+	renames := []struct {
+		from string
+		to   string
+	}{
+		{"default", "snapd-reprovision-default"},
+		{"default-fallback", "snapd-reprovision-default-fallback"},
+		{"default-recovery", "snapd-reprovision-default-recovery"},
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	disks, err := fdestate.GetEncryptedContainers(st)
+	if err != nil {
+		return err
+	}
+
+	var dataDisk fdeBackend.EncryptedContainer
+	var saveDisk fdeBackend.EncryptedContainer
+	for _, disk := range disks {
+		switch disk.ContainerRole() {
+		case "system-data":
+			if dataDisk != nil {
+				return fmt.Errorf("already")
+			}
+			dataDisk = disk
+		case "system-save":
+			if saveDisk != nil {
+				return fmt.Errorf("already")
+			}
+			saveDisk = disk
+		}
+	}
+	if saveDisk == nil {
+		return fmt.Errorf("no save disk")
+	}
+	if dataDisk == nil {
+		return fmt.Errorf("no data disk")
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	saveKeyPath := device.SaveKeyUnder(dirs.SnapFDEDir)
+	oldSaveKey, err := os.ReadFile(saveKeyPath)
+	if err != nil {
+		return err
+	}
+
+	cleanup := func() error {
+		removedNvIndices := map[uint32]bool{}
+
+		// We have to clean up all keys, because this could have been a 2nd call after
+		// snapd crashing.
+		for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
+			platformKeyslots, err := secboot.ListContainerUnlockKeyNames(disk)
+			if err != nil {
+				logger.Debugf("could not list keyslots on %s", disk)
+			}
+			hasPlatformKeyslot := map[string]bool{}
+			for _, k := range platformKeyslots {
+				hasPlatformKeyslot[k] = true
+			}
+			for _, rename := range renames {
+				if hasPlatformKeyslot[rename.to] && hasPlatformKeyslot[rename.from] {
+					nv, err := secboot.GetPCRHandleFromToken(disk, rename.from)
+					if err != nil {
+						logger.Debugf("could not read nv index for %s on %s", rename.from, disk)
+					} else if (nv != 0) && !removedNvIndices[nv] {
+						if err := secboot.ReleasePCRResourceHandle(nv); err != nil {
+							logger.Debugf("could not release nv index for %s on %s", rename.from, disk)
+						} else {
+							removedNvIndices[nv] = true
+						}
+					}
+				}
+				// This one always need to be the last one in case we crash
+				if rename.from == "default" && disk == saveDisk.DevPath() {
+					continue
+				}
+				if err := secboot.RenameContainerKey(disk, rename.to, rename.from); err != nil {
+					logger.Debugf("could not rename %s to %s on %s", rename.to, rename.from, disk)
+				}
+			}
+		}
+		if err := secboot.DeleteContainerKey(dataDisk.DevPath(), "bootstrap-key"); err != nil {
+			logger.Debugf("could not delete bootstrap-key on %s", dataDisk.DevPath())
+		}
+		if err := secboot.DeleteContainerKey(saveDisk.DevPath(), "bootstrap-key"); err != nil {
+			logger.Debugf("could not delete bootstrap-key on %s", saveDisk.DevPath())
+		}
+
+		// The last clean up
+		if err := secboot.RenameContainerKey(saveDisk.DevPath(), "snapd-reprovision-default", "default"); err != nil {
+			logger.Debugf("could not rename to default on %s", saveDisk.DevPath())
+		}
+
+		return nil
+	}
+
+	platformKeyNames, err := secboot.ListContainerUnlockKeyNames(saveDisk.DevPath())
+	if err != nil {
+		return err
+	}
+
+	for _, key := range platformKeyNames {
+		if key == "snapd-reprovision-default" {
+			oldKeyMatches, err := secboot.TestProtectorKey(context.Background(), saveDisk.DevPath(), key, oldSaveKey)
+			if err != nil {
+				return err
+			}
+			if oldKeyMatches {
+				// We must have been restarted in the middle. The backed up key are the correct one.
+				if err := cleanup(); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	var setupData *reprovisionSetupData
+	cached := st.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		return fmt.Errorf("missing reprovision context")
+	} else {
+		var ok bool
+		setupData, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+	}
+
+	if setupData.checkContext == nil {
+		return fmt.Errorf("missing post install check context")
+	}
+	if setupData.recoveryKey == nil {
+		return fmt.Errorf("missing recovery key")
+	}
+
+	cleanupOnError := true
+	defer func() {
+		if !cleanupOnError {
+			return
+		}
+		if err := cleanup(); err != nil {
+			logger.Noticef("an error happened while cleaning up reprovision: %v", err)
+		}
+	}()
+
+	for _, rename := range renames {
+		for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
+			if err := secboot.RenameContainerKey(disk, rename.from, rename.to); err != nil {
+				logger.Noticef("WARNING: could not rename %s to %s on %s", rename.from, rename.to, disk)
+			}
+		}
+	}
+
+	dataContainer, err := convertToBootstrappedContainer(dataDisk.DevPath())
+	if err != nil {
+		return err
+	}
+
+	saveContainer, err := convertToBootstrappedContainer(saveDisk.DevPath())
+	if err != nil {
+		return err
+	}
+
+	dataContainer.AddRecoveryKey("default-recovery", *setupData.recoveryKey)
+	if err != nil {
+		return err
+	}
+	saveContainer.AddRecoveryKey("default-recovery", *setupData.recoveryKey)
+	if err != nil {
+		return err
+	}
+
+	protectorKey, err := keys.NewProtectorKey()
+	if err != nil {
+		return err
+	}
+
+	plainKey, primaryKey, unlockPlainKey, err := protectorKey.CreateProtectedKey(nil)
+	if err != nil {
+		return err
+	}
+
+	saveContainer.AddKey("default", unlockPlainKey)
+	if err != nil {
+		return err
+	}
+	tokenWriter, err := saveContainer.GetTokenWriter("default")
+	if err != nil {
+		return err
+	}
+	if err := plainKey.Write(tokenWriter); err != nil {
+		return err
+	}
+
+	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get boot base info: %v", err)
+	}
+
+	gadgetInfo, err := snapstate.GadgetInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get gadget info: %v", err)
+	}
+
+	gadgetDir := gadgetInfo.MountDir()
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info: %v", err)
+	}
+
+	modeEnv, err := boot.MaybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	if len(modeEnv.CurrentRecoverySystems) != 1 {
+		return fmt.Errorf("expected only one current recovery systemd")
+	}
+
+	systemAndSnaps, mntPtForType, mntPtForComps, unmount,
+		err := m.loadAndMountSystemLabelSnapsUnlock(st, modeEnv.CurrentRecoverySystems[0], []snap.Type{snap.TypeKernel})
+	if err != nil {
+		return err
+	}
+	defer unmount()
+
+	kernMntPoint := mntPtForType[snap.TypeKernel]
+	isCore := !deviceCtx.Classic()
+	kBootInfo := kBootInfo(systemAndSnaps, kernMntPoint, mntPtForComps, isCore)
+
+	bootWith := &boot.BootableSet{
+		Base:              bootBaseInfo,
+		BasePath:          bootBaseInfo.MountFile(),
+		Gadget:            gadgetInfo,
+		GadgetPath:        gadgetInfo.MountFile(),
+		Kernel:            kernelInfo,
+		KernelPath:        kernelInfo.MountFile(),
+		UnpackedGadgetDir: gadgetDir,
+
+		RecoverySystemLabel: modeEnv.CurrentRecoverySystems[0],
+		KernelMods:          kBootInfo.BootableKMods,
+	}
+
+	bootAssets := boot.GetTrustedAssetsFromModeenv(modeEnv)
+
+	// No volumes option, we reprovision without PIN or passphrase
+	var volumesAuth *device.VolumesAuthOptions = nil
+
+	errorDetails, err := setupData.checkContext.PreinstallCheckAction(context.Background(), &secboot.PreinstallAction{Action: secboot.ActionNone})
+	if err != nil {
+		return err
+	}
+
+	if len(errorDetails) != 0 {
+		return fmt.Errorf("...")
+	}
+
+	checkResult, err := setupData.checkContext.CheckResult()
+	if err != nil {
+		return err
+	}
+
+	if err := setupData.checkContext.SaveCheckResult(device.PreinstallCheckResultUnder(dirs.SnapSaveDir)); err != nil {
+		return err
+	}
+
+	encryptionParams := boot.NewEncryptionSetup(dataContainer, saveContainer,
+		primaryKey,
+		volumesAuth,
+		checkResult)
+
+	err = bootMakeRunnableReprovision(
+		deviceCtx.Model(),
+		bootWith,
+		bootAssets,
+		encryptionParams,
+	)
+
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+
+	// TODO update state
+	st.Set("fde", nil)
+
+	if err := protectorKey.SaveToFile(saveKeyPath); err != nil {
+		return fmt.Errorf("cannot save the system-save key: %v", err)
+	}
+	// swapping the protector key is the sign we have finished
+	cleanupOnError = false
+
+	removedNvIndices := map[uint32]bool{}
+
+	for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
+		recoveryKeyNames, err := secboot.ListContainerRecoveryKeyNames(disk)
+		if err != nil {
+			return err
+		}
+		for _, key := range recoveryKeyNames {
+			if key == "default-recovery" {
+				continue
+			}
+			if err := secboot.DeleteContainerKey(disk, key); err != nil {
+				return err
+			}
+		}
+		platformKeyNames, err := secboot.ListContainerUnlockKeyNames(disk)
+		if err != nil {
+			return err
+		}
+
+		for _, key := range platformKeyNames {
+			if key == "default" || key == "default-fallback" {
+				continue
+			}
+
+			nv, err := secboot.GetPCRHandleFromToken(disk, key)
+			if err != nil {
+				return err
+			} else if (nv != 0) && !removedNvIndices[nv] {
+				if err := secboot.ReleasePCRResourceHandle(nv); err != nil {
+					return err
+				} else {
+					removedNvIndices[nv] = true
+				}
+			}
+
+			if key == "snapd-reprovision-default" && disk == saveDisk.DevPath() {
+				// always the last one to remove
+				continue
+			}
+
+			if err := secboot.DeleteContainerKey(disk, key); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := secboot.DeleteContainerKey(saveDisk.DevPath(), "snapd-reprovision-default"); err != nil {
+		return err
+	}
+
+	return nil
 }

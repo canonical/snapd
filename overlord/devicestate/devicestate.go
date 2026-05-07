@@ -80,6 +80,7 @@ var (
 	installStepFinishChangeKind                 = swfeats.RegisterChangeKind("install-step-finish")
 	installStepSetupStorageEncryptionChangeKind = swfeats.RegisterChangeKind("install-step-setup-storage-encryption")
 	installStepTargetPreseedChangeKind          = swfeats.RegisterChangeKind("install-step-preseed")
+	reprovisionKind                             = swfeats.RegisterChangeKind("reprovision")
 )
 
 // findModel returns the device model assertion.
@@ -2683,4 +2684,12 @@ func checkInstallChangeConflict(st *state.State) error {
 		}
 	}
 	return nil
+}
+
+func Reprovision(st *state.State) (*state.Change, error) {
+	chg := st.NewChange(reprovisionKind, fmt.Sprintf("Reprovision"))
+	reprovisionTask := st.NewTask("reprovision", fmt.Sprintf("Reprovision"))
+	chg.AddTask(reprovisionTask)
+
+	return chg, nil
 }

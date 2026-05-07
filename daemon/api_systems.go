@@ -54,7 +54,7 @@ var systemsCmd = &Command{
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
 	POST:        postSystemsAction,
-	Actions:     []string{"reboot", "create", "install"},
+	Actions:     []string{"reboot", "create", "install", "reprovision", "fix-encryption-support", "generate-recovery-key"},
 	WriteAccess: rootAccess{},
 }
 
@@ -78,7 +78,24 @@ type systemsResponse struct {
 	Systems []client.System `json:"systems,omitempty"`
 }
 
+func getCurrentSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
+	deviceMgr := c.d.overlord.DeviceManager()
+
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerCurrentSystemAndGadgetAndEncryptionInfo(deviceMgr)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
+	return SyncResponse(*details)
+}
+
 func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	if query.Get("current") == "true" {
+		return getCurrentSystemDetails(c, r, user)
+	}
+
 	var rsp systemsResponse
 
 	seedSystems, err := c.d.overlord.DeviceManager().Systems()
@@ -134,6 +151,12 @@ var deviceManagerSystemAndGadgetAndEncryptionInfo func(
 	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
 ) = (*devicestate.DeviceManager).SystemAndGadgetAndEncryptionInfo
 
+var deviceManagerCurrentSystemAndGadgetAndEncryptionInfo func(
+	dm *devicestate.DeviceManager,
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).CurrentSystemAndGadgetAndEncryptionInfo
+
 // wrapped for unit tests
 var deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo func(
 	dm *devicestate.DeviceManager,
@@ -142,6 +165,13 @@ var deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo func(
 ) (
 	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
 ) = (*devicestate.DeviceManager).ApplyActionOnSystemAndGadgetAndEncryptionInfo
+
+var deviceManagerApplyActionOnCurrentSystemAndGadgetAndEncryptionInfo func(
+	dm *devicestate.DeviceManager,
+	checkAction *secboot.PreinstallAction,
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).ApplyActionOnCurrentSystemAndGadgetAndEncryptionInfo
 
 func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEncryption {
 	if encInfo.Disabled {
@@ -180,12 +210,14 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 }
 
 var (
-	devicestateInstallFinish                 = devicestate.InstallFinish
-	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
-	devicestateInstallPreseed                = devicestate.InstallPreseed
-	devicestateCreateRecoverySystem          = devicestate.CreateRecoverySystem
-	devicestateRemoveRecoverySystem          = devicestate.RemoveRecoverySystem
-	devicestateGeneratePreInstallRecoveryKey = devicestate.GeneratePreInstallRecoveryKey
+	devicestateInstallFinish                  = devicestate.InstallFinish
+	devicestateInstallSetupStorageEncryption  = devicestate.InstallSetupStorageEncryption
+	devicestateInstallPreseed                 = devicestate.InstallPreseed
+	devicestateCreateRecoverySystem           = devicestate.CreateRecoverySystem
+	devicestateRemoveRecoverySystem           = devicestate.RemoveRecoverySystem
+	devicestateGeneratePreInstallRecoveryKey  = devicestate.GeneratePreInstallRecoveryKey
+	devicestateGenerateReprovisionRecoveryKey = devicestate.GenerateReprovisionRecoveryKey
+	devicestateReprovision                    = devicestate.Reprovision
 )
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -320,7 +352,22 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 	case "check-pin-quality", "check-pin": // "check-pin" is deprecated
 		return postSystemActionCheckPINQuality(c, systemLabel, &req)
 	case "fix-encryption-support":
-		return postSystemActionFixEncryptionSupport(c, systemLabel, &req)
+		if systemLabel != "" {
+			return postSystemActionFixEncryptionSupport(c, systemLabel, &req)
+		} else {
+			return postCurrentSystemActionFixEncryptionSupport(c, &req)
+		}
+	case "reprovision":
+		if systemLabel != "" {
+			return BadRequest("label should not be provided for reprovision action")
+		}
+		return postSystemActionReprovision(c, &req)
+	case "generate-recovery-key":
+		if systemLabel != "" {
+			// SD201 says that generate-recovery-key should be an action for installation... but it is a step
+			return BadRequest("label should not be provided for generate-recovery-key action")
+		}
+		return postSystemActionGenerateRecoveryKey(c, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -797,4 +844,65 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 
 	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
 	return SyncResponse(*details)
+}
+
+func postCurrentSystemActionFixEncryptionSupport(c *Command, req *systemActionRequest) Response {
+	// FixAction set to "" is valid and maps to secboot constant ActionNone.
+	// Omission of FixAction is not allowed.
+	if req.FixAction == nil {
+		return BadRequest("fix action must be provided in request body for action %q", req.Action)
+	}
+
+	// Args is optional, but when specified it must contain at least one
+	// argument entry.
+	if req.Args != nil && len(req.Args) == 0 {
+		return BadRequest("optional fix action args, when provided, must contain one or more arguments %q", req.Action)
+	}
+
+	checkAction := &secboot.PreinstallAction{
+		Action: *req.FixAction,
+		Args:   req.Args,
+	}
+
+	// TODO:FDEM: In the future, snapd should be able to identify actions it is responsible for handling,
+	// and avoid forwarding those actions to secboot. Similarly, actions intended for the installer
+	// should result in an error. A mechanism is needed to determine ownership of each action.
+
+	deviceMgr := c.d.overlord.DeviceManager()
+
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerApplyActionOnCurrentSystemAndGadgetAndEncryptionInfo(deviceMgr, checkAction)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
+	return SyncResponse(*details)
+}
+
+func postSystemActionReprovision(c *Command, req *systemActionRequest) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg, err := devicestateReprovision(st)
+	if err != nil {
+		return BadRequest("unexpected error: %s", err)
+	}
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, chg.ID())
+}
+
+func postSystemActionGenerateRecoveryKey(c *Command, req *systemActionRequest) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	rkey, err := devicestateGenerateReprovisionRecoveryKey(st)
+	if err != nil {
+		return BadRequest("cannot generate recovery key: %v", err)
+	}
+	return SyncResponse(map[string]string{
+		"recovery-key": rkey.String(),
+	})
 }

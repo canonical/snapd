@@ -301,6 +301,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(gadgetUpdateBlocked)
 	runner.AddBlocked(removeRecoverySystemBlocked)
 
+	runner.AddHandler("reprovision", m.doReprovision, nil)
+
 	// wire FDE kernel hook support into boot
 	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
@@ -2641,6 +2643,11 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(
 	return m.systemAndGadgetAndEncryptionInfoWithAction(wantedSystemLabel, checkAction, encInfoFromCache)
 }
 
+func (m *DeviceManager) CurrentSystemAndGadgetAndEncryptionInfo() (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	var checkAction *secboot.PreinstallAction = nil
+	return m.currentSystemAndGadgetAndEncryptionInfoWithAction(checkAction)
+}
+
 // ApplyActionOnSystemAndGadgetAndEncryptionInfo resolves the target system by
 // label and evaluates encryption support after applying the provided action. It
 // returns the system details (including its model assertion), the gadget
@@ -2662,6 +2669,15 @@ func (m *DeviceManager) ApplyActionOnSystemAndGadgetAndEncryptionInfo(
 	}
 	const encInfoFromCache = false
 	return m.systemAndGadgetAndEncryptionInfoWithAction(wantedSystemLabel, checkAction, encInfoFromCache)
+}
+
+func (m *DeviceManager) ApplyActionOnCurrentSystemAndGadgetAndEncryptionInfo(
+	checkAction *secboot.PreinstallAction,
+) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	if checkAction == nil {
+		return nil, nil, nil, errors.New("cannot apply empty action")
+	}
+	return m.currentSystemAndGadgetAndEncryptionInfoWithAction(checkAction)
 }
 
 // systemAndGadgetAndEncryptionInfoWithAction resolves the target system by
@@ -2727,6 +2743,108 @@ func (m *DeviceManager) systemAndGadgetAndEncryptionInfoWithAction(
 	}
 
 	return systemAndSnaps.System, gadgetInfo, encInfo, err
+}
+
+func (m *DeviceManager) currentSystemAndGadgetAndEncryptionInfoWithAction(
+	checkAction *secboot.PreinstallAction,
+) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	// TODO check that the system is not a classic boot one when the
+	// installer is not anymore.
+
+	modeEnv, err := boot.MaybeReadModeenv()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if modeEnv == nil {
+		return nil, nil, nil, fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	if len(modeEnv.CurrentRecoverySystems) != 1 {
+		return nil, nil, nil, fmt.Errorf("expected only one current recovery systemd")
+	}
+
+	systemAndSnaps, err := m.loadSystemAndEssentialSnaps(modeEnv.CurrentRecoverySystems[0], []snap.Type{snap.TypeGadget}, seed.AllModes)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if !systemAndSnaps.Current {
+		return nil, nil, nil, fmt.Errorf("current system is not matching modeenv")
+	}
+
+	snapf, err := snapfile.Open(systemAndSnaps.SeedSnapsByType[snap.TypeGadget].Path)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	gadgetInfo, err := gadget.ReadInfoFromSnapFileNoValidate(snapf, systemAndSnaps.Model)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
+	}
+
+	bootChain, err := getBootChain()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	var data *reprovisionSetupData
+
+	var checkContext *secboot.PreinstallCheckContext
+	var errorDetails []secboot.PreinstallErrorDetails
+
+	var encInfo *install.EncryptionSupportInfo
+	var checkErr error
+
+	doLocked := func() error {
+		m.state.Lock()
+		defer m.state.Unlock()
+
+		cached := m.state.Cached(reprovisionSetupDataKey{})
+		if cached == nil {
+			data = &reprovisionSetupData{}
+		} else {
+			var ok bool
+			data, ok = cached.(*reprovisionSetupData)
+			if !ok {
+				return fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+			}
+		}
+
+		if checkAction == nil {
+			const postInstall = true
+			checkContext, errorDetails, checkErr = secboot.PreinstallCheck(context.Background(), postInstall, bootChain)
+		} else {
+			checkContext = data.checkContext
+			if checkContext == nil {
+				return fmt.Errorf("cannot run check action without prior check")
+			}
+			errorDetails, checkErr = checkContext.PreinstallCheckAction(context.Background(), checkAction)
+		}
+
+		encInfo = &install.EncryptionSupportInfo{
+			Disabled:      false,
+			StorageSafety: systemAndSnaps.Model.StorageSafety(),
+			Available:     checkErr == nil && len(errorDetails) == 0,
+			// FIXME: deal with hooks
+			Type:                    device.EncryptionTypeLUKS,
+			UnavailableErr:          checkErr,
+			UnavailableWarning:      "",
+			AvailabilityCheckErrors: errorDetails,
+			PassphraseAuthAvailable: true,
+			PINAuthAvailable:        true,
+		}
+
+		if checkErr == nil {
+			data.checkContext = checkContext
+			m.state.Cache(reprovisionSetupDataKey{}, data)
+		}
+
+		return nil
+	}
+
+	if err := doLocked(); err != nil {
+		return nil, nil, nil, err
+	}
+	return systemAndSnaps.System, gadgetInfo, encInfo, nil
 }
 
 type systemAndEssentialSnaps struct {
