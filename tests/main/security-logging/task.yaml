@@ -31,13 +31,6 @@ execute: |
         "$TESTSTOOLS"/journal-state start_new_log
     }
 
-    # Assert that journal logs since the pinned position do not match expression
-    # Usage: journal_nomatch <expression> [-u <unit>]
-    journal_nomatch() {
-        local expression="$1"; shift
-        ! "$TESTSTOOLS"/journal-state match-log "$expression" -n 1 "$@" >/dev/null 2>&1
-    }
-
     # Assert that journal logs since the pinned position match expression
     # Usage: journal_match <expression> [-u <unit>]
     journal_match() {
