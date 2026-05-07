@@ -1620,6 +1620,23 @@ func (s *systemd) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, er
 }
 
 func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
+	// unmount regardless of whether the unit file exists as
+	// the unit file may have been deleted while the mount is
+	// still active
+	isMounted, err := osutilIsMounted(mountedDir)
+	if err != nil {
+		return err
+	}
+	if isMounted {
+		// use umount -d (cleanup loopback devices) -l (lazy) to ensure
+		// that even busy mount points can be unmounted.
+		// note that the long option --lazy is not supported on trusty.
+		// the explicit -d is only needed on trusty.
+		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+	}
+
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
@@ -1628,20 +1645,8 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 		return nil
 	}
 
-	// use umount -d (cleanup loopback devices) -l (lazy) to ensure that even busy mount points
-	// can be unmounted.
-	// note that the long option --lazy is not supported on trusty.
-	// the explicit -d is only needed on trusty.
-	isMounted, err := osutilIsMounted(mountedDir)
-	if err != nil {
-		return err
-	}
 	units := []string{filepath.Base(unit)}
 	if isMounted {
-		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
-		}
-
 		if err := s.Stop(units); err != nil {
 			return err
 		}
