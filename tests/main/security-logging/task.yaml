@@ -7,21 +7,23 @@ details: |
     when store credentials are available, that a successful login produces
     an "authn_login_success" event in the audit log.
 
-# ubuntu-core: auditd is not available as a distro package
-systems: [-ubuntu-core-*]
-
 prepare: |
-    # Ensure auditd (which provides ausearch) is installed and running.
-    if ! command -v ausearch; then
-        #shellcheck source=tests/lib/pkgdb.sh
-        . "$TESTSLIB/pkgdb.sh"
-        distro_install_package auditd
-        systemctl enable --now auditd.service
+    if ! systemctl is-active systemd-journald-audit.socket; then
+        touch audit-socket-was-inactive
+        systemctl stop systemd-journald.service
+        systemctl start systemd-journald-audit.socket
+        systemctl restart systemd-journald.service
     fi
+    systemctl restart snapd.service
 
 restore: |
+    if [ -f audit-socket-was-inactive ]; then
+        systemctl stop systemd-journald-audit.socket
+        systemctl restart systemd-journald.service
+        rm -f audit-socket-was-inactive
+    fi
+
     snap logout || true
-    rm -f stamp content
 
 execute: |
     # Pin snapd journal search position to the current journal position
@@ -29,81 +31,60 @@ execute: |
         "$TESTSTOOLS"/journal-state start_new_log
     }
 
-    # Assert that snapd.service logs since the pinned position do not match expression
+    # Assert that journal logs since the pinned position do not match expression
+    # Usage: journal_nomatch <expression> [-u <unit>]
     journal_nomatch() {
-        expression="$1"
-        ! "$TESTSTOOLS"/journal-state match-log "$expression" -n 1 -u snapd.service >/dev/null 2>&1
+        local expression="$1"; shift
+        ! "$TESTSTOOLS"/journal-state match-log "$expression" -n 1 "$@" >/dev/null 2>&1
     }
 
-    # Assert that snapd.service logs since the pinned position match expression
+    # Assert that journal logs since the pinned position match expression
+    # Usage: journal_match <expression> [-u <unit>]
     journal_match() {
-        expression="$1"
-        "$TESTSTOOLS"/journal-state match-log "$expression" -n 3 -u snapd.service >/dev/null 2>&1
+        local expression="$1"; shift
+        "$TESTSTOOLS"/journal-state match-log "$expression" -n 3 "$@" >/dev/null 2>&1
     }
 
-    # Pin audit search position to after the latest existing 1121 events
-    audit_pin() {
-        rm -f stamp content
-        ausearch --checkpoint stamp -m 1121 --raw >/dev/null 2>&1 || true
-    }
-
-    # Dump all content since pinned position into file with provided name
-    audit_dump() {
-        filename=$1
-        ausearch --start checkpoint --checkpoint stamp -m 1121 --raw > "$filename" 2>&1 || true
-    }
-
-    # Wait for snapd to become active and responsive to API calls, retrying if necessary.
+    # Wait for snapd to become active and responsive to API calls.
     wait_snapd_ready() {
-        local retries="${1:-3}"
-        local delay="${2:-1}"
         local attempt=1
         local output
 
-        while (( attempt <= retries )); do
+        while (( attempt <= 10 )); do
             if output="$(snap debug api /v2/snaps 2>&1)"; then
-                echo "snapd ready" >&2
                 return 0
             fi
-
-            echo "snapd API not ready yet, retrying ($attempt/$retries): $output" >&2
-            sleep "$delay"
+            sleep 1
             ((attempt++))
         done
 
-        echo "snapd API did not become ready after $retries attempts" >&2
+        echo "snapd API did not become ready after 3 attempts" >&2
         echo "last error: $output" >&2
         return 1
     }
 
     echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
-    audit_pin
     journal_pin
     systemctl restart snapd.service
     wait_snapd_ready
-    journal_match "security logger disabled"
-    journal_match "security logger enabled"
+    journal_match "security logger disabled" -u snapd.service
+    journal_match "security logger enabled" -u snapd.service
 
     echo "Checking that restart produces disable/enable audit events"
-    audit_dump content
-    MATCH 'sys_logging_disabled' < content
-    MATCH 'sys_logging_enabled' < content
+    journal_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
+    journal_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
 
     echo "Checking that a failed login attempt produces an audit event"
-    audit_pin
     echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \
         snap debug api -X POST -H 'Content-Type: application/json' /v2/login || true
-    audit_dump content
-    MATCH 'authn_login_failure' < content
-    MATCH 'invalid-credentials' < content
-    MATCH 'someemail@testing.com' < content
 
+    journal_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: invalid-credentials:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":{"snapd-user-id":0,"store-user-name":"","store-user-email":"someemail@testing.com","expiration":"never"},"error":{"code":"invalid-credentials","message":"invalid credentials"}'
+
+
+    # SPREAD_STORE_USER and SPREAD_STORE_PASSWORD are only available when running off master
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
         echo "Checking that a successful login produces an audit event"
-        audit_pin
         expect -d -f "$TESTSLIB"/successful_login.exp
-        audit_dump content
-        MATCH 'authn_login_success' < content
-        MATCH "$SPREAD_STORE_USER" < content
-        snap logout
+
+        journal_match '"level":"INFO","description":"User [^ ]* login success","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_success","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
     fi
