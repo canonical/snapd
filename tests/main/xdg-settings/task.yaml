@@ -6,7 +6,8 @@ details: |
     back to snapd user session daemon, to present a question to the user.
 
     The test exercises the xdg-settings' program ability to set the default web
-    browser and default URL scheme handler.
+    browser and default URL scheme handler, and verifies that redundant set
+    calls are silently skipped when the value is already correct (LP #1966067).
 
 # Not supposed to work on Ubuntu Core systems as we don't have
 # a user session environment there
@@ -30,82 +31,79 @@ prepare: |
             /                                                 \
             org.freedesktop.DBus.Peer.Ping
 
-    # Create a small helper which will tell us if snap passes
-    # the settings to the right handler
-    cat << 'EOF' > /tmp/xdg-settings
-    #!/bin/sh
-    echo "$@" > /tmp/xdg-settings-output
-    EOF
-
-    chmod +x /tmp/xdg-settings
-    touch /usr/bin/xdg-settings
-    mount --bind /tmp/xdg-settings /usr/bin/xdg-settings
+    # backup mimeapps.list so real xdg-settings changes can be restored
+    if [ -d /home/test/.config ]; then
+        tests.backup prepare /home/test/.config
+        touch has-test-config-backup
+    else
+        tests.cleanup defer rm -rfv /home/test/.config
+    fi
 
 restore: |
     tests.session -u test restore
-    umount -f /usr/bin/xdg-settings || true
-    umount -f /usr/bin/zenity || true
+    if [ -f has-test-config-backup ]; then
+         tests.backup restore /home/test/.config
+    fi
+    umount -f /usr/bin/zenity 2>/dev/null || true
+    umount -f /usr/bin/kdialog 2>/dev/null || true
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    ensure_xdg_settings_output() {
-        rm -f /tmp/xdg-settings-output
-
-        # run xdg-settings from inside the snap
-        tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper "$@"
-
-        if [ $# -eq 3 ]; then
-            # the dbus interface rewrites the final param to be <snap name>_<desktop file>
-            test_output="$1 $2 test-snapd-xdg-settings_$3"
-        elif [ $# -eq 4 ]; then
-            # the dbus interface rewrites the final param to be <snap name>_<desktop file>
-            test_output="$1 $2 $3 test-snapd-xdg-settings_$4"
-        else
-            return
-        fi
-
-        # verify that the command was transmitted corrected via dbus
-        test -e /tmp/xdg-settings-output
-        test "$(cat /tmp/xdg-settings-output)" = "$test_output"
-    }
-
-    ensure_error_no_xdg_settings_output() {
-        rm -f /tmp/xdg-settings-output
-
-        # run xdg-settings from inside the snap
-        not tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper "$@"
-
-        # verify that the output file doesn't exist
-        test ! -e /tmp/xdg-settings-output
-    }
-
-    # ensure zenity answers "yes"
+    # ensure zenity answers "yes" for the dialog prompt
     touch /usr/bin/zenity
     mount --bind /bin/true /usr/bin/zenity
 
-    # Test valid actions
-    ensure_xdg_settings_output "set" "default-web-browser" "browser.desktop"
-    ensure_xdg_settings_output "set" "default-url-scheme-handler" "irc" "browser.desktop"
+    # Test: set default-web-browser succeeds when user accepts
+    tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set default-web-browser browser.desktop
 
-    # Test unknown action
-    ensure_error_no_xdg_settings_output "unknown" 2> stderr.log
-    MATCH 'unknown action unknown' < stderr.log
+    # Verify it was actually set
+    OUTPUT=$(tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        check default-web-browser browser.desktop)
+    test "$OUTPUT" = "yes"
 
-    # Ensure settings whitelist works
-    ensure_error_no_xdg_settings_output "set" "random-settting" "something" 2> stderr.log
-    MATCH 'invalid setting "random-settting"' < stderr.log
+    OUTPUT=$(tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        get default-web-browser)
+    test "$OUTPUT" = "browser.desktop"
 
-    # Ensure settings value validation works
-    ensure_error_no_xdg_settings_output "set" "default-web-browser" "inälid" 2> stderr.log
-    MATCH 'cannot set "default-web-browser" setting to invalid value "inälid"' < stderr.log
+    # Test: set default-url-scheme-handler succeeds when user accepts
+    tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set default-url-scheme-handler x-test browser.desktop
 
-    ensure_error_no_xdg_settings_output "set" "default-url-scheme-handler" "irc" "inälid" 2> stderr.log
-    MATCH 'cannot set "default-url-scheme-handler" subproperty "irc" setting to invalid value "inälid"' < stderr.log
+    OUTPUT=$(tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        check default-url-scheme-handler x-test browser.desktop)
+    test "$OUTPUT" = "yes"
 
-    # ensure zenity answers "no"
+    # Test: set skips dialog when value is already set (LP #1966067)
+    # Replace zenity with /bin/false — if set still succeeds, no dialog was shown
     umount /usr/bin/zenity
     mount --bind /bin/false /usr/bin/zenity
 
-    ensure_error_no_xdg_settings_output "set" "default-web-browser" "browser.desktop"
+    tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set default-web-browser browser.desktop
+
+    tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set default-url-scheme-handler x-test browser.desktop
+
+    # Test: set fails when user declines and value is NOT already set
+    not tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set default-url-scheme-handler x-other browser.desktop
+
+    # Test: validation errors
+    not tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        unknown 2> stderr.log
+    MATCH 'unknown action unknown' < stderr.log
+
+    not tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set random-settting something 2> stderr.log
+    MATCH 'invalid setting "random-settting"' < stderr.log
+
+    not tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set default-web-browser "inälid" 2> stderr.log
+    MATCH 'cannot set "default-web-browser" setting to invalid value "inälid"' < stderr.log
+
+    not tests.session -u test exec test-snapd-xdg-settings.xdg-settings-wrapper \
+        set default-url-scheme-handler irc "inälid" 2> stderr.log
+    MATCH 'cannot set "default-url-scheme-handler" subproperty "irc" setting to invalid value "inälid"' < stderr.log
