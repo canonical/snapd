@@ -38,28 +38,10 @@ execute: |
         "$TESTSTOOLS"/journal-state match-log "$expression" -n 3 "$@" >/dev/null 2>&1
     }
 
-    # Wait for snapd to become active and responsive to API calls.
-    wait_snapd_ready() {
-        local attempt=1
-        local output
-
-        while (( attempt <= 10 )); do
-            if output="$(snap debug api /v2/snaps 2>&1)"; then
-                return 0
-            fi
-            sleep 1
-            ((attempt++))
-        done
-
-        echo "snapd API did not become ready after 3 attempts" >&2
-        echo "last error: $output" >&2
-        return 1
-    }
-
     echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
     journal_pin
     systemctl restart snapd.service
-    wait_snapd_ready
+    snap wait system seed.loaded
     journal_match "security logger disabled" -u snapd.service
     journal_match "security logger enabled" -u snapd.service
 
