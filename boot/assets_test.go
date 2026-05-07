@@ -487,10 +487,12 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
-	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
-	c.Check(observerImpl.CurrentVolumesAuth(), Equals, volumesAuth)
-	c.Check(observerImpl.CurrentCheckResult(), Equals, checkResult)
+	encryptionParams := observerImpl.GetEncryptionParams()
+	c.Assert(encryptionParams, NotNil)
+	c.Check(encryptionParams.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
+	c.Check(encryptionParams.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
+	c.Check(encryptionParams.CurrentVolumesAuth(), Equals, volumesAuth)
+	c.Check(encryptionParams.CurrentCheckResult(), Equals, checkResult)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -516,9 +518,11 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
-	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
-	c.Check(observerImpl.CurrentCheckResult(), IsNil)
+	encryptionParams := observerImpl.GetEncryptionParams()
+	c.Assert(encryptionParams, NotNil)
+	c.Check(encryptionParams.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
+	c.Check(encryptionParams.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
+	c.Check(encryptionParams.CurrentCheckResult(), IsNil)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
@@ -3123,7 +3127,9 @@ func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 
 	obs.ObserveExistingTrustedRecoveryAssets(d)
 
-	err = obs.UpdateBootEntry()
+	updater := obs.GetBootEntryUpdater()
+	c.Assert(updater, NotNil)
+	err = updater.Update()
 	c.Assert(err, IsNil)
 
 	c.Check(efiVariablesSet, Equals, 1)

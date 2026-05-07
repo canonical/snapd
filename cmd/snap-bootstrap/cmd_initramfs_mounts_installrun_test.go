@@ -68,6 +68,18 @@ func (m *MockObserver) Observe(op gadget.ContentOperation, partRole, root, relat
 	return m.ObserveFunc(op, partRole, root, relativeTarget, data)
 }
 
+func (m *MockObserver) GetBootEntryUpdater() boot.BootEntryUpdater {
+	return nil
+}
+
+func (m *MockObserver) GetTrustedAssets() *boot.TrustedAssets {
+	return nil
+}
+
+func (m *MockObserver) GetEncryptionParams() *boot.EncryptionParameters {
+	return nil
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupPresent(c *C) {
 	var efiArch string
 	switch runtime.GOARCH {
@@ -157,7 +169,7 @@ echo '{"features":[]}'
 	defer restoreGadgetInstall()
 
 	makeRunnableCalled := false
-	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, trusted *boot.TrustedAssets, encryption *boot.EncryptionParameters, bootEntryUpdater boot.BootEntryUpdater) error {
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
@@ -329,7 +341,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 	defer restoreGadgetInstall()
 
 	makeRunnableCalled := false
-	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, trusted *boot.TrustedAssets, encryption *boot.EncryptionParameters, bootEntryUpdater boot.BootEntryUpdater) error {
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)

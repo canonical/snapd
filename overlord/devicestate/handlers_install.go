@@ -343,7 +343,14 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		KernelMods:          kBootInfo.BootableKMods,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
+		if trustedInstallObserver != nil {
+			err = bootMakeRunnable(deviceCtx.Model(), bootWith,
+				trustedInstallObserver.GetTrustedAssets(),
+				trustedInstallObserver.GetEncryptionParams(),
+				trustedInstallObserver.GetBootEntryUpdater())
+		} else {
+			err = bootMakeRunnable(deviceCtx.Model(), bootWith, nil, nil, nil)
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
@@ -673,7 +680,14 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		KernelMods:          kBootInfo.BootableKMods,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
+		if trustedInstallObserver != nil {
+			err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith,
+				trustedInstallObserver.GetTrustedAssets(),
+				trustedInstallObserver.GetEncryptionParams(),
+				trustedInstallObserver.GetBootEntryUpdater())
+		} else {
+			err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, nil, nil, nil)
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
@@ -1247,7 +1261,13 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
-	if err := bootMakeRunnableStandalone(systemAndSnaps.Model, bootWith, trustedInstallObserver, st.Unlocker()); err != nil {
+	if err := bootMakeRunnableStandalone(
+		systemAndSnaps.Model,
+		bootWith,
+		trustedInstallObserver.GetTrustedAssets(),
+		trustedInstallObserver.GetEncryptionParams(),
+		trustedInstallObserver.GetBootEntryUpdater(),
+		st.Unlocker()); err != nil {
 		return err
 	}
 

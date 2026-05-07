@@ -326,7 +326,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsInstallModeWithCompsHappy(c *C
 	defer restoreGadgetInstall()
 
 	makeRunnableCalled := false
-	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error {
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, trusted *boot.TrustedAssets, encryption *boot.EncryptionParameters, bootEntryUpdater boot.BootEntryUpdater) error {
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)

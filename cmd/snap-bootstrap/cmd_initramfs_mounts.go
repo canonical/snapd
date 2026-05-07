@@ -525,7 +525,13 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		KernelMods:          kernelBootInfo.BootableKMods,
 	}
 
-	if err := bootMakeRunnableStandaloneSystem(model, bootWith, trustedInstallObserver); err != nil {
+	// TODO provision TPM
+	if err := bootMakeRunnableStandaloneSystem(
+		model,
+		bootWith,
+		trustedInstallObserver.GetTrustedAssets(),
+		trustedInstallObserver.GetEncryptionParams(),
+		trustedInstallObserver.GetBootEntryUpdater()); err != nil {
 		return err
 	}
 
