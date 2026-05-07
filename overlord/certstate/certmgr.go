@@ -20,7 +20,6 @@ package certstate
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -96,35 +95,21 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 		t.Logf("/etc/ssl/certs is not available on this system, skipping certificate database update")
 		return nil
 	}
-
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
-	if err := os.RemoveAll(stagedDir); err != nil {
-		return err
-	}
-
-	// SwapDirs requires both paths to exist, so create an empty merged
-	// directory when there is no prior certificate database yet.
-	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
-	}
-
-	if err := GenerateCertificateDatabase(stagedDir); err != nil {
-		return err
-	}
-
-	// Swap the new certificate database into place.
-	return osutil.SwapDirs(stagedDir, mergedDir)
+	return RefreshCertificateDatabase()
 }
 
-func (m *CertManager) undoUpdateCertificateDatabase(_ *state.Task, _ *tomb.Tomb) error {
+func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
+	t.State().Lock()
+	defer t.State().Unlock()
+
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
 
 	if exists, isDir, err := osutil.DirExists(stagedDir); err != nil {
 		return err
 	} else if !exists || !isDir {
-		return fmt.Errorf("cannot undo certificate database update: missing backup directory %q", stagedDir)
+		t.Logf("cannot undo certificate database update: missing backup directory %q", stagedDir)
+		return nil
 	}
 
 	if err := osutil.SwapDirs(stagedDir, mergedDir); err != nil {

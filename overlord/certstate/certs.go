@@ -513,6 +513,30 @@ func GenerateCertificateDatabaseImpl(mergedPath string) error {
 	return generateCACertificates(certs, mergedPath)
 }
 
+// RefreshCertificateDatabase does a best-effort of performing an
+// atomic update of the existing cert database. Expects state to be
+// locked when calling this function, to avoid concurrent updates to the database.
+func RefreshCertificateDatabase() error {
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
+	if err := os.RemoveAll(stagedDir); err != nil {
+		return err
+	}
+
+	// SwapDirs requires both paths to exist, so create an empty merged
+	// directory when there is no prior certificate database yet.
+	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+	}
+
+	if err := GenerateCertificateDatabase(stagedDir); err != nil {
+		return err
+	}
+
+	// Swap the new certificate database into place.
+	return osutil.SwapDirs(stagedDir, mergedDir)
+}
+
 // certificatePathWithExtension returns a path under dir for a certificate name
 // stored with the on-disk .crt suffix.
 func certificatePathWithExtension(dir, name string) string {
