@@ -42,5 +42,4 @@ execute: |
     snap run "${TSNAP}${SUFFIX}".useradd --extrausers alice
     echo alice:password | snap run "${TSNAP}${SUFFIX}".chpasswd
 
-    # User deletion is unsupported yet on Core: https://bugs.launchpad.net/ubuntu/+source/shadow/+bug/1659534
-    # snap run "${TSNAP}${SUFFIX}".userdel --extrausers alice
+    snap run "${TSNAP}${SUFFIX}".userdel --extrausers alice
