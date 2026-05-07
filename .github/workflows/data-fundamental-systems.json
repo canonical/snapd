@@ -65,6 +65,15 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
+        "group": "ubuntu-core-26",
+        "backend": "openstack",
+        "alternative-backend": "google-core",
+        "systems": "ubuntu-core-26-64",
+        "tasks": "tests/...",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "arch-linux",
         "backend": "openstack",
         "alternative-backend": "google-distro-2",
