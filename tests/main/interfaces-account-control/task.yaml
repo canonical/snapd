@@ -42,4 +42,4 @@ execute: |
     snap run "${TSNAP}${SUFFIX}".useradd --extrausers alice
     echo alice:password | snap run "${TSNAP}${SUFFIX}".chpasswd
 
-    snap run "${TSNAP}${SUFFIX}".userdel --extrausers alice
+    snap run "${TSNAP}${SUFFIX}".deluser --extrausers alice
