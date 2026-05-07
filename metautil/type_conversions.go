@@ -97,7 +97,7 @@ func (e AttributeNotCompatibleError) Is(target error) bool {
 // the val parameter, which therefore must be a pointer.
 func SetValueFromAttribute(snapName string, ifaceName string, attrName string, attrVal any, val any) error {
 	rt := reflect.TypeOf(val)
-	if rt.Kind() != reflect.Ptr || val == nil {
+	if rt.Kind() != reflect.Pointer || val == nil {
 		return fmt.Errorf("internal error: cannot get %q attribute of interface %q with non-pointer value", attrName, ifaceName)
 	}
 

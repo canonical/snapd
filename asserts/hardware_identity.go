@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/asn1"
@@ -160,7 +159,7 @@ func checkStringIsPEM(data []byte) (crypto.PublicKey, error) {
 
 // VerifyNonceSignature checks the signature of a given nonce against the hardware id key.
 // It is used by the model service to verify the request-id.
-// It currently supports key with algorithms RSA, ECDSA, and ED25519.
+// It currently supports key with algorithms RSA and ECDSA.
 // The hash algorithm used is also specified as a parameter.
 func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg crypto.Hash) error {
 	if !hashAlg.Available() {
@@ -177,8 +176,6 @@ func (h *HardwareIdentity) VerifyNonceSignature(nonce, signature []byte, hashAlg
 		return verifySignatureWithRSAKey(hashed, signature, h.hardwareKey.(*rsa.PublicKey), hashAlg)
 	case *ecdsa.PublicKey:
 		return verifySignatureWithECDSAKey(hashed, signature, h.hardwareKey.(*ecdsa.PublicKey))
-	case ed25519.PublicKey:
-		return verifySignatureWithED25519Key(hashed, signature, h.hardwareKey.(ed25519.PublicKey))
 	default:
 		return fmt.Errorf("unsupported algorithm type: %T", keyType)
 	}
@@ -212,12 +209,5 @@ func verifySignatureWithECDSAKey(hashed, signature []byte, pubKey *ecdsa.PublicK
 		return errors.New("invalid signature")
 	}
 
-	return nil
-}
-
-func verifySignatureWithED25519Key(hashed, signature []byte, pubKey ed25519.PublicKey) error {
-	if !ed25519.Verify(pubKey, hashed, signature) {
-		return errors.New("invalid signature")
-	}
 	return nil
 }

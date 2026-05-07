@@ -195,3 +195,23 @@ func (s *SecLogSuite) TestLogLoggerDisabledLogsToStandardLogger(c *C) {
 
 	c.Check(logBuf.String(), testutil.Contains, "security logger disabled")
 }
+
+func (s *SecLogSuite) TestLogLoggerEnabledNopSkipsNoticef(c *C) {
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+
+	seclog.Setup(seclog.NewNopLogger())
+	seclog.LogLoggerEnabled()
+
+	c.Check(logBuf.String(), Not(testutil.Contains), "security logger enabled")
+}
+
+func (s *SecLogSuite) TestLogLoggerDisabledNopSkipsNoticef(c *C) {
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+
+	seclog.Setup(seclog.NewNopLogger())
+	seclog.LogLoggerDisabled()
+
+	c.Check(logBuf.String(), Not(testutil.Contains), "security logger disabled")
+}

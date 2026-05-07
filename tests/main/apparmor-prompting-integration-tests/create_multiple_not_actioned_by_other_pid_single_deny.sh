@@ -16,15 +16,15 @@ if [ -z "$TIMEOUT" ] ; then
 	TIMEOUT=10
 fi
 
-WRITABLE="$(snap run --shell prompting-client.scripted -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
-snap run --shell prompting-client.scripted -c "mkdir -p $WRITABLE"
+WRITABLE="$(snap run --shell prompt-requester.home -c 'cd ~; pwd')/$(basename "$TEST_DIR")"
+snap run --shell prompt-requester.home -c "mkdir -p $WRITABLE"
 
 for dir in test1 test2 test3 ; do
 	mkdir -p "${TEST_DIR}/${dir}"
 	name="${dir}/file.txt"
 	echo "Attempt to create $name in the background"
-	snap run --shell prompting-client.scripted -c "touch ${WRITABLE}/${dir}-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${dir}-finished" &
-	if ! timeout "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${dir}-started' ] ; do sleep 0.1 ; done" ; then
+	snap run --shell prompt-requester.home -c "touch ${WRITABLE}/${dir}-started; echo $name is written > ${TEST_DIR}/${name}; touch ${WRITABLE}/${dir}-finished" &
+	if ! timeout --verbose "$TIMEOUT" sh -c "while ! [ -f '${WRITABLE}/${dir}-started' ] ; do sleep 0.1 ; done" ; then
 		echo "failed to start create of $name within timeout period"
 		exit 1
 	fi
@@ -41,7 +41,7 @@ done
 
 echo "Attempt to create test4/file.txt (for which client will reply deny single)"
 mkdir -p "${TEST_DIR}/test4"
-snap run --shell prompting-client.scripted -c "echo test4/file.txt is written > ${TEST_DIR}/test4/file.txt"
+snap run --shell prompt-requester.home -c "echo test4/file.txt is written > ${TEST_DIR}/test4/file.txt" || true
 
 for dir in test1 test2 test3 ; do
 	name="${dir}/file.txt"
@@ -55,10 +55,19 @@ done
 
 echo "Attempt to create test5/file.txt (for which client will reply allow forever)"
 mkdir -p "${TEST_DIR}/test5"
-snap run --shell prompting-client.scripted -c "echo test5/file.txt is written > ${TEST_DIR}/test5/file.txt"
+snap run --shell prompt-requester.home -c "echo test5/file.txt is written > ${TEST_DIR}/test5/file.txt"
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
+for i in $(seq "$TIMEOUT") ; do
+	if ! pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+		break
+	fi
+	sleep 1
+done
+if pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+	echo "prompting-client.scripted still running"
+	exit 1
+fi
 
 for dir in test1 test2 test3 ; do
 	name="${dir}/file.txt"

@@ -1491,6 +1491,7 @@ suites:
         summary: Test building snapd in different architectures
         manual: true
         prepare-each: |
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps

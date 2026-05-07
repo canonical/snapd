@@ -45,8 +45,8 @@ func MockSecurityLogger(buf *bytes.Buffer) seclog.SecurityLogger {
 	return &mockLogger{buf: buf}
 }
 
-// LogAny implements [seclog.SecurityLogger.LogAny].
-func (m *mockLogger) LogAny(event seclog.Event, description string, attrs ...seclog.Attr) {
+// LogEvent implements [seclog.SecurityLogger.LogEvent].
+func (m *mockLogger) LogEvent(event seclog.Event, description string, attrs ...seclog.Attr) {
 	fmt.Fprintf(m.buf, "%s %s", event.Name, description)
 	for _, a := range attrs {
 		fmt.Fprintf(m.buf, " [%s=%#v]", a.Key, a.Value)

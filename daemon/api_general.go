@@ -38,8 +38,8 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -295,7 +295,7 @@ func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return NotFound("cannot find change with id %q", chID)
 	}
 
-	return SyncResponse(change2changeInfo(chg))
+	return SyncResponse(ctlcmd.StateChangeToChangeInfo(chg))
 }
 
 func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -347,12 +347,12 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 	state.Lock()
 	defer state.Unlock()
 	chgs := state.Changes()
-	chgInfos := make([]*changeInfo, 0, len(chgs))
+	chgInfos := make([]*ctlcmd.ChangeInfo, 0, len(chgs))
 	for _, chg := range chgs {
 		if !filter(chg) {
 			continue
 		}
-		chgInfos = append(chgInfos, change2changeInfo(chg))
+		chgInfos = append(chgInfos, ctlcmd.StateChangeToChangeInfo(chg))
 	}
 	return SyncResponse(chgInfos)
 }
@@ -390,125 +390,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	// actually ask to proceed with the abort
 	ensureStateSoon(state)
 
-	return SyncResponse(change2changeInfo(chg))
-}
-
-type changeInfo struct {
-	ID      string      `json:"id"`
-	Kind    string      `json:"kind"`
-	Summary string      `json:"summary"`
-	Status  string      `json:"status"`
-	Tasks   []*taskInfo `json:"tasks,omitempty"`
-	Ready   bool        `json:"ready"`
-	Err     string      `json:"err,omitempty"`
-
-	SpawnTime time.Time  `json:"spawn-time,omitzero"`
-	ReadyTime *time.Time `json:"ready-time,omitempty"`
-
-	Data map[string]*json.RawMessage `json:"data,omitempty"`
-}
-
-type taskInfo struct {
-	ID       string           `json:"id"`
-	Kind     string           `json:"kind"`
-	Summary  string           `json:"summary"`
-	Status   string           `json:"status"`
-	Log      []string         `json:"log,omitempty"`
-	Progress taskInfoProgress `json:"progress"`
-
-	SpawnTime time.Time  `json:"spawn-time,omitzero"`
-	ReadyTime *time.Time `json:"ready-time,omitempty"`
-
-	Data map[string]*json.RawMessage `json:"data,omitempty"`
-}
-
-type taskInfoProgress struct {
-	Label string `json:"label"`
-	Done  int    `json:"done"`
-	Total int    `json:"total"`
-}
-
-func change2changeInfo(chg *state.Change) *changeInfo {
-	status := chg.Status()
-	chgInfo := &changeInfo{
-		ID:      chg.ID(),
-		Kind:    chg.Kind(),
-		Summary: chg.Summary(),
-		Status:  status.String(),
-		Ready:   status.Ready(),
-
-		SpawnTime: chg.SpawnTime(),
-	}
-	readyTime := chg.ReadyTime()
-	if !readyTime.IsZero() {
-		chgInfo.ReadyTime = &readyTime
-	}
-	if err := chg.Err(); err != nil {
-		chgInfo.Err = err.Error()
-	}
-
-	tasks := chg.Tasks()
-	taskInfos := make([]*taskInfo, len(tasks))
-	for j, t := range tasks {
-		label, done, total := t.Progress()
-
-		taskInfo := &taskInfo{
-			ID:      t.ID(),
-			Kind:    t.Kind(),
-			Summary: t.Summary(),
-			Status:  t.Status().String(),
-			Log:     t.Log(),
-			Progress: taskInfoProgress{
-				Label: label,
-				Done:  done,
-				Total: total,
-			},
-			SpawnTime: t.SpawnTime(),
-		}
-		readyTime := t.ReadyTime()
-		if !readyTime.IsZero() {
-			taskInfo.ReadyTime = &readyTime
-		}
-		if data, err := taskApiData(t); err == nil {
-			taskInfo.Data = data
-		}
-		taskInfos[j] = taskInfo
-	}
-	chgInfo.Tasks = taskInfos
-
-	var data map[string]*json.RawMessage
-	if chg.Get("api-data", &data) == nil {
-		chgInfo.Data = data
-	}
-
-	return chgInfo
-}
-
-var snapstateSnapsAffectedByTask = snapstate.SnapsAffectedByTask
-
-// taskApiData returns a map similar to change data which is currently
-// only filled with affected snap names.
-// Example: {"snap-names": ["snap-1", "snap-2"]}
-//
-// Note: This helper could be extended if needed to allow per-task custom
-// data similar to change "api-data".
-func taskApiData(t *state.Task) (map[string]*json.RawMessage, error) {
-	affectedSnaps, err := snapstateSnapsAffectedByTask(t)
-	if err != nil {
-		return nil, err
-	}
-	if len(affectedSnaps) == 0 {
-		return nil, nil
-	}
-	raw, err := json.Marshal(affectedSnaps)
-	if err != nil {
-		return nil, err
-	}
-	var affected json.RawMessage = raw
-	data := map[string]*json.RawMessage{
-		"affected-snaps": &affected,
-	}
-	return data, nil
+	return SyncResponse(ctlcmd.StateChangeToChangeInfo(chg))
 }
 
 var (

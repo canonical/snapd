@@ -145,7 +145,7 @@ type Attr struct {
 // optional [Attr] values, so new event types can be added without
 // changing the interface.
 type SecurityLogger interface {
-	LogAny(event Event, description string, attrs ...Attr)
+	LogEvent(event Event, description string, attrs ...Attr)
 }
 
 var (
@@ -167,12 +167,14 @@ func Setup(l SecurityLogger) {
 
 // LogLoggerEnabled logs that the security logger has been enabled.
 func LogLoggerEnabled() {
-	logger.Noticef("security logger enabled")
-
 	lock.Lock()
 	defer lock.Unlock()
 
-	globalLogger.LogAny(
+	if _, ok := globalLogger.(nopLogger); !ok {
+		logger.Noticef("security logger enabled")
+	}
+
+	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_logging_enabled", Level: LevelInfo},
 		"Security logging enabled",
 	)
@@ -180,12 +182,14 @@ func LogLoggerEnabled() {
 
 // LogLoggerDisabled logs that the security logger has been disabled.
 func LogLoggerDisabled() {
-	logger.Noticef("security logger disabled")
-
 	lock.Lock()
 	defer lock.Unlock()
 
-	globalLogger.LogAny(
+	if _, ok := globalLogger.(nopLogger); !ok {
+		logger.Noticef("security logger disabled")
+	}
+
+	globalLogger.LogEvent(
 		Event{Category: "SYS", Name: "sys_logging_disabled", Level: LevelCritical},
 		"Security logging disabled",
 	)
@@ -196,7 +200,7 @@ func LogLoginSuccess(user SnapdUser) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	globalLogger.LogAny(
+	globalLogger.LogEvent(
 		Event{Category: "AUTHN", Name: "authn_login_success", Level: LevelInfo},
 		fmt.Sprintf("User %s login success", user.String()),
 		Attr{Key: "user", Value: user},
@@ -208,7 +212,7 @@ func LogLoginFailure(user SnapdUser, reason Reason) {
 	lock.Lock()
 	defer lock.Unlock()
 
-	globalLogger.LogAny(
+	globalLogger.LogEvent(
 		Event{Category: "AUTHN", Name: "authn_login_failure", Level: LevelWarn},
 		fmt.Sprintf("User %s login failure: %s", user.String(), reason.String()),
 		Attr{Key: "user", Value: user},

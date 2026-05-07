@@ -124,7 +124,10 @@ func (s *confdbSuite) TestGetView(c *C) {
 			return s.schema.View(viewName), nil
 		})
 
-		restoreLoad := daemon.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, access confdb.Access) (string, error) {
+		restoreLoad := daemon.MockConfdbstateReadConfdb(func(ctx context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, access confdb.Access) (string, error) {
+			_, ok := ctx.Deadline()
+			c.Check(ok, Equals, false)
+
 			c.Assert(view.Name, Equals, "wifi-setup")
 			c.Assert(requests, DeepEquals, []string{"ssid"})
 			c.Assert(access, Equals, confdb.AdminAccess)
@@ -331,8 +334,11 @@ func (s *confdbSuite) TestSetView(c *C) {
 		cmt := Commentf("%s test", t.name)
 
 		var called bool
-		restoreSet := daemon.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, view *confdb.View, values map[string]any) (string, error) {
+		restoreSet := daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, view *confdb.View, values map[string]any) (string, error) {
 			called = true
+			_, ok := ctx.Deadline()
+			c.Check(ok, Equals, false)
+
 			c.Assert(view.Name, Equals, "wifi-setup", cmt)
 			c.Assert(values, DeepEquals, map[string]any{"ssid": t.value}, cmt)
 			return "123", nil
@@ -378,7 +384,7 @@ func (s *confdbSuite) TestSetEmpty(c *C) {
 
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Assert(rspe.Status, Equals, 400)
-		c.Assert(rspe.Message, Equals, "cannot set confdb: request body contains no values")
+		c.Assert(rspe.Message, Equals, "cannot write confdb: request body contains no values")
 		c.Assert(called, Equals, false)
 	}
 }
@@ -650,6 +656,155 @@ func (s *confdbSuite) TestGetBadConstraints(c *C) {
 		rspe := s.errorReq(c, req, nil, actionIsExpected)
 		c.Check(rspe.Status, Equals, 400, cmt)
 		c.Check(rspe.Message, Matches, tc.err, cmt)
+	}
+}
+
+func (s *confdbSuite) TestReadAccessTimeout(c *C) {
+	s.setFeatureFlag(c)
+
+	restore := daemon.MockConfdbstateGetView(func(_ *state.State, _, _, _ string) (*confdb.View, error) {
+		return s.schema.View("wifi-setup"), nil
+	})
+	defer restore()
+
+	restore = daemon.MockConfdbstateReadConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ []string, _ map[string]any, _ confdb.Access) (string, error) {
+		deadline, ok := ctx.Deadline()
+		c.Assert(ok, Equals, true)
+		c.Check(time.Until(deadline) <= 10*time.Second, Equals, true)
+		return "123", nil
+	})
+	defer restore()
+
+	type testcase struct {
+		timeout  string
+		error    string
+		ctxCheck func(ctx context.Context)
+	}
+
+	tcs := []testcase{
+		{
+			timeout: "10s",
+			ctxCheck: func(ctx context.Context) {
+				deadline, ok := ctx.Deadline()
+				c.Assert(ok, Equals, true)
+				c.Check(time.Until(deadline) <= 10*time.Second, Equals, true)
+			},
+		},
+		{
+			// this might seen useless but it could be used to do an attempt at read
+			// that would exit immediately if it had to wait
+			timeout: "0s",
+			ctxCheck: func(ctx context.Context) {
+				deadline, ok := ctx.Deadline()
+				c.Assert(ok, Equals, true)
+				c.Check(time.Until(deadline) <= 0, Equals, true)
+			},
+		},
+		{
+			timeout: "-10m",
+			error:   "cannot read confdb: access timeout must be non-negative",
+		},
+		{
+			timeout: "invalid",
+			error:   "cannot read confdb: invalid access-timeout: \"invalid\"",
+		},
+	}
+
+	for _, tc := range tcs {
+		req, err := http.NewRequest("GET", "/v2/confdb/system/network/wifi-setup?keys=ssid&access-timeout="+tc.timeout, nil)
+		c.Assert(err, IsNil)
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+
+		if tc.error == "" {
+			restore = daemon.MockConfdbstateReadConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ []string, _ map[string]any, _ confdb.Access) (string, error) {
+				tc.ctxCheck(ctx)
+				return "123", nil
+			})
+
+			rspe := s.asyncReq(c, req, nil, actionIsExpected)
+			c.Check(rspe.Status, Equals, 202)
+			c.Check(rspe.Change, Equals, "123")
+			restore()
+		} else {
+			rspe := s.errorReq(c, req, nil, actionIsExpected)
+			c.Check(rspe.Status, Equals, 400)
+			c.Check(rspe.Message, Matches, tc.error)
+		}
+	}
+}
+
+func (s *confdbSuite) TestWriteAccessTimeout(c *C) {
+	s.setFeatureFlag(c)
+
+	restore := daemon.MockConfdbstateGetView(func(_ *state.State, _, _, _ string) (*confdb.View, error) {
+		return s.schema.View("wifi-setup"), nil
+	})
+	defer restore()
+
+	restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any) (string, error) {
+		deadline, ok := ctx.Deadline()
+		c.Assert(ok, Equals, true)
+		c.Check(time.Until(deadline) <= 10*time.Second, Equals, true)
+		return "123", nil
+	})
+	defer restore()
+
+	type testcase struct {
+		timeout  string
+		error    string
+		ctxCheck func(ctx context.Context)
+	}
+
+	tcs := []testcase{
+		{
+			timeout: `10s`,
+			ctxCheck: func(ctx context.Context) {
+				deadline, ok := ctx.Deadline()
+				c.Assert(ok, Equals, true)
+				c.Check(time.Until(deadline) <= 10*time.Second, Equals, true)
+			},
+		},
+		{
+			timeout: `0s`,
+			ctxCheck: func(ctx context.Context) {
+				_, ok := ctx.Deadline()
+				c.Assert(ok, Equals, true)
+			},
+		},
+		{
+			timeout: `-10m`,
+			error:   "cannot write confdb: access timeout must be non-negative",
+		},
+		{
+			timeout: `invalid`,
+			error:   "cannot write confdb: invalid access-timeout: \"invalid\"",
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("testcase %d/%d", i+1, len(tcs))
+		body := fmt.Sprintf(`{"values": {"ssid": "foo"}, "options": {"access-timeout": %q}}`, tc.timeout)
+
+		req, err := http.NewRequest("PUT", "/v2/confdb/system/network/wifi-setup", bytes.NewBufferString(body))
+		c.Assert(err, IsNil, cmt)
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "pid=100;uid=1000;socket=;"
+
+		if tc.error == "" {
+			restore = daemon.MockConfdbstateWriteConfdb(func(ctx context.Context, _ *state.State, _ *confdb.View, _ map[string]any) (string, error) {
+				tc.ctxCheck(ctx)
+				return "123", nil
+			})
+
+			rspe := s.asyncReq(c, req, nil, actionIsExpected)
+			c.Check(rspe.Status, Equals, 202, cmt)
+			c.Check(rspe.Change, Equals, "123", cmt)
+			restore()
+		} else {
+			rspe := s.errorReq(c, req, nil, actionIsExpected)
+			c.Check(rspe.Status, Equals, 400, cmt)
+			c.Check(rspe.Message, Matches, tc.error, cmt)
+		}
 	}
 }
 

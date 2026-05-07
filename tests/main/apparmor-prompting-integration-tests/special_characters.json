@@ -1,7 +1,7 @@
 {
   "version": 1,
   "prompt-filter": {
-    "snap": "prompting-client",
+    "snap": "prompt-requester",
     "interface": "home",
     "constraints": {
       "path": "$BASE_PATH/.*"

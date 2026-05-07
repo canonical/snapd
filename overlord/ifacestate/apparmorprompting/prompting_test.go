@@ -296,6 +296,7 @@ func (s *apparmorpromptingSuite) TestHandleRequestErrors(c *C) {
 	allowedPermissions, err := waitForReply(replyChan)
 	c.Assert(err, IsNil)
 	c.Check(allowedPermissions, DeepEquals, []string{})
+
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), testutil.Contains,
 			" WARNING: too many outstanding prompts for user 1000; auto-denying new one\n")
@@ -1742,13 +1743,11 @@ func (s *apparmorpromptingSuite) TestListenerReadyAfterPromptsReady(c *C) {
 		c.Errorf("manager should still be ready")
 	}
 
-	time.Sleep(50 * time.Millisecond)
+	c.Assert(mgr.Stop(), IsNil)
 
 	logger.WithLoggerLock(func() {
 		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding requests were pruned")
 	})
-
-	c.Assert(mgr.Stop(), IsNil)
 }
 
 func (s *apparmorpromptingSuite) TestListenerReadyAfterPromptsNotReady(c *C) {
@@ -1787,13 +1786,10 @@ func (s *apparmorpromptingSuite) TestListenerReadyAfterPromptsNotReady(c *C) {
 
 	time.Sleep(50 * time.Millisecond)
 
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains, "listener signalled readiness and no outstanding requests were pruned")
-	})
-
 	c.Assert(mgr.Stop(), IsNil)
 
 	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, "listener signalled readiness and no outstanding requests were pruned")
 		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart: \"api:foo\"\n")
 	})
 }
@@ -1966,11 +1962,11 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 		// all good
 	}
 
-	logger.WithLoggerLock(func() {
-		c.Check(logbuf.String(), testutil.Contains, `requests timed out in the kernel while snapd was restarting: "kernel:1", "kernel:3"`)
-		c.Check(logbuf.String(), Not(testutil.Contains), "requests timed out in the kernel while snapd was restarting: \n")
-		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding prompts were pruned")
-	})
+	// The following message should now be in the logbuf, but don't check until the end to avoid race:
+	// - `requests timed out in the kernel while snapd was restarting: "kernel:1", "kernel:3"`
+	// The following messages should *not* be in the logbuf, but again don't check until the end:
+	// - "requests timed out in the kernel while snapd was restarting: \n"
+	// - "listener signalled readiness and no outstanding prompts were pruned"
 
 	// Now add remaining API requests via Ask()
 
@@ -2034,7 +2030,11 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 
 	c.Assert(mgr.Stop(), IsNil)
 
+	// Now check logs since the manager has stopped and we won't have a race
 	logger.WithLoggerLock(func() {
+		c.Check(logbuf.String(), testutil.Contains, `requests timed out in the kernel while snapd was restarting: "kernel:1", "kernel:3"`)
+		c.Check(logbuf.String(), Not(testutil.Contains), "requests timed out in the kernel while snapd was restarting: \n")
+		c.Check(logbuf.String(), Not(testutil.Contains), "listener signalled readiness and no outstanding prompts were pruned")
 		c.Check(logbuf.String(), Not(testutil.Contains), "timed out waiting for requests to be re-received after snap restart:")
 	})
 }

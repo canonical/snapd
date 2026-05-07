@@ -15,19 +15,28 @@ mkdir -p "${TEST_DIR}/Downloads"
 touch "${TEST_DIR}/Downloads/existing.txt"
 
 echo "Attempt to list the contents of the downloads directory"
-if ! snap run --shell prompting-client.scripted -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
+if ! snap run --shell prompt-requester.home -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
 	echo "Failed to list contents of ${TEST_DIR}/Downloads"
 	exit 1
 fi
 
 echo "Attempt to write the file"
-snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/Downloads/test.txt"
+snap run --shell prompt-requester.home -c "echo it is written > ${TEST_DIR}/Downloads/test.txt"
 
 echo "Attempt to chmod the file after it has been written"
-snap run --shell prompting-client.scripted -c "chmod 664 ${TEST_DIR}/Downloads/test.txt"
+snap run --shell prompt-requester.home -c "chmod 664 ${TEST_DIR}/Downloads/test.txt"
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
+for i in $(seq "$TIMEOUT") ; do
+	if ! pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+		break
+	fi
+	sleep 1
+done
+if pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+	echo "prompting-client.scripted still running"
+	exit 1
+fi
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 
@@ -39,8 +48,8 @@ fi
 
 # Rules with identical path patterns are merged, so we don't expect any rules
 # with duplicate path patterns.
-snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | MATCH '^[[:space:]]*1'
-snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | NOMATCH '^[[:space:]]*2'
+snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep '^[[:space:]]*1[[:space:]]'
+! snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep -q '^[[:space:]]*[^1[[:space:]]]'
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 

@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/osutil/user"
@@ -190,7 +191,7 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	return restore
 }
 
-func MockConfdbstateWriteConfdb(f func(*hookstate.Context, *confdb.View, map[string]any) error) (restore func()) {
+func MockConfdbstateWriteConfdb(f func(*hookstate.Context, *confdb.View, map[string]any, *client.ConfdbOptions) error) (restore func()) {
 	old := confdbstateWriteConfdb
 	confdbstateWriteConfdb = f
 	return func() {
@@ -206,7 +207,7 @@ func MockConfdbstateGetView(f func(st *state.State, account, confdbName, viewNam
 	}
 }
 
-func MockConfdbstateReadConfdb(f func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error)) (restore func()) {
+func MockConfdbstateReadConfdb(f func(*hookstate.Context, *confdb.View, []string, map[string]any, *client.ConfdbOptions) (*confdbstate.Transaction, error)) (restore func()) {
 	old := confdbstateReadConfdb
 	confdbstateReadConfdb = f
 	return func() {

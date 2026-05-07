@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -778,7 +779,7 @@ func (s *confdbTestSuite) testConfdbTasksNoCustodian(c *C) {
 
 	// a non-custodian snap modifies a confdb
 	_, _, _, err = confdbstate.CreateChangeConfdbTasks(s.state, tx, view, "test-snap-1")
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot commit changes to confdb made through view %s/network/%s: no custodian snap connected", s.devAccID, view.Name))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb view %s/network/%s: no custodian snap connected", s.devAccID, view.Name))
 }
 
 type confdbHooks uint8
@@ -1073,7 +1074,7 @@ func (s *confdbTestSuite) TestWriteConfdbFromSnapCreatesNewChange(c *C) {
 	s.state.Unlock()
 
 	ctx.Lock()
-	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"})
+	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"}, nil)
 	c.Assert(err, IsNil)
 
 	// this is called automatically by hooks or manually for daemon/
@@ -1105,7 +1106,7 @@ func (s *confdbTestSuite) TestGetTransactionFromNonConfdbHookAddsConfdbTx(c *C) 
 
 		if hooksup.Hook == "install" {
 			ctx.Lock()
-			err := confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"})
+			err := confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"}, nil)
 			ctx.Unlock()
 			c.Assert(err, IsNil)
 			return nil, nil
@@ -1231,7 +1232,7 @@ func (s *confdbTestSuite) TestWriteConfdbFromChangeViewHook(c *C) {
 
 	ctx.Lock()
 	view := s.dbSchema.View("setup-wifi")
-	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil)
+	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
 	c.Assert(err, IsNil)
 	// accessed an ongoing transaction
 	data, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
@@ -1241,7 +1242,7 @@ func (s *confdbTestSuite) TestWriteConfdbFromChangeViewHook(c *C) {
 	// change-view hooks can also write to the transaction
 	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{
 		"ssid": "bar",
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 
 	// accessed an ongoing transaction so save the changes made by the hook
@@ -1290,9 +1291,9 @@ func (s *confdbTestSuite) TestGetDifferentTransactionThanOngoing(c *C) {
 
 	ctx.Lock()
 	view := confdb.View("foo")
-	err = confdbstate.WriteConfdbFromSnap(ctx, view, nil)
+	err = confdbstate.WriteConfdbFromSnap(ctx, view, nil, nil)
 	ctx.Unlock()
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot access confdb through view foo/bar/foo: ongoing transaction for %s/network`, s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot write confdb view foo/bar/foo: ongoing transaction for %s/network`, s.devAccID))
 }
 
 func (s *confdbTestSuite) TestConfdbLoadDisconnectedCustodianSnap(c *C) {
@@ -1328,7 +1329,7 @@ func (s *confdbTestSuite) testConfdbLoadNoCustodian(c *C) {
 
 	// a non-custodian snap modifies a confdb
 	_, _, err = confdbstate.CreateLoadConfdbTasks(s.state, tx, view, []string{"ssid"}, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb through view %s/network/setup-wifi: no custodian snap connected", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot read confdb view %s/network/setup-wifi: no custodian snap connected", s.devAccID))
 }
 
 func checkLoadConfdbTasks(c *C, chg *state.Change, taskKinds []string, hooksups []*hookstate.HookSetup) {
@@ -1539,7 +1540,7 @@ func (s *confdbTestSuite) testReadConfdbFromSnap(c *C, ctx *hookstate.Context) *
 	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{s.devAccID: {"network": bag}})
 
 	view := s.dbSchema.View("setup-wifi")
-	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil)
+	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(s.state.Changes(), HasLen, 1)
 
@@ -1580,7 +1581,7 @@ func (s *confdbTestSuite) TestGetTransactionInConfdbHook(c *C) {
 	c.Assert(err, IsNil)
 
 	view := s.dbSchema.View("setup-wifi")
-	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil)
+	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
 	c.Assert(err, IsNil)
 	// reads synchronously without creating new change or tasks
 	c.Assert(s.state.Changes(), HasLen, 1)
@@ -1621,7 +1622,7 @@ func (s *confdbTestSuite) TestGetTransactionNoConfdbHooks(c *C) {
 	view := s.dbSchema.View("setup-wifi")
 	s.state.Unlock()
 	ctx.Lock()
-	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil)
+	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
 	ctx.Unlock()
 	s.state.Lock()
 	c.Assert(err, IsNil)
@@ -1665,9 +1666,16 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, nil, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb %s/network in change 1: timed out after 0s", s.devAccID))
+	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, nil, nil, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot read confdb view %s/network/setup-wifi: timed out \\(0s\\) waiting for change 1", s.devAccID))
 	c.Assert(tx, IsNil)
+
+	s.state.Unlock()
+	s.o.Settle(testutil.HostScaledTimeout(2 * time.Second))
+	s.state.Lock()
+
+	err = confdbstate.WriteConfdbFromSnap(ctx, view, nil, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb view %s/network/setup-wifi: timed out \\(0s\\) waiting for change 2", s.devAccID))
 }
 
 func (s *confdbTestSuite) checkGetConfdbTasks(c *C, chg *state.Change, executedHooks *[]string) {
@@ -1999,13 +2007,13 @@ func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C
 	// can't write an ephemeral path w/o a save-view hook
 	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{
 		"eph": "foo",
-	})
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot access %s/network/setup-wifi: write might change ephemeral data but no custodians has a save-view hook", s.devAccID))
+	}, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write confdb view %s/network/setup-wifi: write might change ephemeral data but no custodians has a save-view hook", s.devAccID))
 
 	// but we can if the path can't touch any ephemeral data
 	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{
 		"ssid": "foo",
-	})
+	}, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -2023,23 +2031,23 @@ func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) 
 	ctx.Lock()
 	view := s.dbSchema.View("setup-wifi")
 	// can't read an ephemeral path w/o a load-view hook
-	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"eph"}, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
+	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"eph"}, nil, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to read view %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
 
 	// so we don't block on the read
 	restore := confdbstate.MockTransactionTimeout(0)
 	defer restore()
 
 	// but if the path isn't ephemeral it's fine
-	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot load confdb %s/network in change 1: timed out after 0s", s.devAccID))
+	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot read confdb view %s: timed out \\(0s\\) waiting for change 1", view.ID()))
 	ctx.Unlock()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 	// can't read an ephemeral path w/o a load-view hook
 	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"eph"}, nil, confdb.AdminAccess)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to access %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot schedule tasks to read view %s/network/setup-wifi: read might cover ephemeral data but no custodian has a load-view hook", s.devAccID))
 
 	// but reading a non-ephemeral path succeeds
 	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"ssid"}, nil, confdb.AdminAccess)
@@ -2060,13 +2068,13 @@ func (s *confdbTestSuite) TestBadPathHookChecks(c *C) {
 	defer ctx.Unlock()
 	view := s.dbSchema.View("setup-wifi")
 
-	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"foo"}, nil)
+	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"foo"}, nil, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
 	_, err = confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"foo"}, nil, confdb.AdminAccess)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot get "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 
-	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"foo": "bar"})
+	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"foo": "bar"}, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot set "foo" through %s/network/setup-wifi: no matching rule`, s.devAccID))
 }
 
@@ -2574,7 +2582,7 @@ func (s *confdbTestSuite) TestSnapctlWriteOngoingRead(c *C) {
 
 	secondAccess := func() {
 		ctx.Lock()
-		err := confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"})
+		err := confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"}, nil)
 		ctx.Unlock()
 		c.Assert(err, IsNil)
 	}
@@ -2597,7 +2605,7 @@ func (s *confdbTestSuite) TestSnapctlReadOngoingWrite(c *C) {
 
 	secondAccess := func() {
 		ctx.Lock()
-		_, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil)
+		_, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
 		ctx.Unlock()
 		c.Assert(err, IsNil)
 	}
@@ -2691,10 +2699,64 @@ func (s *confdbTestSuite) TestSnapctlReadAndWriteUseHookTimeout(c *C) {
 	ctx.Lock()
 	defer ctx.Unlock()
 
-	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil)
+	_, err = confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot read %s: timed out waiting for access", view.ID()))
 
-	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"})
+	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"}, nil)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write %s: timed out waiting for access", view.ID()))
+}
+
+func (s *confdbTestSuite) TestConfdbFromSnapCustomTimeouts(c *C) {
+	s.state.Lock()
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": allHooks}, nil)
+	_, restore := s.mockConfdbHooks()
+	defer restore()
+
+	view := s.dbSchema.View("setup-wifi")
+
+	mockHandler := hooktest.NewMockHandler()
+	setup := &hookstate.HookSetup{Snap: "test-snap", Hook: "change-view-setup"}
+	hookCtx, err := hookstate.NewContext(nil, s.state, setup, mockHandler, "")
+	c.Assert(err, IsNil)
+
+	// set ongoing write transaction so the next one blocks
+	ref := s.devAccID + "/network"
+	ongoingTxs := make(map[string]*confdbstate.ConfdbTransactions)
+	ongoingTxs[ref] = &confdbstate.ConfdbTransactions{
+		WriteTxID: "10",
+	}
+	s.state.Set("confdb-ongoing-txs", ongoingTxs)
+	s.state.Unlock()
+
+	hookCtx.Lock()
+	defer hookCtx.Unlock()
+	t := time.Millisecond
+	opts := &client.ConfdbOptions{AccessTimeout: &t}
+
+	doneChan := make(chan struct{})
+	go func() {
+		_, err = confdbstate.ReadConfdbFromSnap(hookCtx, view, []string{"ssid"}, nil, opts)
+		close(doneChan)
+	}()
+
+	select {
+	case <-doneChan:
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
+		c.Fatal("expected access to block but timed out")
+	}
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot read %s: timed out waiting for access", view.ID()))
+
+	doneChan = make(chan struct{})
+	go func() {
+		err = confdbstate.WriteConfdbFromSnap(hookCtx, view, map[string]any{"ssid": "foo"}, opts)
+		close(doneChan)
+	}()
+
+	select {
+	case <-doneChan:
+	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
+		c.Fatal("expected access to block but timed out")
+	}
 	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot write %s: timed out waiting for access", view.ID()))
 }
 
@@ -2875,10 +2937,10 @@ func (s *confdbTestSuite) TestSnapctlConfdbErrorUnblocksNextAccess(c *C) {
 	var accErr error
 	for _, accFunc := range []func(){
 		func() {
-			_, accErr = confdbstate.ReadConfdbFromSnap(hookCtx, view, []string{"ssid"}, nil)
+			_, accErr = confdbstate.ReadConfdbFromSnap(hookCtx, view, []string{"ssid"}, nil, nil)
 		},
 		func() {
-			accErr = confdbstate.WriteConfdbFromSnap(hookCtx, view, map[string]any{"ssid": "foo"})
+			accErr = confdbstate.WriteConfdbFromSnap(hookCtx, view, map[string]any{"ssid": "foo"}, nil)
 		},
 	} {
 		accErr = nil
@@ -2975,7 +3037,7 @@ func (s *confdbTestSuite) TestReadConfdbFromSnapNoHooksToRun(c *C) {
 	doneChan := make(chan struct{})
 	go func() {
 		hookCtx.Lock()
-		tx, readErr = confdbstate.ReadConfdbFromSnap(hookCtx, view, []string{"ssid"}, nil)
+		tx, readErr = confdbstate.ReadConfdbFromSnap(hookCtx, view, []string{"ssid"}, nil, nil)
 		hookCtx.Unlock()
 		close(doneChan)
 	}()

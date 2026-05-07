@@ -294,7 +294,7 @@ func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
 		permitVM bool
 	}{
 		{false, false}, // default config
-		{true, true},   // modify default config to permit VM
+		{true, false},  // VM will trigger an ignore action
 	}
 
 	for _, tc := range testCases {
