@@ -469,8 +469,7 @@ func (s *AllSuite) TestAppArmorUnconfinedSlots(c *C) {
 
 func (s *AllSuite) TestPrioritizedSnippets(c *C) {
 	keys := apparmor.RegisteredSnippetKeys()
-	c.Assert(len(keys), Equals, 1)
-	c.Assert(keys, testutil.Contains, "desktop-file-access")
+	c.Assert(keys, testutil.DeepUnsortedMatches, []string{"desktop-file-access", "mount-info"})
 }
 
 type conflictsWithOtherConnectedInterfacesDefiner interface {

@@ -190,8 +190,6 @@ func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
   capability sys_admin,  # for mount
 
   owner @{PROC}/@{pid}/mounts r,
-  owner @{PROC}/@{pid}/mountinfo r,
-  owner @{PROC}/self/mountinfo r,
 
   /{,usr/}bin/mount ixr,
   /{,usr/}bin/umount ixr,
@@ -222,6 +220,7 @@ func (iface *usbGadgetInterface) AppArmorConnectedPlug(spec *apparmor.Specificat
 	}
 
 	spec.AddSnippet(usbGadgetSnippet.String())
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
 	return nil
 }
 
