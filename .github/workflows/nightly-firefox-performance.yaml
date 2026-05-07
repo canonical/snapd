@@ -26,7 +26,7 @@ jobs:
       run: |
         sudo snap install built-snap/snapd_1337.*.snap.keep --dangerous
         sudo snap install firefox
-        sudo apt install xvfb
+        sudo apt install -y xvfb
 
     - name: Run Firefox performance tests
       uses: ./.github/actions/run-firefox-performance-tests
@@ -50,7 +50,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo snap install firefox
-        sudo apt install xvfb
+        sudo apt install -y xvfb
 
     - name: Run Firefox performance tests
       uses: ./.github/actions/run-firefox-performance-tests
