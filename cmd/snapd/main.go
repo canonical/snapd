@@ -56,15 +56,15 @@ func init() {
 }
 
 func main() {
-	// Set up security logging via the audit subsystem.
-	teardownSecurityLogging := setupSecurityLogging()
-
 	// When preseeding re-exec is not used
 	if snapdenv.Preseeding() {
 		logger.Noticef("running for preseeding")
 	} else {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
+
+	// Set up security logging via the audit subsystem.
+	teardownSecurityLogging := setupSecurityLogging()
 
 	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
 
