@@ -1,4 +1,4 @@
-component: test-snapctl-async+comp1
+component: test-snapctl-async+test-comp
 type: standard
 version: 1.0
 summary: Test component for snapctl async functionality

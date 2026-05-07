@@ -18,7 +18,7 @@ prepare: |
   snap pack test-snapctl-async/
   snap pack test-comp/
   snap install --dangerous test-snapctl-async_1.0_all.snap
-  snap install --dangerous "test-snapctl-async+comp_1.0.comp"
+  snap install --dangerous "test-snapctl-async+test-comp_1.0.comp"
 
 restore: |
   snap remove --purge test-snapctl-async || true
@@ -26,35 +26,46 @@ restore: |
 execute: |
   # snapctl --no-wait and is-ready tests
   echo "Verify component is installed before removal"
-  snap components test-snapctl-async | MATCH 'test-snapctl-async\+comp\s+installed'
+  snap components test-snapctl-async | MATCH 'test-snapctl-async\+test-comp\s+installed'
 
   echo "Remove comp via snapctl --no-wait, capturing change ID from stdout"
-  CHANGE_ID_1=$(snap run --shell test-snapctl-async.app -c 'snapctl remove +comp --no-wait')
-  test -n "$CHANGE_ID_1"
+  CHANGE_ID=$(snap run --shell test-snapctl-async.app -c 'snapctl remove +test-comp --no-wait')
+  test -n "$CHANGE_ID"
 
   echo "is-ready returns 1 while the change is still in progress"
-  snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID_1" || test $? -eq 1
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID" || test $? -eq 1
 
-  echo "Query tasks while comp removal is in progress ($CHANGE_ID_1)"
-  OUTPUT=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $CHANGE_ID_1")
+  echo "Query tasks while test-comp removal is in progress ($CHANGE_ID)"
+  OUTPUT=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $CHANGE_ID")
   echo "$OUTPUT" | MATCH "Status"
   echo "$OUTPUT" | NOMATCH "Done"
 
-  rm -rf test-comp/comp-removed   # hook needs to be removed to trigger change completion
+  touch /tmp/comp-removed   # hook needs to be removed to trigger change completion
 
-  sleep 5 # ensure the remove hook has time to run and mark the change as completed
+  echo "Wait for change to complete"
+  while true; do
+    snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID"
+    EXIT_CODE=$?
+    if [ "$EXIT_CODE" -eq 0 ]; then
+      echo "Change $CHANGE_ID is ready."
+      break
+    elif [ "$EXIT_CODE" -ge 2 ]; then
+      echo "Change $CHANGE_ID completed with error (exit $EXIT_CODE)"
+      return 1
+    fi
+  done
 
   echo "is-ready returns 0 for already-completed change"
-  snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID_1"
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID"
 
-  echo "Query tasks for completed change ($CHANGE_ID_1)"
-  OUTPUT=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $CHANGE_ID_1")
+  echo "Query tasks for completed change ($CHANGE_ID)"
+  OUTPUT=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $CHANGE_ID")
   echo "$OUTPUT" | MATCH "Status"
   echo "$OUTPUT" | MATCH "Done"
 
   echo "is-ready error cases"
   snap run --shell test-snapctl-async.app -c "snapctl is-ready nonexistent-id" || test $? -eq 3
   not snap run --shell test-snapctl-async.app -c "snapctl is-ready"
-  not snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID_1 extra-arg"
+  not snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID extra-arg"
   INSTALL_CHANGE_ID=$(snap install --no-wait test-snapd-tools)
   snap run --shell test-snapctl-async.app -c "snapctl is-ready $INSTALL_CHANGE_ID" || test $? -eq 3
