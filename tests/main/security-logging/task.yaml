@@ -8,6 +8,20 @@ details: |
     an "authn_login_success" event in the audit log.
 
 prepare: |
+    # Enable the kernel audit subsystem if it isn't already enabled.
+    python3 -c "
+    import socket, struct
+    NETLINK_AUDIT = 9
+    AUDIT_SET = 1001
+    NLM_F_REQUEST = 1
+    # audit_status struct: mask=1 (AUDIT_STATUS_ENABLED), enabled=1, rest zeroed
+    status = struct.pack('IIIIIIiii', 1, 1, 0, 0, 0, 0, 0, 0, 0)
+    hdr = struct.pack('IHHII', 16 + len(status), AUDIT_SET, NLM_F_REQUEST, 1, 0)
+    s = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_AUDIT)
+    s.sendto(hdr + status, (0, 0))
+    s.close()
+    "
+
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
         systemctl stop systemd-journald.service
