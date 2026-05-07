@@ -1252,8 +1252,12 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeGadget
 	case "core":
 		info.SnapType = snap.TypeOS
+	case "core16":
+		info.SnapType = snap.TypeBase
 	case "snapd":
 		info.SnapType = snap.TypeSnapd
+	case "some-base":
+		info.SnapType = snap.TypeBase
 	case "app-snap-with-components":
 		info.Components = map[string]*snap.Component{
 			"standard-component": {

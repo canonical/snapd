@@ -31,7 +31,7 @@ type basePolicy struct {
 	modelBase string
 }
 
-func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device) error {
+func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev snap.Revision, dev snap.Device, removals map[string]bool) error {
 	name := snapst.InstanceName()
 	if name == "" {
 		// not installed, or something. What are you even trying to do.
@@ -64,11 +64,28 @@ func (p *basePolicy) CanRemove(st *state.State, snapst *snapstate.SnapState, rev
 	}
 
 	// here we use that bases can't be instantiated (InstanceName == SnapName always)
-	usedBy, err := baseUsedBy(st, name)
-	if len(usedBy) == 0 || err != nil {
+	return validateBaseOnlyUsedByRemoved(st, name, removals)
+}
+
+// validateBaseOnlyUsedByRemoved checks that the base is only used by snaps
+// being removed alongside it.
+func validateBaseOnlyUsedByRemoved(st *state.State, baseName string, removals map[string]bool) error {
+	usedBy, err := baseUsedBy(st, baseName)
+	if err != nil {
 		return err
 	}
-	return inUseByErr(usedBy)
+
+	var usedByAndNotRemoved []string
+	for _, snap := range usedBy {
+		if !removals[snap] {
+			usedByAndNotRemoved = append(usedByAndNotRemoved, snap)
+		}
+	}
+
+	if len(usedByAndNotRemoved) > 0 {
+		return inUseByErr(usedByAndNotRemoved)
+	}
+	return nil
 }
 
 func baseUsedBy(st *state.State, baseName string) ([]string, error) {

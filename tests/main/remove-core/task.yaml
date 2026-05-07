@@ -10,7 +10,11 @@ details: |
     If snapd is not installed as a snap, then we can't remove the core snap
     since it might be providing snapd.
 
-systems: [ubuntu-22.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+
+prepare: |
+    # Install a snap which has core24 base
+    "$TESTSTOOLS"/snaps-state install-local test-snap
 
 execute: |
     # ensure snapd snap is installed
@@ -21,6 +25,14 @@ execute: |
     # we should be able to remove the core snap, since the snapd snap is
     # installed.
     snap remove core
+
+    # removing core24 should fail since test-snap uses it
+    not snap remove core24 2> stderr.out
+    MATCH 'error: cannot remove "core24": snap "core24" is not removable: snap is being$' < stderr.out
+    MATCH 'used by snap test-snap.' < stderr.out
+
+    # we should be able to remove core24 snap with the snap that uses it
+    snap remove test-snap core24
 
     # there should be no more snaps, so we can remove snapd
     snap remove snapd
