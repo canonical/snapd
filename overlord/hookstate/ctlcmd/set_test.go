@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -412,7 +413,7 @@ func parsePath(c *C, path string) []confdb.Accessor {
 
 func (s *confdbSuite) TestConfdbSetSingleViewNewTransaction(c *C) {
 	var called bool
-	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any, _ *client.ConfdbOptions) error {
 		called = true
 		c.Assert(values, DeepEquals, map[string]any{
 			"ssid": "other-ssid",
@@ -429,7 +430,7 @@ func (s *confdbSuite) TestConfdbSetSingleViewNewTransaction(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbSetManyViews(c *C) {
-	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any, _ *client.ConfdbOptions) error {
 		c.Assert(values, DeepEquals, map[string]any{
 			"ssid":     "other-ssid",
 			"password": "other-secret",
@@ -470,7 +471,7 @@ func (s *confdbSuite) TestConfdbSetInvalid(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbSetExclamationMark(c *C) {
-	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any, _ *client.ConfdbOptions) error {
 		c.Assert(values, DeepEquals, map[string]any{"password": nil})
 		return nil
 	})
@@ -486,7 +487,7 @@ func (s *confdbSuite) TestConfdbModifyHooks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+	restore := ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any, _ *client.ConfdbOptions) error {
 		c.Assert(values, DeepEquals, map[string]any{"password": "thing"})
 		return nil
 	})

@@ -93,6 +93,10 @@
     /sys/fs/cgroup/ r,
     /sys/fs/cgroup/** r,
 
+    # required by glibc and usually provided by <abstractions/base>
+    /sys/kernel/mm/transparent_hugepage/enabled r,
+    /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+
     # cgroup: reading own cgroup
     @{PROC}/@{pid}/cgroup r,
 

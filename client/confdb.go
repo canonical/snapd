@@ -25,9 +25,14 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 )
 
-func (c *Client) ConfdbGetViaView(viewID string, requests []string, constraints map[string]any) (changeID string, err error) {
+type ConfdbOptions struct {
+	AccessTimeout *time.Duration
+}
+
+func (c *Client) ConfdbGetViaView(viewID string, requests []string, constraints map[string]any, opts *ConfdbOptions) (changeID string, err error) {
 	query := url.Values{}
 	query.Add("keys", strings.Join(requests, ","))
 
@@ -40,16 +45,25 @@ func (c *Client) ConfdbGetViaView(viewID string, requests []string, constraints 
 		query.Add("constraints", string(data))
 	}
 
+	if opts != nil && opts.AccessTimeout != nil {
+		query.Add("access-timeout", opts.AccessTimeout.String())
+	}
+
 	endpoint := fmt.Sprintf("/v2/confdb/%s", viewID)
 	return c.doAsync("GET", endpoint, query, nil, nil)
 }
 
-func (c *Client) ConfdbSetViaView(viewID string, requestValues map[string]any) (changeID string, err error) {
-	type setBody struct {
-		Values map[string]any `json:"values"`
+func (c *Client) ConfdbSetViaView(viewID string, values map[string]any, opts *ConfdbOptions) (changeID string, err error) {
+	body := map[string]any{
+		"values": values,
 	}
 
-	body := setBody{Values: requestValues}
+	if opts != nil && opts.AccessTimeout != nil {
+		body["options"] = map[string]any{
+			"access-timeout": opts.AccessTimeout.String(),
+		}
+	}
+
 	bodyRaw, err := json.Marshal(body)
 	if err != nil {
 		return "", err

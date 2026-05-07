@@ -21,9 +21,12 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -54,6 +57,7 @@ type cmdUnset struct {
 		Snap     installedSnapName
 		ConfKeys []string `required:"1"`
 	} `positional-args:"yes" required:"yes"`
+	WaitFor string `long:"wait-for"`
 }
 
 func init() {
@@ -61,7 +65,11 @@ func init() {
 		longUnsetHelp += longConfdbUnsetHelp
 	}
 
-	addCommand("unset", shortUnsetHelp, longUnsetHelp, func() flags.Commander { return &cmdUnset{} }, waitDescs, []argDesc{
+	addCommand("unset", shortUnsetHelp, longUnsetHelp, func() flags.Commander { return &cmdUnset{} }, waitDescs.also(
+		map[string]string{
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"wait-for": i18n.G("Maximum duration to wait for confdb access (e.g. 10s)"),
+		}), []argDesc{
 		{
 			name: "<snap>",
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -100,8 +108,24 @@ func (x *cmdUnset) Execute(args []string) error {
 			return err
 		}
 
-		id, err = x.client.ConfdbSetViaView(confdbViewID, patchValues)
+		var opts *client.ConfdbOptions
+		if x.WaitFor != "" {
+			timeout, err := time.ParseDuration(x.WaitFor)
+			if err != nil {
+				return fmt.Errorf("cannot parse --wait-for value %s: %v", x.WaitFor, err)
+			}
+
+			opts = &client.ConfdbOptions{
+				AccessTimeout: &timeout,
+			}
+		}
+
+		id, err = x.client.ConfdbSetViaView(confdbViewID, patchValues, opts)
 	} else {
+		if x.WaitFor != "" {
+			return fmt.Errorf("cannot use --wait-for in non-confdb write")
+		}
+
 		id, err = x.client.SetConf(snapName, patchValues)
 	}
 

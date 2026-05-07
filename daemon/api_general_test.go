@@ -43,9 +43,12 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -950,9 +953,9 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, []*daemon.ChangeInfo(nil))
+	c.Assert(rsp.Result, check.FitsTypeOf, []*ctlcmd.ChangeInfo(nil))
 
-	res := rsp.Result.([]*daemon.ChangeInfo)
+	res := rsp.Result.([]*ctlcmd.ChangeInfo)
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `install`)
 
@@ -986,9 +989,9 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 
 	// Verify
 	c.Check(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, []*daemon.ChangeInfo(nil))
+	c.Assert(rsp.Result, check.FitsTypeOf, []*ctlcmd.ChangeInfo(nil))
 
-	res := rsp.Result.([]*daemon.ChangeInfo)
+	res := rsp.Result.([]*ctlcmd.ChangeInfo)
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `service-control`)
 
@@ -997,6 +1000,8 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	c.Assert(rec.Code, check.Equals, 200)
 }
 
+// This test relies on ctlcmd.StateChangeToChangeInfo(), which was moved from
+// the daemon package to the ctlcmd package.
 func (s *generalSuite) TestStateChange(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
@@ -1006,27 +1011,26 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 	st.Lock()
-	ids := setupChanges(st)
-	chg := st.Change(ids[0])
-	chg.Set("api-data", map[string]int{"n": 42})
+
+	chg1 := st.NewChange("install", "install...")
+	chg1.Set("snap-names", []string{"funky-snap-name"})
+	t1 := st.NewTask("download", "1...")
+	t1.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{RealName: "some-snap"}})
+	chg1.AddTask(t1)
+	t1.Logf("l11")
+	t1.Logf("l12")
+
+	t2 := st.NewTask("activate", "2...")
+	chg1.AddTask(t2)
+	// Setting 'snap-setup' to something that cant be parsed allows us to test that missing data is ignored
+	// and doesn't cause the whole task to be missing from the output
+	t2.Set("snap-setup", "some-snap")
+
+	chg1.Set("api-data", map[string]int{"n": 42})
 	st.Unlock()
 
-	restore = daemon.MockSnapstateSnapsAffectedByTask(func(t *state.Task) ([]string, error) {
-		switch t.Kind() {
-		case "download":
-			// Mock affected snaps
-			return []string{"some-snap"}, nil
-		case "activate":
-			// Error should be ignored
-			return nil, fmt.Errorf("boom")
-		default:
-			return nil, nil
-		}
-	})
-	defer restore()
-
 	// Execute
-	req, err := http.NewRequest("GET", "/v2/changes/"+ids[0], nil)
+	req, err := http.NewRequest("GET", "/v2/changes/"+chg1.ID(), nil)
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
 	rec := httptest.NewRecorder()
@@ -1041,7 +1045,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
 	c.Check(body["result"], check.DeepEquals, map[string]any{
-		"id":         ids[0],
+		"id":         chg1.ID(),
 		"kind":       "install",
 		"summary":    "install...",
 		"status":     "Do",
@@ -1049,7 +1053,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 		"spawn-time": "2016-04-21T01:02:03Z",
 		"tasks": []any{
 			map[string]any{
-				"id":         ids[2],
+				"id":         t1.ID(),
 				"kind":       "download",
 				"summary":    "1...",
 				"status":     "Do",
@@ -1059,7 +1063,7 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 				"data":       map[string]any{"affected-snaps": []any{"some-snap"}},
 			},
 			map[string]any{
-				"id":         ids[3],
+				"id":         t2.ID(),
 				"kind":       "activate",
 				"summary":    "2...",
 				"status":     "Do",

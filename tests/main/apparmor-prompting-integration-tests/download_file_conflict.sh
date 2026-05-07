@@ -15,18 +15,27 @@ mkdir -p "${TEST_DIR}/Downloads"
 touch "${TEST_DIR}/Downloads/existing.txt"
 
 echo "Attempt to list the contents of the downloads directory"
-if ! snap run --shell prompting-client.scripted -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
+if ! snap run --shell prompt-requester.home -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
 	echo "Failed to list contents of ${TEST_DIR}/Downloads"
 	exit 1
 fi
 
 echo "Attempt to write the file, to which the client should reply with a conflicting rule and exit with error"
-snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/Downloads/test.txt"
+snap run --shell prompt-requester.home -c "echo it is written > ${TEST_DIR}/Downloads/test.txt" || true
 
 echo "Don't attempt to chmod the file after it has been written, since the client should have exited"
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
+for i in $(seq "$TIMEOUT") ; do
+	if ! pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+		break
+	fi
+	sleep 1
+done
+if pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+	echo "prompting-client.scripted still running"
+	exit 1
+fi
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 

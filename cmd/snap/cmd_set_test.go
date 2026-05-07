@@ -261,7 +261,7 @@ func (s *confdbSuite) TestConfdbSetMany(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *confdbSuite) TestConfdbSetInvalidAspectID(c *check.C) {
+func (s *confdbSuite) TestConfdbSetInvalidID(c *check.C) {
 	restore := s.mockConfdbFlag(c)
 	defer restore()
 
@@ -321,4 +321,66 @@ func (s *confdbSuite) TestSetEmptyKey(c *check.C) {
 
 	_, err = snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "="})
 	c.Assert(err, check.ErrorMatches, "configuration keys cannot be empty")
+}
+
+func (s *confdbSuite) TestConfdbSetWaitFor(c *check.C) {
+	restore := s.mockConfdbFlag(c)
+	defer restore()
+
+	var reqs int
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch reqs {
+		case 0:
+			c.Check(r.Method, check.Equals, "PUT")
+			c.Check(r.URL.Path, check.Equals, "/v2/confdb/foo/bar/baz")
+
+			raw, err := io.ReadAll(r.Body)
+			c.Assert(err, check.IsNil)
+
+			var body struct {
+				Values  map[string]any `json:"values"`
+				Options struct {
+					AccessTimeout string `json:"access-timeout"`
+				} `json:"options"`
+			}
+
+			c.Assert(json.Unmarshal(raw, &body), check.IsNil)
+			c.Check(body.Values, check.DeepEquals, map[string]any{"abc": "cba"})
+			c.Check(body.Options.AccessTimeout, check.Equals, "5s")
+
+			w.WriteHeader(202)
+			fmt.Fprintln(w, asyncResp)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/123")
+			fmt.Fprintf(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}\n`)
+		default:
+			err := fmt.Errorf("expected to get 2 requests, now on %d (%v)", reqs+1, r)
+			w.WriteHeader(500)
+			fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+			c.Error(err)
+		}
+
+		reqs++
+	})
+
+	rest, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "foo/bar/baz", `abc="cba"`, "--wait-for", "5s"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.HasLen, 0)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *confdbSuite) TestForbidWaitForWithNonConfdbSet(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		err := fmt.Errorf("expected to get no requests (%v)", r)
+		w.WriteHeader(500)
+		fmt.Fprintf(w, `{"type": "error", "result": {"message": %q}}`, err)
+		c.Error(err)
+	})
+
+	_, err := snapset.Parser(snapset.Client()).ParseArgs([]string{"set", "some-snap", "abc=1", "--wait-for", "5s"})
+	c.Assert(err, check.ErrorMatches, "cannot use --wait-for in non-confdb write")
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
 }

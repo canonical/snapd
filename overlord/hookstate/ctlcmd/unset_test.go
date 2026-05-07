@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -163,7 +164,7 @@ func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbUnsetManyViews(c *C) {
-	ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any) error {
+	ctlcmd.MockConfdbstateWriteConfdb(func(_ *hookstate.Context, _ *confdb.View, values map[string]any, _ *client.ConfdbOptions) error {
 		c.Assert(values, DeepEquals, map[string]any{
 			"ssid":     nil,
 			"password": nil,

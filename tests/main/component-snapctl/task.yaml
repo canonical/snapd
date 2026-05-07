@@ -22,3 +22,27 @@ execute: |
 
   snap set test-snap-components-snapctl command="remove +one+two"
   test ! -d "$SNAP_MOUNT_DIR"/test-snap-components-snapctl/components/
+
+  echo "Check already installed snap exits with code 0"
+  snap run --shell test-snap-components-snapctl -c "snapctl install +one" 1>stdout.out 2>stderr.out
+  test ! -s stdout.out
+  test ! -s stderr.out
+  snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+one\s+installed\s+test"
+  snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+two\s+available\s+test"
+
+  snap run --shell test-snap-components-snapctl -c "snapctl install +one" 1>stdout.out 2>stderr.out
+  test ! -s stdout.out
+  MATCH "snapctl: component \"one\" is already installed" < stderr.out
+
+  echo "Check new component can be installed when listed with already installed component"
+  snap run --shell test-snap-components-snapctl -c "snapctl install +one +two" 1>stdout.out 2>stderr.out
+  test ! -s stdout.out
+  MATCH "snapctl: component \"one\" is already installed" < stderr.out
+  snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+one\s+installed\s+test"
+  snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+two\s+installed\s+test"
+
+  snap run --shell test-snap-components-snapctl -c "snapctl install +one +two" 1>stdout.out 2>stderr.out
+  test ! -s stdout.out
+  MATCH "snapctl: component \"one\" is already installed" < stderr.out
+  MATCH "snapctl: component \"two\" is already installed" < stderr.out
+

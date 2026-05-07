@@ -23,7 +23,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -31,7 +33,8 @@ import (
 
 type unsetCommand struct {
 	baseCommand
-	View bool `long:"view" description:"unset confdb values in the view declared in the plug"`
+	View    bool   `long:"view" description:"unset confdb values in the view declared in the plug"`
+	WaitFor string `long:"wait-for" description:"maximum duration to wait for confdb access (e.g. 10s)"`
 
 	Positional struct {
 		ConfKeys []string
@@ -111,5 +114,19 @@ func (s *unsetCommand) Execute(args []string) error {
 		confs[key] = nil
 	}
 
-	return setConfdbValues(context, plugName, confs)
+	opts := &client.ConfdbOptions{}
+	if s.WaitFor != "" {
+		timeout, err := time.ParseDuration(s.WaitFor)
+		if err != nil {
+			return fmt.Errorf("cannot parse --wait-for value %s: %v", s.WaitFor, err)
+		}
+
+		if timeout < 0 {
+			return fmt.Errorf("--wait-for value must be non-negative")
+		}
+
+		opts.AccessTimeout = &timeout
+	}
+
+	return setConfdbValues(context, plugName, confs, opts)
 }

@@ -23,7 +23,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/url"
+	"time"
 
+	"github.com/snapcore/snapd/client"
 	. "gopkg.in/check.v1"
 )
 
@@ -35,7 +37,7 @@ func (cs *clientSuite) TestConfdbGet(c *C) {
 		"type": "async"
 	}`
 
-	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"}, nil)
+	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo", "bar"}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chgID, Equals, "123")
 	c.Check(cs.reqs[0].Method, Equals, "GET")
@@ -52,7 +54,7 @@ func (cs *clientSuite) TestConfdbGetWithConstraints(c *C) {
 	}`
 
 	constraints := map[string]any{"bar": "value1", "baz": "value2"}
-	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo"}, constraints)
+	chgID, err := cs.cli.ConfdbGetViaView("a/b/c", []string{"foo"}, constraints, nil)
 	c.Assert(err, IsNil)
 	c.Assert(chgID, Equals, "123")
 	c.Assert(cs.reqs[0].Method, Equals, "GET")
@@ -72,7 +74,12 @@ func (cs *clientSuite) TestConfdbSet(c *C) {
 	cs.status = 202
 	cs.rsp = `{"type": "async", "status-code": 202, "change": "123"}`
 
-	chgID, err := cs.cli.ConfdbSetViaView("a/b/c", map[string]any{"foo": "bar", "baz": json.Number("1")})
+	timeout := 10 * time.Second
+	opts := &client.ConfdbOptions{
+		AccessTimeout: &timeout,
+	}
+
+	chgID, err := cs.cli.ConfdbSetViaView("a/b/c", map[string]any{"foo": "bar", "baz": json.Number("1")}, opts)
 	c.Check(err, IsNil)
 	c.Check(chgID, Equals, "123")
 	c.Assert(cs.reqs, HasLen, 1)
@@ -86,5 +93,5 @@ func (cs *clientSuite) TestConfdbSet(c *C) {
 	res := make(map[string]any)
 	err = json.Unmarshal(data, &res)
 	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, map[string]any{"values": map[string]any{"foo": "bar", "baz": float64(1)}})
+	c.Check(string(data), Equals, `{"options":{"access-timeout":"10s"},"values":{"baz":1,"foo":"bar"}}`)
 }

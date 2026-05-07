@@ -9,10 +9,19 @@ if [ -z "$TIMEOUT" ] ; then
 fi
 
 echo "Attempt to write the file"
-snap run --shell prompting-client.scripted -c "echo it is written > ${TEST_DIR}/test.txt"
+snap run --shell prompt-requester.home -c "echo it is written > ${TEST_DIR}/test.txt"
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
+for i in $(seq "$TIMEOUT") ; do
+	if ! pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+		break
+	fi
+	sleep 1
+done
+if pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+	echo "prompting-client.scripted still running"
+	exit 1
+fi
 
 CLIENT_OUTPUT="$(cat "${TEST_DIR}/result")"
 

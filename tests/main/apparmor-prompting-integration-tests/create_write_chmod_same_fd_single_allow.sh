@@ -11,7 +11,7 @@ if [ -z "$TIMEOUT" ] ; then
 fi
 
 echo "Compile a simple Go program to make syscalls for us"
-HELPER_PATH="$(snap run --shell prompting-client.scripted -c 'echo $HOME')/create-write-chmod"
+HELPER_PATH="$(snap run --shell prompt-requester.home -c 'echo $HOME')/create-write-chmod"
 cat > "${HELPER_PATH}.go" <<EOF
 package main
 
@@ -42,10 +42,19 @@ EOF
 go build -o "${HELPER_PATH}" "${HELPER_PATH}.go"
 
 echo "Create, write, and chmod the file"
-snap run --shell prompting-client.scripted -c "${HELPER_PATH} ${TEST_DIR}/test.txt"
+snap run --shell prompt-requester.home -c "${HELPER_PATH} ${TEST_DIR}/test.txt"
 
 # Wait for the client to write its result and exit
-timeout "$TIMEOUT" sh -c "while pgrep -f 'prompting-client.scripted.*${TEST_DIR}' > /dev/null; do sleep 0.1; done"
+for i in $(seq "$TIMEOUT") ; do
+	if ! pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+		break
+	fi
+	sleep 1
+done
+if pgrep -af "prompting-client.scripted.*${TEST_DIR}" ; then
+	echo "prompting-client.scripted still running"
+	exit 1
+fi
 
 # Clean up the helper program
 rm -f "${HELPER_PATH}"

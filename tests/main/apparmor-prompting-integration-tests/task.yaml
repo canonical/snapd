@@ -14,6 +14,9 @@ systems:
   - ubuntu-2*
 
 environment:
+    VARIANT/audio_record_single: audio_record_single
+    VARIANT/audio_record_timespan_allow: audio_record_timespan_allow
+    VARIANT/audio_record_timespan_deny: audio_record_timespan_deny
     VARIANT/create_multiple_actioned_by_other_pid_always_allow: create_multiple_actioned_by_other_pid_always_allow
     VARIANT/create_multiple_actioned_by_other_pid_always_deny: create_multiple_actioned_by_other_pid_always_deny
     VARIANT/create_multiple_allow: create_multiple_allow
@@ -79,8 +82,14 @@ prepare: |
     tests.cleanup defer rm -rf /home/test/integration-tests
     snap install prompting-client
 
+    "$TESTSTOOLS"/snaps-state install-local prompt-requester
+    snap connect "prompt-requester:audio-record"
+
 restore: |
     snap set system experimental.apparmor-prompting=false
+
+    echo "Remove any listener ID, request mappings, prompts, and rules"
+    rm -rf /{run,var/lib}/snapd/interfaces-requests
 
 debug: |
     uname -a
@@ -151,7 +160,7 @@ execute: |
     fi
 
     echo "Run the test script as the test user"
-    if ! tests.session -u test exec sh -x "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" "$TIMEOUT"; then
+    if ! tests.session -u test exec sh -xe "${TEST_DIR}/${VARIANT}.sh" "$TEST_DIR" "$TIMEOUT"; then
         # Test script exited early with error, so the prompting client may still
         # be running, waiting for further requests, so it should be killed.
         pkill -f "prompting-client-scripted.*${TEST_DIR}"

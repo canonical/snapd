@@ -30,6 +30,6 @@ func NewNopLogger() SecurityLogger {
 	return nopLogger{}
 }
 
-// LogAny implements [SecurityLogger.LogAny].
-func (nopLogger) LogAny(event Event, description string, attrs ...Attr) {
+// LogEvent implements [SecurityLogger.LogEvent].
+func (nopLogger) LogEvent(event Event, description string, attrs ...Attr) {
 }
