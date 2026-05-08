@@ -40,7 +40,8 @@ execute: |
   echo "$OUTPUT" | MATCH "Status"
   echo "$OUTPUT" | NOMATCH "Done"
 
-  touch /tmp/comp-removed   # hook needs to be removed to trigger change completion
+  # hook needs to be created to trigger change completion
+  snap run --shell test-snapctl-async.app -c "touch /tmp/filename"
 
   echo "Wait for change to complete"
   while true; do
