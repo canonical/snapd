@@ -20,11 +20,15 @@
 package main
 
 import (
+	"io"
 	"time"
+
+	"github.com/snapcore/snapd/seclog"
 )
 
 var (
-	Run = run
+	Run                  = run
+	SetupSecurityLogging = setupSecurityLogging
 )
 
 func MockSyscheckCheckSystem(f func() error) (restore func()) {
@@ -40,5 +44,21 @@ func MockCheckRunningConditionsRetryDelay(d time.Duration) (restore func()) {
 	checkRunningConditionsRetryDelay = d
 	return func() {
 		checkRunningConditionsRetryDelay = oldCheckRunningConditionsRetryDelay
+	}
+}
+
+func MockOpenAuditWriter(f func() (*seclog.AuditWriter, error)) (restore func()) {
+	oldOpenAuditWriter := openAuditWriter
+	openAuditWriter = f
+	return func() {
+		openAuditWriter = oldOpenAuditWriter
+	}
+}
+
+func MockNewSlogLogger(f func(io.Writer, string, seclog.Level) seclog.SecurityLogger) (restore func()) {
+	oldNewSlogLogger := newSlogLogger
+	newSlogLogger = f
+	return func() {
+		newSlogLogger = oldNewSlogLogger
 	}
 }
