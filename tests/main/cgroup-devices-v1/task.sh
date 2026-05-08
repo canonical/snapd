@@ -74,6 +74,11 @@ test 'c 1:3 rwm' = "$(head -n 1 "/sys/fs/cgroup/devices/snap.test-snapd-service.
 # The device cgroup made by snapd is, currently, still empty.
 test -z "$(cat "/sys/fs/cgroup/devices/snap.test-snapd-service.test-snapd-service/cgroup.procs")"
 
+echo "Verify snap debug device-cgroup devices shows the allowed devices (v1)"
+snap debug device-cgroup devices test-snapd-service > device-cgroup-devices.out
+MATCH 'Security tag: snap\.test-snapd-service\.test-snapd-service' < device-cgroup-devices.out
+MATCH 'c +1:3 +rwm +/dev/null' < device-cgroup-devices.out
+
 echo "Restart the test service"
 # See the comment for the similar code above.
 touch /var/snap/test-snapd-service/common/remove-me
