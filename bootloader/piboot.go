@@ -241,12 +241,9 @@ func (p *piboot) Reconfigure() error {
 	if err != nil {
 		return err
 	}
-	if env.Get("snapd_recovery_mode") == "run" && env.Get("kernel_status") != "try" {
-		trybootPath := filepath.Join(ubuntuSeedDir, "tryboot.txt")
-		if err := os.Remove(trybootPath); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("cannot remove %s: %v", trybootPath, err)
-		}
-	}
+	// Reconfigure only regenerates the config selected by the persisted boot
+	// state. Leaving try mode and removing tryboot.txt is handled when
+	// SetBootVars clears snap_try_kernel.
 	return p.loadAndApplyConfig(env)
 }
 
