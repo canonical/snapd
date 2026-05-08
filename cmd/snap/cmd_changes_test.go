@@ -27,8 +27,8 @@ import (
 
 	"gopkg.in/check.v1"
 
-	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/client"
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 var mockChangeJSON = `{"type": "sync", "result": {
