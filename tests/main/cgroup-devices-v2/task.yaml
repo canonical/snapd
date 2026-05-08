@@ -108,6 +108,10 @@ execute: |
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_sh > device-access.map-app
 
+    echo "Verify snap debug device-cgroup devices shows the allowed devices for the app"
+    snap debug device-cgroup devices test-snapd-service > device-cgroup-devices.out
+    MATCH 'c +1:3 +rwm +/dev/null' < device-cgroup-devices.out
+
     # NOTE: the actual permissions may drift over time. We just care about the fact
     # that there *are* some constraints here now and there were none before.
     echo "Verify the constraints in device cgroup imposed by snapd on the snap application"
@@ -132,6 +136,10 @@ execute: |
     test -e /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service > device-access.map-service
+
+    echo "Verify snap debug device-cgroup devices also shows the service's allowed devices"
+    snap debug device-cgroup devices test-snapd-service > device-cgroup-devices-service.out
+    MATCH 'c +1:3 +rwm +/dev/null' < device-cgroup-devices-service.out
 
     # we use a hash map, and there may be a random element introduced affecting
     # the ordering, so just verify the basics
