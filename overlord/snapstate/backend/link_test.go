@@ -1234,6 +1234,44 @@ func (s *linkSuite) TestStartServices(c *C) {
 	c.Assert(called, Equals, 1)
 }
 
+func (s *linkSuite) TestStartServicesSortsServices(c *C) {
+	var sortedNames []string
+	restore := backend.MockWrappersStartServices(func(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error {
+		sortedNames = make([]string, len(apps))
+		for i, app := range apps {
+			sortedNames[i] = app.Name
+		}
+		return nil
+	})
+	defer restore()
+
+	svc1 := &snap.AppInfo{Name: "svc1", Before: []string{"svc3"}}
+	svc2 := &snap.AppInfo{Name: "svc2", After: []string{"svc1"}}
+	svc3 := &snap.AppInfo{Name: "svc3", Before: []string{"svc2"}}
+
+	// pass in unsorted order
+	apps := []*snap.AppInfo{svc1, svc2, svc3}
+	err := s.be.StartServices(apps, nil, progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	// wrappers.StartServices should receive them sorted
+	c.Check(sortedNames, DeepEquals, []string{"svc1", "svc3", "svc2"})
+}
+
+func (s *linkSuite) TestStartServicesFailsOnCycle(c *C) {
+	restore := backend.MockWrappersStartServices(func(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error {
+		c.Fatal("wrappers.StartServices should not be called when sorting fails")
+		return nil
+	})
+	defer restore()
+
+	svc1 := &snap.AppInfo{Name: "svc1", After: []string{"svc2"}}
+	svc2 := &snap.AppInfo{Name: "svc2", After: []string{"svc1"}}
+
+	apps := []*snap.AppInfo{svc1, svc2}
+	err := s.be.StartServices(apps, nil, progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, "applications are part of a before/after cycle: .*")
+}
+
 type nullUndoer struct{}
 
 func (nu nullUndoer) AddUndo(f func() error) {}
