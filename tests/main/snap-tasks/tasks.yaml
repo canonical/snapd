@@ -1,26 +1,23 @@
 summary: Check that `snap tasks` works as expected.
 
 details: |
-  Verifies that the command `snap tasks` properly lists the tasks
-  associated with a change. Also check the error scenarios.
-
-systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
+    Verifies that the command 'snap tasks' properly lists the tasks
+    associated with a change. Also check the error scenarios.
 
 prepare: |
-  # Install local test snap
-  "$TESTSTOOLS"/install-local test-snap-with-components
+    # Install local test snap
+    "$TESTSTOOLS"/install-local test-snap-with-components
 
 restore: |
-  snap remove --purge test-snap-tasks || true
+    snap remove --purge test-snap-tasks || true
 
 execute: |
-  echo "Install component to trigger a change"
-  snap install test-snap-with-components+comp1
+    echo "Install component to trigger a change"
+    snap install test-snap-with-components+comp1
 
-  echo "Get the change ID for the install operation"
-  CHANGE_ID_1=$(snap changes | grep "Install snap \"test-snap-with-components\"" | awk '{print $1}')
+    echo "Get the change ID for the install operation"
+    CHANGE_ID_1=$(snap changes | grep "Install snap \"test-snap-with-components\"" | awk '{print $1}')
 
-  # Check that valid JSON output is produced for the change, and that it contains the expected task with the expected state.
-  echo "Check that 'snap tasks' lists the task for the change (and accepts the --format option)"
-  snap tasks --format json "$CHANGE_ID_1" | jq -e '.[0].id == "remove+comp1" and .[0].state == "done"' > /dev/null
-  
+    # Check that valid JSON output is produced for the change, and that it contains the expected task with the expected state.
+    echo "Check that 'snap tasks' lists the task for the change (and accepts the --format option)"
+    snap tasks --format json "$CHANGE_ID_1" | jq -e '.[0].id == "remove+comp1" and .[0].state == "done"' > /dev/null

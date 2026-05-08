@@ -60,7 +60,7 @@ func init() {
 	addCommand("tasks", shortTasksHelp, longTasksHelp,
 		func() flags.Commander { return &cmdTasks{} },
 		changeIDMixinOptDesc.also(timeDescs).also(map[string]string{
-			"format": i18n.G("Output format (json)."),
+			"format": i18n.G("Output format (supported: json)."),
 		}),
 		changeIDMixinArgDesc).alias = "change"
 }
