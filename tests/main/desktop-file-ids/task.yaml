@@ -16,9 +16,9 @@ environment:
 prepare: |
     cat > "$TESTSLIB"/snaps/test-snapd-desktop-file-ids/meta/gui/'bad. ,?**[]{}^\$#.desktop' << EOF
     [Desktop Entry]
-    Name=test-snapd-desktop.cmd
+    Name=test-snapd-desktop-file-ids.cmd
     Comment=A desktop file for test-snapd-desktop.cmd
-    Exec=test-snapd-desktop.cmd
+    Exec=test-snapd-desktop-file-ids.cmd
     Terminal=true
     Type=Application
     EOF
@@ -32,7 +32,7 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    files="$DIR/org.example.desktop $DIR/org.example.Fallback.desktop $DIR/org.example.MyCommonID.desktop $DIR/test-snapd-desktop-file-ids_foo.desktop $DIR/test-snapd-desktop-file-ids_bar.desktop $DIR/test-snapd-desktop-file-ids_org.example.Foo.desktop $DIR/test-snapd-desktop-file-ids_bad._____________.desktop"
+    files="$DIR/org.example.desktop $DIR/org.example.Foo.desktop $DIR/org.example.Fallback.desktop $DIR/test-snapd-desktop-file-ids_foo.desktop $DIR/test-snapd-desktop-file-ids_bar.desktop $DIR/test-snapd-desktop-file-ids_org.example.Bar.desktop $DIR/test-snapd-desktop-file-ids_bad._____________.desktop"
 
     # Connect desktop-legacy interface to test generated desktop allow/deny rules
     # only allows access to the snap's desktop files
@@ -50,6 +50,17 @@ execute: |
         # Check that snap cannot access other desktop files
         not tests.session -u test exec test-snapd-desktop-file-ids.check-files "$DIR/test-confinement.desktop"
     fi
+
+    echo "Just because a desktop file ID is declared does not mean it is created"
+    test ! -f "$DIR/org.example.NonexistentFile.desktop"
+
+    echo "Check that common ID and desktop file ID is correct"
+    RESULT="$(snap debug api /v2/snaps/test-snapd-desktop-file-ids)"
+    echo "$RESULT" | MATCH '"status-code": 200'
+    APPS="$(echo "$RESULT" | gojq .result.apps)"
+    # Should have common-id but no file id
+    echo "$APPS" | gojq '.[] | select(.name == "cmd")."common-id"' | MATCH "org.example.Foo"
+    echo "$APPS" | gojq '.[] | select(.name == "cmd")."desktop-file"' | MATCH "org.example.Foo.desktop"
 
     snap remove --purge test-snapd-desktop-file-ids
     echo "Check desktop files are removed"
