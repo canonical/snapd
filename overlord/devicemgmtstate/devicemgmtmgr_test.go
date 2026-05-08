@@ -736,7 +736,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			pendingRequests: []*devicemgmtstate.RequestMessage{
 				func() *devicemgmtstate.RequestMessage {
 					msg := makeRequestMessage("seqA-1", "confdb", false)
-					msg.Status = asserts.MessageStatusRejected
+					msg.Result = &devicemgmtstate.MessageResult{Status: asserts.MessageStatusRejected}
 					return msg
 				}(),
 				makeRequestMessage("seqA-2", "confdb", false),
@@ -884,8 +884,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	// seqA evicted (oldest in LRU).
 	seqA := ms.Sequences["seqA"]
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("the 2nd message in seqA should have been deleted"))
-	c.Check(seqA.Messages[0].Status, Equals, asserts.MessageStatusRejected)
-	c.Check(seqA.Messages[0].Error, Equals, "cannot process message: sequence evicted due to capacity limits")
+	c.Check(seqA.Messages[0].Result.Status, Equals, asserts.MessageStatusRejected)
+	c.Check(seqA.Messages[0].Result.Body["message"], Equals, "cannot process message: sequence evicted due to capacity limits")
 
 	ti := buildTaskIndex(changes[0])
 	c.Check(ti.validate["seqA-1"], IsNil)
@@ -895,7 +895,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	// seqB also evicted.
 	seqB := ms.Sequences["seqB"]
 	c.Assert(seqB.Messages, HasLen, 1, Commentf("the 2nd message in seqB should have been deleted"))
-	c.Check(seqB.Messages[0].Status, Equals, asserts.MessageStatusRejected)
+	c.Check(seqB.Messages[0].Result.Status, Equals, asserts.MessageStatusRejected)
 
 	c.Check(ms.SequenceLRU, DeepEquals, []string{"seqC", "seqD", "seqE", "seqF"})
 }
@@ -931,8 +931,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 
 	seqA := ms.Sequences["seqA"]
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("remaining messages should have been deleted"))
-	c.Check(seqA.Messages[0].Status, Equals, asserts.MessageStatusRejected)
-	c.Check(seqA.Messages[0].Error, Equals, "cannot process message: too many messages waiting on missing predecessors in sequence")
+	c.Check(seqA.Messages[0].Result.Status, Equals, asserts.MessageStatusRejected)
+	c.Check(seqA.Messages[0].Result.Body["message"], Equals, "cannot process message: too many messages waiting on missing predecessors in sequence")
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)

@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2023-2025 Canonical Ltd
+ * Copyright (C) 2023-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -95,6 +95,21 @@ func (e *NoViewError) Is(err error) bool {
 
 func (e *NoViewError) Error() string {
 	return fmt.Sprintf(i18n.G("cannot find view %q in confdb schema %s/%s"), e.view, e.account, e.schemaName)
+}
+
+// ToErrorKind maps a confdbstate or confdb error to an error kind.
+func ToErrorKind(err error) client.ErrorKind {
+	switch {
+	case errors.Is(err, &asserts.NotFoundError{}):
+		return client.ErrorKindAssertionNotFound
+	case errors.Is(err, &NoViewError{}),
+		errors.Is(err, &confdb.NoMatchError{}):
+		return client.ErrorKindOptionNotAvailable
+	case errors.Is(err, &confdb.NoDataError{}):
+		return client.ErrorKindConfigNoSuchOption
+	default:
+		return ""
+	}
 }
 
 // GetView returns the view identified by the account, confdb schema and view
