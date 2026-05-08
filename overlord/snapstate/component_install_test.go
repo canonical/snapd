@@ -975,9 +975,30 @@ func (s *snapmgrTestSuite) TestInstallComponentsTransactionPerSnap(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallComponentsWithSnapStateAndInstallOptsUserIDs(c *C) {
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		userIDSnapState:   s.user.ID,
+		userIDInstallOpts: s.user2.ID,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsWithUserIDSnapState(c *C) {
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		userIDSnapState: s.user2.ID,
+	})
+}
+
+func (s *snapmgrTestSuite) TestInstallComponentsWithUserIDInstallOpts(c *C) {
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		userIDInstallOpts: s.user.ID,
+	})
+}
+
 type testInstallComponentsOpts struct {
-	lane        int
-	transaction client.TransactionType
+	lane              int
+	transaction       client.TransactionType
+	userIDInstallOpts int
+	userIDSnapState   int
 }
 
 func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponentsOpts) {
@@ -1007,6 +1028,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		}),
 		Current:         snapRev,
 		TrackingChannel: "channel-for-components",
+		UserID:          opts.userIDSnapState,
 	})
 
 	components := []string{"standard-component", "kernel-modules-component"}
@@ -1038,6 +1060,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	}
 
 	installOpts := snapstate.Options{
+		UserID: opts.userIDInstallOpts,
 		Flags: snapstate.Flags{
 			Lane:        opts.lane,
 			Transaction: opts.transaction,
@@ -1051,6 +1074,16 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 
 	setupProfiles := setupTs.Tasks()[0]
 	c.Assert(setupProfiles.Kind(), Equals, "setup-profiles")
+
+	snapsupSetupProfiles, err := snapstate.TaskSnapSetup(setupProfiles)
+	c.Assert(err, IsNil)
+	var expectedUserID int
+	if opts.userIDSnapState != 0 {
+		expectedUserID = opts.userIDSnapState
+	} else {
+		expectedUserID = opts.userIDInstallOpts
+	}
+	c.Assert(snapsupSetupProfiles.UserID, Equals, expectedUserID)
 
 	prepareKmodComps := setupTs.Tasks()[1]
 	c.Assert(prepareKmodComps.Kind(), Equals, "prepare-kernel-modules-components")

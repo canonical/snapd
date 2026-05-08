@@ -82,6 +82,7 @@ slots:
 func (s *UsbGadgetInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.slot, s.slotInfo = MockConnectedSlot(c, usbGadgetCoreYaml, nil, "usb-gadget")
+	s.plug, s.plugInfo = MockConnectedPlug(c, usbGadgetConsumerYaml, nil, "usbg")
 	s.AddCleanup(systemd.MockSystemdVersion(210, nil))
 }
 
@@ -194,4 +195,31 @@ func (s *UsbGadgetInterfaceSuite) TestAutoConnect(c *C) {
 
 func (s *UsbGadgetInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *UsbGadgetInterfaceSuite) TestPrioritizedSnippetMountInfo(c *C) {
+	plug, _ := MockConnectedPlug(c, usbGadgetWithFFSConsumerYaml, nil, "usbg")
+
+	spec := apparmor.NewSpecification(plug.AppSet())
+	spec.AddBasePrioritizedSnippet(`
+deny @{PROC}/self/mountinfo r,
+deny @{PROC}/@{pid}/mountinfo r,
+`, apparmor.MountInfoKey)
+
+	snippet := spec.SnippetForTag("snap.consumer.app")
+	// contains the denials but not the allows
+	c.Assert(snippet, testutil.Contains, "deny @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, testutil.Contains, "deny @{PROC}/self/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "owner @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "owner @{PROC}/self/mountinfo r,")
+
+	err := spec.AddConnectedPlug(s.iface, plug, s.slot)
+	c.Assert(err, IsNil)
+
+	snippet = spec.SnippetForTag("snap.consumer.app")
+	// contains the allows but not the denials
+	c.Assert(snippet, testutil.Contains, "owner @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, testutil.Contains, "owner @{PROC}/self/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/self/mountinfo r,")
 }

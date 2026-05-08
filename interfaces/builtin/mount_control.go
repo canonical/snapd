@@ -632,8 +632,6 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
   capability sys_admin,  # for mount
 
   owner @{PROC}/@{pid}/mounts r,
-  owner @{PROC}/@{pid}/mountinfo r,
-  owner @{PROC}/self/mountinfo r,
 
   /{,usr/}bin/mount ixr,
   /{,usr/}bin/umount ixr,
@@ -688,6 +686,7 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 	})
 
 	spec.AddSnippet(mountControlSnippet.String())
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
 	return nil
 }
 

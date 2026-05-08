@@ -1252,8 +1252,12 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeGadget
 	case "core":
 		info.SnapType = snap.TypeOS
+	case "core16":
+		info.SnapType = snap.TypeBase
 	case "snapd":
 		info.SnapType = snap.TypeSnapd
+	case "some-base":
+		info.SnapType = snap.TypeBase
 	case "app-snap-with-components":
 		info.Components = map[string]*snap.Component{
 			"standard-component": {
@@ -1460,13 +1464,17 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 }
 
 func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
-	services := make([]string, 0, len(svcs))
-	for _, svc := range svcs {
+	startupOrdered, err := snap.SortServices(svcs)
+	if err != nil {
+		return err
+	}
+	services := make([]string, 0, len(startupOrdered))
+	for _, svc := range startupOrdered {
 		services = append(services, svc.Name)
 	}
 	op := fakeOp{
 		op:       "start-snap-services",
-		path:     svcSnapMountDir(svcs),
+		path:     svcSnapMountDir(startupOrdered),
 		services: services,
 	}
 	// only add the services to the op if there's something to add
@@ -1505,11 +1513,7 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string
 	}
 
 	undoer.AddUndo(func() error {
-		startupOrdered, err := snap.SortServices(svcs)
-		if err != nil {
-			return fmt.Errorf("cannot sort services for undo: %v", err)
-		}
-		return f.StartServices(startupOrdered, disabledSvcs, meter, tm)
+		return f.StartServices(svcs, disabledSvcs, meter, tm)
 	})
 
 	f.appendOp(&fakeOp{

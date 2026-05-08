@@ -1155,3 +1155,18 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 ###SNIPPETS###
 }
 `
+
+var MountInfoKey = RegisterSnippetKey("mount-info")
+
+// basePrioritizedSnippets holds snippets that are added to the base template
+// if no more specific snippet is added by an interface.
+var basePrioritizedSnippets = map[SnippetKey]string{
+	// Go (1.25+) reads /proc/self/mountinfo to implement container-aware
+	// GOMAXPROCS (see also: https://github.com/golang/go/issues/77911) which we
+	// can't blanket allow so deny to silence log. Specific interfaces can override
+	// using AddPrioritizedSnippet with any priority.
+	MountInfoKey: `
+deny @{PROC}/self/mountinfo r,
+deny @{PROC}/@{pid}/mountinfo r,
+`,
+}

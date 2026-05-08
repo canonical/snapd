@@ -8,8 +8,8 @@ apps:
   useradd:
     command: bin/useradd
     plugs: [account-control]
-  deluser:
-    command: bin/deluser
+  userdel:
+    command: bin/userdel
     plugs: [account-control]
   chpasswd:
     command: bin/chpasswd
