@@ -567,6 +567,45 @@ func (s *toolingSuite) TestDownloadManySnapWithComps(c *C) {
 	c.Check(numReq, Equals, 1)
 }
 
+func (s *toolingSuite) TestDownloadManyForwardsSnapIDToStoreAction(c *C) {
+	s.setupSnaps(c, map[string]string{"core": "canonical"}, "")
+
+	coreID := s.AssertedSnapID("core")
+	snapsToDownld := []tooling.SnapToDownload{
+		{Snap: naming.NewSnapRef("core", coreID)},
+	}
+	dlDir := c.MkDir()
+	bdf := func(si *snap.Info, _ map[string]*snap.ComponentInfo) (string, map[string]string, error) {
+		return filepath.Join(dlDir, si.SnapName()), nil, nil
+	}
+	topts := tooling.DownloadManyOptions{BeforeDownloadFunc: bdf}
+	_, err := s.tsto.DownloadMany(snapsToDownld, nil, topts)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.storeActions, HasLen, 1)
+	c.Check(s.storeActions[0].InstanceName, Equals, "core")
+	c.Check(s.storeActions[0].SnapID, Equals, coreID)
+}
+
+func (s *toolingSuite) TestDownloadManyNoSnapIDWhenEmpty(c *C) {
+	s.setupSnaps(c, map[string]string{"core": "canonical"}, "")
+
+	snapsToDownld := []tooling.SnapToDownload{
+		{Snap: naming.Snap("core")},
+	}
+	dlDir := c.MkDir()
+	bdf := func(si *snap.Info, _ map[string]*snap.ComponentInfo) (string, map[string]string, error) {
+		return filepath.Join(dlDir, si.SnapName()), nil, nil
+	}
+	topts := tooling.DownloadManyOptions{BeforeDownloadFunc: bdf}
+	_, err := s.tsto.DownloadMany(snapsToDownld, nil, topts)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.storeActions, HasLen, 1)
+	c.Check(s.storeActions[0].InstanceName, Equals, "core")
+	c.Check(s.storeActions[0].SnapID, Equals, "")
+}
+
 func (s *toolingSuite) TestSetAssertionMaxFormats(c *C) {
 	c.Check(s.tsto.AssertionMaxFormats(), IsNil)
 
