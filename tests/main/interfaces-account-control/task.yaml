@@ -4,7 +4,7 @@ details: |
     This test makes sure that a snap using the account-control interface
     can handle the user accounts properly.
 
-systems: [ubuntu-core-16-64, ubuntu-core-18-64, ubuntu-core-20-64, ubuntu-core-22-64, ubuntu-core-24-64, ubuntu-core-26-64]
+systems: [ubuntu-core-*]
 
 environment:
     TSNAP: account-control-consumer
@@ -42,5 +42,4 @@ execute: |
     snap run "${TSNAP}${SUFFIX}".useradd --extrausers alice
     echo alice:password | snap run "${TSNAP}${SUFFIX}".chpasswd
 
-    # User deletion is unsupported yet on Core: https://bugs.launchpad.net/ubuntu/+source/shadow/+bug/1659534
-    # snap run "${TSNAP}${SUFFIX}".userdel --extrausers alice
+    snap run "${TSNAP}${SUFFIX}".userdel --extrausers alice
