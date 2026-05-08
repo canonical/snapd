@@ -57,6 +57,9 @@ func init() {
 var validHostname = regexp.MustCompile(`^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*$`).MatchString
 var validIPv4 = net.ParseIP
 
+// Match the line containing "μs:" or "us:" and capture the following digits
+var timespanUsRegexp = regexp.MustCompile(`(?:μs|us):\s*(\d+)`)
+
 var timesyncdToSnapKeyMapping = map[string]string{
 	"NTP":                "servers",
 	"FallbackNTP":        "fallback-servers",
@@ -89,18 +92,18 @@ func validateNTPSettings(tr ConfGetter) error {
 		}
 	}
 
-	// Validate that poll-interval-min-sec > poll-interval-min-sec
+	// Validate that poll-interval-min-sec < poll-interval-max-sec
 	// Use the systemd defaults if they have not been overwritten by the user
 	pollIntervalMinSecString := "32s"
 	pollIntervalMaxSecString := "2048s"
 	customPollInterval := false
 	// Validation for user submitted values has already been done
 	if minSec, exists := ntpCfg["poll-interval-min-sec"]; exists {
-		pollIntervalMinSecString, _ = mapSnapOptionValueToUnitOptionValue(minSec)
+		pollIntervalMinSecString, _ = mapOptionValueSnapToTimesyncd(minSec)
 		customPollInterval = true
 	}
 	if maxSec, exists := ntpCfg["poll-interval-max-sec"]; exists {
-		pollIntervalMaxSecString, _ = mapSnapOptionValueToUnitOptionValue(maxSec)
+		pollIntervalMaxSecString, _ = mapOptionValueSnapToTimesyncd(maxSec)
 		customPollInterval = true
 	}
 
@@ -127,13 +130,10 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 			return fmt.Errorf("%v is an empty list", key)
 		}
 
-		if err := validateNTPServers(servers); err != nil {
-			return err
-		}
-		return nil
+		return validateNTPServers(servers)
 
 	case "root-distance-max-sec", "poll-interval-min-sec", "poll-interval-max-sec", "connection-retry-sec", "save-interval-sec":
-		span, err := mapSnapOptionValueToUnitOptionValue(value)
+		span, err := mapOptionValueSnapToTimesyncd(value)
 		if err != nil {
 			return fmt.Errorf("%v: %v", key, err)
 		}
@@ -144,10 +144,10 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 		}
 
 		if key == "poll-interval-min-sec" && timespanUs < 16000000 {
-			return fmt.Errorf("poll-interval-min-sec: cannot be smaller than 16s.")
+			return fmt.Errorf("poll-interval-min-sec: cannot be smaller than 16s")
 		}
 		if key == "connection-retry-sec" && timespanUs < 1000000 {
-			return fmt.Errorf("connection-retry-sec: cannot be smaller than 1s.")
+			return fmt.Errorf("connection-retry-sec: cannot be smaller than 1s")
 		}
 
 		return nil
@@ -190,10 +190,9 @@ func convertSystemdTimespanToUs(span string) (timeSpanUs int64, err error) {
 	}
 
 	// Look for the line containing "μs:" or "us:" and capture the following digits
-	re := regexp.MustCompile(`(?:μs|us):\s*(\d+)`)
-	matches := re.FindStringSubmatch(string(output))
+	matches := timespanUsRegexp.FindStringSubmatch(string(output))
 
-	// We did not capture the two parts of the line
+	// We did not capture the two parts of the line ("us:" and the digits)
 	if len(matches) < 2 {
 		return 0, fmt.Errorf("%q is not a valid systemd.time timespan", span)
 	}
@@ -207,27 +206,80 @@ func convertSystemdTimespanToUs(span string) (timeSpanUs int64, err error) {
 	return us, nil
 }
 
-// The "parse" function is used for converting the value to a microsecond value
-// It implicitly checks its format, so we re-use it for validation
+// validateSystemdTimeSpanFormat validates and converts a systemd timespan string to microseconds.
+// It reuses the parsing logic from convertSystemdTimespanToUs for validation.
 func validateSystemdTimeSpanFormat(span string) (timeSpanUs int64, err error) {
 	return convertSystemdTimespanToUs(span)
 }
 
+// NTPConfigurationDeepEqual compares two NTP configurations and returns true if they are equal,
+// false otherwise.
+// The standard reflect.DeepEqual cannot be used to compare the configurations as the values
+// of fields "servers" and "fallback-servers" parsed by unit.Deserialize (i.e. the oldConfig)
+// are of type []string, while the ones coming from snapd are of type []any.
+// reflect.DeepEqual considers them as different, but we want to consider them as equal as
+// long as their content is the same.
+func NTPConfigurationDeepEqual(oldConfig, newConfig map[string]any) bool {
+	// Check if both maps have the same number of keys
+	// Automatically handles empty and nil maps
+	if len(oldConfig) != len(newConfig) {
+		return false
+	}
+
+	for key, oldVal := range oldConfig {
+		newVal, exists := newConfig[key]
+		if !exists {
+			return false
+		}
+
+		// Use the mapping function to convert all values to their string representation and
+		// compare those
+		// Takes case of converting and comparing []any (config read from snapd) and []string
+		// (config read from the config file)
+		oldValString, err := mapOptionValueSnapToTimesyncd(oldVal)
+		if err != nil {
+			return false
+		}
+		newValString, err := mapOptionValueSnapToTimesyncd(newVal)
+		if err != nil {
+			return false
+		}
+		if oldValString != newValString {
+			return false
+		}
+	}
+
+	return true
+}
+
 func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {
 	var cfg map[string]any
-	if err := tr.Get("core", "system.ntp", &cfg); err != nil && !config.IsNoOption(err) {
+	err := tr.Get("core", "system.ntp", &cfg)
+	if config.IsNoOption(err) {
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("cannot get NTP config: %v", err)
+	}
+
+	oldConfig, err := getNTPFromSystem()
+	if err != nil {
+		return err
+	}
+	if NTPConfigurationDeepEqual(oldConfig, cfg) {
+		// If the configuration has not changed, do nothing.
+		return nil
+	}
+
+	// Check that the updated configuration is valid
+	if err := validateNTPSettings(tr); err != nil {
+		return err
 	}
 
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		// runtime system
 		rootDir = opts.RootDir
-	}
-
-	// Check that the updated configuration is valid
-	if err := validateNTPSettings(tr); err != nil {
-		return err
 	}
 
 	// Create systemd configuration folder, if not present
@@ -255,8 +307,8 @@ func serializeNTPConfiguration(config map[string]any) (result []byte) {
 	unitOptions := []*unit.UnitOption{}
 
 	for k, v := range config {
-		unitOptionKey := mapSnapOptionNameToUnitOptionName(k)
-		unitOptionValue, _ := mapSnapOptionValueToUnitOptionValue(v)
+		unitOptionKey := mapOptionNameSnapToTimesyncd(k)
+		unitOptionValue, _ := mapOptionValueSnapToTimesyncd(v)
 		unitOption := *unit.NewUnitOption(
 			"Time",
 			unitOptionKey,
@@ -273,7 +325,7 @@ func getNTPFromSystemHelper(key string) (result any, err error) {
 	return getNTPFromSystem()
 }
 
-func mapUnitOptionValueToSnapOptionValue(option *unit.UnitOption) (result any) {
+func mapOptionValueTimesyncdToSnap(option *unit.UnitOption) (result any) {
 	switch option.Name {
 	case "NTP", "FallbackNTP":
 		return strings.Split(option.Value, " ")
@@ -286,24 +338,33 @@ func mapUnitOptionValueToSnapOptionValue(option *unit.UnitOption) (result any) {
 	}
 }
 
-func mapSnapOptionValueToUnitOptionValue(option any) (string, error) {
+func mapOptionValueSnapToTimesyncd(option any) (string, error) {
 	switch option := option.(type) {
+	case []string:
+		// Matches fields "servers" and "fallback-servers" parsed from the current
+		// configuration file
+		return strings.Join(option, " "), nil
+
 	case []any:
 		// Snapd will return a []any for lists. We need to check
 		// that each element is a string manually
 		var builder []string
 		for _, server := range option {
-			if s, ok := server.(string); ok {
-				builder = append(builder, s)
+			s, ok := server.(string)
+			if !ok {
+				return "", fmt.Errorf("list contains non-string element: %T", server)
 			}
+			builder = append(builder, s)
 		}
 
 		return strings.Join(builder, " "), nil
 
 	case string:
+		// Matches timespan fields that are set as a string (e.g. "poll-interval-min-sec": "32s")
 		return option, nil
 
 	case json.Number:
+		// Matches timespan fields that are set without a unit (e.g. "poll-interval-min-sec": 32)
 		return option.String() + "s", nil
 
 	default:
@@ -311,11 +372,11 @@ func mapSnapOptionValueToUnitOptionValue(option any) (string, error) {
 	}
 }
 
-func mapUnitOptionNametoSnapOptionName(timesyncdOption string) string {
+func mapOptionNameTimesyncdToSnap(timesyncdOption string) string {
 	return timesyncdToSnapKeyMapping[timesyncdOption]
 }
 
-func mapSnapOptionNameToUnitOptionName(snapOption string) string {
+func mapOptionNameSnapToTimesyncd(snapOption string) string {
 	return snapToTimesyncdKeyMapping[snapOption]
 }
 
@@ -324,8 +385,10 @@ func getNTPFromSystem() (result map[string]any, err error) {
 		return nil, nil
 	}
 
-	file, err := os.Open("/etc/systemd/timesyncd.conf")
+	file, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/timesyncd.conf"))
 	if os.IsNotExist(err) {
+		// A missing file is not an error, it just means that there is no custom configuration and
+		//  the system is using the defaults
 		return map[string]any{}, nil
 	}
 	if err != nil {
@@ -339,10 +402,9 @@ func getNTPFromSystem() (result map[string]any, err error) {
 	}
 
 	val := map[string]any{}
-
 	for _, option := range unitOptions {
-		snapOptionName := mapUnitOptionNametoSnapOptionName(option.Name)
-		snapOptionValue := mapUnitOptionValueToSnapOptionValue(option)
+		snapOptionName := mapOptionNameTimesyncdToSnap(option.Name)
+		snapOptionValue := mapOptionValueTimesyncdToSnap(option)
 		val[snapOptionName] = snapOptionValue
 	}
 
