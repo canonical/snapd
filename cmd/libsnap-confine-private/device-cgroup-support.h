@@ -31,6 +31,38 @@ enum {
 };
 
 /**
+ * SC_BPF_DENY_RINGBUF_SIZE is the size of the per-snap ring buffer used
+ * to communicate device access denials from the BPF program to userspace.
+ * Must be a power of 2 and page-aligned. 4096 (1 page) holds approximately
+ * 85 events.
+ */
+#define SC_BPF_DENY_RINGBUF_SIZE 4096
+
+/**
+ * TASK_COMM_LEN is the maximum length of a task's comm field (including
+ * null terminator), matching the kernel's definition.
+ */
+#ifndef TASK_COMM_LEN
+#define TASK_COMM_LEN 16
+#endif
+
+/**
+ * sc_device_deny_event is the structure written to the ring buffer by the BPF
+ * program each time a device access is denied. This structure is shared between
+ * the C (kernel/snap-confine) and Go (snap debug) sides.
+ */
+struct sc_device_deny_event {
+    uint8_t dev_type; /* 'c' for char, 'b' for block */
+    uint8_t access;   /* access_type >> 16: BPF_DEVCG_ACC_* bitmask */
+    uint16_t _pad;
+    uint32_t major;
+    uint32_t minor;
+    uint32_t pid;
+    uint64_t timestamp;       /* ktime_get_ns() */
+    char comm[TASK_COMM_LEN]; /* process comm at time of denial */
+} __attribute__((packed));
+
+/**
  * sc_device_cgroup_new returns a new cgroup device wrapper that is suitable for
  * the current system. Flags can contain SC_DEVICE_CGROUP_FROM_EXISTING in which
  * case an existing cgroup will be used, and a -1 return value with errno set to
