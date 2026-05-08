@@ -109,6 +109,11 @@ func InstallComponents(
 		return nil, err
 	}
 
+	snapUserID, err := userIDForSnap(st, &snapst, opts.UserID)
+	if err != nil {
+		return nil, err
+	}
+
 	snapsup := SnapSetup{
 		Base:                        info.Base,
 		SideInfo:                    &info.SideInfo,
@@ -118,6 +123,7 @@ func InstallComponents(
 		Version:                     info.Version,
 		PlugsOnly:                   len(info.Slots) == 0,
 		InstanceKey:                 info.InstanceKey,
+		UserID:                      snapUserID,
 		ComponentExclusiveOperation: true,
 	}
 

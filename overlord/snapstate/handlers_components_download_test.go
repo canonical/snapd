@@ -65,9 +65,16 @@ func (s *downloadComponentSuite) TestDoDownloadComponentCustomBlobDir(c *C) {
 	})
 }
 
+func (s *downloadComponentSuite) TestDoDownloadComponentWithUserAuth(c *C) {
+	s.testDoDownloadComponent(c, testDoDownloadComponentOpts{
+		withUserAuth: true,
+	})
+}
+
 type testDoDownloadComponentOpts struct {
-	autoRefresh bool
-	blobDir     string
+	autoRefresh  bool
+	blobDir      string
+	withUserAuth bool
 }
 
 func (s *downloadComponentSuite) testDoDownloadComponent(c *C, opts testDoDownloadComponentOpts) {
@@ -78,6 +85,20 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, opts testDoDownlo
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "refresh.rate-limit", "1234B")
 	tr.Commit()
+
+	var userID int
+	var user *auth.UserState
+	if opts.withUserAuth {
+		var err error
+		user, err = auth.NewUser(s.state, auth.NewUserParams{
+			Username:   "username",
+			Email:      "email@test.com",
+			Macaroon:   "user-macaroon",
+			Discharges: []string{"discharge"},
+		})
+		c.Assert(err, IsNil)
+		userID = user.ID
+	}
 
 	si := &snap.SideInfo{
 		RealName: "snap",
@@ -93,6 +114,7 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, opts testDoDownlo
 		InstanceKey:     "key",
 		Flags:           snapstate.Flags{IsAutoRefresh: opts.autoRefresh},
 		DownloadBlobDir: opts.blobDir,
+		UserID:          userID,
 	})
 
 	t.Set("component-setup", &snapstate.ComponentSetup{
@@ -148,11 +170,17 @@ func (s *downloadComponentSuite) testDoDownloadComponent(c *C, opts testDoDownlo
 		}
 	}
 
+	var expectedMacaroon string
+	if opts.withUserAuth {
+		expectedMacaroon = user.StoreMacaroon
+	}
+
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{
-			name:   "snap+comp",
-			target: expectedPath,
-			opts:   downloadOpts,
+			name:     "snap+comp",
+			target:   expectedPath,
+			opts:     downloadOpts,
+			macaroon: expectedMacaroon,
 		},
 	})
 }
