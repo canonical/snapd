@@ -299,9 +299,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeatures(c *C) {
 	c.Check(features, DeepEquals, []string{"bar", "foo", "foo:baz", "foo:qux", "xyz"})
 
 	// But boolean file features are not included
-	file, err := os.OpenFile(filepath.Join(d, featuresSysPath, "bar", "feat1"), os.O_CREATE, 0o644)
-	c.Assert(err, IsNil)
-	c.Assert(file.Close(), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "bar", "feat1"), nil, 0o644), IsNil)
 	features, err = apparmor.ProbeKernelFeatures()
 	c.Assert(err, IsNil)
 	c.Check(features, DeepEquals, []string{"bar", "foo", "foo:baz", "foo:qux", "xyz"})
@@ -407,9 +405,7 @@ func (s *apparmorSuite) TestProbeAppArmorKernelFeaturesPermstable32Version(c *C)
 
 	// Pretend that the permstable32_version file exists but is malformed.
 	c.Assert(os.MkdirAll(filepath.Join(d, featuresSysPath, "policy"), 0o755), IsNil)
-	f, err := os.OpenFile(filepath.Join(d, featuresSysPath, "policy", "permstable32_version"), os.O_CREATE, 0o644)
-	c.Assert(err, IsNil)
-	f.Close()
+	c.Assert(os.WriteFile(filepath.Join(d, featuresSysPath, "policy", "permstable32_version"), nil, 0o644), IsNil)
 	version, err = apparmor.ProbeKernelFeaturesPermstable32Version()
 	c.Assert(errors.Is(err, strconv.ErrSyntax), Equals, true)
 	c.Check(version, Equals, int64(0))
