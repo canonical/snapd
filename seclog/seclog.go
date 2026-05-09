@@ -189,3 +189,36 @@ func LogUserRemoved(user SnapdUser) {
 		Attr{Key: "user", Value: user},
 	)
 }
+
+// LogAdminActivity logs an administrative API access event using the
+// global security logger.
+func LogAdminActivity(user SnapdUser, endpoint Endpoint, checks AuthzChecks) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHZ", Name: "authz_admin", Level: LevelInfo},
+		fmt.Sprintf("User %s accessed %s", user.String(), endpoint.String()),
+		Attr{Key: "snapd_user", Value: user},
+		Attr{Key: "endpoint", Value: endpoint},
+		Attr{Key: "authz_checks", Value: checks},
+	)
+}
+
+// LogUnauthorizedAccess logs an unauthorized access attempt using the
+// global security logger.
+func LogUnauthorizedAccess(user SnapdUser, endpoint Endpoint, checks AuthzChecks, pid int32, reason Reason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHZ", Name: "authz_fail", Level: LevelCritical},
+		fmt.Sprintf("Process %d: User %s attempted to access %s without entitlement: %s",
+			pid, user.String(), endpoint.String(), reason.Message),
+		Attr{Key: "snapd_user", Value: user},
+		Attr{Key: "endpoint", Value: endpoint},
+		Attr{Key: "authz_checks", Value: checks},
+		Attr{Key: "pid", Value: int64(pid)},
+		Attr{Key: "error", Value: reason},
+	)
+}
