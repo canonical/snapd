@@ -6869,6 +6869,172 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	c.Check(snapst.PendingSecurity.SideInfo.Revision, Equals, snapInfo.Revision)
 }
 
+func (s *interfaceManagerSuite) TestFailedRefreshRestoresAutoConnectionPrunedFromIncomingRevision(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	producerInfo := s.mockSnap(c, `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+`)
+	oldConsumerInfo := s.mockSnap(c, `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+`)
+
+	connID := "consumer:plug producer:slot"
+	expectedConns := map[string]any{
+		connID: map[string]any{
+			"interface": "test",
+			"auto":      true,
+		},
+	}
+	s.state.Lock()
+	s.state.Set("conns", expectedConns)
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: oldConsumerInfo.InstanceName(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: producerInfo.InstanceName(), Name: "slot"},
+	}
+	_, err := repo.Connection(connRef)
+	c.Assert(err, IsNil)
+
+	newConsumerInfo := s.mockUpdatedSnap(c, `
+name: consumer
+version: 2
+apps:
+ app:
+  command: foo
+`, 2)
+
+	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+		if appSet.InstanceName() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
+			return fmt.Errorf("fail setup consumer rev 2")
+		}
+		return nil
+	}
+
+	change := s.addSetupSnapSecurityChangeWithOptions(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: newConsumerInfo.SnapName(),
+			Revision: newConsumerInfo.Revision,
+		},
+	}, setupSnapSecurityChangeOptions{active: false})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Assert(change.Err(), ErrorMatches, "(?s).*fail setup consumer rev 2.*")
+
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, expectedConns)
+
+	_, err = repo.Connection(connRef)
+	c.Check(err, IsNil)
+}
+
+func (s *interfaceManagerSuite) TestFailedRefreshRestoresStaticAttributesUpdatedFromIncomingRevision(c *C) {
+	s.MockSnapDecl(c, "producer", "same-publisher", nil)
+	producerInfo := s.mockSnap(c, `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: content
+  content: foo
+  attr: old-slot
+`)
+	s.MockSnapDecl(c, "consumer", "same-publisher", nil)
+	oldConsumerInfo := s.mockSnap(c, `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: content
+  content: foo
+  attr: old-plug
+`)
+
+	connID := "consumer:plug producer:slot"
+	expectedConns := map[string]any{
+		connID: map[string]any{
+			"interface":   "content",
+			"plug-static": map[string]any{"content": "foo", "attr": "old-plug"},
+			"slot-static": map[string]any{"content": "foo", "attr": "old-slot"},
+		},
+	}
+	s.state.Lock()
+	s.state.Set("conns", expectedConns)
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: oldConsumerInfo.InstanceName(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: producerInfo.InstanceName(), Name: "slot"},
+	}
+	conn, err := repo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "old-plug"})
+	c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "old-slot"})
+
+	newConsumerInfo := s.mockUpdatedSnap(c, `
+name: consumer
+version: 2
+plugs:
+ plug:
+  interface: content
+  content: foo
+  attr: new-plug
+apps:
+ app:
+  command: foo
+`, 2)
+
+	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
+		if appSet.InstanceName() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
+			return fmt.Errorf("fail setup consumer rev 2")
+		}
+		return nil
+	}
+
+	change := s.addSetupSnapSecurityChangeWithOptions(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: newConsumerInfo.SnapName(),
+			Revision: newConsumerInfo.Revision,
+		},
+	}, setupSnapSecurityChangeOptions{active: false})
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Assert(change.Err(), ErrorMatches, "(?s).*fail setup consumer rev 2.*")
+
+	var conns map[string]any
+	c.Assert(s.state.Get("conns", &conns), IsNil)
+	c.Check(conns, DeepEquals, expectedConns)
+
+	conn, err = repo.Connection(connRef)
+	c.Assert(err, IsNil)
+	c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "old-plug"})
+	c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "old-slot"})
+}
+
 // Test that when a snap refresh changes confinement from classic to strict and
 // setup-profiles fails, undo restores the old security profiles using the
 // old classic confinement flag.

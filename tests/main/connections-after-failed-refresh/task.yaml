@@ -28,6 +28,8 @@ execute: |
   snap connections test-snap | MATCH "^home +test-snap:home +:home"
   snap connections test-snap | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
   snap connections test-snap | MATCH "^system-observe +test-snap:system-observe +:system-observe"
+  # network-bind exists only in v1, covering restoration of a pruned auto-connection
+  snap connections test-snap | MATCH "^network-bind +test-snap:network-bind +:network-bind"
 
   echo "The snap fails to refresh"
   if "$TESTSTOOLS"/snaps-state install-local test-snap-v2 > install.log 2>&1 ; then
@@ -40,6 +42,8 @@ execute: |
   snap connections test-snap | MATCH "^home +test-snap:home +:home"
   snap connections test-snap | MATCH "^system-observe +test-snap:system-observe +:system-observe"
   snap connections test-snap | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
+  # network-bind exists only in v1, covering restoration of a pruned auto-connection
+  snap connections test-snap | MATCH "^network-bind +test-snap:network-bind +:network-bind"
 
   if snap try test-snap-v2 > try.log 2>&1 ; then
     echo "Expected test-snap-v2 try to fail"
@@ -49,6 +53,7 @@ execute: |
 
   echo "Interfaces are still connected"
   snap connections test-snap | MATCH "^home +test-snap:home +:home"
+  snap connections test-snap | MATCH "^network-bind +test-snap:network-bind +:network-bind"
   snap connections test-snap | MATCH "^system-observe +test-snap:system-observe +:system-observe"
   snap connections test-snap | MATCH "^hardware-observe +test-snap:hardware-observe +:hardware-observe"
 
