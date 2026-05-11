@@ -1724,6 +1724,7 @@ suites:
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
+            - openstack-validation
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
