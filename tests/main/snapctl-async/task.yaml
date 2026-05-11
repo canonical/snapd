@@ -41,7 +41,7 @@ execute: |
   echo "$OUTPUT" | NOMATCH "Done"
 
   # hook needs to be created to trigger change completion
-  snap run --shell test-snapctl-async.app -c "touch /tmp/filename"
+  snap run --shell test-snapctl-async.app -c "touch /tmp/comp-removed"
 
   echo "Wait for change to complete"
   while true; do
