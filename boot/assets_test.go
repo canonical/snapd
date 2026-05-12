@@ -3075,6 +3075,28 @@ func (s *assetsSuite) TestUpdateBootEntryOnUpdate(c *C) {
 	c.Check(foundOther, Equals, 0)
 }
 
+func (s *assetsSuite) TestReconfigureRecoveryBootConfigCallsBootloaderHook(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	bloader := bootloadertest.Mock("runtime-config", c.MkDir())
+	s.forceBootloader(bloader)
+
+	updated, err := boot.ReconfigureRecoveryBootConfig(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, true)
+	c.Check(bloader.ReconfigureRecoveryBootConfigCalls, Equals, 1)
+}
+
+func (s *assetsSuite) TestReconfigureRecoveryBootConfigNoopOutsideRunMode(c *C) {
+	coreDevInstallMode := boottest.MockUC20Device("install", nil)
+	bloader := bootloadertest.Mock("runtime-config", c.MkDir())
+	s.forceBootloader(bloader)
+
+	updated, err := boot.ReconfigureRecoveryBootConfig(coreDevInstallMode)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(bloader.ReconfigureRecoveryBootConfigCalls, Equals, 0)
+}
+
 func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 	tab := bootloadertest.Mock("trusted", "").WithTrustedAssetsAndEfi()
 

@@ -492,6 +492,32 @@ func (s *pibootTestSuite) TestOnlyOneOsPrefix(c *C) {
 	}
 }
 
+func (s *pibootTestSuite) TestReconfigureRecoveryBootConfig(c *C) {
+	opts := bootloader.Options{PrepareImageTime: false,
+		Role: bootloader.RoleRecovery}
+	r := bootloader.MockPibootFiles(c, s.rootdir, &opts)
+	defer r()
+	p := bootloader.NewPiboot(s.rootdir, &opts)
+	c.Assert(p, NotNil)
+	rcb, ok := p.(bootloader.RecoveryBootConfigBootloader)
+	c.Assert(ok, Equals, true)
+
+	err := p.SetBootVars(map[string]string{
+		"snap_kernel":         "pi-kernel_1",
+		"snapd_recovery_mode": "run",
+		"kernel_status":       boot.DefaultStatus,
+	})
+	c.Assert(err, IsNil)
+
+	configFile := filepath.Join(s.rootdir, "config.txt")
+	err = os.WriteFile(configFile, []byte("gpu_mem=64\nos_prefix=\ndtoverlay=disable-bt\n"), 0644)
+	c.Assert(err, IsNil)
+
+	err = rcb.Reconfigure()
+	c.Assert(err, IsNil)
+	c.Check(configFile, testutil.FileEquals, "gpu_mem=64\nos_prefix=/piboot/ubuntu/pi-kernel_1/\ndtoverlay=disable-bt\n")
+}
+
 func (s *pibootTestSuite) TestGetRebootArguments(c *C) {
 	opts := bootloader.Options{PrepareImageTime: false,
 		Role: bootloader.RoleRunMode, NoSlashBoot: true}
