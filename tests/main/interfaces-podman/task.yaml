@@ -1,0 +1,134 @@
+summary: Ensure that the podman interface works.
+
+details: |
+  The podman interface grants access to the Podman daemon socket. This test
+  exercises four confinement scenarios:
+
+  1. Root command    — creates containers via the system socket (/run/podman/podman.sock)
+  2. Root daemon     — creates containers via the system socket as a system service
+  3. User command    — creates containers via the rootless socket as a regular user
+  4. User daemon     — creates containers via the rootless socket as a user service
+
+  Each scenario verifies that real container lifecycle operations (create, start,
+  wait, remove) succeed when the plug is connected, and that the command cases
+  are denied when the plug is disconnected.
+
+systems:
+  # No Podman on Ubuntu Core
+  - -ubuntu-core-*
+  # No Podman before 24.04
+  - -ubuntu-1*
+  - -ubuntu-20.04-*
+  - -ubuntu-22.04-*
+
+environment:
+  IMAGE: docker.io/library/busybox:latest
+  ROOT_SOCK: /run/podman/podman.sock
+  ROOT_DAEMON_OUT: /var/snap/podman-consumer/common/root-daemon.out
+  USER_DAEMON_OUT: /home/test/snap/podman-consumer/common/user-daemon.out
+
+prepare: |
+  echo "Install podman"
+  tests.pkgs install podman
+
+  echo "Enable and start the podman system socket"
+  systemctl enable --now podman.socket
+
+  echo "Pull the test image (system)"
+  podman pull "$IMAGE"
+
+  echo "Set up user session for rootless testing"
+  snap set system experimental.user-daemons=true
+  tests.session kill-leaked
+  tests.session -u test prepare
+
+  echo "Enable the rootless podman socket for the test user"
+  tests.session -u test exec systemctl --user enable --now podman.socket
+
+  echo "Pull the test image (rootless)"
+  tests.session -u test exec podman pull "$IMAGE"
+
+  echo "Install the test snap"
+  "$TESTSTOOLS"/snaps-state install-local podman-consumer
+
+restore: |
+  tests.session -u test exec systemctl --user disable --now podman.socket || true
+  tests.session -u test restore
+  snap unset system experimental.user-daemons
+
+  podman system prune -af || true
+  systemctl disable --now podman.socket || true
+
+  rm -f "$ROOT_DAEMON_OUT" "$USER_DAEMON_OUT"
+
+debug: |
+  set +e
+  cat /var/lib/snapd/apparmor/profiles/snap.podman-consumer.podman-api 2>/dev/null
+  systemctl status podman.socket
+  tests.session -u test exec systemctl --user status podman.socket
+  journalctl -u snap.podman-consumer.root-daemon.service
+  tests.session -u test exec journalctl --user -u snap.podman-consumer.user-daemon.service
+  echo "=== root-daemon output ==="
+  cat "$ROOT_DAEMON_OUT" 2>/dev/null
+  echo "=== user-daemon output ==="
+  tests.session -u test exec cat /home/test/snap/podman-consumer/common/user-daemon.out 2>/dev/null || true
+
+execute: |
+  echo "The plug is disconnected by default"
+  snap connections --all | MATCH "podman +podman-consumer:podman +- +-"
+
+  snap connect podman-consumer:podman
+  snap connections | MATCH "podman +podman-consumer:podman +:podman"
+
+  TEST_UID=$(id -u test)
+  USER_SOCK="/run/user/${TEST_UID}/podman/podman.sock"
+
+  echo "=== Case 1: root command — system socket ==="
+  podman-consumer.podman-api "$ROOT_SOCK" run "$IMAGE" echo hello-from-root-command \
+      | MATCH "exit_code=0"
+
+  echo "=== Case 2: root daemon — system socket ==="
+  rm -f "$ROOT_DAEMON_OUT"
+  snap start podman-consumer.root-daemon
+  retry -n 30 --wait 1 test -f "$ROOT_DAEMON_OUT"
+  MATCH "exit_code=0" < "$ROOT_DAEMON_OUT"
+
+  echo "=== Case 3: user command — rootless socket ==="
+  tests.session -u test exec podman-consumer.podman-api "$USER_SOCK" run "$IMAGE" echo hello-from-user-command \
+      | MATCH "exit_code=0"
+
+  echo "=== Case 4: user daemon — rootless socket ==="
+  rm -f "$USER_DAEMON_OUT"
+  tests.session -u test exec systemctl --user start snap.podman-consumer.user-daemon.service
+  retry -n 30 --wait 1 test -f "$USER_DAEMON_OUT"
+  MATCH "exit_code=0" < "$USER_DAEMON_OUT"
+
+  if [ "$(snap debug confinement)" = strict ] ; then
+      echo "Verify AppArmor profile covers both socket paths"
+      MATCH '/{,var/}run/podman/podman.sock rw,' \
+          < /var/lib/snapd/apparmor/profiles/snap.podman-consumer.podman-api
+      MATCH 'owner /{,var/}run/user/\[0-9\]\*/podman/podman.sock rw,' \
+          < /var/lib/snapd/apparmor/profiles/snap.podman-consumer.podman-api
+
+      echo "When the plug is disconnected"
+      snap disconnect podman-consumer:podman
+
+      echo "Root command is denied on the system socket"
+      if podman-consumer.podman-api "$ROOT_SOCK" info 2>root-denied.error; then
+          echo "Expected denial for root command"
+          exit 1
+      fi
+      MATCH "Permission denied" < root-denied.error
+
+      echo "User command is denied on the rootless socket"
+      if tests.session -u test exec podman-consumer.podman-api "$USER_SOCK" info \
+              2>user-denied.error; then
+          echo "Expected denial for user command"
+          exit 1
+      fi
+      MATCH "Permission denied" < user-denied.error
+  fi
+
+  echo "Reconnect and confirm containers still work"
+  snap connect podman-consumer:podman
+  podman-consumer.podman-api "$ROOT_SOCK" run "$IMAGE" echo reconnected | MATCH "exit_code=0"
