@@ -42,6 +42,7 @@ import (
 
 func init() {
 	// add supported configuration of this module
+	supportedConfigurations["core.system.ntp"] = true
 	supportedConfigurations["core.system.ntp.servers"] = true
 	supportedConfigurations["core.system.ntp.fallback-servers"] = true
 	supportedConfigurations["core.system.ntp.root-distance-max-sec"] = true
@@ -288,10 +289,19 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 		return err
 	}
 
-	// Write validated configuration to file
+	// Configuration file path
 	ntpConfigPath := filepath.Join(systemdConfigFolder, "/timesyncd.conf")
-	if err := osutil.AtomicWriteFile(ntpConfigPath, serializeNTPConfiguration(cfg), 0644, 0); err != nil {
-		return fmt.Errorf("cannot write NTP configuration: %v", err)
+
+	if len(cfg) == 0 {
+		// If the config is empty, we want to reset to defaults, which is achieved by deleting the configuration file
+		if err := os.Remove(ntpConfigPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot reset NTP configuration to defaults: %v", err)
+		}
+	} else {
+		// Otherwise, we overwrite the file with the new configuration
+		if err := osutil.AtomicWriteFile(ntpConfigPath, serializeNTPConfiguration(cfg), 0644, 0); err != nil {
+			return fmt.Errorf("cannot write NTP configuration: %v", err)
+		}
 	}
 
 	// Restart systemd-timesyncd.service to pick up the updated configuration
@@ -389,7 +399,7 @@ func getNTPFromSystem() (result map[string]any, err error) {
 	if os.IsNotExist(err) {
 		// A missing file is not an error, it just means that there is no custom configuration and
 		//  the system is using the defaults
-		return map[string]any{}, nil
+		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read NTP configuration file /etc/systemd/timesyncd.conf: %v", err)
@@ -399,6 +409,11 @@ func getNTPFromSystem() (result map[string]any, err error) {
 	unitOptions, err := unit.Deserialize(file)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse systemd unit in configuration file /etc/systemd/timesyncd.conf: %v", err)
+	}
+
+	// Do not return an empty config "system.ntp {}" if there is no custom configuration in the file
+	if len(unitOptions) == 0 {
+		return nil, nil
 	}
 
 	val := map[string]any{}
