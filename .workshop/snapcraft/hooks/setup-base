@@ -1,0 +1,3 @@
+snap install lxd
+lxd init --auto
+snap install snapcraft --classic

@@ -73,7 +73,7 @@ tool_configure() {
         # when *not* running inside github, and go-1.18 is available, use it
         if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.18/bin" ]; then
             export PATH=/usr/lib/go-1.18/bin:"${PATH}"
-	    echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
+        echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
         fi
         ;;
     shellcheck) ;&    # fallthrough
@@ -267,6 +267,7 @@ addtrap endmsg
 short=
 STATIC=
 UNIT=
+VERIFY_TOOLS=
 
 case "${1:-all}" in
 all)
@@ -283,6 +284,9 @@ all)
     UNIT=1
     short="-short"
     ;;
+--verify-tools)
+    VERIFY_TOOLS=1
+    ;;
 *)
     echo "Wrong flag ${1}. To run a single suite use --static, --unit."
     exit 1
@@ -291,6 +295,10 @@ esac
 
 echo "> Verify tool dependencies"
 verify_tools "$AUTO_INSTALL" "$IGNORE_MISSING"
+
+if [ "$VERIFY_TOOLS" = 1 ]; then
+    exit 0
+fi
 
 if [ "$STATIC" = 1 ]; then
     ./get-deps.sh

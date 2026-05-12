@@ -1,0 +1,2 @@
+snap install image-garden
+snap alias image-garden.spread spread

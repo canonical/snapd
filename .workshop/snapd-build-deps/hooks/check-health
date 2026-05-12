@@ -1,0 +1,6 @@
+pwd
+if ! output="$(cd /project && ./run-checks --verify-tools)" ; then
+    workshopctl set-health error "$output"
+    exit
+fi
+workshopctl set-health okay

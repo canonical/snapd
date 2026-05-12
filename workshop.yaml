@@ -1,0 +1,44 @@
+name: snapd-dev
+base: ubuntu@24.04
+sdks:
+  - name: project-snapd-build-deps
+  - name: project-snapcraft
+  - name: project-spread
+
+  # redocly
+  - name: node
+    channel: latest/stable
+  - name: project-redocly
+
+  # various options for LLM harnesses
+  - name: opencode
+    channel: latest/stable
+  - name: copilot
+    channel: latest/stable
+  - name: claude-code
+    channel: latest/stable
+  - name: codex
+    channel: latest/stable
+
+  - name: system
+    plugs:
+      lemonade: # local lemonade-server instance
+        interface: tunnel
+        endpoint: localhost:13305
+
+actions:
+  checks: ./run-checks "$@"
+  spread: ./run-spread "$@"
+  snapcraft: snapcraft
+  no-rebuild-spread: NO_REBUILD=1 ./run-spread "$@"
+  redocly: |
+    cd docs/api && make REDOCLY_CMD="npm exec -- @redocly/cli" REUSE_CMD="reuse" "$@"
+
+  # various options for LLM harnesses
+  opencode: opencode "$@"
+  claude: claude --dangerously-skip-permissions "$@"
+  claude-prompt: claude --dangerously-skip-permissions -p "$@"
+  copilot: copilot --yolo "$@"
+  copilot-prompt: copilot --yolo --prompt="$@"
+  codex: codex --yolo "$@"
+  codex-exec: codex exec --yolo "$@"

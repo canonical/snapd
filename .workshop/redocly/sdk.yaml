@@ -1,0 +1,13 @@
+# For details: https://canonical-workshop.readthedocs-hosted.com/latest/explanation/sdks/sdks/#sketch-sdk
+name: redocly
+plugs:
+  node-modules:
+    interface: mount
+    workshop-target: /usr/local/lib/node_modules
+slots:
+
+# Use this configuration to expose a port, then add a corresponding system SDK plug
+# More details: https://canonical-workshop.readthedocs-hosted.com/latest/how-to/customize-workshops/forward-ports/
+# redocly-server:
+#   interface: tunnel
+#   endpoint: 8080

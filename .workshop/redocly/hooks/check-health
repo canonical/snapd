@@ -1,0 +1,7 @@
+if ! output="$(npm exec -- @redocly/cli --version)" ; then
+    workshopctl set-health error "$output"
+fi
+if ! output="$(reuse --version)" ; then
+    workshopctl set-health error "$output"
+fi
+workshopctl set-health okay

@@ -1,0 +1,6 @@
+# Build dependencies
+if [ ! -e ./debian ]; then
+    ln -s packaging/ubuntu-16.04 debian
+fi
+sudo apt-get update
+sudo apt-get build-dep -y .

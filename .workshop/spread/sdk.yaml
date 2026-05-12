@@ -1,0 +1,12 @@
+# For details: https://canonical-workshop.readthedocs-hosted.com/latest/explanation/sdks/sdks/#sketch-sdk
+name: spread
+plugs:
+  garden-snap-cache:
+    interface: mount
+    workshop-target: /var/snap/image-garden/common/cache
+  garden-home-cache:
+    interface: mount
+    workshop-target: /home/workshop/snap/image-garden-common/cache
+  garden-project-cache:
+    interface: mount
+    workshop-target: /project/.image-garden

@@ -1,0 +1,14 @@
+# For details: https://canonical-workshop.readthedocs-hosted.com/latest/explanation/sdks/sdks/#sketch-sdk
+name: snapcraft
+plugs:
+# Use this configuration to mount a host directory to the workshop
+# models:
+#   interface: mount
+#   workshop-target: /home/workshop/models
+slots:
+
+# Use this configuration to expose a port, then add a corresponding system SDK plug
+# More details: https://canonical-workshop.readthedocs-hosted.com/latest/how-to/customize-workshops/forward-ports/
+# my-web-server:
+#   interface: tunnel
+#   endpoint: 8080
