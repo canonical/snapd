@@ -45,8 +45,7 @@ execute: |
 
   echo "Wait for change to complete"
   while true; do
-    snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID"
-    EXIT_CODE=$?
+    snap run --shell test-snapctl-async.app -c "snapctl is-ready $CHANGE_ID" || EXIT_CODE=$?
     if [ "$EXIT_CODE" -eq 0 ]; then
       echo "Change $CHANGE_ID is ready."
       break
