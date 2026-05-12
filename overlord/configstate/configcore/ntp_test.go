@@ -60,6 +60,11 @@ func (s *ntpSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
+func (s *ntpSuite) writeExampleConfigFile(c *C) {
+	err := os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	c.Assert(err, IsNil)
+}
+
 func (s *ntpSuite) verifyConfigfileContent(c *C, expectedContent []string, comment string) {
 	// The serialization order of the individual options is not predictable. Read the file, sort
 	// the lines and compare them against the (already sorted) expected content.
@@ -75,13 +80,14 @@ func (s *ntpSuite) verifyConfigfileContent(c *C, expectedContent []string, comme
 		c.Check([]string(lines), DeepEquals, startingFileContent, Commentf("%v", comment))
 	}
 	// Reset configuration file to the default value for the next test
-	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644), IsNil)
+	s.writeExampleConfigFile(c)
 }
 
 // Test setting various configurations, with multiple valid and invalid configurations
 func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 	var getConfigurationTests = []struct {
 		newConfig            map[string]any
+		expectedFileDeleted  bool
 		expectedFileContent  []string
 		expectServiceRestart bool
 		expectedError        string
@@ -128,7 +134,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 			newConfig: map[string]any{
 				"system.ntp": map[string]any{},
 			},
-			expectedFileContent:  []string{""},
+			expectedFileDeleted:  true,
 			expectServiceRestart: true,
 			expectedError:        "",
 		},
@@ -267,7 +273,14 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 
 		// The configuration file content is either the new configuration if it was valid, or
 		// the original configuration if the new one was invalid
-		s.verifyConfigfileContent(c, test.expectedFileContent, fmt.Sprintf("config validation: %v", i))
+		// If the configuration is empty, the file should be deleted
+		if test.expectedFileDeleted {
+			_, err = os.Lstat(s.timesyncdConfigFile)
+			c.Check(os.IsNotExist(err), Equals, true, Commentf("config validation: %v", i))
+		} else {
+			s.verifyConfigfileContent(c, test.expectedFileContent, fmt.Sprintf("config validation: %v", i))
+		}
+		s.writeExampleConfigFile(c)
 
 		// Check that the timesyncd service was restarted only if necessary, i.e. the new
 		// configuration was valid and different from the original one
@@ -275,10 +288,10 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
 				{"reload-or-restart", "systemd-timesyncd.service"},
 			}, Commentf("config validation: %v", i))
-			s.systemctlArgs = nil
 		} else {
 			c.Check(s.systemctlArgs, IsNil, Commentf("config validation: %v", i))
 		}
+		s.systemctlArgs = nil
 	}
 }
 
@@ -320,8 +333,8 @@ func (s *ntpSuite) TestNTPGetMissingConfigFile(c *C) {
 
 	var ntpConfig map[string]any
 	err := tr.Get("core", "system.ntp", &ntpConfig)
-	c.Assert(err, IsNil)
-	c.Check(ntpConfig, DeepEquals, map[string]any{})
+	c.Assert(err, ErrorMatches, "snap \"core\" has no \"system.ntp\" configuration option")
+	c.Check(ntpConfig, DeepEquals, map[string]any(nil))
 }
 
 func (s *ntpSuite) TestNTPGetErrorOpeningFile(c *C) {
@@ -351,6 +364,20 @@ func (s *ntpSuite) TestNTPGetInvalidSystemdUnit(c *C) {
 	var ntpConfig map[string]any
 	err := tr.Get("core", "system.ntp", &ntpConfig)
 	c.Assert(err, ErrorMatches, "cannot parse systemd unit in configuration file /etc/systemd/timesyncd.conf: unable to find end of section")
+}
+
+func (s *ntpSuite) TestNTPGetEmptySystemdUnit(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Write unit with no options
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, ErrorMatches, "snap \"core\" has no \"system.ntp\" configuration option")
 }
 
 func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
