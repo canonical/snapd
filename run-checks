@@ -288,7 +288,8 @@ all)
     VERIFY_TOOLS=1
     ;;
 *)
-    echo "Wrong flag ${1}. To run a single suite use --static, --unit."
+    echo "Wrong flag ${1}"
+    echo "usage: $0 [all|--static|--unit|--short-unit|--verify-tools]"
     exit 1
     ;;
 esac

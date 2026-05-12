@@ -1,7 +1,9 @@
-if ! output="$(image-garden --version)" ; then
+if ! output="$(image-garden --version 2>&1)" ; then
     workshopctl set-health error "$output"
+    exit 1
 fi
-if ! output="$(spread --help)" ; then
+if ! output="$(spread --help 2>&1)" ; then
     workshopctl set-health error "$output"
+    exit 1
 fi
 workshopctl set-health okay

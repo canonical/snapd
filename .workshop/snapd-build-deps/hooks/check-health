@@ -1,6 +1,5 @@
-pwd
-if ! output="$(cd /project && ./run-checks --verify-tools)" ; then
+if ! output="$(sudo -u workshop sh -c 'cd /project && ./run-checks --verify-tools')" ; then
     workshopctl set-health error "$output"
-    exit
+    exit 1
 fi
 workshopctl set-health okay

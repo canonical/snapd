@@ -1,5 +1,5 @@
-if ! output="$(snapcraft --version)" ; then
+if ! output="$(snapcraft --version 2>&1)" ; then
     workshopctl set-health error "$output"
-    exit
+    exit 1
 fi
 workshopctl set-health okay

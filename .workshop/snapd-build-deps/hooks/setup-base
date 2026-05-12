@@ -1,8 +1,8 @@
 apt update
 
 # From run-checks
-apt install shellcheck
-apt install dbus-x11
-apt install clang-format
+apt install -y shellcheck
+apt install -y dbus-x11
+apt install -y clang-format
 
 snap install go --classic --channel=1.18/stable
