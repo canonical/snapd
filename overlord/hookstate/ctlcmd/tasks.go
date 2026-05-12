@@ -32,13 +32,15 @@ import (
 
 type tasksCommand struct {
 	baseCommand
-	Format string `long:"format" required:"false" description:"Output format (supported: json)"`
+	Format string `long:"format" required:"false" choice:"json" description:"Output format (supported: json)"`
 }
 
 var shortTasksHelp = i18n.G(`Return a list of information associated with all change-ids.`)
 var longTasksHelp = i18n.G(`
 Used to query the status of all change ids associated with
 snapctl commands running in asynchronous mode.
+
+valid options for --format: json
 
 $ snapctl (tasks|change) [--format FORMAT] <change-id>
   0: successfully reported change information, regardless of state of change
