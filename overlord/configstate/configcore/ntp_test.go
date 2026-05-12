@@ -17,6 +17,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type ntpSuite struct {
@@ -39,6 +40,10 @@ var (
 				"ntp.ubuntu.com",
 			},
 		},
+	}
+	configurationExampleFileContent = []string{
+		"[Time]",
+		"NTP=192.168.15.1 ntp.ubuntu.com",
 	}
 )
 
@@ -295,6 +300,61 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 	}
 }
 
+func (s *ntpSuite) TestNTPSetSystemdAnalyzeError(c *C) {
+	// Systemd-analyze returns the wrong format for the timespan value
+	// It will return non-zero exit code if the analysis fails, so we need to mock it here to check
+	// that we handle the format well and return the correct error message
+	sysdAnalyzeCmdInvalidResponse := testutil.MockCommand(c, "systemd-analyze", "echo 'μs: xxxx'")
+	defer sysdAnalyzeCmdInvalidResponse.Restore()
+
+	// Apply the config
+	invalidReponseConfig := configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"connection-retry-sec": "xxxx",
+		}})
+	err := configcore.FilesystemOnlyRun(core24Dev, invalidReponseConfig)
+
+	// Verify correct error is returned
+	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-sec: \"xxxx\" is not a valid systemd.time timespan")
+	s.verifyConfigfileContent(c, startingFileContent, "")
+	c.Check(s.systemctlArgs, IsNil)
+
+	// Return value that it too big for Int64 (9223372036854775807 + 1)
+	sysdAnalyzeCmdBigNumber := testutil.MockCommand(c, "systemd-analyze", "echo 'μs: 9223372036854775808'")
+	defer sysdAnalyzeCmdBigNumber.Restore()
+
+	// Apply the config
+	invalidNumberConfig := configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{
+			"connection-retry-sec": "9223372036854s",
+		}})
+	err = configcore.FilesystemOnlyRun(core24Dev, invalidNumberConfig)
+
+	// Verify correct error is returned
+	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-sec: \"9223372036854s\" is not a valid systemd.time timespan")
+	s.verifyConfigfileContent(c, startingFileContent, "")
+	c.Check(s.systemctlArgs, IsNil)
+}
+
+// Test that setting a valid configuration fails when the systemd folder cannot be accessed due to
+// missing write permissions
+func (s *ntpSuite) TestNTPSetCannotCreateSystemdFolder(c *C) {
+	etcFolder := filepath.Join(dirs.GlobalRootDir, "etc")
+	systemdConfigFolder := filepath.Join(etcFolder, "systemd")
+	systemdConfigFolderAlternateName := filepath.Join(etcFolder, "systemd.bak")
+	// Instead of removing it, we rename it to avoid issues for other files
+	os.Rename(systemdConfigFolder, systemdConfigFolderAlternateName)
+	// Remove write permission for /etc so that /etc/systemd cannot be recreated
+	c.Assert(os.Chmod(etcFolder, 0111), IsNil)
+	defer os.Chmod(etcFolder, 0755)
+	defer os.Rename(systemdConfigFolderAlternateName, systemdConfigFolder)
+
+	conf := configcore.PlainCoreConfig(validConfigurationExample)
+
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, ErrorMatches, "mkdir /tmp/check-.*/etc/systemd: permission denied")
+}
+
 // Test that setting a valid configuration fails when the systemd folder cannot be accessed due to
 // missing write permissions
 func (s *ntpSuite) TestNTPSetValidConfigurationMissingFolderPermissions(c *C) {
@@ -307,6 +367,19 @@ func (s *ntpSuite) TestNTPSetValidConfigurationMissingFolderPermissions(c *C) {
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Assert(err, ErrorMatches, "cannot write NTP configuration: open .*/etc/systemd/timesyncd.conf.*: permission denied")
 	s.verifyConfigfileContent(c, startingFileContent, "")
+}
+
+func (s *ntpSuite) TestNTPSetErrorReadingDiskConfiguration(c *C) {
+	// Remove config file
+	os.Remove(s.timesyncdConfigFile)
+
+	conf := configcore.PlainCoreConfig(validConfigurationExample)
+
+	// The config file not being present is not an error and the configuration is
+	// set successfully
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, IsNil)
+	s.verifyConfigfileContent(c, configurationExampleFileContent, "")
 }
 
 func (s *ntpSuite) TestNTPSetRestartDaemonError(c *C) {
@@ -378,6 +451,23 @@ func (s *ntpSuite) TestNTPGetEmptySystemdUnit(c *C) {
 	var ntpConfig map[string]any
 	err := tr.Get("core", "system.ntp", &ntpConfig)
 	c.Assert(err, ErrorMatches, "snap \"core\" has no \"system.ntp\" configuration option")
+}
+
+func (s *ntpSuite) TestNTPGetUnsupportedOption(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// The unsupported option is skipped and does not cause an error, but the rest of the configuration is still read correctly
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\nUnsupportedOption=1\nSaveIntervalSec=10s"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, IsNil)
+	c.Assert(ntpConfig, DeepEquals, map[string]any{
+		"save-interval-sec": "10s",
+	})
 }
 
 func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
@@ -455,4 +545,23 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 	// Test "nil" and empty configurations are different from any configuration
 	c.Check(configcore.NTPConfigurationDeepEqual(config8, config1), Equals, false)
 	c.Check(configcore.NTPConfigurationDeepEqual(config5, config1), Equals, false)
+
+	// Test configuration with removed fields
+	config9 := map[string]any{
+		"poll-interval-min-sec": "16s",
+	}
+	c.Check(configcore.NTPConfigurationDeepEqual(config1, config9), Equals, false)
+
+	// Test configuration with wrong types for values
+	// Check both as first and second argument to hit both branches of the function
+	config10 := map[string]any{
+		"servers": []any{
+			"192.168.1.1",
+			"ntp.ubuntu.com",
+			12.5,
+		},
+		"root-distance-max-sec": "5s",
+	}
+	c.Check(configcore.NTPConfigurationDeepEqual(config1, config10), Equals, false)
+	c.Check(configcore.NTPConfigurationDeepEqual(config10, config1), Equals, false)
 }

@@ -272,11 +272,6 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 		return nil
 	}
 
-	// Check that the updated configuration is valid
-	if err := validateNTPSettings(tr); err != nil {
-		return err
-	}
-
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
 		// runtime system
@@ -284,13 +279,13 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 	}
 
 	// Create systemd configuration folder, if not present
-	systemdConfigFolder := filepath.Join(rootDir, "/etc/systemd/")
+	systemdConfigFolder := filepath.Join(rootDir, "etc", "systemd")
 	if err := os.MkdirAll(systemdConfigFolder, 0755); err != nil {
 		return err
 	}
 
 	// Configuration file path
-	ntpConfigPath := filepath.Join(systemdConfigFolder, "/timesyncd.conf")
+	ntpConfigPath := filepath.Join(systemdConfigFolder, "timesyncd.conf")
 
 	if len(cfg) == 0 {
 		// If the config is empty, we want to reset to defaults, which is achieved by deleting the configuration file
@@ -383,11 +378,17 @@ func mapOptionValueSnapToTimesyncd(option any) (string, error) {
 }
 
 func mapOptionNameTimesyncdToSnap(timesyncdOption string) string {
-	return timesyncdToSnapKeyMapping[timesyncdOption]
+	if v, ok := timesyncdToSnapKeyMapping[timesyncdOption]; ok {
+		return v
+	}
+	return ""
 }
 
 func mapOptionNameSnapToTimesyncd(snapOption string) string {
-	return snapToTimesyncdKeyMapping[snapOption]
+	if v, ok := snapToTimesyncdKeyMapping[snapOption]; ok {
+		return v
+	}
+	return ""
 }
 
 func getNTPFromSystem() (result map[string]any, err error) {
@@ -395,7 +396,7 @@ func getNTPFromSystem() (result map[string]any, err error) {
 		return nil, nil
 	}
 
-	file, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/timesyncd.conf"))
+	file, err := os.Open(filepath.Join(dirs.GlobalRootDir, "etc", "systemd", "timesyncd.conf"))
 	if os.IsNotExist(err) {
 		// A missing file is not an error, it just means that there is no custom configuration and
 		//  the system is using the defaults
@@ -420,6 +421,11 @@ func getNTPFromSystem() (result map[string]any, err error) {
 	for _, option := range unitOptions {
 		snapOptionName := mapOptionNameTimesyncdToSnap(option.Name)
 		snapOptionValue := mapOptionValueTimesyncdToSnap(option)
+
+		if snapOptionName == "" {
+			// Do not error out on unsupported options inserted in the config file manually, just ignore them
+			continue
+		}
 		val[snapOptionName] = snapOptionValue
 	}
 
