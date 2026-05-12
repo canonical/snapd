@@ -188,8 +188,11 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 		return nil, err
 	}
 
-	// TODO:COMPS: figure out which user to use here
-	user, err := userFromUserID(st, opts.UserID)
+	userID, err := userIDForSnap(st, &snapst, opts.UserID)
+	if err != nil {
+		return nil, err
+	}
+	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
