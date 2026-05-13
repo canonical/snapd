@@ -1,5 +1,5 @@
 ---
-name: diagnose-spread-failures
+name: diagnose-spread-failures-ph
 description: Diagnoses GitHub Actions spread test failures for pull requests in the snapd repository. Downloads and analyzes spread-results-* JSON artifacts and failure log artifacts from workflow runs to identify which tests failed, on which systems, and correlates them with available logs. Use when investigating CI failures, spread test regressions, or GitHub Actions workflow artifacts for a snapd PR.
 compatibility: python3
 allowed-tools: python3 bash grep cat
@@ -22,14 +22,24 @@ Ensure the user has provided:
 - **Log artifact pattern** (optional; default is `*logs*`)
 - **Workflow name filter** (optional; default is no filter)
 
-**If PR number is missing or `GITHUB_TOKEN` is not set:** Stop and ask for the required information.
+**If PR number is missing:** Stop and ask for it.
+
+**Verify the token safely before use. Never print `GITHUB_TOKEN` to the console.**
+
+```bash
+bash scripts/check_github_token.sh
+```
+
+This script exits 0 if the token is present and non-empty, and exits 1 with a safe error message if it is missing. The token value is never written to stdout or stderr.
+
+**If the check fails:** Ask the user to set `GITHUB_TOKEN` via `export GITHUB_TOKEN=<token>`. Do not echo, print, or log the token value anywhere in the session.
 
 ### 2. Fetch Spread Artifacts
 
-Run the artifact fetch script. **Do not perform API calls manually.**
+Run the artifact fetch script. **Do not perform API calls manually.** The script reads `GITHUB_TOKEN` from the environment; never pass it as a command-line argument.
 
 ```bash
-GITHUB_TOKEN=<TOKEN> python3 scripts/fetch_spread_results.py \
+python3 scripts/fetch_spread_results.py \
   --pr <PR_NUMBER> \
   [--repo canonical/snapd] \
   [--log-pattern "*logs*"] \
@@ -37,6 +47,8 @@ GITHUB_TOKEN=<TOKEN> python3 scripts/fetch_spread_results.py \
   [--output-dir /tmp/spread-results] \
   [--manifest /tmp/manifest.json]
 ```
+
+**Important:** Ensure `GITHUB_TOKEN` is already exported in the environment before running this. Do not write the token into the command line.
 
 **What the script does:**
 1. Resolves the PR head SHA via the GitHub API.
@@ -101,8 +113,18 @@ Present the analysis in this structure:
    - If failures are clearly caused by the PR, suggest which changed files to inspect.
    - If failures appear unrelated, flag them as potential flakes or infrastructure issues and suggest re-running the specific test.
 
+## Security
+
+**Never print, echo, or log `GITHUB_TOKEN` in the session.**
+
+- Use `scripts/check_github_token.sh` to verify the token is set; it never reveals the value.
+- If the token is missing, ask the user to run `export GITHUB_TOKEN=<token>` in their shell before starting.
+- The fetch script reads the token from the environment only. Do not pass it via `--token` or inline in commands.
+- If you need to verify environment variables, use `env | grep -i github` (this shows the variable name but masks the value in most shells) or simply run the check script.
+
 ## Error Handling
 
+* **If the token check script exits non-zero:** The token is missing or invalid. Ask the user to set it with `export GITHUB_TOKEN=<token>` and re-run.
 * **If the fetch script exits non-zero:** Report the exact stderr output. Common causes:
   - Missing `GITHUB_TOKEN` environment variable
   - PR number does not exist
@@ -116,3 +138,4 @@ Present the analysis in this structure:
 ## References
 
 - `references/analysis_checklist.md` — Step-by-step checklist for analyzing downloaded artifacts and producing a failure report.
+- `references/subsystem_map.md` — Maps snapd source code directories to their relevant spread test suites, and vice versa. Use this during correlation to identify related code areas beyond the directly changed files.

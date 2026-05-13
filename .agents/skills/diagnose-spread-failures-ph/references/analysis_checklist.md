@@ -70,7 +70,11 @@ Before diving into failures, review what the PR actually changes:
    - **Tests**: `tests/`, `spread.yaml`
    - **Packaging / build**: `packaging/`, `build-aux/`, `Makefile`, `*.yaml`
    - **Initrd / boot**: `core-initrd/`, `boot/`
-3. Note any changes to test suites or to the systems/backends used in spread tests.
+3. **Consult `references/subsystem_map.md`** for each changed source directory:
+   - Look up the directory in the "Source Package → Test Suites" tables.
+   - Note which test suites are most likely to regress from changes in that area.
+   - Note related source packages that often change together (e.g., `interfaces/builtin/` and `interfaces/apparmor/`).
+4. Note any changes to test suites or to the systems/backends used in spread tests.
 
 ### Step 4: Enumerate Failed Tests from the Parsed Summary
 
@@ -116,19 +120,24 @@ This is the critical diagnostic step: determine whether each failure is caused b
    - If a test under `tests/main/interfaces/` fails and the PR modifies `interfaces/builtin/`, the failure is likely a direct regression.
    - If a test under `tests/main/snapd-reexec/` fails and the PR changes `cmd/snap-exec/`, investigate re-execution logic.
    - If a test under `tests/main/refresh/` fails and the PR modifies `overlord/snapstate/`, the failure is likely related.
-2. **Inspect the patch of changed files** for clues:
+2. **Consult `references/subsystem_map.md`** for each failed test:
+   - Look up the test suite prefix in the "Test Suite → Source Packages" tables.
+   - Identify source packages most likely to affect that test, even if they were not directly changed.
+   - Check if any of those related packages appear in `pr.changed_files`. A regression can propagate through shared interfaces, backends, or core libraries.
+3. **Inspect the patch of changed files** for clues:
    - Look for changes to the exact subsystem mentioned in the test name.
    - Look for changes to error messages or return codes that the test may assert against.
    - Look for changes to security profiles, mount logic, or systemd units that spread tests validate end-to-end.
-3. **Check backport/fix patterns** (common in snapd packaging):
+4. **Check backport/fix patterns** (common in snapd packaging):
    - If the PR changes a version-specific directory (e.g., `core-initrd/24.04/`), check whether the corresponding newer directory (e.g., `core-initrd/26.04/`) already contains the same change. This strongly suggests a legitimate backport/fix rather than a regression.
    - Read the newer version's file directly from the local repository to confirm.
-4. **Assess failure likelihood**:
+5. **Assess failure likelihood**:
    - **Likely caused by PR**: Failure appears in a test area directly touched by changed files, or the error message references changed code paths.
    - **Likely unrelated / flaky**: Failure appears in a completely unrelated subsystem, or is a known flaky test (e.g., network-dependent, timing-sensitive), or it disappears on a re-run attempt.
    - **Uncertain**: Log contains environment errors (SSH timeout, VM provisioning failure, external network issue) rather than assertion failures.
-5. **Record the correlation** for each failed test:
+6. **Record the correlation** for each failed test:
    - Related changed files (if any)
+   - **Also note**: Any related source areas from `subsystem_map.md` that connect the test to the PR
    - Confidence level: `direct`, `indirect`, `unrelated`, `unclear`
    - Rationale: One-sentence explanation of why the PR did or did not cause this failure.
 
@@ -163,6 +172,7 @@ Always inspect `top_level_keys` first when the parser cannot extract data.
 
 ## Log Parsing Tips
 
+- **Never print environment variables containing secrets.** Use `scripts/check_github_token.sh` to verify `GITHUB_TOKEN` is set; it never reveals the value.
 - **Use `grep` for quick navigation**: Search for `FAIL`, `error:`, `cannot`, `exit status`, `FAILED`, `panic`, or `+ ` (command echo) inside the log directory.
 - **Journal blocks**: Look for `journalctl`, `-- Logs begin`, or timestamped systemd entries. Focus on AppArmor denials (`audit`), OOM killer messages, or service failures.
 - **Command echo lines**: In spread logs, executed commands are often prefixed with `+ `. The line before the error block is usually the failing command.
