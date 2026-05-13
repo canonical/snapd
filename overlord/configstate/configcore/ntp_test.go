@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
+	"sort"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -75,9 +75,8 @@ func (s *ntpSuite) verifyConfigfileContent(c *C, expectedContent []string, comme
 	// the lines and compare them against the (already sorted) expected content.
 	content, _ := os.ReadFile(s.timesyncdConfigFile)
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	slices.Sort(lines)
-	// Reverse so the output looks "normal" with the "[Time]" line at the top
-	slices.Reverse(lines)
+	// Sort in reverse order so the output looks "normal" with the "[Time]" line at the top
+	sort.Sort(sort.Reverse(sort.StringSlice(lines)))
 
 	if len(expectedContent) != 0 {
 		c.Check([]string(lines), DeepEquals, expectedContent, Commentf("%v", comment))
