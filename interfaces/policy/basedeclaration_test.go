@@ -889,7 +889,7 @@ var (
 		"docker":                   nil,
 		"egl-driver-libs":          nil,
 		"gbm-driver-libs":          nil,
-		"vulkan-driver-libs":       nil,
+		"gpio-chardev":             nil,
 		"lxd":                      nil,
 		"microceph":                nil,
 		"microceph-support":        nil,
@@ -901,7 +901,7 @@ var (
 		"podman":                   nil,
 		"posix-mq":                 nil,
 		"shared-memory":            nil,
-		"gpio-chardev":             nil,
+		"vulkan-driver-libs":       nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -959,11 +959,10 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = icMin.Check()
 	c.Check(err, IsNil)
 
-	// test docker specially
+	// test docker specially - allow-installation for app and core
 	ic = s.installSlotCand(c, "docker", snap.TypeApp, ``)
 	err = ic.Check()
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+	c.Assert(err, ErrorMatches, "installation denied by \"docker\" slot rule of interface \"docker\"")
 
 	// test lxd specially
 	ic = s.installSlotCand(c, "lxd", snap.TypeApp, ``)

@@ -67,6 +67,11 @@ func (s *DockerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "docker")
 }
 
+func (s *DockerInterfaceSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnClassic, Equals, true)
+}
+
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
