@@ -77,24 +77,60 @@ python3 scripts/parse_spread_results.py \
 
 **If parsing produces no results:** The JSON schema may be unrecognized. Read the raw `spread-results-*` JSON and report its structure so the parser can be updated.
 
-### 4. Analyze Results
+### 4. Generate Compact Text Report
 
-Use `references/analysis_checklist.md` to systematically examine the parsed summary (`/tmp/summary.json`):
+For large manifests, produce a compact human-readable text report that lists failed tests, summary counts, and log artifact locations in a single document. This is easier to read and reason about than raw JSON.
 
-1. Read the parsed summary JSON. It contains `workflow_runs`, `all_failed_tests`, and `log_artifacts`.
-2. Review the PR changed files (`pr.changed_files`) from the manifest to understand what areas were touched.
-3. Identify workflow runs with `conclusion: failure`. Note that a single workflow run may have multiple **attempts** (artifacts named like `spread-results-{run_id}-1-{system}` vs `spread-results-{run_id}-2-{system}`). Compare attempts to distinguish persistent regressions from transient flakes.
-4. If a workflow is `in_progress`, only analyze completed attempts and note the in-progress status.
-5. For each failed test in `all_failed_tests`, read the associated log artifact under `extracted_path` and extract error context.
-6. **Correlate each failure with PR changes** to determine if it is a regression or unrelated (flaky / pre-existing).
-7. Synthesize a concise report.
+```bash
+python3 scripts/generate_text_report.py \
+  --manifest /tmp/manifest.json \
+  --output /tmp/report.txt
+```
+
+**Use this report when:**
+- The manifest contains dozens of artifacts and manual JSON traversal would be error-prone.
+- You need a quick overview of failures across all workflow runs and attempts.
+- You want a flat list of failed tests with system/backend and error snippets.
+
+**After generating the report, read it** (`cat /tmp/report.txt`) to begin analysis.
+
+### 5. Analyze Results
+
+Use `references/analysis_checklist.md` to systematically analyze the failures. **Start by reading the compact text report** produced in the previous step:
+
+```bash
+cat /tmp/report.txt
+```
+
+This gives you the flat list of all failed tests, summary counts, and artifact locations without manual JSON traversal. Then, for deep analysis:
+- Review the parsed machine data in `/tmp/summary.json` for structured fields.
+- Review PR changed files (`pr.changed_files`) from the manifest.
+- Identify workflow runs with `conclusion: failure`. Note that a single workflow run may have multiple **attempts** (artifacts named like `spread-results-{run_id}-1-{system}` vs `spread-results-{run_id}-2-{system}`). Compare attempts to distinguish persistent regressions from transient flakes.
+- If a workflow is `in_progress`, only analyze completed attempts and note the in-progress status.
+- For each failed test, read the associated log artifact under `extracted_path` and extract error context.
+- **Correlate each failure with PR changes** to determine if it is a regression or unrelated (flaky / pre-existing).
+- Synthesize a concise report.
 
 Load the checklist before starting analysis:
 ```bash
 cat references/analysis_checklist.md
 ```
 
-### 5. Report Findings
+This gives you the flat list of all failed tests, summary counts, and artifact locations without manual JSON traversal. Then, for deep analysis:
+- Review the parsed machine data in `/tmp/summary.json` for structured fields.
+- Review PR changed files (`pr.changed_files`) from the manifest.
+- Identify workflow runs with `conclusion: failure`. Note that a single workflow run may have multiple **attempts** (artifacts named like `spread-results-{run_id}-1-{system}` vs `spread-results-{run_id}-2-{system}`). Compare attempts to distinguish persistent regressions from transient flakes.
+- If a workflow is `in_progress`, only analyze completed attempts and note the in-progress status.
+- For each failed test, read the associated log artifact under `extracted_path` and extract error context.
+- **Correlate each failure with PR changes** to determine if it is a regression or unrelated (flaky / pre-existing).
+- Synthesize a concise report.
+
+Load the checklist before starting analysis:
+```bash
+cat references/analysis_checklist.md
+```
+
+### 6. Report Findings
 
 Present the analysis in this structure:
 
