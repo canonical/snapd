@@ -53,15 +53,6 @@
         "systems": "ubuntu-core-24-64",
         "tasks": "tests/main/interfaces-content",
         "rules": "main"
-      },
-      {
-        "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "arch-linux",
-        "backend": "openstack",
-        "alternative-backend": "google-distro-2",
-        "systems": "arch-linux-64",
-        "tasks": "tests/main/interfaces-content",
-        "rules": "main"
       }
     ]
   }
