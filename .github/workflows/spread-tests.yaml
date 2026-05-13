@@ -153,9 +153,35 @@ jobs:
       run: |
           echo "RUN_NESTED=true" >> "$GITHUB_ENV"
 
+    - name: Set changed-files inputs
+      id: set-changed-files-inputs
+      env:
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PUSH_BEFORE_SHA: ${{ github.event.before }}
+        CURRENT_SHA: ${{ github.sha }}
+      run: |
+        # Determine the base SHA for comparison
+        # For PRs: use the target branch SHA
+        # For pushes: use the previous commit SHA
+        # For other events: use empty (action will use default)
+        if [ -n "$PR_BASE_SHA" ]; then
+          echo "BASE_SHA=$PR_BASE_SHA" >> $GITHUB_OUTPUT
+          echo "SHA=$PR_HEAD_SHA" >> $GITHUB_OUTPUT
+        elif [ -n "$PUSH_BEFORE_SHA" ]; then
+          echo "BASE_SHA=$PUSH_BEFORE_SHA" >> $GITHUB_OUTPUT
+          echo "SHA=$CURRENT_SHA" >> $GITHUB_OUTPUT
+        else
+          echo "BASE_SHA=" >> $GITHUB_OUTPUT
+          echo "SHA=" >> $GITHUB_OUTPUT
+        fi
+
     - name: Get changed files
       id: changed-files
       uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
+      with:
+        base_sha: ${{ steps.set-changed-files-inputs.outputs.BASE_SHA != '' && steps.set-changed-files-inputs.outputs.BASE_SHA || '' }}
+        sha: ${{ steps.set-changed-files-inputs.outputs.SHA != '' && steps.set-changed-files-inputs.outputs.SHA || '' }}
 
     - name: Save changes files
       run: |
