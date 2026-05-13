@@ -127,9 +127,6 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 		if !ok {
 			return fmt.Errorf("%v is not a list of server names", key)
 		}
-		if len(servers) == 0 {
-			return fmt.Errorf("%v is an empty list", key)
-		}
 
 		return validateNTPServers(servers)
 
@@ -333,10 +330,14 @@ func getNTPFromSystemHelper(key string) (result any, err error) {
 func mapOptionValueTimesyncdToSnap(option *unit.UnitOption) (result any) {
 	switch option.Name {
 	case "NTP", "FallbackNTP":
-		return strings.Split(option.Value, " ")
+		trimmedString := strings.TrimSpace(option.Value)
+		if len(trimmedString) == 0 {
+			return []string{}
+		}
+		return strings.Split(trimmedString, " ")
 
 	case "RootDistanceMaxSec", "PollIntervalMinSec", "PollIntervalMaxSec", "ConnectionRetrySec", "SaveIntervalSec":
-		return option.Value
+		return strings.TrimSpace(option.Value)
 
 	default:
 		return ""
@@ -412,21 +413,22 @@ func getNTPFromSystem() (result map[string]any, err error) {
 		return nil, fmt.Errorf("cannot parse systemd unit in configuration file /etc/systemd/timesyncd.conf: %v", err)
 	}
 
-	// Do not return an empty config "system.ntp {}" if there is no custom configuration in the file
-	if len(unitOptions) == 0 {
-		return nil, nil
-	}
-
 	val := map[string]any{}
 	for _, option := range unitOptions {
 		snapOptionName := mapOptionNameTimesyncdToSnap(option.Name)
 		snapOptionValue := mapOptionValueTimesyncdToSnap(option)
 
 		if snapOptionName == "" {
-			// Do not error out on unsupported options inserted in the config file manually, just ignore them
+			// If the option name is empty, it means the option is not supported, so we skip it
 			continue
 		}
 		val[snapOptionName] = snapOptionValue
+	}
+
+	// Do not return an empty config "system.ntp {}" if there is no custom configuration in the file
+	// We check here instead of checking the length of unitOptions, since we skip unsupported options
+	if len(val) == 0 {
+		return nil, nil
 	}
 
 	return val, nil

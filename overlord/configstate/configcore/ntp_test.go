@@ -171,7 +171,11 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 					"servers": []any{},
 				},
 			},
-			expectedError: "invalid NTP configuration: servers is an empty list",
+			expectServiceRestart: true,
+			expectedFileContent: []string{
+				"[Time]",
+				"NTP=",
+			},
 		},
 		// 5: Wrong value type in server list
 		{
@@ -466,6 +470,24 @@ func (s *ntpSuite) TestNTPGetUnsupportedOption(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ntpConfig, DeepEquals, map[string]any{
 		"save-interval-sec": "10s",
+	})
+}
+
+func (s *ntpSuite) TestNTPGetEmptyServerList(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// The empty server list is read as an empty list and not an as an error
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\nNTP=         \nSaveIntervalSec=10s"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, IsNil)
+	c.Assert(ntpConfig, DeepEquals, map[string]any{
+		"save-interval-sec": "10s",
+		"servers":           []any{},
 	})
 }
 
