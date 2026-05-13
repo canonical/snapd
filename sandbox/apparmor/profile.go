@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -181,6 +182,67 @@ func RemoveCachedProfiles(names []string, cacheDir string) error {
 		return fmt.Errorf("cannot remove apparmor profile cache: %s", err)
 	}
 	return nil
+}
+
+// PruneCache removes stale entries from the DFA blob cache under cacheDir/dfa.
+// It finds the newest modification time across all cache files, then deletes any
+// file whose modification time is more than pruneInterval older than that.
+// Cache pruning is not critical for correctness, so this function ignores errors
+// and just logs them. It is meant to be called periodically, for instance at
+// snapd refresh when all profiles are recalculated.
+func PruneCache(cacheDir string, pruneInterval time.Duration) {
+	dfaDir := filepath.Join(cacheDir, "dfa")
+
+	entries, err := os.ReadDir(dfaDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Noticef("cannot read DFA cache directory %s: %v", dfaDir, err)
+		}
+		return
+	}
+
+	// if interval is zero, nuke the entire directory
+	if pruneInterval == 0 {
+		err := os.RemoveAll(dfaDir)
+		if err != nil {
+			logger.Noticef("failed to clean DFA cache directory %s: %v", dfaDir, err)
+		}
+		return
+	}
+
+	// First pass: find the most recent modification time.
+	var newest time.Time
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if mtime := info.ModTime(); mtime.After(newest) {
+			newest = mtime
+		}
+	}
+
+	if newest.IsZero() {
+		return
+	}
+
+	// Second pass: remove files older than the pruning interval.
+	cutoff := newest.Add(-pruneInterval)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			os.Remove(filepath.Join(dfaDir, entry.Name()))
+		}
+	}
 }
 
 // ReloadAllSnapProfiles reload the AppArmor profiles of all installed snaps,
