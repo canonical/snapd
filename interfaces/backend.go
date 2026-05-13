@@ -21,6 +21,7 @@ package interfaces
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -233,4 +234,13 @@ type DelayedSideEffectsBackend interface {
 func SupportsDelayingEffects(backend SecurityBackend) bool {
 	_, ok := backend.(DelayedSideEffectsBackend)
 	return ok
+}
+
+// CachePruner is an optional interface that may be implemented by security
+// backends which maintain a persistent on-disk cache. Callers should check
+// whether a backend implements this interface before invoking it, typically
+// after all snap profiles have been reloaded (e.g. after a snapd update).
+type CachePruner interface {
+	// PruneCache removes stale entries from the backend's on-disk cache.
+	PruneCache(pruneInterval time.Duration)
 }
