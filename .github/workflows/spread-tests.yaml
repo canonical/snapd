@@ -511,6 +511,18 @@ jobs:
           spread -discard -reuse-pid="$(echo "$r" | grep -o -E '[0-9]+')";
         done
 
+    - name: Process spread failures
+      if: always()
+      run: |
+        # Create failure logs from spread.log using the parse script
+        if [ -f "spread.log" ]; then
+          echo "Processing spread.log to extract failed task logs..."
+          python3 tests/utils/spread-log/parse_spread_log.py spread.log --output-dir spread-logs
+          echo "Processed failure logs saved to spread-logs/"
+        else
+          echo "No spread.log found, skipping failure log processing"
+        fi
+
     - name: Upload spread logs
       if: always()
       uses: actions/upload-artifact@v7
