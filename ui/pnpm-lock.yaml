@@ -10,6 +10,9 @@ importers:
       "@tailwindcss/vite":
         specifier: ^4.2.4
         version: 4.2.4(vite@8.0.10(@types/node@24.12.2)(jiti@2.6.1))
+      "@viz-js/viz":
+        specifier: ^3.26.0
+        version: 3.26.0
       react:
         specifier: ^19.2.5
         version: 19.2.5
@@ -833,6 +836,12 @@ packages:
         optional: true
       babel-plugin-react-compiler:
         optional: true
+
+  "@viz-js/viz@3.26.0":
+    resolution:
+      {
+        integrity: sha512-q/m3rj4aTs38yezZsWABRSsI1auZIWXk5X2aOdz9B7oPR1eYIn9JMEBXY/HbTJwhgS1vEOESC+m0eO6p3imFyQ==,
+      }
 
   acorn-jsx@5.3.2:
     resolution:
@@ -2200,6 +2209,8 @@ snapshots:
     optionalDependencies:
       "@rolldown/plugin-babel": 0.2.3(@babel/core@7.29.0)(rolldown@1.0.0-rc.17)(vite@8.0.10(@types/node@24.12.2)(jiti@2.6.1))
       babel-plugin-react-compiler: 1.0.0
+
+  "@viz-js/viz@3.26.0": {}
 
   acorn-jsx@5.3.2(acorn@8.16.0):
     dependencies:
