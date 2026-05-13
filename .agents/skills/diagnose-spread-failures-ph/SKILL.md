@@ -116,20 +116,6 @@ Load the checklist before starting analysis:
 cat references/analysis_checklist.md
 ```
 
-This gives you the flat list of all failed tests, summary counts, and artifact locations without manual JSON traversal. Then, for deep analysis:
-- Review the parsed machine data in `/tmp/summary.json` for structured fields.
-- Review PR changed files (`pr.changed_files`) from the manifest.
-- Identify workflow runs with `conclusion: failure`. Note that a single workflow run may have multiple **attempts** (artifacts named like `spread-results-{run_id}-1-{system}` vs `spread-results-{run_id}-2-{system}`). Compare attempts to distinguish persistent regressions from transient flakes.
-- If a workflow is `in_progress`, only analyze completed attempts and note the in-progress status.
-- For each failed test, read the associated log artifact under `extracted_path` and extract error context.
-- **Correlate each failure with PR changes** to determine if it is a regression or unrelated (flaky / pre-existing).
-- Synthesize a concise report.
-
-Load the checklist before starting analysis:
-```bash
-cat references/analysis_checklist.md
-```
-
 ### 6. Report Findings
 
 Present the analysis in this structure:
@@ -143,12 +129,8 @@ Present the analysis in this structure:
    - Correlated log artifact (if found)
    - Key error snippet or summary
    - **Correlation with PR**: Related changed files, confidence level (`direct` / `indirect` / `unrelated` / `unclear`), and rationale.
+   - **Suggested code changes**: If confidence is `direct` or `indirect`, suggest specific code changes or lines to inspect. If `unrelated`, suggest re-running the test. If `unclear`, state what additional information would be needed to suggest a fix.
 4. **Artifacts**: List of `spread-results-*` and log artifacts downloaded, with their extracted paths.
-5. **Recommendations**:
-   - **Always attempt to suggest a code fix** unless you are confident the failure is unrelated to the PR (confidence `unrelated`).
-   - If failures are clearly caused by the PR (confidence `direct` or `indirect`), suggest concrete code changes or which lines to inspect.
-   - If failures appear unrelated, flag them as potential flakes or infrastructure issues and suggest re-running the specific test.
-   - If you are uncertain (confidence `unclear`), state what additional information would be needed to suggest a fix.
 
 ## Security
 
