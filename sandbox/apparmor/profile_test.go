@@ -26,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -736,4 +737,120 @@ func (s *appArmorSuite) TestRemoveSnapConfineSnippetsNoSnippets(c *C) {
 	files, err := os.ReadDir(apparmor.SnapConfineAppArmorDir)
 	c.Assert(err, IsNil)
 	c.Assert(files, HasLen, 0)
+}
+
+// Tests for PruneCache()
+
+// makeDFACacheDir creates cacheDir/dfa, writes the named files, and sets their
+// atimes using os.Chtimes.  baseTime is the reference "newest" atime; each
+// file's atime offset is added to it.
+func makeDFACacheDir(c *C, cacheDir string, files map[string]time.Duration) {
+	dfaDir := filepath.Join(cacheDir, "dfa")
+	c.Assert(os.MkdirAll(dfaDir, 0755), IsNil)
+	// Capture now once so all offsets are relative to the same instant,
+	// preventing spurious ordering from repeated time.Now() calls.
+	base := time.Now()
+	for name, offset := range files {
+		p := filepath.Join(dfaDir, name)
+		c.Assert(os.WriteFile(p, []byte("blob"), 0600), IsNil)
+		atime := base.Add(offset)
+		c.Assert(os.Chtimes(p, atime, atime), IsNil)
+	}
+}
+
+func dfaCacheNames(c *C, cacheDir string) []string {
+	entries, err := os.ReadDir(filepath.Join(cacheDir, "dfa"))
+	c.Assert(err, IsNil)
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
+}
+
+func (s *appArmorSuite) TestPruneCacheNoDFADir(c *C) {
+	// PruneCache must not fail when the dfa subdirectory does not exist.
+	cacheDir := c.MkDir()
+	apparmor.PruneCache(cacheDir, time.Hour) // must not panic or log an error
+}
+
+func (s *appArmorSuite) TestPruneCacheEmptyDir(c *C) {
+	// PruneCache on an empty dfa directory is a no-op.
+	cacheDir := c.MkDir()
+	c.Assert(os.MkdirAll(filepath.Join(cacheDir, "dfa"), 0755), IsNil)
+	apparmor.PruneCache(cacheDir, time.Hour)
+	c.Check(dfaCacheNames(c, cacheDir), HasLen, 0)
+}
+
+func (s *appArmorSuite) TestPruneCacheKeepsRecentEntries(c *C) {
+	// Files whose atime equals the newest are not older than the cutoff, so none are pruned.
+	cacheDir := c.MkDir()
+	makeDFACacheDir(c, cacheDir, map[string]time.Duration{
+		"aaa.dfa": 0,
+		"bbb.dfa": 0,
+	})
+	apparmor.PruneCache(cacheDir, time.Second)
+	c.Check(dfaCacheNames(c, cacheDir), HasLen, 2)
+}
+
+func (s *appArmorSuite) TestPruneCacheRemovesOldEntries(c *C) {
+	// Use a 1-second interval. Files with atime > 1s older than newest are pruned.
+	cacheDir := c.MkDir()
+	makeDFACacheDir(c, cacheDir, map[string]time.Duration{
+		"new.dfa": 0,                // newest — must survive
+		"old.dfa": -2 * time.Second, // 2s older than newest — must be pruned
+	})
+	apparmor.PruneCache(cacheDir, time.Second)
+	remaining := dfaCacheNames(c, cacheDir)
+	c.Assert(remaining, HasLen, 1)
+	c.Check(remaining[0], Equals, "new.dfa")
+}
+
+func (s *appArmorSuite) TestPruneCacheAllFilesEquallyOld(c *C) {
+	// When all files share the same atime none are pruned regardless of
+	// how old they are in absolute terms.
+	cacheDir := c.MkDir()
+	makeDFACacheDir(c, cacheDir, map[string]time.Duration{
+		"aaa.dfa": -24 * time.Hour,
+		"bbb.dfa": -24 * time.Hour,
+		"ccc.dfa": -24 * time.Hour,
+	})
+	apparmor.PruneCache(cacheDir, time.Second)
+	c.Check(dfaCacheNames(c, cacheDir), HasLen, 3)
+}
+
+func (s *appArmorSuite) TestPruneCacheSkipsSubdirectories(c *C) {
+	// Subdirectories inside the dfa dir are ignored and never removed.
+	cacheDir := c.MkDir()
+	dfaDir := filepath.Join(cacheDir, "dfa")
+	c.Assert(os.MkdirAll(filepath.Join(dfaDir, "subdir"), 0755), IsNil)
+	apparmor.PruneCache(cacheDir, time.Second)
+	_, err := os.Stat(filepath.Join(dfaDir, "subdir"))
+	c.Check(err, IsNil)
+}
+
+func (s *appArmorSuite) TestPruneCacheMultipleOldOneNew(c *C) {
+	// One recent file keeps everything above the cutoff; files below are removed.
+	cacheDir := c.MkDir()
+	makeDFACacheDir(c, cacheDir, map[string]time.Duration{
+		"recent.dfa": 0,
+		"stale1.dfa": -2 * time.Second,
+		"stale2.dfa": -3 * time.Second,
+	})
+	apparmor.PruneCache(cacheDir, time.Second)
+	remaining := dfaCacheNames(c, cacheDir)
+	c.Assert(remaining, HasLen, 1)
+	c.Check(remaining[0], Equals, "recent.dfa")
+}
+
+func (s *appArmorSuite) TestPruneCacheZeroIntervalDropsAll(c *C) {
+	// Passing pruneInterval == 0 removes the entire dfa cache directory.
+	cacheDir := c.MkDir()
+	makeDFACacheDir(c, cacheDir, map[string]time.Duration{
+		"aaa.dfa": 0,
+		"bbb.dfa": -time.Hour,
+	})
+	apparmor.PruneCache(cacheDir, 0)
+	_, err := os.Stat(filepath.Join(cacheDir, "dfa"))
+	c.Check(os.IsNotExist(err), Equals, true)
 }
