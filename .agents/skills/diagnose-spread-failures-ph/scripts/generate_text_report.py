@@ -18,7 +18,14 @@ from pathlib import Path
 from fnmatch import fnmatch
 
 
-def _is_failed(value: str) -> bool:
+def _is_failed(value) -> bool:
+    """Check if a status/result value indicates failure."""
+    if isinstance(value, bool):
+        return not value  # success: false means failed
+    if isinstance(value, int):
+        return value > 0  # failed: 1 or task_failed: 2 means failed
+    if not isinstance(value, str):
+        return False
     return value.lower() in ("failed", "error", "fail", "unsuccessful", "aborted", "broken")
 
 
@@ -32,27 +39,36 @@ def _extract_records(data, system_hint: str = "", backend_hint: str = "") -> lis
     if not isinstance(data, dict):
         return records
 
-    # Detect test record by presence of name + status keys
+    # Detect test record by presence of name + result keys
     name_keys = ("name", "test", "task", "check", "id")
-    status_keys = ("status", "result", "outcome", "state")
+    result_keys = ("status", "result", "outcome", "state", "success", "failed")
     has_name = any(k in data for k in name_keys)
-    has_status = any(k in data for k in status_keys)
+    has_result = any(k in data for k in result_keys)
 
-    if has_name and has_status:
+    if has_name and has_result:
         name = (
             data.get("name") or data.get("test") or data.get("task")
             or data.get("check") or data.get("id") or "unknown"
         )
+
         status = (
             data.get("status") or data.get("result") or data.get("outcome")
-            or data.get("state") or "unknown"
+            or data.get("state") or ""
         )
-        if _is_failed(status):
+
+        is_failed = _is_failed(status)
+        if not is_failed and "success" in data:
+            is_failed = data["success"] is False
+        if not is_failed and "failed" in data:
+            val = data["failed"]
+            is_failed = (val is True) or (isinstance(val, int) and val > 0)
+
+        if is_failed:
             records.append({
                 "name": name,
                 "system": data.get("system", system_hint),
                 "backend": data.get("backend", backend_hint),
-                "status": status,
+                "status": status or "failed",
                 "error": str(data.get("error", data.get("message", data.get("detail", "")))),
             })
         return records

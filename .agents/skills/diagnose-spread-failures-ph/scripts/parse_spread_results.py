@@ -27,14 +27,20 @@ def _looks_like_test_record(obj: dict) -> bool:
     """Heuristic: does this dict look like a test result record?"""
     if not isinstance(obj, dict):
         return False
-    # Must have a name-like key and a status-like key
+    # Must have a name-like key and a result-like key
     has_name = any(k in obj for k in ("name", "test", "task", "check", "id"))
-    has_status = any(k in obj for k in ("status", "result", "outcome", "state"))
-    return has_name and has_status
+    has_result = any(k in obj for k in ("status", "result", "outcome", "state", "success", "failed"))
+    return has_name and has_result
 
 
 def _is_failed_status(value) -> bool:
     """Check if a status value indicates failure."""
+    if isinstance(value, bool):
+        # "success": false means failure
+        return not value
+    if isinstance(value, int):
+        # "failed": 1 or "task_failed": 2 means failure
+        return value > 0
     if not isinstance(value, str):
         return False
     return value.lower() in ("failed", "error", "fail", "unsuccessful", "aborted", "broken")
@@ -67,19 +73,30 @@ def _extract_test_records(data, system_hint: str = "", backend_hint: str = "") -
             or data.get("id")
             or "unknown"
         )
+
+        # Determine failure status from multiple possible fields
         status = (
             data.get("status")
             or data.get("result")
             or data.get("outcome")
             or data.get("state")
-            or "unknown"
+            or ""
         )
-        if _is_failed_status(status):
+
+        # Check boolean/integer failure indicators
+        is_failed = _is_failed_status(status)
+        if not is_failed and "success" in data:
+            is_failed = data["success"] is False
+        if not is_failed and "failed" in data:
+            val = data["failed"]
+            is_failed = (val is True) or (isinstance(val, int) and val > 0)
+
+        if is_failed:
             record = {
                 "name": name,
                 "system": data.get("system", system_hint),
                 "backend": data.get("backend", backend_hint),
-                "status": status,
+                "status": status or "failed",
                 "error": data.get("error", data.get("message", data.get("detail", ""))),
                 "duration": data.get("duration", data.get("time", "")),
                 "phase": data.get("phase", data.get("stage", "")),

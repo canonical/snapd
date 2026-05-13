@@ -145,9 +145,10 @@ Present the analysis in this structure:
    - **Correlation with PR**: Related changed files, confidence level (`direct` / `indirect` / `unrelated` / `unclear`), and rationale.
 4. **Artifacts**: List of `spread-results-*` and log artifacts downloaded, with their extracted paths.
 5. **Recommendations**:
-   - If tests cluster around a specific system or test suite, highlight it.
-   - If failures are clearly caused by the PR, suggest which changed files to inspect.
+   - **Always attempt to suggest a code fix** unless you are confident the failure is unrelated to the PR (confidence `unrelated`).
+   - If failures are clearly caused by the PR (confidence `direct` or `indirect`), suggest concrete code changes or which lines to inspect.
    - If failures appear unrelated, flag them as potential flakes or infrastructure issues and suggest re-running the specific test.
+   - If you are uncertain (confidence `unclear`), state what additional information would be needed to suggest a fix.
 
 ## Security
 

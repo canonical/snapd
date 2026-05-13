@@ -140,6 +140,11 @@ This is the critical diagnostic step: determine whether each failure is caused b
    - **Also note**: Any related source areas from `subsystem_map.md` that connect the test to the PR
    - Confidence level: `direct`, `indirect`, `unrelated`, `unclear`
    - Rationale: One-sentence explanation of why the PR did or did not cause this failure.
+7. **Attempt to suggest a fix** for every failure unless you are confident it is unrelated (confidence `unrelated`):
+   - For `direct` failures: Suggest the exact code change needed (e.g., "Add missing dependency `libbpf1` to `core-initrd/24.04/debian/control`" or "Update error message in `overlord/snapstate/snapstate.go:1234`").
+   - For `indirect` failures: Suggest which related files to inspect and what to look for.
+   - For `unclear` failures: State what additional information (e.g., specific log lines, stack trace, reproducer steps) would be needed to determine a fix.
+   - For `unrelated` failures: Explicitly state why no fix is needed and recommend re-running the test or investigating infrastructure.
 
 ### Step 7: Synthesize Findings
 
@@ -156,19 +161,84 @@ Produce a structured report including:
    - **Correlation**: Related changed files, confidence level (`direct` / `indirect` / `unrelated` / `unclear`), and rationale.
 5. **Log Artifacts**: List of downloaded log artifacts and what they contain.
 6. **Recommendations**:
-   - If failures cluster around a specific system or test suite, highlight it.
-   - If failures are clearly caused by the PR, suggest which changed files to inspect.
+   - **Always attempt to suggest a code fix** unless you are confident the failure is unrelated to the PR (confidence `unrelated`).
+   - If failures are clearly caused by the PR (confidence `direct` or `indirect`), suggest concrete code changes or which lines to inspect.
    - If failures appear unrelated, flag them as potential flakes or infrastructure issues and suggest re-running the specific test.
+   - If you are uncertain (confidence `unclear`), state what additional information would be needed to suggest a fix.
+   - If failures cluster around a specific system or test suite, highlight it.
 
-## Common JSON Patterns to Expect
+## Spread-Results JSON Schema Reference
 
-Since the exact schema of `spread-results-*` is not fixed, expect variations. The parser handles the most common ones; if it misses a variant, expect:
+The `spread-results-*` artifacts contain a single `results.json` file. Based on observed output from the snapd CI, the schema follows this structure:
 
-- **Flat array of test records**: `[{"name": "tests/main/foo", "status": "failed", ...}, ...]`
-- **Nested by system/backend**: `{"openstack_ubuntu-core-24-64": {"tests/core/services": {"status": "failed"}}}`
-- **Summary + details**: `{"summary": {"failed": 2}, "details": [...]}`
+```json
+{
+  "type": "task" | "suite",
+  "items": [
+    {
+      "name": "tests/main/foo",
+      "success": false,
+      "duration": 42.5,
+      "restoring": 1,
+      "executing": 0,
+      "checking": 0,
+      ...
+    }
+  ],
+  "summary": {
+    "failed": 3,
+    "aborted": 0,
+    "successful": 145,
+    "restoring": 1,
+    "executing": 2,
+    "checking": 0
+  }
+}
+```
 
-Always inspect `top_level_keys` first when the parser cannot extract data.
+### Key fields
+
+- **`items[]`**: Array of test results. Each item represents one test task.
+  - `name`: The test name (e.g., `tests/main/remove-with-missing-mount-unit`)
+  - `success`: `false` means the test failed. **This is the primary failure indicator.**
+  - `duration`: Execution time in seconds
+  - `executing`: Count of execution-phase failures (0 = passed this phase)
+  - `restoring`: Count of restore-phase failures
+  - `checking`: Count of check-phase failures (usually skipped due to unsatisfied dependencies)
+  - `preparing`, `debugging`, `allocating`: Other phase counts
+- **`summary`**: Aggregate counts across all items
+  - `failed`: Total number of failed items
+  - `aborted`: Aborted tasks
+  - `successful`: Passed tasks
+  - `restoring`, `executing`, `checking`: Phase-level failure counts
+
+### Failure interpretation
+
+- **`success: false` + `executing > 0`**: The test actually ran and failed. This is a **real regression**.
+- **`success: false` + `restoring > 0`**: The test passed but cleanup/restoring failed. May be a regression or infrastructure issue.
+- **`success: false` + `checking > 0`**: The test was skipped because prerequisites were not met. Usually **not a regression** — indicates the test environment doesn't support the feature.
+- **`success: false` + `aborted > 0`**: The test was aborted (e.g., suite prepare failed). Usually **infrastructure-related**.
+
+### What the parser handles
+
+The parser (`scripts/parse_spread_results.py` and `scripts/generate_text_report.py`) automatically detects:
+- `success: false` boolean failures
+- `status`, `result`, `outcome`, `state` string failures (`failed`, `error`, etc.)
+- `failed: true` or `failed: <positive integer>` boolean/integer failures
+- `items[]` arrays with test records
+- Nested objects keyed by `backend_system` (e.g., `openstack_ubuntu-core-24-64`)
+- Summary counts at the top level
+
+### If the parser returns zero failed tests despite summary counts showing failures
+
+This means the `items[]` array or `success` field pattern is not being recognized. To diagnose:
+
+1. Read the raw `results.json` from one artifact.
+2. Report the **top-level keys** and the **keys of the first item in the `items` array**.
+3. Report whether failures are indicated by `success: false`, `status: "failed"`, or another field.
+
+**Never parse dozens of JSON files manually.** Report the schema and update the parser scripts instead.
+
 
 ## Log Parsing Tips
 
