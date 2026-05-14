@@ -112,7 +112,7 @@ Follow the detailed checklist in `references/spread_analysis_workflow.md`, augme
 5. **Check multi-system pattern** — Same test failing on multiple systems increases PR-causation likelihood
 6. **Read logs** — Examine specific error messages for evidence; cross-reference error strings with current local source
 7. **Form hypothesis** — Classify as PR-caused, flaky, infrastructure, or unknown
-8. **Propose code fixes (conditional)** — Only if the failure is determined to be an actual issue in snapd code (either introduced by the PR or pre-existing snapd code that is genuinely broken and meaningful to fix). Do not propose code changes for flaky tests, infrastructure issues, or tests that are failing for unrelated reasons.
+8. **Propose code fixes (conditional)** — Only if the failure is determined to be an actual issue in snapd production code (either introduced by the PR or pre-existing snapd code that is genuinely broken and meaningful to fix). Limit suggestions to production code only, not unit tests. Do not propose code changes for flaky tests, infrastructure issues, or tests that are failing for unrelated reasons. Only suggest the fix; do NOT actually make any code changes.
 
 ### 7. Output Results
 
@@ -124,12 +124,12 @@ Required sections:
 - **Per-test analysis:** One compact line per failing test: `test-name` → systems, phase, hypothesis, confidence
 - **Key evidence:** Only the strongest 1–3 correlation signals (e.g., multi-system failure, direct path match, error string match)
 - **Recommendations:** One-line actions (fix, re-run, investigate infrastructure, no action)
-- **Code fix suggestions (conditional):** Only include if a failing test is determined to be caused by an actual issue in snapd code (PR regression or meaningful pre-existing bug). For each such test, provide:
-  - The specific file(s) and function/code area to change
+- **Code fix suggestions (conditional):** Only include if a failing test is determined to be caused by an actual issue in snapd production code (PR regression or meaningful pre-existing bug). Limit suggestions to production code only, not unit tests. For each such test, provide:
+  - The specific production file(s) and function/code area to change
   - A brief description of what the fix should do
   - A short rationale tying the suggested change to the observed failure
-  
-  Do NOT include code fix suggestions for flaky tests, infrastructure failures, or failures with no clear snapd code correlation.
+
+  Do NOT include code fix suggestions for flaky tests, infrastructure failures, failures with no clear snapd code correlation, or unit test code changes. Do NOT actually make any code changes; only suggest them.
 
 Omit unless it changes the conclusion:
 - Verbatim log dumps

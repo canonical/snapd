@@ -99,17 +99,18 @@ For each unique failing test, classify it:
 | **Infrastructure** | Preparing/restoring phase; many unrelated tests fail on same system; aborted tests; image or network issues |
 | **Pre-existing** | Failure matches known issue; not correlated with PR changes; test fails on master too |
 
-## Phase 7: Propose Code Fixes (Conditional)
+## Phase 7: Suggest Code Fixes (Conditional)
 
-Only for failures that are actual issues in snapd code — either PR regressions or meaningful pre-existing bugs. Skip this phase entirely for flaky tests, infrastructure issues, or unrelated failures.
+Only for failures that are actual issues in snapd production code — either PR regressions or meaningful pre-existing bugs. Limit suggestions to production code only, not unit tests. Skip this phase entirely for flaky tests, infrastructure issues, or unrelated failures. Only suggest the fix; do NOT actually make any code changes.
 
 For each qualifying failure:
 
-1. **Identify the root cause in snapd code:**
-   - Read the relevant local source files (not just the diff) to understand the current implementation.
-   - Map the observed error message or failure behavior to a specific code path, function, or logic flaw.
-   - If the PR introduced the issue, pinpoint the changed lines that caused the regression.
-   - If the issue is pre-existing, determine whether it is meaningful to fix (e.g., the test is revealing a real bug, not just a timing issue or test fragility).
+1. **Identify the root cause in snapd production code:**
+    - Read the relevant local source files (not just the diff) to understand the current implementation.
+    - Map the observed error message or failure behavior to a specific code path, function, or logic flaw.
+    - If the PR introduced the issue, pinpoint the changed lines that caused the regression.
+    - If the issue is pre-existing, determine whether it is meaningful to fix (e.g., the test is revealing a real bug, not just a timing issue or test fragility).
+    - Focus on production code files only; do not suggest fixes in unit test files.
 
 2. **Determine the fix approach:**
    - Consider the minimal change that resolves the failure while preserving existing behavior.
@@ -124,8 +125,11 @@ For each qualifying failure:
 **Do NOT propose code changes when:**
 - The failure is infrastructure-related (preparing/restoring, image issues, network timeouts).
 - The failure is a known flaky test (single-system, intermittent, timeout/race).
-- The failure is in the test itself (test logic needs adjustment rather than snapd code).
+- The failure is in the test itself (test logic needs adjustment rather than snapd production code).
+- The required fix would be in unit test code rather than production code.
 - There is no clear correlation between the failure and snapd source code.
+
+**Important:** Only suggest code fixes. Do NOT actually make any code changes.
 
 ## Phase 8: Produce Concise Report
 
@@ -156,7 +160,7 @@ Structure:
 1. Fix `tests/main/...` before merge (regression)
 2. Re-run `tests/nested/...` to confirm infrastructure flakiness
 
-### Code Fix Suggestions (only if applicable)
+### Code Fix Suggestions for Production Code (only if applicable)
 - `tests/main/...` — Modify `overlord/snapstate/install.go` function `doInstall` to validate X before Y; rationale: error log shows nil dereference when Y is accessed before validation.
 - `tests/main/...` — Update `interfaces/builtin/network.go` `BeforePreparePlug` to reject empty "path" attribute; rationale: test failure indicates unhandled empty path causing sandbox setup failure.
 ```
