@@ -372,7 +372,36 @@ func (s *ntpSuite) TestNTPSetValidConfigurationMissingFolderPermissions(c *C) {
 	s.verifyConfigfileContent(c, startingFileContent, "")
 }
 
+func (s *ntpSuite) TestNTPSetErrorRemoveFileEmptyConfiguration(c *C) {
+	// Change /etc/systemd permissions to inhibit file deletion when the configuration is empty
+	systemdConfigFolder := filepath.Join(dirs.GlobalRootDir, "etc/systemd")
+	c.Assert(os.Chmod(systemdConfigFolder, 0111), IsNil)
+	defer os.Chmod(systemdConfigFolder, 0755)
+
+	conf := configcore.PlainCoreConfig(map[string]any{
+		"system.ntp": map[string]any{},
+	})
+
+	// The config file not being readable triggers an error and the configuration
+	// is not updated
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, ErrorMatches, "cannot reset NTP configuration to defaults: remove .*/etc/systemd/timesyncd.conf: permission denied")
+}
+
 func (s *ntpSuite) TestNTPSetErrorReadingDiskConfiguration(c *C) {
+	// Change file permissions to inhibit reading it
+	os.Chmod(s.timesyncdConfigFile, 0000)
+	defer os.Chmod(s.timesyncdConfigFile, 0644)
+
+	conf := configcore.PlainCoreConfig(validConfigurationExample)
+
+	// The config file not being readable triggers an error and the configuration
+	// is not updated
+	err := configcore.FilesystemOnlyRun(core24Dev, conf)
+	c.Assert(err, ErrorMatches, "cannot read NTP configuration file /etc/systemd/timesyncd.conf: open .*/etc/systemd/timesyncd.conf: permission denied")
+}
+
+func (s *ntpSuite) TestNTPSetMissingConfigFile(c *C) {
 	// Remove config file
 	os.Remove(s.timesyncdConfigFile)
 
@@ -567,9 +596,13 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 	c.Check(configcore.NTPConfigurationDeepEqual(config8, config1), Equals, false)
 	c.Check(configcore.NTPConfigurationDeepEqual(config5, config1), Equals, false)
 
-	// Test configuration with removed fields
+	// Test configuration with differently named field (max to min)
 	config9 := map[string]any{
-		"poll-interval-min-sec": "16s",
+		"servers": []any{
+			"192.168.1.1",
+			"ntp.ubuntu.com",
+		},
+		"root-distance-min-sec": "5s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config9), Equals, false)
 
