@@ -132,7 +132,7 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 	// if we have a local revision here we go back to that
 	if sc.snapsup.SnapPath != "" || sc.revisionIsPresent() {
 		prepare = st.NewTask("prepare-snap", fmt.Sprintf(
-			i18n.G("Prepare snap %q%s"), sc.snapsup.SnapPath, sc.revisionString()))
+			i18n.G("Prepare snap %q%s"), sc.snapsup.InstanceName(), sc.revisionString()))
 	} else {
 		prepare = st.NewTask("download-snap", fmt.Sprintf(
 			i18n.G("Download snap %q%s from channel %q"),
