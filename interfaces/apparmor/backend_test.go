@@ -1318,6 +1318,86 @@ func (s *backendSuite) TestCombineSnippets(c *C) {
 	}
 }
 
+// snapYamlWithBase returns a minimal snap YAML string with the given base set.
+// An empty base string omits the base field entirely (equivalent to base: core).
+func snapYamlWithBase(base string) string {
+	baseField := ""
+	if base != "" {
+		baseField = "base: " + base + "\n"
+	}
+	return "name: samba\nversion: 1\n" + baseField + "apps:\n    smbd:\n"
+}
+
+func (s *backendSuite) TestCoreRuntimeExtraRulesPerBase(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// Use a minimal template containing templateFooter so that
+	// coreRuntimeExtraRules can insert rules at the correct position.
+	// Unlike MockTemplate, MockCoreRuntimeTemplate does not suppress
+	// coreRuntimeExtraRules, so the perl/python insertion logic is exercised.
+	restoreTemplate := apparmor.MockCoreRuntimeTemplate(
+		"###PROFILEATTACH### ###FLAGS### {\n" +
+			apparmor.TemplateFooter)
+	defer restoreTemplate()
+
+	perlMarker := "#include <abstractions/perl>"
+	pythonMarker := "#include <abstractions/python>"
+
+	type scenario struct {
+		base       string
+		wantPerl   bool
+		wantPython bool
+		comment    string
+	}
+	scenarios := []scenario{
+		// empty base = implicit core → perl + python
+		{base: "", wantPerl: true, wantPython: true, comment: "empty base (core)"},
+		// core18, core20 → perl + python
+		{base: "core18", wantPerl: true, wantPython: true, comment: "core18"},
+		{base: "core20", wantPerl: true, wantPython: true, comment: "core20"},
+		// core24 → python only, no perl
+		{base: "core24", wantPerl: false, wantPython: true, comment: "core24"},
+		// core26 → no perl, no python
+		{base: "core26", wantPerl: false, wantPython: false, comment: "core26"},
+		// core26+ (core28) → no perl, no python
+		{base: "core28", wantPerl: false, wantPython: false, comment: "core28"},
+	}
+
+	for _, sc := range scenarios {
+		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", snapYamlWithBase(sc.base), 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		content, err := os.ReadFile(profile)
+		c.Assert(err, IsNil, Commentf("scenario: %s", sc.comment))
+
+		profileStr := string(content)
+		c.Check(strings.Contains(profileStr, perlMarker), Equals, sc.wantPerl,
+			Commentf("perl rules presence mismatch for scenario: %s", sc.comment))
+		c.Check(strings.Contains(profileStr, pythonMarker), Equals, sc.wantPython,
+			Commentf("python rules presence mismatch for scenario: %s", sc.comment))
+
+		// Verify extra rules are inside the profile block (before the closing brace).
+		closingBrace := strings.Index(profileStr, "\n}\n")
+		c.Assert(closingBrace, Not(Equals), -1, Commentf("no closing brace found for scenario: %s", sc.comment))
+		if sc.wantPerl {
+			perlIdx := strings.Index(profileStr, perlMarker)
+			c.Check(perlIdx < closingBrace, Equals, true,
+				Commentf("perl rules must appear before closing brace for scenario: %s", sc.comment))
+		}
+		if sc.wantPython {
+			pythonIdx := strings.Index(profileStr, pythonMarker)
+			c.Check(pythonIdx < closingBrace, Equals, true,
+				Commentf("python rules must appear before closing brace for scenario: %s", sc.comment))
+		}
+
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestUnconfinedFlag(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
