@@ -97,9 +97,8 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
 
 	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(err, IsNil)
-	c.Check(cmd.Path, Equals, parser)
 	c.Check(cmd.Args, DeepEquals, []string{
-		parser,
+		"systemd-run", "--slice-inherit", "--pipe", parser,
 		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
 		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
 		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/3.0"),
@@ -129,9 +128,9 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
 
 	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(err, IsNil)
-	c.Check(cmd.Path, Equals, parser)
+	// The parser is not the first argument as we are calling it through systemd-run.
 	c.Check(cmd.Args, DeepEquals, []string{
-		parser,
+		"systemd-run", "--slice-inherit", "--pipe", parser,
 		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
 		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
 		// 4.0 was preferred.
