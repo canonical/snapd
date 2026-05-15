@@ -1,0 +1,41 @@
+summary: Reproduce issue with inconsistent common ID
+
+details: |
+    When installing a snap with a `desktop-file-id` defined in the `desktop-file`
+    plug, that common ID is not always respected. One side effect of this is
+    that snap installs of that snap fail periodically when there's a mismatch
+    between the expected ID and the specified common ID. This spread test is a
+    reproducer of this issue.
+
+systems:
+  - ubuntu-2*
+
+prepare: |
+    # Get Marco's demo snap which is known to cause this bug
+    curl -Lo ashpd-demo.snap https://people.ubuntu.com/~3v1n0/snaps/ashpd-demo_0.5.0+desktop-id_amd64.snap
+
+debug: |
+    current_stack_filepath="/tmp/failure-reproducer-current-stack"
+    all_stacks_filepath="/tmp/failure-reproducer-all-stacks"
+    if [ -f "$current_stack_filepath" ] ; then
+        echo
+        echo '%%%%%%%% CURRENT STACK %%%%%%%%'
+        cat "$current_stack_filepath"
+    else
+        echo '%%%%%%%% NO CURRENT STACK FOUND %%%%%%%%'
+    fi
+    if [ -f "$all_stacks_filepath" ] ; then
+        echo
+        echo '%%%%%%%% ALL STACKS %%%%%%%%'
+        cat "$all_stacks_filepath"
+    else
+        echo '%%%%%%%% NO ALL STACKS FOUND %%%%%%%%'
+    fi
+
+execute: |
+    for attempt in $(seq 1 100) ; do
+        echo "Attempt $attempt"
+        # Eventually this should fail
+        snap install ashpd-demo.snap --dangerous
+        snap remove --purge ashpd-demo
+    done
