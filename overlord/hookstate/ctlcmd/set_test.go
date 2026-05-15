@@ -75,6 +75,11 @@ func (s *setSuite) TestInvalidArguments(c *C) {
 	c.Check(err, ErrorMatches, ".*interface attributes can only be set during the execution of prepare hooks.*")
 }
 
+func (s *setSuite) TestSetInvalidValueKey(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", `foo={"bad_key":1}`}, 0, nil)
+	c.Assert(err, ErrorMatches, `invalid option name: "bad_key"`)
+}
+
 func (s *setSuite) TestCommand(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar", "baz=qux"}, 0, nil)
 	c.Check(err, IsNil)

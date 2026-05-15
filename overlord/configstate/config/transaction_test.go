@@ -356,6 +356,13 @@ var setGetTests = [][]setGetOp{{
 	`set one.bad--bad.two=1 => invalid option name: "bad--bad"`,
 	`set one.-bad.two=1 => invalid option name: "-bad"`,
 	`set one.bad-.two=1 => invalid option name: "bad-"`,
+	// Invalid keys nested in JSON objects.
+	`set one={"Bad":1} => invalid option name: "Bad"`,
+	`set one={"bad_key":1} => invalid option name: "bad_key"`,
+	`set one={"good":{"Bad":1}} => invalid option name: "Bad"`,
+	`set one=[{"Bad":1}] => invalid option name: "Bad"`,
+	`set one=[{"good":{"Bad":1}}] => invalid option name: "Bad"`,
+	`set one=[1,[{"Bad":1}]] => invalid option name: "Bad"`,
 }}
 
 func (s *transactionSuite) TestSetGet(c *C) {

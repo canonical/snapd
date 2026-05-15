@@ -48,6 +48,31 @@ func ParseKey(key string) (subkeys []string, err error) {
 	return subkeys, nil
 }
 
+// validateMapKeys takes an unmarshalled JSON object and checks that any map
+// keys nested within match the format expected by path keys.
+func validateMapKeys(value any) error {
+	switch v := value.(type) {
+	case map[string]any:
+		for k, sub := range v {
+			if !validKey.MatchString(k) {
+				return fmt.Errorf("invalid option name: %q", k)
+			}
+
+			if err := validateMapKeys(sub); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for _, elem := range v {
+			if err := validateMapKeys(elem); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func purgeNulls(config any) any {
 	switch config := config.(type) {
 	// map of json raw messages is the starting point for purgeNulls, this is the configuration we receive

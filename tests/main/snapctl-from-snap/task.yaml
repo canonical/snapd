@@ -75,6 +75,11 @@ execute: |
     "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set foo=123
     "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH 123
 
+    echo "Verify invalid option names are rejected"
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH "error: snapctl: invalid option name: \"Foo\""
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]' 2>&1 | MATCH "invalid option name: \"Bar\""
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo={"bar_baz":1}' 2>&1 | MATCH "invalid option name: \"bar_baz\""
+
     echo "Verify configuration value with snap get"
     snap get "$SNAP" foo | MATCH 123
 

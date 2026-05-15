@@ -150,6 +150,10 @@ func (t *Transaction) Set(instanceName, key string, value any) error {
 		return errors.New("internal error: key cannot be an empty string")
 	}
 
+	if err := validateMapKeys(value); err != nil {
+		return err
+	}
+
 	config := t.changes[instanceName]
 	if config == nil {
 		config = make(map[string]any)
