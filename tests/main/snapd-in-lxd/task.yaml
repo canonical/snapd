@@ -1,0 +1,139 @@
+summary: snapd but inside lxd across various conditions
+details: |
+    Snapd mostly works inside LXD but there are some interesting edge cases, like udev support.
+    This test exercises LXD from several different snap channels to run several simple snap
+    payloads inside the container. In each case a range of containers is used to try to get most
+    coverage of host-guest combinations.
+# Note that LXD older than 5.x does not support virtual machines,
+# so it is excluded from the test matrix.
+environment:
+    # Ubuntu 24.04 VM/Container based on LXD 6.x
+    LXD_TRACK/6_x_noble: "6"
+    ID/6_x_noble: ubuntu
+    ID_VERSION_CODENAME/6_x_noble: noble
+    ID_VERSION/6_x_noble: "24.04"
+    # Ubuntu 24.04 VM/Container based on LXD 5.x
+    LXD_TRACK/5_x_noble: "5.0"
+    ID/5_x_noble: ubuntu
+    ID_VERSION_CODENAME/5_x_noble: noble
+    ID_VERSION/5_x_noble: "24.04"
+    # Ubuntu 24.04 VM/Container based on LXD 5.21
+    LXD_TRACK/5_21_x_noble: "5.21"
+    ID/5_21_x_noble: ubuntu
+    ID_VERSION_CODENAME/5_21_x_noble: noble
+    ID_VERSION/5_21_x_noble: "24.04"
+    # Ubuntu 22.04 VM/Container based on LXD 6.x
+    LXD_TRACK/6_x_jammy: "6"
+    ID/6_x_jammy: ubuntu
+    ID_VERSION_CODENAME/6_x_jammy: jammy
+    ID_VERSION/6_x_jammy: "22.04"
+    # Ubuntu 22.04 VM/Container based on LXD 5.x
+    LXD_TRACK/5_x_jammy: "5.0"
+    ID/5_x_jammy: ubuntu
+    ID_VERSION_CODENAME/5_x_jammy: jammy
+    ID_VERSION/5_x_jammy: "22.04"
+    # Ubuntu 22.04 VM/Container based on LXD 5.21
+    LXD_TRACK/5_21_x_jammy: "5.21"
+    ID/5_21_x_jammy: ubuntu
+    ID_VERSION_CODENAME/5_21_x_jammy: jammy
+    ID_VERSION/5_21_x_jammy: "22.04"
+    # Ubuntu 20.04 VM/Container based on LXD 6.x
+    LXD_TRACK/6_x_focal: "6"
+    ID/6_x_focal: ubuntu
+    ID_VERSION_CODENAME/6_x_focal: focal
+    ID_VERSION/6_x_focal: "20.04"
+    # Ubuntu 20.04 VM/Container based on LXD 5.x
+    LXD_TRACK/5_x_focal: "5.0"
+    ID/5_x_focal: ubuntu
+    ID_VERSION_CODENAME/5_x_focal: focal
+    ID_VERSION/5_x_focal: "20.04"
+    # Ubuntu 20.04 VM/Container based on LXD 5.21
+    LXD_TRACK/5_21_x_focal: "5.21"
+    ID/5_21_x_focal: ubuntu
+    ID_VERSION_CODENAME/5_21_x_focal: focal
+    ID_VERSION/5_21_x_focal: "20.04"
+
+prepare: |
+    # NOTE: All commands use "snap run lxd.lxc" to avoid caring if the host has
+    # another copy of lxc or lxd installed.
+    # Install LXD from the specified channel. This combines the exhaustive set
+    # of tracks with the channel defined in spread.yaml.
+    snap install --channel="$LXD_TRACK/${LXD_SNAP_CHANNEL##latest/}" lxd
+    snap run lxd init --auto
+    # Cleanup requires a bit of a manual help.
+    tests.cleanup defer umount --lazy /var/snap/lxd/common/ns
+    tests.cleanup defer snap remove --purge lxd
+
+    # Fetch the image of the target system.
+    snap run lxd.lxc image copy ubuntu:"$ID_VERSION" "local:"
+
+    # Run the target system as a virtual machine.
+    # This instance is our baseline for what we consider correct, as it has
+    # the full feature set.
+    snap run lxd.lxc launch --vm ubuntu:"$ID_VERSION" "$ID_VERSION_CODENAME"-vm
+    tests.cleanup defer snap run lxd.lxc delete "$ID_VERSION_CODENAME"-vm
+    tests.cleanup defer snap run lxd.lxc stop "$ID_VERSION_CODENAME"-vm
+
+    # Run the target system as a container with default settings.
+    # This instance is our baseline for correctness inside containers that are
+    # not mis-configured for special purpose.
+    snap run lxd.lxc launch ubuntu:"$ID_VERSION" "$ID_VERSION_CODENAME"-good
+    tests.cleanup defer snap run lxd.lxc delete "$ID_VERSION_CODENAME"-good
+    tests.cleanup defer snap run lxd.lxc stop "$ID_VERSION_CODENAME"-good
+
+    # Run the target system as a container with questionable settings.
+    snap run lxd.lxc launch -c security.privileged=true ubuntu:"$ID_VERSION" "$ID_VERSION_CODENAME"-bad
+    tests.cleanup defer snap run lxd.lxc delete "$ID_VERSION_CODENAME"-bad
+    tests.cleanup defer snap run lxd.lxc stop "$ID_VERSION_CODENAME"-bad
+
+    # Pass /dev/kvm it one exists into both the good and bad containers.
+    if [ -c /dev/kvm ]; then
+        snap run lxd.lxc config device add "$ID_VERSION_CODENAME"-good kvm unix-char source=/dev/kvm
+        snap run lxd.lxc config device add "$ID_VERSION_CODENAME"-bad  kvm unix-char source=/dev/kvm
+    fi
+
+    # Wait some time for the virtual machine to start.
+    sleep 30
+    retry --wait 10 --attempts 6 snap run lxd.lxc exec "$ID_VERSION_CODENAME"-vm true
+
+    # Wait for all the instances to finish snap seeding.
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-vm   -- snap wait system seed.loaded
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-good -- snap wait system seed.loaded
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-bad  -- snap wait system seed.loaded
+
+    # Copy prebuilt snapd snap into all the instances
+    snap run lxd.lxc file push "$SPREAD_PATH"/built-snap/snapd_* "$ID_VERSION_CODENAME"-vm/tmp/
+    snap run lxd.lxc file push "$SPREAD_PATH"/built-snap/snapd_* "$ID_VERSION_CODENAME"-good/tmp/
+    snap run lxd.lxc file push "$SPREAD_PATH"/built-snap/snapd_* "$ID_VERSION_CODENAME"-bad/tmp/
+
+    # Install up-to-date snapd in all the instances.
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-vm   -- sh -c 'snap install --dangerous /tmp/snapd_*.keep'
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-good -- sh -c 'snap install --dangerous /tmp/snapd_*.keep'
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-bad  -- sh -c 'snap install --dangerous /tmp/snapd_*.keep'
+
+    # Inspect the version of snapd running in all the instances.
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-vm   -- snap version >snapd-in-vm.txt
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-good -- snap version >snapd-in-good.txt
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-bad  -- snap version >snapd-in-bad.txt
+
+    # Pack test-snapd-kvm snap locally
+    snap pack "$SPREAD_PATH"/tests/lib/snaps/test-snapd-kvm .
+
+    # Copy test-snapd-kvm into all instances.
+    snap run lxd.lxc file push ./test-snapd-kvm_*.snap "$ID_VERSION_CODENAME"-vm/tmp/
+    snap run lxd.lxc file push ./test-snapd-kvm_*.snap "$ID_VERSION_CODENAME"-good/tmp/
+    snap run lxd.lxc file push ./test-snapd-kvm_*.snap "$ID_VERSION_CODENAME"-bad/tmp/
+
+    # Install the test snap into both instances.
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-vm   -- sh -c 'snap install --dangerous /tmp/test-snapd-kvm_*.snap'
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-good -- sh -c 'snap install --dangerous /tmp/test-snapd-kvm_*.snap'
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME"-bad  -- sh -c 'snap install --dangerous /tmp/test-snapd-kvm_*.snap'
+
+restore: |
+    tests.cleanup restore
+
+execute: |
+    # Ensure the snap can launch correctly.
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME-vm"   -- snap run test-snapd-kvm.with-kvm-plug -c true
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME-good" -- snap run test-snapd-kvm.with-kvm-plug -c true
+    snap run lxd.lxc exec "$ID_VERSION_CODENAME-bad"  -- snap run test-snapd-kvm.with-kvm-plug -c true
