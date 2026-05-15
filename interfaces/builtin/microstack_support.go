@@ -104,14 +104,23 @@ const microStackSupportConnectedPlugAppArmor = `
 # Used by libvirt (cgroup-related):
 /sys/fs/cgroup/unified/cgroup.controllers r,
 /sys/fs/cgroup/cpuset/cpuset.cpus r,
+# cgroups v2 used by libvirt and nova-compute:
+/sys/fs/cgroup/cgroup.controllers r,
+/sys/fs/cgroup/cgroup.subtree_control rw,
 
 # Non-systemd layout: https://libvirt.org/cgroups.html#currentLayoutGeneric
 /sys/fs/cgroup/*/ r,
 /sys/fs/cgroup/*/machine/ rw,
 /sys/fs/cgroup/*/machine/** rw,
+# Non-systemd layout cgroups v2:
+/sys/fs/cgroup/ r,
+/sys/fs/cgroup/machine/ rw,
+/sys/fs/cgroup/machine/** rw,
 
 # systemd-layout: https://libvirt.org/cgroups.html#systemdLayout
 /sys/fs/cgroup/*/machine.slice/machine-qemu*/{,**} rw,
+# systemd-layout cgroups v2:
+/sys/fs/cgroup/machine/qemu-*.libvirt-qemu/{,**} rw,
 
 @{PROC}/[0-9]*/cgroup r,
 @{PROC}/cgroups r,
