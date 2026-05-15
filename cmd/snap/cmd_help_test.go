@@ -259,6 +259,19 @@ func (s *SnapSuite) TestManpageNoDoubleTP(c *check.C) {
 
 }
 
+func (s *SnapSuite) TestManpageListsKeyCommands(c *check.C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap", "help", "--man"}
+
+	err := snap.RunMain()
+	c.Assert(err, check.IsNil)
+
+	for _, cmd := range []string{"create-key", "delete-key", "export-key", "keys"} {
+		c.Check(s.Stdout(), check.Matches, fmt.Sprintf(`(?ms).*^\.SS %s$.*`, regexp.QuoteMeta(cmd)), check.Commentf("%q", cmd))
+	}
+}
+
 func (s *SnapSuite) TestBadSub(c *check.C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
