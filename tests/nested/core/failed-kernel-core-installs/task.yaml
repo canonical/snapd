@@ -1,0 +1,91 @@
+summary: Check that a base is installed when a kernel fails
+
+details: |
+  This test checks that when we install a kernel and a base at the same
+  time and the kernel fails, we still install the base.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64, ubuntu-22.04-64]
+
+execute: |
+  echo "Create repacked base for installation"
+  VERSION="$(tests.nested show version)"
+  base=core"$VERSION"
+  if [ "$VERSION" -eq 16 ]; then
+      base=core
+  fi
+  rm -rf "$base"
+  snap download --basename="$base" "$base"
+  unsquashfs -d "$base" "$base".snap
+  BASE_F="$base"_repacked.snap
+  snap pack "$base"/ --filename="$BASE_F"
+
+  echo "Build kernel with unused assets"
+  kernel=pc-kernel
+  channel=$VERSION
+  if [ "$VERSION" -eq 16 ]; then
+      channel=latest
+  fi
+  snap download --basename=$kernel --channel="$channel" $kernel
+  rm -rf "$kernel"
+  unsquashfs -d "$kernel" "$kernel".snap
+  META_D=$kernel/meta
+  KERNEL_YAML_P="$META_D"/kernel.yaml
+  ASSET_F=a.bin
+  # This will make the kernel updata fail as the gadget does not use these assets
+  cat > "$KERNEL_YAML_P" << EOF
+  assets:
+    myassets:
+      update: true
+      content:
+        - $ASSET_F
+  EOF
+  touch "$kernel/$ASSET_F"
+  KERNEL_F="$kernel"_assets.snap
+  snap pack "$kernel"/ --filename="$KERNEL_F"
+
+  echo "Wait for the system to be seeded first"
+  remote.exec "sudo snap wait system seed.loaded"
+
+  boot_id="$(tests.nested boot-id)"
+
+  echo "Install jointly base and kernel"
+  remote.push "$BASE_F"
+  remote.push "$KERNEL_F"
+  chg_id=$(remote.exec "sudo snap install --dangerous --no-wait $BASE_F $KERNEL_F")
+
+  echo "Wait for reboot due to installation of base snap"
+  tests.nested wait-for reboot "$boot_id"
+
+  boot_id="$(tests.nested boot-id)"
+  # wait for change to finish with error
+  not remote.exec sudo snap watch "$chg_id"
+  # make sure that no additional reboots have happened while the change finished
+  test "$boot_id" = "$(tests.nested boot-id)"
+
+  echo "Check that the change finished with error"
+  remote.exec "snap changes | MATCH \"^$chg_id.*Error\""
+
+  echo "Check that kernel is the old one but base is the new one"
+  remote.exec "snap info $kernel | MATCH 'installed:.*\(x1\)'"
+  remote.exec "snap info $base | MATCH 'installed:.*\(x2\)'"
+
+  if [ "$VERSION" -ge 20 ]; then
+      modeenv_data=$(remote.exec 'cat /var/lib/snapd/modeenv')
+      if ! [[ "$modeenv_data" == *base=${base}_x2.snap* ]]; then
+          echo "Incorrect base in modeenv: $modeenv_data"
+          exit 1
+      fi
+      if [[ "$modeenv_data" == *try_base=* ]]; then
+          echo "try_base should not be set in modeenv: $modeenv_data"
+          exit 1
+      fi
+      if [[ "$modeenv_data" == *base_status=* ]]; then
+          echo "base_status should not be set in modeenv: $modeenv_data"
+          exit 1
+      fi
+  else
+      remote.exec "cat /boot/grub/grubenv | MATCH \"^snap_core=${base}_x2.snap$\""
+      remote.exec 'cat /boot/grub/grubenv | MATCH "^snap_mode=$"'
+      remote.exec 'cat /boot/grub/grubenv | MATCH "^snap_try_core=$"'
+      remote.exec "cat /proc/cmdline | MATCH snap_core=${base}_x2.snap"
+  fi
