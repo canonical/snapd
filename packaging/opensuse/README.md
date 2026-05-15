@@ -66,9 +66,8 @@ mkdir -p .build/{SRPMS,RPMS,SOURCES,SPECS}
 
 ## Container Script
 
-The build script has several sections. As a part of the process we are creating
-a source tarball, and combining it with the `snapd.spec` file from this
-directory.
+The build script has several sections. The pre-created source tarball from
+`packaging/.build/` is combined with the `snapd.spec` file from this directory.
 
 ```sh
 # Show the sizes of persistent caches to verify volumes are populated across runs.
@@ -84,7 +83,7 @@ zypper modifyrepo --keep-packages --all
 
 # Install bootstrap packages.
 BASH_XTRACEFD= zypper --non-interactive install --no-recommends \
-    bash coreutils findutils gawk git gzip make rpm-build \
+    bash coreutils findutils gawk gzip make rpm-build \
     rpm-config-SUSE systemd-rpm-macros tar xz
 
 # Copy packaging files to the build directory.
@@ -107,24 +106,8 @@ zypper --non-interactive refresh
 rpmspec -q --buildrequires /build/SPECS/snapd.spec > /tmp/buildreqs.txt
 BASH_XTRACEFD= xargs -r -d "\n" zypper --non-interactive install --no-recommends < /tmp/buildreqs.txt
 
-# Copy the source tree to a temporary location, so that we can call go mod vendor.
-mkdir -p /src-rw
-tar -C /src -c \
-    --exclude='./vendor/*' \
-    --exclude='./c-vendor/squashfuse' \
-    --exclude='.git' \
-    --exclude='.git/*' \
-    --exclude='.image-garden/*' \
-    --exclude='./packaging/*/.build/*' \
-    --exclude='./built-snap/*' \
-    --exclude='./*.snap' \
-. | tar -C /src-rw -x
-
-# Vendor Go modules that are needed.
-( cd /src-rw && go mod vendor )
-
-# Create source archive with vendored sources.
-( cd /src-rw && ./packaging/pack-source -s -v "$version" -o /build/SOURCES )
+# Copy the pre-created source tarball from the packaging directory.
+install /src/packaging/.build/snapd_"$version".vendor.tar.xz /build/SOURCES/
 
 # Create a non-root build user.
 useradd -m builder
