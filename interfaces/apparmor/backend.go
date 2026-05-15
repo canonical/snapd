@@ -45,6 +45,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -666,6 +667,19 @@ var (
 	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
+// coreRuntimeExtraRules returns additional apparmor rules for core* base
+// runtimes, including perl/python runtime rules based on the base version.
+// Returns an empty string for core26+ (no perl/python) and non-core bases.
+var coreRuntimeExtraRules = func(base string) string {
+	coreVer, _ := strconv.Atoi(strings.TrimPrefix(base, "core"))
+	if coreVer >= 26 {
+		return ""
+	} else if base == "core24" {
+		return defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
+	}
+	return defaultPerlTemplateRules + defaultCoreRuntimePerlTemplateRules + defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
+}
+
 func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	runnables := appSet.Runnables()
 	content = make(map[string]osutil.FileState, len(runnables))
@@ -760,6 +774,8 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
+		case "###CORE_RUNTIME_EXTRA###":
+			return coreRuntimeExtraRules(snapInfo.Base)
 		case "###KERNEL_MODULES_AND_FIRMWARE###":
 			if opts.KernelSnap != "" {
 				return fmt.Sprintf(`
