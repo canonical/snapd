@@ -667,6 +667,19 @@ var (
 	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
+// coreRuntimeExtraRules returns additional apparmor rules for core* base
+// runtimes, including perl/python runtime rules based on the base version.
+// Returns an empty string for core26+ (no perl/python) and non-core bases.
+var coreRuntimeExtraRules = func(base string) string {
+	coreVer, _ := strconv.Atoi(strings.TrimPrefix(base, "core"))
+	if coreVer >= 26 {
+		return ""
+	} else if base == "core24" {
+		return defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
+	}
+	return defaultPerlTemplateRules + defaultCoreRuntimePerlTemplateRules + defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
+}
+
 func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	runnables := appSet.Runnables()
 	content = make(map[string]osutil.FileState, len(runnables))
@@ -743,19 +756,6 @@ func addUpdateNSProfile(snapInfo *snap.Info, snippets string, content map[string
 // Allow optional trailing ' ' after "###PROMPT###"
 var promptReplacer = regexp.MustCompile("###PROMPT### ?")
 
-// coreRuntimeExtraRules returns the additional perl/python rules to insert into
-// the core runtime template based on the snap's base. It is a variable to allow
-// suppression in tests via MockTemplate.
-var coreRuntimeExtraRules = func(base string) string {
-	coreVer, _ := strconv.Atoi(strings.TrimPrefix(base, "core"))
-	if coreVer >= 26 {
-		return ""
-	} else if base == "core24" {
-		return defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
-	}
-	return defaultPerlTemplateRules + defaultCoreRuntimePerlTemplateRules + defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
-}
-
 func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts interfaces.ConfinementOptions, snippetForTag string, content map[string]osutil.FileState, spec *Specification) {
 	// If base is specified and it doesn't match the core snaps (not
 	// specifying a base should use the default core policy since in this
@@ -765,14 +765,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	if snapInfo.Base != "" && !coreRuntimePattern.MatchString(snapInfo.Base) {
 		policy = defaultOtherBaseTemplate
 	} else {
-		// bases before core24 included perl, after core24 do not have python
-		// anything else include python and perl by default
-		extras := coreRuntimeExtraRules(snapInfo.Base)
-		if extras != "" {
-			policy = strings.Replace(defaultCoreRuntimeTemplate, templateFooter, extras+templateFooter, 1)
-		} else {
-			policy = defaultCoreRuntimeTemplate
-		}
+		policy = defaultCoreRuntimeTemplate
 	}
 
 	ignoreSnippets := false
@@ -784,6 +777,8 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
+		case "###CORE_RUNTIME_EXTRA###":
+			return coreRuntimeExtraRules(snapInfo.Base)
 		case "###KERNEL_MODULES_AND_FIRMWARE###":
 			if opts.KernelSnap != "" {
 				return fmt.Sprintf(`

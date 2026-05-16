@@ -491,6 +491,7 @@ var templateCommon = `
 `
 
 var templateFooter = `
+###CORE_RUNTIME_EXTRA###
 ###SNIPPETS###
 }
 `
