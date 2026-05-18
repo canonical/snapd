@@ -26,9 +26,7 @@ prepare: |
     fi
 
     tests.pkgs install samba smbclient
-    # back up the origianl configuration
-    tests.backup prepare /etc/samba
-    tests.cleanup defer tests.backup restore /etc/samba
+    tests.cleanup defer tests.pkgs remove --purge samba smbclient
 
     # set up the share
     cat <<-__SMB__ >>'/etc/samba/smb.conf'
