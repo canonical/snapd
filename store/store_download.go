@@ -939,10 +939,14 @@ func (s *Store) CleanDownloadsCache() error {
 }
 
 // CleanupDownloadArtifacts attempts to clean up download artifacts associated
-// with a given snap.
+// with a given snap. The downloaded blob file is always removed because it can
+// be re-linked from cache on the next download attempt. The cache entry is only
+// dropped if it appears corrupted (size or hash mismatch), so that a valid
+// cached copy can be reused.
 func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
 	var err error
 	// TODO:GOVERSION: use errors.Join
+	// Always remove the blob; it can be re-linked from cache if needed.
 	if rerr := os.Remove(targetFn); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
 		err = strutil.JoinErrors(err, fmt.Errorf("cannot remove downloaded file: %w", rerr))
 	}
