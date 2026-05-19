@@ -88,8 +88,8 @@ jobs:
             exit 0
           fi
           num_approvals=$(gh pr view "$pr" --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .state' | wc -l)
-          if [ $num_approvals = "0" ]; then
-            echo "setting auto rerun to false because it has no approvals"
+          if [ "$num_approvals" -lt 2 ]; then
+            echo "setting auto rerun to false because it has fewer than 2 approvals"
             echo "AUTO_RERUN=false" >> $GITHUB_ENV
           fi
       
@@ -112,8 +112,8 @@ jobs:
             # analyzer will echo out that same line, so grab the first occurrence.
             num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1)
             
-            if [ -n "$num_failed" ] && [ $num_failed -ge 20 ]; then 
-              echo "Setting rerun to false because there were 20 or more failures on a fundamental system"
+            if [ -n "$num_failed" ] && [ $num_failed -ge 30 ]; then
+              echo "Setting rerun to false because there were 30 or more failures on a fundamental system"
               echo "AUTO_RERUN=false" >> $GITHUB_ENV
             fi
           done
