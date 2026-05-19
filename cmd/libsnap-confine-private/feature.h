@@ -21,7 +21,6 @@
 #include <stdbool.h>
 
 typedef enum sc_feature_flag {
-    SC_FEATURE_PER_USER_MOUNT_NAMESPACE = 1 << 0,
     SC_FEATURE_REFRESH_APP_AWARENESS = 1 << 1,
     SC_FEATURE_PARALLEL_INSTANCES = 1 << 2,
     SC_FEATURE_HIDDEN_SNAP_FOLDER = 1 << 3,
