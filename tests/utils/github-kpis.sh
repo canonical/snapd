@@ -89,7 +89,7 @@ progress_tick() {
 
 get_total_tests_run() {
     local prs_json="$1"
-    local pr id attempts attempt tmpdir artifact_path json_file
+    local pr id attempts attempt tmpdir json_file
     local total_prs
 
     total_prs="$(jq 'length' <<< "$prs_json")"
@@ -132,7 +132,7 @@ get_total_tests_run() {
             for system in "${!first_file_for_system[@]}"; do
                 json_file="${first_file_for_system[$system]}"
                 if [ -f "$json_file" ]; then
-                    local count="$(jq '(.results["task-passed"]) + (.results["task-failed"]) + (.results["task-aborted"]) + (.results["task-restore-failed"])' "$json_file")"
+                    count="$(jq '(.results["task-passed"]) + (.results["task-failed"]) + (.results["task-aborted"]) + (.results["task-restore-failed"])' "$json_file")"
                     total_tests=$(( total_tests + count ))
                 fi
             done
@@ -183,7 +183,9 @@ get_total_runtime() {
                 if [ "$attempt" = "1" ]; then
                     first_attempt_runtime=$runtime
                     # There are two non-fundamental systems jobs that are mutually exclusive. If both have not run, yet fundamental
-                    # jobs have, then there will be exactly two 'spread ${{ matrix.group }}' jobs.
+                    # jobs have, then there will be exactly two 'spread ${{ matrix.group }}' jobs. Note: the ${{ matrix.group }}
+                    # string is literal, not expanded.
+                    # shellcheck disable=SC2016
                     if jq -r '(.jobs // []).[].name' <<<"$object" | sort | uniq -c | grep -q '2 spread ${{ matrix.group }}'; then
                         first_attempt_only_fundamental=true
                     fi
