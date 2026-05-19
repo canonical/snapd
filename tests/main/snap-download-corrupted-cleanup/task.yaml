@@ -1,7 +1,9 @@
 summary: Verify corrupted snap files are cleaned up when download task is undone
 
 details: |
-    Verify that undo of snap-download attempts to clean up corrupted snap files.
+    Verify that undo of snap-download cleans up corrupted snap blob files
+    while preserving valid cache entries that can be reused on the next
+    download attempt.
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -72,10 +74,10 @@ execute: |
     MATCH "ERROR cannot verify snap" < change.out
     MATCH "Undone.*Download snap.*test-snapd-sh-core24" < change.out
 
-    echo "Verify undo cleaned up the corrupted file and the cache file"
+    echo "Verify undo cleaned up the corrupted file"
     not test -f "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
-    echo "Cache entry for corrupted file was removed"
-    not test -f "$cache_file_rev_new"
+    echo "Cache entry for the valid download is preserved"
+    test -f "$cache_file_rev_new"
 
     echo "Subsequent refresh succeeds"
     snap refresh test-snapd-sh-core24
