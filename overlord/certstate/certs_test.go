@@ -653,42 +653,6 @@ func (s *certsTestSuite) TestGenerateCACertificatesBlockedCertHasNoLinks(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *certsTestSuite) TestGenerateCACertificatesAtomicSwapReplacesOldDir(c *C) {
-	aPEM, _, err := makeTestCertPEM("A")
-	c.Assert(err, IsNil)
-
-	baseDir := c.MkDir()
-	outDir := filepath.Join(c.MkDir(), "merged")
-
-	c.Assert(os.WriteFile(filepath.Join(baseDir, "a.crt"), aPEM, 0o644), IsNil)
-
-	// Pre-populate the target directory with stale content.
-	c.Assert(os.MkdirAll(outDir, 0o755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(outDir, "stale.crt"), []byte("old"), 0o644), IsNil)
-
-	base, err := certstate.ParseCertificates(baseDir)
-	c.Assert(err, IsNil)
-
-	err = certstate.GenerateCACertificates(&certstate.Certificates{
-		SystemCertificates: base,
-	}, outDir)
-	c.Assert(err, IsNil)
-
-	// The stale file must be gone.
-	_, err = os.Stat(filepath.Join(outDir, "stale.crt"))
-	c.Check(os.IsNotExist(err), Equals, true)
-
-	// New content must be present.
-	_, err = os.Stat(filepath.Join(outDir, "a.crt"))
-	c.Check(err, IsNil)
-	_, err = os.Stat(filepath.Join(outDir, "ca-certificates.crt"))
-	c.Check(err, IsNil)
-
-	// The temporary directory must be cleaned up.
-	_, err = os.Stat(outDir + ".tmp")
-	c.Check(os.IsNotExist(err), Equals, true)
-}
-
 func (s *certsTestSuite) TestGenerateCertificateDatabaseBacksUpAndWritesMerged(c *C) {
 	aPEM, _, err := makeTestCertPEM("A")
 	c.Assert(err, IsNil)

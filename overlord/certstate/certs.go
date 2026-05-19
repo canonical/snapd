@@ -333,7 +333,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		for suffix := 0; ; suffix++ {
 			linkName := filepath.Join(certsDir, fmt.Sprintf("%s.%d", hash, suffix))
 			from := filepath.Join(certsDir, filepath.Base(cert.RealPath))
-			if err := os.Link(from, linkName); err != nil {
+			if err := os.Symlink(from, linkName); err != nil {
 				if os.IsExist(err) {
 					continue
 				}
@@ -383,49 +383,21 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 
 // generateCACertificates builds a merged certificate directory that mirrors
 // the system /etc/ssl/certs layout: individual certificate links plus a
-// combined ca-certificates.crt bundle. The directory is assembled in a
-// temporary location and atomically renamed into place so a failure mid-build
-// never leaves the final path in an inconsistent state.
+// combined ca-certificates.crt bundle.
 func generateCACertificates(certs *certificates, mergedPath string) error {
-	tmpMergedPath := mergedPath + ".tmp"
-
-	// Remove any existing temp directory from a previous failed attempt,
-	// and recreate the directory.
-	os.RemoveAll(tmpMergedPath)
-	if err := os.MkdirAll(tmpMergedPath, 0o755); err != nil {
+	if err := os.MkdirAll(mergedPath, 0o755); err != nil {
 		return fmt.Errorf("cannot create merged certificates directory: %v", err)
 	}
 
-	// Clean up the temp dir on failure so we don't leave partial state.
-	defer func() {
-		if e2 := os.RemoveAll(tmpMergedPath); e2 != nil {
-			logger.Noticef("Failed to remove old certificates directory %q: %v", tmpMergedPath, e2)
-		}
-	}()
-
-	bundlePath := filepath.Join(tmpMergedPath, "ca-certificates.crt")
+	bundlePath := filepath.Join(mergedPath, "ca-certificates.crt")
 	bundle, err := os.Create(bundlePath)
 	if err != nil {
 		return fmt.Errorf("cannot create ca-certificates.crt: %v", err)
 	}
 	defer bundle.Close()
 
-	// Fill the bundle and create cert links, all inside the temp dir.
-	if err := writeUniqueCACertificates(certs, tmpMergedPath, bundle); err != nil {
-		return err
-	}
-
-	// Ensure the target directory exists so the swap has something to
-	// exchange with. This is a no-op when regenerating an existing DB.
-	if err := os.MkdirAll(mergedPath, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
-	}
-
-	if err := osutil.SwapDirs(tmpMergedPath, mergedPath); err != nil {
-		return fmt.Errorf("cannot replace certificates directory: %v", err)
-	}
-
-	return nil
+	// Fill the bundle and create cert links, all inside the merged directory.
+	return writeUniqueCACertificates(certs, mergedPath, bundle)
 }
 
 type certificates struct {
