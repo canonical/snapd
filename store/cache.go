@@ -73,8 +73,11 @@ type downloadCache interface {
 	GetPath(cacheKey string) string
 	// Drop an entry. Ignores errors when entry does not exist.
 	Drop(cacheKey string) error
-	// Open a stream to entry under a given key. Returns an
-	// io.ReadSeekCloser and the stream size.
+	// Open opens a cache entry for reading. The returned file handle
+	// remains valid even if the entry is subsequently removed by another
+	// operation (e.g. Drop or Cleanup), because on Linux an open file
+	// descriptor preserves access to the inode data until it is closed.
+	// Returns an io.ReadSeekCloser and the stream size.
 	Open(cacheKey string) (io.ReadSeekCloser, int64, error)
 	// Best effort cleanup of outstanding cache items. Returns ErrCleanupBusy
 	// when the cache is in use and cleanup should be retried at some later
@@ -224,7 +227,10 @@ func (cm *CacheManager) Drop(cacheKey string) error {
 	}()
 }
 
-// Open a stream for reading from an entry under a given key.
+// Open opens a cache entry for reading. The returned file handle remains
+// valid even if the entry is subsequently removed by another operation (e.g.
+// Drop or Cleanup), because on Linux an open file descriptor preserves access
+// to the inode data until it is closed.
 func (cm *CacheManager) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
 	if cacheKey == "" {
 		return nil, 0, fs.ErrNotExist
