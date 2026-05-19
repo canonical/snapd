@@ -33,7 +33,7 @@ execute: |
     if [ "$SPREAD_REBOOT" == "0" ]; then
         echo "In run mode"
 
-        MATCH 'snapd_recovery_mode=run' < /proc/cmdline
+        MATCH 'mode=run' < /var/lib/snapd/modeenv
         # verify we are in run mode via the API
         snap debug api '/v2/system-info' > system-info
         gojq -r '.result["system-mode"]' < system-info | MATCH 'run'
@@ -70,7 +70,7 @@ execute: |
         # seed in mounted in recover mode too
         test -d "/var/lib/snapd/seed/systems/$label"
 
-        MATCH "snapd_recovery_system=$label" < /proc/cmdline
+        MATCH "recovery_system=$label" < /var/lib/snapd/modeenv
 
         transition_to_run_mode "$label"
     elif [ "$SPREAD_REBOOT" == "2" ]; then
