@@ -1,3 +1,7 @@
+# New in snapd 2.75.2.2
+* Update secboot to rev 3f8b98c
+* Allow user mode on core
+
 # New in snapd 2.75.2
 * Interfaces: network-setup-*| allow running python binaries from the base on UC26+
 * Cross-distro: modify SELinux policy to allow mounting on /var/snap/<snap>/<rev>
