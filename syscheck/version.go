@@ -90,7 +90,7 @@ func checkKernelVersion() error {
 		}
 		if cmp < 0 {
 			// pre 3.18 kernels here
-			if idx := strings.Index(fullKver, ".el7."); idx == -1 {
+			if found := strings.Contains(fullKver, ".el7."); !found {
 				// non stock kernel, assume it's not supported
 				return fmt.Errorf("unsupported kernel version %q, you need to switch to the stock kernel", fullKver)
 			}

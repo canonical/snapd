@@ -171,8 +171,8 @@ type Env struct {
 // cToGoString convert string in passed byte array into string type
 // if string in byte array is not terminated, empty string is returned
 func cToGoString(c []byte) string {
-	if end := bytes.IndexByte(c, 0); end >= 0 {
-		return string(c[:end])
+	if before, _, ok := bytes.Cut(c, []byte{0}); ok {
+		return string(before)
 	}
 	// no trailing \0 - return ""
 	return ""

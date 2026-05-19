@@ -452,8 +452,8 @@ func normPath(path string) string {
 		// not something inside the snap
 		return ""
 	}
-	if idx := strings.IndexByte(path, ' '); idx > -1 {
-		return path[:idx]
+	if before, _, ok := strings.Cut(path, " "); ok {
+		return before
 	}
 
 	return path

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -56,11 +57,12 @@ func ExportGadgetChardevChip(ctx context.Context, chipLabels []string, lines str
 		return errors.New("no matching gpio chips found matching chip labels")
 	}
 	if len(chips) > 1 {
-		concat := chips[0].label
+		var concat strings.Builder
+		concat.WriteString(chips[0].label)
 		for _, chip := range chips[1:] {
-			concat += " " + chip.label
+			concat.WriteString(" " + chip.label)
 		}
-		return fmt.Errorf("more than one gpio chips were found matching chip labels (%s)", concat)
+		return fmt.Errorf("more than one gpio chips were found matching chip labels (%s)", concat.String())
 	}
 
 	chip := chips[0]

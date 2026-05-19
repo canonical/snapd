@@ -215,8 +215,8 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 //	snap.SplitSnapApp("foo") is ("foo", "foo"),
 //	splitAppName("foo") is ("foo", "").
 func splitAppName(s string) (snap, app string) {
-	if idx := strings.IndexByte(s, '.'); idx > -1 {
-		return s[:idx], s[idx+1:]
+	if before, after, ok := strings.Cut(s, "."); ok {
+		return before, after
 	}
 
 	return s, ""
