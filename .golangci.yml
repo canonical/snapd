@@ -61,6 +61,7 @@ linters:
       for-loops: false
     modernize:
       disable:
+        - minmax
         - slicessort
     unparam:
       check-exported: false
