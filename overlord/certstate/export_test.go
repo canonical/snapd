@@ -23,11 +23,26 @@ import "github.com/snapcore/snapd/testutil"
 type Certificate = certificate
 type Certificates = certificates
 
+const (
+	Asn1TagVisibleString   = asn1TagVisibleString
+	Asn1TagUniversalString = asn1TagUniversalString
+)
+
 var (
 	IsBlocked              = isBlocked
 	ParseCertificates      = parseCertificates
 	ReadDigests            = readDigests
 	GenerateCACertificates = generateCACertificates
+
+	Asn1IsCanonicalizedStringType = asn1IsCanonicalizedStringType
+	Asn1IsASCII                   = asn1IsASCII
+	Asn1IsASCIISpace              = asn1IsASCIISpace
+	AppendASN1Length              = appendASN1Length
+	MarshalASN1Value              = marshalASN1Value
+	Asn1StringToUTF8Bytes         = asn1StringToUTF8Bytes
+	CanonicalizeASN1String        = canonicalizeASN1String
+	CanonicalizeNameAttribute     = canonicalizeNameAttribute
+	CanonicalSubjectNameDER       = canonicalSubjectNameDER
 )
 
 func MockGenerateCertificateDatabase(f func(mergedPath string) error) func() {

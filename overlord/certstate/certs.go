@@ -43,9 +43,14 @@ const (
 	CertificateStateBlocked  = "blocked"
 )
 
+// CertificateData holds the parsed certificate and derived digests for a
+// certificate payload.
 type CertificateData struct {
-	Raw             *x509.Certificate
-	Sha256          string
+	// Raw is the first parsed X.509 certificate from the input payload.
+	Raw *x509.Certificate
+	// Sha256 is the content fingerprint tracked for the certificate payload.
+	Sha256 string
+	// SubjectNameSha1 is the OpenSSL subject-name hash used for lookup links.
 	SubjectNameSha1 string
 }
 
