@@ -28,9 +28,6 @@ tool_version() {
     clang-format)
         $tool --version
         ;;
-    modernize)
-        $tool -V=full
-        ;;
     *)
         return 1
         ;;
@@ -42,9 +39,6 @@ tool_install() {
     case "$tool" in
     golangci-lint)
         go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.0.2 >/dev/null
-        ;;
-    modernize)
-        go install golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.18.1 >/dev/null
         ;;
     go) ;&         # fallthrough
     shellcheck) ;& # fallthrough
@@ -78,7 +72,6 @@ tool_configure() {
         ;;
     shellcheck) ;&    # fallthrough
     golangci-lint) ;& # fallthrough
-    modernize) ;&     # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
     dbus-launch) ;&   # fallthrough
@@ -396,13 +389,6 @@ if [ "$STATIC" = 1 ]; then
     echo ">> [Go] Checking cmd binaries for forbidden dependencies"
     forbidden_cmd_go_deps
 
-    if command -v modernize>/dev/null && [ -z "${SKIP_MODERNIZE_LINT:-}" ]; then
-        echo ">> [Go] Checking modernize"
-        modernize -test ./...
-    else
-        echo ">> [Go] Skipping modernize check"
-    fi
-
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
         echo ">> [Bash] Checking shell scripts"
@@ -542,6 +528,9 @@ if [ "$STATIC" = 1 ]; then
         fi
         if [ -n "${SKIP_NAKEDRET:-}" ]; then
             disable+=" nakedret"
+        fi
+        if [ -n "${SKIP_MODERNIZE_LINT:-}" ]; then
+            disable+=" modernize"
         fi
 
         enabled=$(golangci-lint linters | awk '
