@@ -171,6 +171,9 @@ formatters:
   settings:
     gofmt:
       simplify: true
+      rewrite-rules:
+        - pattern: 'interface{}'
+          replacement: 'any'
     goimports:
       local-prefixes:
         - github.com/snapcore/snapd
