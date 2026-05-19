@@ -113,9 +113,9 @@ func (c *tasksCommand) Execute(args []string) error {
 			}
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
 
-			for _, line := range t.Log { 
-				fmt.Fprintln(c.stdout, line) 
-			} 
+			for _, line := range t.Log {
+				fmt.Fprintln(c.stdout, line)
+			}
 		}
 
 		w.Flush()

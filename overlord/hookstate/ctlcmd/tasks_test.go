@@ -21,7 +21,7 @@ package ctlcmd_test
 
 import (
 	"encoding/json"
-	
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -184,7 +184,7 @@ func (s *tasksSuite) TestTasksCommandFiltersOtherSnaps(c *C) {
 	// other-snap's change should not be accessible
 	_, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, NotNil)
-	c.Assert(err, ErrorMatches,"*not found")
+	c.Assert(err, ErrorMatches, "*not found")
 }
 
 // TestTasksCommandAllowedForUnprivilegedUser verifies that "tasks" is in the

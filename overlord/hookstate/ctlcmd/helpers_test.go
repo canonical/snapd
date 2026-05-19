@@ -20,6 +20,9 @@
 package ctlcmd_test
 
 import (
+	"encoding/json"
+
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -52,37 +55,50 @@ func (s *helperSuite) TestStateChangeToChangeInfo(c *C) {
 		"kind":       "install-components",
 	})
 
-	// Convert the state.Change to ChangeInfo
+	// Convert the state.Change to ChangeInfo. Need to copy dynamic fields.
 	c.Assert(chg, NotNil)
 	changeInfo := ctlcmd.StateChangeToChangeInfo(chg)
 
-	// Verify basic change information
-	c.Check(changeInfo.ID, Equals, chg.ID())
-	c.Check(changeInfo.Kind, Equals, "snapctl-install")
-	c.Check(changeInfo.Summary, Equals, "install components for test-snap")
-	c.Check(changeInfo.Status, Equals, "Done")
-	c.Check(changeInfo.Ready, Equals, true)
-	c.Check(changeInfo.SpawnTime.IsZero(), Equals, false)
-	c.Check(changeInfo.ReadyTime.IsZero(), Equals, false)
+	// Build the expected json.RawMessage byte arrays for the Data map
+	snapNamesMsg := json.RawMessage(`["test-snap"]`)
+	kindMsg := json.RawMessage(`"install-components"`)
 
-	// Verify task was converted
-	c.Assert(changeInfo.Tasks, HasLen, 1)
+	chgReadyTime := chg.ReadyTime()
+	taskReadyTime := task.ReadyTime()
 
-	// Check task (should be Done)
-	task1Info := changeInfo.Tasks[0]
-	c.Check(task1Info.Kind, Equals, "prepare-components")
-	c.Check(task1Info.Summary, Equals, "preparing components")
-	c.Check(task1Info.Status, Equals, "Done")
-	c.Check(task1Info.ReadyTime.IsZero(), Equals, false)
-	c.Assert(task1Info.Log, HasLen, 1)
-	c.Check(task1Info.Log[0], testutil.Contains, "Component prepared successfully")
-	c.Check(task1Info.Progress.Label, Equals, "Preparing component")
-	c.Check(task1Info.Progress.Done, Equals, 1)
-	c.Check(task1Info.Progress.Total, Equals, 1)
+	// Construct the fully expected struct directly from the raw values and state properties
+	expected := &ctlcmd.ChangeInfo{
+		ID:        chg.ID(),
+		Kind:      "snapctl-install",
+		Summary:   "install components for test-snap",
+		Status:    "Done",
+		Ready:     true,
+		SpawnTime: chg.SpawnTime(),
+		ReadyTime: &chgReadyTime,
+		Data: map[string]*json.RawMessage{
+			"snap-names": &snapNamesMsg,
+			"kind":       &kindMsg,
+		},
+		Tasks: []ctlcmd.TaskInfo{
+			{
+				ID:      task.ID(),
+				Kind:    "prepare-components",
+				Summary: "preparing components",
+				Status:  "Done",
+				Progress: client.TaskProgress{
+					Label: "Preparing component",
+					Done:  1,
+					Total: 1,
+				},
+				Log:       task.Log(),
+				SpawnTime: task.SpawnTime(),
+				ReadyTime: &taskReadyTime,
+			},
+		},
+	}
 
-	// Verify change-level data (api-data)
-	c.Assert(changeInfo.Data, NotNil)
-	c.Assert(changeInfo.Data["snap-names"], NotNil)
+	// Deep equals check on the complete structure
+	c.Check(changeInfo, DeepEquals, expected)
 }
 
 // TestChangeInfoToClientChangeNilReadyTime verifies that ChangeInfoToClientChange
