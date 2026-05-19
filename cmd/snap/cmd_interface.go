@@ -182,10 +182,21 @@ func (x *cmdInterface) showAttrs(w io.Writer, attrs map[string]any, indent strin
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		value := attrs[name]
-		switch value.(type) {
-		case string, bool, json.Number:
-			fmt.Fprintf(w, "%s  %s:\t%v\n", indent, name, value)
+		x.showAttrValue(w, name, attrs[name], indent)
+	}
+}
+
+func (x *cmdInterface) showAttrValue(w io.Writer, name string, value any, indent string) {
+	switch v := value.(type) {
+	case string, bool, json.Number:
+		fmt.Fprintf(w, "%s  %s:\t%v\n", indent, name, value)
+	case []any:
+		fmt.Fprintf(w, "%s  %s:\n", indent, name)
+		for _, item := range v {
+			fmt.Fprintf(w, "%s    - %v\n", indent, item)
 		}
+	case map[string]any:
+		fmt.Fprintf(w, "%s  %s:\n", indent, name)
+		x.showAttrs(w, v, indent+"  ")
 	}
 }

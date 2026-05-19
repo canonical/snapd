@@ -240,6 +240,47 @@ func (s *SnapSuite) TestInterfaceDetailsAndAttrs(c *C) {
 	c.Assert(s.Stderr(), Equals, "")
 }
 
+func (s *SnapSuite) TestInterfaceDetailsAndAttrsComplex(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/v2/interfaces")
+		c.Check(r.URL.RawQuery, Equals, "doc=true&names=system-files&plugs=true&select=all&slots=true")
+		body, err := io.ReadAll(r.Body)
+		c.Check(err, IsNil)
+		c.Check(body, DeepEquals, []byte{})
+		EncodeResponseBody(c, w, map[string]any{
+			"type": "sync",
+			"result": []*client.Interface{{
+				Name:    "system-files",
+				Summary: "allows access to system files or directories",
+				Plugs: []client.Plug{{
+					Snap: "my-app",
+					Name: "system-files",
+					Attrs: map[string]any{
+						"read":  []any{"/etc/foo", "/etc/bar"},
+						"write": []any{"/var/lib/baz"},
+					},
+				}},
+			}},
+		})
+	})
+	rest, err := Parser(Client()).ParseArgs([]string{"interface", "--attrs", "system-files"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	expectedStdout := "" +
+		"name:    system-files\n" +
+		"summary: allows access to system files or directories\n" +
+		"plugs:\n" +
+		"  - my-app:\n" +
+		"      read:\n" +
+		"        - /etc/foo\n" +
+		"        - /etc/bar\n" +
+		"      write:\n" +
+		"        - /var/lib/baz\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
 func (s *SnapSuite) TestInterfaceCompletion(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		c.Assert(r.Method, Equals, "GET")
