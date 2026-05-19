@@ -1085,6 +1085,14 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	}
 	c.Assert(snapsupSetupProfiles.UserID, Equals, expectedUserID)
 
+	s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action")
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action" || op.op == "storesvc-snap-action:action" {
+			c.Assert(op.userID, Equals, expectedUserID,
+				Commentf("expected userID %d in op %q but got %d", expectedUserID, op.op, op.userID))
+		}
+	}
+
 	prepareKmodComps := setupTs.Tasks()[1]
 	c.Assert(prepareKmodComps.Kind(), Equals, "prepare-kernel-modules-components")
 
