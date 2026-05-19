@@ -59,6 +59,9 @@ linters:
       simple: true
       range-loops: true
       for-loops: false
+    modernize:
+      disable:
+        - slicessort
     unparam:
       check-exported: false
   exclusions:
