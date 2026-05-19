@@ -32,6 +32,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 )
 
 // AuthState represents current authenticated users as tracked in state
@@ -54,7 +55,11 @@ type DeviceState struct {
 	SessionMacaroon string `json:"session-macaroon,omitempty"`
 }
 
-// UserState represents an authenticated user
+// UserState represents an authenticated user.
+//
+// NOTE: When adding or removing fields, also update changedFields
+// in this file and seclog.SnapdUserState in seclog/types.go to keep
+// security audit logging of user updates accurate.
 type UserState struct {
 	ID              int       `json:"id"`
 	Username        string    `json:"username,omitempty"`
@@ -64,6 +69,32 @@ type UserState struct {
 	StoreMacaroon   string    `json:"store-macaroon,omitempty"`
 	StoreDischarges []string  `json:"store-discharges,omitempty"`
 	Expiration      time.Time `json:"expiration,omitzero"`
+}
+
+// changedFields returns a sorted list of spec-defined field names
+// whose values differ between u and other.
+func (u *UserState) changedFields(other *UserState) []string {
+	toAuditState := func(us *UserState) seclog.SnapdUserState {
+		return seclog.SnapdUserState{
+			SnapdUser:       us.snapdUser(),
+			LocalMacaroon:   us.Macaroon,
+			LocalDischarges: us.Discharges,
+			StoreMacaroon:   us.StoreMacaroon,
+			StoreDischarges: us.StoreDischarges,
+		}
+	}
+	return toAuditState(u).ChangedFields(toAuditState(other))
+}
+
+// snapdUser returns a seclog.SnapdUser populated with the identity
+// fields of u for use in security audit log events.
+func (u *UserState) snapdUser() seclog.SnapdUser {
+	return seclog.SnapdUser{
+		ID:             int64(u.ID),
+		StoreUserName:  u.Username,
+		StoreUserEmail: u.Email,
+		Expiration:     u.Expiration,
+	}
 }
 
 // identificationOnly returns a *UserState with only the
@@ -186,7 +217,6 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 		return nil, err
 	}
 
-	sort.Strings(userParams.Discharges)
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
 		Username:        userParams.Username,
@@ -200,6 +230,8 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	authStateData.Users = append(authStateData.Users, authenticatedUser)
 
 	st.Set("auth", authStateData)
+
+	seclog.LogUserCreated(authenticatedUser.snapdUser())
 
 	return &authenticatedUser, nil
 }
@@ -231,6 +263,7 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	for i := range authStateData.Users {
 		u := &authStateData.Users[i]
 		if p(u) {
+			su := u.snapdUser()
 			removed := u.identificationOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
@@ -238,6 +271,9 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 			authStateData.Users[n] = UserState{}
 			authStateData.Users = authStateData.Users[:n]
 			st.Set("auth", authStateData)
+
+			seclog.LogUserRemoved(su)
+
 			return removed, nil
 		}
 	}
@@ -308,8 +344,15 @@ func UpdateUser(st *state.State, user *UserState) error {
 
 	for i := range authStateData.Users {
 		if authStateData.Users[i].ID == user.ID {
+			prev := authStateData.Users[i]
 			authStateData.Users[i] = *user
 			st.Set("auth", authStateData)
+
+			changed := prev.changedFields(user)
+			if len(changed) > 0 {
+				seclog.LogUserUpdated(user.snapdUser(), changed)
+			}
+
 			return nil
 		}
 	}

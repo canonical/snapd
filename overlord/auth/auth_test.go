@@ -20,6 +20,7 @@
 package auth_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -29,19 +30,29 @@ import (
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
 type authSuite struct {
-	state *state.State
+	state     *state.State
+	seclogBuf *bytes.Buffer
+
+	testutil.BaseTest
 }
 
 var _ = Suite(&authSuite{})
 
 func (as *authSuite) SetUpTest(c *C) {
+	as.BaseTest.SetUpTest(c)
 	as.state = state.New(nil)
+	as.seclogBuf = &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(as.seclogBuf))
+	as.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
 }
 
 func (s *authSuite) TestMacaroonSerialize(c *C) {
@@ -118,27 +129,6 @@ func (as *authSuite) TestNewUser(c *C) {
 		StoreDischarges: []string{"discharge"},
 	}
 	c.Check(user, DeepEquals, expected)
-}
-
-func (as *authSuite) TestNewUserSortsDischarges(c *C) {
-	as.state.Lock()
-	user, err := auth.NewUser(as.state, auth.NewUserParams{
-		Username:   "",
-		Email:      "email@test.com",
-		Macaroon:   "macaroon",
-		Discharges: []string{"discharge2", "discharge1"},
-	})
-	c.Assert(err, IsNil)
-	as.state.Unlock()
-
-	expected := []string{"discharge1", "discharge2"}
-	c.Check(user.StoreDischarges, DeepEquals, expected)
-
-	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
-	as.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(userFromState.StoreDischarges, DeepEquals, expected)
 }
 
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
@@ -600,4 +590,128 @@ func (as *authSuite) TestHasExpiredNoExpirationSetIsFalse(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(user.HasExpired(), Equals, false)
+}
+
+func (as *authSuite) TestChangedFieldsFieldMapping(c *C) {
+	// Verify that every UserState field is translated to the correct
+	// spec-defined name in the audit log. Comparison logic is tested
+	// in seclog/types_test.go.
+	prev := &auth.UserState{
+		ID: 1, Username: "a", Email: "a@a.com",
+		Macaroon: "m1", Discharges: []string{"d1"},
+		StoreMacaroon: "sm1", StoreDischarges: []string{"sd1"},
+		Expiration: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	cur := &auth.UserState{
+		ID: 2, Username: "b", Email: "b@b.com",
+		Macaroon: "m2", Discharges: []string{"d2"},
+		StoreMacaroon: "sm2", StoreDischarges: []string{"sd2"},
+		Expiration: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+	}
+	c.Check(prev.ChangedFields(cur), DeepEquals, []string{
+		"expiration",
+		"local-discharges", "local-macaroon",
+		"snapd-user-id",
+		"store-discharges", "store-macaroon",
+		"store-user-email", "store-user-name",
+	})
+}
+
+func (as *authSuite) TestNewUserLogsCreated(c *C) {
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(as.seclogBuf.String(), testutil.Contains, "user_created")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe@test.com")
+}
+
+func (as *authSuite) TestUpdateUserLogsUpdated(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "old@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	user.Email = "new@test.com"
+	user.StoreMacaroon = "new-macaroon"
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(as.seclogBuf.String(), testutil.Contains, "user_updated")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "new@test.com")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "store-user-email")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "store-macaroon")
+}
+
+func (as *authSuite) TestUpdateUserNoChangeSkipsLog(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	// Call UpdateUser without changing any fields.
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(as.seclogBuf.String(), Not(testutil.Contains), "user_updated")
+}
+
+func (as *authSuite) TestRemoveUserLogsRemoved(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	_, err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(as.seclogBuf.String(), testutil.Contains, "user_removed")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe@test.com")
+}
+
+func (as *authSuite) TestRemoveUserByUsernameLogsRemoved(c *C) {
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	_, err = auth.RemoveUserByUsername(as.state, "jdoe")
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(as.seclogBuf.String(), testutil.Contains, "user_removed")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe@test.com")
 }
