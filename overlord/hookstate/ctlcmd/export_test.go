@@ -50,6 +50,7 @@ var (
 
 	KmodCheckConnection = kmodCheckConnection
 	KmodMatchConnection = kmodMatchConnection
+	ChangeInfoToClientChange = changeInfoToClientChange
 )
 
 type KmodCommand = kmodCommand

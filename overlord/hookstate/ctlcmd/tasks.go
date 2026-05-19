@@ -88,7 +88,7 @@ func (c *tasksCommand) Execute(args []string) error {
 	}
 
 	chgInfo := StateChangeToChangeInfo(change)
-	clientChg := ChangeInfoToClientChange(chgInfo)
+	clientChg := changeInfoToClientChange(chgInfo)
 	tasks := clientChg.Tasks
 
 	if c.Format == "json" {
@@ -112,6 +112,10 @@ func (c *tasksCommand) Execute(args []string) error {
 				summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(pi.Done)/float64(pi.Total)*100.0)
 			}
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
+
+			for _, line := range t.Log { 
+				fmt.Fprintln(c.stdout, line) 
+			} 
 		}
 
 		w.Flush()

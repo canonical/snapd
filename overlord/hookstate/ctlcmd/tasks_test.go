@@ -21,8 +21,7 @@ package ctlcmd_test
 
 import (
 	"encoding/json"
-	"strings"
-
+	
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
@@ -91,8 +90,7 @@ func (s *tasksSuite) TestTasksCommandInvalidArguments(c *C) {
 	for _, tc := range testCases {
 		_, _, err := ctlcmd.Run(ctx, tc.args, 0, nil)
 		c.Assert(err, NotNil)
-		c.Assert(strings.Contains(err.Error(), "invalid number of arguments"), Equals, true)
-
+		c.Assert(err, ErrorMatches, ".*invalid number of arguments.*")
 	}
 }
 
@@ -123,27 +121,27 @@ func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
 	output := string(stdout)
 
 	// Validate table headers are present
-	c.Assert(strings.Contains(output, "Status"), Equals, true)
-	c.Assert(strings.Contains(output, "Spawn"), Equals, true)
-	c.Assert(strings.Contains(output, "Ready"), Equals, true)
-	c.Assert(strings.Contains(output, "Summary"), Equals, true)
+	c.Assert(output, testutil.Contains, "Status")
+	c.Assert(output, testutil.Contains, "Spawn")
+	c.Assert(output, testutil.Contains, "Ready")
+	c.Assert(output, testutil.Contains, "Summary")
 
-	c.Assert(strings.Contains(output, "change-1-done"), Equals, true)
-	c.Assert(strings.Contains(output, "Done"), Equals, true)
+	c.Assert(output, testutil.Contains, "change-1-done")
+	c.Assert(output, testutil.Contains, "Done")
 
 	// Verify task 2 (doing)
 	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
-	c.Assert(strings.Contains(output, "change-2-doing"), Equals, true)
-	c.Assert(strings.Contains(output, "Doing"), Equals, true)
+	c.Assert(output, testutil.Contains, "change-2-doing")
+	c.Assert(output, testutil.Contains, "Doing")
 
 	// Verify task 3 (error)
 	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
-	c.Assert(strings.Contains(output, "change-3-error"), Equals, true)
-	c.Assert(strings.Contains(output, "Error"), Equals, true)
+	c.Assert(output, testutil.Contains, "change-3-error")
+	c.Assert(output, testutil.Contains, "Error")
 }
 
 // TestTasksCommandNoAssociatedChanges tests that a change without an associated snap returns an error
@@ -160,7 +158,7 @@ func (s *tasksSuite) TestTasksCommandNoAssociatedChanges(c *C) {
 
 	_, _, err := ctlcmd.Run(ctx, []string{"tasks", unassociatedID}, 0, nil)
 	c.Assert(err, NotNil)
-	c.Assert(strings.Contains(err.Error(), "not found"), Equals, true)
+	c.Assert(err, ErrorMatches, ".*not found")
 }
 
 // TestTasksCommandFiltersOtherSnaps tests that changes from other snaps are not accessible
@@ -181,12 +179,12 @@ func (s *tasksSuite) TestTasksCommandFiltersOtherSnaps(c *C) {
 	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output := string(stdout)
-	c.Assert(strings.Contains(output, "test-snap-change"), Equals, true)
+	c.Assert(output, testutil.Contains, "test-snap-change")
 
 	// other-snap's change should not be accessible
 	_, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, NotNil)
-	c.Assert(strings.Contains(err.Error(), "not found"), Equals, true)
+	c.Assert(err, ErrorMatches,"*not found")
 }
 
 // TestTasksCommandAllowedForUnprivilegedUser verifies that "tasks" is in the

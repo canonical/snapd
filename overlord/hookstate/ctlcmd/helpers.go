@@ -167,9 +167,9 @@ func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 	return chgInfo
 }
 
-// ChangeInfoToClientChange converts a ChangeInfo struct to a client.Change struct
+// changeInfoToClientChange converts a ChangeInfo struct to a client.Change struct
 // which is used for JSON marshaling. This function discards the data tagged to the change.
-func ChangeInfoToClientChange(chgInfo *ChangeInfo) *client.Change {
+func changeInfoToClientChange(chgInfo *ChangeInfo) *client.Change {
 	derefTimePtr := func(t *time.Time) time.Time {
 		if t == nil {
 			return time.Time{}
