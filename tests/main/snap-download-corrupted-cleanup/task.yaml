@@ -1,12 +1,17 @@
 summary: Verify corrupted snap files are cleaned up when download task is undone
 
 details: |
-    Verify that undo of snap-download cleans up corrupted snap blob files
-    while preserving valid cache entries that can be reused on the next
-    download attempt.
+    Verify that undo of snap-download cleans up corrupted snap blob files.
+    Two scenarios are tested:
+    - valid-cache: blob is zeroed but cache entry is valid; blob is removed
+      and cache is preserved for reuse on the next download attempt.
+    - corrupt-cache: both blob and cache entry are zeroed; both are removed
+      and the subsequent refresh re-downloads from the store.
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
+    CACHEMODE/corrupt_cache: corrupt
+    CACHEMODE/valid_cache: valid
 
 skip:
     - reason: This test needs test keys to be trusted
@@ -60,6 +65,11 @@ execute: |
     rm -fv "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
     touch "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
 
+    if [ "$CACHEMODE" = "corrupt" ]; then
+        echo "Also corrupt the cache entry"
+        truncate -s 0 "$cache_file_rev_new"
+    fi
+
     echo "Attempt refresh"
     if snap refresh test-snapd-sh-core24 2>install.err; then
         echo "Refresh should have failed but succeeded"
@@ -74,10 +84,16 @@ execute: |
     MATCH "ERROR cannot verify snap" < change.out
     MATCH "Undone.*Download snap.*test-snapd-sh-core24" < change.out
 
-    echo "Verify undo cleaned up the corrupted file"
+    echo "Verify undo cleaned up the corrupted blob"
     not test -f "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
-    echo "Cache entry for the valid download is preserved"
-    test -f "$cache_file_rev_new"
+
+    if [ "$CACHEMODE" = "corrupt" ]; then
+        echo "Corrupt cache entry was dropped"
+        not test -f "$cache_file_rev_new"
+    else
+        echo "Valid cache entry is preserved"
+        test -f "$cache_file_rev_new"
+    fi
 
     echo "Subsequent refresh succeeds"
     snap refresh test-snapd-sh-core24
