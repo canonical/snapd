@@ -3,9 +3,9 @@ summary: Verify corrupted snap files are cleaned up when download task is undone
 details: |
     Verify that undo of snap-download cleans up corrupted snap blob files.
     Two scenarios are tested:
-    - valid-cache: blob is zeroed but cache entry is valid; blob is removed
+    - valid_cache: blob is zeroed but cache entry is valid; blob is removed
       and cache is preserved for reuse on the next download attempt.
-    - corrupt-cache: both blob and cache entry are zeroed; both are removed
+    - corrupt_cache: both blob and cache entry are zeroed; both are removed
       and the subsequent refresh re-downloads from the store.
 
 environment:
