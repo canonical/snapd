@@ -52,9 +52,10 @@ stderr: empty for exit codes 0 and 1. Contains relevant errors for exit codes 2 
 `)
 
 func init() {
-	addCommand("is-ready", shortIsReadyHelp, longIsReadyHelp, func() command {
-		return &isReadyCommand{}
-	})
+	// TODO: temporarily disabled to prevent partial implementation in release
+	//addCommand("is-ready", shortIsReadyHelp, longIsReadyHelp, func() command {
+	//	return &isReadyCommand{}
+	//})
 }
 
 func (c *isReadyCommand) Execute(args []string) error {
