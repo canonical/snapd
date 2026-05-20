@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/timeutil"
 )
 
+const ln = "......................................................................"
+
 type tasksCommand struct {
 	baseCommand
 	Format string `long:"format" required:"false" choice:"json" description:"Output format (supported: json)"`
@@ -113,12 +115,24 @@ func (c *tasksCommand) Execute(args []string) error {
 			}
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
 
+		}
+
+		w.Flush()
+
+		for _, t := range tasks {
+			if len(t.Log) == 0 {
+				continue
+			}
+			fmt.Fprintln(c.stdout)
+			fmt.Fprintln(c.stdout, ln)
+			fmt.Fprintln(c.stdout, t.Summary)
+			fmt.Fprintln(c.stdout)
+
 			for _, line := range t.Log {
 				fmt.Fprintln(c.stdout, line)
 			}
 		}
 
-		w.Flush()
 		fmt.Fprintln(c.stdout)
 	}
 
