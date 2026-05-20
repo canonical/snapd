@@ -70,7 +70,8 @@ prepare: |
         EXISTING_TEMPORAL_CACHE_TIMEOUT="$(cat "$CACHE_TIMEOUT_PATH")"
         echo "Disabling temporal cache for the duration of this test"
         echo 0 > "$CACHE_TIMEOUT_PATH"
-        tests.cleanup defer echo "$EXISTING_TEMPORAL_CACHE_TIMEOUT" > "$CACHE_TIMEOUT_PATH"
+        # Wrap the command line in quotes so it's not evaluated until the defer runs
+        tests.cleanup defer "echo \"$EXISTING_TEMPORAL_CACHE_TIMEOUT\" > \"$CACHE_TIMEOUT_PATH\""
     fi
 
     tests.session prepare -u test
