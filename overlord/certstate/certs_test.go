@@ -705,6 +705,38 @@ func (s *certsTestSuite) TestGenerateCertificateDatabaseBlocksBaseCertByDigest(c
 	c.Check(bytes.Contains(out, bPEM), Equals, true)
 }
 
+func (s *certsTestSuite) TestRefreshCertificateDatabaseKeepsHashLinksValidAfterSwap(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+	aPath := filepath.Join(baseCertsDir, "a.crt")
+	c.Assert(os.WriteFile(aPath, aPEM, 0o644), IsNil)
+
+	parsed, err := certstate.ParseCertificates(baseCertsDir)
+	c.Assert(err, IsNil)
+	c.Assert(parsed, HasLen, 1)
+
+	err = certstate.RefreshCertificateDatabase()
+	c.Assert(err, IsNil)
+
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	hashLink := filepath.Join(mergedDir, parsed[0].SubjectNameSha1[:8]+".0")
+
+	info, err := os.Lstat(hashLink)
+	c.Assert(err, IsNil)
+	c.Check(info.Mode()&os.ModeSymlink != 0, Equals, true)
+
+	target, err := os.Readlink(hashLink)
+	c.Assert(err, IsNil)
+	c.Check(target, Equals, "a.crt")
+
+	linkedContents, err := os.ReadFile(hashLink)
+	c.Assert(err, IsNil)
+	c.Check(linkedContents, DeepEquals, aPEM)
+}
+
 func (s *certsTestSuite) TestCertificatePathAddsCrtExtension(c *C) {
 	path := certstate.CertificatePath("my-cert")
 	c.Check(path, Equals, filepath.Join(dirs.SnapdPKIV1Dir, "my-cert.crt"))

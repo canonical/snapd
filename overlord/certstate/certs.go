@@ -332,7 +332,10 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 
 		for suffix := 0; ; suffix++ {
 			linkName := filepath.Join(certsDir, fmt.Sprintf("%s.%d", hash, suffix))
-			from := filepath.Join(certsDir, filepath.Base(cert.RealPath))
+			// The merged directory may be built in a staging location and then
+			// atomically swapped into place, so the hash link must stay relative
+			// to the certificate copy that lives alongside it.
+			from := filepath.Base(cert.RealPath)
 			if err := os.Symlink(from, linkName); err != nil {
 				if os.IsExist(err) {
 					continue
