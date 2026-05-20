@@ -77,8 +77,8 @@ var (
 )
 
 // The trace reader should complete right after closing the fifo writer; this
-// short timeout prevents hanging command failure handling if the reader is
-// blocked opening the fifo.
+// timeout is long enough for normal scheduler delays while still keeping error
+// reporting snappy if the reader is blocked opening the fifo.
 const traceExecReaderWaitTimeout = 100 * time.Millisecond
 
 type cmdRun struct {

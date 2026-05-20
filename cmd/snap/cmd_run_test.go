@@ -2419,6 +2419,8 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 }
 
 func (s *RunSuite) TestRunCmdWithTraceExecUnhappySlowTraceReader(c *check.C) {
+	// Keep this comfortably above traceExecReaderWaitTimeout to avoid flakes on
+	// slower CI runners while still failing quickly if behavior regresses.
 	const testTimeout = 2 * time.Second
 
 	_, r := logger.MockLogger()
