@@ -90,6 +90,8 @@ static bool sc_should_bind_mount_dir(const char *src, const char *dst) {
 // Mount the whole managed trust store so confined processes see the same trust
 // decisions regardless of whether their TLS stack reads the bundle file or
 // resolves certificates through the directory layout under /etc/ssl/certs.
+// Remount it read-only so confined applications can consume the generated
+// trust store without mutating the namespace copy of that view.
 static void sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
     char dst[PATH_MAX] = {0};
     sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, SC_SYSTEM_CA_CERTS_DIR);
@@ -99,6 +101,7 @@ static void sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
     }
 
     sc_do_mount(SC_MANAGED_CA_CERTS_DIR, dst, NULL, MS_BIND, NULL);
+    sc_do_mount(NULL, dst, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
 }
 
 // TODO: simplify this, after all it is just a tmpfs
