@@ -329,12 +329,12 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_home
  * managed_ca_cert_db_changed returns true when the modification time of the
  * managed CA certificate directory has changed since the namespace was created.
  *
- * The directory mtime is recorded to detect when the namespace predates the 
- * directory mount and must be recreated so confined processes can see the 
- * full managed trust store layout. If the key is not present (e.g. upgraded 
- * from an older snap-confine before managed CA namespace tracking existed), 
- * no staleness is reported so that creation of the namespace is not forced 
- * unnecessarily. If the new key is present but the directory does not exist, 
+ * The directory mtime is recorded to detect when the namespace predates the
+ * directory mount and must be recreated so confined processes can see the
+ * full managed trust store layout. If the key is not present (e.g. upgraded
+ * from an older snap-confine before managed CA namespace tracking existed),
+ * no staleness is reported so that creation of the namespace is not forced
+ * unnecessarily. If the new key is present but the directory does not exist,
  * staleness is reported.
  **/
 static bool managed_ca_cert_db_changed(const sc_invocation *inv) {
