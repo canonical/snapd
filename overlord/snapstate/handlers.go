@@ -1011,6 +1011,9 @@ func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = func() error {
 		st.Unlock()
 		defer st.Lock()
+		// Remove the snap blob from downloads directory but keep the cache
+		// entry for reuse if the download is triggered again in another change
+		// pertaining to the same snap revision.
 		return theStore.CleanupDownloadArtifacts(fname, snapsup.DownloadInfo)
 	}()
 	if err != nil {
