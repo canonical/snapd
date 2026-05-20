@@ -69,6 +69,12 @@ type FakeSystemd struct {
 
 	ListMountUnitsCalls  []ParamsForListMountUnits
 	ListMountUnitsResult ResultForListMountUnits
+
+	StopCalls  []ParamsForStop
+	StopResult error
+
+	DisableNoReloadCalls  []ParamsForDisableNoReload
+	DisableNoReloadResult error
 }
 
 func (s *FakeSystemd) ConfigureMountUnitOptions(o *systemd.MountUnitOptions, fstype string, startBeforeDrivers bool) error {
@@ -108,6 +114,27 @@ func (s *FakeSystemd) ListMountUnits(snapName, origin string) ([]string, error) 
 	s.ListMountUnitsCalls = append(s.ListMountUnitsCalls,
 		ParamsForListMountUnits{snapName, origin})
 	return s.ListMountUnitsResult.mountPoints, s.ListMountUnitsResult.err
+}
+
+type ParamsForStop struct {
+	serviceNames []string
+}
+
+type ParamsForDisableNoReload struct {
+	serviceNames []string
+}
+
+func (s *FakeSystemd) Stop(serviceNames []string) error {
+	s.StopCalls = append(s.StopCalls, ParamsForStop{serviceNames})
+	if s.StopResult != nil {
+		return s.StopResult
+	}
+	return nil
+}
+
+func (s *FakeSystemd) DisableNoReload(serviceNames []string) error {
+	s.DisableNoReloadCalls = append(s.DisableNoReloadCalls, ParamsForDisableNoReload{serviceNames})
+	return s.DisableNoReloadResult
 }
 
 type mountunitSuite struct {
@@ -286,4 +313,129 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 3)
 	c.Check(sysd.RemoveMountUnitFileCalls, DeepEquals, returnedMountPoints)
+}
+
+func (s *mountunitSuite) TestStopMountUnitsListError(c *C) {
+	expectedErr := errors.New("list error")
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{nil, expectedErr}
+		return sysd
+	})
+	defer restore()
+
+	b := backend.Backend{}
+	err := b.StopMountUnits("some-snap", "mount-control", []string{"/var/snap/some-snap/1"})
+	c.Assert(err, Equals, expectedErr)
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
+		{snapName: "some-snap", origin: "mount-control"},
+	})
+	c.Check(sysd.StopCalls, HasLen, 0)
+}
+
+func (s *mountunitSuite) TestStopMountUnitsFiltersBaseDirs(c *C) {
+	// "/" is not under any candidate base dir and should be skipped.
+	mountPoints := []string{
+		"/var/snap/some-snap/1/target",   // under base dir 1: matched
+		"/var/snap/some-snap/common/dir", // under common base dir: matched
+		"/var/snap/other-snap/1/target",  // unrelated snap: not matched
+	}
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{mountPoints, nil}
+		return sysd
+	})
+	defer restore()
+
+	b := backend.Backend{}
+	baseDirs := []string{"/var/snap/some-snap/1", "/var/snap/some-snap/common"}
+	err := b.StopMountUnits("some-snap", "mount-control", baseDirs)
+	c.Assert(err, IsNil)
+
+	c.Assert(sysd.StopCalls, HasLen, 2)
+	c.Assert(sysd.DisableNoReloadCalls, HasLen, 2)
+}
+
+func (s *mountunitSuite) TestStopMountUnitsStopErrorContinues(c *C) {
+	mountPoints := []string{
+		"/var/snap/some-snap/1/a",
+		"/var/snap/some-snap/1/b",
+	}
+
+	stopErr := errors.New("stop failed")
+	callCount := 0
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{mountPoints, nil}
+		// Fail the first stop only.
+		sysd.StopResult = stopErr
+		return sysd
+	})
+	defer restore()
+
+	// Override Stop to fail only on first call.
+	origNewSystemd := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{mountPoints, nil}
+		return &stopOnceFailSystemd{FakeSystemd: sysd, failCount: &callCount, err: stopErr}
+	})
+	defer origNewSystemd()
+
+	b := backend.Backend{}
+	err := b.StopMountUnits("some-snap", "mount-control", []string{"/var/snap/some-snap/1"})
+	// All errors are collected; the error message contains the stop failure.
+	c.Assert(err, ErrorMatches, ".*stop failed.*")
+	c.Assert(callCount, Equals, 2)
+}
+
+func (s *mountunitSuite) TestStopMountUnitsNoFilterWhenNilBaseDirs(c *C) {
+	// When baseDirs is nil all mount points returned by ListMountUnits are
+	// stopped regardless of their location.
+	mountPoints := []string{
+		"/var/snap/some-snap/1/target",
+		"/home/user/snap/some-snap/common/media",
+		"/totally/unrelated/path",
+	}
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{mountPoints, nil}
+		return sysd
+	})
+	defer restore()
+
+	b := backend.Backend{}
+	// nil baseDirs means "stop all"
+	err := b.StopMountUnits("some-snap", "mount-control", nil)
+	c.Assert(err, IsNil)
+
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
+		{snapName: "some-snap", origin: "mount-control"},
+	})
+	// All three units must have been stopped.
+	c.Assert(sysd.StopCalls, HasLen, 3)
+	c.Assert(sysd.DisableNoReloadCalls, HasLen, 3)
+}
+
+// stopOnceFailSystemd wraps FakeSystemd and fails the first Stop call.
+type stopOnceFailSystemd struct {
+	*FakeSystemd
+	failCount *int
+	err       error
+}
+
+func (s *stopOnceFailSystemd) Stop(serviceNames []string) error {
+	*s.failCount++
+	s.FakeSystemd.StopCalls = append(s.FakeSystemd.StopCalls, ParamsForStop{serviceNames})
+	if *s.failCount == 1 {
+		return s.err
+	}
+	return nil
 }

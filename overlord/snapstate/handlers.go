@@ -4014,6 +4014,21 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// Stop mount-control mounts just before removing the data they may be
+	// mounted over.  When this is the last revision, stop all mount-control
+	// units for the snap (nil baseDirs = no path filter); otherwise restrict
+	// to the revision-specific data directory only, leaving common data
+	// (shared with remaining revisions) untouched.  Best-effort: log and
+	// continue if any unit cannot be stopped.
+	instanceName := snapsup.InstanceName()
+	var stopBaseDirs []string
+	if len(snapst.Sequence.Revisions) > 1 {
+		stopBaseDirs = []string{snap.DataDir(instanceName, snapsup.Revision())}
+	}
+	if err := m.backend.StopMountUnits(instanceName, "mount-control", stopBaseDirs); err != nil {
+		logger.Noticef("cannot stop mount-control mounts for snap %q:\n%v", instanceName, err)
+	}
+
 	dirOpts := opts.getSnapDirOpts()
 	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err

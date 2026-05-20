@@ -6078,6 +6078,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
+			op:     "stop-mount-units",
+			name:   "ubuntu-core",
+			origin: "mount-control",
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
@@ -6181,6 +6186,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			op:    "remove-profiles:Doing",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
+		},
+		{
+			op:     "stop-mount-units",
+			name:   "ubuntu-core",
+			origin: "mount-control",
 		},
 		{
 			op:   "remove-snap-data",

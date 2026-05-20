@@ -95,6 +95,8 @@ type fakeOp struct {
 	requireSnapdTooling bool
 
 	dirOpts  *dirs.SnapDirOptions
+	dirs     []string
+	origin   string
 	undoInfo *backend.UndoInfo
 
 	currentComps []*snap.ComponentSideInfo
@@ -1694,6 +1696,16 @@ func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo,
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-mount-units",
 		name: s.ContainerName(),
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) StopMountUnits(instanceName string, origin string, baseDirs []string) error {
+	f.appendOp(&fakeOp{
+		op:     "stop-mount-units",
+		name:   instanceName,
+		origin: origin,
+		dirs:   baseDirs,
 	})
 	return f.maybeErrForLastOp()
 }

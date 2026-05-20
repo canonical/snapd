@@ -20,9 +20,12 @@
 package backend
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -74,4 +77,47 @@ func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter prog
 		}
 	}
 	return nil
+}
+
+// StopMountUnits stops and disables all systemd mount units for the given snap
+// that were created by the specified origin module.
+// When baseDirs is non-empty, only units whose mount point is under one of
+// those directories are affected; when baseDirs is nil or empty every matching
+// unit is stopped.
+// All units are attempted even if one fails; all errors are collected and
+// returned joined so that callers can decide whether to treat this as
+// best-effort.
+func (b Backend) StopMountUnits(instanceName string, origin string, baseDirs []string) error {
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+	mountPoints, err := sysd.ListMountUnits(instanceName, origin)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, where := range mountPoints {
+		if len(baseDirs) > 0 && !isUnderAnyDir(where, baseDirs) {
+			continue
+		}
+		unitName := systemd.EscapeUnitNamePath(where) + ".mount"
+		if err := sysd.Stop([]string{unitName}); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := sysd.DisableNoReload([]string{unitName}); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return strutil.JoinErrors(errs...)
+}
+
+// isUnderAnyDir reports whether path is a subdirectory of any of the provided
+// candidate directories (the path itself being equal to a candidate does not
+// count).
+func isUnderAnyDir(path string, candidates []string) bool {
+	for _, c := range candidates {
+		if strings.HasPrefix(path, c+"/") {
+			return true
+		}
+	}
+	return false
 }
