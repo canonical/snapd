@@ -555,11 +555,6 @@ var (
 	// system, use a predictable search path for finding the parser.
 	parserSearchPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-	// Filesystem root defined locally to avoid dependency on the
-	// 'dirs' package
-	// TODO: replace rootPath with dirs.GlobalRootDir, since dirs is used elsewhere
-	rootPath = "/"
-
 	// hostAbi30File is the path to the apparmor "3.0" ABI file and is typically
 	// /etc/apparmor.d/abi/3.0. It is not present on all systems. It is notably
 	// absent when using apparmor 2.x. The variable reacts to changes to global
@@ -575,7 +570,7 @@ const featuresSysPath = "sys/kernel/security/apparmor/features"
 // FeaturesSysDir returns the path to the AppArmor features sysfs, which is
 // /sys/kernel/security/apparmor/features, relative to the current root dir.
 func FeaturesSysDir() string {
-	return filepath.Join(rootPath, featuresSysPath)
+	return filepath.Join(dirs.GlobalRootDir, featuresSysPath)
 }
 
 type appArmorProber interface {
@@ -1108,13 +1103,5 @@ func MockParserSearchPath(new string) (restore func()) {
 	parserSearchPath = new
 	return func() {
 		parserSearchPath = oldAppArmorParserSearchPath
-	}
-}
-
-func MockFsRootPath(path string) (restorer func()) {
-	old := rootPath
-	rootPath = path
-	return func() {
-		rootPath = old
 	}
 }

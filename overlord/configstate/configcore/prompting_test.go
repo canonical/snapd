@@ -70,8 +70,6 @@ func (s *promptingSuite) SetUpTest(c *C) {
 	))
 	// mock the presence of the notification socket
 	os.MkdirAll(apparmor.NotifySocketPath, 0o755)
-	// mock the presence of permstable32_version with supported version
-	s.AddCleanup(apparmor.MockFsRootPath(dirs.GlobalRootDir))
 	os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "sys/kernel/security/apparmor/features/policy"), 0o755)
 	os.WriteFile(filepath.Join(dirs.GlobalRootDir, "sys/kernel/security/apparmor/features/policy/permstable32_version"), []byte("0x000002"), 0o644)
 
