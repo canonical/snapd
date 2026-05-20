@@ -373,12 +373,12 @@ Post-build verification steps:
 
 #### 5. Release to beta
 
-##### 5.1 Release to `latest/beta`
-
 Prerequisites:
 - You have the necessary snapcraft permissions to promote the snapd snap
 - You have permission from the snapd manager to promote to latest/beta
 - Builds on all architectures have succeeded
+
+##### 5.1 Release to `latest/beta`
 
 Steps:
 1. Sync with the QA person on the team in charge of beta testing to make sure we can go to beta. For example, if a previous release has not yet made it to candidate, we would need to hold off on promoting.
