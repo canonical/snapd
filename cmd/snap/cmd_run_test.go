@@ -2446,6 +2446,11 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappySlowTraceReader(c *check.C) {
 
 	traceReaderDone := make(chan struct{})
 	restore := snaprun.MockTraceExecveTimings(func(logPath string, nSlowest int, onTraceAttached func()) (*strace.ExecveTiming, error) {
+		// This test only needs to simulate a blocked trace reader; trace parsing
+		// inputs and attach callbacks are intentionally unused.
+		_ = logPath
+		_ = nSlowest
+		_ = onTraceAttached
 		<-traceReaderDone
 		return nil, nil
 	})

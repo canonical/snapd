@@ -1197,7 +1197,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 		select {
 		case <-doneCh:
 		case <-time.After(traceExecReaderWaitTimeout):
-			traceErr = fmt.Errorf("timed out waiting for strace trace reader")
+			traceErr = fmt.Errorf("internal error: timed out waiting for strace trace reader")
 		}
 	} else {
 		<-doneCh
