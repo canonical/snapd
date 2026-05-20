@@ -230,8 +230,9 @@ func (cm *CacheManager) Drop(cacheKey string) error {
 // Open opens a cache entry for reading. The returned file handle remains
 // valid even if the entry is subsequently removed by another operation (e.g.
 // Drop or Cleanup), because on Linux an open file descriptor preserves access
-// to the inode data until it is closed.
-func (cm *CacheManager) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
+// to the inode data until it is closed. The returned int64 is the size of the
+// cached stream.
+func (cm *CacheManager) Open(cacheKey string) (f io.ReadSeekCloser, size int64, err error) {
 	if cacheKey == "" {
 		return nil, 0, fs.ErrNotExist
 	}
@@ -243,14 +244,20 @@ func (cm *CacheManager) Open(cacheKey string) (io.ReadSeekCloser, int64, error) 
 	cm.cleanupLock.RLock()
 	defer cm.cleanupLock.RUnlock()
 
-	f, err := os.Open(cm.path(cacheKey))
+	fd, err := os.Open(cm.path(cacheKey))
 	if err != nil {
 		return nil, 0, err
 	}
-	fi, err := f.Stat()
+	defer func() {
+		if err != nil {
+			fd.Close()
+		}
+	}()
+	fi, err := fd.Stat()
 	if err != nil {
 		return nil, 0, err
 	}
+	f = fd
 
 	return f, fi.Size(), nil
 }
