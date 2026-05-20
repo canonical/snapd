@@ -330,7 +330,7 @@ func (s *installSuite) TestNoWaitNonEphemeralReturnsError(c *C) {
 
 func (s *installSuite) TestNoWaitInstallAndRemoveCommands(c *C) {
 	c.Skip("Content removed for release 2.76")
-	
+
 	for _, cmd := range []string{"install", "remove"} {
 		s.st.Lock()
 		task := s.st.NewTask("test", "test task")

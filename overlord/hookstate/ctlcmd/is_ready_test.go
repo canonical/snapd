@@ -251,7 +251,7 @@ func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
 // has already elapsed, is-ready returns the change status directly
 func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
 	c.Skip("Content removed for release 2.76")
-	
+
 	// A last-accessed time sufficiently in the past guarantees toWait <= 0.
 	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, time.Now().Add(-time.Second).UnixNano())
 

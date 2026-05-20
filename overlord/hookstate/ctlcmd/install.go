@@ -43,7 +43,7 @@ type installCommand struct {
 	Positional struct {
 		Names []string `positional-arg-name:"<snap|snap+comp|+comp>" required:"yes" description:"Components to be installed (snap must be the caller snap if specified)."`
 	} `positional-args:"yes"`
-	// Remove for release 2.76
+	// TODO: temporarily disabled to prevent partial implementation in release
 	// NoWait bool `long:"no-wait" description:"Run the command in asynchronous mode, returning a change id that can be used to determine if the change is ready using the is-ready command."`
 }
 
