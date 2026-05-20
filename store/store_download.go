@@ -131,6 +131,11 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
+	// TODO: the cache entry may have been corrupted (e.g. due to a power loss
+	// on a filesystem with metadata-only journaling), in which case Get() may
+	// link an invalid file as the download target. Ideally, Get() should verify
+	// the cached entry (e.g. check size against downloadInfo.Size) and treat a
+	// corrupted entry as a cache miss, triggering a re-download from the store.
 	if s.cacher.Get(downloadInfo.Sha3_384, targetPath) {
 		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
 		return nil
