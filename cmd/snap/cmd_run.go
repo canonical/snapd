@@ -1192,7 +1192,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 		select {
 		case <-doneCh:
 		case <-time.After(100 * time.Millisecond):
-			traceErr = fmt.Errorf("cannot read strace timings")
+			traceErr = fmt.Errorf("timed out waiting for strace trace reader")
 		}
 	} else {
 		<-doneCh

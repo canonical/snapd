@@ -2441,7 +2441,7 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappySlowTraceReader(c *check.C) {
 	defer traceShimCmd.Restore()
 
 	traceReaderDone := make(chan struct{})
-	restore := snaprun.MockTraceExecveTimings(func(string, int, func()) (*strace.ExecveTiming, error) {
+	restore := snaprun.MockTraceExecveTimings(func(logPath string, nSlowest int, onTraceAttached func()) (*strace.ExecveTiming, error) {
 		<-traceReaderDone
 		return nil, nil
 	})
