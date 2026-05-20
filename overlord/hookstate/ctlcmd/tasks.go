@@ -91,7 +91,6 @@ func (c *tasksCommand) Execute(args []string) error {
 
 	chgInfo := StateChangeToChangeInfo(change)
 	clientChg := changeInfoToClientChange(chgInfo)
-	tasks := clientChg.Tasks
 
 	if c.Format == "json" {
 		if err := json.NewEncoder(c.stdout).Encode(clientChg); err != nil {
@@ -101,7 +100,7 @@ func (c *tasksCommand) Execute(args []string) error {
 		w := newTabWriter(c.stdout)
 		fmt.Fprint(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
 
-		for _, t := range tasks {
+		for _, t := range clientChg.Tasks {
 			spawnTime := timeutil.Human(t.SpawnTime)
 			readyTime := timeutil.Human(t.ReadyTime)
 			if t.ReadyTime.IsZero() {
@@ -119,7 +118,7 @@ func (c *tasksCommand) Execute(args []string) error {
 
 		w.Flush()
 
-		for _, t := range tasks {
+		for _, t := range clientChg.Tasks {
 			if len(t.Log) == 0 {
 				continue
 			}
