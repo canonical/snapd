@@ -65,13 +65,13 @@ skip:
 prepare: |
     # Check whether kernel supports temporal cache, and if so, disable it
     CACHE_TIMEOUT_PATH="/proc/sys/kernel/apparmor_cache_timeout"
+    CACHE_TIMEOUT_SYSCTL="kernel.apparmor_cache_timeout"
     if [ -e "$CACHE_TIMEOUT_PATH" ] ; then
         echo "Kernel supports apparmor temporal cache"
-        EXISTING_TEMPORAL_CACHE_TIMEOUT="$(cat "$CACHE_TIMEOUT_PATH")"
+        EXISTING_TEMPORAL_CACHE_TIMEOUT="$(sysctl -n "$CACHE_TIMEOUT_SYSCTL")"
         echo "Disabling temporal cache for the duration of this test"
-        echo 0 > "$CACHE_TIMEOUT_PATH"
-        # Wrap the command line in quotes so it's not evaluated until the defer runs
-        tests.cleanup defer "echo \"$EXISTING_TEMPORAL_CACHE_TIMEOUT\" > \"$CACHE_TIMEOUT_PATH\""
+        sysctl -w "$CACHE_TIMEOUT_SYSCTL=0"
+        tests.cleanup defer sysctl -w "$CACHE_TIMEOUT_SYSCTL=$EXISTING_TEMPORAL_CACHE_TIMEOUT"
     fi
 
     tests.session prepare -u test
