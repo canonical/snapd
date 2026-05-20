@@ -256,6 +256,9 @@ func (s *SnapSuite) TestTasksJSON(c *check.C) {
 	c.Check(chg.Tasks[0].Kind, check.Equals, "bar")
 	c.Check(chg.Tasks[0].Summary, check.Equals, "some summary")
 	c.Check(chg.Tasks[0].Status, check.Equals, "Do")
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--format=random", "42"})
+	c.Assert(err, check.ErrorMatches, ".*unsupported format: random")
 }
 
 func (s *SnapSuite) TestNoChanges(c *check.C) {

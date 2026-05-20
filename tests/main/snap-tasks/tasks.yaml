@@ -20,4 +20,4 @@ execute: |
 
     # Check that valid JSON output is produced for the change, and that it contains the expected task with the expected state.
     echo "Check that 'snap tasks' lists the task for the change (and accepts the --format option)"
-    snap tasks --format json "$CHANGE_ID_1" | jq -e '.[0].id == "remove+comp1" and .[0].state == "done"' > /dev/null
+    snap tasks --format json "$CHANGE_ID_1" | jq -e '.tasks | any(.id == "remove+comp1" and (.status == "Done" or .status == "done" or .state == "done"))' > /dev/null

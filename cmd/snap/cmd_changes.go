@@ -170,6 +170,8 @@ func (c *cmdTasks) showChange(chid string) error {
 		}
 		fmt.Fprint(Stdout, string(data))
 		return nil
+	} else if c.Format != "" {
+		return fmt.Errorf(i18n.G("unsupported format: %s"), c.Format)
 	}
 
 	w := tabWriter()
