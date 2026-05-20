@@ -2419,6 +2419,8 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 }
 
 func (s *RunSuite) TestRunCmdWithTraceExecUnhappySlowTraceReader(c *check.C) {
+	const testTimeout = 2 * time.Second
+
 	_, r := logger.MockLogger()
 	defer r()
 
@@ -2459,7 +2461,7 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappySlowTraceReader(c *check.C) {
 	select {
 	case <-done:
 		completedInTime = true
-	case <-time.After(2 * time.Second):
+	case <-time.After(testTimeout):
 	}
 	close(traceReaderDone)
 

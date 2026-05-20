@@ -76,6 +76,11 @@ var (
 	selinuxRestoreContext    = selinux.RestoreContext
 )
 
+// The trace reader should complete right after closing the fifo writer; this
+// short timeout prevents hanging command failure handling if the reader is
+// blocked opening the fifo.
+const traceExecReaderWaitTimeout = 100 * time.Millisecond
+
 type cmdRun struct {
 	mustWaitMixin
 	Command     string `long:"command" hidden:"yes"`
@@ -1189,13 +1194,9 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	// wait for strace reader; on unhappy strace runs avoid a potential hang if
 	// the reader goroutine is still waiting to open the fifo.
 	if straceCmdErr != nil {
-		// The trace reader should normally complete immediately after closing the
-		// fifo writer. Keep this timeout short to avoid delaying command failure
-		// handling if opening the fifo reader goroutine is stuck.
-		const traceReaderTimeout = 100 * time.Millisecond
 		select {
 		case <-doneCh:
-		case <-time.After(traceReaderTimeout):
+		case <-time.After(traceExecReaderWaitTimeout):
 			traceErr = fmt.Errorf("timed out waiting for strace trace reader")
 		}
 	} else {
