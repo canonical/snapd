@@ -77,7 +77,7 @@ execute: |
     fi
 
     echo "Verify installation failed"
-    MATCH "no matching signatures found" < install.err
+    MATCH "snap file is unexpected empty and possibly corrupted" < install.err
 
     echo "Verify installation change shows error"
     snap change --last refresh > change.out
