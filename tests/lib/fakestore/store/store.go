@@ -38,6 +38,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
@@ -89,9 +91,39 @@ type Store struct {
 	killAfter map[string]int64
 }
 
+type wrappedWriter struct {
+	http.ResponseWriter
+	s int
+}
+
+func (w *wrappedWriter) WriteHeader(s int) {
+	w.s = s
+	w.ResponseWriter.WriteHeader(s)
+}
+
+func logit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := &wrappedWriter{ResponseWriter: w}
+		t0 := time.Now()
+		next.ServeHTTP(ww, r)
+		t := time.Since(t0)
+		logger.Noticef("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+	})
+}
+
+func logRangeHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(r.Header["Range"]) > 0 {
+			logger.Noticef(`%s %s %s range request %v`, r.RemoteAddr, r.Method, r.URL, r.Header["Range"])
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
 func NewStore(topDir, addr string, assertFallback bool) *Store {
-	mux := http.NewServeMux()
+	r := mux.NewRouter()
+
 	var sto *store.Store
 	if assertFallback {
 		snapdenv.SetUserAgentFromVersion("unknown", nil, "fakestore")
@@ -107,7 +139,7 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 		url: fmt.Sprintf("http://%s", addr),
 		srv: &http.Server{
 			Addr:    addr,
-			Handler: mux,
+			Handler: r,
 		},
 		channelRepository: &ChannelRepository{
 			rootDir: filepath.Join(topDir, "channels"),
@@ -116,24 +148,31 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 		killAfter:  make(map[string]int64),
 	}
 
-	mux.HandleFunc("/", rootEndpoint)
-	mux.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
-	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
-	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
+	r.Use(logit)
+	r.Use(store.applyKillAfter)
+
+	r.HandleFunc("/", rootEndpoint)
+	r.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
+	r.HandleFunc("/api/v1/snaps/details/{name}", store.detailsEndpoint).Methods("GET")
+	r.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint).Methods("POST")
 
 	fileServer := http.StripPrefix("/download/", http.FileServer(http.Dir(topDir)))
-	mux.Handle("/download/", logRangeHeader(store.applyKillAfter(fileServer.ServeHTTP)))
+	dr := r.PathPrefix("/download/").Subrouter()
+	dr.Use(logRangeHeader)
+	dr.PathPrefix("/").HandlerFunc(fileServer.ServeHTTP).Methods("GET")
 
-	mux.HandleFunc("/api/v1/snaps/auth/nonces", store.nonceEndpoint)
-	mux.HandleFunc("/api/v1/snaps/auth/sessions", store.sessionEndpoint)
+	r.HandleFunc("/api/v1/snaps/auth/nonces", store.nonceEndpoint)
+	r.HandleFunc("/api/v1/snaps/auth/sessions", store.sessionEndpoint)
 
 	// v2
-	mux.HandleFunc("/v2/assertions/", store.assertionsEndpoint)
-	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
+	// TODO: use path vars for assertion type
+	r.PathPrefix("/v2/assertions/").HandlerFunc(store.assertionsEndpoint).Methods("GET")
+	r.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
 
-	mux.HandleFunc("/v2/repairs/", store.repairsEndpoint)
+	// TODO use path vars for brand and repair IDs
+	r.PathPrefix("/v2/repairs/").HandlerFunc(store.repairsEndpoint).Methods("GET")
 
-	mux.HandleFunc("/debug", store.debugEndpoint)
+	r.HandleFunc("/debug", store.debugEndpoint).Methods("GET", "POST")
 
 	return store
 }
@@ -433,6 +472,7 @@ func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
 			http.Error(w, fmt.Sprintf("cannot marshal: %v", err), 500)
 			return
 		}
+		w.WriteHeader(200)
 		w.Write(out)
 		return
 	}
@@ -461,6 +501,8 @@ func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		w.WriteHeader(400)
 		fmt.Fprint(w, err.Error())
+	} else {
+		w.WriteHeader(200)
 	}
 }
 
@@ -484,25 +526,15 @@ func (s *Store) debugActionKillDownload(debugReq *debugRequestJSON) error {
 	return nil
 }
 
-func (s *Store) debugActionReset(debugReq *debugRequestJSON) {
+func (s *Store) debugActionReset(_ *debugRequestJSON) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	s.killAfter = map[string]int64{}
 }
 
-func logRangeHeader(handler http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
-		path := req.URL.Path
-		if len(req.Header["Range"]) > 0 {
-			logger.Noticef(`requested range for %s is %v`, path, req.Header["Range"])
-		}
-		handler(w, req)
-	}
-}
-
-func (s *Store) applyKillAfter(handler http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, req *http.Request) {
+func (s *Store) applyKillAfter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		path := req.URL.Path
 
 		exists := func() bool {
@@ -512,42 +544,40 @@ func (s *Store) applyKillAfter(handler http.HandlerFunc) http.HandlerFunc {
 			return ok
 		}()
 
-		if !exists {
-			handler(w, req)
-			return
+		if exists {
+			kaw := &killAfterWriter{
+				ResponseWriter: w,
+				path:           path,
+				consumeQuota: func(want int) int {
+					s.lock.Lock()
+					defer s.lock.Unlock()
+
+					v, ok := s.killAfter[path]
+					if !ok {
+						// no quota set
+						return want
+					}
+
+					left := int(v)
+
+					var got int
+					if want > left {
+						got = left
+						left = 0
+					} else {
+						got = want
+						left -= want
+					}
+					s.killAfter[path] = int64(left)
+
+					return got
+				},
+			}
+
+			w = kaw
 		}
-
-		kaw := &killAfterWriter{
-			ResponseWriter: w,
-			path:           path,
-			consumeQuota: func(want int) int {
-				s.lock.Lock()
-				defer s.lock.Unlock()
-
-				v, ok := s.killAfter[path]
-				if !ok {
-					// no quota set
-					return want
-				}
-
-				left := int(v)
-
-				var got int
-				if want > left {
-					got = left
-					left = 0
-				} else {
-					got = want
-					left -= want
-				}
-				s.killAfter[path] = int64(left)
-
-				return got
-			},
-		}
-		handler(kaw, req)
-
-	}
+		next.ServeHTTP(w, req)
+	})
 }
 
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -634,10 +664,7 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
-	pkg := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/details/")
-	if pkg == req.URL.Path {
-		panic("how?")
-	}
+	pkg := mux.Vars(req)["name"]
 
 	bs, err := s.collectAssertions()
 	if err != nil {

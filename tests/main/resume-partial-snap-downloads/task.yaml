@@ -97,7 +97,7 @@ execute: |
 
     # Verify the fakestore received a Range header on the resumed download,
     # confirming that snapd resumed from the partial file offset
-    "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u fakestore | MATCH "requested range for /download/$snap_file"
+    "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u fakestore | MATCH "/download/$snap_file range request"
 
     # Verify snap is installed
     snap list test-snap-resume
