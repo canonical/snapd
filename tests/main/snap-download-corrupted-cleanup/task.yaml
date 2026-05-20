@@ -1,17 +1,25 @@
-summary: Verify corrupted snap files are cleaned up when download task is undone
+summary: Verify corrupted snap cache entries are detected and re-downloaded
 
 details: |
-    Verify that undo of snap-download cleans up corrupted snap blob files.
-    Two scenarios are tested:
-    - valid_cache: blob is zeroed but cache entry is valid; blob is removed
-      and cache is preserved for reuse on the next download attempt.
-    - corrupt_cache: both blob and cache entry are zeroed; both are removed
-      and the subsequent refresh re-downloads from the store.
+    Verify that Download() detects a corrupted (size-mismatched) cache entry
+    and self-heals by re-downloading from the store.
+    Three scenarios are tested:
+    - valid-cache: blob is zeroed but cache entry is valid; download detects
+      the 0-byte target, recovers from the valid cache entry without
+      re-downloading from the store.
+    - corrupt-cache: both blob and cache entry are zeroed; download detects
+      the size mismatch in both, drops the cache entry and re-downloads from
+      the store.
+    - bitflip-cache: cache entry has correct size but corrupted content (a
+      flipped byte); download treats it as a cache hit (size matches), but
+      validate-snap fails (hash mismatch). The undo handler cleans up the
+      corrupt cache entry, and a subsequent refresh re-downloads successfully.
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
     CACHEMODE/corrupt_cache: corrupt
     CACHEMODE/valid_cache: valid
+    CACHEMODE/bitflip_cache: bitflip
 
 skip:
     - reason: This test needs test keys to be trusted
@@ -61,39 +69,53 @@ execute: |
 
     snap remove --revision "$rev_new" test-snapd-sh-core24
 
-    echo "Create corrupted (empty) snap file to short-circuit download task"
+    echo "Create corrupted snap file"
+    # for valid_cache: target file is 0-byte; for corrupt_cache: target file is too short
+    # for bitflip_cache: no target file created (only cache entry is modified)
     rm -fv "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
-    touch "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
 
     if [ "$CACHEMODE" = "corrupt" ]; then
-        echo "Also corrupt the cache entry"
+        touch "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
+        echo "Also corrupt the cache entry (truncate to 0)"
         truncate -s 0 "$cache_file_rev_new"
-    fi
-
-    echo "Attempt refresh"
-    if snap refresh test-snapd-sh-core24 2>install.err; then
-        echo "Refresh should have failed but succeeded"
-        exit 1
-    fi
-
-    echo "Verify installation failed"
-    MATCH "snap file is unexpected empty and possibly corrupted" < install.err
-
-    echo "Verify installation change shows error"
-    snap change --last refresh > change.out
-    MATCH "ERROR cannot verify snap" < change.out
-    MATCH "Undone.*Download snap.*test-snapd-sh-core24" < change.out
-
-    echo "Verify undo cleaned up the corrupted blob"
-    not test -f "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
-
-    if [ "$CACHEMODE" = "corrupt" ]; then
-        echo "Corrupt cache entry was dropped"
-        not test -f "$cache_file_rev_new"
+    elif [ "$CACHEMODE" = "bitflip" ]; then
+        echo "Flip a byte in the cache entry (keeps same size, wrong hash)"
+        printf '\xff' | dd of="$cache_file_rev_new" bs=1 count=1 conv=notrunc
     else
-        echo "Valid cache entry is preserved"
-        test -f "$cache_file_rev_new"
+        echo "Create a 0-sized target file"
+        touch "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
     fi
 
-    echo "Subsequent refresh succeeds"
-    snap refresh test-snapd-sh-core24
+    if [ "$CACHEMODE" = "bitflip" ]; then
+        # Corrupted, non-0 sized file fails validation, but is ultimately
+        # cleaned up in undo.
+        echo "Attempt refresh - bitflip passes size check but fails validation"
+        if snap refresh test-snapd-sh-core24 2> install.err; then
+            echo "Refresh should have failed but succeeded"
+            exit 1
+        fi
+
+        echo "Verify installation failed with signature error"
+        MATCH "no matching signatures found" < install.err
+
+        echo "Verify undo cleaned up the corrupt cache entry"
+        not test -f "$cache_file_rev_new"
+
+        echo "Verify undo cleaned up the corrupted blob"
+        not test -f "/var/lib/snapd/snaps/test-snapd-sh-core24_${rev_new}.snap"
+
+        echo "Subsequent refresh re-downloads and succeeds"
+        snap refresh test-snapd-sh-core24
+    else
+        # These two cases (recovery from cache vs re-download) are
+        # indistinguishable here; hard links share inode metadata so mtime
+        # changes in both paths. See unit tests for behavioral verification.
+        # TODO: extend the fakestore with download/request statistics such that
+        # we can assert whether a download occurred more reliably than looking
+        # at the logs.
+        echo "Attempt refresh - self-heals"
+        snap refresh test-snapd-sh-core24
+    fi
+
+    echo "Verify the snap was refreshed successfully"
+    test "$(readlink "$SNAP_MOUNT_DIR"/test-snapd-sh-core24/current)" = "$rev_new"
