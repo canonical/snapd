@@ -131,14 +131,33 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
-	// TODO: the cache entry may have been corrupted (e.g. due to a power loss
-	// on a filesystem with metadata-only journaling), in which case Get() may
-	// link an invalid file as the download target. Ideally, Get() should verify
-	// the cached entry (e.g. check size against downloadInfo.Size) and treat a
-	// corrupted entry as a cache miss, triggering a re-download from the store.
+	// TODO: we trust the cache to contain valid/uncorrupted data, but we could
+	// Get() to a target path with the .partial suffix and run through the
+	// resumed download verification code path which would automatically
+	// redownload the file if it's found to be corrupted; however this comes
+	// with the cost of hashing the whole file again
 	if s.cacher.Get(downloadInfo.Sha3_384, targetPath) {
-		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
-		return nil
+		// double check that the cached entry has the expected size to detect
+		// most frequent symptoms of corruption (e.g. 0-byte files which may
+		// appear on power loss); silent bit rot are expected to be caught by
+		// the caller at some point, for which they can call
+		// CleanupDownloadArtifacts() to have the invalid snap blobs removed.
+		if fi, err := os.Lstat(targetPath); err == nil {
+			// check the size if one was provided by the store, otherwise accept
+			// any non-0 size as correct
+			if fi.Size() > 0 && (fi.Size() == downloadInfo.Size || downloadInfo.Size == 0) {
+				logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+				return nil
+			}
+		}
+		// size mismatch — treat as cache miss and re-download.
+		logger.Debugf("Cache entry for SHA3_384 …%.5s has unexpected size, re-downloading.", downloadInfo.Sha3_384)
+		// remove the target path and the cache entry which is likely corrupted
+		// as well, ignore errors
+		_ = os.Remove(targetPath)
+		// we do not know whether the cache entry is also bad, so let's drop it as a
+		// precaution
+		_ = s.cacher.Drop(downloadInfo.Sha3_384)
 	}
 
 	if len(s.supportedDeltaFormats()) > 0 {
