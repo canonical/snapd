@@ -1189,9 +1189,13 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	// wait for strace reader; on unhappy strace runs avoid a potential hang if
 	// the reader goroutine is still waiting to open the fifo.
 	if straceCmdErr != nil {
+		// The trace reader should normally complete immediately after closing the
+		// fifo writer. Keep this timeout short to avoid delaying command failure
+		// handling if opening the fifo reader goroutine is stuck.
+		const traceReaderTimeout = 100 * time.Millisecond
 		select {
 		case <-doneCh:
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(traceReaderTimeout):
 			traceErr = fmt.Errorf("timed out waiting for strace trace reader")
 		}
 	} else {
