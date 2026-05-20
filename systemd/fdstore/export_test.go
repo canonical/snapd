@@ -26,18 +26,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func MockOsGetenv(f func(key string) string) (restore func()) {
-	return testutil.Mock(&osGetenv, f)
-}
-
-func MockOsUnsetenv(f func(key string) error) (restore func()) {
-	return testutil.Mock(&osUnsetenv, f)
-}
-
-func MockOsLookupEnv(f func(key string) (string, bool)) (restore func()) {
-	return testutil.Mock(&osLookupEnv, f)
-}
-
 func MockOsGetpid(f func() int) (restore func()) {
 	return testutil.Mock(&osGetpid, f)
 }

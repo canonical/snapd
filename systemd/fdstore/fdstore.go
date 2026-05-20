@@ -58,9 +58,6 @@ func (name FdName) isSocket() bool {
 }
 
 var (
-	osGetenv        = os.Getenv
-	osUnsetenv      = os.Unsetenv
-	osLookupEnv     = os.LookupEnv
 	osGetpid        = os.Getpid
 	osFileClose     = (*os.File).Close
 	unixCloseOnExec = unix.CloseOnExec
@@ -87,27 +84,27 @@ func initFdstore() {
 
 	// Make sure initialization only happens once, only here.
 	defer func() {
-		osUnsetenv("LISTEN_PID")
-		osUnsetenv("LISTEN_FDS")
-		osUnsetenv("LISTEN_FDNAMES")
+		os.Unsetenv("LISTEN_PID")
+		os.Unsetenv("LISTEN_FDS")
+		os.Unsetenv("LISTEN_FDNAMES")
 	}()
 
 	// Initialize fdstore before any processing so
 	// it is only done once.
 	fdstore = make(map[FdName][]*os.File)
 
-	pid, err := strconv.Atoi(osGetenv("LISTEN_PID"))
+	pid, err := strconv.Atoi(os.Getenv("LISTEN_PID"))
 	if err != nil || pid != osGetpid() {
 		return
 	}
 
-	nfds, err := strconv.Atoi(osGetenv("LISTEN_FDS"))
+	nfds, err := strconv.Atoi(os.Getenv("LISTEN_FDS"))
 	if err != nil || nfds == 0 {
 		return
 	}
 
 	var names []string
-	namesEnv, namesEnvExists := osLookupEnv("LISTEN_FDNAMES")
+	namesEnv, namesEnvExists := os.LookupEnv("LISTEN_FDNAMES")
 	if namesEnvExists {
 		names = strings.Split(namesEnv, ":")
 	} else {
@@ -142,7 +139,7 @@ func initFdstore() {
 			logger.Noticef("unexpected fdstore entry %q found: %v", name, err)
 			shouldRemove = true
 		}
-		// Only activation sockets can be associated with multiple fds.
+		// We only allow activation sockets to be associated with multiple fds.
 		if !name.isSocket() && len(fds) != 1 {
 			logger.Noticef("unexpected fdstore entry %[1]q found: %[1]q has more than one fd", name)
 			shouldRemove = true
@@ -155,8 +152,6 @@ func initFdstore() {
 			}
 		}
 	}
-
-	return
 }
 
 var ErrUnsupportedSystemdVersion = errors.New("unsupported systemd version")
@@ -210,12 +205,24 @@ func remove(name FdName) (err error) {
 	return nil
 }
 
+func duplicateFile(name FdName, f *os.File) (*os.File, error) {
+	duplicatedFd, err := unixDup(int(f.Fd()))
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Use raw fcntl and check for errors.
+	unixCloseOnExec(duplicatedFd)
+
+	// Wrapping fd with os.File is a safety measure so that the finalizer
+	// would close the duplicated fd implicitly if it goes out of scope.
+	return os.NewFile(uintptr(duplicatedFd), string(name)), nil
+}
+
 // Get retrieves a duplicate of the file descriptor passed from systemd by
 // its name. close-on-exec is set on the returned file descriptor. An error
-// is returned if no matching file descriptor is found, if more than one
-// matching file descriptors are found or if the passed name corresponds
-// to a socket (i.e. ends in ".socket"). To get activation sockets use
-// fdstore.ActivationListeners() instead.
+// matching ErrNotFound is returned if no matching file descriptor is found.
+// Passed name cannot be a socket (i.e. cannot end in ".socket"), for
+// activation sockets use ActivationListeners() instead.
 //
 // The fdstore holds a copy of the file descriptor, the caller needs to
 // call Remove() on top of closing all privately held references in order
@@ -227,9 +234,6 @@ func Get(name FdName) (f *os.File, retErr error) {
 		return nil, fmt.Errorf("cannot get file descriptor from fdstore: %w", err)
 	}
 
-	mu.RLock()
-	defer mu.RUnlock()
-
 	errPrefix := fmt.Sprintf("cannot get file descriptor named %q", name)
 
 	if name.isSocket() {
@@ -238,23 +242,18 @@ func Get(name FdName) (f *os.File, retErr error) {
 		return nil, fmt.Errorf("internal error: %s: socket found, use ActivationListeners instead", errPrefix)
 	}
 
+	mu.RLock()
+	defer mu.RUnlock()
+
 	fds := fdstore[name]
 	if len(fds) == 0 {
 		return nil, fmt.Errorf("%s: %w", errPrefix, ErrNotFound)
-	} else if len(fds) > 1 {
-		return nil, fmt.Errorf("%s: found more than one matching file descriptors", errPrefix)
 	}
 
-	duplicatedFd, err := unixDup(int(fds[0].Fd()))
+	f, err := duplicateFile(name, fds[0])
 	if err != nil {
 		return nil, err
 	}
-	unixCloseOnExec(duplicatedFd)
-	// Currently no errors are returned below, but wrapping fd
-	// with os.File is a safety measure in case some error is
-	// returned below in the future so the finalizer would
-	// close the duplicated fd implicitly.
-	f = os.NewFile(uintptr(duplicatedFd), string(name))
 
 	return f, nil
 }
@@ -274,9 +273,6 @@ func Add(name FdName, f *os.File) (retErr error) {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %w", err)
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
-
 	if err := name.validate(); err != nil {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
 	}
@@ -285,19 +281,18 @@ func Add(name FdName, f *os.File) (retErr error) {
 		// i.e. file descriptors whose name has a ".socket" suffix
 		return fmt.Errorf("cannot add file descriptor to fdstore: sockets are not allowed")
 	}
+
+	mu.Lock()
+	defer mu.Unlock()
+
 	if len(fdstore[name]) != 0 {
 		return fmt.Errorf("cannot add file descriptor to fdstore: %q already exists", name)
 	}
 
-	duplicatedFd, err := unixDup(int(f.Fd()))
+	duplicatedFile, err := duplicateFile(name, f)
 	if err != nil {
 		return err
 	}
-	unixCloseOnExec(duplicatedFd)
-	// Wrapping fd with os.File so that if some error is
-	// returned below, the finalizer for os.File would
-	// close the duplicated fd implicitly.
-	duplicatedFile := os.NewFile(uintptr(duplicatedFd), string(name))
 
 	state := fmt.Sprintf("FDSTORE=1\nFDNAME=%s", name)
 	if err := sdNotifyWithFds(state, duplicatedFile); err != nil {

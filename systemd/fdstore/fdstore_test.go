@@ -41,7 +41,6 @@ func Test(t *testing.T) { TestingT(t) }
 type fdstoreTestSuite struct {
 	testutil.BaseTest
 
-	fakeEnv        map[string]string
 	sdNotifyCalls  []string
 	errOn          []string
 	closeOnExecFds []int
@@ -53,7 +52,6 @@ type fdstoreTestSuite struct {
 var _ = Suite(&fdstoreTestSuite{})
 
 func (s *fdstoreTestSuite) SetUpTest(c *C) {
-	s.fakeEnv = map[string]string{"LISTEN_PID": "1984"}
 	s.sdNotifyCalls = nil
 	s.errOn = nil
 	s.closeOnExecFds = nil
@@ -61,17 +59,14 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 	s.lastDupFd = 1000
 	s.duplicatedFds = nil
 
-	s.AddCleanup(fdstore.MockOsGetenv(func(key string) string {
-		return s.fakeEnv[key]
-	}))
-	s.AddCleanup(fdstore.MockOsUnsetenv(func(key string) error {
-		delete(s.fakeEnv, key)
-		return nil
-	}))
-	s.AddCleanup(fdstore.MockOsLookupEnv(func(key string) (string, bool) {
-		val, exists := s.fakeEnv[key]
-		return val, exists
-	}))
+	os.Setenv("LISTEN_PID", "1984")
+	os.Unsetenv("LISTEN_FDS")
+	os.Unsetenv("LISTEN_FDNAMES")
+	s.AddCleanup(func() {
+		os.Unsetenv("LISTEN_PID")
+		os.Unsetenv("LISTEN_FDS")
+		os.Unsetenv("LISTEN_FDNAMES")
+	})
 	s.AddCleanup(fdstore.MockOsGetpid(func() int {
 		return 1984
 	}))
@@ -112,8 +107,8 @@ func (s *fdstoreTestSuite) SetUpTest(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestGet(c *C) {
-	s.fakeEnv["LISTEN_FDS"] = "5"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:invalid:snapd.socket:memfd-secret-state:snapd.socket"
+	os.Setenv("LISTEN_FDS", "5")
+	os.Setenv("LISTEN_FDNAMES", "snapd.socket:invalid:snapd.socket:memfd-secret-state:snapd.socket")
 	// fds starts from 3
 
 	s.lastDupFd = 1998
@@ -125,7 +120,9 @@ func (s *fdstoreTestSuite) TestGet(c *C) {
 	c.Check(s.duplicatedFds, DeepEquals, []int{6})
 
 	// fdstore is lazily initialized once, and clears passed environment
-	c.Assert(s.fakeEnv, HasLen, 0)
+	c.Assert(os.Getenv("LISTEN_PID"), Equals, "")
+	c.Assert(os.Getenv("LISTEN_FDS"), Equals, "")
+	c.Assert(os.Getenv("LISTEN_FDNAMES"), Equals, "")
 
 	// more checks
 	file, err = fdstore.Get("no-fd") // doesn't exist
@@ -163,9 +160,9 @@ func (s *fdstoreTestSuite) TestGetLowSystemdVersionError(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
-	s.fakeEnv["LISTEN_PID"] = "1999" // not 1984
-	s.fakeEnv["LISTEN_FDS"] = "3"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:memfd-secret-state:snapd.socket"
+	os.Setenv("LISTEN_PID", "1999") // not 1984
+	os.Setenv("LISTEN_FDS", "3")
+	os.Setenv("LISTEN_FDNAMES", "snapd.socket:memfd-secret-state:snapd.socket")
 
 	// PID mismatch ignores passed fds
 	listeners, err := fdstore.ActivationListeners()
@@ -175,7 +172,9 @@ func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	// passed environment variables are cleared
-	c.Assert(s.fakeEnv, HasLen, 0)
+	c.Assert(os.Getenv("LISTEN_PID"), Equals, "")
+	c.Assert(os.Getenv("LISTEN_FDS"), Equals, "")
+	c.Assert(os.Getenv("LISTEN_FDNAMES"), Equals, "")
 }
 
 func (s *fdstoreTestSuite) TestInitNoFds(c *C) {
@@ -188,8 +187,8 @@ func (s *fdstoreTestSuite) TestInitNoFds(c *C) {
 
 func (s *fdstoreTestSuite) TestInitEnvMismatchError(c *C) {
 	// two fds, three fd-names
-	s.fakeEnv["LISTEN_FDS"] = "2"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:other.socket:memfd-secret-state"
+	os.Setenv("LISTEN_FDS", "2")
+	os.Setenv("LISTEN_FDNAMES", "snapd.socket:other.socket:memfd-secret-state")
 
 	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
@@ -227,8 +226,8 @@ func (s *fdstoreTestSuite) TestAdd(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestAddExistingFdError(c *C) {
-	s.fakeEnv["LISTEN_FDS"] = "1"
-	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state"
+	os.Setenv("LISTEN_FDS", "1")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state")
 
 	s.lastDupFd = 1999
 
@@ -277,8 +276,8 @@ func (s *fdstoreTestSuite) TestAddLowSystemdVersionError(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestRemove(c *C) {
-	s.fakeEnv["LISTEN_FDS"] = "3"
-	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state:snapd.socket:snapd.socket"
+	os.Setenv("LISTEN_FDS", "3")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state:snapd.socket:snapd.socket")
 
 	s.lastDupFd = 1000
 
@@ -315,8 +314,8 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestRemoveSdNotifyError(c *C) {
-	s.fakeEnv["LISTEN_FDS"] = "2"
-	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state:snapd.socket"
+	os.Setenv("LISTEN_FDS", "2")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state:snapd.socket")
 
 	s.lastDupFd = 1000
 
@@ -333,8 +332,8 @@ func (s *fdstoreTestSuite) TestRemoveSdNotifyError(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestRemoveLowSystemdVersionError(c *C) {
-	s.fakeEnv["LISTEN_FDS"] = "2"
-	s.fakeEnv["LISTEN_FDNAMES"] = "memfd-secret-state:snapd.socket"
+	os.Setenv("LISTEN_FDS", "2")
+	os.Setenv("LISTEN_FDNAMES", "memfd-secret-state:snapd.socket")
 
 	restore := systemd.MockSystemdVersion(235, nil)
 	defer restore()
@@ -357,8 +356,8 @@ func (*fakeListener) Addr() net.Addr            { panic("unexpected") }
 func (l *fakeListener) String() string          { return fmt.Sprintf("%s (%d)", l.f.Name(), l.f.Fd()) }
 
 func (s *fdstoreTestSuite) TestActivationListeners(c *C) {
-	s.fakeEnv["LISTEN_FDS"] = "4"
-	s.fakeEnv["LISTEN_FDNAMES"] = "snapd.socket:snapd.session-agent.socket:memfd-secret-state:snapd.socket"
+	os.Setenv("LISTEN_FDS", "4")
+	os.Setenv("LISTEN_FDNAMES", "snapd.socket:snapd.session-agent.socket:memfd-secret-state:snapd.socket")
 	// fds starts from 3
 
 	restore := fdstore.MockNetFileListener(func(f *os.File) (ln net.Listener, err error) {
@@ -389,7 +388,7 @@ func (s *fdstoreTestSuite) TestActivationListeners(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestActivationListenersMissingFdNamesEnv(c *C) {
-	s.fakeEnv["LISTEN_FDS"] = "4"
+	os.Setenv("LISTEN_FDS", "4")
 
 	restore := fdstore.MockNetFileListener(func(f *os.File) (ln net.Listener, err error) {
 		return &fakeListener{f}, nil
