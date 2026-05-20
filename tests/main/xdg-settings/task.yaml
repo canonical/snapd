@@ -36,6 +36,8 @@ prepare: |
         tests.backup prepare /home/test/.config
         touch has-test-config-backup
     else
+        mkdir -p /home/test/.config
+        chown test:test /home/test/.config
         tests.cleanup defer rm -rfv /home/test/.config
     fi
 
