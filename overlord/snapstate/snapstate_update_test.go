@@ -445,6 +445,12 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			op: "update-aliases",
 		},
 		{
+			op:     "remove-snap-mount-units",
+			name:   "some-snap",
+			origin: "mount-control",
+			dirs:   []string{snap.DataDir("some-snap", snap.R(1))},
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 		},
@@ -452,6 +458,12 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/1"),
 			stype: "app",
+		},
+		{
+			op:     "remove-snap-mount-units",
+			name:   "some-snap",
+			origin: "mount-control",
+			dirs:   []string{snap.DataDir("some-snap", snap.R(2))},
 		},
 		{
 			op:   "remove-snap-data",

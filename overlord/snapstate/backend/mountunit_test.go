@@ -212,7 +212,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveContainerMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null, "", nil)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -244,7 +244,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveContainerMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null, "", nil)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -277,7 +277,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 	defer restore()
 
 	b := backend.Backend{}
-	err := b.RemoveContainerMountUnits(info, progress.Null)
+	err := b.RemoveContainerMountUnits(info, progress.Null, "", nil)
 	c.Check(err, IsNil)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
@@ -286,4 +286,62 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 3)
 	c.Check(sysd.RemoveMountUnitFileCalls, DeepEquals, returnedMountPoints)
+}
+
+func (s *mountunitSuite) TestRemoveSnapMountUnitsFiltersBaseDirs(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+		},
+	}
+
+	// Only mount points under the specified base dirs should be removed.
+	baseDirs := []string{"/var/snap/some-snap/1", "/var/snap/some-snap/common"}
+	mountPoints := []string{
+		"/var/snap/some-snap/1/target",   // under revision base dir: matched
+		"/var/snap/some-snap/common/dir", // under common base dir: matched
+		"/var/snap/other-snap/1/target",  // unrelated snap: not matched
+	}
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{mountPoints, nil}
+		return sysd
+	})
+	defer restore()
+
+	b := backend.Backend{}
+	err := b.RemoveContainerMountUnits(info, progress.Null, "mount-control", baseDirs)
+	c.Assert(err, IsNil)
+
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
+		{snapName: "some-snap", origin: "mount-control"},
+	})
+	// Only the two matching mount points should have been removed.
+	c.Assert(sysd.RemoveMountUnitFileCalls, HasLen, 2)
+	c.Assert(sysd.RemoveMountUnitFileCalls, DeepEquals, []string{
+		"/var/snap/some-snap/1/target",
+		"/var/snap/some-snap/common/dir",
+	})
+}
+
+func (s *mountunitSuite) TestIsUnderAnyDir(c *C) {
+	// Subdirectory matches.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1/bar", []string{"/var/snap/foo/1"}), Equals, true)
+	// Trailing slash on path must not affect matching.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1/bar/", []string{"/var/snap/foo/1"}), Equals, true)
+	// Trailing slash on candidate must not affect matching.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1/bar", []string{"/var/snap/foo/1/"}), Equals, true)
+	// Trailing slash on both must not affect matching.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1/bar/", []string{"/var/snap/foo/1/"}), Equals, true)
+	// Path equal to candidate must not match (strict subdirectory check).
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1", []string{"/var/snap/foo/1"}), Equals, false)
+	// Path equal to candidate with trailing slash on path must not match.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1/", []string{"/var/snap/foo/1"}), Equals, false)
+	// Path equal to candidate with trailing slash on candidate must not match.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1", []string{"/var/snap/foo/1/"}), Equals, false)
+	// Unrelated path must not match.
+	c.Check(backend.IsUnderAnyDir("/var/snap/other/1/bar", []string{"/var/snap/foo/1"}), Equals, false)
 }

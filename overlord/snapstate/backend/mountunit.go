@@ -20,6 +20,8 @@
 package backend
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -61,17 +63,39 @@ func removeMountUnit(mountDir string, meter progress.Meter) error {
 	return sysd.RemoveMountUnitFile(mountDir)
 }
 
-func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
+// RemoveContainerMountUnits removes mount units for the given container. Only
+// units whose origin label matches origin are considered (pass "" to match all
+// origins). If baseDirs is non-empty, only units whose mount point lies strictly
+// inside one of those directories are removed; units at or above a base
+// directory are left untouched.  Removal stops and returns an error immediately
+// if any unit cannot be removed.
+func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
-	originFilter := ""
-	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), originFilter)
+	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), origin)
 	if err != nil {
 		return err
 	}
 	for _, mountPoint := range mountPoints {
+		if len(baseDirs) > 0 && !isUnderAnyDir(mountPoint, baseDirs) {
+			continue
+		}
 		if err := sysd.RemoveMountUnitFile(mountPoint); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// isUnderAnyDir reports whether path is a strict subdirectory of any of the
+// provided candidate directories (the path itself being equal to a candidate
+// does not count).
+func isUnderAnyDir(path string, candidates []string) bool {
+	path = strings.TrimRight(path, "/")
+	for _, c := range candidates {
+		c = strings.TrimRight(c, "/")
+		if strings.HasPrefix(path, c+"/") {
+			return true
+		}
+	}
+	return false
 }
