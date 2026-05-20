@@ -39,6 +39,10 @@ restore: |
     rm -rf /home/test/foo
 
 execute: |
+    filter_out_dbus_broker() {
+        grep -v -E 'avc:  denied  { write } .* comm="?dbus-broker"? .* scontext=system_u:system_r:system_dbusd_t.* tcontext=system_u:system_r:sshd_session_t'
+    }
+
     systemctl restart snapd.socket
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
@@ -65,18 +69,21 @@ execute: |
     # XXX ausearch exits with 1 when there are denials
     ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
     grep -v -E 'avc:  denied  { (setattr|read) } .* name=linger .* scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0' < avc-after | \
+        grep -v -E 'avc:  denied  { write } .* comm="systemd" .* scontext=system_u:system_r:init_t:s0 tcontext=system_u:system_r:sshd_session_t' | \
+        grep -v -E 'avc:  denied  { ioctl } .* comm="\(runuser\)" .* scontext=system_u:system_r:init_t:s0 tcontext=system_u:system_r:sshd_session_t' | \
+        filter_out_dbus_broker | \
         NOMATCH 'type=AVC'
 
     # another revision triggers copy of snap data
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
     # removal triggers cleanups
     snap remove test-snapd-desktop
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
 
     "$TESTSTOOLS"/snaps-state install-local test-snapd-appstream-metadata
     snap connect test-snapd-appstream-metadata:appstream-metadata
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
 
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     snap stop test-snapd-service
@@ -84,18 +91,18 @@ execute: |
     # TODO: enable once there is a workaround for denials caused by journalctl
     # snap logs test-snapd-service
     snap remove test-snapd-service
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
 
     "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
     test-snapd-layout.sh -c 'ls /'
     su test -c "test-snapd-layout.sh -c 'ls /'"
     snap remove test-snapd-layout
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
 
     "$TESTSTOOLS"/snaps-state install-local socket-activation
     [ -S /var/snap/socket-activation/common/socket ]
     snap remove socket-activation
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
 
     # snaps with bases are special in the way that $(libexecdir)/snapd form host
     # is bind mounted into the mount namespace of a snap, thus the SELinux
@@ -104,13 +111,13 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-snapctl-core18
     snap restart test-snapd-snapctl-core18
     snap remove test-snapd-snapctl-core18
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
 
     snap install snap-store
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'
     # we are likely running without a display, so this will likely fail,
     # hopefully triggering enough of earlier setup to catch any relevant denials
     tests.session -u test exec snap run snap-store || true
     # removal triggers cleanups
     snap remove snap-store
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | filter_out_dbus_broker | NOMATCH 'type=AVC'

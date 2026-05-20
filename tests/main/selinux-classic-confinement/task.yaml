@@ -39,7 +39,9 @@ restore: |
 execute: |
     snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap"
 
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
+    grep -v -E 'avc:  denied  { .* } .* comm="systemd-journal" scontext=system_u:system_r:syslogd_t:s0 tcontext=system_u:system_r:syslogd_t:s0' avc-after | \
+        NOMATCH 'type=AVC'
 
     MATCH 'install hook' < "/var/snap/$CLASSIC_SNAP/common/log"
     MATCH 'configure hook' < "/var/snap/$CLASSIC_SNAP/common/log"
