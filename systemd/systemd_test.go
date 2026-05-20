@@ -1216,6 +1216,9 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestConfigureMountUnitOptions(c *C) {
 	sysd := NewUnderRoot(dirs.GlobalRootDir, SystemMode, nil)
 
+	restore := MockSquashFsType(func() (string, []string) { return "squashfs.foo", []string{"foo", "bar", "baz"} })
+	defer restore()
+
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
@@ -1309,8 +1312,8 @@ func (s *SystemdTestSuite) TestConfigureMountUnitOptions(c *C) {
 				Origin:                   "origin",
 				RootDir:                  "/root/dir",
 				// overridden by fstype="squashfs"
-				Fstype:  "squashfs",
-				Options: []string{"nodev", "ro", "x-gdu.hide", "x-gvfs-hide"},
+				Fstype:  "squashfs.foo",
+				Options: []string{"nodev", "foo", "bar", "baz"},
 				// overridden by startBeforeDrivers=true
 				MountUnitType: BeforeDriversLoadMountUnit,
 			},
