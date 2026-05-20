@@ -37,6 +37,20 @@ const (
 	otherErrorExitCode
 )
 
+var _ = i18n.G(`Return the status of the associated change id.`)
+var _ = i18n.G(`
+The is-ready command is used to query the status of change ids that are returned
+by asynchronous snapctl commands.
+
+$ snapctl is-ready <change-id>
+  0: change completed successfully (Done)
+  1: change is not ready
+  2: change is ready but did not complete successfully (Undone, Error, Hold)
+  3: other errors (invalid change id, permissions error)
+stdout: empty, exit code conveys change readiness
+stderr: empty for exit codes 0 and 1. Contains relevant errors for exit codes 2 and 3.
+`)
+
 func init() {
 	// TODO: temporarily disabled to prevent partial implementation in release
 	//addCommand("is-ready", shortIsReadyHelp, longIsReadyHelp, func() command {
