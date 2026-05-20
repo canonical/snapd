@@ -70,6 +70,7 @@ var (
 	userCurrent              = user.Current
 	osGetenv                 = os.Getenv
 	timeNow                  = time.Now
+	traceExecveTimings       = strace.TraceExecveTimings
 	selinuxIsEnabled         = selinux.IsEnabled
 	selinuxVerifyPathContext = selinux.VerifyPathContext
 	selinuxRestoreContext    = selinux.RestoreContext
@@ -1150,7 +1151,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	go func() {
 		// FIXME: make this configurable?
 		nSlowest := 10
-		slg, traceErr = strace.TraceExecveTimings(straceLog, nSlowest, func() {
+		slg, traceErr = traceExecveTimings(straceLog, nSlowest, func() {
 			logger.Debug("strace attached to child process")
 			if childStopped {
 				childStopped = false
@@ -1185,8 +1186,17 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	// for this)
 	fw.Close()
 
-	// wait for strace reader
-	<-doneCh
+	// wait for strace reader; on unhappy strace runs avoid a potential hang if
+	// the reader goroutine is still waiting to open the fifo.
+	if straceCmdErr != nil {
+		select {
+		case <-doneCh:
+		case <-time.After(100 * time.Millisecond):
+			traceErr = fmt.Errorf("cannot read strace timings")
+		}
+	} else {
+		<-doneCh
+	}
 	if traceErr == nil {
 		slg.Display(Stderr)
 	} else {

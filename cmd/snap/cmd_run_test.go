@@ -2418,6 +2418,58 @@ func (s *RunSuite) TestRunCmdWithTraceExecUnhappy(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *RunSuite) TestRunCmdWithTraceExecUnhappySlowTraceReader(c *check.C) {
+	_, r := logger.MockLogger()
+	defer r()
+
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
+		Revision: snap.R("1"),
+	})
+
+	// pretend we have sudo
+	sudoCmd := testutil.MockCommand(c, "sudo", "echo unhappy; exit 12")
+	defer sudoCmd.Restore()
+
+	// pretend we have strace
+	straceCmd := testutil.MockCommand(c, "strace", "")
+	defer straceCmd.Restore()
+
+	traceShimCmd, _ := mockTraceShim(c, dirs.DistroLibExecDir)
+	defer traceShimCmd.Restore()
+
+	traceReaderDone := make(chan struct{})
+	restore := snaprun.MockTraceExecveTimings(func(string, int, func()) (*strace.ExecveTiming, error) {
+		<-traceReaderDone
+		return nil, nil
+	})
+	defer restore()
+
+	done := make(chan struct{})
+	var rest []string
+	var err error
+	go func() {
+		rest, err = snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--trace-exec", "--", "snapname.app", "--arg1", "arg2"})
+		close(done)
+	}()
+
+	completedInTime := false
+	select {
+	case <-done:
+		completedInTime = true
+	case <-time.After(2 * time.Second):
+	}
+	close(traceReaderDone)
+
+	c.Assert(completedInTime, check.Equals, true)
+	c.Assert(err, check.ErrorMatches, "exit status 12.*")
+	c.Assert(rest, check.DeepEquals, []string{"--", "snapname.app", "--arg1", "arg2"})
+	c.Check(s.Stdout(), check.Equals, "unhappy\n")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 func (s *RunSuite) TestSnapRunRestoreSecurityContextHappy(c *check.C) {
 	logbuf, restorer := logger.MockLogger()
 	defer restorer()
