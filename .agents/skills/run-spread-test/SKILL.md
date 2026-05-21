@@ -21,7 +21,7 @@ Build the snapd snap first (load the `build-snapd-snap` skill for details):
 - First build: `./tests/build-test-snapd-snap`
 - Fast rebuild: `./tests/build-test-snapd-snap --clean-snapd-only`
 
-**Skip rebuild when snap exists**: Use `--no-rebuild` / `-n` flag with `./run-spread`. If no prebuilt snap exists in `built-snap/`, the script exits with an error — drop `--no-rebuild` to trigger a build, or run the build skill first.
+**Skip rebuild when snap exists**: Set `NO_REBUILD=1` in the environment before calling `./run-spread`. If no prebuilt snap exists in `built-snap/`, the script exits with an error — unset `NO_REBUILD` to trigger a build, or run the build skill first.
 
 ## Command Format
 
@@ -32,7 +32,7 @@ Build the snapd snap first (load the `build-snapd-snap` skill for details):
 **IMPORTANT**: A `<backend>:<system>:<test-path>` argument is REQUIRED. Never call `./run-spread` without specifying what to run — spread would attempt to execute all tests on all backends.
 
 **run-spread flags**:
-- `--no-rebuild` / `-n`: Skip rebuilding snapd snap (equivalent to `NO_REBUILD=1`)
+- `--no-rebuild` / `-n`: Skip rebuilding snapd snap. Prefer setting `NO_REBUILD=1` in the environment instead.
 
 **spread flags** (passed through after optional `--`):
 - `-debug`: Create SSH shell on test failure (use when logs lack clarity)
@@ -61,7 +61,7 @@ Build the snapd snap first (load the `build-snapd-snap` skill for details):
 
 ```bash
 tests/main/snap-mgmt              # Single test
-tests/main/interfaces-*            # Pattern matching
+tests/main/interfaces-...            # Pattern matching
 tests/main/...                     # All tests in directory
 ```
 
@@ -71,18 +71,18 @@ Common suites: `tests/main/`, `tests/nested/`, `tests/regression/`
 
 **Standard run (after building snap)**:
 ```bash
-./run-spread --no-rebuild garden:ubuntu-24.04-64:tests/main/snap-mgmt
+NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/snap-mgmt
 ```
 
 **With debug shell (when logs unclear)**:
 ```bash
-./run-spread --no-rebuild -- -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
+NO_REBUILD=1 ./run-spread -- -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
 ```
 On failure, provides interactive SSH to inspect logs, re-run commands, examine state.
 
 **Faster iteration (reuse VMs)**:
 ```bash
-./run-spread --no-rebuild -- -reuse garden:ubuntu-24.04-64:tests/main/snap-mgmt
+NO_REBUILD=1 ./run-spread -- -reuse garden:ubuntu-24.04-64:tests/main/snap-mgmt
 ```
 
 **First run (builds snap automatically)**:
@@ -94,7 +94,7 @@ On failure, provides interactive SSH to inspect logs, re-run commands, examine s
 
 **Option 1: Single invocation** (spread handles parallelism):
 ```bash
-./run-spread --no-rebuild garden:ubuntu-24.04-64:tests/main/test-a garden:ubuntu-24.04-64:tests/main/test-b
+NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/test-a garden:ubuntu-24.04-64:tests/main/test-b
 ```
 
 **Option 2: Delegate to subagents** (true parallel execution):
@@ -105,8 +105,8 @@ On failure, provides interactive SSH to inspect logs, re-run commands, examine s
 
 Example:
 ```bash
-# Subagent 1: ./run-spread --no-rebuild garden:ubuntu-24.04-64:tests/main/test-1
-# Subagent 2: ./run-spread --no-rebuild garden:ubuntu-24.04-64:tests/main/test-2
+# Subagent 1: NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/test-1
+# Subagent 2: NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/test-2
 # (up to 4 total)
 ```
 
@@ -151,41 +151,41 @@ Tests can override via `tests/<suite>/<test>/task.yaml` with their own `environm
 **AppArmor changes**:
 ```bash
 # Primary
-./run-spread --no-rebuild garden:ubuntu-24.04-64:tests/main/security-apparmor
+NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/security-apparmor
 # Verify portability
-./run-spread --no-rebuild garden:debian-12-64:tests/main/security-apparmor
+NO_REBUILD=1 ./run-spread garden:debian-12-64:tests/main/security-apparmor
 ```
 
 **SELinux changes**:
 ```bash
-./run-spread --no-rebuild garden:opensuse-tumbleweed-selinux-64:tests/main/selinux-classic-confinement
-./run-spread --no-rebuild garden:fedora-42-64:tests/main/selinux-clean
+NO_REBUILD=1 ./run-spread garden:opensuse-tumbleweed-selinux-64:tests/main/selinux-classic-confinement
+NO_REBUILD=1 ./run-spread garden:fedora-42-64:tests/main/selinux-clean
 # Other SELinux tests: selinux-data-context, selinux-lxd, selinux-snap-restorecon
 ```
 
 **Investigating unclear failure**:
 ```bash
 # First run
-./run-spread --no-rebuild garden:ubuntu-24.04-64:tests/main/flaky-test
+NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/flaky-test
 # If logs unclear, add -debug
-./run-spread --no-rebuild -- -debug garden:ubuntu-24.04-64:tests/main/flaky-test
+NO_REBUILD=1 ./run-spread -- -debug garden:ubuntu-24.04-64:tests/main/flaky-test
 ```
 
 **Multiple related tests**:
 ```bash
 # Pattern matching
-./run-spread --no-rebuild garden:ubuntu-24.04-64:tests/main/interfaces-*
+NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/interfaces-...
 # Or delegate to up to 4 subagents for parallel execution
 ```
 
 ## Best Practices
 
 **DO**:
-- Use `--no-rebuild` or `-n` flag when snap already built
+- Prefer `NO_REBUILD=1` in environment when snap already built
 - Collect maximum information per run to minimize cycles
 - Prefer `garden` backend for local development
 - Choose systems appropriate to change type (see table above)
-- Use `-debug` when logs lack clarity
+- Use `-debug` when logs lack clarity, investigate in shell provided by spread
 - Plan what information you need before executing
 - Follow user's guidance when in doubt
 - Limit parallel tests to 4 when using subagents (RAM constraint)
@@ -198,4 +198,4 @@ Tests can override via `tests/<suite>/<test>/task.yaml` with their own `environm
 - Ignore `restore` section failures (indicates cleanup issues)
 - Assume portability between LSMs without testing
 - Use `-debug` by default (only when needed)
-- Forget `--no-rebuild` when snap exists (wastes time)
+- Forget `NO_REBUILD=1` when snap exists (wastes time rebuilding)
