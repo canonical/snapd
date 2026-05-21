@@ -90,20 +90,40 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
 	c.Assert(err, NotNil)
 }
 
-func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileTmpFileCreateError(c *C) {
 	tmpdir := c.MkDir()
-	// ensure we always get the same result
-	rand.Seed(1)
-	expectedRandomness := randutil.RandomString(12) + "~"
-	// ensure we always get the same result
-	rand.Seed(1)
 
-	p := filepath.Join(tmpdir, "foo")
-	err := os.WriteFile(p+"."+expectedRandomness, []byte(""), 0644)
+	badSubdir := filepath.Join(tmpdir, "foo")
+	err := os.WriteFile(badSubdir, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
+	p := filepath.Join(badSubdir, "bar")
 	err = osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
-	c.Assert(err, ErrorMatches, "open .*: file exists")
+	c.Assert(err, ErrorMatches, "open .*: not a directory")
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileTmpFileChmodError(c *C) {
+	tmpdir := c.MkDir()
+
+	// Nothing in the directory to begin
+	entries, err := os.ReadDir(tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(entries, HasLen, 0)
+
+	customError := errors.New("something happened")
+	restore := osutil.MockFChmod(func(file *os.File, mode os.FileMode) error {
+		return customError
+	})
+	defer restore()
+
+	p := filepath.Join(tmpdir, "foo")
+	err = osutil.AtomicWriteFile(p, []byte(""), 0o644, 0)
+	c.Assert(err, Equals, customError)
+
+	// Nothing in the directory after error
+	entries, err = os.ReadDir(tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(entries, HasLen, 0)
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {

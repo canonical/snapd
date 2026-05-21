@@ -82,21 +82,32 @@ func NewAtomicFile(filename string, perm os.FileMode, _ AtomicWriteFlags, uid sy
 	// aa-enforce. Tools from this package enumerate all profiles by loading
 	// parsing any file found in /etc/apparmor.d/, skipping only very specific
 	// suffixes, such as the one we selected below.
-	tmp := filename + "." + randutil.RandomString(12) + "~"
-
-	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
+	fd, err := os.CreateTemp(filepath.Dir(filename), filepath.Base(filename)+".*~")
 	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			fd.Close()
+			os.Remove(fd.Name())
+		}
+	}()
+
+	// XXX: this ignores umask
+	if err = fChmod(fd, perm); err != nil {
 		return nil, err
 	}
 
 	return &AtomicFile{
 		File:    fd,
 		target:  filename,
-		tmpname: tmp,
+		tmpname: fd.Name(),
 		uid:     uid,
 		gid:     gid,
 	}, nil
 }
+
+var fChmod = (*os.File).Chmod
 
 // ErrCannotCancel means the Commit operation failed at the last step, and
 // your luck has run out.
@@ -312,6 +323,8 @@ const maxLinkTries = 10
 
 func atomicLinkOp(target, linkPath string, op func(target, tmp string) error, kind string) error {
 	for tries := 0; tries < maxLinkTries; tries++ {
+		// XXX: would be nice if we could use `os.CreateTemp` here, but there's
+		// no such functionality for creating temporary (sym)links.
 		tmp := linkPath + "." + randutil.RandomString(12) + "~"
 		if err := op(target, tmp); err != nil {
 			if os.IsExist(err) {
