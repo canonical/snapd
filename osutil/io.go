@@ -38,7 +38,7 @@ type AtomicWriteFlags uint
 
 const (
 	// AtomicWriteFollow makes AtomicWriteFile follow symlinks. If set, then the
-	// target path must exist and be a symlink.
+	// provided path must exist and be a symlink.
 	AtomicWriteFollow AtomicWriteFlags = 1 << iota
 )
 
@@ -85,7 +85,7 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	if flags&AtomicWriteFollow != 0 {
 		fn, err := os.Readlink(filename)
 		if err != nil {
-			return nil, fmt.Errorf("cannot follow existing symlink: %w", err)
+			return nil, fmt.Errorf("cannot follow existing symlink %q: %w", filename, err)
 		}
 		if filepath.IsAbs(fn) {
 			filename = fn
