@@ -71,7 +71,8 @@ execute: |
 
 
     # SPREAD_STORE_USER and SPREAD_STORE_PASSWORD are only available when running off master
-    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
+    # core does not have expect, so skip core systems
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ] && os-query is-classic; then
         echo "Checking that a successful login produces an audit event"
         expect -d -f "$TESTSLIB"/successful_login.exp
 
