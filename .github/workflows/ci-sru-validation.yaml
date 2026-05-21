@@ -7,6 +7,10 @@ on:
         type: number
         description: 'Maximum number of times to rerun failed spread tasks'
         default: 3
+      sru-validation-version:
+        type: string
+        description: 'The version of snapd to use for SRU validation (see tests/main/sru-validation-check test for details)'
+        required: true
 
 jobs:
   run-validation:
@@ -21,6 +25,7 @@ jobs:
       tasks: tests/...
       rules: ''
       use-snapd-snap-from-master: true
+      spread-env: "SPREAD_SRU_VALIDATION_VERSION=${{ inputs.sru-validation-version }}"
 
   re-run:
     permissions:
