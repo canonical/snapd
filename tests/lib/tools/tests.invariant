@@ -268,8 +268,15 @@ check_snapd_version() {
 			# re-exec may be explicitly disabled in the test variant, in which case the version will not match
 			return 0
 		fi
-		snap version | grep snapd | grep -qF "$(cat "${SNAPD_WORK_DIR}"/snapd-testing-version)" || {
-			echo "tests.invariant: snapd version mismatch, expected $(cat "${SNAPD_WORK_DIR}"/snapd-testing-version) but got $(snap version | grep snapd | awk '{print $2}')" >&2
+		if [[ "$SRU_VALIDATION" = "1" ]] || [[ -n "$PPA_GPG_KEY" ]] || [[ -n "$PPA_VALIDATION_NAME" ]]; then
+			# The snapd version will not be a testing version
+			return 0
+		fi
+		if tests.nested is-nested; then
+			return 0
+		fi
+		snap version | grep snapd | MATCH "1337" || {
+			echo "tests.invariant: snapd version mismatch, expected 1337 but got $(snap version | grep snapd | awk '{print $2}')" >&2
 			return 1
 		}
 	fi
