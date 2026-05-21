@@ -23,6 +23,10 @@ Use this skill when you need to:
 - Rebuild after making changes to snapd code
 - Determine which build option to use based on code changes
 
+**When you do NOT need to build**:
+- The `tests/unit/` suite does not require a prebuilt snapd snap. Use `spread` directly for those tests (e.g., `spread garden:ubuntu-24.04-64:tests/unit/go`).
+- Changes only to test infrastructure files (`tests/lib/`, `tests/unit/`, etc.) that don't affect the snap contents — use `spread` directly or `NO_REBUILD=1`.
+
 **Preferred approach**: Use `--clean-snapd-only` to ensure the snapd part is fully rebuilt (clean + rebuild) while preserving other parts.
 
 ## Build Options
@@ -126,14 +130,16 @@ Changes made to:
    -> Reason: Those specific parts need rebuilding
 
 6. Unsure about what changed or dependencies unclear
-   -> Use: full clean (no flags)
-   -> Reason: Safe default that ensures correct build
+   -> Use: --clean-snapd-only (PREFERRED - covers most cases without rebuilding everything)
+   -> Reason: Fast rebuild of the snapd part; only use full clean (no flags) as a last resort
+      when you are certain non-snapd parts (apparmor, dynamic-linker, runtime, etc.) need rebuilding
 
 7. Rapid iteration with no dependency changes (USE WITH CAUTION)
    -> Use: --no-clean
    -> Reason: Fastest option, but verify build correctness
 
 Default choice for most development: --clean-snapd-only
+Full clean (no flags) is a last resort — only use when certain that non-snapd parts need rebuilding.
 ```
 
 ## Verification
