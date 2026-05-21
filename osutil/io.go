@@ -37,7 +37,8 @@ import (
 type AtomicWriteFlags uint
 
 const (
-	// AtomicWriteFollow makes AtomicWriteFile follow symlinks
+	// AtomicWriteFollow makes AtomicWriteFile follow symlinks. If set, then the
+	// target path must exist and be a symlink.
 	AtomicWriteFollow AtomicWriteFlags = 1 << iota
 )
 
@@ -69,7 +70,8 @@ type AtomicFile struct {
 //	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
-// the real file, unless the AtomicWriteFollow flag is specified.
+// the real file, unless the AtomicWriteFollow flag is specified. If that flag
+// is specified, then the filename must be an existing symlink.
 //
 // It is the caller's responsibility to clean up on error, by calling Cancel().
 //
@@ -81,12 +83,14 @@ type AtomicFile struct {
 // rather poor state. Good luck.
 func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
 	if flags&AtomicWriteFollow != 0 {
-		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
-			if filepath.IsAbs(fn) {
-				filename = fn
-			} else {
-				filename = filepath.Join(filepath.Dir(filename), fn)
-			}
+		fn, err := os.Readlink(filename)
+		if err != nil {
+			return nil, fmt.Errorf("cannot follow existing symlink: %w", err)
+		}
+		if filepath.IsAbs(fn) {
+			filename = fn
+		} else {
+			filename = filepath.Join(filepath.Dir(filename), fn)
 		}
 	}
 	// The tilde is appended so that programs that inspect all files in some

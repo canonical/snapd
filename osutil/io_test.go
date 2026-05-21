@@ -153,6 +153,29 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileOverwriteRelativeSymlink(c *C
 	c.Assert(p, testutil.FileEquals, "hi")
 }
 
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileFollowNotSymlink(c *C) {
+	tmpdir := c.MkDir()
+	p := filepath.Join(tmpdir, "foo")
+	c.Assert(os.WriteFile(p, []byte("hello"), 0644), IsNil)
+
+	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, osutil.AtomicWriteFollow)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "cannot follow existing symlink: .*")
+
+	c.Assert(p, testutil.FileEquals, "hello")
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileFollowNotFound(c *C) {
+	tmpdir := c.MkDir()
+	p := filepath.Join(tmpdir, "foo")
+
+	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, osutil.AtomicWriteFollow)
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, "cannot follow existing symlink: .*")
+
+	c.Assert(p, testutil.FileAbsent)
+}
+
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
