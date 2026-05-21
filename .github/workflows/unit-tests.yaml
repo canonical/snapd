@@ -146,7 +146,7 @@ jobs:
     - name: Test Go
       if: ${{ inputs.code == 'go' }}
       run: |
-          ./run-checks --unit
+        sudo -E unshare --net -- bash -c 'ip link set lo up && runuser -u "$1" -- ./run-checks --unit' -- "$USER"
 
     - name: Create coverage results name
       if: ${{ ! inputs.skip-coverage }}
