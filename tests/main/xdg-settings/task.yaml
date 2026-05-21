@@ -14,6 +14,7 @@ details: |
 systems:
     - -amazon-linux-2-*  # does not support systemd --user
     - -ubuntu-14.04-*  # not supported as desktop OS, systemd too old for tests.session
+    - -ubuntu-16.04-*  # xdg-settings cannot find snap desktop files (XDG_DATA_DIRS issue)
     - -ubuntu-core-*  # test exercises regular xdg-settings, not the custom one in ubuntu-core
 
 prepare: |
