@@ -19,7 +19,7 @@ jobs:
     name: "SRU Validation spread"
     secrets: inherit
     with:
-      runs-on: "['self-hosted', 'spread-enabled']"
+      runs-on: '["self-hosted", "spread-enabled"]'
       group: sru
       backend: openstack-sru
       systems: ALL
