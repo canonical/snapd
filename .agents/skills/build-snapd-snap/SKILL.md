@@ -151,7 +151,7 @@ You should see a snap file with a size of approximately 30-40 MB (varies by arch
 The built snap is automatically used by the spread test infrastructure:
 
 - The `run-spread` script looks for the snap in `built-snap/`
-- Use `--no-rebuild` / `-n` flag with `run-spread` to skip rebuilding if the snap already exists
+- Set `NO_REBUILD=1` in the environment when calling `run-spread` to skip rebuilding if the snap already exists
 - See the `run-spread-test` skill for details on running spread tests
 
 ## Common Scenarios
