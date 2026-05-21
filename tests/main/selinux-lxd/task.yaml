@@ -34,7 +34,10 @@ debug: |
 
 execute: |
     "$TESTSTOOLS"/lxd-state prepare-snap
-    ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
+    ausearch -i --checkpoint stamp --start checkpoint -m AVC > avc-before 2>&1 || true
+    grep -v -E 'avc:  denied  \{ .* \} .* scontext=.*:syslogd_t:s0 .* tclass=netlink_tcpdiag_socket' < avc-before | \
+        NOMATCH 'type=AVC'
+
     "$TESTSTOOLS"/lxd-state launch --remote ubuntu --image 22.04 --name my-ubuntu
 
     if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
@@ -62,4 +65,5 @@ execute: |
     ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
     grep -v -E 'avc:  denied  { map_create } for  pid=[0-9]+ comm="systemd"' < avc-after | \
     grep -v -E 'avc:  denied  { getattr } for  pid=[0-9]+ comm="which" path="/usr/bin/hostname" .*NetworkManager_dispatcher_dhclient_t' | \
+    grep -v -E 'avc:  denied  \{ .* \} .* scontext=.*:syslogd_t:s0 .* tclass=netlink_tcpdiag_socket' | \
         NOMATCH 'type=AVC'

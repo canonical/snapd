@@ -448,6 +448,10 @@ backends:
                   image: snapd-spread/fedora-42-64
                   workers: 12
 
+            - fedora-44-64:
+                  image: snapd-spread/fedora-44-64
+                  workers: 12
+
             - opensuse-16.0-64:
                 image: snapd-spread/opensuse-16.0-64
                 workers: 6
@@ -807,6 +811,9 @@ backends:
                   username: root
                   password: root
             - fedora-42-64:
+                  username: root
+                  password: root
+            - fedora-44-64:
                   username: root
                   password: root
             - centos-9-64:

@@ -38,16 +38,14 @@ EOF
 
     tests.session -u test exec systemctl --user set-environment XDG_CURRENT_DESKTOP=spread
 
-    # Portals require a graphical session. On Ubuntu 26.04 and newer,
-    # xdg-desktop-portal.service has a hard dependency on graphical-session.target
-    # (via Requisite=), so it will not start unless a graphical session is active.
-    # The test environment does not provide a graphical session, so we start a
-    # fake one to allow xdg-desktop-portal to run.
-    # In earlier Ubuntu releases the unit only used After=graphical-session.target,
-    # which allowed the service to start even when no graphical session was
-    # present, so the tests worked in the default environment.
-    if os.query is-ubuntu-ge 26.04; then
-        sed -i '/^Requisite=graphical-session.target/d' /usr/lib/systemd/user/xdg-desktop-portal.service
+    # Some recent distributions ship xdg-desktop-portal.service with a hard
+    # dependency on graphical-session.target (via Requisite=). The spread test
+    # environment has no graphical session, so this causes portal startup to
+    # fail and xdg-open requests to error out. Remove the dependency when
+    # present so the portal can run in the test session.
+    xdg_portal_user_unit=/usr/lib/systemd/user/xdg-desktop-portal.service
+    if [ -f "$xdg_portal_user_unit" ] && grep -q '^Requisite=graphical-session.target' "$xdg_portal_user_unit"; then
+        sed -i '/^Requisite=graphical-session.target/d' "$xdg_portal_user_unit"
         systemctl daemon-reload
     fi
 }

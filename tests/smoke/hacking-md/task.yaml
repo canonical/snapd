@@ -5,7 +5,7 @@ details: |
     by extracting and executing the documented commands directly from the markdown.
     This ensures the documentation stays accurate and up-to-date.
 
-systems: [ubuntu-24.04-64, fedora-42-64]
+systems: [ubuntu-24.04-64, fedora-44-64]
 
 prepare: |
     # Create test-specific copy of the project
