@@ -140,7 +140,7 @@ check_leftover_defer_sh() {
 }
 
 check_broken_snaps() {
-	if ! command -v /usr/bin/snap >/dev/null 2>&1; then
+	if ! command -v snap >/dev/null 2>&1; then
 		return 0
 	fi
 
