@@ -78,19 +78,17 @@ func (s *isReadySuite) TestIsReadyNoContext(c *C) {
 
 func (s *isReadySuite) TestIsReadyArgCount(c *C) {
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
-	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
-	c.Assert(string(stderr), Matches, `invalid number of arguments: expected 1, got 0`)
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
+	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 0`)
 
-	_, stderr, err = ctlcmd.Run(ctx, []string{"is-ready", "1", "extra-arg"}, 0, nil)
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
-	c.Assert(string(stderr), Matches, `invalid number of arguments: expected 1, got 2`)
+	_, _, err = ctlcmd.Run(ctx, []string{"is-ready", "1", "extra-arg"}, 0, nil)
+	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 2`)
 }
 
 func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "")
 	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
-	c.Check(err, ErrorMatches, `change "nonexistent-id" not found`)
+	c.Assert(err, ErrorMatches, `change "nonexistent-id" not found`)
 }
 
 func (s *isReadySuite) TestIsReadyChangeWithoutInitiatorNotFound(c *C) {
