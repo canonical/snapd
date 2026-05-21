@@ -63,6 +63,8 @@ type AtomicFile struct {
 	renamed bool
 }
 
+const maxTmpPathTries = 10000
+
 // NewAtomicFile builds an AtomicFile backed by an *os.File that will have
 // the given filename, permissions and uid/gid when Committed.
 //
@@ -96,10 +98,20 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	// aa-enforce. Tools from this package enumerate all profiles by loading
 	// parsing any file found in /etc/apparmor.d/, skipping only very specific
 	// suffixes, such as the one we selected below.
-	tmp := filename + "." + randutil.RandomString(12) + "~"
-
-	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
+	var tmp string
+	var fd *os.File
+	for tries := 0; tries < maxTmpPathTries; tries++ {
+		tmp = filename + "." + randutil.RandomString(12) + "~"
+		fd, err = os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		break
+	}
 	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("cannot create a temporary file")
+		}
 		return nil, err
 	}
 
@@ -322,10 +334,8 @@ func AtomicRename(oldName, newName string) (err error) {
 	return err2
 }
 
-const maxLinkTries = 10
-
 func atomicLinkOp(target, linkPath string, op func(target, tmp string) error, kind string) error {
-	for tries := 0; tries < maxLinkTries; tries++ {
+	for tries := 0; tries < maxTmpPathTries; tries++ {
 		tmp := linkPath + "." + randutil.RandomString(12) + "~"
 		if err := op(target, tmp); err != nil {
 			if os.IsExist(err) {

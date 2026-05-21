@@ -153,20 +153,30 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileOverwriteRelativeSymlink(c *C
 	c.Assert(p, testutil.FileEquals, "hi")
 }
 
-func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) {
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileCollisionError(c *C) {
 	tmpdir := c.MkDir()
 	// ensure we always get the same result
 	rand.Seed(1)
-	expectedRandomness := randutil.RandomString(12) + "~"
-	// ensure we always get the same result
+	p := filepath.Join(tmpdir, "foo")
+	createCollisionSequence(c, p, osutil.MaxTmpPathTries)
+	// restart random number sequence
 	rand.Seed(1)
 
-	p := filepath.Join(tmpdir, "foo")
-	err := os.WriteFile(p+"."+expectedRandomness, []byte(""), 0644)
-	c.Assert(err, IsNil)
+	err := osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
+	c.Assert(err, ErrorMatches, "cannot create a temporary file")
+}
 
-	err = osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
-	c.Assert(err, ErrorMatches, "open .*: file exists")
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileCollisionHappy(c *C) {
+	tmpdir := c.MkDir()
+	// ensure we always get the same result
+	rand.Seed(1)
+	p := filepath.Join(tmpdir, "foo")
+	createCollisionSequence(c, p, osutil.MaxTmpPathTries/2)
+	// restart random number sequence
+	rand.Seed(1)
+
+	err := osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
+	c.Assert(err, IsNil)
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
@@ -392,7 +402,7 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionError(c *C) {
 	// ensure we always get the same result
 	rand.Seed(1)
 	p := filepath.Join(tmpdir, "foo")
-	createCollisionSequence(c, p, osutil.MaxLinkTries)
+	createCollisionSequence(c, p, osutil.MaxTmpPathTries)
 	// restart random number sequence
 	rand.Seed(1)
 
@@ -405,7 +415,7 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkCollisionHappy(c *C) {
 	// ensure we always get the same result
 	rand.Seed(1)
 	p := filepath.Join(tmpdir, "foo")
-	createCollisionSequence(c, p, osutil.MaxLinkTries/2)
+	createCollisionSequence(c, p, osutil.MaxTmpPathTries/2)
 	// restart random number sequence
 	rand.Seed(1)
 
@@ -484,7 +494,7 @@ func (ts *AtomicLinkTestSuite) TestAtomicLinkCollisionError(c *C) {
 	// ensure we always get the same result
 	rand.Seed(1)
 	p := filepath.Join(tmpdir, "foo")
-	createCollisionSequence(c, p, osutil.MaxLinkTries)
+	createCollisionSequence(c, p, osutil.MaxTmpPathTries)
 	// restart random number sequence
 	rand.Seed(1)
 
@@ -499,7 +509,7 @@ func (ts *AtomicLinkTestSuite) TestAtomicLinkCollisionHappy(c *C) {
 	// ensure we always get the same result
 	rand.Seed(1)
 	p := filepath.Join(tmpdir, "foo")
-	createCollisionSequence(c, p, osutil.MaxLinkTries/2)
+	createCollisionSequence(c, p, osutil.MaxTmpPathTries/2)
 	// restart random number sequence
 	rand.Seed(1)
 

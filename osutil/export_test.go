@@ -220,7 +220,7 @@ func MockFindGidNoFallback(mock func(name string) (uint64, error)) (restore func
 	return func() { findGidNoGetentFallback = old }
 }
 
-const MaxLinkTries = maxLinkTries
+const MaxTmpPathTries = maxTmpPathTries
 
 var ParseRawEnvironment = parseRawEnvironment
 
