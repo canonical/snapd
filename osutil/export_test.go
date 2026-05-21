@@ -251,3 +251,7 @@ func MockAllDataHomeGlobs(f func() []string) func() {
 		dirsAllDataHomeGlobs = oldAllDataHomeGlobs
 	}
 }
+
+func MockFChmod(f func(file *os.File, mode os.FileMode) error) (restore func()) {
+	return testutil.Mock(&fChmod, f)
+}
