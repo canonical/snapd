@@ -64,8 +64,7 @@ func (c *isReadyCommand) Execute(args []string) error {
 	}
 
 	if len(args) != 1 {
-		fmt.Fprintf(c.stderr, "invalid number of arguments: expected 1, got %d", len(args))
-		return &UnsuccessfulError{ExitCode: fatalErrorExitCode}
+		return fmt.Errorf("invalid number of arguments: expected 1, got %d", len(args))
 	}
 
 	changeID := args[0]
