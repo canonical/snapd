@@ -229,6 +229,24 @@ func checkOutput(cmd *exec.Cmd, command string, setspec *settingSpec) (string, *
 	return string(output), nil
 }
 
+// runXdgSettings runs "xdg-settings <command> <setting> [subproperty] [value]"
+// and returns the trimmed output.
+func runXdgSettings(command string, setspec *settingSpec, value string) (string, *dbus.Error) {
+	args := []string{command, setspec.setting}
+	if setspec.subproperty != "" {
+		args = append(args, setspec.subproperty)
+	}
+	if value != "" {
+		args = append(args, value)
+	}
+	cmd := exec.Command("xdg-settings", args...)
+	output, err := checkOutput(cmd, command, setspec)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(output), nil
+}
+
 // Check implements the 'Check' method of the 'io.snapcraft.Settings'
 // DBus interface.
 //
@@ -244,13 +262,7 @@ func (s *Settings) Check(setting string, check string, sender dbus.Sender) (stri
 		return "", err
 	}
 
-	cmd := exec.Command("xdg-settings", "check", setting, desktopFile)
-	output, err := checkOutput(cmd, "check", settingMain)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(output), nil
+	return runXdgSettings("check", settingMain, desktopFile)
 }
 
 // CheckSub implements the 'CheckSub' method of the 'io.snapcraft.Settings'
@@ -268,13 +280,7 @@ func (s *Settings) CheckSub(setting string, subproperty string, check string, se
 		return "", err
 	}
 
-	cmd := exec.Command("xdg-settings", "check", setting, subproperty, desktopFile)
-	output, err := checkOutput(cmd, "check", settingSub)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(output), nil
+	return runXdgSettings("check", settingSub, desktopFile)
 }
 
 // Get implements the 'Get' method of the 'io.snapcraft.Settings'
@@ -291,8 +297,7 @@ func (s *Settings) Get(setting string, sender dbus.Sender) (string, *dbus.Error)
 		return "", err
 	}
 
-	cmd := exec.Command("xdg-settings", "get", setting)
-	output, err := checkOutput(cmd, "get", settingMain)
+	output, err := runXdgSettings("get", settingMain, "")
 	if err != nil {
 		return "", err
 	}
@@ -314,8 +319,7 @@ func (s *Settings) GetSub(setting string, subproperty string, sender dbus.Sender
 		return "", err
 	}
 
-	cmd := exec.Command("xdg-settings", "get", setting, subproperty)
-	output, err := checkOutput(cmd, "get", settingSub)
+	output, err := runXdgSettings("get", settingSub, "")
 	if err != nil {
 		return "", err
 	}
@@ -338,12 +342,18 @@ func (s *Settings) Set(setting string, new string, sender dbus.Sender) *dbus.Err
 		return err
 	}
 
+	// Work around misbehaving snap clients that call Set on every launch
+	// without first checking the current value, causing a redundant
+	// confirmation prompt. Skip the prompt if already set. (LP #1966067)
+	if output, err := runXdgSettings("check", settingMain, desktopFile); err == nil && output == "yes" {
+		return nil
+	}
+
 	if err := setDialog(s, settingMain, desktopFile, sender); err != nil {
 		return err
 	}
 
-	cmd := exec.Command("xdg-settings", "set", setting, desktopFile)
-	if _, err := checkOutput(cmd, "set", settingMain); err != nil {
+	if _, err := runXdgSettings("set", settingMain, desktopFile); err != nil {
 		return err
 	}
 
@@ -365,12 +375,18 @@ func (s *Settings) SetSub(setting string, subproperty string, new string, sender
 		return err
 	}
 
+	// Work around misbehaving snap clients that call SetSub on every launch
+	// without first checking the current value, causing a redundant
+	// confirmation prompt. Skip the prompt if already set. (LP #1966067)
+	if output, err := runXdgSettings("check", settingSub, desktopFile); err == nil && output == "yes" {
+		return nil
+	}
+
 	if err := setDialog(s, settingSub, desktopFile, sender); err != nil {
 		return err
 	}
 
-	cmd := exec.Command("xdg-settings", "set", setting, subproperty, desktopFile)
-	if _, err := checkOutput(cmd, "set", settingSub); err != nil {
+	if _, err := runXdgSettings("set", settingSub, desktopFile); err != nil {
 		return err
 	}
 
