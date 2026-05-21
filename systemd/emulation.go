@@ -185,11 +185,9 @@ func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, 
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
-	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
-	if !osutil.FileExists(unit) {
-		return nil
-	}
-
+	// unmount regardless of whether the unit file exists as
+	// the unit file may have been deleted while the mount is
+	// still active
 	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
@@ -199,6 +197,11 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
+	}
+
+	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
+	if !osutil.FileExists(unit) {
+		return nil
 	}
 
 	if err := s.DisableNoReload([]string{filepath.Base(unit)}); err != nil {
