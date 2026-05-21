@@ -24,11 +24,13 @@ jobs:
       backend: openstack-sru
       systems: ALL
       tasks: tests/...
+      # This run has no changed files, so no need to specify a rule
       rules: ''
       use-snapd-snap-from-master: true
       spread-env: "SPREAD_SRU_VALIDATION_VERSION=${{ inputs.sru-validation-version }}"
 
   re-run:
+    name: "Rerun failed jobs"
     permissions:
       actions: write
     needs: [run-validation]
