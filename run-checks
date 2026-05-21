@@ -73,7 +73,7 @@ tool_configure() {
         # when *not* running inside github, and go-1.18 is available, use it
         if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.18/bin" ]; then
             export PATH=/usr/lib/go-1.18/bin:"${PATH}"
-        echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
+            echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
         fi
         ;;
     shellcheck) ;&    # fallthrough
