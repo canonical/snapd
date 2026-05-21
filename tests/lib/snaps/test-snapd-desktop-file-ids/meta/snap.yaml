@@ -10,10 +10,44 @@ apps:
     check-dirs:
         command: bin/check-dirs
         plugs: [desktop, desktop-legacy]
+    cmd:
+        command: bin/check-files # doesn't matter
+        common-id: org.example.Foo
+        plugs:
+        - desktop # really also a decoy
+        - desktop-ids
+        - desktop-decoy1
+        - desktop-decoy2
+        - desktop-decoy3
+        - desktop-decoy4
+        - desktop-decoy5
+        - desktop-decoy6
+        - desktop-decoy7
+        - desktop-decoy8
 
 plugs:
-  desktop:
+  desktop-ids:
+    interface: desktop
     desktop-file-ids:
     - org.example.desktop
+    - org.example.Foo.desktop
     - org.example.Fallback
-    - org.example.MyCommonID.desktop
+    - org.example.NonexistentFile.desktop
+  # Declare lots of desktop plugs without desktop-file-ids to make sure the
+  # correct desktop file ID is chosen
+  desktop-decoy1:
+    interface: desktop
+  desktop-decoy2:
+    interface: desktop
+  desktop-decoy3:
+    interface: desktop
+  desktop-decoy4:
+    interface: desktop
+  desktop-decoy5:
+    interface: desktop
+  desktop-decoy6:
+    interface: desktop
+  desktop-decoy7:
+    interface: desktop
+  desktop-decoy8:
+    interface: desktop
