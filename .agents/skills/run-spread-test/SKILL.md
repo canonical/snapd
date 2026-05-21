@@ -67,6 +67,25 @@ tests/main/...                     # All tests in directory
 
 Common suites: `tests/main/`, `tests/nested/`, `tests/regression/`
 
+## Tests That Don't Need the Snapd Snap
+
+The following suites do not install or use the prebuilt snapd snap during execution. For these, invoke `spread` directly without `run-spread`:
+
+```bash
+spread garden:ubuntu-24.04-64:tests/unit/go
+spread garden:ubuntu-24.04-64:tests/cross/go-build
+```
+
+This avoids the snap build/check entirely and is significantly faster. The suite's prepare phase installs snapd from distro packages when `USE_PREBUILT_SNAPD_SNAP` is not set to `true`.
+
+**When to use `spread` directly** (without `run-spread`):
+- `tests/unit/` suite — runs Go unit tests and static checks, no snap needed
+- `tests/cross/` suite — cross-compiles Go commands, no snap needed
+- Any test where only test infrastructure files (e.g., `tests/lib/`) were changed and you don't need the snapd snap to be rebuilt/installed
+
+**When you must use `run-spread`**:
+- `tests/main/`, `tests/nested/`, `tests/regression/` — these suites install and exercise the snapd snap
+
 ## Common Workflows
 
 **Standard run (after building snap)**:
@@ -182,6 +201,7 @@ NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/interfaces-...
 
 **DO**:
 - Prefer `NO_REBUILD=1` in environment when snap already built
+- When unclear whether a suite needs the prebuilt snap, assume it does — build with `./tests/build-test-snapd-snap --clean-snapd-only` then run with `NO_REBUILD=1`
 - Collect maximum information per run to minimize cycles
 - Prefer `garden` backend for local development
 - Choose systems appropriate to change type (see table above)
@@ -189,6 +209,9 @@ NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/interfaces-...
 - Plan what information you need before executing
 - Follow user's guidance when in doubt
 - Limit parallel tests to 4 when using subagents (RAM constraint)
+- Verify whether the test snapd snap has been built, i.e. there is a file
+  `built-snap/snapd_*.snap.keep`, if not, suggest building it, or use the
+  build-snapd-snap skill to do so, respecting guidelines listed in the skill.
 
 **DON'T**:
 - Call `./run-spread` without a `backend:system:test` argument (would run everything)
@@ -199,3 +222,6 @@ NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/interfaces-...
 - Assume portability between LSMs without testing
 - Use `-debug` by default (only when needed)
 - Forget `NO_REBUILD=1` when snap exists (wastes time rebuilding)
+- Call `./run-spread` without `NO_REBUILD=1` when a snap already exists in `built-snap/` — without it, `run-spread` triggers a full rebuild which takes several minutes
+- Use `run-spread` for `tests/unit/` or `tests/cross/` suites — use `spread` directly instead (no snap needed)
+- Assume a suite does NOT need the snap without checking — when unclear, assume it does and build with `build-snapd-snap --clean-snapd-only` before running with `NO_REBUILD=1`
