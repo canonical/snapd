@@ -23,7 +23,9 @@ const podmanSummary = `allows access to Podman socket`
 
 const podmanBaseDeclarationSlots = `
   podman:
-    allow-installation: false
+    allow-installation:
+      slot-snap-type:
+        - core
     deny-connection: true
     deny-auto-connection: true
 `
