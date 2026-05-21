@@ -45,17 +45,14 @@ Build the snapd snap first (load the `build-snapd-snap` skill for details):
 **IMPORTANT**: Do NOT use other backends (`qemu`, `google-*`, `openstack`, etc.) unless the user explicitly instructs you to do so.
 
 **System selection by change type**:
+- **AppArmor changes**: Pick a recent Ubuntu LTS and optionally a Debian system
+- **SELinux changes**: Pick an openSUSE SELinux or Fedora system
+- **Systemd changes**: Pick a recent Ubuntu and a Fedora system
+- **General changes**: Pick the most recent Ubuntu LTS available
 
-| Change Type | Primary Systems | Also Test |
-|------------|-----------------|-----------|
-| AppArmor | ubuntu-24.04-64, ubuntu-22.04-64 | debian-12-64, arch-linux-64 |
-| SELinux | opensuse-tumbleweed-selinux-64, fedora-42-64 | centos-9-64 |
-| Systemd | ubuntu-24.04-64, ubuntu-26.04-64, fedora-42-64 | - |
-| General | ubuntu-24.04-64 | ubuntu-22.04-64 |
+**Available systems**: Discover concrete system names from `spread.yaml` under `backends:garden:systems:`. Do not hardcode system names — they change as releases are added/removed.
 
-**Available systems**: Check `spread.yaml` under `backends:garden:systems:` for the current list of available systems for the garden backend.
-
-**When in doubt**: Follow user's guidance or use ubuntu-24.04-64.
+**When in doubt**: Follow user's guidance or pick the most recent Ubuntu LTS from `spread.yaml`.
 
 ## Test Path Specification
 
@@ -204,7 +201,7 @@ NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/interfaces-...
 - When unclear whether a suite needs the prebuilt snap, assume it does — build with `./tests/build-test-snapd-snap --clean-snapd-only` then run with `NO_REBUILD=1`
 - Collect maximum information per run to minimize cycles
 - Prefer `garden` backend for local development
-- Choose systems appropriate to change type (see table above)
+- Choose systems appropriate to change type (see system selection guidelines above)
 - Use `-debug` when logs lack clarity, investigate in shell provided by spread
 - Plan what information you need before executing
 - Follow user's guidance when in doubt
