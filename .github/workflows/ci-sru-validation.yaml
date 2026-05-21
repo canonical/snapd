@@ -7,6 +7,7 @@ on:
         type: number
         description: 'Maximum number of times to rerun failed spread tasks'
         default: 3
+        required: true
       sru-validation-version:
         type: string
         description: 'The version of snapd to use for SRU validation (see tests/main/sru-validation-check test for details)'
