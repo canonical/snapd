@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2024 Canonical Ltd
+ * Copyright (C) 2016-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -898,6 +898,7 @@ var (
 		"opengl-driver-libs":       nil,
 		"opengles-driver-libs":     nil,
 		"pkcs11":                   nil,
+		"podman":                   nil,
 		"posix-mq":                 nil,
 		"shared-memory":            nil,
 		"gpio-chardev":             nil,
@@ -969,6 +970,12 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
+
+	// test podman specially
+	ic = s.installSlotCand(c, "podman", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"podman\" slot rule of interface \"podman\"")
 
 	// test microceph specially
 	ic = s.installSlotCand(c, "microceph", snap.TypeApp, ``)
@@ -1168,6 +1175,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"microovn":                  true,
 		"mir":                       true,
 		"online-accounts-service":   true,
+		"podman":                    true,
 		"posix-mq":                  true,
 		"qualcomm-ipc-router":       true,
 		"raw-volume":                true,
