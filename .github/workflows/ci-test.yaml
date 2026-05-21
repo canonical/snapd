@@ -29,7 +29,7 @@ jobs:
       - name: Check go channels
         run: |
           echo "Resolved Go channels: ${{ steps.resolve-go-channels.outputs.go-channels }}"
-          if [ -z "${{ steps.resolve-go-channels.outputs.go-channels }}" ]; then
+          if [[ "${{ steps.resolve-go-channels.outputs.go-channels }}" == "[]" ]]; then
             echo "Error: No Go channels resolved" >&2
             exit 1
           fi
