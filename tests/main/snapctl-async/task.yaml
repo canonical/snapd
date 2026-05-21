@@ -74,9 +74,9 @@ execute: |
   snap abort "$change_id"
 
   exit_code=0
-  snap run --shell test-snapctl-async.app -c "snapctl is-ready nonexistent-id" || exit_code=$?
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id" || exit_code=$?
   test "$exit_code" -eq 2
- 
+
   exit_code=0
   snap run --shell test-snapctl-async.app -c "snapctl is-ready nonexistent-id" || exit_code=$?
   test "$exit_code" -eq 1
