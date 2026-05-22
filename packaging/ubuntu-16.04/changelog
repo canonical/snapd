@@ -1,3 +1,9 @@
+snapd (2.75.2.2) xenial; urgency=medium
+
+  * New upstream release
+ 
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Thu, 22 May 2026 23:00:00 +0200
+
 snapd (2.75.2) xenial; urgency=medium
 
   * New upstream release, LP: #2143882
