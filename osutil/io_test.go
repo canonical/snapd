@@ -93,13 +93,12 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileTmpFileCreateError(c *C) {
 	tmpdir := c.MkDir()
 
-	badSubdir := filepath.Join(tmpdir, "foo")
-	err := os.WriteFile(badSubdir, []byte(""), 0644)
+	err := os.Chmod(tmpdir, 0o644) // no directory traversal allowed
 	c.Assert(err, IsNil)
 
-	p := filepath.Join(badSubdir, "bar")
+	p := filepath.Join(tmpdir, "foo")
 	err = osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
-	c.Assert(err, ErrorMatches, "open .*: not a directory")
+	c.Assert(err, ErrorMatches, `open /.*/foo\..*~: permission denied`)
 }
 
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileTmpFileChmodError(c *C) {
