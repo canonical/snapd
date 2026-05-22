@@ -13,7 +13,7 @@ from typing import Optional, Dict, List
 
 
 def show_help():
-    help_text = """Usage: github-kpis.py (--start YYYY-MM-DD [--end YYYY-MM-DD] | --input-json PATH) [--attempts] [--forced] [--skipped] [--runtime] [--test-totals] [--all]
+    help_text = """Usage: github-kpis.py (--start YYYY-MM-DD [--end YYYY-MM-DD] | --input-json PATH) [--attempts] [--forced] [--skipped] [--runtime] [--test-totals] [--author-times] [--all]
 
 If the script errors at any point, it will output the JSON collected before that stage.
 To resume from that JSON, save it to a file and use --input-json with the path to that file. 
@@ -37,6 +37,7 @@ Options:
   --skipped       Add field to specify how many tests (excluding variants) were skipped via snapd-testing-skip.
   --runtime       Add total runtime of all attempts of the Tests workflow on the last PR update before merging.
   --test-totals   Add total number of spread tests run on the last PR update before merging.
+  --author-times  Add author classification and times PR spent in non-approved and approved states before merging.
   --all           Add all of the above fields.
   -h, --help      Show this help.
 
@@ -89,8 +90,8 @@ class GhCommandError(RuntimeError):
     """Raised when a gh command fails."""
 
 
-def gh_with_retry(*args) -> str:
-    """Execute gh command with retry logic for HTTP 50x errors."""
+def gh_request(*args, allow_failure: bool = False) -> Optional[str]:
+    """Execute a gh command, retrying transient 50x failures."""
     attempts = 0
     while attempts < 5:
         try:
@@ -109,14 +110,20 @@ def gh_with_retry(*args) -> str:
                 sys.stderr.flush()
                 time.sleep(1)
             else:
+                if allow_failure:
+                    return None
                 sys.stderr.write(result.stderr)
                 raise GhCommandError(f"gh command failed: gh {' '.join(args)}\nError: {result.stderr}")
         except Exception as e:
             if isinstance(e, GhCommandError):
                 raise
+            if allow_failure:
+                return None
             sys.stderr.write(f"Error running gh command: {e}\n")
             raise GhCommandError(f"error running gh command: {e}") from e
     
+    if allow_failure:
+        return None
     sys.stderr.write(f"gh command failed after 5 retries: gh {' '.join(args)}\n")
     raise GhCommandError(f"gh command failed after 5 retries: gh {' '.join(args)}")
 
@@ -132,13 +139,117 @@ def ensure_attempt_metadata(pr: Dict) -> None:
         return
 
     commit = pr.get("headRefOid")
-    output = gh_with_retry("run", "list", "--repo", "canonical/snapd",
+    output = gh_request("run", "list", "--repo", "canonical/snapd",
                            "--commit", commit, "--workflow", "ci-test.yaml",
                            "--json", "attempt,databaseId",
                            "--jq", "first(.[] | {attempt: (.attempt // 0), databaseId: .databaseId}) // {attempt: 0, databaseId: null}")
     run_data = json.loads(output)
     pr["num-attempts"] = run_data.get("attempt", 0)
     pr["databaseId"] = run_data.get("databaseId")
+
+
+def classify_author(login: Optional[str], association: Optional[str]) -> str:
+    """Classify an author as snapd, canonical, or external."""
+    if not login:
+        return None
+    
+    if association not in {"MEMBER", "OWNER", "COLLABORATOR"}:
+        return "external"
+
+    permission = gh_request("api", f"/repos/canonical/snapd/collaborators/{login}/permission", "--jq", ".permission", allow_failure=True)
+    if permission and permission.strip() in {"admin", "maintain", "write"}:
+        return "snapd"
+
+    membership = gh_request("api", f"/orgs/canonical/memberships/{login}", "--jq", ".state", allow_failure=True)
+    if membership and membership.strip() == "active":
+        return "canonical"
+
+    return None
+
+
+def get_author_and_times(prs_json: List[Dict]) -> List[Dict]:
+    """Populate author and state-time fields using one PR details fetch."""
+    total_prs = len(prs_json)
+    progress = ProgressBar("Author+state", total_prs)
+
+    result = []
+    classification_cache: Dict[str, str] = {}
+    for pr in prs_json:
+        number = pr.get("number")
+        pr_meta = json.loads(gh_request("api", f"/repos/canonical/snapd/pulls/{number}"))
+
+        login = (pr_meta.get("user") or {}).get("login")
+        association = pr_meta.get("author_association")
+
+        if not login:
+            raise GhCommandError(f"failed to get author login for PR #{number}")
+
+        if login not in classification_cache:
+            classification_cache[login] = classify_author(login, association)
+
+        pr["author-type"] = classification_cache[login]
+
+        try:
+            created_at_s = pr_meta.get("created_at")
+            merged_at_s = pr_meta.get("merged_at")
+
+            if not created_at_s or not merged_at_s:
+                pr["time-to-approved-hours"] = None
+                pr["time-approved-to-merged-hours"] = None
+                result.append(pr)
+                progress.tick()
+                continue
+
+            created_at = datetime.fromisoformat(created_at_s.replace("Z", "+00:00"))
+            merged_at = datetime.fromisoformat(merged_at_s.replace("Z", "+00:00"))
+
+            reviews = json.loads(gh_request("api", f"/repos/canonical/snapd/pulls/{number}/reviews?per_page=100"))
+
+            # Collect approval events in chronological order, tracking the
+            # latest state per reviewer so dismissed approvals don't count.
+            review_timeline = []
+            for rv in reviews:
+                rv_time = rv.get("submitted_at")
+                reviewer = (rv.get("user") or {}).get("login")
+                state = (rv.get("state") or "").upper()
+                if not rv_time or not reviewer or state not in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}:
+                    continue
+                review_timeline.append((
+                    datetime.fromisoformat(rv_time.replace("Z", "+00:00")),
+                    reviewer,
+                    state,
+                ))
+
+            review_timeline.sort(key=lambda x: x[0])
+
+            # Replay reviews to find the earliest moment at which two distinct
+            # reviewers have current APPROVED state with no blocking reviews.
+            reviewer_states: Dict[str, str] = {}
+            two_approvals_at = None
+            for ev_time, reviewer, state in review_timeline:
+                if ev_time > merged_at:
+                    break
+                reviewer_states[reviewer] = state
+                approvals = sum(1 for s in reviewer_states.values() if s == "APPROVED")
+                has_blocking = any(s == "CHANGES_REQUESTED" for s in reviewer_states.values())
+                if approvals >= 2 and not has_blocking:
+                    two_approvals_at = ev_time
+                    break
+
+            if two_approvals_at is None:
+                pr["time-to-approved-hours"] = None
+                pr["time-approved-to-merged-hours"] = None
+            else:
+                pr["time-to-approved-hours"] = round((two_approvals_at - created_at).total_seconds() / 3600.0, 2)
+                pr["time-approved-to-merged-hours"] = round((merged_at - two_approvals_at).total_seconds() / 3600.0, 2)
+        except (GhCommandError, json.JSONDecodeError, ValueError):
+            pr["time-to-approved-hours"] = None
+            pr["time-approved-to-merged-hours"] = None
+
+        result.append(pr)
+        progress.tick()
+
+    return result
 
 
 def get_total_tests_run(prs_json: List[Dict]) -> List[Dict]:
@@ -171,7 +282,7 @@ def get_total_tests_run(prs_json: List[Dict]) -> List[Dict]:
             
             with tempfile.TemporaryDirectory() as tmpdir:
                 try:
-                    gh_with_retry("run", "download", str(db_id), "--repo", "canonical/snapd",
+                    gh_request("run", "download", str(db_id), "--repo", "canonical/snapd",
                                 "--dir", tmpdir, "--pattern", "spread-results-*")
                 except GhCommandError:
                     pr["total-tests-run"] = None
@@ -263,7 +374,7 @@ def get_total_runtime(prs_json: List[Dict]) -> List[Dict]:
                 if attempt == 1:
                     json_fields += ",jobs"
                 
-                output = gh_with_retry("run", "view", str(db_id), "--repo", "canonical/snapd",
+                output = gh_request("run", "view", str(db_id), "--repo", "canonical/snapd",
                                      "--attempt", str(attempt), "--json", json_fields)
                 data = json.loads(output)
                 
@@ -308,9 +419,9 @@ def get_skipped_tests(prs_json: List[Dict]) -> List[Dict]:
             number = pr.get("number")
             
             try:
-                output = gh_with_retry("pr", "view", str(number), "--repo", "canonical/snapd",
+                output = gh_request("pr", "view", str(number), "--repo", "canonical/snapd",
                                      "--json", "comments", "--jq",
-                                     ".comments.[] | select(.author.login == \"github-actions\") | .body")
+                                     '.comments.[] | select(.author.login == "github-actions") | .body')
                 
                 lines = output.split("\n")
                 skipped_section = False
@@ -353,9 +464,9 @@ def get_force_merged(prs_json: List[Dict]) -> List[Dict]:
             number = pr.get("number")
             
             try:
-                output = gh_with_retry("pr", "checks", str(number), "--repo", "canonical/snapd",
+                output = gh_request("pr", "checks", str(number), "--repo", "canonical/snapd",
                                      "--required", "--json", "bucket", "--jq",
-                                     "[.[].bucket | select(. != \"pass\")] | length")
+                                     '[.[].bucket | select(. != "pass")] | length')
                 num_not_passed = int(output.strip())
                 pr["force-merged"] = num_not_passed > 0
             except (GhCommandError, ValueError):
@@ -393,7 +504,7 @@ def list_prs_in_range(start_epoch: int, end_epoch: int) -> List[Dict]:
     start_iso = datetime.fromtimestamp(start_epoch, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     end_iso = datetime.fromtimestamp(end_epoch, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     
-    output = gh_with_retry("pr", "list", "--repo", "canonical/snapd", "--limit", "1000",
+    output = gh_request("pr", "list", "--repo", "canonical/snapd", "--limit", "1000",
                          "--search", f"merged:>={start_iso} merged:<{end_iso}",
                          "--json", "number,mergedAt,headRefOid,labels")
     
@@ -460,6 +571,7 @@ def main():
     parser.add_argument("--skipped", action="store_true", help="Add skipped tests field")
     parser.add_argument("--runtime", action="store_true", help="Add runtime field")
     parser.add_argument("--test-totals", action="store_true", help="Add test totals field")
+    parser.add_argument("--author-times", action="store_true", help="Add author classification and PR time fields")
     parser.add_argument("--all", action="store_true", help="Add all fields")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
     
@@ -500,6 +612,7 @@ def main():
         args.skipped = True
         args.runtime = True
         args.test_totals = True
+        args.author = True
     
     if args.attempts:
         stages.append(("attempts", get_num_attempts))
@@ -511,6 +624,8 @@ def main():
         stages.append(("runtime", get_total_runtime))
     if args.test_totals:
         stages.append(("test-totals", get_total_tests_run))
+    if args.author_times:
+        stages.append(("author-times", get_author_and_times))
     
     # Run stages
     for i, (stage_name, stage_func) in enumerate(stages):
@@ -526,6 +641,12 @@ def main():
             sys.stderr.write("Calculating total runtime for each PR...\n")
         elif stage_name == "test-totals":
             sys.stderr.write("Calculating test totals for each PR...\n")
+        elif stage_name == "author":
+            sys.stderr.write("Classifying PR authors...\n")
+        elif stage_name == "state-times":
+            sys.stderr.write("Calculating PR state times...\n")
+        elif stage_name == "author-times":
+            sys.stderr.write("Classifying PR authors and calculating PR times...\n")
         
         result = run_stage(stage_name, stage_func, result, pending)
         sys.stderr.write("Done.\n")
