@@ -63,7 +63,7 @@ func (iface *boolFileInterface) StaticInfo() interfaces.StaticInfo {
 var boolFileGPIOValuePattern = regexp.MustCompile(
 	"^/sys/class/gpio/gpio[0-9]+/value$")
 var boolFileLedPattern = regexp.MustCompile(
-	"^/sys/devices/platform/leds/[^/]+/[^/]+/brightness$")
+	"^/sys/devices/platform/.+/leds/[^/]+/brightness$")
 var boolFileAllowedPathPatterns = []*regexp.Regexp{
 	// The brightness of standard LED class device
 	regexp.MustCompile("^/sys/class/leds/[^/]+/brightness$"),
