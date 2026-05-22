@@ -152,6 +152,70 @@ dbus (receive)
      member=PropertiesChanged
      peer=(label=unconfined),
 
+# required by networkctl command
+unix (bind) type=stream addr="@*/bus/networkctl*/system",
+/run/systemd/netif/links/ r,
+/run/systemd/netif/links/* r,
+/run/systemd/netif/lldp/[0-9]* r,
+/run/udev/data/n[0-9]* r,
+
+# systemd-networkd, used by networkctl
+#
+# Allow access for networkctl to communicate with systemd-networkd via D-Bus API:
+#
+#  - networkctl(1): https://www.freedesktop.org/software/systemd/man/latest/networkctl.html
+#  - org.freedesktop.network1(5): https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.network1.html
+#  - systemd-networkd.service(8): https://www.freedesktop.org/software/systemd/man/latest/systemd-networkd.service.html
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/network1"
+     interface="org.freedesktop.network1.Manager"
+     member="{ListLinks,GetLinkByName,GetLinkByIndex,SetLinkNTP,SetLinkDNS,SetLinkDNSEx,SetLinkDomains,SetLinkDefaultRoute,SetLinkLLMNR,SetLinkMulticastDNS,SetLinkDNSOverTLS,SetLinkDNSSEC,SetLinkDNSSECNegativeTrustAnchors,RevertLinkNTP,RevertLinkDNS,RenewLink,ForceRenewLink,ReconfigureLink,Reload,DescribeLink,Describe}"
+     peer=(name="org.freedesktop.network1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/network1"
+     interface="org.freedesktop.DBus.Properties"
+     member=Get{,All}
+     peer=(name="org.freedesktop.network1", label=unconfined),
+
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/network1"
+     interface="org.freedesktop.DBus.Properties"
+     member=PropertiesChanged
+     peer=(label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/network1"
+     interface="org.freedesktop.DBus.Peer"
+     member=Ping
+     peer=(name="org.freedesktop.network1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/network1/link/_*"
+     interface="org.freedesktop.network1.Link"
+     member="{SetNTP,SetDNS,SetDNSEx,SetDomains,SetDefaultRoute,SetLLMNR,SetMulticastDNS,SetDNSOverTLS,SetDNSSEC,SetDNSSECNegativeTrustAnchors,RevertNTP,RevertDNS,Renew,ForceRenew,Reconfigure,Describe}"
+     peer=(name="org.freedesktop.network1", label=unconfined),
+
+dbus (send)
+     bus=system
+     path="/org/freedesktop/network1/link/_*"
+     interface="org.freedesktop.DBus.Properties"
+     member=Get{,All}
+     peer=(name="org.freedesktop.network1", label=unconfined),
+
+dbus (receive)
+     bus=system
+     path="/org/freedesktop/network1/link/_*"
+     interface="org.freedesktop.DBus.Properties"
+     member=PropertiesChanged
+     peer=(label=unconfined),
+
 # Allow access to wpa-supplicant for managing WiFi networks
 dbus (receive, send)
     bus=system
@@ -220,6 +284,7 @@ network sna,
 /{,usr/}{,s}bin/iw ixr,
 /{,usr/}{,s}bin/nameif ixr,
 /{,usr/}{,s}bin/netstat ixr,              # -p not supported
+/{,usr/}{,s}bin/networkctl ixr,
 /{,usr/}{,s}bin/nstat ixr,
 /{,usr/}{,s}bin/ping ixr,
 /{,usr/}{,s}bin/ping6 ixr,
