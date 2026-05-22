@@ -20,6 +20,9 @@ systems:
   - -ubuntu-1*
   - -ubuntu-20.04-*
   - -ubuntu-22.04-*
+  # No podman
+  - -amazon*
+  - -ubuntu-24.04-arm-64
 
 environment:
   IMAGE: rocks.canonical.com/alpine:latest
