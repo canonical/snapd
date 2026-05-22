@@ -30,6 +30,25 @@ Options:
   --test-totals   Add total number of spread tests run on the last PR update before merging.
   --all           Add all of the above fields.
   -h, --help      Show this help.
+
+
+Once the json is collected, here are some useful jq queries:
+# The most interesting data is ones in which spread tests were run, therefore all the queries will
+# look at PRs with "spread-skipped" == false.
+
+# Get the percentage of force merges
+total=$(jq '[ .[] | select(."spread-skipped" == false) ] | length' < pr_data.json)
+num_force_merges=$(jq '[ .[] | select(."spread-skipped" == false) | select(."force-merged" == true) ] | length' < pr_data.json)
+echo "scale=2; $num_force_merges / $total * 100" | bc
+
+# Get the average number of minutes for the first attempt when only fundamental tests were run
+jq '[ .[] | select(."spread-skipped" == false) | select(."first-attempt-only-fundamental" == true) | ."first-attempt-minutes" ] | add / length' < pr_data.json
+
+# Get the average total runtime in minutes
+jq '[ .[] | select(."spread-skipped" == false) | ."total-runtime-minutes" ] | add / length' < pr_data.json
+
+# Get the average number of attempts
+jq '[ .[] | select(."spread-skipped" == false) | ."num-attempts" ] | add / length' < pr_data.json 
 EOF
 }
 
