@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/randutil"
 )
 
 // AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
@@ -319,23 +318,17 @@ func AtomicRename(oldName, newName string) (err error) {
 	return err2
 }
 
-const maxLinkTries = 10
-
-func atomicLinkOp(target, linkPath string, op func(target, tmp string) error, kind string) error {
-	for tries := 0; tries < maxLinkTries; tries++ {
-		// XXX: would be nice if we could use `os.CreateTemp` here, but there's
-		// no such functionality for creating temporary (sym)links.
-		tmp := linkPath + "." + randutil.RandomString(12) + "~"
-		if err := op(target, tmp); err != nil {
-			if os.IsExist(err) {
-				continue
-			}
-			return err
-		}
-		defer os.Remove(tmp)
-		return AtomicRename(tmp, linkPath)
+func atomicLinkOp(target, linkPath string, op func(target, tmp string) error) error {
+	tmpDir, err := os.MkdirTemp(filepath.Dir(linkPath), filepath.Base(linkPath)+".*~")
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("cannot create a temporary %s", kind)
+	defer os.RemoveAll(tmpDir)
+	tmp := filepath.Join(tmpDir, "link")
+	if err := op(target, tmp); err != nil {
+		return err
+	}
+	return AtomicRename(tmp, linkPath)
 }
 
 // AtomicSymlink attempts to atomically create a symlink at linkPath, pointing
@@ -343,7 +336,7 @@ func atomicLinkOp(target, linkPath string, op func(target, tmp string) error, ki
 // the target, and then proceeds to rename it atomically, replacing the
 // linkPath.
 func AtomicSymlink(target, linkPath string) error {
-	return atomicLinkOp(target, linkPath, os.Symlink, "symlink")
+	return atomicLinkOp(target, linkPath, os.Symlink)
 }
 
 // AtomicLink attempts to atomically create a hardlink at linkPath, referencing
@@ -351,5 +344,5 @@ func AtomicSymlink(target, linkPath string) error {
 // to the target, and then proceeds to rename it atomically, replacing the
 // linkPath.
 func AtomicLink(target, linkPath string) error {
-	return atomicLinkOp(target, linkPath, os.Link, "link")
+	return atomicLinkOp(target, linkPath, os.Link)
 }
