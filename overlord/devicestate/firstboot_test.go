@@ -2414,6 +2414,10 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 
+	// avoid device registration
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
+
 	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc")
 
 	st.Unlock()
