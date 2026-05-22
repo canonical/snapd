@@ -1559,6 +1559,7 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -1950,6 +1951,7 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		},
 		SideInfo:    snapsup.SideInfo,
 		Type:        snap.TypeApp,
@@ -2310,6 +2312,7 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "kernel_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
@@ -2872,6 +2875,12 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C, refreshAppAwarenessUX 
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
 		},
+		{
+			op:   "storesvc-cleanup-download-artifacts",
+			name: "",
+			path: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
+			sha3: "<some-hash>",
+		},
 	}...)
 
 	// ensure all our tasks ran
@@ -3248,6 +3257,11 @@ func (s *snapmgrTestSuite) testUpdateTotalUndoRunThrough(c *C, refreshAppAwarene
 			op:   "remove-snap-dir",
 			name: "some-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap"),
+		},
+		{
+			op:   "storesvc-cleanup-download-artifacts",
+			sha3: "<some-hash>",
+			path: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 		},
 	}...)
 
@@ -17549,6 +17563,13 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	if opts.undo {
 		expected = append(expected,
 			undoOps(instanceName, opts.snapType, expectedSideState, originalSideState)...)
+		if !opts.useSameSnapRev {
+			expected = append(expected, fakeOp{
+				op:   "storesvc-cleanup-download-artifacts",
+				sha3: "<some-hash>",
+				path: snap.MountFile(instanceName, newSnapRev),
+			})
+		}
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
@@ -17616,6 +17637,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 	if !opts.useSameSnapRev {
 		expectedSnapsup.DownloadInfo = &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		}
 	}
 
@@ -18053,6 +18075,12 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 
 	if undo {
 		expected = append(expected, undoOps(snapName, snap.TypeKernel, expectedSideState, originalSideState)...)
+		expected = append(expected, fakeOp{
+			op:   "storesvc-cleanup-download-artifacts",
+			sha3: "<some-hash>",
+			path: snap.MountFile(snapName, newSnapRev),
+		})
+
 	} else {
 		expected = append(expected, fakeOp{
 			op:    "cleanup-trash",
@@ -18102,6 +18130,7 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		PreUpdateKernelModuleComponents: currentKmodComps,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		},
 	}
 
@@ -19713,12 +19742,14 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughOnlyComponentUpdate
 	c.Assert(err, IsNil)
 	c.Assert(snapsup.DownloadInfo, DeepEquals, &snap.DownloadInfo{
 		DownloadURL: "https://some-server.com/some/path.snap",
+		Sha3_384:    "<some-hash>",
 	})
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel: channel,
 		UserID:  s.user.ID,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      opts.snapType,
