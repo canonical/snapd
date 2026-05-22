@@ -257,11 +257,6 @@ func (em *ExternalKeypairManager) List() ([]ExternalKeyInfo, error) {
 	return res, nil
 }
 
-// see https://datatracker.ietf.org/doc/html/rfc2313 and more recently
-// and more precisely about SHA-512:
-// https://datatracker.ietf.org/doc/html/rfc3447#section-9.2 Notes 1.
-var digestInfoSHA512Prefix = []byte{0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40}
-
 func (em *ExternalKeypairManager) signWith(keyName string, digest []byte) (signature []byte, err error) {
 	// wrap the digest into the needed DigestInfo, the RSA-PKCS
 	// mechanism or equivalent is expected not to do this on its

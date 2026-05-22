@@ -20,6 +20,13 @@
 package asserts_test
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"fmt"
+	"time"
+
+	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -93,4 +100,24 @@ func (s *cryptoSuite) TestVerifyWithKeyWrongSignature(c *C) {
 	err = asserts.RawVerifyWithKey(dataOne, signatureTwo, pub)
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, ".*hash tag doesn't match")
+}
+
+func (s *cryptoSuite) TestReadOpenPGPRSAPublicKey(c *C) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	c.Assert(err, IsNil)
+
+	primary := packet.NewRSAPublicKey(time.Now(), &privKey.PublicKey)
+	subkey := packet.NewRSAPublicKey(time.Now(), &privKey.PublicKey)
+	subkey.IsSubkey = true
+
+	buf := new(bytes.Buffer)
+	err = primary.Serialize(buf)
+	c.Assert(err, IsNil)
+	err = subkey.Serialize(buf)
+	c.Assert(err, IsNil)
+
+	pubKey, fingerprint, err := asserts.ReadOpenPGPRSAPublicKeyInTest(bytes.NewReader(buf.Bytes()))
+	c.Assert(err, IsNil)
+	c.Check(pubKey.ID(), Equals, asserts.RSAPublicKey(&privKey.PublicKey).ID())
+	c.Check(fingerprint, Equals, fmt.Sprintf("%X", primary.Fingerprint))
 }
