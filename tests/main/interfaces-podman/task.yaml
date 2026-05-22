@@ -22,7 +22,7 @@ systems:
   - -ubuntu-22.04-*
 
 environment:
-  IMAGE: docker.io/library/busybox:latest
+  IMAGE: rocks.canonical.com/alpine:latest
   ROOT_SOCK: /run/podman/podman.sock
   ROOT_DAEMON_OUT: /var/snap/podman-consumer/common/root-daemon.out
   USER_DAEMON_OUT: /home/test/snap/podman-consumer/common/user-daemon.out
@@ -46,7 +46,12 @@ prepare: |
   tests.session -u test exec systemctl --user enable --now podman.socket
 
   echo "Pull the test image (rootless)"
-  tests.session -u test exec podman pull "$IMAGE"
+  tests.session -u test exec env \
+    HTTPS_PROXY="${HTTPS_PROXY:-}" \
+    HTTP_PROXY="${HTTP_PROXY:-}" \
+    https_proxy="${HTTPS_PROXY:-}" \
+    http_proxy="${HTTP_PROXY:-}" \
+    podman pull "$IMAGE"
 
   echo "Install the test snap"
   "$TESTSTOOLS"/snaps-state install-local podman-consumer
