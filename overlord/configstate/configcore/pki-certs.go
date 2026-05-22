@@ -301,6 +301,11 @@ func handleCustomCertificateRequest(tr RunTransaction, opts *fsOnlyContext) erro
 		}
 	}
 
+	// Refresh the certificate database while we hold the lock to avoid any
+	// concurrent updates to the certificate database from other actions like
+	// a base-refresh (while unlikely).
+	// OBS: We're doing I/O work here while holding the lock which is not
+	// ideal.
 	st := tr.State()
 	st.Lock()
 	defer st.Unlock()

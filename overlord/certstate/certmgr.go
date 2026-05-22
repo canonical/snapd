@@ -20,6 +20,7 @@ package certstate
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -35,6 +36,9 @@ type CertManager struct {
 	ensureEarlyCertificateGenerationRan bool
 }
 
+const doUpdateCertificateDatabaseMarker = ".certdb-do-refresh"
+const undoUpdateCertificateDatabaseMarker = ".certdb-undo-refresh"
+
 func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	m := &CertManager{
 		state: st,
@@ -42,6 +46,7 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 
 	// register tasks to update the certificate database
 	runner.AddHandler("update-cert-db", m.doUpdateCertificateDatabase, m.undoUpdateCertificateDatabase)
+	runner.AddCleanup("update-cert-db", m.cleanupUpdateCertificateDatabase)
 
 	return m
 }
@@ -82,8 +87,7 @@ func (m *CertManager) Ensure() error {
 	// Create the update CA certificate database, this is likely a first
 	// run on a pre-existing system after this was introduced.
 	logger.Noticef("No CA certificate database found, generating it now")
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	return GenerateCertificateDatabase(mergedDir)
+	return RefreshCertificateDatabase()
 }
 
 func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
@@ -95,7 +99,44 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 		t.Logf("/etc/ssl/certs is not available on this system, skipping certificate database update")
 		return nil
 	}
-	return RefreshCertificateDatabase()
+
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
+
+	markerInMerged := filepath.Join(mergedDir, doUpdateCertificateDatabaseMarker)
+	markerInStaged := filepath.Join(stagedDir, doUpdateCertificateDatabaseMarker)
+
+	// A retry after reboot may observe the marker already moved into
+	// merged. In that case the swap already happened and we must preserve the
+	// staged backup for undo instead of refreshing again.
+	if osutil.FileExists(markerInMerged) {
+		return nil
+	}
+
+	// Start with a clean staged directory.
+	if err := os.RemoveAll(stagedDir); err != nil {
+		return err
+	}
+
+	// SwapDirs requires both paths to exist, so create an empty merged
+	// directory when there is no prior certificate database yet.
+	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
+		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+	}
+
+	if err := GenerateCertificateDatabase(stagedDir); err != nil {
+		return err
+	}
+
+	if err := os.WriteFile(markerInStaged, nil, 0o600); err != nil {
+		return fmt.Errorf("cannot create certificate database swap marker %v", err)
+	}
+
+	// Swap the new certificate database into place.
+	if err := osutil.SwapDirs(stagedDir, mergedDir); err != nil {
+		return fmt.Errorf("cannot swap certificate database directories: %v", err)
+	}
+	return nil
 }
 
 func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
@@ -105,6 +146,16 @@ func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb)
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
 
+	markerInMerged := filepath.Join(mergedDir, undoUpdateCertificateDatabaseMarker)
+	markerInStaged := filepath.Join(stagedDir, undoUpdateCertificateDatabaseMarker)
+
+	// The marker moves with the restored directory across the swap, so a retry
+	// after a reboot can tell whether undo already flipped merged and only needs
+	// to finish cleanup.
+	if osutil.FileExists(markerInMerged) {
+		return nil
+	}
+
 	if exists, isDir, err := osutil.DirExists(stagedDir); err != nil {
 		return err
 	} else if !exists || !isDir {
@@ -112,12 +163,29 @@ func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb)
 		return nil
 	}
 
+	if err := os.WriteFile(markerInStaged, nil, 0o600); err != nil {
+		return err
+	}
 	if err := osutil.SwapDirs(stagedDir, mergedDir); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+func (m *CertManager) cleanupUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
+
 	if err := os.RemoveAll(stagedDir); err != nil {
 		return err
+	}
+
+	for _, marker := range []string{doUpdateCertificateDatabaseMarker, undoUpdateCertificateDatabaseMarker} {
+		markerInMerged := filepath.Join(mergedDir, marker)
+		if err := os.Remove(markerInMerged); err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
 	return nil
 }
@@ -128,3 +196,6 @@ func hasSystemCertsDir() bool {
 	}
 	return true
 }
+
+// Cleanup marker + staged on task cleanup handlers
+// Mount namespace - snapshot the certs into a tmpfs

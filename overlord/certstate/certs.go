@@ -46,8 +46,6 @@ const (
 // CertificateData holds the parsed certificate and derived digests for a
 // certificate payload.
 type CertificateData struct {
-	// Raw is the first parsed X.509 certificate from the input payload.
-	Raw *x509.Certificate
 	// Sha256 is the content fingerprint tracked for the certificate payload.
 	Sha256 string
 	// SubjectNameSha1 is the OpenSSL subject-name hash used for lookup links.
@@ -104,7 +102,9 @@ func sha1HexForCertSubjectName(cert *x509.Certificate) (string, error) {
 
 // decodePemBlocks extracts certificate PEM blocks from data, returning their
 // DER payloads in file order together with the first parsed certificate.
-func decodePemBlocks(data []byte) (blocks [][]byte, first *x509.Certificate, err error) {
+// We only return the 'raw' certificate data for the first PEM block, which is used
+// for the subject name hash, and only used when there are not multiple certificates in the file.
+func decodePemBlocks(data []byte) (blocks [][]byte, raw *x509.Certificate, err error) {
 	rest := data
 	for {
 		block, next := pem.Decode(rest)
@@ -113,19 +113,20 @@ func decodePemBlocks(data []byte) (blocks [][]byte, first *x509.Certificate, err
 		}
 		rest = next
 		if !certificatePEMBlockTypePattern.MatchString(block.Type) {
+			logger.Debugf("encountered unsupported pem-block type: %s", block.Type)
 			continue
 		}
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse certificate PEM block: %v", err)
+			return nil, nil, fmt.Errorf("cannot parse certificate PEM block: %v", err)
 		}
-		if first == nil {
-			first = cert
+		if raw == nil {
+			raw = cert
 		}
 		blocks = append(blocks, cert.Raw)
 	}
-	return blocks, first, nil
+	return blocks, raw, nil
 }
 
 // ParseCertificateData parses a PEM or DER certificate payload and returns the
@@ -138,7 +139,8 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 	// Many distro-provided cert files are PEM-encoded, while x509.ParseCertificate
 	// expects DER.
 	if block, _ := pem.Decode(certData); block != nil {
-		blocks, first, err := decodePemBlocks(certData)
+		// We only use the 'raw' certificate data when one PEM block is present
+		blocks, raw, err := decodePemBlocks(certData)
 		if err != nil {
 			return nil, err
 		}
@@ -151,15 +153,14 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 		// which is what openssl does.
 		var subjectNameSha1 string
 		if len(blocks) == 1 {
-			hash, err := sha1HexForCertSubjectName(first)
+			hash, err := sha1HexForCertSubjectName(raw)
 			if err != nil {
-				return nil, fmt.Errorf("failed to hash certificate subject name: %v", err)
+				return nil, fmt.Errorf("cannot hash certificate subject name: %v", err)
 			}
 			subjectNameSha1 = hash
 		}
 
 		return &CertificateData{
-			Raw:             first,
 			Sha256:          sha256HexForChain(blocks),
 			SubjectNameSha1: subjectNameSha1,
 		}, nil
@@ -169,24 +170,28 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 	// We return a single-certificate chain in this case.
 	cert, err := x509.ParseCertificate(certData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse DER certificate: %v", err)
+		return nil, fmt.Errorf("cannot parse DER certificate: %v", err)
 	}
 
 	subjectNameSha1, err := sha1HexForCertSubjectName(cert)
 	if err != nil {
-		return nil, fmt.Errorf("failed to hash certificate subject name: %v", err)
+		return nil, fmt.Errorf("cannot hash certificate subject name: %v", err)
 	}
 	return &CertificateData{
-		Raw:             cert,
 		Sha256:          sha256HexForChain([][]byte{cert.Raw}),
 		SubjectNameSha1: subjectNameSha1,
 	}, nil
 }
 
+func isAllowedExtension(name string) bool {
+	ext := filepath.Ext(name)
+	return len(ext) != 0 && strutil.ListContains(allowedSuffixes, ext[1:])
+}
+
 // trimExtension strips one supported certificate-file extension from name.
 func trimExtension(name string) string {
 	extension := filepath.Ext(name)
-	if len(extension) != 0 && strutil.ListContains(allowedSuffixes, extension[1:]) {
+	if isAllowedExtension(name) {
 		return strings.TrimSuffix(name, extension)
 	}
 	return name
@@ -203,8 +208,7 @@ func isBlocked(cert certificate, blockedCertDigests []string) bool {
 
 	// Check that the real underlying filepath to the
 	// certificate ends with a supported extension
-	extension := filepath.Ext(cert.RealPath)
-	if len(extension) == 0 || !strutil.ListContains(allowedSuffixes, extension[1:]) {
+	if !isAllowedExtension(cert.RealPath) {
 		return true
 	}
 	return strutil.ListContains(blockedCertDigests, cert.Sha256)
@@ -228,8 +232,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			continue
 		}
 
-		extension := filepath.Ext(caFile.Name())
-		if len(extension) == 0 || !strutil.ListContains(allowedSuffixes, extension[1:]) {
+		if !isAllowedExtension(caFile.Name()) {
 			continue
 		}
 
@@ -239,7 +242,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 		if caFile.Type()&os.ModeSymlink != 0 {
 			resolvedPath, err := filepath.EvalSymlinks(certRealPath)
 			if err != nil {
-				logger.Noticef("Failed to parse certificate %q: cannot resolve symbolic link: %v", certRealPath, err)
+				logger.Noticef("cannot parse certificate %q: cannot resolve symbolic link: %v", certRealPath, err)
 				continue
 			}
 			certRealPath = resolvedPath
@@ -248,13 +251,13 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 		// Load the cert file and calculate the digest of the certificate.
 		certBytes, err := os.ReadFile(certRealPath)
 		if err != nil {
-			logger.Noticef("Failed to read certificate %q: %v", certRealPath, err)
+			logger.Noticef("cannot read certificate %q: %v", certRealPath, err)
 			continue
 		}
 
 		cert, err := ParseCertificateData(certBytes)
 		if err != nil {
-			logger.Noticef("Failed to parse certificate %q: %v", certRealPath, err)
+			logger.Noticef("cannot parse certificate %q: %v", certRealPath, err)
 			continue
 		}
 
@@ -318,7 +321,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 	}
 
 	// Create the c_rehash-style subject hash link for single-certificate files.
-	sha1Link := func(cert certificate) error {
+	maybeSha1Link := func(cert certificate) error {
 		if cert.SubjectNameSha1 == "" {
 			return nil
 		}
@@ -356,7 +359,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy certificate %q: %v", cert.Name, err)
 		}
-		if err := sha1Link(cert); err != nil {
+		if err := maybeSha1Link(cert); err != nil {
 			return fmt.Errorf("cannot create hash link for certificate %q: %v", cert.Name, err)
 		}
 		digests[cert.Sha256] = true
@@ -369,7 +372,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy extra certificate %q: %v", cert.Name, err)
 		}
-		if err := sha1Link(cert); err != nil {
+		if err := maybeSha1Link(cert); err != nil {
 			return fmt.Errorf("cannot create hash link for extra certificate %q: %v", cert.Name, err)
 		}
 		digests[cert.Sha256] = true
@@ -393,14 +396,20 @@ func generateCACertificates(certs *certificates, mergedPath string) error {
 	}
 
 	bundlePath := filepath.Join(mergedPath, "ca-certificates.crt")
-	bundle, err := os.Create(bundlePath)
+	bundle, err := osutil.NewAtomicFile(bundlePath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot create ca-certificates.crt: %v", err)
 	}
-	defer bundle.Close()
+	defer bundle.Cancel()
 
 	// Fill the bundle and create cert links, all inside the merged directory.
-	return writeUniqueCACertificates(certs, mergedPath, bundle)
+	if err := writeUniqueCACertificates(certs, mergedPath, bundle); err != nil {
+		return err
+	}
+	if err := bundle.Commit(); err != nil {
+		return fmt.Errorf("cannot commit ca-certificates.crt: %v", err)
+	}
+	return nil
 }
 
 type certificates struct {
@@ -469,19 +478,13 @@ func ensureDirectories() error {
 	return nil
 }
 
-var GenerateCertificateDatabase = GenerateCertificateDatabaseImpl
-
-// GenerateCertificateDatabaseImpl generates a merged certificate directory at
+// GenerateCertificateDatabase generates a merged certificate directory at
 // the given directory that mirrors the system /etc/ssl/certs layout.
 // It combines:
 //   - /etc/ssl/certs/ (base certificates from the system)
 //   - /var/lib/snapd/pki/v1/added/ (user added certificates)
 //   - /var/lib/snapd/pki/v1/blocked/ (user blocked certificate digests)
-//
-// The resulting directory contains individual certificate links plus a combined
-// ca-certificates.crt bundle. The directory is built in a temporary location
-// and atomically swapped into place.
-func GenerateCertificateDatabaseImpl(mergedPath string) error {
+func GenerateCertificateDatabase(mergedPath string) error {
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
@@ -496,7 +499,9 @@ func GenerateCertificateDatabaseImpl(mergedPath string) error {
 // RefreshCertificateDatabase does a best-effort of performing an
 // atomic update of the existing cert database. Expects state to be
 // locked when calling this function, to avoid concurrent updates to the database.
-func RefreshCertificateDatabase() error {
+var RefreshCertificateDatabase = refreshCertificateDatabaseImpl
+
+func refreshCertificateDatabaseImpl() error {
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
 	if err := os.RemoveAll(stagedDir); err != nil {
@@ -670,7 +675,7 @@ func CustomCertificates() ([]*CertificateInfo, error) {
 			// Let us be resilient to errors here, and just skip the certificate if we
 			// cannot read it or parse it, as we don't want one broken certificate to
 			// cause the whole API to be unavailable.
-			logger.Noticef("Failed to read custom certificate %q: %v", name, err)
+			logger.Noticef("cannot read custom certificate %q: %v", name, err)
 			continue
 		}
 		if info != nil {

@@ -152,12 +152,13 @@ func (s *certsTestSuite) TestIsBlockedReturnsNotBlocked(c *C) {
 }
 
 func (s *certsTestSuite) TestParseCertificateDataSimpleHappy(c *C) {
-	bytes, _, err := makeTestCertPEM("Test Certificate Root CA")
+	certPEM, _, err := makeTestCertPEM("Test Certificate Root CA")
 	c.Assert(err, IsNil)
 
-	cert, err := certstate.ParseCertificateData(bytes)
+	parsed, err := certstate.ParseCertificateData(certPEM)
 	c.Assert(err, IsNil)
-	c.Check(cert.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(parsed.Sha256, Equals, digestForPEM(c, certPEM))
+	c.Check(parsed.SubjectNameSha1, Equals, opensslSubjectHash(c, certPEM))
 }
 
 func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C) {
@@ -167,18 +168,22 @@ func (s *certsTestSuite) TestParseCertificateDataSkipsNonCertificateBlocks(c *C)
 	nonCert := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: []byte("junk")})
 	data := append(append([]byte{}, nonCert...), certPEM...)
 
-	cert, err := certstate.ParseCertificateData(data)
+	parsed, err := certstate.ParseCertificateData(data)
 	c.Assert(err, IsNil)
-	c.Check(cert.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(parsed.Sha256, Equals, digestForPEM(c, certPEM))
+	c.Check(parsed.SubjectNameSha1, Equals, opensslSubjectHash(c, certPEM))
 }
 
 func (s *certsTestSuite) TestParseCertificateDataDERInput(c *C) {
-	_, cert, err := makeTestCertPEM("Test Certificate Root CA")
+	certPEM, _, err := makeTestCertPEM("Test Certificate Root CA")
 	c.Assert(err, IsNil)
+	block, _ := pem.Decode(certPEM)
+	c.Assert(block, NotNil)
 
-	parsed, err := certstate.ParseCertificateData(cert.Raw)
+	parsed, err := certstate.ParseCertificateData(block.Bytes)
 	c.Assert(err, IsNil)
-	c.Check(parsed.Raw.Subject.CommonName, Equals, "Test Certificate Root CA")
+	c.Check(parsed.Sha256, Equals, digestForPEM(c, certPEM))
+	c.Check(parsed.SubjectNameSha1, Equals, opensslSubjectHash(c, certPEM))
 }
 
 func (s *certsTestSuite) TestParseCertificateDataSubjectHashMatchesOpenSSL(c *C) {
@@ -213,7 +218,7 @@ func (s *certsTestSuite) TestParseCertificateDataInvalidCertificatePEMBlock(c *C
 
 	cert, err := certstate.ParseCertificateData(data)
 	c.Check(cert, IsNil)
-	c.Check(err, ErrorMatches, `failed to parse certificate PEM block: .*`)
+	c.Check(err, ErrorMatches, `cannot parse certificate PEM block: .*`)
 }
 
 func (s *certsTestSuite) TestParseCertificatesSimpleHappy(c *C) {
