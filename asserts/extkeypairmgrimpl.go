@@ -143,6 +143,13 @@ func (m *extKeypairMgrImpl) cacheLoadedKey(loaded *extKeypairMgrLoadedKey) (*ext
 	return entry, nil
 }
 
+func (m *extKeypairMgrImpl) dropCachedKey(keyID string) {
+	if entry := m.cache[keyID]; entry != nil {
+		delete(m.nameToID, entry.name)
+	}
+	delete(m.cache, keyID)
+}
+
 func (m *extKeypairMgrImpl) loadByName(name string) (*extKeypairMgrCachedKey, error) {
 	if keyID, ok := m.nameToID[name]; ok {
 		if entry := m.cache[keyID]; entry != nil {
