@@ -21,7 +21,7 @@ systems:
   - -ubuntu-20.04-*
   - -ubuntu-22.04-*
   # No podman
-  - -amazon*
+  - -amazon-*
   - -ubuntu-24.04-arm-64
 
 environment:
