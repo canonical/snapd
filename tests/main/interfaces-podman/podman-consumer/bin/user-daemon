@@ -3,5 +3,5 @@
 # XDG_RUNTIME_DIR inside a snap is snap-specific; derive the real path from UID.
 USER_SOCK="/run/user/$(id -u)/podman/podman.sock"
 "$SNAP/bin/podman-api" "$USER_SOCK" \
-    run docker.io/library/busybox:latest echo hello-from-user-daemon \
+    run rocks.canonical.com/alpine:latest echo hello-from-user-daemon \
     > "$SNAP_USER_COMMON/user-daemon.out" 2>&1

@@ -1,5 +1,5 @@
 #!/bin/sh
 # Run a container via the system podman socket and write the result.
 "$SNAP/bin/podman-api" /run/podman/podman.sock \
-    run docker.io/library/busybox:latest echo hello-from-root-daemon \
+    run rocks.canonical.com/alpine:latest echo hello-from-root-daemon \
     > "$SNAP_COMMON/root-daemon.out" 2>&1
