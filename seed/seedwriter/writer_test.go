@@ -808,6 +808,126 @@ func (s *writerSuite) TestDownloadedPublisherMismatchGadget(c *C) {
 	c.Check(err, ErrorMatches, `cannot use gadget "pc" published by "developerid" for model by "my-brand"`)
 }
 
+func (s *writerSuite) TestDownloadedSnapIDMismatch(c *C) {
+	wrongID := strings.Repeat("x", 32)
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "required20",
+				// Intentionally wrong snap-id: does not match what the
+				// store will return for "required20".
+				"id": wrongID,
+			},
+		},
+	})
+
+	s.opts.Label = "20191030"
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	s.expectedSysSnap = "snapd"
+
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	c.Check(err, ErrorMatches, `snap "required20" snap-id mismatch: model assertion declares snap-id "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" but store returned snap-id ".*"`)
+}
+
+func (s *writerSuite) TestDownloadedSnapIDMatchPasses(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name": "required20",
+				"id":   s.AssertedSnapID("required20"),
+			},
+		},
+	})
+
+	s.opts.Label = "20191030"
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	s.expectedSysSnap = "snapd"
+
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	c.Check(err, IsNil)
+}
+
+func (s *writerSuite) TestDownloadedSnapIDMissingInModelSkipsCheck(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				// No "id" field: valid for dangerous grade.
+				"name": "required20",
+			},
+		},
+	})
+
+	s.opts.Label = "20191030"
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "required20", "developerid")
+
+	s.expectedSysSnap = "snapd"
+
+	_, _, err := s.upToDownloaded(c, model, s.fillDownloadedSnap, s.fetchAsserts(c))
+	c.Check(err, IsNil)
+}
+
 func (s *writerSuite) TestDownloadedMissingDefaultProvider(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",
