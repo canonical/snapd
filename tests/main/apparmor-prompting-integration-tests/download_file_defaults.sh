@@ -47,9 +47,9 @@ if [ "$CLIENT_OUTPUT" != "success" ] ; then
 	echo "output='$CLIENT_OUTPUT'"
 	exit 1
 fi
-# Furthermore, rules with identical path patterns are merged, so we don't
-# expect any rules with duplicate path patterns.
-snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep -F "${TEST_DIR}" | sort | uniq -d | wc -l | MATCH '^0$'
+# Furthermore, rules with identical path patterns are merged, so we expect a
+# single rule related to this test run.
+snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep -F "${TEST_DIR}" | wc -l | MATCH '^1$'
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 
