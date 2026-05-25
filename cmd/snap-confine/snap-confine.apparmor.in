@@ -34,6 +34,7 @@
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
+    /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libm.so* mr,
     # normal libs in order
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
