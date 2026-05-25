@@ -4,20 +4,13 @@ details: |
     Verifies that the command 'snap tasks' properly lists the tasks
     associated with a change. Also check the error scenarios.
 
-prepare: |
-    # Install local test snap
+execute: |
+    echo "Install snap to trigger a change"
     "$TESTSTOOLS"/install-local test-snap-with-components
 
-restore: |
-    snap remove --purge test-snap-tasks || true
-
-execute: |
-    echo "Install component to trigger a change"
-    snap install test-snap-with-components+comp1
-
     echo "Get the change ID for the install operation"
-    CHANGE_ID_1=$(snap changes | grep "Install snap \"test-snap-with-components\"" | awk '{print $1}')
+    CHANGE_ID=$(snap changes | grep "Install \"test-snap-with-components\" snap" | awk '{print $1}')
 
     # Check that valid JSON output is produced for the change, and that it contains the expected task with the expected state.
     echo "Check that 'snap tasks' lists the task for the change (and accepts the --format option)"
-    snap tasks --format json "$CHANGE_ID_1" | jq -e '.tasks | any(.id == "remove+comp1" and (.status == "Done" or .status == "done" or .state == "done"))' > /dev/null
+    snap tasks --format json "$CHANGE_ID" | jq -e '.tasks | any(.id == "$CHANGE_ID" and (.status == "Done" or .status == "done" or .state == "done"))' > /dev/null

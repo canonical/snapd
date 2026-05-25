@@ -20,7 +20,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -51,7 +50,7 @@ type cmdChanges struct {
 type cmdTasks struct {
 	timeMixin
 	changeIDMixin
-	Format string `long:"format" required:"false"`
+	formatMixin
 }
 
 func init() {
@@ -59,9 +58,7 @@ func init() {
 		func() flags.Commander { return &cmdChanges{} }, timeDescs, nil)
 	addCommand("tasks", shortTasksHelp, longTasksHelp,
 		func() flags.Commander { return &cmdTasks{} },
-		changeIDMixinOptDesc.also(timeDescs).also(map[string]string{
-			"format": i18n.G("Output format (supported: json)."),
-		}),
+		changeIDMixinOptDesc.also(timeDescs).also(formatArgsHelp),
 		changeIDMixinArgDesc).alias = "change"
 }
 
@@ -163,15 +160,9 @@ func (c *cmdTasks) showChange(chid string) error {
 		return err
 	}
 
-	if c.Format == "json" {
-		data, err := json.Marshal(chg)
-		if err != nil {
-			return err
-		}
-		fmt.Fprint(Stdout, string(data))
-		return nil
-	} else if c.Format != "" {
-		return fmt.Errorf(i18n.G("unsupported format: %s"), c.Format)
+	if c.Format != "text" && c.Format != "" {
+		err = c.formatNonText(chg)
+		return err
 	}
 
 	w := tabWriter()

@@ -257,8 +257,12 @@ func (s *SnapSuite) TestTasksJSON(c *check.C) {
 	c.Check(chg.Tasks[0].Summary, check.Equals, "some summary")
 	c.Check(chg.Tasks[0].Status, check.Equals, "Do")
 
+	// If format (which has defined values) gets passed an invalid value, the parser wraps it in `'.
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--format=", "42"})
+	c.Assert(err, check.ErrorMatches, ".*Invalid value `' for option `--format'. Allowed values are: .* or json")
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--format=random", "42"})
-	c.Assert(err, check.ErrorMatches, ".*unsupported format: random")
+	c.Assert(err, check.ErrorMatches, ".*Invalid value `random' for option `--format'. Allowed values are: .* or json")
+
 }
 
 func (s *SnapSuite) TestNoChanges(c *check.C) {
