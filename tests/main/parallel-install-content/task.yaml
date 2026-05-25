@@ -168,17 +168,12 @@ execute: |
     wait || true
     
     # join it to observe updated content
-    # TODO: the output should be:
-    # however due to a buggy handling of mount ns update new content is not
-    # visible in c1
     test-snapd-content-consumer.app |& tee out-after.4
     test-snapd-content-consumer_c2.app |& tee out_c2-after.4
 
     MATCH '^connected-content: special content mod v1$'    < out-after.4
     MATCH '^connected-content-2: special content mod v1$'  < out-after.4
-    # TODO: this is buggy, we should observe
-    # '^connected-content-v2: special content mod v3$'
-    MATCH '^connected-content-v2: special content mod v2$' < out-after.4
+    MATCH '^connected-content-v2: special content mod v3$' < out-after.4
     
     MATCH '^connected-content: special content mod v1$'    < out_c2-after.4
     MATCH '^connected-content-2: <not found>$'             < out_c2-after.4
