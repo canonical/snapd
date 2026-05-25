@@ -1,0 +1,29 @@
+name: Nightly spread coverage
+
+on:
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  snap-builds:
+    uses: ./.github/workflows/snap-builds.yaml
+    with:
+      runs-on: '["ubuntu-22.04"]'
+      toolchain: default
+      variant: test
+
+  nightly-spread-coverage:
+    uses: ./.github/workflows/spread-tests.yaml
+    needs: snap-builds
+    name: "spread"
+    secrets: inherit
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: noble
+      backend: openstack
+      alternative-backend: google
+      systems: ubuntu-24.04-64
+      tasks: tests/regression/...
+      rules: main
+      upload-artifacts: true
+      spread-env: "SPREAD_GENERATE_COVERAGE=true"
