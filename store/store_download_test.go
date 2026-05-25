@@ -817,12 +817,16 @@ func (co *cacheObserver) Get(cacheKey, targetPath string) bool {
 	co.gets = append(co.gets, fmt.Sprintf("%s:%s", cacheKey, targetPath))
 	if co.inCache[cacheKey] {
 		// Simulate the real cache behavior of creating a hard link
-		os.MkdirAll(filepath.Dir(targetPath), 0755)
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			panic(fmt.Sprintf("cannot create directory: %v", err))
+		}
 		var data []byte
 		if co.data != nil {
 			data = co.data[cacheKey]
 		}
-		os.WriteFile(targetPath, data, 0600)
+		if err := os.WriteFile(targetPath, data, 0600); err != nil {
+			panic(fmt.Sprintf("cannot write file: %v", err))
+		}
 		return true
 	}
 	return false
@@ -846,6 +850,15 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 		}
 	}
 	co.inCache[cacheKey] = true
+	// Simulate real cache: store content for future Get() calls
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		panic(fmt.Sprintf("cacheObserver Put(): cannot read source %q: %v", sourcePath, err))
+	}
+	if co.data == nil {
+		co.data = make(map[string][]byte)
+	}
+	co.data[cacheKey] = data
 	return nil
 }
 
@@ -1090,6 +1103,8 @@ func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
 	restore = store.MockApplyDelta(func(_ context.Context, s *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 		applyDeltaCalls++
 		c.Check(deltaPath, Equals, pathDeltaPartial)
+		// Simulate successful delta application by creating the target file
+		c.Assert(os.WriteFile(targetPath, []byte("rebuilt-snap"), 0600), IsNil)
 		return nil
 	})
 	defer restore()
