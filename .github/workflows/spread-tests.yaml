@@ -652,3 +652,8 @@ jobs:
         else
             echo "No spread results log found, skipping sending results to Test-Predictor"
         fi
+
+    - name: Cleanup workspace
+      if: always()
+      run: |
+        rm -rf "${{ github.workspace }}/*"
