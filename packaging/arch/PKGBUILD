@@ -65,7 +65,7 @@ with_apparmor = 1
 with_testkeys = ${WITH_TEST_KEYS:-0}
 with_vendor = 1
 with_static_pie = 0
-EXTRA_GO_BUILD_FLAGS = -trimpath
+EXTRA_GO_BUILD_FLAGS = -trimpath -cover
 EXTRA_GO_LDFLAGS = -w -s
 __DEFINES__
 
