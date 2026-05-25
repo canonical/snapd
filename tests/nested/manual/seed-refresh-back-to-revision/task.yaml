@@ -1,11 +1,9 @@
-summary: refresh seed on UC20+
+summary: refresh seed when a model snap moves back to an existing revision
 
 details: |
-  Verify that seed-refresh updates the recovery seed as part of a normal refresh
-  change on Ubuntu Core. The test refreshes the kernel, base, and a
-  non-essential model snap, checks that the refreshed recovery system is
-  recorded, and verifies the refreshed recovery system boots with the refreshed
-  snaps.
+  Verify that moving a model snap back to an existing revision triggers a
+  seed-refresh on Ubuntu Core. Covers snap refresh --revision and revert
+  for kernel, gadget, base, and app snaps.
 
 systems:
   - -ubuntu-1*
@@ -23,6 +21,26 @@ environment:
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
   NESTED_SIGN_SNAPS_FAKESTORE: true
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+  BACK_TO_REVISION_METHOD/refresh_kernel: refresh
+  SNAP_UNDER_TEST/refresh_kernel: kernel
+  BACK_TO_REVISION_METHOD/revert_kernel: revert
+  SNAP_UNDER_TEST/revert_kernel: kernel
+
+  BACK_TO_REVISION_METHOD/refresh_gadget: refresh
+  SNAP_UNDER_TEST/refresh_gadget: gadget
+  BACK_TO_REVISION_METHOD/revert_gadget: revert
+  SNAP_UNDER_TEST/revert_gadget: gadget
+
+  BACK_TO_REVISION_METHOD/refresh_base: refresh
+  SNAP_UNDER_TEST/refresh_base: base
+  BACK_TO_REVISION_METHOD/revert_base: revert
+  SNAP_UNDER_TEST/revert_base: base
+
+  BACK_TO_REVISION_METHOD/refresh_app: refresh
+  SNAP_UNDER_TEST/refresh_app: app
+  BACK_TO_REVISION_METHOD/revert_app: revert
+  SNAP_UNDER_TEST/revert_app: app
 
 skip:
   - reason: This test needs test keys to be trusted
@@ -80,6 +98,7 @@ prepare: |
 
   # shellcheck source=tests/lib/core-config.sh
   . "${TESTSLIB}/core-config.sh"
+  wait_for_first_boot_change
 
   remote.exec 'sudo systemctl stop snapd snapd.socket'
   remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon" = "fake-session"' > state.json
@@ -102,10 +121,12 @@ execute: |
   test_snap_name="test-snapd-sh-core${version}"
   model_json="$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.json"
   base_id="$(gojq -r --arg name "${base_snap}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
+  gadget_id="$(gojq -r '.snaps[] | select(.name == "pc") | .id' "${model_json}")"
   kernel_id="$(gojq -r '.snaps[] | select(.name == "pc-kernel") | .id' "${model_json}")"
   test_snap_id="$(gojq -r --arg name "${test_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
   test_snap_path="$("${TESTSTOOLS}/snaps-state" pack-local "${test_snap_name}")"
   test -n "${base_id}"
+  test -n "${gadget_id}"
   test -n "${kernel_id}"
   test -n "${test_snap_id}"
 
@@ -129,21 +150,9 @@ execute: |
       "${snap_id}"
   }
 
-  run_seed_refresh_round() {
-    local change_id boot_id
-
-    boot_id="$(tests.nested boot-id)"
-    change_id="$(remote.exec "sudo snap refresh --no-wait ${base_snap} pc-kernel ${test_snap_name}")"
-    remote.wait-for reboot "${boot_id}"
-    remote.wait-for snap-command
-    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\\s+(Done|Undone|Error)'"
-    remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Done"
-  }
-
   assert_live_snap_revisions() {
     local snap_revision snap_name revision
 
-    # accepts name/revision pairs in "snap=revision" format
     for snap_revision in "$@"; do
       snap_name="${snap_revision%%=*}"
       revision="${snap_revision#*=}"
@@ -152,7 +161,6 @@ execute: |
     done
   }
 
-  # verify seeded snap revisions are present in a recovery system
   assert_seed_snap_revisions_present() {
     local system_label="$1"
     local assertions="/run/mnt/ubuntu-seed/systems/${system_label}/assertions/snaps"
@@ -160,13 +168,13 @@ execute: |
 
     shift
 
-    # accepts name/revision pairs in "snap=revision" format
     for snap_revision in "$@"; do
       snap_name="${snap_revision%%=*}"
       revision="${snap_revision#*=}"
 
       case "${snap_name}" in
         "${base_snap}") snap_id="${base_id}" ;;
+        pc) snap_id="${gadget_id}" ;;
         pc-kernel) snap_id="${kernel_id}" ;;
         "${test_snap_name}") snap_id="${test_snap_id}" ;;
         *)
@@ -181,49 +189,104 @@ execute: |
     done
   }
 
+  assert_snap_revision_in_sequence() {
+    local snap_name="$1"
+    local revision="$2"
+
+    remote.exec "snap list --all ${snap_name}" | awk 'NR != 1 { print $3 }' | MATCH "^${revision}$"
+  }
+
+  run_seed_refresh_change() {
+    local command="$1"
+    local local_revision="${2:-}"
+    local change_id boot_id
+
+    boot_id="$(tests.nested boot-id)"
+    change_id="$(remote.exec "${command}")"
+    remote.wait-for reboot "${boot_id}"
+    remote.wait-for snap-command
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\\s+(Done|Undone|Error)'"
+    remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Done"
+    remote.exec "sudo snap tasks ${change_id}" | MATCH 'Create recovery system with label'
+    if [ -n "${local_revision}" ]; then
+      remote.exec "sudo snap tasks ${change_id}" | MATCH "Prepare snap .*/${snap_name}_${local_revision}.snap"
+      remote.exec "sudo snap tasks ${change_id}" | NOMATCH "Download snap \"${snap_name}\""
+    fi
+  }
+
+  case "${SNAP_UNDER_TEST}" in
+    kernel)
+      snap_name=pc-kernel
+      source_snap="${NESTED_FAKESTORE_BLOB_DIR}/pc-kernel.snap"
+      snap_id="${kernel_id}"
+      ;;
+    gadget)
+      snap_name=pc
+      source_snap="${NESTED_FAKESTORE_BLOB_DIR}/pc.snap"
+      snap_id="${gadget_id}"
+      ;;
+    base)
+      snap_name="${base_snap}"
+      source_snap="${NESTED_FAKESTORE_BLOB_DIR}/${base_snap}.snap"
+      snap_id="${base_id}"
+      ;;
+    app)
+      snap_name="${test_snap_name}"
+      source_snap="${test_snap_path}"
+      snap_id="${test_snap_id}"
+      ;;
+    *)
+      echo "unexpected SNAP_UNDER_TEST: ${SNAP_UNDER_TEST}"
+      exit 1
+      ;;
+  esac
+
   remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > seeded-systems-before.json
-  orig_seed_label="$(gojq -r '.[0].system' seeded-systems-before.json)"
-  latest_seed_label=""
+  previous_seed_label="$(gojq -r '.[0].system' seeded-systems-before.json)"
 
   remote.exec 'sudo snap set core experimental.seed-refresh=true'
 
-  revision=2
-  make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/${base_snap}.snap" "./${base_snap}-rev${revision}.snap" "${base_id}" "${revision}"
-  make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/pc-kernel.snap" "./pc-kernel-rev${revision}.snap" "${kernel_id}" "${revision}"
-  make_fake_store_revision "${test_snap_path}" "./${test_snap_name}-rev${revision}.snap" "${test_snap_id}" "${revision}"
+  for revision in 2 3; do
+    make_fake_store_revision "${source_snap}" "./${snap_name}-rev${revision}.snap" "${snap_id}" "${revision}"
 
-  run_seed_refresh_round
+    run_seed_refresh_change "sudo snap refresh --no-wait ${snap_name}"
 
-  assert_live_snap_revisions "${base_snap}=${revision}" "pc-kernel=${revision}" "${test_snap_name}=${revision}"
+    assert_live_snap_revisions "${snap_name}=${revision}"
 
-  # verify seed-refresh recorded and promoted the new recovery system
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > seeded-systems.json
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["default-recovery-system"]' > default-recovery-system.json
+    latest_seed_label="$(gojq -r '.[0].system' seeded-systems.json)"
+    test -n "${latest_seed_label}"
+    test "${latest_seed_label}" != "${previous_seed_label}"
+    test "$(gojq -r '.[0]["seed-refresh"]' seeded-systems.json)" = true
+    test "$(gojq -r '.system' default-recovery-system.json)" = "${latest_seed_label}"
+
+    previous_seed_label="${latest_seed_label}"
+  done
+
+  case "${BACK_TO_REVISION_METHOD}" in
+    revert)
+      run_seed_refresh_change "sudo snap revert --revision=2 --no-wait ${snap_name}"
+      ;;
+    refresh)
+      assert_snap_revision_in_sequence "${snap_name}" 2
+      run_seed_refresh_change "sudo snap refresh --revision=2 --no-wait ${snap_name}" 2
+      ;;
+    *)
+      echo "unexpected BACK_TO_REVISION_METHOD: ${BACK_TO_REVISION_METHOD}"
+      exit 1
+      ;;
+  esac
+
+  assert_live_snap_revisions "${snap_name}=2"
+
+  # verify the back-to-revision change created and promoted a new recovery system
   remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > seeded-systems.json
   remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["default-recovery-system"]' > default-recovery-system.json
-
   latest_seed_label="$(gojq -r '.[0].system' seeded-systems.json)"
   test -n "${latest_seed_label}"
-  test "${latest_seed_label}" != "${orig_seed_label}"
+  test "${latest_seed_label}" != "${previous_seed_label}"
   test "$(gojq -r '.[0]["seed-refresh"]' seeded-systems.json)" = true
-  test "$(gojq -r '.[1].system' seeded-systems.json)" = "${orig_seed_label}"
   test "$(gojq -r '.system' default-recovery-system.json)" = "${latest_seed_label}"
-  test "$(gojq '[.[] | select(."seed-refresh" == true)] | length' seeded-systems.json)" = 1
-
-  # verify the refreshed snaps are present in the seed
   remote.exec "test -d /run/mnt/ubuntu-seed/systems/${latest_seed_label}"
-  assert_seed_snap_revisions_present "${latest_seed_label}" "${base_snap}=${revision}" "pc-kernel=${revision}" "${test_snap_name}=${revision}"
-  assert_seed_snap_revisions_present "${orig_seed_label}" "${base_snap}=1" pc-kernel=1 "${test_snap_name}=1"
-
-  # boot into the newest recovery system and verify the refreshed snaps are
-  # present there too
-  boot_id="$(tests.nested boot-id)"
-  remote.exec 'sudo snap reboot --recover' || true
-  remote.wait-for reboot "${boot_id}"
-  remote.wait-for snap-command
-  remote.exec 'sudo snap wait system seed.loaded'
-
-  remote.exec 'cat /proc/cmdline' | MATCH 'snapd_recovery_mode=recover'
-  remote.exec 'sudo cat /var/lib/snapd/modeenv' > modeenv.recover
-  MATCH 'mode=recover' < modeenv.recover
-  MATCH "recovery_system=${latest_seed_label}" < modeenv.recover
-
-  assert_live_snap_revisions "${base_snap}=2" pc-kernel=2 "${test_snap_name}=2"
+  assert_seed_snap_revisions_present "${latest_seed_label}" "${snap_name}=2"
