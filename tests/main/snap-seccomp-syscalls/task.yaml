@@ -1,3 +1,5 @@
+# TODO: move this test to a separate, periodically executed, test suite
+
 summary: Ensure that we accounted for all syscalls known to libseccomp
 
 details: |

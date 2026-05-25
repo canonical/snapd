@@ -20,7 +20,7 @@
 package syscalls
 
 // Generated using arch-syscall-dump test tool from libseccomp tree, git
-// revision 42b596818635bf9d1cae54fa87e8c7b2e16869d3.
+// revision 7e95f5b92c8fb5f2a21ef388111450773cb7d06a
 var SeccompSyscalls = []string{
 	"_llseek",
 	"_newselect",
@@ -108,6 +108,8 @@ var SeccompSyscalls = []string{
 	"fcntl64",
 	"fdatasync",
 	"fgetxattr",
+	"file_getattr",
+	"file_setattr",
 	"finit_module",
 	"flistxattr",
 	"flock",
@@ -214,6 +216,7 @@ var SeccompSyscalls = []string{
 	"linkat",
 	"listen",
 	"listmount",
+	"listns",
 	"listxattr",
 	"listxattrat",
 	"llistxattr",
@@ -283,6 +286,7 @@ var SeccompSyscalls = []string{
 	"open",
 	"open_by_handle_at",
 	"open_tree",
+	"open_tree_attr",
 	"openat",
 	"openat2",
 	"pause",
@@ -348,6 +352,7 @@ var SeccompSyscalls = []string{
 	"riscv_hwprobe",
 	"rmdir",
 	"rseq",
+	"rseq_slice_yield",
 	"rt_sigaction",
 	"rt_sigpending",
 	"rt_sigprocmask",
@@ -503,6 +508,7 @@ var SeccompSyscalls = []string{
 	"unlink",
 	"unlinkat",
 	"unshare",
+	"uprobe",
 	"uretprobe",
 	"uselib",
 	"userfaultfd",
