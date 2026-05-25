@@ -1797,6 +1797,7 @@ suites:
             fi
         restore-each: |
             "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
+            "$TESTSLIB"/collect-artifacts.sh coverage --after-nested-task
             tests.nested vm remove
             tests.nested restore
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
@@ -1861,6 +1862,7 @@ suites:
             tests.nested create-vm classic
         restore-each: |
             "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
+            "$TESTSLIB"/collect-artifacts.sh coverage --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |
@@ -1875,6 +1877,7 @@ suites:
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
+            - garden
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
@@ -1935,6 +1938,7 @@ suites:
             tests.nested create-vm core
         restore-each: |
             "$TESTSLIB"/collect-artifacts.sh features --after-nested-task
+            "$TESTSLIB"/collect-artifacts.sh coverage --after-nested-task
             tests.nested vm remove
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each
         restore: |

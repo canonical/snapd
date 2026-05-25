@@ -655,6 +655,68 @@ def task_list(retriever: Retriever, timestamp: str) -> set[TaskIdVariant]:
     return tasks
 
 
+def clean_dictionary(features: SystemFeatures, remove_snap_types: bool) -> None:
+    '''
+    Removes snap types from the features dictionary.
+    '''
+    for test in features['tests']:
+        if 'tasks' in test:
+            for task in test['tasks']:
+                if remove_snap_types and 'snap_types' in task:
+                    del task['snap_types']
+                if 'last_status' in task and task['last_status'] != 'Done' and task['last_status'] != 'Undone' and task['last_status'] != 'Error':
+                    del task['last_status']
+        if remove_snap_types and 'changes' in test:
+            for change in test['changes']:
+                if 'snap_types' in change:
+                    del change['snap_types']
+        if remove_snap_types and 'interfaces' in test:
+            del test['interfaces']
+            # for interface in test['interfaces']:                            
+            #     if 'plug_snap_type' in interface:
+            #         del interface['plug_snap_type']
+            #     if 'slot_snap_type' in interface:
+            #         del interface['slot_snap_type']
+
+
+def find_tasks_with_isolated_features(system_json: SystemFeatures) -> set[TaskIdVariant]:
+    '''
+    Finds all tasks that have at least one feature that no other task has.
+    '''
+    feature_to_tasks = defaultdict(set)
+    for test in system_json['tests']:
+        task_id = TaskIdVariant(suite=test['suite'], task_name=test['task_name'], variant=test['variant'])
+        for feature_name in KNOWN_FEATURES:
+            if feature_name in test:
+                for feature in test[feature_name]:
+                    feature_to_tasks[(feature_name, json.dumps(feature, sort_keys=True))].add(task_id)
+    
+    isolated_tasks = set()
+    for tasks in feature_to_tasks.values():
+        if len(tasks) == 1:
+            isolated_tasks.update(tasks)
+    return isolated_tasks
+
+
+def minimal_coverage(retriever: Retriever, timestamp: str, system: str, match_snap_types: bool = False) -> set[TaskIdVariant]:
+    '''
+    Given a timestamp and system, gets the minimal set of tasks that cover the same features as the entire system.
+    '''
+    system_json = retriever.get_single_json(timestamp, system)
+    clean_dictionary(system_json, not match_snap_types)
+    tasks = system_json['tests']
+    covered_features = {}
+    minimal_tasks = find_tasks_with_isolated_features(system_json)
+    for task in tasks:
+        task_id = TaskIdVariant(suite=task['suite'], task_name=task['task_name'], variant=task['variant'])
+        task_features = {key: value for key, value in task.items() if key in KNOWN_FEATURES}
+        new_covered = minus(task_features, covered_features)
+        if new_covered:
+            minimal_tasks.add(task_id)
+            covered_features = union(covered_features, task_features)
+    return minimal_tasks
+
+
 def add_data_source_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-f', '--file', help='json file containing creds for mongodb', type=argparse.FileType('r', encoding='utf-8'))
     parser.add_argument('-d', '--dir', help='folder containing feature data', type=str)
@@ -785,6 +847,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     cmd_all = 'all'
     cmd_sys = 'sys'
     cmd_find = 'find'
+    cmd_cover = 'cover'
     feat: argparse.ArgumentParser = subparsers.add_parser(cmd, help='', description='')
     feat_subparsers = feat.add_subparsers(dest='features_cmd')
     all = feat_subparsers.add_parser(cmd_all, help='lists all features at a given timestamp',
@@ -811,7 +874,15 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     find.add_argument('--feat', help='feature to search for (json format)', required=True, type=str)
     find.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     find.add_argument('--match-snap-types', help='match the entire feature, including snap types', action='store_true')
-    return cmd, cmd_all, cmd_sys, cmd_find
+
+    cover = feat_subparsers.add_parser(cmd_cover, help='find the minimal set of tests that cover all features of a system',
+                                     description='Lists minimal set of tests that cover all features of a system')
+    add_data_source_args(cover)
+    cover.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
+    cover.add_argument('-s', '--system', help='system to search for feature in', required=True, type=str)
+    cover.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
+    cover.add_argument('--match-snap-types', help='match the entire feature, including snap types', action='store_true')
+    return cmd, cmd_all, cmd_sys, cmd_find, cmd_cover
 
 
 def main():
@@ -823,7 +894,7 @@ def main():
     dup_cmd = add_dup_parser(subparsers)
     export_cmd = add_export_parser(subparsers)
     list_cmd = add_list_parser(subparsers)
-    feat_cmd, feat_all_cmd, feat_sys_cmd, feat_find_cmd = add_all_features_parser(subparsers)
+    feat_cmd, feat_all_cmd, feat_sys_cmd, feat_find_cmd, feat_cover_cmd = add_all_features_parser(subparsers)
 
     args = parser.parse_args()
 
@@ -882,6 +953,9 @@ def main():
                     json.dump(result, sys.stdout, default=lambda x: str(x))
                 except Exception as e:
                     raise RuntimeError(f'Error parsing feature {args.feat}: {e}')
+            elif args.features_cmd == feat_cover_cmd:
+                result = minimal_coverage(retriever, args.timestamp, args.system, args.match_snap_types)
+                json.dump(result, sys.stdout, default=lambda x: str(x))
             else:
                 raise RuntimeError(f'unrecognized feature command {args.features_cmd}')
             print()

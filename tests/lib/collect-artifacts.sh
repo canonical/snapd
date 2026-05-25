@@ -38,11 +38,18 @@ locks(){
     cp -f "$TESTSTMP"/snapd_lock_traces "$task_dir"
 }
 
-coverage() {
+coverage_after_non_nested_task() {
     # Copy the coverage files to the artifacts directory
     local task_dir
     task_dir="$(_prepare_artifacts_path coverage-results)"
     cp -f "$TESTSTMP"/coverage/* "$task_dir" || true
+}
+
+coverage_after_nested_task() {
+    # Copy the coverage files to the artifacts directory
+    local task_dir
+    task_dir="$(_prepare_artifacts_path coverage-results)"
+    "$TESTSTOOLS"/remote.pull "$TESTSTMP"/coverage/* "$task_dir" || true
 }
 
 if [ "$#" == 0 ]; then
@@ -84,7 +91,18 @@ case "$artifact" in
         if [ "$GENERATE_COVERAGE" = "false" ]; then
             exit
         fi
-        coverage
+        case "$1" in
+            --after-non-nested-task)
+                coverage_after_non_nested_task
+                ;;
+            --after-nested-task)
+                coverage_after_nested_task
+                ;;
+            *)
+                echo "collect-artifacts: unsupported action $1" >&2
+                exit 1
+                ;;
+        esac
         ;;
     *)
         echo "collect-artifacts: unsupported argument: $1"

@@ -1882,6 +1882,11 @@ nested_prepare_tools() {
         # start the service (it pulls up the socket)
         remote.exec "sudo systemctl start snapd.service"
     fi
+
+    if [ -n "$GENERATE_COVERAGE" ] && ! remote.exec "grep -q '^GOCOVERDIR' /etc/environment"; then
+        remote.exec "sudo mkdir -p $TESTSTMP/coverage"
+        remote.exec "echo GOCOVERDIR=$TESTSTMP/coverage | sudo tee -a /etc/environment"
+    fi
 }
 
 nested_add_tty_chardev() {
