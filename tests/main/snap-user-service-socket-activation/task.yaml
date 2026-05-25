@@ -27,29 +27,31 @@ debug: |
     tests.session -u test exec systemctl --user status snapd.session-agent.service || true
     tests.session -u test exec journalctl --user || true
 
+    echo "socket file and parent permissions"
+    ls -ld ~test ~test/snap ~test/snap/test-snapd-user-service-sockets ~test/snap/test-snapd-user-service-sockets/common || true
+    ls -l ~test/snap/test-snapd-user-service-sockets/common/common.sock || true
+    stat ~test/snap/test-snapd-user-service-sockets/common/common.sock || true
+
+    echo "socket listeners (user session)"
+    tests.session -u test exec ss -xlpn | grep -F 'test-snapd-user-service-sockets/common/common.sock' || true
+
+    echo "direct nc stderr for common.sock"
+    tests.session -u test exec nc -v -w 30 -U /home/test/snap/test-snapd-user-service-sockets/common/common.sock || true
+
 execute: |
     echo "When the service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-sockets
 
     echo "And the user mode systemd instance is started"
     tests.session -u test prepare
-    # Staring with Ubuntu 25.04, many programs gain dedicated apparmor
-    # profiles.  This includes the nc program which is now confined and does
-    # not allow for cap_dac_override required to traverse /run/user/$(id -u
-    # test)/ or /home/test, which do not have o+x permission.  As such, poke a
-    # small hole to allow that.
-    HOME_TEST_MODE="$(stat -c '%a' ~test)"
-    chmod +x /run/user/"$(id -u test)" ~test
-    # The runtime directory will be removed by now.
-    tests.cleanup defer chmod "$HOME_TEST_MODE" ~test
 
     echo "It's sockets are created in the test user's directories and activate the service"
     [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
-    nc -w 30 -U ~test/snap/test-snapd-user-service-sockets/common/common.sock | MATCH "Connected to common"
+    tests.session -u test exec nc -w 30 -U /home/test/snap/test-snapd-user-service-sockets/common/common.sock | MATCH "Connected to common"
 
     [ -S ~test/snap/test-snapd-user-service-sockets/x1/data.sock ]
-    nc -w 30 -U ~test/snap/test-snapd-user-service-sockets/x1/data.sock | MATCH "Connected to data"
+    tests.session -u test exec nc -w 30 -U /home/test/snap/test-snapd-user-service-sockets/x1/data.sock | MATCH "Connected to data"
 
     USER_RUNTIME_DIR="/run/user/$(id -u test)"
     [ -S "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock ]
-    nc -w 30 -U "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock | MATCH "Connected to runtime"
+    tests.session -u test exec nc -w 30 -U "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock | MATCH "Connected to runtime"
