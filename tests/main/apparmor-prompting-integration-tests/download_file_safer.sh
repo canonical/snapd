@@ -48,8 +48,8 @@ fi
 
 # Rules with identical path patterns are merged, so we don't expect any rules
 # with duplicate path patterns.
-snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep '^[[:space:]]*1[[:space:]]'
-! snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep -q '^[[:space:]]*[^1[[:space:]]]'
+snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep '^[[:space:]]*1[[:space:]]'
+! snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep -qE '^[[:space:]]*([2-9]|1[0-9])[0-9]*[[:space:]]'
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 
