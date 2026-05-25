@@ -1656,7 +1656,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, opts)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
 	if err != nil {
 		return nil, false, nil, err
 	}

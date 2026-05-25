@@ -2760,7 +2760,7 @@ func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRes
 		{
 			InstanceName: s.model.Kernel(),
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(added, DeepEquals, map[string]bool{s.model.Kernel(): true})
 	c.Assert(seedTS, NotNil)

@@ -35,6 +35,15 @@ type SeedRefreshTaskSet struct {
 	Remove   []*state.Task
 }
 
+// SeedRefreshEvictionPolicy carries the seed-refresh system pruning policy
+// selected by snapstate for the current operation.
+type SeedRefreshEvictionPolicy struct {
+	// SeedsToRetain is the number of existing seed-refresh systems to keep.
+	SeedsToRetain int
+	// ReplaceLatest forces removal of the newest existing seed-refresh system.
+	ReplaceLatest bool
+}
+
 // SeedRefreshCandidate carries information about a snap that might trigger a
 // seed refresh.
 type SeedRefreshCandidate struct {
@@ -51,7 +60,7 @@ type SeedRefreshCandidate struct {
 
 // SeedRefreshTasks is set by devicestate to avoid an import cycle. See
 // devicestate.SeedRefreshTasks.
-var SeedRefreshTasks = func(st *state.State, dctx DeviceContext, candidates []SeedRefreshCandidate) (*SeedRefreshTaskSet, map[string]bool, error) {
+var SeedRefreshTasks = func(st *state.State, dctx DeviceContext, candidates []SeedRefreshCandidate, eviction SeedRefreshEvictionPolicy) (*SeedRefreshTaskSet, map[string]bool, error) {
 	panic("internal error: snapstate.SeedRefreshTasks is unset")
 }
 
@@ -112,7 +121,7 @@ func changeHasPendingSeedRefresh(chg *state.Change) bool {
 
 // seedRefreshAndSeedSnapTaskSets returns the seed-refresh tasks and the task
 // sets for snaps that are involved in the seed refresh.
-func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
+func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, eviction SeedRefreshEvictionPolicy, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
 	enabled, err := seedRefreshEnabled(st)
 	if err != nil {
 		return nil, nil, err
@@ -142,7 +151,7 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 		candidates = append(candidates, candidate)
 	}
 
-	seedTS, added, err := SeedRefreshTasks(st, deviceCtx, candidates)
+	seedTS, added, err := SeedRefreshTasks(st, deviceCtx, candidates, eviction)
 	if err != nil {
 		return nil, nil, err
 	}

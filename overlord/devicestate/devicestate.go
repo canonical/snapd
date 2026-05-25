@@ -1767,10 +1767,14 @@ func removeRecoverySystemTask(st *state.State, label string) *state.Task {
 // tasks needed to refresh the seed managed by seed-refresh mode, plus the snap
 // names selected for that seed refresh. The selected setup task IDs are written
 // into the recovery-system setup payload so the new seed can consume the
-// refreshed snaps and components. Older seed-refresh systems are removed so
-// that, after finalize records the new system, the two most recently created
-// seed-refresh systems remain tracked.
-func SeedRefreshTasks(st *state.State, dctx snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+// refreshed snaps and components. Older seed-refresh systems are removed
+// according to the selected seed eviction policy.
+func SeedRefreshTasks(
+	st *state.State,
+	dctx snapstate.DeviceContext,
+	candidates []snapstate.SeedRefreshCandidate,
+	eviction snapstate.SeedRefreshEvictionPolicy,
+) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
 	triggers := seedRefreshTriggers(st, dctx)
 
 	var snapsups, compsups []string
@@ -1821,7 +1825,7 @@ func SeedRefreshTasks(st *state.State, dctx snapstate.DeviceContext, candidates 
 		return nil, nil, errors.New("internal error: expected create and finalize recovery system tasks")
 	}
 
-	removeLabels, err := seedRefreshLabelsToRemove(st)
+	removeLabels, err := seedRefreshLabelsToRemove(st, eviction)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -2005,7 +2009,11 @@ func appendUnique(slice []string, additions ...string) []string {
 // seedRefreshLabelsToRemove returns the existing seed-refresh systems that
 // should be removed after the next seed-refresh finalize-recovery-system task
 // runs.
-func seedRefreshLabelsToRemove(st *state.State) ([]string, error) {
+func seedRefreshLabelsToRemove(st *state.State, eviction snapstate.SeedRefreshEvictionPolicy) ([]string, error) {
+	if eviction.SeedsToRetain < 1 {
+		return nil, fmt.Errorf("internal error: must retain at least 1 seed, got %d", eviction.SeedsToRetain)
+	}
+
 	var systems []seededSystem
 	if err := st.Get("seeded-systems", &systems); err != nil {
 		if errors.Is(err, state.ErrNoState) {
@@ -2014,22 +2022,27 @@ func seedRefreshLabelsToRemove(st *state.State) ([]string, error) {
 		return nil, err
 	}
 
-	seenSeedRefresh := false
-	removals := make([]string, 0, len(systems))
+	seedRefreshLabels := make([]string, 0, len(systems))
 	for _, system := range systems {
-		if !system.SeedRefresh {
-			continue
+		if system.SeedRefresh {
+			seedRefreshLabels = append(seedRefreshLabels, system.System)
 		}
+	}
 
-		// keep the newest existing seed-refresh entry. finalize-recovery-system
-		// will prepend the new one later, leaving the two most recently created
-		// seed-refresh systems
-		if !seenSeedRefresh {
-			seenSeedRefresh = true
-			continue
-		}
+	removals := make([]string, 0, len(systems))
+	remaining := seedRefreshLabels
 
-		removals = append(removals, system.System)
+	// seeded-systems is stored newest-first. ReplaceLatest is the explicit
+	// exception to keeping newest seed-refresh systems first.
+	if eviction.ReplaceLatest && len(remaining) != 0 {
+		removals = append(removals, remaining[0])
+		remaining = remaining[1:]
+	}
+
+	for len(remaining) > eviction.SeedsToRetain {
+		oldest := remaining[len(remaining)-1]
+		removals = append(removals, oldest)
+		remaining = remaining[:len(remaining)-1]
 	}
 
 	return removals, nil

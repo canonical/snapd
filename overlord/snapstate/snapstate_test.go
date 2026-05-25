@@ -83,6 +83,7 @@ func TestSnapManager(t *testing.T) { TestingT(t) }
 type observedSeedRefreshCandidates struct {
 	initial       [][]snapstate.SeedRefreshCandidate
 	prerequisites []snapstate.SeedRefreshCandidate
+	evictions     []snapstate.SeedRefreshEvictionPolicy
 }
 
 func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, func()) {
@@ -96,8 +97,9 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 	var observed observedSeedRefreshCandidates
 	var currentSeedTS *snapstate.SeedRefreshTaskSet
 
-	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, eviction snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
 		observed.initial = append(observed.initial, candidates)
+		observed.evictions = append(observed.evictions, eviction)
 
 		added := make(map[string]bool, len(candidates))
 		for _, candidate := range candidates {

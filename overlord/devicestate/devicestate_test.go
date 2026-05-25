@@ -2152,7 +2152,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksSkipsOpeningSeed(c *C) {
 			InstanceName:     "snap-not-in-model",
 			SnapSetupTaskIDs: []string{otherDwnload.ID()},
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
 	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
@@ -2189,7 +2189,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 			InstanceName:     "snap-2",
 			SnapSetupTaskIDs: []string{tSnap2.ID()},
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true, "snap-2": true})
 
@@ -2245,7 +2245,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksComponentExclusive(c *C) {
 			InstanceName:          "snap-1",
 			ComponentSetupTaskIDs: []string{compTask1.ID(), compTask2.ID()},
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
 	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
@@ -2285,7 +2285,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 			InstanceName:     "snap-1",
 			SnapSetupTaskIDs: []string{tSnap.ID()},
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
 
@@ -2305,7 +2305,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) 
 	c.Check(systemSetupData["test-system"], Equals, true)
 }
 
-func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksEvictionPolicy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2314,11 +2314,12 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
 	})
 	defer restore()
 
+	// non-seed-refresh entry interleaved to verify it is correctly skipped
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
-		{System: "current-seed-refresh", SeedRefresh: true},
+		{System: "newest-seed-refresh", SeedRefresh: true},
 		{System: "non-seed-refresh"},
-		{System: "old-seed-refresh-1", SeedRefresh: true},
-		{System: "old-seed-refresh-2", SeedRefresh: true},
+		{System: "middle-seed-refresh", SeedRefresh: true},
+		{System: "oldest-seed-refresh", SeedRefresh: true},
 	})
 	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
 		{"name": "snapd", "type": "snapd"},
@@ -2329,17 +2330,19 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
 	})
 	tSnap := s.state.NewTask("fake-download", "...")
 
-	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
-		{
-			InstanceName:     "snap-1",
-			SnapSetupTaskIDs: []string{tSnap.ID()},
-		},
-	})
+	candidate := []snapstate.SeedRefreshCandidate{{
+		InstanceName:     "snap-1",
+		SnapSetupTaskIDs: []string{tSnap.ID()},
+	}}
+
+	// SeedsToRetain only: the two oldest seed-refresh entries beyond the
+	// retention limit are removed
+	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, candidate,
+		snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
 	c.Assert(seedTS.Remove, HasLen, 2)
 	c.Check(seedTS.Remove[0].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})
-	c.Check(seedTS.Remove[1].WaitTasks(), DeepEquals, []*state.Task{seedTS.Finalize})
 
 	var labels []string
 	for _, remove := range seedTS.Remove {
@@ -2347,8 +2350,55 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAddsPruneTasks(c *C) {
 		c.Assert(remove.Get("remove-recovery-system-setup", &setup), IsNil)
 		labels = append(labels, setup["label"].(string))
 	}
+	c.Check(labels, testutil.DeepUnsortedMatches, []string{"middle-seed-refresh", "oldest-seed-refresh"})
 
-	c.Check(labels, testutil.DeepUnsortedMatches, []string{"old-seed-refresh-1", "old-seed-refresh-2"})
+	// ReplaceLatest replaces the newest seed-refresh with the incoming one,
+	// then SeedsToRetain removes the oldest beyond the retention limit
+	seedTS, added, err = devicestate.SeedRefreshTasks(s.state, dctx, candidate,
+		snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1, ReplaceLatest: true})
+	c.Assert(err, IsNil)
+	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
+	c.Assert(seedTS.Remove, HasLen, 2)
+
+	labels = nil
+	for _, remove := range seedTS.Remove {
+		var setup map[string]any
+		c.Assert(remove.Get("remove-recovery-system-setup", &setup), IsNil)
+		labels = append(labels, setup["label"].(string))
+	}
+	c.Check(labels, testutil.DeepUnsortedMatches, []string{"newest-seed-refresh", "oldest-seed-refresh"})
+}
+
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksInvalidEvictionPolicy(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 9, 0, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{System: "some-seed-refresh", SeedRefresh: true},
+	})
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-1"},
+	})
+	candidate := []snapstate.SeedRefreshCandidate{{
+		InstanceName:     "snap-1",
+		SnapSetupTaskIDs: []string{s.state.NewTask("fake-download", "...").ID()},
+	}}
+
+	_, _, err := devicestate.SeedRefreshTasks(
+		s.state, dctx, candidate,
+		snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 0},
+	)
+	c.Assert(err, ErrorMatches, `internal error: must retain at least 1 seed, got 0`)
 }
 
 func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
@@ -2473,7 +2523,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksSkipsOptionalSnapNotInCurrent
 			InstanceName:     "snap-1",
 			SnapSetupTaskIDs: []string{s.state.NewTask("fake-download", "...").ID()},
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Check(seedTS, IsNil)
 	c.Check(added, IsNil)
