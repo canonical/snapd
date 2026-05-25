@@ -80,11 +80,17 @@ execute: |
     # but consumer_c2 mount ns remains untouched
     test -e /run/snapd/ns/test-snapd-content-consumer_c2.mnt
 
-    # we observe the modified content (which recreates the mount ns0)
+    # we observe the modified content (which recreates the mount ns)
     test-snapd-content-consumer.app |& tee out-after.1
-    MATCH '^connected-content: special content mod v1$' < out-after.1
-    MATCH '^connected-content-2: special content v1$'   < out-after.1
-    MATCH '^connected-content-v2: special content v2$'  < out-after.1
+    # the ordering of connected-content and connected-content-2 is
+    # non-deterministic (map iteration in the interface repository)
+    if MATCH '^connected-content: special content mod v1$' < out-after.1; then
+        MATCH '^connected-content-2: special content v1$' < out-after.1
+    else
+        MATCH '^connected-content: special content v1$' < out-after.1
+        MATCH '^connected-content-2: special content mod v1$' < out-after.1
+    fi
+    MATCH '^connected-content-v2: special content v2$' < out-after.1
 
     # the output hasn't changed
     test-snapd-content-consumer_c2.app |& tee out_c2-after.1
@@ -102,9 +108,14 @@ execute: |
     test ! -e /run/snapd/ns/test-snapd-content-consumer_c2.mnt
 
     test-snapd-content-consumer.app |& tee out-after.2
-    # p1 changed
-    MATCH '^connected-content: special content mod v1$'    < out-after.2
-    MATCH '^connected-content-2: special content v1$'      < out-after.2
+    # p1 changed, ordering of connected-content and connected-content-2 is
+    # non-deterministic
+    if MATCH '^connected-content: special content mod v1$' < out-after.2; then
+        MATCH '^connected-content-2: special content v1$' < out-after.2
+    else
+        MATCH '^connected-content: special content v1$' < out-after.2
+        MATCH '^connected-content-2: special content mod v1$' < out-after.2
+    fi
     # p-v2 changed
     MATCH '^connected-content-v2: special content mod v2$' < out-after.2
 
