@@ -1609,6 +1609,8 @@ suites:
     tests/cross/:
         summary: Cross-compile tests
         systems: [ubuntu-24.04-64]
+        prepare: |
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
