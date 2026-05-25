@@ -144,6 +144,9 @@ environment:
     # Whether snapd should skip early refreshes.
     SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
+    GENERATE_COVERAGE: '$(HOST: echo "${SPREAD_GENERATE_COVERAGE:-false}")'
+    GOCOVERDIR: $TESTSTMP/coverage
+
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
@@ -1058,6 +1061,7 @@ artifacts:
     - feature-tags
     # Populated with feature tag information when SPREAD_SNAPD_STATE_LOCK_TRACE_THRESHOLD_MS is set.
     - state-locks
+    - coverage-results
 
 exclude:
     - .git

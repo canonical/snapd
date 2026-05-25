@@ -773,12 +773,16 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    mkdir -p "$TESTSTMP"/coverage 
+    rm -f "$TESTSTMP"/coverage/*
 }
 
 restore_suite_each() {
     if not tests.nested is-nested; then
         "$TESTSLIB"/collect-artifacts.sh features --after-non-nested-task
         "$TESTSLIB"/collect-artifacts.sh locks
+        "$TESTSLIB"/collect-artifacts.sh coverage
     fi
     local variant="$1"
 
