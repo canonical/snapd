@@ -36,12 +36,6 @@ import (
 // AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
 type AtomicWriteFlags uint
 
-const (
-	// AtomicWriteFollow makes AtomicWriteFile follow symlinks. If set, then the
-	// provided path must exist and be a symlink.
-	AtomicWriteFollow AtomicWriteFlags = 1 << iota
-)
-
 // Allow disabling sync for testing. This brings massive improvements on
 // certain filesystems (like btrfs) and very much noticeable improvements in
 // all unit tests in genreal.
@@ -70,8 +64,7 @@ type AtomicFile struct {
 //	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
-// the real file, unless the AtomicWriteFollow flag is specified. If that flag
-// is specified, then the filename must be an existing symlink.
+// the real file.
 //
 // It is the caller's responsibility to clean up on error, by calling Cancel().
 //
@@ -81,18 +74,7 @@ type AtomicFile struct {
 // Also note that there are a number of scenarios where Commit fails and then
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
-func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
-	if flags&AtomicWriteFollow != 0 {
-		fn, err := os.Readlink(filename)
-		if err != nil {
-			return nil, fmt.Errorf("cannot follow existing symlink %q: %w", filename, err)
-		}
-		if filepath.IsAbs(fn) {
-			filename = fn
-		} else {
-			filename = filepath.Join(filepath.Dir(filename), fn)
-		}
-	}
+func NewAtomicFile(filename string, perm os.FileMode, _flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
 	// The tilde is appended so that programs that inspect all files in some
 	// directory are more likely to ignore this file as an editor backup file.
 	//
@@ -237,20 +219,20 @@ func (aw *AtomicFile) CommitAs(filename string) error {
 // []byte, and so work exactly like io.WriteFile(); AtomicWrite and
 // AtomicWriteChown take an io.Reader which is copied into the file instead,
 // and so are more amenable to streaming.
-func AtomicWrite(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags) (err error) {
-	return AtomicWriteChown(filename, reader, perm, flags, NoChown, NoChown)
+func AtomicWrite(filename string, reader io.Reader, perm os.FileMode, _flags AtomicWriteFlags) (err error) {
+	return AtomicWriteChown(filename, reader, perm, _flags, NoChown, NoChown)
 }
 
-func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags) (err error) {
-	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, NoChown, NoChown)
+func AtomicWriteFile(filename string, data []byte, perm os.FileMode, _flags AtomicWriteFlags) (err error) {
+	return AtomicWriteChown(filename, bytes.NewReader(data), perm, _flags, NoChown, NoChown)
 }
 
-func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
-	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, uid, gid)
+func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, _flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
+	return AtomicWriteChown(filename, bytes.NewReader(data), perm, _flags, uid, gid)
 }
 
-func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
-	aw, err := NewAtomicFile(filename, perm, flags, uid, gid)
+func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, _flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
+	aw, err := NewAtomicFile(filename, perm, _flags, uid, gid)
 	if err != nil {
 		return err
 	}
