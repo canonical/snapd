@@ -107,14 +107,22 @@ type fakeExtKeypairMgrBackendWithoutByNameLookup struct {
 	fakeExtKeypairMgrBackendBase
 }
 
-func (s *extKeypairMgrImplSuite) newLoadedKey(c *check.C, name string, keyHandle string) (*rsa.PrivateKey, *extKeypairMgrLoadedKey) {
-	privKey, err := rsa.GenerateKey(rand.Reader, 4096)
+func (s *extKeypairMgrImplSuite) newLoadedKeyBits(c *check.C, name string, keyHandle string, bits int) (*rsa.PrivateKey, *extKeypairMgrLoadedKey) {
+	privKey, err := rsa.GenerateKey(rand.Reader, bits)
 	c.Assert(err, check.IsNil)
 	return privKey, &extKeypairMgrLoadedKey{
 		name:      name,
 		keyHandle: keyHandle,
 		pubKey:    RSAPublicKey(&privKey.PublicKey),
 	}
+}
+
+func (s *extKeypairMgrImplSuite) newLoadedKey(c *check.C, name string, keyHandle string) (*rsa.PrivateKey, *extKeypairMgrLoadedKey) {
+	return s.newLoadedKeyBits(c, name, keyHandle, 1024)
+}
+
+func (s *extKeypairMgrImplSuite) newSigningLoadedKey(c *check.C, name string, keyHandle string) (*rsa.PrivateKey, *extKeypairMgrLoadedKey) {
+	return s.newLoadedKeyBits(c, name, keyHandle, 4096)
 }
 
 func (s *extKeypairMgrImplSuite) TestLoadByNameCachesExportAndPrivateKey(c *check.C) {
@@ -421,7 +429,7 @@ func (s *extKeypairMgrImplSuite) TestGetMissingUsesKeyStoreError(c *check.C) {
 }
 
 func (s *extKeypairMgrImplSuite) TestRSAPKCSSigningUsesKeyHandle(c *check.C) {
-	privKey, loaded := s.newLoadedKey(c, "default", "rsa-handle")
+	privKey, loaded := s.newSigningLoadedKey(c, "default", "rsa-handle")
 	backend := &fakeExtKeypairMgrBackend{
 		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
 			signingMethod: extKeypairMgrSigningRSAPKCS,
@@ -447,7 +455,7 @@ func (s *extKeypairMgrImplSuite) TestRSAPKCSSigningUsesKeyHandle(c *check.C) {
 }
 
 func (s *extKeypairMgrImplSuite) TestOpenPGPSigningUsesKeyHandle(c *check.C) {
-	privKey, loaded := s.newLoadedKey(c, "default", "pgp-handle")
+	privKey, loaded := s.newSigningLoadedKey(c, "default", "pgp-handle")
 	backend := &fakeExtKeypairMgrBackend{
 		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
 			signingMethod: extKeypairMgrSigningOpenPGP,
@@ -473,7 +481,7 @@ func (s *extKeypairMgrImplSuite) TestOpenPGPSigningUsesKeyHandle(c *check.C) {
 }
 
 func (s *extKeypairMgrImplSuite) TestOpenPGPSigningInvalidPacketUsesSigningWithInError(c *check.C) {
-	_, loaded := s.newLoadedKey(c, "default", "pgp-handle")
+	_, loaded := s.newSigningLoadedKey(c, "default", "pgp-handle")
 	backend := &fakeExtKeypairMgrBackend{
 		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
 			signingMethod: extKeypairMgrSigningOpenPGP,
