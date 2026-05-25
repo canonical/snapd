@@ -15,7 +15,7 @@ mkdir -p "${TEST_DIR}/Downloads"
 touch "${TEST_DIR}/Downloads/existing.txt"
 
 echo "Attempt to list the contents of the downloads directory"
-if ! snap run --shell prompt-requester.home -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
+if ! snap run --shell prompt-requester.home -c "ls ${TEST_DIR}/Downloads" | grep -F "existing.txt" ; then
 	echo "Failed to list contents of ${TEST_DIR}/Downloads"
 	exit 1
 fi
@@ -48,8 +48,7 @@ fi
 
 # Rules with identical path patterns are merged, so we don't expect any rules
 # with duplicate path patterns.
-snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | sort | uniq -d | wc -l | MATCH '^0$'
-! snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | sort | uniq -d | wc -l | MATCH '^0$'
+snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep -F "${TEST_DIR}" | sort | uniq -d | wc -l | MATCH '^0$'
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 
