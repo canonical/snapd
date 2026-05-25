@@ -38,6 +38,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
     - name: Add Auto rerun spread label after second approval
       run: |
         if [ "${{ github.event.pull_request.draft }}" = "true" ]; then
