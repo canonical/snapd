@@ -202,46 +202,38 @@ func (iface *contentInterface) path(attrs interfaces.Attrer, name string) []stri
 	return out
 }
 
-type resolveSide int
-
-const (
-	sourceSide resolveSide = iota
-	targetSide
-)
-
 // resolveSpecialVariable resolves one of the three $SNAP* variables at the
 // beginning of a given path. The variables are $SNAP, $SNAP_DATA and
 // $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
-// (this is the behavior that was used before the variables were supported).
-// Depending on the context in which the variable is resolved, $SNAP may mean
-// the actual snap instance.
-func resolveSpecialVariable(path string, snapInfo *snap.Info, forSide resolveSide) string {
-	// The source of the mount should always use a full snap instance name,
-	// thus ensuring we consume content from the exact connected instance,
-	// rather than from a snap without the instance key.
-	persp := snap.PerspectiveSelf
-	if forSide == sourceSide {
-		persp = snap.PerspectiveOther
-	}
+// (this is the behavior that was used before the variables were supported). The
+// perspective parameter controls how $SNAP is expanded accounting for features
+// like parallel installs: PerspectiveOther uses the most precise instance name
+// (e.g. snap_key), while PerspectiveSelf uses the snap name (e.g. snap).
+func resolveSpecialVariable(path string, snapInfo *snap.Info, perspective snap.ExpandSnapPerspective) string {
 	// Content cannot be mounted at arbitrary locations, validate the path
 	// for extra safety.
 	if err := snap.ValidatePathVariables(path); err == nil && strings.HasPrefix(path, "$") {
 		// The path starts with $ and ValidatePathVariables() ensures
 		// path contains only $SNAP, $SNAP_DATA, $SNAP_COMMON, and no
 		// other $VARs are present.
-		return snapInfo.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, persp)
+		return snapInfo.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, perspective)
 	}
 	// Always prefix with $SNAP if nothing else is provided or the path
 	// contains invalid variables.
-	return snapInfo.ExpandSnapVariablesSetSnapMountDir(filepath.Join("$SNAP", path), dirs.CoreSnapMountDir, persp)
+	return snapInfo.ExpandSnapVariablesSetSnapMountDir(filepath.Join("$SNAP", path), dirs.CoreSnapMountDir, perspective)
 }
 
 func sourceTarget(plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot, relSrc string) (string, string) {
 	var target string
 	// The 'target' attribute has already been verified in BeforePreparePlug.
 	_ = plug.Attr("target", &target)
-	source := resolveSpecialVariable(relSrc, slot.Snap(), sourceSide)
-	target = resolveSpecialVariable(target, plug.Snap(), targetSide)
+	// Source uses PerspectiveOther to resolve $SNAP to the provider's instance
+	// name, ensuring we mount content from the exact connected instance (which
+	// could be parallel installed) rather than a default instance without the
+	// instance key.
+	source := resolveSpecialVariable(relSrc, slot.Snap(), snap.PerspectiveOther)
+	// Target uses PerspectiveSelf as the consumer sees its own snap name.
+	target = resolveSpecialVariable(target, plug.Snap(), snap.PerspectiveSelf)
 
 	// Check if the "source" section is present.
 	var unused map[string]any
@@ -278,7 +270,9 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 `)
 		for i, w := range writePaths {
 			fmt.Fprintf(contentSnippet, "\"%s/**\" mrwklix,\n",
-				resolveSpecialVariable(w, slot.Snap(), sourceSide))
+				// Use PerspectiveOther: resolve to provider's precise instance
+				// name
+				resolveSpecialVariable(w, slot.Snap(), snap.PerspectiveOther))
 			source, target := sourceTarget(plug, slot, w)
 			emit("  # Read-write content sharing %s -> %s (w#%d)\n", plug.Ref(), slot.Ref(), i)
 			emit("  mount options=(bind, rw) \"%s/\" -> \"%s{,-[0-9]*}/\",\n", source, target)
@@ -303,7 +297,8 @@ func (iface *contentInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 `)
 		for i, r := range readPaths {
 			fmt.Fprintf(contentSnippet, "\"%s/**\" mrkix,\n",
-				resolveSpecialVariable(r, slot.Snap(), sourceSide))
+				// Use PerspectiveOther: resolve to provider's precise instance name
+				resolveSpecialVariable(r, slot.Snap(), snap.PerspectiveOther))
 
 			source, target := sourceTarget(plug, slot, r)
 			emit("  # Read-only content sharing %s -> %s (r#%d)\n", plug.Ref(), slot.Ref(), i)
