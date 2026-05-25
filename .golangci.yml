@@ -89,6 +89,9 @@ linters:
         path: arch/arch_test.go
       - linters:
           - testpackage
+        path: asserts/extkeypairmgrimpl_test.go
+      - linters:
+          - testpackage
         path: asserts/findwildcard_test.go
       - linters:
           - testpackage
