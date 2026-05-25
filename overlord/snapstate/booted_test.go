@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -165,6 +166,11 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 
 	bs.makeInstalledKernelOS(c, st)
 
+	// enable seed refresh to prove that we don't accidentally trigger one
+	tr := config.NewTransaction(st)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
 	bs.bootloader.SetBootBase("core_1.snap")
 	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
@@ -178,6 +184,11 @@ func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Kind(), Equals, "update-revisions")
 	c.Assert(chg.IsReady(), Equals, true)
+
+	// make sure that we didn't create the seed-refresh tasks
+	for _, t := range chg.Tasks() {
+		c.Check(t.Kind(), Not(Equals), "create-recovery-system")
+	}
 
 	// core "current" got reverted but canonical-pc-linux did not
 	var snapst snapstate.SnapState
