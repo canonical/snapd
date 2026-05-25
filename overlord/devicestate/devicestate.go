@@ -298,7 +298,7 @@ func delayedCrossMgrInit() {
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
 	snapstate.SeedRefreshTasks = SeedRefreshTasks
-	snapstate.AppendSeedRefreshSetupTaskIDs = AppendSeedRefreshSetupTaskIDs
+	snapstate.UpdateSeedRefreshChange = UpdateSeedRefreshChange
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -1763,26 +1763,41 @@ func removeRecoverySystemTask(st *state.State, label string) *state.Task {
 }
 
 // SeedRefreshTasks returns a [snapstate.SeedRefreshTaskSet] that carries the
-// tasks needed to refresh the seed managed by seed-refresh mode. The caller
-// must provide the tasks IDs that can be used by the seed creation tasks to
-// find the new snaps to include in the seed. Otherwise, already installed snaps
-// will be used to create the seed. Older seed-refresh systems are removed so
+// tasks needed to refresh the seed managed by seed-refresh mode, plus the snap
+// names selected for that seed refresh. The selected setup task IDs are written
+// into the recovery-system setup payload so the new seed can consume the
+// refreshed snaps and components. Older seed-refresh systems are removed so
 // that, after finalize records the new system, the two most recently created
 // seed-refresh systems remain tracked.
-func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+func SeedRefreshTasks(st *state.State, dctx snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	var snapsups, compsups []string
+	added := make(map[string]bool, len(candidates))
+	for _, candidate := range candidates {
+		if !seedRefreshIncludesSnap(dctx, candidate.InstanceName) {
+			continue
+		}
+		added[candidate.InstanceName] = true
+
+		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
+		compsups = append(compsups, candidate.ComponentSetupTaskIDs...)
+	}
+	if len(added) == 0 {
+		return nil, nil, nil
+	}
+
 	labelBase := timeNow().Format("20060102")
 	label, err := pickRecoverySystemLabel(labelBase)
 	if err != nil {
-		return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
+		return nil, nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
 	}
 
-	ts, err := createRecoverySystemTasks(st, label, snapSetupTasks, compSetupTasks, CreateRecoverySystemOptions{
+	ts, err := createRecoverySystemTasks(st, label, snapsups, compsups, CreateRecoverySystemOptions{
 		TestSystem:  true,
 		MarkDefault: true,
 		SeedRefresh: true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var create, finalize *state.Task
@@ -1796,12 +1811,12 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 	}
 
 	if create == nil || finalize == nil {
-		return nil, errors.New("internal error: expected create and finalize recovery system tasks")
+		return nil, nil, errors.New("internal error: expected create and finalize recovery system tasks")
 	}
 
 	removeLabels, err := seedRefreshLabelsToRemove(st)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	removals := make([]*state.Task, 0, len(removeLabels))
@@ -1815,21 +1830,97 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 		Create:   create,
 		Finalize: finalize,
 		Remove:   removals,
-	}, nil
+	}, added, nil
 }
 
-// AppendSeedRefreshSetupTaskIDs appends unique setup task IDs to the
-// create-recovery-system task recovery-system-setup payload.
-func AppendSeedRefreshSetupTaskIDs(create *state.Task, snapSetupTask string, compSetupTasks []string) error {
+// UpdateSeedRefreshChange adds a late candidate to an existing seed-refresh
+// change when the snap should participate in the refreshed seed. Returns nil if
+// snap isn't part of the seed refresh, otherwise returns the seed refresh task
+// set.
+func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
+	if !seedRefreshIncludesSnap(dctx, candidate.InstanceName) {
+		return nil, nil
+	}
+
+	seedTS, err := findSeedRefreshTasks(chg)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := appendSeedRefreshCandidate(seedTS.Create, candidate.SnapSetupTaskIDs, candidate.ComponentSetupTaskIDs); err != nil {
+		return nil, err
+	}
+
+	return seedTS, nil
+}
+
+func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTasks []string) error {
 	setup, err := taskRecoverySystemSetup(create)
 	if err != nil {
 		return err
 	}
 
-	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTask)
+	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTasks...)
 	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTasks...)
 
 	return setTaskRecoverySystemSetup(create, setup)
+}
+
+func seedRefreshIncludesSnap(dctx snapstate.DeviceContext, instanceName string) bool {
+	// TODO:SEEDREFRESH: consider the intersections of snaps in the model and
+	// snaps currently present in the seed, not all snaps in the model.
+	if instanceName == "snapd" {
+		return true
+	}
+
+	for _, sn := range dctx.Model().AllSnaps() {
+		if sn.SnapName() == instanceName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, error) {
+	var finalize *state.Task
+	var removals []*state.Task
+	for _, t := range chg.Tasks() {
+		switch t.Kind() {
+		case "finalize-recovery-system":
+			if t.Status().Ready() {
+				continue
+			}
+			if finalize != nil {
+				return nil, errors.New("internal error: found multiple pending seed finalization tasks in change")
+			}
+			finalize = t
+		case "remove-recovery-system":
+			if !t.Status().Ready() {
+				removals = append(removals, t)
+			}
+		}
+	}
+
+	if finalize == nil {
+		return nil, errors.New("internal error: seed-refresh change is missing pending finalize-recovery-system task")
+	}
+
+	var createID string
+	if err := finalize.Get("recovery-system-setup-task", &createID); err != nil {
+		return nil, err
+	}
+
+	create := chg.State().Task(createID)
+	if create == nil || create.Change().ID() != chg.ID() || create.Kind() != "create-recovery-system" {
+		return nil, errors.New("internal error: seed-refresh change is missing paired create-recovery-system task")
+	}
+
+	return &snapstate.SeedRefreshTaskSet{
+		Create:   create,
+		Finalize: finalize,
+		Remove:   removals,
+	}, nil
 }
 
 func appendUnique(slice []string, additions ...string) []string {

@@ -103,53 +103,6 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	)
 }
 
-func (s *rebootSuite) componentExclusiveInstallTaskSetForSnapSetup(snapName string, snapType snap.Type) snapstate.SnapInstallTaskSet {
-	snapsup := &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: snapName,
-			SnapID:   snapName,
-			Revision: snap.R(1),
-		},
-		Type:                        snapType,
-		ComponentExclusiveOperation: true,
-	}
-
-	downloadComp := s.state.NewTask("download-component", "...")
-
-	setupSecurity := s.state.NewTask("setup-profiles", "...")
-	setupSecurity.Set("snap-setup", snapsup)
-	setupSecurity.WaitFor(downloadComp)
-
-	downloadComp.Set("snap-setup-task", setupSecurity.ID())
-
-	setupSecurity.Set("component-setup-tasks", []string{downloadComp.ID()})
-
-	linkComp := s.state.NewTask("link-component", "...")
-	linkComp.Set("snap-setup-task", setupSecurity.ID())
-	linkComp.WaitFor(setupSecurity)
-
-	postLink := s.state.NewTask("run-hook", "...")
-	postLink.Set("snap-setup-task", setupSecurity.ID())
-	postLink.WaitFor(linkComp)
-
-	ts := state.NewTaskSet(downloadComp, setupSecurity, linkComp, postLink)
-	ts.MarkEdge(downloadComp, snapstate.BeginEdge)
-	ts.MarkEdge(downloadComp, snapstate.LastBeforeLocalModificationsEdge)
-	ts.MarkEdge(setupSecurity, snapstate.SnapSetupEdge)
-	ts.MarkEdge(postLink, snapstate.EndEdge)
-
-	ts.JoinLane(s.state.NewLane())
-
-	return snapstate.NewSnapInstallTaskSetForTest(
-		snapsup,
-		ts,
-		[]*state.Task{downloadComp},
-		nil,
-		[]*state.Task{setupSecurity, linkComp},
-		[]*state.Task{postLink},
-	)
-}
-
 func taskSetsFromInstallSets(stss []snapstate.SnapInstallTaskSet) []*state.TaskSet {
 	tss := make([]*state.TaskSet, 0, len(stss))
 	for _, sts := range stss {
@@ -964,11 +917,13 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsNoEarlyDownloads(c *C) {
 	c.Check(firstLocalModTask.WaitTasks(), Not(testutil.Contains), kernelLastBefore)
 }
 
-func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusive(c *C) {
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiveCandidate(c *C) {
 	defer snapstatetest.MockDeviceModel(MakeModel(map[string]any{
 		"base":           "core20",
 		"required-snaps": []any{"some-app"},
 	}))()
+	observed, restore := mockSeedRefreshHooks([]string{"some-app"})
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -977,41 +932,54 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
 	tr.Commit()
 
-	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
-	snapstate.SeedRefreshTasks = func(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
-		create := st.NewTask("create-recovery-system", "...")
-		restart.MarkTaskAsRestartBoundary(create, restart.RestartBoundaryDirectionDo)
-
-		finalize := st.NewTask("finalize-recovery-system", "...")
-		finalize.WaitFor(create)
-		return &snapstate.SeedRefreshTaskSet{
-			Create:   create,
-			Finalize: finalize,
-		}, nil
-	}
-	defer func() {
-		snapstate.SeedRefreshTasks = oldSeedRefreshTasks
-	}()
-
-	stss := []snapstate.SnapInstallTaskSet{
-		s.componentExclusiveInstallTaskSetForSnapSetup("some-app", snap.TypeApp),
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-app",
+			SnapID:   "some-app",
+			Revision: snap.R(1),
+		},
+		Type:                        snap.TypeApp,
+		ComponentExclusiveOperation: true,
 	}
 
-	seedUpdateTS, err := snapstate.ArrangeRebootAndUpdateSeed(s.state, stss, nil, snapstate.Options{DeviceCtx: s.deviceCtx(c)})
-	c.Assert(err, IsNil)
-	c.Assert(seedUpdateTS, NotNil)
+	downloadComp := s.state.NewTask("download-component", "...")
+	setupSecurity := s.state.NewTask("setup-profiles", "...")
+	setupSecurity.Set("snap-setup", snapsup)
+	setupSecurity.WaitFor(downloadComp)
 
-	lastBeforeLocalTask, err := stss[0].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-	snapEndTask, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
+	componentSetupTasks := []string{downloadComp.ID()}
+	setupSecurity.Set("component-setup-tasks", componentSetupTasks)
+
+	linkComp := s.state.NewTask("link-component", "...")
+	linkComp.WaitFor(setupSecurity)
+
+	postLink := s.state.NewTask("run-hook", "...")
+	postLink.WaitFor(linkComp)
+
+	ts := state.NewTaskSet(downloadComp, setupSecurity, linkComp, postLink)
+	ts.MarkEdge(downloadComp, snapstate.BeginEdge)
+	ts.MarkEdge(downloadComp, snapstate.LastBeforeLocalModificationsEdge)
+	ts.MarkEdge(setupSecurity, snapstate.SnapSetupEdge)
+	ts.MarkEdge(postLink, snapstate.EndEdge)
+	ts.JoinLane(s.state.NewLane())
+
+	sts := snapstate.NewSnapInstallTaskSetForTest(
+		snapsup,
+		ts,
+		[]*state.Task{downloadComp},
+		nil,
+		[]*state.Task{setupSecurity, linkComp},
+		[]*state.Task{postLink},
+	)
+
+	_, err := snapstate.ArrangeRebootAndUpdateSeed(s.state, []snapstate.SnapInstallTaskSet{sts}, nil, snapstate.Options{DeviceCtx: s.deviceCtx(c)})
 	c.Assert(err, IsNil)
 
-	seedCreate := seedUpdateTS.Tasks()[0]
-	seedFinalize := seedUpdateTS.Tasks()[len(seedUpdateTS.Tasks())-1]
-
-	c.Check(seedCreate.WaitTasks(), testutil.Contains, lastBeforeLocalTask)
-	c.Check(waitsOnTransitively(seedFinalize, snapEndTask), Equals, true)
-	c.Check(taskSetLanes(seedUpdateTS), DeepEquals, taskSetLanes(stss[0].TaskSet()))
+	// component-exclusive operations provide only component setup tasks, so snap setup tasks must stay empty.
+	observed.CheckInitialCandidates(c, snapstate.SeedRefreshCandidate{
+		InstanceName:          "some-app",
+		ComponentSetupTaskIDs: componentSetupTasks,
+	})
 }
 
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapd(c *C) {

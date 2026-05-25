@@ -618,7 +618,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 		return nil, nil
 	}
 
-	if err := maybeMergeLateSeedRefreshPrereq(t.Change(), deviceCtx, snapName, ts); err != nil {
+	if err := maybeMergeLateSeedRefreshPrereq(t.Change(), deviceCtx, ts); err != nil {
 		return nil, err
 	}
 
