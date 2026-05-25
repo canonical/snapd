@@ -181,21 +181,41 @@ func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) ([]string, error) 
 	return tags, nil
 }
 
-// Runnables returns a list of all runnables known by the app set.
+// Runnables returns a list of all runnables known by the app set, in a stable
+// sorted order (app names first, then hook names, then component hook names).
+// We intentionally sort here and disregard the YAML declaration order, because
+// the position of an entry can affect the resulting security policy (e.g. dbus
+// rules use last-wins semantics), and we must not let arbitrary snap.yaml
+// authoring choices silently influence sandbox policy.
 func (a *SnapAppSet) Runnables() []snap.Runnable {
 	var runnables []snap.Runnable
 
-	for _, app := range a.info.Apps {
-		runnables = append(runnables, app.Runnable())
+	appNames := make([]string, 0, len(a.info.Apps))
+	for name := range a.info.Apps {
+		appNames = append(appNames, name)
+	}
+	sort.Strings(appNames)
+	for _, name := range appNames {
+		runnables = append(runnables, a.info.Apps[name].Runnable())
 	}
 
-	for _, hook := range a.info.Hooks {
-		runnables = append(runnables, hook.Runnable())
+	hookNames := make([]string, 0, len(a.info.Hooks))
+	for name := range a.info.Hooks {
+		hookNames = append(hookNames, name)
+	}
+	sort.Strings(hookNames)
+	for _, name := range hookNames {
+		runnables = append(runnables, a.info.Hooks[name].Runnable())
 	}
 
 	for _, component := range a.components {
-		for _, hook := range component.Hooks {
-			runnables = append(runnables, hook.Runnable())
+		compHookNames := make([]string, 0, len(component.Hooks))
+		for name := range component.Hooks {
+			compHookNames = append(compHookNames, name)
+		}
+		sort.Strings(compHookNames)
+		for _, name := range compHookNames {
+			runnables = append(runnables, component.Hooks[name].Runnable())
 		}
 	}
 

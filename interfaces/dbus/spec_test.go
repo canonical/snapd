@@ -106,3 +106,118 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 
 	c.Assert(spec.SnippetForTag("non-existing"), Equals, "")
 }
+
+// TestSnippetPriorityOrdering checks that snippets are ordered by priority
+// (ascending) regardless of insertion order.
+func (s *specSuite) TestSnippetPriorityOrdering(c *C) {
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+			// Insert in reverse priority order to exercise sorting.
+			spec.AddSnippetWithPriority("high-priority", 10)
+			spec.AddSnippetWithPriority("low-priority", 1)
+			spec.AddSnippetWithPriority("mid-priority", 5)
+			return nil
+		},
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := dbus.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
+
+	// Snippets are sorted by priority ascending (1, 5, 10), so "high-priority"
+	// appears last in the combined output. In DBus XML policy files the last
+	// matching rule wins, so a higher priority number means both a later
+	// position in the file and stronger precedence at runtime.
+	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals,
+		"low-priority\nmid-priority\nhigh-priority\n")
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.snap1.app1": {"low-priority", "mid-priority", "high-priority"},
+	})
+}
+
+// TestSnippetEqualPriorityLexicographicOrder checks that snippets with equal
+// priority are sorted lexicographically for a deterministic result.
+func (s *specSuite) TestSnippetEqualPriorityLexicographicOrder(c *C) {
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+			// Same priority – insertion order should not matter.
+			spec.AddSnippetWithPriority("zebra", 0)
+			spec.AddSnippetWithPriority("apple", 0)
+			spec.AddSnippetWithPriority("mango", 0)
+			return nil
+		},
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := dbus.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
+
+	// Snippets with equal priority must be sorted lexicographically.
+	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals,
+		"apple\nmango\nzebra\n")
+	c.Assert(spec.Snippets(), DeepEquals, map[string][]string{
+		"snap.snap1.app1": {"apple", "mango", "zebra"},
+	})
+}
+
+// TestSnippetDeterministicRegardlessOfInsertionOrder ensures that two
+// specifications with the same snippets added in different orders produce
+// identical combined output.
+func (s *specSuite) TestSnippetDeterministicRegardlessOfInsertionOrder(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+
+	makeSpec := func(insertFn func(*dbus.Specification)) string {
+		iface := &ifacetest.TestInterface{
+			InterfaceName: "test",
+			DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+				insertFn(spec)
+				return nil
+			},
+		}
+		spec := dbus.NewSpecification(appSet)
+		c.Assert(spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
+		return spec.SnippetForTag("snap.snap1.app1")
+	}
+
+	order1 := makeSpec(func(spec *dbus.Specification) {
+		spec.AddSnippetWithPriority("snippet-b", 2)
+		spec.AddSnippetWithPriority("snippet-a", 1)
+		spec.AddSnippetWithPriority("snippet-c", 2)
+	})
+	order2 := makeSpec(func(spec *dbus.Specification) {
+		spec.AddSnippetWithPriority("snippet-c", 2)
+		spec.AddSnippetWithPriority("snippet-b", 2)
+		spec.AddSnippetWithPriority("snippet-a", 1)
+	})
+
+	c.Assert(order1, Equals, order2)
+	c.Assert(order1, Equals, "snippet-a\nsnippet-b\nsnippet-c\n")
+}
+
+// TestAddSnippetDefaultPriority verifies that AddSnippet uses priority 0 and
+// that mixing AddSnippet and AddSnippetWithPriority works correctly.
+func (s *specSuite) TestAddSnippetDefaultPriority(c *C) {
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test",
+		DBusConnectedPlugCallback: func(spec *dbus.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+			spec.AddSnippetWithPriority("before-default", -1)
+			spec.AddSnippet("default-priority")
+			spec.AddSnippetWithPriority("after-default", 1)
+			return nil
+		},
+	}
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := dbus.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(iface, s.plug, s.slot), IsNil)
+
+	// priority -1 < 0 (default) < 1
+	c.Assert(spec.SnippetForTag("snap.snap1.app1"), Equals,
+		"before-default\ndefault-priority\nafter-default\n")
+}

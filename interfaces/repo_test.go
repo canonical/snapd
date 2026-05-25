@@ -1557,6 +1557,108 @@ func (s *RepositorySuite) TestSnapSpecificationFailureWithPermanentSnippets(c *C
 	c.Assert(spec, IsNil)
 }
 
+// TestSnapSpecificationDeterministicOrdering checks that SnapSpecification
+// produces snippets in a stable, deterministic order even when the snap has
+// multiple plugs/slots and multiple connections, all of which are stored in
+// Go maps whose iteration order is intentionally randomised.
+func (s *RepositorySuite) TestSnapSpecificationDeterministicOrdering(c *C) {
+	repo := s.emptyRepo
+
+	// Interface whose callbacks record which plug/slot they were called for.
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "iface",
+		TestPermanentPlugCallback: func(spec *ifacetest.Specification, plug *snap.PlugInfo) error {
+			spec.AddSnippet("permanent-plug:" + plug.Name)
+			return nil
+		},
+		TestConnectedPlugCallback: func(spec *ifacetest.Specification, plug *ConnectedPlug, slot *ConnectedSlot) error {
+			spec.AddSnippet("connected-plug:" + plug.Name() + "/" + slot.Snap().InstanceName() + ":" + slot.Name())
+			return nil
+		},
+		TestPermanentSlotCallback: func(spec *ifacetest.Specification, slot *snap.SlotInfo) error {
+			spec.AddSnippet("permanent-slot:" + slot.Name)
+			return nil
+		},
+		TestConnectedSlotCallback: func(spec *ifacetest.Specification, plug *ConnectedPlug, slot *ConnectedSlot) error {
+			spec.AddSnippet("connected-slot:" + slot.Name() + "/" + plug.Snap().InstanceName() + ":" + plug.Name())
+			return nil
+		},
+	}
+	backend := &ifacetest.TestSecurityBackend{BackendName: testSecurity}
+	c.Assert(repo.AddBackend(backend), IsNil)
+	c.Assert(repo.AddInterface(iface), IsNil)
+
+	// Provider snap has two slots: "beta-slot" and "alpha-slot".
+	providerAppSet := ifacetest.MockInfoAndAppSet(c, `
+name: provider
+version: 0
+slots:
+    alpha-slot:
+        interface: iface
+    beta-slot:
+        interface: iface
+`, nil, nil)
+	c.Assert(repo.AddAppSet(providerAppSet), IsNil)
+
+	// Two consumer snaps, "consumer-b" and "consumer-a" (added in reverse
+	// alphabetical order on purpose to expose ordering issues).
+	consumerBAppSet := ifacetest.MockInfoAndAppSet(c, `
+name: consumer-b
+version: 0
+plugs:
+    plug:
+        interface: iface
+`, nil, nil)
+	c.Assert(repo.AddAppSet(consumerBAppSet), IsNil)
+
+	consumerAAppSet := ifacetest.MockInfoAndAppSet(c, `
+name: consumer-a
+version: 0
+plugs:
+    plug:
+        interface: iface
+`, nil, nil)
+	c.Assert(repo.AddAppSet(consumerAAppSet), IsNil)
+
+	// Connect both consumers to both slots.
+	providerInfo := providerAppSet.Info()
+	consumerAPlug := consumerAAppSet.Info().Plugs["plug"]
+	consumerBPlug := consumerBAppSet.Info().Plugs["plug"]
+	for _, slotName := range []string{"alpha-slot", "beta-slot"} {
+		connA := NewConnRef(consumerAPlug, providerInfo.Slots[slotName])
+		_, err := repo.Connect(connA, nil, nil, nil, nil, nil)
+		c.Assert(err, IsNil)
+		connB := NewConnRef(consumerBPlug, providerInfo.Slots[slotName])
+		_, err = repo.Connect(connB, nil, nil, nil, nil, nil)
+		c.Assert(err, IsNil)
+	}
+
+	emptyOpts := interfaces.ConfinementOptions{}
+
+	// Check provider: slots are iterated alphabetically; within each slot,
+	// connected plugs are sorted by (snap name, plug name).
+	spec, err := repo.SnapSpecification(testSecurity, providerAppSet, emptyOpts)
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"permanent-slot:alpha-slot",
+		"connected-slot:alpha-slot/consumer-a:plug",
+		"connected-slot:alpha-slot/consumer-b:plug",
+		"permanent-slot:beta-slot",
+		"connected-slot:beta-slot/consumer-a:plug",
+		"connected-slot:beta-slot/consumer-b:plug",
+	})
+
+	// Check consumer-a: plug is iterated alphabetically; connected slots
+	// are sorted by (snap name, slot name).
+	spec, err = repo.SnapSpecification(testSecurity, consumerAAppSet, emptyOpts)
+	c.Assert(err, IsNil)
+	c.Check(spec.(*ifacetest.Specification).Snippets, DeepEquals, []string{
+		"permanent-plug:plug",
+		"connected-plug:plug/provider:alpha-slot",
+		"connected-plug:plug/provider:beta-slot",
+	})
+}
+
 type testSideArity struct {
 	sideSnapName string
 }
