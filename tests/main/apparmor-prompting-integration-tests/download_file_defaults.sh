@@ -49,8 +49,8 @@ if [ "$CLIENT_OUTPUT" != "success" ] ; then
 fi
 # Furthermore, rules with identical path patterns are merged, so we don't
 # expect any rules with duplicate path patterns.
-snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep '^[[:space:]]*1[[:space:]]'
-! snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep -qE '^[[:space:]]*([2-9]|1[0-9])[0-9]*[[:space:]]'
+snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | sort | uniq -d | wc -l | MATCH '^0$'
+! snap debug api /v2/interfaces/requests/rules | gojq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | sort | uniq -d | wc -l | MATCH '^0$'
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 
