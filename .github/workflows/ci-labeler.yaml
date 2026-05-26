@@ -48,7 +48,7 @@ jobs:
         fi
 
         labels=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
-        if grep -q '^Skip spread$' <<<$labels; then
+        if grep -q '^Skip spread$' <<<$labels || grep -q '^Run only one system$' <<<$labels'; then
           exit 0
         fi
 
