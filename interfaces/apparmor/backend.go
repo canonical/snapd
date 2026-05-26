@@ -677,6 +677,8 @@ func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppS
 	// key
 	if (!opts.Classic && !opts.DevMode) || opts.JailMode {
 		for key, snippet := range basePrioritizedSnippets {
+			// TODO: pass confinement flags down if snippets need to be
+			// added conditionally
 			spec.AddBasePrioritizedSnippet(snippet, key)
 		}
 	}
