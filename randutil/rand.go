@@ -28,6 +28,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -71,12 +72,13 @@ const letters = "BCDFGHJKLMNPQRSTVWXYbcdfghjklmnpqrstvwxy0123456789"
 //
 // Not cryptographically secure.
 func RandomString(length int) string {
-	out := ""
+	var out strings.Builder
+	out.Grow(length)
 	for i := 0; i < length; i++ {
-		out += string(letters[rand.Intn(len(letters))])
+		out.WriteByte(letters[rand.Intn(len(letters))])
 	}
 
-	return out
+	return out.String()
 }
 
 // Re-exported from math/rand for streamlining.

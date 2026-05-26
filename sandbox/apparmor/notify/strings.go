@@ -146,11 +146,11 @@ func (su *stringUnpacker) unpackString(offset uint32) (string, error) {
 		return "", fmt.Errorf("address %d points outside of message body", offset)
 	}
 	tmp := su.Bytes[offset:]
-	idx := bytes.IndexByte(tmp, 0)
-	if idx < 0 {
+	before, _, ok := bytes.Cut(tmp, []byte{0})
+	if !ok {
 		return "", fmt.Errorf("unterminated string at address %d", offset)
 	}
-	return string(tmp[:idx]), nil
+	return string(before), nil
 }
 
 // unpackStrings unpacks N contiguous NUL-terminated strings at a given offset

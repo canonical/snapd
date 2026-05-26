@@ -23,6 +23,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -151,12 +152,13 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20FactoryResetModeHappy(c
 }
 
 func (s *bootFlagsSuite) TestSetImageBootFlagsVerification(c *C) {
-	longVal := "longer-than-256-char-value"
+	var longVal strings.Builder
+	longVal.WriteString("longer-than-256-char-value")
 	for i := 0; i < 256; i++ {
-		longVal += "X"
+		longVal.WriteString("X")
 	}
 
-	r := boot.MockAdditionalBootFlags([]string{longVal})
+	r := boot.MockAdditionalBootFlags([]string{longVal.String()})
 	defer r()
 
 	blVars := make(map[string]string)
@@ -164,7 +166,7 @@ func (s *bootFlagsSuite) TestSetImageBootFlagsVerification(c *C) {
 	err := boot.SetImageBootFlags([]string{"not-a-real-flag"}, blVars)
 	c.Assert(err, ErrorMatches, `unknown boot flags \[not-a-real-flag\] not allowed`)
 
-	err = boot.SetImageBootFlags([]string{longVal}, blVars)
+	err = boot.SetImageBootFlags([]string{longVal.String()}, blVars)
 	c.Assert(err, ErrorMatches, "internal error: boot flags too large to fit inside bootenv value")
 }
 

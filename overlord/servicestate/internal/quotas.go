@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
@@ -91,16 +92,16 @@ func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group
 	// prevent having inconsistent quota groups in state.json
 	if err := quota.ResolveCrossReferences(allGrps); err != nil {
 		// make a nice error message for this case
-		updated := ""
+		var updated strings.Builder
 		for _, grp := range grps[:len(grps)-1] {
-			updated += fmt.Sprintf("%q, ", grp.Name)
+			updated.WriteString(fmt.Sprintf("%q, ", grp.Name))
 		}
-		updated += fmt.Sprintf("%q", grps[len(grps)-1].Name)
+		updated.WriteString(fmt.Sprintf("%q", grps[len(grps)-1].Name))
 		plural := ""
 		if len(grps) > 1 {
 			plural = "s"
 		}
-		return nil, fmt.Errorf("cannot update quota%s %s: %v", plural, updated, err)
+		return nil, fmt.Errorf("cannot update quota%s %s: %v", plural, updated.String(), err)
 	}
 
 	// Verify that the update of the new quota groups will result in

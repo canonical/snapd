@@ -3,6 +3,7 @@ package netlink
 import (
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 type Matcher interface {
@@ -161,9 +162,9 @@ func (rs RuleDefinitions) EvaluateEnv(e map[string]string) bool {
 }
 
 func (rs RuleDefinitions) String() string {
-	output := ""
+	var output strings.Builder
 	for _, v := range rs.Rules {
-		output += "- " + v.String() + "\n"
+		output.WriteString("- " + v.String() + "\n")
 	}
-	return output
+	return output.String()
 }
