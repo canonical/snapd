@@ -48,7 +48,7 @@ fi
 
 # Rules with identical path patterns are merged, so we expect a single rule
 # related to this test run.
-snap debug api '/v2/interfaces/requests/rules?snap=prompt-requester' | jq '."result".[]."constraints"."path-pattern"' | grep -F "${TEST_DIR}" | wc -l | grep '^1$'
+snap debug api '/v2/interfaces/requests/rules?snap=prompt-requester' | jq '.result[].constraints."path-pattern"' | grep -F "${TEST_DIR}" | wc -l | grep '^1$'
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 
