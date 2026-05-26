@@ -96,29 +96,15 @@ func (s *tasksSuite) TestTasksCommandInvalidArguments(c *C) {
 
 // TestTasksCommandNormalOperation tests output for multiple changes/tasks
 func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
-	st, ctx, chg1ID := s.setupChangeAndContext(c, "change-1-done", state.DoneStatus)
-
-	st.Lock()
-	// Create second task (doing) in same change
-	chg := st.Change(chg1ID)
-	task2 := st.NewTask("test-task-2", "change-2-doing")
-	chg.AddTask(task2)
-	chg.Set("initiated-by-snap", "test-snap")
-	task2.SetStatus(state.DoingStatus)
-
-	// Create third task / second change (error)
-	chg2 := st.NewChange("snapctl-install", "change-3-error")
-	task3 := st.NewTask("test-task-3", "change-3-error")
-	chg2.AddTask(task3)
-	chg2.Set("initiated-by-snap", "test-snap")
-	task3.SetStatus(state.ErrorStatus)
-	chg2ID := chg2.ID()
-	st.Unlock()
+	st, ctx, chg1ID := s.setupChangeAndContext(c, "task-1-done", state.DoneStatus)
 
 	// Verify task 1 (done)
 	stdout, _, err := ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output := string(stdout)
+
+	c.Assert(output, testutil.Contains, "task-1-done")
+	c.Assert(output, testutil.Contains, "Done")
 
 	// Validate table headers are present
 	c.Assert(output, testutil.Contains, "Status")
@@ -126,25 +112,44 @@ func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
 	c.Assert(output, testutil.Contains, "Ready")
 	c.Assert(output, testutil.Contains, "Summary")
 
-	c.Assert(output, testutil.Contains, "change-1-done")
-	c.Assert(output, testutil.Contains, "Done")
+	st.Lock()
+	// Create second task (doing) in same change
+	chg := st.Change(chg1ID)
+	task2 := st.NewTask("test-task-2", "task-2-doing")
+	chg.AddTask(task2)
+	chg.Set("initiated-by-snap", "test-snap")
+	task2.SetStatus(state.DoingStatus)
+
+	// Create third task / second change (error)
+	chg2 := st.NewChange("snapctl-install", "change-3-error")
+	task3 := st.NewTask("test-task-3", "task-3-error")
+	chg2.AddTask(task3)
+
+	// Associate second change with same snap
+	chg2.Set("initiated-by-snap", "test-snap")
+
+	task3.SetStatus(state.ErrorStatus)
+	chg2ID := chg2.ID()
+	st.Unlock()
 
 	// Verify task 2 (doing)
 	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
-	c.Assert(output, testutil.Contains, "change-2-doing")
+
+	c.Assert(output, testutil.Contains, "task-2-doing")
 	c.Assert(output, testutil.Contains, "Doing")
 
 	// Verify task 3 (error)
 	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
-	c.Assert(output, testutil.Contains, "change-3-error")
+
+	c.Assert(output, testutil.Contains, "task-3-error")
 	c.Assert(output, testutil.Contains, "Error")
 }
 
-// TestTasksCommandNoAssociatedChanges tests that a change without an associated snap returns an error
+// TestTasksCommandNoAssociatedChanges tests that a change with an unassociated snap returns an error
 func (s *tasksSuite) TestTasksCommandNoAssociatedChanges(c *C) {
 	st, ctx, _ := s.setupChangeAndContext(c, "associated-change", state.DoneStatus)
 

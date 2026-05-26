@@ -93,47 +93,45 @@ func (c *tasksCommand) Execute(args []string) error {
 	clientChg := changeInfoToClientChange(chgInfo)
 
 	if c.Format == "json" {
-		if err := json.NewEncoder(c.stdout).Encode(clientChg); err != nil {
-			return err
-		}
-	} else {
-		w := newTabWriter(c.stdout)
-		fmt.Fprint(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
-
-		for _, t := range clientChg.Tasks {
-			spawnTime := timeutil.Human(t.SpawnTime)
-			readyTime := timeutil.Human(t.ReadyTime)
-			if t.ReadyTime.IsZero() {
-				readyTime = "-"
-			}
-			summary := t.Summary
-			status := t.Status
-			pi := t.Progress
-			if status == "Doing" && pi.Total > 1 {
-				summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(pi.Done)/float64(pi.Total)*100.0)
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
-
-		}
-
-		w.Flush()
-
-		for _, t := range clientChg.Tasks {
-			if len(t.Log) == 0 {
-				continue
-			}
-			fmt.Fprintln(c.stdout)
-			fmt.Fprintln(c.stdout, ln)
-			fmt.Fprintln(c.stdout, t.Summary)
-			fmt.Fprintln(c.stdout)
-
-			for _, line := range t.Log {
-				fmt.Fprintln(c.stdout, line)
-			}
-		}
-
-		fmt.Fprintln(c.stdout)
+		return json.NewEncoder(c.stdout).Encode(clientChg)
 	}
+
+	w := newTabWriter(c.stdout)
+	fmt.Fprint(w, i18n.G("Status\tSpawn\tReady\tSummary\n"))
+
+	for _, t := range clientChg.Tasks {
+		spawnTime := timeutil.Human(t.SpawnTime)
+		readyTime := timeutil.Human(t.ReadyTime)
+		if t.ReadyTime.IsZero() {
+			readyTime = "-"
+		}
+		summary := t.Summary
+		status := t.Status
+		pi := t.Progress
+		if status == "Doing" && pi.Total > 1 {
+			summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(pi.Done)/float64(pi.Total)*100.0)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
+
+	}
+
+	w.Flush()
+
+	for _, t := range clientChg.Tasks {
+		if len(t.Log) == 0 {
+			continue
+		}
+		fmt.Fprintln(c.stdout)
+		fmt.Fprintln(c.stdout, ln)
+		fmt.Fprintln(c.stdout, t.Summary)
+		fmt.Fprintln(c.stdout)
+
+		for _, line := range t.Log {
+			fmt.Fprintln(c.stdout, line)
+		}
+	}
+
+	fmt.Fprintln(c.stdout)
 
 	return nil
 }
