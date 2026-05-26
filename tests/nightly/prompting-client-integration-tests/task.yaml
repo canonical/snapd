@@ -19,6 +19,17 @@ skip:
     reason: Prompting is only supported on Ubuntu 24.04 and later
 
 prepare: |
+    # Check whether kernel supports temporal cache, and if so, disable it
+    CACHE_TIMEOUT_PATH="/proc/sys/kernel/apparmor_cache_timeout"
+    CACHE_TIMEOUT_SYSCTL="kernel.apparmor_cache_timeout"
+    if [ -e "$CACHE_TIMEOUT_PATH" ] ; then
+        echo "Kernel supports apparmor temporal cache"
+        EXISTING_TEMPORAL_CACHE_TIMEOUT="$(sysctl -n "$CACHE_TIMEOUT_SYSCTL")"
+        echo "Disabling temporal cache for the duration of this test"
+        sysctl -w "$CACHE_TIMEOUT_SYSCTL=0"
+        tests.cleanup defer sysctl -w "$CACHE_TIMEOUT_SYSCTL=$EXISTING_TEMPORAL_CACHE_TIMEOUT"
+    fi
+
     echo "Set up the test user"
     tests.session -u test prepare
     tests.cleanup defer tests.session -u test restore
