@@ -5269,3 +5269,22 @@ func (s *bootenv20Suite) TestMarkBootSuccessfulClassModes(c *C) {
 	c.Check(m2.Base, Equals, "")
 	c.Check(m2.TryBase, Equals, "")
 }
+
+func (s *bootenv20Suite) TestCheckResealKeyToModeenvUsesDryRun(c *C) {
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(s.rootdir)
+	c.Assert(err, IsNil)
+
+	resealCalls := 0
+	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealCalls++
+		c.Check(rootdir, Equals, s.rootdir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts.DryRun, Equals, true)
+		c.Check(opts.ExpectReseal, Equals, false)
+		return nil
+	})()
+
+	err = boot.CheckResealKeyToModeenv(s.rootdir, nil)
+	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 1)
+}
