@@ -127,12 +127,7 @@ else
             pointrel=
             ;;
     esac
-    if [ "$release" == "26.04" ]; then
-        # TODO: remove this workaround when the 26.04 rootfs is released, for now use the daily base
-        wget -q -c http://cdimage.ubuntu.com/ubuntu-base/daily/current/resolute-base-amd64.tar.gz -O "$BASETAR"
-    else
-        wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
-    fi
+    wget -q -c http://cdimage.ubuntu.com/ubuntu-base/releases/"$release"/release/ubuntu-base-"$release""$pointrel"-base-amd64.tar.gz -O "$BASETAR"
     sudo tar -C "$DST" -xf "$BASETAR"
     ROLE=spread
 fi
