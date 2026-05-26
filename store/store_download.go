@@ -115,6 +115,20 @@ type DownloadOptions struct {
 	LeavePartialOnError bool
 }
 
+// Detect most frequent symptoms of corruption (e.g. 0-byte files which may
+// appear on power loss). Does not check for silent bit rot, which may cause
+// bit/byte flips.
+func isDownloadLikelyNotCorrupted(targetPath string, downloadInfo *snap.DownloadInfo) bool {
+	if fi, err := os.Lstat(targetPath); err == nil {
+		// check the size if one was provided by the store, otherwise accept
+		// any non-0 size as correct
+		if fi.Size() > 0 && (fi.Size() == downloadInfo.Size || downloadInfo.Size == 0) {
+			return true
+		}
+	}
+	return false
+}
+
 // Download downloads the snap addressed by download info and returns its
 // filename.
 // The file is saved in temporary storage, and should be removed
@@ -137,27 +151,27 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	// redownload the file if it's found to be corrupted; however this comes
 	// with the cost of hashing the whole file again
 	if s.cacher.Get(downloadInfo.Sha3_384, targetPath) {
-		// double check that the cached entry has the expected size to detect
-		// most frequent symptoms of corruption (e.g. 0-byte files which may
-		// appear on power loss); silent bit rot are expected to be caught by
-		// the caller at some point, for which they can call
+		// we either got the file entry from the cache, or it already existed at
+		// the target path. More sophisticated corruption cases are expected to
+		// be caught by the caller at some point, for which they can call
 		// CleanupDownloadArtifacts() to have the invalid snap blobs removed.
-		if fi, err := os.Lstat(targetPath); err == nil {
-			// check the size if one was provided by the store, otherwise accept
-			// any non-0 size as correct
-			if fi.Size() > 0 && (fi.Size() == downloadInfo.Size || downloadInfo.Size == 0) {
-				logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
-				return nil
-			}
+		if isDownloadLikelyNotCorrupted(targetPath, downloadInfo) {
+			logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+			return nil
 		}
-		// size mismatch — treat as cache miss and re-download.
-		logger.Debugf("Cache entry for SHA3_384 …%.5s has unexpected size, re-downloading.", downloadInfo.Sha3_384)
-		// remove the target path and the cache entry which is likely corrupted
-		// as well, ignore errors
+		// remove the target path and try to recover from the cache again,
+		// maybe only the preexisting target path is corrupted
 		_ = os.Remove(targetPath)
-		// we do not know whether the cache entry is also bad, so let's drop it as a
-		// precaution
+
+		if s.cacher.Get(downloadInfo.Sha3_384, targetPath) && isDownloadLikelyNotCorrupted(targetPath, downloadInfo) {
+			logger.Debugf("Recovered snap file from cache for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+			return nil
+		}
+		// best effort attempt failed, the cache entry is likely bad as well, remove both
+		_ = os.Remove(targetPath)
 		_ = s.cacher.Drop(downloadInfo.Sha3_384)
+		// ... and re-download.
+		logger.Debugf("Cache entry for SHA3_384 …%.5s has unexpected size, re-downloading.", downloadInfo.Sha3_384)
 	}
 
 	if len(s.supportedDeltaFormats()) > 0 {

@@ -816,7 +816,13 @@ type cacheObserver struct {
 func (co *cacheObserver) Get(cacheKey, targetPath string) bool {
 	co.gets = append(co.gets, fmt.Sprintf("%s:%s", cacheKey, targetPath))
 	if co.inCache[cacheKey] {
-		// Simulate the real cache behavior of creating a hard link
+		// Simulate the real cache behavior of creating a hard link.
+		// If the target already exists, os.Link() would return EEXIST
+		// which the real cache silently ignores, returning true without
+		// overwriting.
+		if _, err := os.Lstat(targetPath); err == nil {
+			return true
+		}
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 			panic(fmt.Sprintf("cannot create directory: %v", err))
 		}
@@ -982,8 +988,11 @@ func (s *storeDownloadSuite) TestDownloadCacheHitCorruptRedownloads(c *C) {
 
 	// The mock Get() writes mocked data, if any, to the target path. The file is
 	// shorter than the size reported by the store, so it's treated as corrupt and
-	// removed before re-downloading.
-	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", si.Sha3_384, path)})
+	// removed before re-downloading. Get() is called twice (initial + retry).
+	c.Check(obs.gets, DeepEquals, []string{
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+	})
 	// The file is dropped.
 	c.Check(obs.drops, DeepEquals, []string{si.Sha3_384})
 }
@@ -1015,10 +1024,57 @@ func (s *storeDownloadSuite) TestDownloadCacheHitCorruptRedownloads0Size(c *C) {
 	c.Check(downloadWasCalled, Equals, true)
 
 	// The mock Get() creates a 0-byte file which lacking any additional hint on
-	// the expected size is clearly invalid.
-	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", si.Sha3_384, path)})
+	// the expected size is clearly invalid. Get() is called twice (initial + retry).
+	c.Check(obs.gets, DeepEquals, []string{
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+	})
 	// The file is dropped.
 	c.Check(obs.drops, DeepEquals, []string{si.Sha3_384})
+}
+
+func (s *storeDownloadSuite) TestDownloadCacheHitRecoveryFromPreexistingCorruptTarget(c *C) {
+	// A pre-existing corrupt (0-byte) file at targetPath causes the first
+	// Get() to return true without overwriting (simulating os.Link EEXIST).
+	// Download() detects the size mismatch, removes the target, retries
+	// Get() which now successfully writes the cached data, and recovery
+	// succeeds without re-downloading.
+	validData := []byte("valid-snap-data-1234567890")
+	obs := &cacheObserver{
+		inCache: map[string]bool{"the-snaps-sha3_384": true},
+		data:    map[string][]byte{"the-snaps-sha3_384": validData},
+	}
+	restore := s.store.MockCacher(obs)
+	defer restore()
+
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		// download not called, we recover from the cache
+		c.Fatalf("download should not be called when results come from the cache")
+		return nil
+	})
+	defer restore()
+
+	si := &snap.Info{}
+	si.Sha3_384 = "the-snaps-sha3_384"
+	si.DownloadInfo.Size = int64(len(validData))
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	// Create a pre-existing 0-byte file at targetPath to simulate a stale
+	// corrupt blob from a previous interrupted operation.
+	err := os.WriteFile(path, nil, 0600)
+	c.Assert(err, IsNil)
+
+	err = s.store.Download(s.ctx, "foo", path, &si.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// Get() was called twice: first hit returns true but target is corrupt,
+	// second hit after removal writes valid data.
+	c.Check(obs.gets, DeepEquals, []string{
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+	})
+	// No drops — the cache entry is valid.
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
