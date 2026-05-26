@@ -40,8 +40,6 @@ const (
 	ParallelInstances
 	// Hotplug controls availability of dynamically creating slots based on system hardware.
 	Hotplug
-	// PerUserMountNamespace controls the persistence of per-user mount namespaces.
-	PerUserMountNamespace
 	// RefreshAppAwareness controls refresh being aware of running applications.
 	RefreshAppAwareness
 	// ClassicPreservesXdgRuntimeDir controls $XDG_RUNTIME_DIR in snaps with classic confinement.
@@ -105,11 +103,10 @@ func KnownFeatures() []SnapdFeature {
 // featureNames maps feature constant to stable string representation.
 // The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
 var featureNames = map[SnapdFeature]string{
-	Layouts:               "layouts",
-	ParallelInstances:     "parallel-instances",
-	Hotplug:               "hotplug",
-	PerUserMountNamespace: "per-user-mount-namespace",
-	RefreshAppAwareness:   "refresh-app-awareness",
+	Layouts:             "layouts",
+	ParallelInstances:   "parallel-instances",
+	Hotplug:             "hotplug",
+	RefreshAppAwareness: "refresh-app-awareness",
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
 
@@ -153,9 +150,8 @@ var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 
 // featuresExported contains a set of features that are exported outside of snapd.
 var featuresExported = map[SnapdFeature]bool{
-	PerUserMountNamespace: true,
-	RefreshAppAwareness:   true,
-	ParallelInstances:     true,
+	RefreshAppAwareness: true,
+	ParallelInstances:   true,
 
 	ClassicPreservesXdgRuntimeDir: true,
 	HiddenSnapDataHomeDir:         true,

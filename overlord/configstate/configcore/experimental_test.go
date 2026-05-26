@@ -68,16 +68,16 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 func (s *experimentalSuite) TestExportedFeatures(c *C) {
 	conf := &mockConf{
 		state: s.state,
-		conf:  map[string]any{featureConf(features.PerUserMountNamespace): true},
+		conf:  map[string]any{featureConf(features.HiddenSnapDataHomeDir): true},
 	}
 	err := configcore.FilesystemOnlyRun(classicDev, conf)
 	c.Assert(err, IsNil)
-	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
+	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), testutil.FilePresent)
 
-	delete(conf.changes, "experimental.per-user-mount-namespace")
+	delete(conf.changes, "experimental.hidden-snap-folder")
 	err = configcore.FilesystemOnlyRun(classicDev, conf)
 	c.Assert(err, IsNil)
-	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
+	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), testutil.FilePresent)
 }
 
 func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
