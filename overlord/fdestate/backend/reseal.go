@@ -334,6 +334,7 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 			Models:                  parameters.Models,
 			GetTpmPCRProfile:        getTpmPCRProfile,
 			NewPCRPolicyVersion:     revokeOldKeys,
+			DryRun:                  opts.DryRun,
 			HintExpectFDEHook:       hintExpectFDEHook,
 		}
 		resealedKeys, err := secbootResealKey(key, rkp)
@@ -632,6 +633,7 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 		},
 		resealOptions{
 			ExpectReseal:   params.Options.ExpectReseal,
+			DryRun:         params.Options.DryRun,
 			Force:          params.Options.Force,
 			IgnoreFDEHooks: params.Options.IgnoreFDEHooks,
 			Revoke:         params.Options.RevokeOldKeys,
@@ -669,6 +671,7 @@ type resealInputs struct {
 
 type resealOptions struct {
 	ExpectReseal   bool
+	DryRun         bool
 	Force          bool
 	Revoke         bool
 	IgnoreFDEHooks bool

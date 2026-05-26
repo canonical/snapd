@@ -277,6 +277,9 @@ type ResealKeyToModeenvOptions struct {
 	// uses it to disambiguate cases where it cannot be fully
 	// determined if measurements have changed
 	ExpectReseal bool
+	// DryRun validates that resealing would succeed without persisting updated
+	// key material.
+	DryRun bool
 	// When Force is true, resealing must happen even if no change
 	// is detected.
 	Force bool
@@ -439,6 +442,20 @@ func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod,
 	}
 
 	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains, Options: options})
+}
+
+// CheckResealKeyToModeenv validates that the current modeenv can be resealed
+// without persisting updated key material.
+func CheckResealKeyToModeenv(rootdir string, unlocker Unlocker) error {
+	modeenvLock()
+	defer modeenvUnlock()
+
+	modeenv, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	return resealKeyToModeenv(rootdir, modeenv, ResealKeyToModeenvOptions{DryRun: true}, unlocker)
 }
 
 func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams) error {

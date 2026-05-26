@@ -152,6 +152,9 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 	expected = append(expected, "copy-snap-data")
 
 	expected = append(expected, "setup-profiles", "link-snap")
+	if typ == snap.TypeSnapd && opts&unlinkBefore != 0 && opts&updatesBootConfig != 0 {
+		expected = append(expected, "check-reseal")
+	}
 	expected = append(expected, tasksAfterLinkSnap...)
 	expected = append(expected, "auto-connect")
 	expected = append(expected,

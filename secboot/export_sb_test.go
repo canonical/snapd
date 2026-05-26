@@ -542,7 +542,7 @@ func NewKeyData(kd *sb.KeyData) KeyData {
 	return &keyData{kd: kd}
 }
 
-func MockResealKeysWithFDESetupHook(f func(keys []KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []ModelForSealing, bootModes []string) error) (restore func()) {
+func MockResealKeysWithFDESetupHook(f func(keys []KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []ModelForSealing, bootModes []string, dryRun bool) error) (restore func()) {
 	return testutil.Mock(&resealKeysWithFDESetupHook, f)
 }
 
