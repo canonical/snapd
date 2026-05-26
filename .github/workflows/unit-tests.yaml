@@ -143,7 +143,12 @@ jobs:
               make clean
           fi
 
-    - name: Test Go
+    - name: Verify Tool Dependencies
+      if: ${{ inputs.code == 'go' }}
+      run: |
+        ./run-checks --verify-tools
+
+    - name: Test Go (with network isolation)
       if: ${{ inputs.code == 'go' }}
       run: |
         sudo -E unshare --net -- bash -c 'ip link set lo up && runuser -u "$1" -- ./run-checks --unit' -- "$USER"
