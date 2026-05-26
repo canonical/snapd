@@ -40,9 +40,13 @@ locks(){
 
 coverage_after_non_nested_task() {
     # Copy the coverage files to the artifacts directory
-    local task_dir
-    task_dir="$(_prepare_artifacts_path coverage-results)"
-    cp -f "$TESTSTMP"/coverage/* "$task_dir" || true
+    if [ -d "$TESTSTMP"/coverage ] && [ $(ls "$TESTSTMP"/coverage | wc -l) -gt 0 ]; then
+        local task_dir
+        task_dir="$(_prepare_artifacts_path coverage-results)"
+        pushd "$SPREAD_PATH"
+        go run "$SPREAD_PATH"/tests/utils/coverage -results-dir "$TESTSTMP"/coverage -output functions > "$task_dir"/coverage.json
+        popd
+    fi
 }
 
 coverage_after_nested_task() {
@@ -50,6 +54,14 @@ coverage_after_nested_task() {
     local task_dir
     task_dir="$(_prepare_artifacts_path coverage-results)"
     "$TESTSTOOLS"/remote.pull "$TESTSTMP"/coverage/* "$task_dir" || true
+    if [ $(ls "$task_dir" | wc -l) -eq 0 ]; then
+        rm -r "$task_dir"
+        return
+    fi
+    pushd "$SPREAD_PATH"
+    go run "$SPREAD_PATH"/tests/utils/coverage -results-dir "$task_dir" -output functions > "$task_dir"/coverage.json
+    popd
+    find "$task_dir" -not -name coverage.json -type f -exec rm {} \;
 }
 
 if [ "$#" == 0 ]; then
