@@ -87,9 +87,20 @@ func (s *isReadySuite) TestIsReadyArgCount(c *C) {
 
 func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "")
-	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
-	c.Check(string(stderr), Matches, `change "nonexistent-id" not found`)
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
+	c.Check(err, ErrorMatches, `change "nonexistent-id" not found`)
+}
+
+func (s *isReadySuite) TestIsReadyChangeWithoutInitiatorNotFound(c *C) {
+	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, "")
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	c.Assert(err, ErrorMatches, `change .* not found`)
+}
+
+func (s *isReadySuite) TestIsReadyChangeFromOtherSnapNotFound(c *C) {
+	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, "other-snap")
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	c.Assert(err, ErrorMatches, `change .* not found`)
 }
 
 func (s *isReadySuite) TestIsReadyLogic(c *C) {
@@ -101,24 +112,13 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 		expectedStderr string // if set, checked as regexp match against stderr
 	}{
 		{
-			taskStatus:     state.DoneStatus,
-			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr: `change .* not found`,
-		},
-		{
-			taskStatus:     state.DoneStatus,
-			initiatorSnap:  "other-snap", // different from context snap "test-snap"
-			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr: `change .* not found`,
-		},
-		{
 			taskStatus:    state.DoneStatus,
 			initiatorSnap: "test-snap",
 		},
 		{
 			taskStatus:    state.DoingStatus,
 			initiatorSnap: "test-snap",
-			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 1},
+			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 3},
 		},
 		{
 			taskStatus:     state.ErrorStatus,
@@ -225,7 +225,7 @@ func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
 
 	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
+	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
 	c.Check(len(timerCh), Equals, 0) // element was consumed by the select
 }
 
