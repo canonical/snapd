@@ -74,7 +74,7 @@ type AtomicFile struct {
 // Also note that there are a number of scenarios where Commit fails and then
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
-func NewAtomicFile(filename string, perm os.FileMode, _flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
+func NewAtomicFile(filename string, perm os.FileMode, _ AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
 	// The tilde is appended so that programs that inspect all files in some
 	// directory are more likely to ignore this file as an editor backup file.
 	//
@@ -219,20 +219,20 @@ func (aw *AtomicFile) CommitAs(filename string) error {
 // []byte, and so work exactly like io.WriteFile(); AtomicWrite and
 // AtomicWriteChown take an io.Reader which is copied into the file instead,
 // and so are more amenable to streaming.
-func AtomicWrite(filename string, reader io.Reader, perm os.FileMode, _flags AtomicWriteFlags) (err error) {
-	return AtomicWriteChown(filename, reader, perm, _flags, NoChown, NoChown)
+func AtomicWrite(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags) (err error) {
+	return AtomicWriteChown(filename, reader, perm, flags, NoChown, NoChown)
 }
 
-func AtomicWriteFile(filename string, data []byte, perm os.FileMode, _flags AtomicWriteFlags) (err error) {
-	return AtomicWriteChown(filename, bytes.NewReader(data), perm, _flags, NoChown, NoChown)
+func AtomicWriteFile(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags) (err error) {
+	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, NoChown, NoChown)
 }
 
-func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, _flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
-	return AtomicWriteChown(filename, bytes.NewReader(data), perm, _flags, uid, gid)
+func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
+	return AtomicWriteChown(filename, bytes.NewReader(data), perm, flags, uid, gid)
 }
 
-func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, _flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
-	aw, err := NewAtomicFile(filename, perm, _flags, uid, gid)
+func AtomicWriteChown(filename string, reader io.Reader, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (err error) {
+	aw, err := NewAtomicFile(filename, perm, flags, uid, gid)
 	if err != nil {
 		return err
 	}
