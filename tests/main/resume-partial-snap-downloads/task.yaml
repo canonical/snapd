@@ -10,9 +10,7 @@ details: |
     simulating a network interruption during download.
 
 # ubuntu-14.04: systemd-run not supported
-# ubuntu-core: needs curl
-# TODO implement fakestore CLI for debug API calls
-systems: [-ubuntu-14.04*, -ubuntu-core-*]
+systems: [-ubuntu-14.04*]
 
 kill-timeout: 5m
 
@@ -63,8 +61,7 @@ execute: |
     # This ensures some successful write chunks are delivered before the
     # connection is severed, leaving a meaningful partial file.
     kill_after=20971520
-    curl --fail -s -X POST http://localhost:11028/debug \
-        -d "{\"action\":\"kill-request\",\"kill-path\":\"/download/$snap_file\",\"kill-after\":$kill_after}"
+    fakestore debug-api kill-request "/download/$snap_file" $kill_after
 
     echo "First install attempt: expect failure due to interrupted download"
     not snap install test-snap-resume
@@ -85,8 +82,7 @@ execute: |
     mod_time="$(stat -c '%y' "$partial_path")"
 
     # Reset error injection
-    curl --fail -s -X POST http://localhost:11028/debug \
-        -d "{\"action\":\"reset\"}"
+    fakestore debug-api reset
 
     # Make sure the logs for the fakestore are not polluted by previous snapd download
     # retries starting from last cursor.
@@ -98,6 +94,10 @@ execute: |
     # Verify the fakestore received a Range header on the resumed download,
     # confirming that snapd resumed from the partial file offset
     "$TESTSTOOLS"/journal-state get-log-from-cursor "$cursor" -u fakestore | MATCH "/download/$snap_file range request"
+
+    # Verify download endpoint was accessed after reset via request stats
+    # (stats were cleared by reset, so this counts only the successful resume)
+    fakestore debug-api stats | gojq -e '."request-stats"["/download/'"$snap_file"'"] >= 1'
 
     # Verify snap is installed
     snap list test-snap-resume
