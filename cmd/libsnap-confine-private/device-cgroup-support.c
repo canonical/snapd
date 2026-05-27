@@ -240,11 +240,13 @@ static int load_devcgroup_prog(int map_fd, const char *name) {
         BPF_EXIT_INSN(),
     };
 
-    char log_buf[4096] = {0};
+    /* 32kB, should be more than enough to store verifier logs if program
+       loading fails */
+    char log_buf[32768] = {0};
 
     int prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog, SC_ARRAY_SIZE(prog), log_buf, sizeof(log_buf), name);
     if (prog_fd < 0) {
-        die("cannot load program:\n%s\n", log_buf);
+        die("cannot load program, verifier output:\n%s\n", log_buf);
     }
     return prog_fd;
 }
