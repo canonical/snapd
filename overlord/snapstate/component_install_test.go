@@ -319,6 +319,12 @@ func (s *snapmgrTestSuite) TestInstallComponentPathUnasserted(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallComponentWithExistingClassic(c *C) {
+	s.testInstallComponentPath(c, testInstallComponentPathOpts{
+		snapIsClassic: true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestInstallComponentPathWithLane(c *C) {
 	s.testInstallComponentPath(c, testInstallComponentPathOpts{
 		lane:        1,
@@ -339,9 +345,10 @@ func (s *snapmgrTestSuite) TestInstallComponentPathTransactionPerSnap(c *C) {
 }
 
 type testInstallComponentPathOpts struct {
-	lane        int
-	unasserted  bool
-	transaction client.TransactionType
+	lane          int
+	unasserted    bool
+	transaction   client.TransactionType
+	snapIsClassic bool
 }
 
 func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallComponentPathOpts) {
@@ -354,12 +361,28 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 		compRev = snap.Revision{}
 	}
 	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	if opts.snapIsClassic {
+		info.Confinement = snap.ClassicConfinement
+	}
+
 	_, compPath := createTestComponent(c, snapName, compName, info)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	setStateWithOneSnap(s.state, snapName, snapRev)
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id"}
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, nil)}),
+		Current:         snapRev,
+		TrackingChannel: "channel-for-components",
+		Flags: snapstate.Flags{
+			Classic: opts.snapIsClassic,
+		},
+	})
 
 	csi := snap.NewComponentSideInfo(naming.ComponentRef{
 		SnapName: snapName, ComponentName: compName}, compRev)
@@ -372,7 +395,6 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 	}
 
 	ts, err := snapstate.InstallComponentPath(s.state, csi, info, compPath, installOpts)
-
 	c.Assert(err, IsNil)
 
 	expectedLane := opts.lane
@@ -394,6 +416,13 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
 	// File is not deleted
 	c.Assert(osutil.FileExists(compPath), Equals, true)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+
+	// ensure that we didn't drop persistent classic flag when installing the
+	// component
+	c.Assert(snapsup.Classic, DeepEquals, opts.snapIsClassic)
 }
 
 func (s *snapmgrTestSuite) TestInstallUnassertedComponentFailsWithAssertedSnap(c *C) {
@@ -963,6 +992,12 @@ func (s *snapmgrTestSuite) TestInstallComponentsWithLane(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestInstallComponentsWithExistingClassic(c *C) {
+	s.testInstallComponents(c, testInstallComponentsOpts{
+		snapIsClassic: true,
+	})
+}
+
 func (s *snapmgrTestSuite) TestInstallComponentsTransactionAllSnaps(c *C) {
 	s.testInstallComponents(c, testInstallComponentsOpts{
 		transaction: client.TransactionAllSnaps,
@@ -999,6 +1034,7 @@ type testInstallComponentsOpts struct {
 	transaction       client.TransactionType
 	userIDInstallOpts int
 	userIDSnapState   int
+	snapIsClassic     bool
 }
 
 func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponentsOpts) {
@@ -1011,6 +1047,9 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	}
 
 	info := createTestSnapInfoForComponents(c, snapName, snapRev, compNamesToType)
+	if opts.snapIsClassic {
+		info.Confinement = snap.ClassicConfinement
+	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1029,6 +1068,9 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 		Current:         snapRev,
 		TrackingChannel: "channel-for-components",
 		UserID:          opts.userIDSnapState,
+		Flags: snapstate.Flags{
+			Classic: opts.snapIsClassic,
+		},
 	})
 
 	components := []string{"standard-component", "kernel-modules-component"}
@@ -1120,6 +1162,10 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, NotNil)
 	c.Assert(snapsup.ComponentExclusiveOperation, Equals, true)
+
+	// ensure that we didn't drop persistent classic flag when installing the
+	// component
+	c.Assert(snapsup.Classic, DeepEquals, opts.snapIsClassic)
 
 	for _, ts := range tss[0 : len(tss)-1] {
 		task := ts.Tasks()[0]
