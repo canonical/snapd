@@ -48,11 +48,11 @@ jobs:
         fi
 
         labels=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
-        if grep -q '^Skip spread$' <<<$labels || grep -q '^Run only one system$' <<<$labels'; then
+        if grep -q '^Skip spread$' <<<"$labels" || grep -q '^Run only one system$' <<<"$labels"; then
           exit 0
         fi
 
         approvals=$(gh pr view "$PR_NUMBER" --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | sort -u | wc -l)
-        if [ "$approvals" -ge 2 ] && ! grep -q '^Auto rerun spread$' <<<$labels; then
+        if [ "$approvals" -ge 2 ] && ! grep -q '^Auto rerun spread$' <<<"$labels"; then
           gh pr edit "$PR_NUMBER" --add-label 'Auto rerun spread'
         fi
