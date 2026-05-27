@@ -727,6 +727,9 @@ func (s *certsTestSuite) TestRefreshCertificateDatabaseKeepsHashLinksValidAfterS
 	c.Assert(err, IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	mergedInfo, err := os.Lstat(mergedDir)
+	c.Assert(err, IsNil)
+	c.Check(mergedInfo.Mode()&os.ModeSymlink != 0, Equals, true)
 	hashLink := filepath.Join(mergedDir, parsed[0].SubjectNameSha1[:8]+".0")
 
 	info, err := os.Lstat(hashLink)
@@ -740,6 +743,64 @@ func (s *certsTestSuite) TestRefreshCertificateDatabaseKeepsHashLinksValidAfterS
 	linkedContents, err := os.ReadFile(hashLink)
 	c.Assert(err, IsNil)
 	c.Check(linkedContents, DeepEquals, aPEM)
+}
+
+func (s *certsTestSuite) TestRefreshCertificateDatabasePublishesImmutableGenerations(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	bPEM, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+	aPath := filepath.Join(baseCertsDir, "a.crt")
+	bPath := filepath.Join(baseCertsDir, "b.crt")
+	c.Assert(os.WriteFile(aPath, aPEM, 0o644), IsNil)
+
+	err = certstate.RefreshCertificateDatabase()
+	c.Assert(err, IsNil)
+
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	previousPath := filepath.Join(dirs.SnapdPKIV1Dir, "previous")
+	firstTarget, err := os.Readlink(mergedDir)
+	c.Assert(err, IsNil)
+	_, err = os.Lstat(previousPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+
+	firstBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, firstTarget, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(firstBundle, aPEM), Equals, true)
+	c.Check(bytes.Contains(firstBundle, bPEM), Equals, false)
+
+	c.Assert(os.Remove(aPath), IsNil)
+	c.Assert(os.WriteFile(bPath, bPEM, 0o644), IsNil)
+
+	err = certstate.RefreshCertificateDatabase()
+	c.Assert(err, IsNil)
+
+	secondTarget, err := os.Readlink(mergedDir)
+	c.Assert(err, IsNil)
+	c.Check(secondTarget, Not(Equals), firstTarget)
+	previousTarget, err := os.Readlink(previousPath)
+	c.Assert(err, IsNil)
+	c.Check(previousTarget, Equals, firstTarget)
+
+	secondBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, secondTarget, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(secondBundle, aPEM), Equals, false)
+	c.Check(bytes.Contains(secondBundle, bPEM), Equals, true)
+
+	firstBundleAfterRefresh, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, firstTarget, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(firstBundleAfterRefresh, DeepEquals, firstBundle)
+
+	previousBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, previousTarget, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(previousBundle, DeepEquals, firstBundle)
+
+	mergedBundle, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(mergedBundle, DeepEquals, secondBundle)
 }
 
 func (s *certsTestSuite) TestCertificatePathAddsCrtExtension(c *C) {

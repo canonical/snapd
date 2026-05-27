@@ -20,7 +20,6 @@ package certstate
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -36,8 +35,10 @@ type CertManager struct {
 	ensureEarlyCertificateGenerationRan bool
 }
 
-const doUpdateCertificateDatabaseMarker = ".certdb-do-refresh"
-const undoUpdateCertificateDatabaseMarker = ".certdb-undo-refresh"
+const (
+	previousGenerationTaskKey = "cert-db-prev-generation"
+	undoFromGenerationTaskKey = "cert-db-undo-from-generation"
+)
 
 func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	m := &CertManager{
@@ -46,7 +47,6 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 
 	// register tasks to update the certificate database
 	runner.AddHandler("update-cert-db", m.doUpdateCertificateDatabase, m.undoUpdateCertificateDatabase)
-	runner.AddCleanup("update-cert-db", m.cleanupUpdateCertificateDatabase)
 
 	return m
 }
@@ -71,16 +71,28 @@ func (m *CertManager) Ensure() error {
 
 	m.ensureEarlyCertificateGenerationRan = true
 
-	// If the CA certificate database is already present, nothing to do.
-	certDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
-	if osutil.FileExists(certDbPath) {
-		logger.Debugf("ca-certificate database has already been generated, skipping generation")
-		return nil
-	}
-
 	// If the ssl certs directory is missing, nothing to do.
 	if !hasSystemCertsDir() {
 		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
+		return nil
+	}
+
+	// If the CA certificate database is already present, nothing to do.
+	// Remove the old style merged folder if it exists. If the merged folder exists, and
+	// it's not a symlink, we remove the folder and regenerate the database
+	mergedDir := CurrentCertificateDir()
+	if info, err := os.Lstat(mergedDir); err == nil {
+		if info.Mode()&os.ModeSymlink == 0 {
+			if err := os.RemoveAll(mergedDir); err != nil {
+				return err
+			}
+		} else {
+			// The merged directory is already a symlink, we assume it's correctly set up and skip generation.
+			logger.Debugf("merged certificate database exists, skipping generation")
+			return nil
+		}
+	} else if !os.IsNotExist(err) {
+		logger.Noticef("error checking merged certificate database: %v", err)
 		return nil
 	}
 
@@ -90,104 +102,95 @@ func (m *CertManager) Ensure() error {
 	return RefreshCertificateDatabase()
 }
 
-func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
+func recordCurrentCertificateGeneration(t *state.Task, key string) (string, error) {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
+	var current string
+	err := t.Get(key, &current)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			return "", err
+		}
+		current, err = resolveCurrentCertificateTarget()
+		if err != nil {
+			return "", err
+		}
+		// Record the rollback target before publishing a new generation so a
+		// reboot during refresh does not lose the generation undo must return to.
+		t.Set(key, current)
+	}
+	return current, nil
+}
+
+func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
 	if !hasSystemCertsDir() {
+		st.Lock()
+		defer st.Unlock()
 		t.Logf("/etc/ssl/certs is not available on this system, skipping certificate database update")
 		return nil
 	}
 
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
-
-	markerInMerged := filepath.Join(mergedDir, doUpdateCertificateDatabaseMarker)
-	markerInStaged := filepath.Join(stagedDir, doUpdateCertificateDatabaseMarker)
-
-	// A retry after reboot may observe the marker already moved into
-	// merged. In that case the swap already happened and we must preserve the
-	// staged backup for undo instead of refreshing again.
-	if osutil.FileExists(markerInMerged) {
-		return nil
-	}
-
-	// Start with a clean staged directory.
-	if err := os.RemoveAll(stagedDir); err != nil {
+	_, err := recordCurrentCertificateGeneration(t, previousGenerationTaskKey)
+	if err != nil {
 		return err
 	}
 
-	// SwapDirs requires both paths to exist, so create an empty merged
-	// directory when there is no prior certificate database yet.
-	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
-	}
-
-	if err := GenerateCertificateDatabase(stagedDir); err != nil {
-		return err
-	}
-
-	if err := os.WriteFile(markerInStaged, nil, 0o600); err != nil {
-		return fmt.Errorf("cannot create certificate database swap marker %v", err)
-	}
-
-	// Swap the new certificate database into place.
-	if err := osutil.SwapDirs(stagedDir, mergedDir); err != nil {
-		return fmt.Errorf("cannot swap certificate database directories: %v", err)
-	}
-	return nil
+	st.Lock()
+	defer st.Unlock()
+	return RefreshCertificateDatabase()
 }
 
 func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
-	t.State().Lock()
-	defer t.State().Unlock()
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
 
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
-
-	markerInMerged := filepath.Join(mergedDir, undoUpdateCertificateDatabaseMarker)
-	markerInStaged := filepath.Join(stagedDir, undoUpdateCertificateDatabaseMarker)
-
-	// The marker moves with the restored directory across the swap, so a retry
-	// after a reboot can tell whether undo already flipped merged and only needs
-	// to finish cleanup.
-	if osutil.FileExists(markerInMerged) {
-		return nil
-	}
-
-	if exists, isDir, err := osutil.DirExists(stagedDir); err != nil {
-		return err
-	} else if !exists || !isDir {
-		t.Logf("cannot undo certificate database update: missing backup directory %q", stagedDir)
-		return nil
-	}
-
-	if err := os.WriteFile(markerInStaged, nil, 0o600); err != nil {
-		return err
-	}
-	if err := osutil.SwapDirs(stagedDir, mergedDir); err != nil {
+	var previousTarget string
+	err := t.Get(previousGenerationTaskKey, &previousTarget)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
 		return err
 	}
 
-	return nil
-}
-
-func (m *CertManager) cleanupUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
-
-	if err := os.RemoveAll(stagedDir); err != nil {
+	// recordCurrentCertificateGeneration takes the lock as it persists the key
+	// immediately in state
+	st.Unlock()
+	undoFromTarget, err := recordCurrentCertificateGeneration(t, undoFromGenerationTaskKey)
+	st.Lock()
+	if err != nil {
 		return err
 	}
 
-	for _, marker := range []string{doUpdateCertificateDatabaseMarker, undoUpdateCertificateDatabaseMarker} {
-		markerInMerged := filepath.Join(mergedDir, marker)
-		if err := os.Remove(markerInMerged); err != nil && !os.IsNotExist(err) {
+	if previousTarget == "" {
+		mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+		// When there was no previously published generation, undo cannot point
+		// merged back anywhere. Cleanup the merged directory.
+		if err := os.RemoveAll(mergedDir); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		// cleanup the previous target
+		return switchPreviousMergedCertificates("")
+	}
+
+	currentTarget, err := resolveCurrentCertificateTarget()
+	if err != nil {
+		return err
+	}
+	if currentTarget != previousTarget {
+		// Ordinary undo just moves the public pointers back: merged returns to the
+		// generation captured before the do-path ran, and previous records the
+		// generation we displaced so repeated undo or later cleanup stays coherent.
+		if err := switchCurrentMergedCertificates(previousTarget); err != nil {
 			return err
 		}
 	}
-	return nil
+	return switchPreviousMergedCertificates(undoFromTarget)
 }
 
 func hasSystemCertsDir() bool {
@@ -196,6 +199,3 @@ func hasSystemCertsDir() bool {
 	}
 	return true
 }
-
-// Cleanup marker + staged on task cleanup handlers
-// Mount namespace - snapshot the certs into a tmpfs

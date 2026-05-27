@@ -462,13 +462,15 @@ func loadCertificates() (*certificates, error) {
 // structure of pki/v1:
 // /var/lib/snapd/pki/v1/added/<digest>.crt (symlink)
 // /var/lib/snapd/pki/v1/blocked/<digest>.crt (symlink)
-// /var/lib/snapd/pki/v1/merged/*.crt (symlinks)
-// /var/lib/snapd/pki/v1/merged/ca-certificates.crt
+// /var/lib/snapd/pki/v1/published/<generation>/*.crt
+// /var/lib/snapd/pki/v1/published/<generation>/ca-certificates.crt
+// /var/lib/snapd/pki/v1/merged -> published/<generation>
 // /var/lib/snapd/pki/v1/<name>.crt
 func ensureDirectories() error {
 	dirsToEnsure := []string{
 		filepath.Join(dirs.SnapdPKIV1Dir, "added"),
 		filepath.Join(dirs.SnapdPKIV1Dir, "blocked"),
+		filepath.Join(dirs.SnapdPKIV1Dir, "published"),
 	}
 	for _, dir := range dirsToEnsure {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -496,30 +498,168 @@ func GenerateCertificateDatabase(mergedPath string) error {
 	return generateCACertificates(certs, mergedPath)
 }
 
+// CurrentCertificateDir returns the compatibility path that consumers follow
+// for the active certificate view while snapd publishes immutable generations
+// alongside it.
+func CurrentCertificateDir() string {
+	return filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+}
+
+// PublishedCertificatesDir holds immutable certificate generations so updates
+// can move the active view forward without rewriting trees that may still be in
+// use elsewhere.
+func PublishedCertificatesDir() string {
+	return filepath.Join(dirs.SnapdPKIV1Dir, "published")
+}
+
+// mergedCertificatesGeneration returns the relative target used by the public
+// generation pointers so they keep working if the snapd state directory moves
+// under a different root.
+func mergedCertificatesGeneration(generation string) string {
+	return filepath.Join("published", generation)
+}
+
+// switchCertificatesLink atomically replaces one of the generation pointers so
+// readers never have to observe a half-updated or missing link.
+func switchCertificatesLink(linkPath, target string) error {
+	tmpLink := linkPath + ".new"
+	if err := os.Remove(tmpLink); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Symlink(target, tmpLink); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpLink, linkPath); err != nil {
+		_ = os.Remove(tmpLink)
+		return err
+	}
+	return nil
+}
+
+// switchCurrentMergedCertificates updates the current "merged" pointer that
+// consumers resolve, so publishing a new generation stays a metadata change.
+func switchCurrentMergedCertificates(target string) error {
+	return switchCertificatesLink(CurrentCertificateDir(), target)
+}
+
+// switchPreviousMergedCertificates records the rollback target explicitly so
+// undo and future cleanup decisions can reason about the last active
+// generation.
+func switchPreviousMergedCertificates(target string) error {
+	previousPath := filepath.Join(dirs.SnapdPKIV1Dir, "previous")
+	if target == "" {
+		if err := os.Remove(previousPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	return switchCertificatesLink(previousPath, target)
+}
+
+// Sha224hashOfFile returns the content fingerprint snapd uses to name
+// published generations so identical certificate bundles naturally converge on
+// the same target.
+func Sha224hashOfFile(p string) (string, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return "", fmt.Errorf("cannot open file: %v", err)
+	}
+	defer f.Close()
+
+	h := sha256.New224()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("cannot hash file: %v", err)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// resolveCurrentCertificateTarget resolves the active published generation target,
+// and returns an empty string if the link is missing (e.g. first run or after cleanup).
+func resolveCurrentCertificateTarget() (string, error) {
+	mergedDir := CurrentCertificateDir()
+	info, err := os.Lstat(mergedDir)
+	if err != nil {
+		// no merged directory?
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	if info.Mode()&os.ModeSymlink == 0 {
+		return "", fmt.Errorf("merged certificates path is not a symlink")
+	}
+
+	target, err := os.Readlink(mergedDir)
+	if err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
 // RefreshCertificateDatabase does a best-effort of performing an
 // atomic update of the existing cert database. Expects state to be
 // locked when calling this function, to avoid concurrent updates to the database.
 var RefreshCertificateDatabase = refreshCertificateDatabaseImpl
 
 func refreshCertificateDatabaseImpl() error {
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	stagedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
-	if err := os.RemoveAll(stagedDir); err != nil {
+	if err := ensureDirectories(); err != nil {
 		return err
 	}
 
-	// SwapDirs requires both paths to exist, so create an empty merged
-	// directory when there is no prior certificate database yet.
-	if err := os.MkdirAll(mergedDir, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+	publishedDir := PublishedCertificatesDir()
+	currentTarget, err := resolveCurrentCertificateTarget()
+	if err != nil {
+		return err
 	}
+
+	// Build the next certificate view off to the side so the active generation
+	// stays unchanged until publication is reduced to metadata updates.
+	stagedDir, err := os.MkdirTemp(publishedDir, ".generation-")
+	if err != nil {
+		return fmt.Errorf("cannot create staging directory for published certificates: %v", err)
+	}
+	defer os.RemoveAll(stagedDir)
 
 	if err := GenerateCertificateDatabase(stagedDir); err != nil {
 		return err
 	}
 
-	// Swap the new certificate database into place.
-	return osutil.SwapDirs(stagedDir, mergedDir)
+	hash, err := Sha224hashOfFile(filepath.Join(stagedDir, "ca-certificates.crt"))
+	if err != nil {
+		return fmt.Errorf("cannot generate hash of new certificate bundle: %v", err)
+	}
+
+	// Name published generations by bundle contents so equivalent certificate
+	// states naturally converge on the same immutable target.
+	nextTarget := mergedCertificatesGeneration(hash)
+	nextPath := filepath.Join(dirs.SnapdPKIV1Dir, nextTarget)
+	if exists, isDir, err := osutil.DirExists(nextPath); err != nil {
+		return err
+	} else if !exists {
+		if err := os.Rename(stagedDir, nextPath); err != nil {
+			return fmt.Errorf("cannot publish certificates generation %q: %v", hash, err)
+		}
+	} else if !isDir {
+		return fmt.Errorf("published certificates generation %q is not a directory", hash)
+	}
+
+	// If the current pointer already resolves to this generation, keep the
+	// existing rollback metadata intact rather than churning links for no change.
+	if currentTarget == nextTarget {
+		return nil
+	}
+
+	// Publish by moving the public pointers, not by mutating generation
+	// contents. The active view moves first; the previous pointer then records
+	// the generation we just displaced for undo and later cleanup decisions.
+	if err := switchCurrentMergedCertificates(nextTarget); err != nil {
+		return err
+	}
+	if err := switchPreviousMergedCertificates(currentTarget); err != nil {
+		return fmt.Errorf("cannot update previous merged certificates metadata: %v", err)
+	}
+	return nil
 }
 
 // certificatePathWithExtension returns a path under dir for a certificate name
