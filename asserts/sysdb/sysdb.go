@@ -17,7 +17,8 @@
  *
  */
 
-// Package sysdb supports the system-wide assertion database with ways to open it and to manage the trusted set of assertions founding it.
+// Package sysdb supports the system-wide assertion database with ways to open
+// it and to manage the trusted set of assertions founding it.
 package sysdb
 
 import (

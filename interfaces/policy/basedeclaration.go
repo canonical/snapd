@@ -31,6 +31,7 @@ import (
 
 const baseDeclarationHeader = `
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 revision: 0

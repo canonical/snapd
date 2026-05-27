@@ -2041,18 +2041,13 @@ func (s *baseDeclSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, baseDeclErrPrefix+test.expectedErr)
 	}
-
 }
 
-func (s *baseDeclSuite) TestBuiltin(c *C) {
-	baseDecl := asserts.BuiltinBaseDeclaration()
-	c.Check(baseDecl, IsNil)
-
-	defer asserts.InitBuiltinBaseDeclaration(nil)
-
+func (s *baseDeclSuite) TestBuiltinBaseDeclaration(c *C) {
 	const headers = `
 type: base-declaration
 authority-id: canonical
+account-id: system
 series: 16
 revision: 0
 plugs:
@@ -2067,7 +2062,14 @@ slots:
 	err := asserts.InitBuiltinBaseDeclaration([]byte(headers))
 	c.Assert(err, IsNil)
 
-	baseDecl = asserts.BuiltinBaseDeclaration()
+	var baseDecl *asserts.BaseDeclaration
+	for _, as := range asserts.BuiltinAssertions() {
+		var ok bool
+		baseDecl, ok = as.(*asserts.BaseDeclaration)
+		if ok {
+			break
+		}
+	}
 	c.Assert(baseDecl, NotNil)
 
 	cont, _ := baseDecl.Signature()
@@ -2092,11 +2094,11 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 		err     string
 	}{
 		{"", `header entry missing ':' separator: ""`},
-		{"type: foo\n", `the builtin base-declaration "type" header is not set to expected value "base-declaration"`},
-		{"type: base-declaration", `the builtin base-declaration "authority-id" header is not set to expected value "canonical"`},
-		{"type: base-declaration\nauthority-id: canonical", `the builtin base-declaration "series" header is not set to expected value "16"`},
-		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nrevision: zzz", `cannot assemble the builtin-base declaration: "revision" header is not an integer: zzz`},
-		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nplugs: foo", `cannot assemble the builtin base-declaration: "plugs" header must be a map`},
+		{"type: foo\n", `the "account-id" for builtin base-declaration must be set to "system"`},
+		{"type: base-declaration\naccount-id: system", `the "authority-id" for builtin base-declaration must be set to "canonical"`},
+		{"type: base-declaration\naccount-id: system\nauthority-id: canonical", `the builtin base-declaration "series" header is not set to expected value "16"`},
+		{"type: base-declaration\naccount-id: system\nauthority-id: canonical\nseries: 16\nrevision: zzz", `cannot assemble the builtin base-declaration: "revision" header is not an integer: zzz`},
+		{"type: base-declaration\naccount-id: system\nauthority-id: canonical\nseries: 16\nplugs: foo", `cannot assemble the builtin base-declaration: "plugs" header must be a map`},
 	}
 
 	for _, t := range tests {

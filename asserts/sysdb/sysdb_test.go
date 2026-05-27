@@ -31,6 +31,9 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+
+	// this package's init() creates a builtin assertion so ensure it's called
+	_ "github.com/snapcore/snapd/interfaces/policy"
 )
 
 func TestSysDB(t *testing.T) { TestingT(t) }
@@ -109,13 +112,13 @@ func (sdbs *sysDBSuite) TestTrusted(c *C) {
 
 func (sdbs *sysDBSuite) TestGeneric(c *C) {
 	generic := sysdb.Generic()
-	c.Check(generic, HasLen, 2)
+	c.Check(generic, HasLen, 3)
 
 	restore := sysdb.InjectGeneric(sdbs.extraGeneric)
 	defer restore()
 
 	genericEx := sysdb.Generic()
-	c.Check(genericEx, HasLen, 3)
+	c.Check(genericEx, HasLen, 4)
 }
 
 func (sdbs *sysDBSuite) TestGenericClassicModel(c *C) {

@@ -249,18 +249,21 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, ignoreValidation 
 	return validated, nil
 }
 
-// BaseDeclaration returns the base-declaration assertion with policies governing all snaps.
+// BaseDeclaration returns the base-declaration assertion with policies
+// governing all snaps.
 func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
-	// TODO: switch keeping this in the DB and have it revisioned/updated
-	// via the store
-	baseDecl := asserts.BuiltinBaseDeclaration()
-	if baseDecl == nil {
-		return nil, &asserts.NotFoundError{Type: asserts.BaseDeclarationType}
+	db := DB(s)
+	a, err := db.Find(asserts.BaseDeclarationType, map[string]string{
+		"series": release.Series,
+	})
+	if err != nil {
+		return nil, err
 	}
-	return baseDecl, nil
+	return a.(*asserts.BaseDeclaration), nil
 }
 
-// SnapDeclaration returns the snap-declaration for the given snap-id if it is present in the system assertion database.
+// SnapDeclaration returns the snap-declaration for the given snap-id if it is
+// present in the system assertion database.
 func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, error) {
 	db := DB(s)
 	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
