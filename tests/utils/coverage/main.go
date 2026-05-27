@@ -22,7 +22,7 @@ import (
 )
 
 // data looks like <path>:<start-line>.<start-col>,<end-line>.<end-col> <num-statements> <count>
-var profileLineRE = regexp.MustCompile(`^(.*):([0-9]+)\.[0-9]+,([0-9]+)\.[0-9]+\s+[0-9]+\s+([0-9]+)$`)
+var profileLineRE = regexp.MustCompile(`^(.*):([0-9]+)\.[0-9]+,([0-9]+)\.[0-9]+\s+([0-9]+)\s+([0-9]+)$`)
 
 type coveredLineSet map[int]struct{}
 
@@ -281,7 +281,7 @@ func (a *app) parseProfile(profilePath string) (coverageByFile, error) {
 			continue
 		}
 		matches := profileLineRE.FindStringSubmatch(line)
-		if len(matches) != 5 {
+		if len(matches) != 6 {
 			continue
 		}
 
@@ -298,7 +298,11 @@ func (a *app) parseProfile(profilePath string) (coverageByFile, error) {
 		if err != nil {
 			continue
 		}
-		count, err := strconv.ParseInt(matches[4], 10, 64)
+		numStatements, err := strconv.Atoi(matches[4])
+		if err != nil {
+			continue
+		}
+		count, err := strconv.ParseInt(matches[5], 10, 64)
 		if err != nil {
 			continue
 		}
@@ -312,7 +316,7 @@ func (a *app) parseProfile(profilePath string) (coverageByFile, error) {
 			result[path] = lines
 		}
 		for ln := startLine; ln <= endLine; ln++ {
-			if count > 0 {
+			if count > 0 && numStatements > 0 {
 				lines[ln] = struct{}{}
 			}
 		}
