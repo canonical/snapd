@@ -28,10 +28,10 @@ type Certificate = certificate
 type Certificates = certificates
 
 const (
-	Asn1TagVisibleString                = asn1TagVisibleString
-	Asn1TagUniversalString              = asn1TagUniversalString
-	DoUpdateCertificateDatabaseMarker   = doUpdateCertificateDatabaseMarker
-	UndoUpdateCertificateDatabaseMarker = undoUpdateCertificateDatabaseMarker
+	Asn1TagVisibleString      = asn1TagVisibleString
+	Asn1TagUniversalString    = asn1TagUniversalString
+	PreviousGenerationTaskKey = previousGenerationTaskKey
+	UndoFromGenerationTaskKey = undoFromGenerationTaskKey
 )
 
 var (
@@ -59,10 +59,6 @@ func MockRefreshCertificateDatabase(f func() error) func() {
 
 func (m *CertManager) DoUpdateCertificateDatabase(t *state.Task, tb *tomb.Tomb) error {
 	return m.doUpdateCertificateDatabase(t, tb)
-}
-
-func (m *CertManager) CleanupUpdateCertificateDatabase(t *state.Task, tb *tomb.Tomb) error {
-	return m.cleanupUpdateCertificateDatabase(t, tb)
 }
 
 func (m *CertManager) UndoUpdateCertificateDatabase(t *state.Task, tb *tomb.Tomb) error {
