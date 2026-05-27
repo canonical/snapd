@@ -251,13 +251,6 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 	return strutil.ListContains(hashes, assetHash)
 }
 
-// BootEntryUpdater abstract adding/updating boot entries. This is
-// mainly use to update UEFI boot entries when grub is used as a
-// bootloader.
-type BootEntryUpdater interface {
-	Update() error
-}
-
 // TrustedAssetsInstallObserver tracks the installation of trusted or managed
 // boot assets.
 type TrustedAssetsInstallObserver interface {
@@ -273,12 +266,9 @@ type TrustedAssetsInstallObserver interface {
 	)
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 
-	// GetBootEntryUpdater extract the BootEntryUpdater
-	// abstraction. If a grub bootloader was discovered it will
-	// give an UEFI entries updater.  Otherwise it will be nil.
-	GetBootEntryUpdater() BootEntryUpdater
-	// GetTrustedAssets extracts the trusted assets
-	GetTrustedAssets() *TrustedAssets
+	// GetBootAssets exposes the trusted assets as well
+	// as aw to update the boot entry.
+	GetBootAssets() BootAssets
 	// GetEncryptionParams extracts the encryption parmeters
 	GetEncryptionParams() *EncryptionParameters
 }
@@ -300,11 +290,37 @@ type EncryptionParameters struct {
 	checkResult *secboot.PreinstallCheckResult
 }
 
-// TrustedAssets represents the assets trusted that may be accepted in
-// boot chains.
-type TrustedAssets struct {
+// BootAssets represents the assets trusted that may be accepted in
+// boot chains and the method to update the boot entry.
+type BootAssets interface {
+	// GetTrackedRecoveryAssets returns the boot assets for the run boot chains
+	GetTrackedAssets() bootAssetsMap
+	// GetTrackedRecoveryAssets returns the boot assets for the recovery boot chains
+	GetTrackedRecoveryAssets() bootAssetsMap
+	// UpdateBootEntry update the boot entry to boot the current asset chains
+	UpdateBootEntry() error
+}
+
+type bootAssetsImpl struct {
 	trackedAssets         bootAssetsMap
 	trackedRecoveryAssets bootAssetsMap
+	bootLoader            bootloader.UefiBootloader
+	updatedAssets         []string
+}
+
+func (b *bootAssetsImpl) GetTrackedAssets() bootAssetsMap {
+	return b.trackedAssets
+}
+
+func (b *bootAssetsImpl) GetTrackedRecoveryAssets() bootAssetsMap {
+	return b.trackedRecoveryAssets
+}
+
+func (b *bootAssetsImpl) UpdateBootEntry() error {
+	if b.bootLoader == nil && b.updatedAssets == nil {
+		return nil
+	}
+	return doUpdateBootEntry(b.bootLoader, b.updatedAssets)
 }
 
 type trustedAssetsInstallObserverImpl struct {
@@ -436,22 +452,18 @@ func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(
 	o.encryption = NewEncryptionParams(key, saveKey, primaryKey, volumesAuth, checkResult)
 }
 
-type bootEntryUpdaterImpl struct {
-	bootLoader    bootloader.UefiBootloader
-	updatedAssets []string
-}
+func (o *trustedAssetsInstallObserverImpl) GetBootAssets() BootAssets {
+	ret := &bootAssetsImpl{
+		trackedAssets:         o.trackedAssets,
+		trackedRecoveryAssets: o.trackedRecoveryAssets,
+	}
 
-func (b *bootEntryUpdaterImpl) Update() error {
-	return doUpdateBootEntry(b.bootLoader, b.updatedAssets)
-}
-
-func (o *trustedAssetsInstallObserverImpl) GetBootEntryUpdater() BootEntryUpdater {
 	if o.seedBootloader == nil {
-		return nil
+		return ret
 	}
 	efiBl, ok := o.seedBootloader.(bootloader.UefiBootloader)
 	if !ok {
-		return nil
+		return ret
 	}
 
 	var updatedAssets []string
@@ -459,17 +471,10 @@ func (o *trustedAssetsInstallObserverImpl) GetBootEntryUpdater() BootEntryUpdate
 		updatedAssets = append(updatedAssets, name)
 	}
 
-	return &bootEntryUpdaterImpl{
-		bootLoader:    efiBl,
-		updatedAssets: updatedAssets,
-	}
-}
+	ret.bootLoader = efiBl
+	ret.updatedAssets = updatedAssets
 
-func (o *trustedAssetsInstallObserverImpl) GetTrustedAssets() *TrustedAssets {
-	return &TrustedAssets{
-		trackedAssets:         o.trackedAssets,
-		trackedRecoveryAssets: o.trackedRecoveryAssets,
-	}
+	return ret
 }
 
 func (o *trustedAssetsInstallObserverImpl) GetEncryptionParams() *EncryptionParameters {

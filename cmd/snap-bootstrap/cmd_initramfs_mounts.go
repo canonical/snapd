@@ -529,9 +529,8 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	if err := bootMakeRunnableStandaloneSystem(
 		model,
 		bootWith,
-		trustedInstallObserver.GetTrustedAssets(),
-		trustedInstallObserver.GetEncryptionParams(),
-		trustedInstallObserver.GetBootEntryUpdater()); err != nil {
+		trustedInstallObserver.GetBootAssets(),
+		trustedInstallObserver.GetEncryptionParams()); err != nil {
 		return err
 	}
 

@@ -345,11 +345,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		if trustedInstallObserver != nil {
 			err = bootMakeRunnable(deviceCtx.Model(), bootWith,
-				trustedInstallObserver.GetTrustedAssets(),
-				trustedInstallObserver.GetEncryptionParams(),
-				trustedInstallObserver.GetBootEntryUpdater())
+				trustedInstallObserver.GetBootAssets(),
+				trustedInstallObserver.GetEncryptionParams())
 		} else {
-			err = bootMakeRunnable(deviceCtx.Model(), bootWith, nil, nil, nil)
+			err = bootMakeRunnable(deviceCtx.Model(), bootWith, nil, nil)
 		}
 	})
 	if err != nil {
@@ -682,11 +681,10 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		if trustedInstallObserver != nil {
 			err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith,
-				trustedInstallObserver.GetTrustedAssets(),
-				trustedInstallObserver.GetEncryptionParams(),
-				trustedInstallObserver.GetBootEntryUpdater())
+				trustedInstallObserver.GetBootAssets(),
+				trustedInstallObserver.GetEncryptionParams())
 		} else {
-			err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, nil, nil, nil)
+			err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, nil, nil)
 		}
 	})
 	if err != nil {
@@ -1264,9 +1262,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	if err := bootMakeRunnableStandalone(
 		systemAndSnaps.Model,
 		bootWith,
-		trustedInstallObserver.GetTrustedAssets(),
+		trustedInstallObserver.GetBootAssets(),
 		trustedInstallObserver.GetEncryptionParams(),
-		trustedInstallObserver.GetBootEntryUpdater(),
 		st.Unlocker()); err != nil {
 		return err
 	}

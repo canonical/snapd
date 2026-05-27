@@ -467,7 +467,7 @@ func isSealModeenvLocked() bool {
 	return atomic.LoadInt32(&sealModeenvLocked) == 1
 }
 
-func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, trusted *TrustedAssets, encryption *EncryptionParameters, bootEntryUpdater BootEntryUpdater, makeOpts makeRunnableOptions) error {
+func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionParameters, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
@@ -514,9 +514,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, trusted *Tr
 
 	var currentTrustedBootAssets bootAssetsMap
 	var currentTrustedRecoveryBootAssets bootAssetsMap
-	if trusted != nil {
-		currentTrustedBootAssets = trusted.trackedAssets
-		currentTrustedRecoveryBootAssets = trusted.trackedRecoveryAssets
+	if bootAssets != nil {
+		currentTrustedBootAssets = bootAssets.GetTrackedAssets()
+		currentTrustedRecoveryBootAssets = bootAssets.GetTrackedRecoveryAssets()
 	}
 	recoverySystemLabel := bootWith.RecoverySystemLabel
 	// write modeenv on the ubuntu-data partition
@@ -698,8 +698,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, trusted *Tr
 		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
 	}
 
-	if bootEntryUpdater != nil {
-		if err := bootEntryUpdater.Update(); err != nil {
+	if bootAssets != nil {
+		if err := bootAssets.UpdateBootEntry(); err != nil {
 			logger.Debugf("WARNING: %v", err)
 		}
 	}
@@ -758,8 +758,8 @@ func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string
 // something like boot.EnsureNextBootToRunMode(). This is to enable separately
 // setting up a run system and actually transitioning to it, with hooks, etc.
 // running in between.
-func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, trusted *TrustedAssets, encryption *EncryptionParameters, bootEntryUpdater BootEntryUpdater) error {
-	return makeRunnableSystem(model, bootWith, trusted, encryption, bootEntryUpdater, makeRunnableOptions{
+func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionParameters) error {
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		SeedDir: dirs.SnapSeedDir,
 	})
 }
@@ -767,10 +767,10 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, trusted *Tr
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
 // not assume that the run system being set up is related to the current
 // system. This is appropriate e.g when installing from a classic installer.
-func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, trusted *TrustedAssets, encryption *EncryptionParameters, bootEntryUpdater BootEntryUpdater, unlocker Unlocker) error {
+func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionParameters, unlocker Unlocker) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
-	return makeRunnableSystem(model, bootWith, trusted, encryption, bootEntryUpdater, makeRunnableOptions{
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		Standalone:    true,
 		SeedDir:       dirs.SnapSeedDir,
 		StateUnlocker: unlocker,
@@ -779,10 +779,10 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, t
 
 // MakeRunnableStandaloneSystemFromInitrd is the same as MakeRunnableStandaloneSystem
 // but uses seed dir path expected in initrd.
-func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, trusted *TrustedAssets, encryption *EncryptionParameters, bootEntryUpdater BootEntryUpdater) error {
+func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionParameters) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
-	return makeRunnableSystem(model, bootWith, trusted, encryption, bootEntryUpdater, makeRunnableOptions{
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		Standalone: true,
 		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
 	})
@@ -791,8 +791,8 @@ func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *Boot
 // MakeRunnableSystemAfterDataReset sets up the system to be able to boot, but it is
 // intended to be called from UC20 factory reset mode right before switching
 // back to the new run system.
-func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, trusted *TrustedAssets, encryption *EncryptionParameters, bootEntryUpdater BootEntryUpdater) error {
-	return makeRunnableSystem(model, bootWith, trusted, encryption, bootEntryUpdater, makeRunnableOptions{
+func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionParameters) error {
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		AfterDataReset: true,
 		SeedDir:        dirs.SnapSeedDir,
 	})

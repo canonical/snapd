@@ -3127,9 +3127,9 @@ func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 
 	obs.ObserveExistingTrustedRecoveryAssets(d)
 
-	updater := obs.GetBootEntryUpdater()
-	c.Assert(updater, NotNil)
-	err = updater.Update()
+	bootAssets := obs.GetBootAssets()
+	c.Assert(bootAssets, NotNil)
+	err = bootAssets.UpdateBootEntry()
 	c.Assert(err, IsNil)
 
 	c.Check(efiVariablesSet, Equals, 1)
