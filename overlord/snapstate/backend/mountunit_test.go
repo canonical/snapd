@@ -344,4 +344,10 @@ func (s *mountunitSuite) TestIsUnderAnyDir(c *C) {
 	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1", []string{"/var/snap/foo/1/"}), Equals, false)
 	// Unrelated path must not match.
 	c.Check(backend.IsUnderAnyDir("/var/snap/other/1/bar", []string{"/var/snap/foo/1"}), Equals, false)
+	// Path with ".." components that escape the candidate after cleaning must not match.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1/../../bar", []string{"/var/snap/foo/1"}), Equals, false)
+	// Path with internal double slash that normalizes to a subdirectory must match.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo//1/bar", []string{"/var/snap/foo/1"}), Equals, true)
+	// Relative candidate causes filepath.Rel to error; must not match.
+	c.Check(backend.IsUnderAnyDir("/var/snap/foo/1/bar", []string{"var/snap/foo/1"}), Equals, false)
 }
