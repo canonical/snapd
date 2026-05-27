@@ -614,4 +614,9 @@
     deny /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnss_systemd.[0-9]*.so* mr,
     deny /etc/nsswitch.conf r,
     deny /etc/passwd r,
+
+    # Allow snap-confine to inherit sockets from other snaps. This prevents classic snaps
+    # from having broken stdin redirected to unix sockets that are established by said snap,
+    # e.g. opencode.
+    unix (send, receive) addr=none peer=(addr=none, label="snap.*"),
 }
