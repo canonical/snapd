@@ -43,6 +43,7 @@ coverage_after_non_nested_task() {
     if [ -d "$TESTSTMP"/coverage ] && [ $(ls "$TESTSTMP"/coverage | wc -l) -gt 0 ]; then
         local task_dir
         task_dir="$(_prepare_artifacts_path coverage-results)"
+        cp "$TESTSTMP"/coverage/* "$task_dir" || true
         pushd "$SPREAD_PATH"
         go run "$SPREAD_PATH"/tests/utils/coverage -results-dir "$TESTSTMP"/coverage -output functions > "$task_dir"/coverage.json
         popd
