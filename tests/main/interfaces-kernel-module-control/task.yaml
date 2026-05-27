@@ -22,12 +22,14 @@ systems:
 
 environment:
     MODULE: minix
-    MODULE_PATH: /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko
+    # core24 and core26 contain compressed kernel module file
+    MODULE_PATH: $(if [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ]; then echo "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko"; else echo "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko.zst" ; fi)
 
 skip:
     - reason: minix module not available in the system
       if: |
-        ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ]
+        ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ] &&
+        ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko.zst" ]
 
 prepare: |
     set -- --edge
