@@ -219,7 +219,7 @@ func MockGadgetInstallRun(f func(model gadget.Model, gadgetRoot string, kernelSn
 	}
 }
 
-func MockMakeRunnableStandaloneSystem(f func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionParameters) error) (restore func()) {
+func MockMakeRunnableStandaloneSystem(f func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error) (restore func()) {
 	old := bootMakeRunnableStandaloneSystem
 	bootMakeRunnableStandaloneSystem = f
 	return func() {

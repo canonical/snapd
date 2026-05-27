@@ -270,14 +270,14 @@ type TrustedAssetsInstallObserver interface {
 	// as aw to update the boot entry.
 	GetBootAssets() BootAssets
 	// GetEncryptionParams extracts the encryption parmeters
-	GetEncryptionParams() *EncryptionParameters
+	GetEncryptionParams() *EncryptionSetup
 }
 
-// EncryptionParameters represents the parameters for encryption.
+// EncryptionSetup represents the parameters for encryption.
 // It contains reference to the encrypted containers where
 // to registers keys, and alls the information (other than the
 // boot chains) to calculate PCR profiles.
-type EncryptionParameters struct {
+type EncryptionSetup struct {
 	dataBootstrappedContainer secboot.BootstrappedContainer
 	saveBootstrappedContainer secboot.BootstrappedContainer
 
@@ -343,7 +343,7 @@ type trustedAssetsInstallObserverImpl struct {
 
 	seedBootloader bootloader.Bootloader
 
-	encryption *EncryptionParameters
+	encryption *EncryptionSetup
 }
 
 func (o *trustedAssetsInstallObserverImpl) BootLoaderSupportsEfiVariables() bool {
@@ -428,13 +428,16 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
-func NewEncryptionParams(
+// NewEncryptionSetup create a new EncryptionSetup that references to
+// the encrypted containers where to registers keys, and the local FDE
+// configuration.
+func NewEncryptionSetup(
 	key, saveKey secboot.BootstrappedContainer,
 	primaryKey []byte,
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
-) *EncryptionParameters {
-	return &EncryptionParameters{
+) *EncryptionSetup {
+	return &EncryptionSetup{
 		dataBootstrappedContainer: key,
 		saveBootstrappedContainer: saveKey,
 		primaryKey:                primaryKey,
@@ -449,7 +452,7 @@ func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 ) {
-	o.encryption = NewEncryptionParams(key, saveKey, primaryKey, volumesAuth, checkResult)
+	o.encryption = NewEncryptionSetup(key, saveKey, primaryKey, volumesAuth, checkResult)
 }
 
 func (o *trustedAssetsInstallObserverImpl) GetBootAssets() BootAssets {
@@ -466,6 +469,7 @@ func (o *trustedAssetsInstallObserverImpl) GetBootAssets() BootAssets {
 		return ret
 	}
 
+	// FIXME: we should abstract this into bootloader
 	var updatedAssets []string
 	for name := range o.trackedRecoveryAssets {
 		updatedAssets = append(updatedAssets, name)
@@ -477,7 +481,7 @@ func (o *trustedAssetsInstallObserverImpl) GetBootAssets() BootAssets {
 	return ret
 }
 
-func (o *trustedAssetsInstallObserverImpl) GetEncryptionParams() *EncryptionParameters {
+func (o *trustedAssetsInstallObserverImpl) GetEncryptionParams() *EncryptionSetup {
 	return o.encryption
 }
 

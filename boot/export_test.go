@@ -94,7 +94,7 @@ type TrustedAssetsInstallObserverImpl = trustedAssetsInstallObserverImpl
 
 func TrustedAssetsInstallObserverWithEncryption() TrustedAssetsInstallObserverImpl {
 	return TrustedAssetsInstallObserverImpl{
-		encryption: &EncryptionParameters{},
+		encryption: &EncryptionSetup{},
 	}
 }
 
@@ -106,19 +106,19 @@ func (o *trustedAssetsInstallObserverImpl) CurrentTrustedRecoveryBootAssetsMap()
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
-func (e *EncryptionParameters) CurrentDataBootstrappedContainer() secboot.BootstrappedContainer {
+func (e *EncryptionSetup) CurrentDataBootstrappedContainer() secboot.BootstrappedContainer {
 	return e.dataBootstrappedContainer
 }
 
-func (e *EncryptionParameters) CurrentSaveBootstrappedContainer() secboot.BootstrappedContainer {
+func (e *EncryptionSetup) CurrentSaveBootstrappedContainer() secboot.BootstrappedContainer {
 	return e.saveBootstrappedContainer
 }
 
-func (e *EncryptionParameters) CurrentVolumesAuth() *device.VolumesAuthOptions {
+func (e *EncryptionSetup) CurrentVolumesAuth() *device.VolumesAuthOptions {
 	return e.volumesAuth
 }
 
-func (e *EncryptionParameters) CurrentCheckResult() *secboot.PreinstallCheckResult {
+func (e *EncryptionSetup) CurrentCheckResult() *secboot.PreinstallCheckResult {
 	return e.checkResult
 }
 

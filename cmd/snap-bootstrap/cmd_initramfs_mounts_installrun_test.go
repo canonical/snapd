@@ -72,7 +72,7 @@ func (m *MockObserver) GetBootAssets() boot.BootAssets {
 	return nil
 }
 
-func (m *MockObserver) GetEncryptionParams() *boot.EncryptionParameters {
+func (m *MockObserver) GetEncryptionParams() *boot.EncryptionSetup {
 	return nil
 }
 
@@ -165,7 +165,7 @@ echo '{"features":[]}'
 	defer restoreGadgetInstall()
 
 	makeRunnableCalled := false
-	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionParameters) error {
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error {
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)
@@ -337,7 +337,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupNotPresen
 	defer restoreGadgetInstall()
 
 	makeRunnableCalled := false
-	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionParameters) error {
+	restoreMakeRunnableStandaloneSystem := main.MockMakeRunnableStandaloneSystem(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error {
 		makeRunnableCalled = true
 		c.Assert(model.Model(), Equals, "my-model")
 		c.Assert(bootWith.RecoverySystemLabel, Equals, s.sysLabel)

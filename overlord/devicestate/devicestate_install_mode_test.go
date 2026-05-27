@@ -690,7 +690,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionParameters) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error {
 		c.Check(model, DeepEquals, mockModel)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
@@ -1913,7 +1913,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
-	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionParameters) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error {
 		return nil
 	})
 	defer restore()
@@ -2401,7 +2401,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 	})()
 
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeSystemRunnableAfterDataReset(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionParameters) error {
+	restore = devicestate.MockBootMakeSystemRunnableAfterDataReset(func(makeRunnableModel *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error {
 		c.Check(makeRunnableModel, DeepEquals, model)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core24_2.snap")
