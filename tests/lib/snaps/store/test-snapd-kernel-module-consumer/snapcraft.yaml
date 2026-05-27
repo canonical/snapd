@@ -23,9 +23,3 @@ parts:
     plugin: nil
     stage-packages:
       - kmod
-    override-prime: |
-      craftctl default
-      mkdir -p $CRAFT_PRIME/bin
-      ln -sf ../usr/bin/kmod $CRAFT_PRIME/bin/lsmod
-      ln -sf ../usr/bin/kmod $CRAFT_PRIME/bin/insmod
-      ln -sf ../usr/bin/kmod $CRAFT_PRIME/bin/rmmod
