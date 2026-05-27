@@ -422,7 +422,7 @@ func (s *snapmgrTestSuite) testInstallComponentPath(c *C, opts testInstallCompon
 
 	// ensure that we didn't drop persistent classic flag when installing the
 	// component
-	c.Assert(snapsup.Classic, DeepEquals, opts.snapIsClassic)
+	c.Assert(snapsup.Classic, Equals, opts.snapIsClassic)
 }
 
 func (s *snapmgrTestSuite) TestInstallUnassertedComponentFailsWithAssertedSnap(c *C) {
@@ -1165,7 +1165,7 @@ func (s *snapmgrTestSuite) testInstallComponents(c *C, opts testInstallComponent
 
 	// ensure that we didn't drop persistent classic flag when installing the
 	// component
-	c.Assert(snapsup.Classic, DeepEquals, opts.snapIsClassic)
+	c.Assert(snapsup.Classic, Equals, opts.snapIsClassic)
 
 	for _, ts := range tss[0 : len(tss)-1] {
 		task := ts.Tasks()[0]

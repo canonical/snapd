@@ -833,6 +833,11 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 		CompType:     compst.CompType,
 	}
 
+	// TODO: assess if there are other flags we need to copy from the current
+	// snap's set of flags. we know that just removing components should not
+	// impact confinement of the snap itself.
+	copyConfinementFlagsFromSnapState(&snapSup.Flags, snapst)
+
 	removeHook := SetupRemoveComponentHook(st, instName, compst.SideInfo.Component.ComponentName)
 	removeHook.Set("component-setup", compSetup)
 	removeHook.Set("snap-setup", snapSup)
