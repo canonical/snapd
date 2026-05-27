@@ -1,0 +1,134 @@
+summary: Snapshot excludes active mount-control mount points
+
+details: |
+    When taking a snapshot of a snap that has active mount-control mounts
+    under its global data directories ($SNAP_DATA, $SNAP_COMMON), snapd
+    automatically excludes those mount points from the snapshot. This
+    prevents capturing data that was mounted into snap's data directories.
+
+systems: [-ubuntu-14.04-*]
+
+environment:
+    SNAP_NAME: test-snapd-mount-control
+    SNAP_COMMON: /var/snap/$SNAP_NAME/common
+    SNAP_DATA: /var/snap/$SNAP_NAME/x1
+    MOUNT_SRC: /var/tmp/$SNAP_NAME
+    MOUNT_DEST_COMMON: $SNAP_COMMON/target1
+    MOUNT_DEST_DATA: $SNAP_DATA/target1
+    # tar invoked when creating snapshots triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+    TEST_CASE/v1: snap_save
+    TEST_CASE/v2: snap_remove
+
+prepare: |
+    echo "Install test snap with mount-control interface"
+    "${TESTSTOOLS}"/snaps-state install-local "${SNAP_NAME}"
+    tests.cleanup defer snap remove --purge "${SNAP_NAME}"
+    snap connect "${SNAP_NAME}":mntctl
+
+    echo "Create mount source with some data"
+    mkdir -p "${MOUNT_SRC}"
+    tests.cleanup defer rm -rf "${MOUNT_SRC}"
+    echo "mounted-data" > "${MOUNT_SRC}/mounted-data.txt"
+
+    echo "Write some files in the snap's data dirs (not under any mount point)"
+    echo "snap-common-data" > "${SNAP_COMMON}/data.txt"
+    echo "snap-data-data" > "${SNAP_DATA}/data.txt"
+
+    echo "Create mount target dirs and bind mount the source into them"
+    mkdir -p "${MOUNT_DEST_COMMON}" "${MOUNT_DEST_DATA}"
+    tests.cleanup defer rm -rf "${MOUNT_DEST_COMMON}" "${MOUNT_DEST_DATA}"
+    "${SNAP_NAME}".cmd snapctl mount -o bind,rw "${MOUNT_SRC}" "${MOUNT_DEST_COMMON}"
+    tests.cleanup defer "\"${SNAP_NAME}\".cmd snapctl umount \"${MOUNT_DEST_COMMON}\" || true"
+    "${SNAP_NAME}".cmd snapctl mount -o bind,rw "${MOUNT_SRC}" "${MOUNT_DEST_DATA}"
+    tests.cleanup defer "\"${SNAP_NAME}\".cmd snapctl umount \"${MOUNT_DEST_DATA}\" || true"
+
+    echo "Verify mounts are active in the host namespace"
+    MATCH "${MOUNT_DEST_COMMON}" < /proc/self/mountinfo
+    MATCH "${MOUNT_DEST_DATA}" < /proc/self/mountinfo
+
+    echo "Write some files into the mount points; this data should NOT be snapshotted"
+    echo "should-not-appear-in-snapshot" > "${MOUNT_DEST_COMMON}/excluded-file.txt"
+    echo "should-not-appear-in-snapshot" > "${MOUNT_DEST_DATA}/excluded-file.txt"
+
+execute: |
+    then_snapshot_is_valid() {
+        local set_id=$1
+        echo "Verify snapshot ${set_id} is valid"
+        echo "${set_id}" | MATCH "^[0-9]+$"
+        snap saved --id="${set_id}" | MATCH "${SNAP_NAME}"
+        snap check-snapshot "${set_id}"
+    }
+
+    then_snapshot_has_mount_point_excludes() {
+        local set_id=$1
+        echo "Verify snapshot ${set_id} has excludes for active mount-control mount points"
+        timeout 5 snap debug api "/v2/snapshots?set=${set_id}" | gojq -r '.result[0].snapshots[0].options.exclude[]' > options-exclude
+        tests.cleanup defer rm -f options-exclude
+        #shellcheck disable=SC2016
+        MATCH '^\$SNAP_COMMON/target1$' < options-exclude
+        #shellcheck disable=SC2016
+        MATCH '^\$SNAP_DATA/target1$' < options-exclude
+    }
+
+    then_restore_and_verify_excludes() {
+        local set_id=$1
+        echo "Restore snapshot ${set_id} and verify that data outside mount points is present"
+        snap restore "${set_id}" "${SNAP_NAME}"
+        MATCH "snap-common-data" < "${SNAP_COMMON}/data.txt"
+        MATCH "snap-data-data" < "${SNAP_DATA}/data.txt"
+        
+        echo "and data inside mount points was not captured"
+        not test -e "${MOUNT_DEST_COMMON}/excluded-file.txt"
+        not test -e "${MOUNT_DEST_DATA}/excluded-file.txt"
+    }
+
+    test_snap_save() {
+        echo "Take a snapshot using snap save"
+        local set_id
+        set_id=$(snap save "${SNAP_NAME}" | cut -d\  -f1 | tail -n1)
+        tests.cleanup defer snap forget "${set_id}"
+
+        then_snapshot_is_valid "${set_id}"
+        then_snapshot_has_mount_point_excludes "${set_id}"
+
+        echo "Unmount before restoring snapshot"
+        "${SNAP_NAME}".cmd snapctl umount "${MOUNT_DEST_COMMON}"
+        "${SNAP_NAME}".cmd snapctl umount "${MOUNT_DEST_DATA}"
+        echo "Remove files to test restore"
+        rm "${SNAP_COMMON}/data.txt" "${SNAP_DATA}/data.txt"
+
+        then_restore_and_verify_excludes "${set_id}"
+    }
+
+    test_snap_remove() {
+        if os.query is-core; then
+            echo "Enable automatic snapshot creation on remove"
+            snap set core snapshots.automatic.retention=24h
+            tests.cleanup defer snap unset core snapshots.automatic.retention
+        fi
+
+        local max_set_id_before
+        max_set_id_before=$(snap saved | tail -n+2 | cut -d\  -f1 | tail -n1)
+        max_set_id_before=${max_set_id_before:-0}
+
+        echo "Remove the snap; this should create an automatic snapshot"
+        snap remove "${SNAP_NAME}"
+        
+        local set_id
+        set_id=$(snap saved | tail -n+2 | cut -d\  -f1 | tail -n1)
+        set_id=${set_id:-0}
+        test "${set_id}" -gt "${max_set_id_before}"
+        tests.cleanup defer snap forget "${set_id}"
+
+        then_snapshot_is_valid "${set_id}"
+        then_snapshot_has_mount_point_excludes "${set_id}"
+
+        echo "Reinstall the snap to test restoring the snapshot taken on remove"
+        "${TESTSTOOLS}"/snaps-state install-local "${SNAP_NAME}"
+
+        then_restore_and_verify_excludes "${set_id}"
+    }
+
+    echo "Executing test_${TEST_CASE}"
+    test_${TEST_CASE}
