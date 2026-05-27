@@ -32,7 +32,7 @@ const sshAgentConnectedPlugAppArmor = `
 # allow access to socket owned by user in default location for openssh ssh-agent
 owner /tmp/ssh-*/agent.* rw,
 # allow access to default location for gnome keyring ssh-agent
-owner /run/user/*/keyring/ssh rw,
+owner /run/user/[0-9]*/keyring/ssh rw,
 # allow access to default location for gcr ssh-agent socket
 owner /run/user/*/gcr/ssh rw,
 `
