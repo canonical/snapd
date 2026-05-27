@@ -678,6 +678,10 @@ prepare_suite() {
     # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
 
+    if ! tests.nested is-nested && [[ "$GENERATE_COVERAGE" = true ]]; then
+        mkdir -p "$TESTSTMP"/coverage
+    fi
+
     # os.query cannot be used because first time the suite is prepared, the current system
     # is classic ubuntu, so it is needed to check the system set in $SPREAD_SYSTEM
     if is_test_target_core; then
@@ -774,8 +778,10 @@ prepare_suite_each() {
     fi
     tests.invariant check
 
-    mkdir -p "$TESTSTMP"/coverage 
-    rm -f "$TESTSTMP"/coverage/*
+    if [[ "$GENERATE_COVERAGE" = true ]]; then
+        mkdir -p "$TESTSTMP"/coverage
+        rm -f "$TESTSTMP"/coverage/*
+    fi
 }
 
 restore_suite_each() {
