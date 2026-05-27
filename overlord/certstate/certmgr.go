@@ -31,14 +31,16 @@ import (
 )
 
 type CertManager struct {
-	state                               *state.State
-	ensureEarlyCertificateGenerationRan bool
+	state            *state.State
+	oneTimeChecksRun bool
 }
 
 const (
 	previousGenerationTaskKey = "cert-db-prev-generation"
 	undoFromGenerationTaskKey = "cert-db-undo-from-generation"
 )
+
+var osutilBootID = osutil.BootID
 
 func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	m := &CertManager{
@@ -51,12 +53,37 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	return m
 }
 
+func hasTaskInProgress(st *state.State, taskName string) (bool, error) {
+	for _, t := range st.Tasks() {
+		if t.Kind() == taskName && !t.Change().Status().Ready() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *CertManager) ensureGarbageCollectionRun() error {
+	// Skip garbage collection if there is a "update-cert-db" change in flight
+	if inProgress, err := hasTaskInProgress(m.state, "update-cert-db"); err != nil {
+		return err
+	} else if inProgress {
+		logger.Debugf("skipping certificate database garbage collection as update-cert-db change is in flight")
+		return nil
+	}
+
+	bootID, err := osutilBootID()
+	if err != nil {
+		return err
+	}
+	return garbageCollectCertificateGenerations(bootID)
+}
+
 func (m *CertManager) Ensure() error {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
 
-	if m.ensureEarlyCertificateGenerationRan {
+	if m.oneTimeChecksRun {
 		return nil
 	}
 
@@ -69,12 +96,17 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	m.ensureEarlyCertificateGenerationRan = true
+	m.oneTimeChecksRun = true
 
 	// If the ssl certs directory is missing, nothing to do.
 	if !hasSystemCertsDir() {
 		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
 		return nil
+	}
+
+	// Run garbage collection for the cert generations
+	if err := m.ensureGarbageCollectionRun(); err != nil {
+		return err
 	}
 
 	// If the CA certificate database is already present, nothing to do.

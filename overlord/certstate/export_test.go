@@ -35,10 +35,11 @@ const (
 )
 
 var (
-	IsBlocked              = isBlocked
-	ParseCertificates      = parseCertificates
-	ReadDigests            = readDigests
-	GenerateCACertificates = generateCACertificates
+	IsBlocked                            = isBlocked
+	ParseCertificates                    = parseCertificates
+	ReadDigests                          = readDigests
+	GenerateCACertificates               = generateCACertificates
+	GarbageCollectCertificateGenerations = garbageCollectCertificateGenerations
 
 	Asn1IsCanonicalizedStringType = asn1IsCanonicalizedStringType
 	Asn1IsASCII                   = asn1IsASCII
@@ -54,6 +55,12 @@ var (
 func MockRefreshCertificateDatabase(f func() error) func() {
 	restore := testutil.Backup(&RefreshCertificateDatabase)
 	RefreshCertificateDatabase = f
+	return restore
+}
+
+func MockOsutilBootID(f func() (string, error)) func() {
+	restore := testutil.Backup(&osutilBootID)
+	osutilBootID = f
 	return restore
 }
 

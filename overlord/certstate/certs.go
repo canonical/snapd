@@ -597,6 +597,81 @@ func resolveCurrentCertificateTarget() (string, error) {
 	return target, nil
 }
 
+// certificateGenerations returns the immutable published generation names.
+// Garbage collection only reasons about these directories; the public symlinks
+// and other metadata are handled separately.
+func certificateGenerations() ([]string, error) {
+	entries, err := os.ReadDir(PublishedCertificatesDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot read published certificates directory: %v", err)
+	}
+
+	var generations []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			generations = append(generations, entry.Name())
+		}
+	}
+	return generations, nil
+}
+
+// garbageCollectCertificateGenerations uses a two-boot cleanup policy for
+// non-current generations. The first pass only marks an inactive generation;
+// a later boot removes it if nothing has made it current again in the
+// meantime. This keeps cleanup away from the publication path and gives other
+// parts of the system time to stop referencing an older tree.
+func garbageCollectCertificateGenerations(bootID string) error {
+	currentTarget, err := resolveCurrentCertificateTarget()
+	if err != nil {
+		return err
+	}
+
+	generations, err := certificateGenerations()
+	if err != nil {
+		return err
+	}
+
+	for _, generation := range generations {
+		target := mergedCertificatesGeneration(generation)
+		genPath := filepath.Join(PublishedCertificatesDir(), generation)
+		inactiveFile := filepath.Join(genPath, ".snapd-inactive")
+
+		if target == currentTarget {
+			// If a generation became current again, clear any stale inactivity mark
+			// so the next boot does not treat the live tree as pending deletion.
+			if osutil.FileExists(inactiveFile) {
+				if err := os.Remove(inactiveFile); err != nil {
+					return fmt.Errorf("cannot remove %q: %v", inactiveFile, err)
+				}
+			}
+			continue
+		}
+
+		if osutil.FileExists(inactiveFile) {
+			data, err := os.ReadFile(inactiveFile)
+			if err != nil {
+				return fmt.Errorf("cannot read %q: %v", inactiveFile, err)
+			}
+			if string(data) != bootID {
+				logger.Debugf("garbage collecting certificate generation %s", generation)
+				if err := os.RemoveAll(genPath); err != nil {
+					return fmt.Errorf("cannot remove old generation at %q: %v", genPath, err)
+				}
+			}
+		} else {
+			// Mark the generation first and only delete it on a later boot so GC
+			// does not race the publication step or long-lived readers of the old tree.
+			if err := os.WriteFile(inactiveFile, []byte(bootID), 0o644); err != nil {
+				return fmt.Errorf("cannot write %q: %v", inactiveFile, err)
+			}
+		}
+	}
+	return nil
+}
+
 // RefreshCertificateDatabase does a best-effort of performing an
 // atomic update of the existing cert database. Expects state to be
 // locked when calling this function, to avoid concurrent updates to the database.

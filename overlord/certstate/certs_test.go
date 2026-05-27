@@ -803,6 +803,27 @@ func (s *certsTestSuite) TestRefreshCertificateDatabasePublishesImmutableGenerat
 	c.Check(mergedBundle, DeepEquals, secondBundle)
 }
 
+func (s *certsTestSuite) TestGarbageCollectCertificateGenerationsProtectsCurrentTarget(c *C) {
+	currentDir := filepath.Join(dirs.SnapdPKIV1Dir, "published", "current")
+	staleDir := filepath.Join(dirs.SnapdPKIV1Dir, "published", "stale")
+	c.Assert(os.MkdirAll(currentDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(staleDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(currentDir, ".snapd-inactive"), []byte("old-boot"), 0o644), IsNil)
+	c.Assert(os.Symlink(filepath.Join("published", "current"), filepath.Join(dirs.SnapdPKIV1Dir, "merged")), IsNil)
+
+	err := certstate.GarbageCollectCertificateGenerations("boot-1")
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(filepath.Join(currentDir, ".snapd-inactive"))
+	c.Check(os.IsNotExist(err), Equals, true)
+	c.Assert(filepath.Join(staleDir, ".snapd-inactive"), testutil.FileEquals, "boot-1")
+
+	err = certstate.GarbageCollectCertificateGenerations("boot-2")
+	c.Assert(err, IsNil)
+	_, err = os.Stat(staleDir)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
 func (s *certsTestSuite) TestCertificatePathAddsCrtExtension(c *C) {
 	path := certstate.CertificatePath("my-cert")
 	c.Check(path, Equals, filepath.Join(dirs.SnapdPKIV1Dir, "my-cert.crt"))
