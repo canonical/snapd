@@ -233,6 +233,65 @@ func (s *certMgrTestSuite) TestEnsurePropagatesGenerateError(c *C) {
 	c.Check(err, ErrorMatches, ".*boom.*")
 }
 
+func (s *certMgrTestSuite) TestEnsureGarbageCollectionSkipsWhileUpdateInProgress(c *C) {
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "", errors.New("boot id should not be queried while update-cert-db is in flight")
+	})
+	defer restoreBootID()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	currentTarget := seedCurrentPublishedGeneration(c, "current", []byte("current"))
+	currentDir := filepath.Join(dirs.SnapdPKIV1Dir, currentTarget)
+	previousTarget := filepath.Join("published", "previous")
+	previousDir := filepath.Join(dirs.SnapdPKIV1Dir, previousTarget)
+	c.Assert(os.MkdirAll(previousDir, 0o755), IsNil)
+	c.Assert(os.Symlink(previousTarget, filepath.Join(dirs.SnapdPKIV1Dir, "previous")), IsNil)
+
+	taskPreviousTarget := filepath.Join("published", "task-prev")
+	taskPreviousDir := filepath.Join(dirs.SnapdPKIV1Dir, taskPreviousTarget)
+	c.Assert(os.MkdirAll(taskPreviousDir, 0o755), IsNil)
+	taskUndoTarget := filepath.Join("published", "task-undo")
+	taskUndoDir := filepath.Join(dirs.SnapdPKIV1Dir, taskUndoTarget)
+	c.Assert(os.MkdirAll(taskUndoDir, 0o755), IsNil)
+
+	staleTarget := filepath.Join("published", "stale")
+	staleDir := filepath.Join(dirs.SnapdPKIV1Dir, staleTarget)
+	c.Assert(os.MkdirAll(staleDir, 0o755), IsNil)
+
+	for _, dir := range []string{currentDir, previousDir, taskPreviousDir, taskUndoDir, staleDir} {
+		c.Assert(os.WriteFile(filepath.Join(dir, ".snapd-inactive"), []byte("boot-1"), 0o644), IsNil)
+	}
+
+	s.state.Lock()
+	chg := s.state.NewChange("foo", "pending update keeps gc from running")
+	task := s.state.NewTask("update-cert-db", "pending update")
+	task.Set(certstate.PreviousGenerationTaskKey, taskPreviousTarget)
+	task.Set(certstate.UndoFromGenerationTaskKey, taskUndoTarget)
+	chg.AddTask(task)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	for _, path := range []string{
+		currentDir,
+		previousDir,
+		taskPreviousDir,
+		staleDir,
+		taskUndoDir,
+	} {
+		_, err = os.Stat(path)
+		c.Assert(err, IsNil)
+		c.Assert(filepath.Join(path, ".snapd-inactive"), testutil.FileEquals, "boot-1")
+	}
+}
+
 func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) {
 	certA, _, err := makeTestCertPEM("A")
 	c.Assert(err, IsNil)
@@ -384,7 +443,7 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
-func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedLeavesEmptyDir(c *C) {
+func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedRemovesMerged(c *C) {
 	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 	certA, _, err := makeTestCertPEM("A")
@@ -413,13 +472,11 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedLe
 	c.Check(tasks[1].Kind(), Equals, "error-trigger")
 	c.Check(tasks[1].Status(), Equals, state.ErrorStatus)
 
-	info, err := os.Stat(mergedDir)
-	c.Assert(err, IsNil)
-	c.Check(info.IsDir(), Equals, true)
+	_, err = os.Stat(mergedDir)
+	c.Check(os.IsNotExist(err), Equals, true)
 
-	entries, err := os.ReadDir(mergedDir)
-	c.Assert(err, IsNil)
-	c.Check(entries, HasLen, 0)
+	_, err = os.Lstat(filepath.Join(dirs.SnapdPKIV1Dir, "previous"))
+	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseIsIdempotent(c *C) {
@@ -501,7 +558,7 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRetryAfterRebootRepa
 	c.Check(previousTarget, Equals, newTarget)
 }
 
-func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedRetryAfterReboot(c *C) {
+func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedRetryAfterRebootClearsPointers(c *C) {
 	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 
@@ -528,15 +585,9 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedRe
 	err = s.mgr.UndoUpdateCertificateDatabase(task, nil)
 	c.Assert(err, IsNil)
 
-	info, err := os.Stat(mergedDir)
-	c.Assert(err, IsNil)
-	c.Check(info.IsDir(), Equals, true)
+	_, err = os.Stat(mergedDir)
+	c.Check(os.IsNotExist(err), Equals, true)
 
-	entries, err := os.ReadDir(mergedDir)
-	c.Assert(err, IsNil)
-	c.Check(entries, HasLen, 0)
-
-	previousTarget, err := os.Readlink(filepath.Join(dirs.SnapdPKIV1Dir, "previous"))
-	c.Assert(err, IsNil)
-	c.Check(previousTarget, Equals, newTarget)
+	_, err = os.Lstat(filepath.Join(dirs.SnapdPKIV1Dir, "previous"))
+	c.Check(os.IsNotExist(err), Equals, true)
 }

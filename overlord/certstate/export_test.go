@@ -35,10 +35,10 @@ const (
 )
 
 var (
-	IsBlocked              = isBlocked
-	ParseCertificates      = parseCertificates
-	ReadDigests            = readDigests
-	GenerateCACertificates = generateCACertificates
+	IsBlocked                            = isBlocked
+	ParseCertificates                    = parseCertificates
+	ReadDigests                          = readDigests
+	GarbageCollectCertificateGenerations = garbageCollectCertificateGenerations
 
 	Asn1IsCanonicalizedStringType = asn1IsCanonicalizedStringType
 	Asn1IsASCII                   = asn1IsASCII
@@ -51,9 +51,20 @@ var (
 	CanonicalSubjectNameDER       = canonicalSubjectNameDER
 )
 
+func GenerateCACertificates(certs *Certificates, mergedPath string) error {
+	_, err := generateCACertificates(certs, mergedPath)
+	return err
+}
+
 func MockRefreshCertificateDatabase(f func() error) func() {
 	restore := testutil.Backup(&RefreshCertificateDatabase)
 	RefreshCertificateDatabase = f
+	return restore
+}
+
+func MockOsutilBootID(f func() (string, error)) func() {
+	restore := testutil.Backup(&osutilBootID)
+	osutilBootID = f
 	return restore
 }
 

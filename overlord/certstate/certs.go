@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -46,7 +47,9 @@ const (
 // CertificateData holds the parsed certificate and derived digests for a
 // certificate payload.
 type CertificateData struct {
-	// Sha256 is the content fingerprint tracked for the certificate payload.
+	// Sha256 is the semantic content fingerprint tracked for the certificate
+	// payload. It is derived from parsed certificate blocks, so equivalent PEM
+	// formatting changes do not change the digest.
 	Sha256 string
 	// SubjectNameSha1 is the OpenSSL subject-name hash used for lookup links.
 	SubjectNameSha1 string
@@ -60,6 +63,40 @@ type certificate struct {
 	SubjectNameSha1 string
 }
 
+// certificateManifest captures the published-tree identity snapd cares
+// about: semantic certificate content together with the visible filenames and
+// hash-link targets it renders.
+type certificateManifest struct {
+	records []string
+}
+
+func (m *certificateManifest) addFile(name, digest string) {
+	m.records = append(m.records, fmt.Sprintf("file\x00%s\x00%s", name, digest))
+}
+
+func (m *certificateManifest) addLink(name, target string) {
+	m.records = append(m.records, fmt.Sprintf("symlink\x00%s\x00%s", name, target))
+}
+
+// hash returns the published-generation key for the rendered tree.
+// The key intentionally follows functional certificate state rather than the
+// exact bytes produced while copying PEM files into the bundle.
+func (m *certificateManifest) hash() string {
+	h := sha256.New224()
+	_, _ = io.WriteString(h, "rendered-certificates-manifest-v1\x00")
+
+	// Sort records so generation names stay stable even if future rendering
+	// paths enqueue equivalent files and links in a different order.
+	sortedRecords := append([]string(nil), m.records...)
+	sort.Strings(sortedRecords)
+	for _, record := range sortedRecords {
+		_, _ = io.WriteString(h, record)
+		_, _ = io.WriteString(h, "\x00")
+	}
+
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
 // TODO: .crl not supported for now, and there is none of this type carried
 // in the bases
 var allowedSuffixes = []string{"pem", "crt", "cer"}
@@ -68,10 +105,11 @@ var allowedSuffixes = []string{"pem", "crt", "cer"}
 // certificate files or bundles.
 var certificatePEMBlockTypePattern = regexp.MustCompile(`^(X509 |TRUSTED |)?CERTIFICATE$`)
 
-// sha256HexForChain returns the content fingerprint for a certificate payload.
-// For PEM bundles, every certificate DER block contributes to the digest in
-// file order so two files that share a leaf certificate but differ elsewhere do
-// not collapse to the same value.
+// sha256HexForChain returns the semantic content fingerprint for a certificate
+// payload. For PEM bundles, every certificate DER block contributes to the
+// digest in file order so two files that share a leaf certificate but differ
+// elsewhere do not collapse to the same value. PEM comments and line wrapping
+// are intentionally ignored.
 func sha256HexForChain(chainDER [][]byte) string {
 	h := sha256.New224()
 	for _, der := range chainDER {
@@ -302,9 +340,38 @@ func readDigests(dir string) ([]string, error) {
 // writeUniqueCACertificates writes the merged CA bundle and populates the
 // merged directory with one link per distinct certificate payload. For
 // single-certificate files it also creates the OpenSSL-style subject hash link.
-func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.Writer) error {
-	copyOne := func(from string) error {
-		data, err := os.ReadFile(from)
+func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.Writer, manifest *certificateManifest) error {
+	usedOutputNames := make(map[string]string)
+
+	// Keep source basenames when possible so merged still resembles the system
+	// certificates layout, but fall back to a digest-derived name when a
+	// distinct certificate would otherwise overwrite an existing copy.
+	outputNameFor := func(cert certificate) string {
+		base := filepath.Base(cert.RealPath)
+		if ownerDigest, ok := usedOutputNames[base]; !ok || ownerDigest == cert.Sha256 {
+			usedOutputNames[base] = cert.Sha256
+			return base
+		}
+
+		ext := filepath.Ext(base)
+		stem := strings.TrimSuffix(base, ext)
+		candidate := fmt.Sprintf("%s-%s%s", stem, cert.Sha256, ext)
+		if ownerDigest, ok := usedOutputNames[candidate]; !ok || ownerDigest == cert.Sha256 {
+			usedOutputNames[candidate] = cert.Sha256
+			return candidate
+		}
+
+		for suffix := 1; ; suffix++ {
+			candidate = fmt.Sprintf("%s-%s-%d%s", stem, cert.Sha256, suffix, ext)
+			if ownerDigest, ok := usedOutputNames[candidate]; !ok || ownerDigest == cert.Sha256 {
+				usedOutputNames[candidate] = cert.Sha256
+				return candidate
+			}
+		}
+	}
+
+	copyOne := func(cert certificate, outputName string) error {
+		data, err := os.ReadFile(cert.RealPath)
 		if err != nil {
 			return err
 		}
@@ -314,14 +381,17 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 			return err
 		}
 
-		// Create a copy of it into the merged directory, to preserve the
-		// structure of the system certificates.
-		to := filepath.Join(certsDir, filepath.Base(from))
-		return os.WriteFile(to, data, 0o644)
+		// Create a copy in the merged directory under the chosen unique name.
+		to := filepath.Join(certsDir, outputName)
+		if err := os.WriteFile(to, data, 0o644); err != nil {
+			return err
+		}
+		manifest.addFile(outputName, cert.Sha256)
+		return nil
 	}
 
 	// Create the c_rehash-style subject hash link for single-certificate files.
-	maybeSha1Link := func(cert certificate) error {
+	maybeSha1Link := func(cert certificate, outputName string) error {
 		if cert.SubjectNameSha1 == "" {
 			return nil
 		}
@@ -334,17 +404,18 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		}
 
 		for suffix := 0; ; suffix++ {
-			linkName := filepath.Join(certsDir, fmt.Sprintf("%s.%d", hash, suffix))
+			linkBase := fmt.Sprintf("%s.%d", hash, suffix)
+			linkName := filepath.Join(certsDir, linkBase)
 			// The merged directory may be built in a staging location and then
 			// atomically swapped into place, so the hash link must stay relative
 			// to the certificate copy that lives alongside it.
-			from := filepath.Base(cert.RealPath)
-			if err := os.Symlink(from, linkName); err != nil {
+			if err := os.Symlink(outputName, linkName); err != nil {
 				if os.IsExist(err) {
 					continue
 				}
 				return err
 			}
+			manifest.addLink(linkBase, outputName)
 			return nil
 		}
 	}
@@ -356,10 +427,11 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		if digests[cert.Sha256] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
-		if err := copyOne(cert.RealPath); err != nil {
+		outputName := outputNameFor(cert)
+		if err := copyOne(cert, outputName); err != nil {
 			return fmt.Errorf("cannot copy certificate %q: %v", cert.Name, err)
 		}
-		if err := maybeSha1Link(cert); err != nil {
+		if err := maybeSha1Link(cert, outputName); err != nil {
 			return fmt.Errorf("cannot create hash link for certificate %q: %v", cert.Name, err)
 		}
 		digests[cert.Sha256] = true
@@ -369,10 +441,11 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		if digests[cert.Sha256] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
-		if err := copyOne(cert.RealPath); err != nil {
+		outputName := outputNameFor(cert)
+		if err := copyOne(cert, outputName); err != nil {
 			return fmt.Errorf("cannot copy extra certificate %q: %v", cert.Name, err)
 		}
-		if err := maybeSha1Link(cert); err != nil {
+		if err := maybeSha1Link(cert, outputName); err != nil {
 			return fmt.Errorf("cannot create hash link for extra certificate %q: %v", cert.Name, err)
 		}
 		digests[cert.Sha256] = true
@@ -389,27 +462,30 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 
 // generateCACertificates builds a merged certificate directory that mirrors
 // the system /etc/ssl/certs layout: individual certificate links plus a
-// combined ca-certificates.crt bundle.
-func generateCACertificates(certs *certificates, mergedPath string) error {
+// combined ca-certificates.crt bundle. It also returns the render metadata
+// needed to name the published generation after the semantic directory view.
+func generateCACertificates(certs *certificates, mergedPath string) (*certificateManifest, error) {
 	if err := os.MkdirAll(mergedPath, 0o755); err != nil {
-		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+		return nil, fmt.Errorf("cannot create merged certificates directory: %v", err)
 	}
 
 	bundlePath := filepath.Join(mergedPath, "ca-certificates.crt")
 	bundle, err := osutil.NewAtomicFile(bundlePath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
-		return fmt.Errorf("cannot create ca-certificates.crt: %v", err)
+		return nil, fmt.Errorf("cannot create ca-certificates.crt: %v", err)
 	}
 	defer bundle.Cancel()
 
+	manifest := &certificateManifest{}
+
 	// Fill the bundle and create cert links, all inside the merged directory.
-	if err := writeUniqueCACertificates(certs, mergedPath, bundle); err != nil {
-		return err
+	if err := writeUniqueCACertificates(certs, mergedPath, bundle, manifest); err != nil {
+		return nil, err
 	}
 	if err := bundle.Commit(); err != nil {
-		return fmt.Errorf("cannot commit ca-certificates.crt: %v", err)
+		return nil, fmt.Errorf("cannot commit ca-certificates.crt: %v", err)
 	}
-	return nil
+	return manifest, nil
 }
 
 type certificates struct {
@@ -480,24 +556,6 @@ func ensureDirectories() error {
 	return nil
 }
 
-// GenerateCertificateDatabase generates a merged certificate directory at
-// the given directory that mirrors the system /etc/ssl/certs layout.
-// It combines:
-//   - /etc/ssl/certs/ (base certificates from the system)
-//   - /var/lib/snapd/pki/v1/added/ (user added certificates)
-//   - /var/lib/snapd/pki/v1/blocked/ (user blocked certificate digests)
-func GenerateCertificateDatabase(mergedPath string) error {
-	if err := ensureDirectories(); err != nil {
-		return err
-	}
-
-	certs, err := loadCertificates()
-	if err != nil {
-		return err
-	}
-	return generateCACertificates(certs, mergedPath)
-}
-
 // CurrentCertificateDir returns the compatibility path that consumers follow
 // for the active certificate view while snapd publishes immutable generations
 // alongside it.
@@ -556,23 +614,6 @@ func switchPreviousMergedCertificates(target string) error {
 	return switchCertificatesLink(previousPath, target)
 }
 
-// Sha224hashOfFile returns the content fingerprint snapd uses to name
-// published generations so identical certificate bundles naturally converge on
-// the same target.
-func Sha224hashOfFile(p string) (string, error) {
-	f, err := os.Open(p)
-	if err != nil {
-		return "", fmt.Errorf("cannot open file: %v", err)
-	}
-	defer f.Close()
-
-	h := sha256.New224()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", fmt.Errorf("cannot hash file: %v", err)
-	}
-	return fmt.Sprintf("%x", h.Sum(nil)), nil
-}
-
 // resolveCurrentCertificateTarget resolves the active published generation target,
 // and returns an empty string if the link is missing (e.g. first run or after cleanup).
 func resolveCurrentCertificateTarget() (string, error) {
@@ -595,6 +636,81 @@ func resolveCurrentCertificateTarget() (string, error) {
 		return "", err
 	}
 	return target, nil
+}
+
+// certificateGenerations returns the immutable published generation names.
+// Garbage collection only reasons about these directories; the public symlinks
+// and other metadata are handled separately.
+func certificateGenerations() ([]string, error) {
+	entries, err := os.ReadDir(PublishedCertificatesDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot read published certificates directory: %v", err)
+	}
+
+	var generations []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			generations = append(generations, entry.Name())
+		}
+	}
+	return generations, nil
+}
+
+// garbageCollectCertificateGenerations uses a two-boot cleanup policy for
+// non-current generations. The first pass only marks an inactive generation;
+// a later boot removes it if nothing has made it current again in the
+// meantime. This keeps cleanup away from the publication path and gives other
+// parts of the system time to stop referencing an older tree.
+func garbageCollectCertificateGenerations(bootID string) error {
+	currentTarget, err := resolveCurrentCertificateTarget()
+	if err != nil {
+		return err
+	}
+
+	generations, err := certificateGenerations()
+	if err != nil {
+		return err
+	}
+
+	for _, generation := range generations {
+		target := mergedCertificatesGeneration(generation)
+		genPath := filepath.Join(PublishedCertificatesDir(), generation)
+		inactiveFile := filepath.Join(genPath, ".snapd-inactive")
+
+		if target == currentTarget {
+			// If a generation became current again, clear any stale inactivity mark
+			// so the next boot does not treat the live tree as pending deletion.
+			if osutil.FileExists(inactiveFile) {
+				if err := os.Remove(inactiveFile); err != nil {
+					return fmt.Errorf("cannot remove %q: %v", inactiveFile, err)
+				}
+			}
+			continue
+		}
+
+		if osutil.FileExists(inactiveFile) {
+			data, err := os.ReadFile(inactiveFile)
+			if err != nil {
+				return fmt.Errorf("cannot read %q: %v", inactiveFile, err)
+			}
+			if string(data) != bootID {
+				logger.Debugf("garbage collecting certificate generation %s", generation)
+				if err := os.RemoveAll(genPath); err != nil {
+					return fmt.Errorf("cannot remove old generation at %q: %v", genPath, err)
+				}
+			}
+		} else {
+			// Mark the generation first and only delete it on a later boot so GC
+			// does not race the publication step or long-lived readers of the old tree.
+			if err := os.WriteFile(inactiveFile, []byte(bootID), 0o644); err != nil {
+				return fmt.Errorf("cannot write %q: %v", inactiveFile, err)
+			}
+		}
+	}
+	return nil
 }
 
 // RefreshCertificateDatabase does a best-effort of performing an
@@ -621,17 +737,20 @@ func refreshCertificateDatabaseImpl() error {
 	}
 	defer os.RemoveAll(stagedDir)
 
-	if err := GenerateCertificateDatabase(stagedDir); err != nil {
+	certs, err := loadCertificates()
+	if err != nil {
 		return err
 	}
 
-	hash, err := Sha224hashOfFile(filepath.Join(stagedDir, "ca-certificates.crt"))
+	manifest, err := generateCACertificates(certs, stagedDir)
 	if err != nil {
-		return fmt.Errorf("cannot generate hash of new certificate bundle: %v", err)
+		return err
 	}
 
-	// Name published generations by bundle contents so equivalent certificate
-	// states naturally converge on the same immutable target.
+	// Name published generations after semantic certificate content plus the
+	// visible filenames and hash-link targets. Formatting-only PEM changes reuse
+	// the existing immutable generation instead of republishing equivalent bytes.
+	hash := manifest.hash()
 	nextTarget := mergedCertificatesGeneration(hash)
 	nextPath := filepath.Join(dirs.SnapdPKIV1Dir, nextTarget)
 	if exists, isDir, err := osutil.DirExists(nextPath); err != nil {
@@ -720,13 +839,13 @@ func SetCertificateState(name, digest, state string) error {
 	case CertificateStateAccepted:
 		addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
 		addedPath := certificatePathWithExtension(addedDir, digest)
-		if err := os.Symlink(customPath, addedPath); err != nil {
+		if err := os.Symlink(customPath, addedPath); err != nil && !os.IsExist(err) {
 			return err
 		}
 	case CertificateStateBlocked:
 		blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
 		blockedPath := certificatePathWithExtension(blockedDir, digest)
-		if err := os.Symlink(customPath, blockedPath); err != nil {
+		if err := os.Symlink(customPath, blockedPath); err != nil && !os.IsExist(err) {
 			return err
 		}
 	}

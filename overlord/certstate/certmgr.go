@@ -31,14 +31,16 @@ import (
 )
 
 type CertManager struct {
-	state                               *state.State
-	ensureEarlyCertificateGenerationRan bool
+	state            *state.State
+	oneTimeChecksRun bool
 }
 
 const (
 	previousGenerationTaskKey = "cert-db-prev-generation"
 	undoFromGenerationTaskKey = "cert-db-undo-from-generation"
 )
+
+var osutilBootID = osutil.BootID
 
 func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	m := &CertManager{
@@ -51,12 +53,41 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	return m
 }
 
+// hasTaskInProgress is meant to be used from non-task contexts,
+// so it doesn't take the current task as an argument. It checks if
+// there is any task of the given name that hasn't yet completed, which is
+// treated as in-progress.
+func hasTaskInProgress(st *state.State, taskName string) (bool, error) {
+	for _, t := range st.Tasks() {
+		if t.Kind() == taskName && !t.Change().Status().Ready() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (m *CertManager) ensureGarbageCollectionRun() error {
+	// Skip garbage collection if there is a "update-cert-db" change in flight
+	if inProgress, err := hasTaskInProgress(m.state, "update-cert-db"); err != nil {
+		return err
+	} else if inProgress {
+		logger.Debugf("skipping certificate database garbage collection as update-cert-db change is in flight")
+		return nil
+	}
+
+	bootID, err := osutilBootID()
+	if err != nil {
+		return err
+	}
+	return garbageCollectCertificateGenerations(bootID)
+}
+
 func (m *CertManager) Ensure() error {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
 
-	if m.ensureEarlyCertificateGenerationRan {
+	if m.oneTimeChecksRun {
 		return nil
 	}
 
@@ -69,12 +100,20 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	m.ensureEarlyCertificateGenerationRan = true
+	// The reason we set it already, before any of the checks have actually run, is
+	// that in the case of errors we don't want to keep trying the below things. They are
+	// meant to run just once per boot (of snapd is fine too).
+	m.oneTimeChecksRun = true
 
 	// If the ssl certs directory is missing, nothing to do.
 	if !hasSystemCertsDir() {
 		logger.Debugf("/etc/ssl/certs is not available on this system, skipping ca-certificates generation")
 		return nil
+	}
+
+	// Run garbage collection for the cert generations
+	if err := m.ensureGarbageCollectionRun(); err != nil {
+		return err
 	}
 
 	// If the CA certificate database is already present, nothing to do.
@@ -92,6 +131,8 @@ func (m *CertManager) Ensure() error {
 			return nil
 		}
 	} else if !os.IsNotExist(err) {
+		// In case of weird errors in this case, log it and skip generation. If it was
+		// a weird FS error, then we'll just retry again on next snapd startup.
 		logger.Noticef("error checking merged certificate database: %v", err)
 		return nil
 	}
