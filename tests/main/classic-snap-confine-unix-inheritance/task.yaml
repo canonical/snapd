@@ -1,0 +1,32 @@
+summary: Classic snaps can launch other snaps and use unix socket pairs for I/O
+
+details: |
+    Classic snaps are not constrained by apparmor but when they invoke snap-confine,
+    indirectly, to launch another snap, with I/O redirected to a unix socket pair,
+    they may observe that I/O is lost because kernel re-validation of inherited file
+    descriptors when executing snap-confine, causes them to be closed and replaced with
+    /dev/null, unless snap-confine itself had rights to access them.
+
+    Snap-confine now has a rule that allows it to use unix sockets labelled by another
+    snap which should allow a classic launcher (e.g. opencode) to run a strictly confined
+    snap while retaining I/O redirection.
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    if [ ! -e /snap ]; then
+      ln -s /var/lib/snapd/snap /snap
+      tests.cleanup defer rm -f /snap
+    fi
+    snap pack test-snapd-classic-launcher
+    snap install --classic --dangerous test-snapd-classic-launcher_1.0_all.snap
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
+
+execute: |
+    # Running non-snap application works:
+    test-snapd-classic-launcher echo hello | MATCH hello
+    # Running strict snap application works:
+    test-snapd-classic-launcher snap run test-snapd-sh.sh -c "echo hello" | MATCH hello
+    # Running classic snap application works.
+    test-snapd-classic-launcher snap run test-snapd-classic-confinement.sh -c "echo hello" | MATCH hello
