@@ -40,9 +40,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
       - name: Get PR number
         if: github.event_name == 'workflow_run'
         uses: actions/github-script@v9
