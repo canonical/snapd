@@ -28,6 +28,191 @@ import (
 	"github.com/snapcore/snapd/confdb"
 )
 
+var (
+	rawConfdbBuiltins = map[string]map[string][]byte{
+		"validation-sets": {
+			"headers": []byte(`type: confdb-schema
+account-id: system
+authority-id: canonical
+name: validation-sets
+summary: Manage the validation sets installed on a device
+views:
+  state:
+    summary: Read the validation sets state
+    rules:
+      -
+        request: {account}.{validation-set}
+        storage: v1.{account}.{validation-set}
+        access: read
+        content:
+          -
+            storage: snaps[{n}]
+            content:
+              -
+                storage: name
+              -
+                storage: id
+              -
+                storage: revision
+              -
+                storage: presence
+          -
+            storage: mode
+          -
+            storage: status
+          -
+            storage: sequence
+          -
+            storage: revision
+          -
+            storage: pinned-sequence
+  admin:
+    summary: Control validation sets
+    rules:
+      -
+        request: {account}.{set-name}
+        storage: v1.{account}.{set-name}
+        access: write
+        content:
+          -
+            storage: pinned-sequence
+          -
+            storage: mode
+      -
+        request: {account}.{set-name}
+        storage: v1.{account}.{set-name}
+        access: read
+        content:
+          -
+            storage: snaps[{n}]
+            content:
+              -
+                storage: name
+              -
+                storage: id
+              -
+                storage: revision
+              -
+                storage: presence
+          -
+            storage: status
+          -
+            storage: sequence
+          -
+            storage: revision
+          -
+            storage: pinned-sequence
+          -
+            storage: mode
+  pinning-admin:
+    summary: Control pinning of validation sets
+    rules:
+      -
+        request: {account}.{set-name}.pinned-sequence
+        storage: v1.{account}.{set-name}.pinned-sequence
+        access: read-write
+`),
+			"body": []byte(`{
+  "storage": {
+    "aliases": {
+      "account-id": {
+        "type": "string",
+        "pattern": "^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$"
+      },
+      "set-name": {
+        "type": "string",
+        "pattern": "^[a-z0-9](?:-?[a-z0-9])*$"
+      }
+    },
+    "schema": {
+      "v1": {
+        "keys": "${account-id}",
+        "values": {
+          "keys": "${set-name}",
+          "values": {
+            "required": [
+              "mode"
+            ],
+            "schema": {
+              "mode": {
+                "type": "string",
+                "choices": [
+                  "monitor",
+                  "enforce"
+                ]
+              },
+              "pinned-sequence": {
+                "type": "int",
+                "min": 0
+              },
+              "revision": {
+                "type": "int",
+                "min": 0
+              },
+              "sequence": {
+                "type": "int",
+                "min": 1
+              },
+              "snaps": {
+                "type": "array",
+                "unique": true,
+                "values": {
+                  "schema": {
+                    "id": "string",
+                    "name": "string",
+                    "presence": {
+                      "type": "string",
+                      "choices": [
+                        "required",
+                        "optional",
+                        "invalid"
+                      ]
+                    },
+                    "revision": {
+                      "type": "int",
+                      "min": 1
+                    }
+                  }
+                }
+              },
+              "status": {
+                "type": "string",
+                "choices": [
+                  "valid",
+                  "invalid"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}`),
+		},
+	}
+
+	confdbSchemaCheckOrder      = []string{"type", "account-id", "authority-id"}
+	confdbSchemaExpectedHeaders = map[string]any{
+		"type":         "confdb-schema",
+		"account-id":   "system",
+		"authority-id": "canonical",
+	}
+)
+
+func init() {
+	for name, builtin := range rawConfdbBuiltins {
+		a, err := assembleBuiltinAssertion(ConfdbSchemaType, builtin["headers"], builtin["body"], builtinCheckParams{
+			order:           confdbSchemaCheckOrder,
+			expectedHeaders: confdbSchemaExpectedHeaders,
+		})
+		if err != nil {
+			panic(fmt.Sprintf("cannot create builtin %q confdb-schema: %v", name, err))
+		}
+		builtinAssertions = append(builtinAssertions, a)
+	}
+}
+
 // ConfdbSchema holds a confdb-schema assertion, which is a definition by an
 // account of access views and a storage schema for a set of related
 // configuration options under the purview of the account.
@@ -57,7 +242,7 @@ func (ar *ConfdbSchema) Schema() *confdb.Schema {
 func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
-	if accountID != authorityID {
+	if accountID != "system" && accountID != authorityID {
 		return nil, fmt.Errorf("authority-id and account-id must match, confdb assertions are expected to be signed by the issuer account: %q != %q", authorityID, accountID)
 	}
 
