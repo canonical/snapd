@@ -1,0 +1,191 @@
+summary: Exercise update with multiple content connections and parallel installs
+
+details: |
+    Exercise an update where content providers have multiple consumers
+    connected, both sides using parallel installs.
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap set system experimental.parallel-instances=null
+
+    snap install core24
+
+execute: |
+    # implicitly referred to as c1
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-consumer
+
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-content-consumer test-snapd-content-consumer_c2
+
+    # implicitly referred to as p1
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-provider
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-content-provider test-snapd-content-provider_p2
+
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-provider-v2
+
+    # prepare modified versions
+    (
+    cd test-snapd-content-provider
+    echo 'special content mod v1' > special-content-file
+    snap pack
+    )
+
+    (
+    cd test-snapd-content-provider-v2
+    echo 'special content mod v2' > special-content-file
+    snap pack
+    )
+
+    # establish some connections
+    # c1 -> p1, p2, p-v2
+    # c2 -> p1, p2
+
+    # c1 -> p1
+    snap connect test-snapd-content-consumer:special-content \
+        test-snapd-content-provider:special-content
+    # c1 -> p2
+    snap connect test-snapd-content-consumer:special-content \
+        test-snapd-content-provider_p2:special-content
+
+    # c1 -> p-v2
+    snap connect test-snapd-content-consumer:special-content-v2 \
+        test-snapd-content-provider-v2:special-content-v2
+
+    # c2 -> p2
+    snap connect test-snapd-content-consumer_c2:special-content \
+        test-snapd-content-provider_p2:special-content
+    # c2 -> p-v2
+    snap connect test-snapd-content-consumer_c2:special-content-v2 \
+        test-snapd-content-provider-v2:special-content-v2
+
+    # establish a baseline
+    test-snapd-content-consumer.app |& tee out
+    MATCH "hello from app test-snapd-content-consumer" < out
+    MATCH '^connected-content: special content v1$'    < out
+    MATCH '^connected-content-2: special content v1$'  < out
+    MATCH '^connected-content-v2: special content v2$' < out
+
+    test-snapd-content-consumer_c2.app |& tee out_c2
+    MATCH "hello from app test-snapd-content-consumer_c2" < out_c2
+    MATCH '^connected-content: special content v1$'       < out_c2
+    # only one connection to a p provider
+    MATCH '^connected-content-2: <not found>$'            < out_c2
+    MATCH '^connected-content-v2: special content v2$'    < out_c2
+
+    # update p1, affects test-snapd-content-consumer
+    echo "Update a snap affecting test-snapd-content-consumer only"
+    snap install --dangerous test-snapd-content-provider/test-snapd-content-provider_*.snap
+    # no apps were running, so consumer mount ns got discarded
+    test ! -e /run/snapd/ns/test-snapd-content-consumer.mnt
+    # but consumer_c2 mount ns remains untouched
+    test -e /run/snapd/ns/test-snapd-content-consumer_c2.mnt
+
+    # we observe the modified content (which recreates the mount ns)
+    test-snapd-content-consumer.app |& tee out-after.1
+    # the ordering of connected-content and connected-content-2 is
+    # non-deterministic (map iteration in the interface repository)
+    if MATCH '^connected-content: special content mod v1$' < out-after.1; then
+        MATCH '^connected-content-2: special content v1$' < out-after.1
+    else
+        MATCH '^connected-content: special content v1$' < out-after.1
+        MATCH '^connected-content-2: special content mod v1$' < out-after.1
+    fi
+    MATCH '^connected-content-v2: special content v2$' < out-after.1
+
+    # the output hasn't changed
+    test-snapd-content-consumer_c2.app |& tee out_c2-after.1
+    diff -up out_c2 out_c2-after.1
+
+    # update of 2 provider snaps, affects both consumer snaps
+    # p1 affects c1
+    # p-v2 affects both c1 and c2
+    echo "Update a snap affecting test-snapd-content-consumer and _c2"
+    snap install --dangerous \
+        test-snapd-content-provider/test-snapd-content-provider_*.snap \
+        test-snapd-content-provider-v2/test-snapd-content-provider-v2_*.snap
+    # both mount namespaces got discarded
+    test ! -e /run/snapd/ns/test-snapd-content-consumer.mnt
+    test ! -e /run/snapd/ns/test-snapd-content-consumer_c2.mnt
+
+    test-snapd-content-consumer.app |& tee out-after.2
+    # p1 changed, ordering of connected-content and connected-content-2 is
+    # non-deterministic
+    if MATCH '^connected-content: special content mod v1$' < out-after.2; then
+        MATCH '^connected-content-2: special content v1$' < out-after.2
+    else
+        MATCH '^connected-content: special content v1$' < out-after.2
+        MATCH '^connected-content-2: special content mod v1$' < out-after.2
+    fi
+    # p-v2 changed
+    MATCH '^connected-content-v2: special content mod v2$' < out-after.2
+
+    test-snapd-content-consumer_c2.app |& tee out_c2-after.2
+    # p2 was unchanged
+    MATCH '^connected-content: special content v1$'        < out_c2-after.2
+    MATCH '^connected-content-2: <not found>$'             < out_c2-after.2
+    # p-2 changed
+    MATCH '^connected-content-v2: special content mod v2$' < out_c2-after.2
+
+    # update p2, affects both snaps
+    snap install --dangerous \
+        test-snapd-content-provider/test-snapd-content-provider_*.snap \
+        --name test-snapd-content-provider_p2
+
+    test-snapd-content-consumer.app |& tee out-after.3
+    test-snapd-content-consumer_c2.app |& tee out_c2-after.3
+
+    MATCH '^connected-content: special content mod v1$'    < out-after.3
+    MATCH '^connected-content-2: special content mod v1$'  < out-after.3
+    MATCH '^connected-content-v2: special content mod v2$' < out-after.3
+
+    # _c2 observes new content
+    MATCH '^connected-content: special content mod v1$'    < out_c2-after.3
+    MATCH '^connected-content-2: <not found>$'             < out_c2-after.3
+    MATCH '^connected-content-v2: special content mod v2$' < out_c2-after.3
+
+    echo "Observe mount namespace update when an application is running"
+    # another modification
+    (
+    cd test-snapd-content-provider-v2
+    echo 'special content mod v3' > special-content-file
+    snap pack
+    )
+
+    # make sure namespaces are present
+    test -e /run/snapd/ns/test-snapd-content-consumer.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer_c2.mnt
+
+    # start application that prevents the mount ns from being discarded
+    snap run --shell test-snapd-content-consumer.app -c \
+         'sleep 3600' &
+    sleeppid_c1=$!
+
+    snap run --shell test-snapd-content-consumer_c2.app -c \
+         'sleep 3600' &
+    sleeppid_c2=$!
+    
+    snap install --dangerous \
+        test-snapd-content-provider-v2/test-snapd-content-provider-v2_*.snap
+    snap change --last install | tee change.out
+    test "$(grep -c 'Apply delayed' < change.out)" = "2"
+
+    # namespaces are still present
+    test -e /run/snapd/ns/test-snapd-content-consumer.mnt
+    test -e /run/snapd/ns/test-snapd-content-consumer_c2.mnt
+
+    kill "$sleeppid_c1"
+    kill "$sleeppid_c2"
+    wait || true
+    wait || true
+    
+    # join it to observe updated content
+    test-snapd-content-consumer.app |& tee out-after.4
+    test-snapd-content-consumer_c2.app |& tee out_c2-after.4
+
+    MATCH '^connected-content: special content mod v1$'    < out-after.4
+    MATCH '^connected-content-2: special content mod v1$'  < out-after.4
+    MATCH '^connected-content-v2: special content mod v3$' < out-after.4
+    
+    MATCH '^connected-content: special content mod v1$'    < out_c2-after.4
+    MATCH '^connected-content-2: <not found>$'             < out_c2-after.4
+    MATCH '^connected-content-v2: special content mod v3$' < out_c2-after.4

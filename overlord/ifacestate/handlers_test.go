@@ -21,11 +21,15 @@ package ifacestate_test
 
 import (
 	"errors"
+	"fmt"
 	"path"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -37,10 +41,12 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timings"
 )
 
 const snapAyaml = `name: snap-a
 type: app
+version: 1
 base: base-snap-a
 `
 
@@ -222,4 +228,39 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 	c.Check(opts.Classic, Equals, flags.Classic)
 	c.Check(opts.DevMode, Equals, flags.DevMode)
 	c.Check(opts.JailMode, Equals, flags.JailMode)
+}
+
+func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespaceMountProfileCheck(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
+
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
+
+	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
+	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
+	c.Assert(err, IsNil)
+
+	opts, err := m.BuildConfinementOptions(s.st, nil, snapInfo, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(opts.ExtraLayouts, HasLen, 1)
+
+	repo := interfaces.NewRepository()
+	backend := &mount.Backend{}
+	c.Assert(repo.AddBackend(backend), IsNil)
+
+	appSet, err := interfaces.NewSnapAppSet(snapInfo, nil)
+	c.Assert(err, IsNil)
+	c.Assert(repo.AddAppSet(appSet), IsNil)
+
+	err = backend.Setup(appSet, opts, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther},
+		repo, timings.New(nil).StartSpan("", ""))
+	c.Assert(err, IsNil)
+
+	c.Check(filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-a.fstab"), testutil.FileEquals,
+		fmt.Sprintf("%[1]s/run/systemd/journal.snap-foo %[1]s/run/systemd/journal none rbind,rw,x-snapd.origin=layout 0 0\n",
+			dirs.GlobalRootDir))
 }
