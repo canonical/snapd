@@ -6,7 +6,7 @@ details: |
 
 execute: |
     echo "Install snap to trigger a change"
-    "$TESTSTOOLS"/install-local test-snap-with-components
+    "$TESTSTOOLS"/snaps-state install-local test-snap-with-components
 
     echo "Get the change ID for the install operation"
     CHANGE_ID=$(snap changes | grep "Install \"test-snap-with-components\" snap" | awk '{print $1}')
