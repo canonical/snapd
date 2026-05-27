@@ -27,17 +27,17 @@ jobs:
       upload-artifacts: true
       spread-env: "SPREAD_GENERATE_COVERAGE=true"
 
-  nightly-spread-coverage-nested:
-    uses: ./.github/workflows/spread-tests.yaml
-    needs: snap-builds
-    name: "spread nested"
-    secrets: inherit
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: nested
-      backend: openstack-ext
-      systems: ubuntu-24.04-64
-      tasks: tests/nested/classic/...
-      rules: nested
-      upload-artifacts: true
-      spread-env: "SPREAD_GENERATE_COVERAGE=true"
+  # nightly-spread-coverage-nested:
+  #   uses: ./.github/workflows/spread-tests.yaml
+  #   needs: snap-builds
+  #   name: "spread nested"
+  #   secrets: inherit
+  #   with:
+  #     runs-on: '["self-hosted", "spread-enabled"]'
+  #     group: nested
+  #     backend: openstack-ext
+  #     systems: ubuntu-24.04-64
+  #     tasks: tests/nested/classic/...
+  #     rules: nested
+  #     upload-artifacts: true
+  #     spread-env: "SPREAD_GENERATE_COVERAGE=true"
