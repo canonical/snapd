@@ -208,7 +208,7 @@ func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
 }
 
 // TestIsReadyRateLimitTimerFires verifies that when timeAfter fires before the
-// change is ready, is-ready reports DoingStatus (exit code 1) and the timer
+// change is ready, is-ready reports DoingStatus (exit code 3) and the timer
 // channel is drained.
 func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
 	// A last-accessed time in the future puts us inside the debounce window.
