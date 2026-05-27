@@ -58,7 +58,7 @@ package apparmor
 // 'base: other').
 //
 // The preamble and default accesses common to all bases go in templateCommon.
-// These rules include the aformentioned host file rules as well as non-file
+// These rules include the aforementioned host file rules as well as non-file
 // rules (eg signal, dbus, unix, etc).
 var templateCommon = `
 # vim:syntax=apparmor
@@ -504,6 +504,11 @@ var templateCommon = `
   # Work around for https://gitlab.com/apparmor/apparmor/-/issues/571
   # which prevents access to mmap MAP_HUGETLB.
   allow file / rwm,
+
+  # Allow snaps to inherit sockets from other snaps. This prevents snaps
+  # invoked by classic snaps with output redirected to a socket pair from losing
+  # their stdio files.
+  unix (send, receive) addr=none peer=(addr=none, label="snap.*"),
   
   ###DEVMODE_SNAP_CONFINE###
 `
