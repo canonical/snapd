@@ -21,8 +21,8 @@ jobs:
       runs-on: '["self-hosted", "spread-enabled"]'
       group: noble
       backend: openstack
-      systems: ubuntu-core-24-64
-      tasks: tests/regression/...
+      systems: ubuntu-24.04-64
+      tasks: tests/...
       rules: main
       upload-artifacts: true
       spread-env: "SPREAD_GENERATE_COVERAGE=true"
@@ -44,7 +44,7 @@ jobs:
 
   process-coverage:
     runs-on: ubuntu-latest
-    needs: [nightly-spread-coverage, nightly-spread-coverage-nested]
+    needs: [nightly-spread-coverage]
     steps:
       - name: Download coverage artifacts
         uses: actions/download-artifact@v8
@@ -58,3 +58,8 @@ jobs:
         with:
           path: coverage
           pattern: spread-results-*
+
+      - name: tree
+        run: |
+          sudo apt install tree
+          tree coverage
