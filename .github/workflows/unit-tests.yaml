@@ -150,8 +150,15 @@ jobs:
     - name: Test Go (with network isolation)
       if: ${{ inputs.code == 'go' }}
       run: |
+        # Requires unprivileged user namespaces
+        orig_apparmor_userns=$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
         unshare --net --user --map-root-user -- sh -c "ip link set lo up && \
           unshare --user --map-user=$(id -u) --map-group=$(id -g) -- sh -c './run-checks --unit'"
+        
+        # Reset the setting back to its original value
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns="$orig_apparmor_userns"
 
     - name: Create coverage results name
       if: ${{ ! inputs.skip-coverage }}
