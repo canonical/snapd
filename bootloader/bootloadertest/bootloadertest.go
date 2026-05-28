@@ -21,9 +21,11 @@ package bootloadertest
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -48,6 +50,10 @@ type MockBootloader struct {
 	InstallBootConfigCalled []string
 	InstallBootConfigErr    error
 
+	ReconfigureRecoveryBootConfigCalls int
+	ReconfigureRecoveryBootConfigErr   error
+	ReconfigureRecoveryBootConfigFunc  func() error
+
 	enabledKernel    snap.PlaceInfo
 	enabledTryKernel snap.PlaceInfo
 
@@ -66,6 +72,7 @@ var _ bootloader.NotScriptableBootloader = (*MockNotScriptableBootloader)(nil)
 var _ bootloader.NotScriptableBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
 var _ bootloader.RebootBootloader = (*MockRebootBootloader)(nil)
+var _ bootloader.RecoveryBootConfigBootloader = (*MockBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -125,6 +132,12 @@ func (b *MockBootloader) RemoveKernelAssets(s snap.PlaceInfo) error {
 	return nil
 }
 
+func (b *MockBootloader) RequiredByGadget(gadgetDir string) bool {
+	markerConf := filepath.Join(gadgetDir, b.Name()+".conf")
+	// do we have a marker file?
+	return osutil.FileExists(markerConf)
+}
+
 func (b *MockBootloader) SetEnabledKernel(s snap.PlaceInfo) (restore func()) {
 	oldSn := b.enabledTryKernel
 	oldVar := b.BootVars["snap_kernel"]
@@ -152,6 +165,14 @@ func (b *MockBootloader) SetEnabledTryKernel(s snap.PlaceInfo) (restore func()) 
 func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) error {
 	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
 	return b.InstallBootConfigErr
+}
+
+func (b *MockBootloader) Reconfigure() error {
+	b.ReconfigureRecoveryBootConfigCalls++
+	if b.ReconfigureRecoveryBootConfigFunc != nil {
+		return b.ReconfigureRecoveryBootConfigFunc()
+	}
+	return b.ReconfigureRecoveryBootConfigErr
 }
 
 // SetMockToPanic allows setting any method in the Bootloader interface or derived

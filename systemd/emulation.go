@@ -124,25 +124,19 @@ func (s *emulation) LogReader(services []string, n int, follow, namespaces bool)
 	return nil, fmt.Errorf("LogReader")
 }
 
-func (s *emulation) EnsureMountUnitFile(description, what, where, fstype string, flags EnsureMountUnitFlags) (string, error) {
+func (s *emulation) ConfigureMountUnitOptions(o *MountUnitOptions, fstype string, startBeforeDrivers bool) error {
+	o.Fstype = fstype
 	// We don't build the options in exactly the same way as in the systemd
 	// type because these options will be written in a unit that is used in
 	// a host different to where this is running (the one used while
 	// creating the preseeding tarball). Here we assume that the final
 	// target is not a container.
-	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	return s.EnsureMountUnitFileWithOptions(&MountUnitOptions{
-		Lifetime:                 Persistent,
-		Description:              description,
-		What:                     what,
-		Where:                    where,
-		Fstype:                   fstype,
-		Options:                  mountUnitOptions,
-		PreventRestartIfModified: flags.PreventRestartIfModified,
-	})
+	o.Options = append(fsMountOptions(fstype), squashfs.StandardOptions()...)
+
+	return nil
 }
 
-func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+func (s *emulation) EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error) {
 	if osutil.IsDirectory(unitOptions.What) {
 		return "", fmt.Errorf("bind-mounted directory is not supported in emulation mode")
 	}
@@ -191,11 +185,9 @@ func (s *emulation) EnsureMountUnitFileWithOptions(unitOptions *MountUnitOptions
 }
 
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
-	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
-	if !osutil.FileExists(unit) {
-		return nil
-	}
-
+	// unmount regardless of whether the unit file exists as
+	// the unit file may have been deleted while the mount is
+	// still active
 	isMounted, err := osutilIsMounted(mountedDir)
 	if err != nil {
 		return err
@@ -205,6 +197,11 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 		if output, err := exec.Command("umount", "-d", "-l", mountedDir).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
+	}
+
+	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
+	if !osutil.FileExists(unit) {
+		return nil
 	}
 
 	if err := s.DisableNoReload([]string{filepath.Base(unit)}); err != nil {

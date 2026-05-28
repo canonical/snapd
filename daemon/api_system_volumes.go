@@ -43,12 +43,18 @@ var systemVolumesCmd = &Command{
 	POST: postSystemVolumesAction,
 	Actions: []string{
 		"generate-recovery-key", "check-recovery-key", "add-recovery-key", "replace-recovery-key",
-		"replace-platform-key", "check-passphrase", "check-pin", "change-passphrase", "change-pin"},
+		"replace-platform-key", "check-passphrase-quality", "check-pin-quality", "change-passphrase", "change-pin",
+		// deprecated
+		"check-passphrase", "check-pin",
+	},
 	// anyone can enumerate key slots.
 	ReadAccess: interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 	WriteAccess: byActionAccess{
 		ByAction: map[string]accessChecker{
-			// anyone check passphrase/pin quality
+			// anyone can check passphrase/pin quality
+			"check-passphrase-quality": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-pin-quality":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			// deprecated
 			"check-passphrase": interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-pin":        interfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			// anyone can change passphrase or PIN given they know the old passphrase
@@ -296,10 +302,10 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 		return postSystemVolumesActionReplaceRecoveryKey(c, &req)
 	case "replace-platform-key":
 		return postSystemVolumesActionReplacePlatformKey(c, &req)
-	case "check-passphrase":
-		return postSystemVolumesCheckPassphrase(&req)
-	case "check-pin":
-		return postSystemVolumesCheckPIN(&req)
+	case "check-passphrase-quality", "check-passphrase": // "check-passphrase" is deprecated
+		return postSystemVolumesCheckPassphraseQuality(&req)
+	case "check-pin-quality", "check-pin": // "check-pin" is deprecated
+		return postSystemVolumesCheckPINQuality(&req)
 	case "change-passphrase":
 		return postSystemVolumesActionChangePassphrase(c, &req)
 	case "change-pin":
@@ -429,7 +435,7 @@ func postSystemVolumesActionReplacePlatformKey(c *Command, req *systemVolumesAct
 	return AsyncResponse(nil, chg.ID())
 }
 
-func postSystemVolumesCheckPassphrase(req *systemVolumesActionRequest) Response {
+func postSystemVolumesCheckPassphraseQuality(req *systemVolumesActionRequest) Response {
 	if req.Passphrase == "" {
 		return BadRequest("passphrase must be provided in request body for action %q", req.Action)
 	}
@@ -437,7 +443,7 @@ func postSystemVolumesCheckPassphrase(req *systemVolumesActionRequest) Response 
 	return postCheckAuthQuality(device.AuthModePassphrase, req.Passphrase)
 }
 
-func postSystemVolumesCheckPIN(req *systemVolumesActionRequest) Response {
+func postSystemVolumesCheckPINQuality(req *systemVolumesActionRequest) Response {
 	if req.PIN == "" {
 		return BadRequest("pin must be provided in request body for action %q", req.Action)
 	}

@@ -91,6 +91,7 @@ setup_snapd_proxy() {
     if [ "${SNAPD_USE_PROXY:-}" != true ]; then
         return
     fi
+    restart=$1
 
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/proxy.conf
@@ -99,10 +100,11 @@ Environment=HTTPS_PROXY=$HTTPS_PROXY HTTP_PROXY=$HTTP_PROXY https_proxy=$HTTPS_P
 EOF
 
     # We change the service configuration so reload and restart
-    # the units to get them applied
+    # the units to get them applied (if requested)
     systemctl daemon-reload
-    # restart the service (it pulls up the socket)    
-    systemctl restart snapd.service
+    if [ "$restart" = true ]
+    then systemctl restart snapd.service
+    fi
 }
 
 setup_system_proxy() {
@@ -404,7 +406,7 @@ prepare_each_core() {
 
 prepare_classic() {
     # Configure the proxy in the system when it is required
-    setup_system_proxy   
+    setup_system_proxy
 
     # Skip building snapd when REUSE_SNAPD is set to 1
     if [ "$REUSE_SNAPD" != 1 ]; then
@@ -473,29 +475,19 @@ prepare_classic() {
         snap info snapd
         echo "Error: not expecting snapd snap to be installed"
         exit 1
-    else
-        build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
-        rm -rf "$build_dir"
-        mkdir -p "$build_dir"
-        build_snapd_snap "$build_dir"
-        case "$SPREAD_SYSTEM" in
-            ubuntu-fips-24.04-*)
-                # we're expecting snapd installation to fail due to SNAPDENG-35482
-                not snap install --dangerous "$build_dir/"snapd_*.snap
-                journalctl -u snapd | MATCH "opensslcrypto: can't enable FIPS mode for OpenSSL"
-                echo "this failure is expected"
-                exit 1
-                ;;
-            *)
-                # we're expecting snapd installation to fail due to SNAPDENG-
-                snap install --dangerous "$build_dir/"snapd_*.snap
-                ;;
-        esac
-        snap wait system seed.loaded
     fi
-    snap list snapd
 
-    setup_snapd_proxy
+    # The installation of the snap will restart the service, no need to restart
+    # it here too. Otherwise we end up hitting systemd restart limit.
+    setup_snapd_proxy false
+
+    build_dir="$SNAPD_WORK_DIR/snapd_snap_for_classic"
+    rm -rf "$build_dir"
+    mkdir -p "$build_dir"
+    build_snapd_snap "$build_dir"
+    snap install --dangerous "$build_dir/"snapd_*.snap
+    snap wait system seed.loaded
+    snap list snapd
 
     mount_dir="$(os.paths snap-mount-dir)"
     if ! getcap "$mount_dir"/snapd/current/usr/lib/snapd/snap-confine | grep "cap_sys_admin"; then
@@ -562,6 +554,23 @@ prepare_classic() {
 
         # Check bootloader environment output in architectures different to s390x which uses zIPL
         if ! [ "$(uname  -m)" = "s390x" ]; then
+            # On ARM64 the EFI partition may not be mounted by default, and it is needed to be able to read the
+            # bootloader environment correctly, so mount it if needed. On other architectures, just check the
+            # output of bootenv show without mounting anything as it should work out of the box.
+            if os.query is-arm64; then
+                if [ ! -d /boot/efi ]; then
+                    echo "Mounting EFI partition if not already mounted, to ensure bootloader environment can be read correctly"
+                    EFI_PART="$(lsblk -plno NAME,FSTYPE | grep 'vfat' | awk '{print $1}' | head -n 1)"
+                    mkdir -p /boot/efi
+                    mount "$EFI_PART" /boot/efi
+
+                    if [ ! -d /boot/grub ]; then
+                        mkdir -p /boot/grub
+                        grub-editenv /boot/grub/grubenv create
+                    fi
+                fi
+            fi
+
             echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
             # shellcheck disable=SC2119
             output=$("$TESTSTOOLS"/boot-state bootenv show)
@@ -1396,8 +1405,10 @@ setup_reflash_magic() {
     snap tasks --last=seed || true
     journalctl -u snapd
     snap model --verbose
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
     # remove the above debug lines once the mentioned bug is fixed
-    snap install "--channel=${CORE_CHANNEL:-edge}" "$core_name"
+    snap install "--channel=$(nested_get_base_channel)" "$core_name"
     # TODO set up a trap to clean this up properly?
     local UNPACK_DIR
     UNPACK_DIR="$(mktemp -d "/tmp/$core_name-unpack.XXXXXXXX")"
@@ -1905,7 +1916,7 @@ prepare_ubuntu_core() {
     fi
     retry -n 10 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
 
-    setup_snapd_proxy
+    setup_snapd_proxy true
 
     disable_journald_rate_limiting
     disable_journald_start_limiting

@@ -34,6 +34,7 @@
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libmount.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libblkid.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libuuid.so* mr,
+    /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libm.so* mr,
     # normal libs in order
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libapparmor.so* mr,
     /{,{,var/lib/snapd/}snap/{snapd,core}/*/}{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcgmanager.so* mr,
@@ -92,6 +93,10 @@
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs rw,
     /sys/fs/cgroup/ r,
     /sys/fs/cgroup/** r,
+
+    # required by glibc and usually provided by <abstractions/base>
+    /sys/kernel/mm/transparent_hugepage/enabled r,
+    /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
 
     # cgroup: reading own cgroup
     @{PROC}/@{pid}/cgroup r,
@@ -167,8 +172,8 @@
     # some point we want to investigate if we can narrow the scope of the aforementioned rule.
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/bpf/*.bin{,2} r,
 
-    # adding a missing bpf mount
-    mount fstype=bpf options=(rw) bpf -> /sys/fs/bpf/,
+    # adding a missing bpf mount; nosuid/nodev/noexec are required for hardening
+    mount fstype=bpf options=(rw nosuid nodev noexec) bpf -> /sys/fs/bpf/,
 
     # For mounting base dir by dir (write dirs and mount on them)
     /tmp/snap.rootfs_** rw,
@@ -609,4 +614,9 @@
     deny /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnss_systemd.[0-9]*.so* mr,
     deny /etc/nsswitch.conf r,
     deny /etc/passwd r,
+
+    # Allow snap-confine to inherit sockets from other snaps. This prevents classic snaps
+    # from having broken stdin redirected to unix sockets that are established by said snap,
+    # e.g. opencode.
+    unix (send, receive) addr=none peer=(addr=none, label="snap.*"),
 }

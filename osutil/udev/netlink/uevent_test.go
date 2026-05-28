@@ -29,6 +29,7 @@ func TestParseUEvent(testing *testing.T) {
 			Env: map[string]string{
 				"ACTION":    "add",
 				"DEVPATH":   "/devices/pci0000:00/0000:00:14.0/usb2/2-1/2-1:1.2/0003:04F2:0976.0008/hidraw/hidraw4",
+				"NAME":      "\"sof-hda-dsp HDMI/DP,pcm=5\"",
 				"SUBSYSTEM": "hidraw",
 				"MAJOR":     "247",
 				"MINOR":     "4",
@@ -80,6 +81,7 @@ func TestParseUdevEvent(testing *testing.T) {
 		Input: []byte("libudev\x00\xfe\xed\xca\xfe(\x00\x00\x00(\x00\x00\x00\xd5\x03\x00\x00\x8a\xfa\x90\xc8\x00\x00\x00\x00\x02\x00\x04\x00\x10\x80\x00\x00" +
 			"ACTION=remove\x00DEVPATH=/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2:1.0/ttyUSB0/tty/ttyUSB0\x00SUBSYSTEM=tty\x00" +
 			"DEVNAME=/dev/ttyUSB0\x00SEQNUM=4344\x00MAJOR=188\x00MINOR=0\x00USEC_INITIALIZED=75223543693\x00ID_BUS=usb\x00" +
+			"NAME=\"sof-hda-dsp HDMI/DP,pcm=5\"\x00" +
 			"ID_VENDOR_ID=0403\x00ID_MODEL_ID=6001\x00ID_PCI_CLASS_FROM_DATABASE=Serial bus controller\x00" +
 			"ID_PCI_SUBCLASS_FROM_DATABASE=USB controller\x00ID_PCI_INTERFACE_FROM_DATABASE=XHCI\x00" +
 			"ID_VENDOR_FROM_DATABASE=Future Technology Devices International, Ltd\x00ID_MODEL_FROM_DATABASE=FT232 Serial (UART) IC\x00" +
@@ -117,6 +119,7 @@ func TestParseUdevEvent(testing *testing.T) {
 				"SUBSYSTEM":                      "tty",
 				"MAJOR":                          "188",
 				"ID_BUS":                         "usb",
+				"NAME":                           "\"sof-hda-dsp HDMI/DP,pcm=5\"",
 				"ID_VENDOR_ID":                   "0403",
 				"ID_MODEL_FROM_DATABASE":         "FT232 Serial (UART) IC",
 				"ID_SERIAL":                      "FTDI_FT232R_USB_UART_AH06W0EQ",

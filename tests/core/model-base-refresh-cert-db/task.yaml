@@ -1,0 +1,58 @@
+summary: Verify model base refresh injects certificate database update
+
+details: |
+    Ensure that refreshing the current model base injects exactly one
+    "Update certificate database" task in the refresh change.
+
+prepare: |
+    . /etc/os-release
+    core_snap="core${VERSION_ID}"
+    readlink "/snap/$core_snap/current" > core.rev
+
+execute: |
+    . /etc/os-release
+    core_snap="core${VERSION_ID}"
+
+    wait_and_verify_change() {
+        local change_id="$1"
+        snap watch "$change_id" || true
+        snap changes | MATCH "$change_id\\s+Done"
+        snap change "$change_id" > tasks.done
+        NOMATCH '^Error' < tasks.done
+        NOMATCH '^Undone' < tasks.done
+        NOMATCH '^Wait' < tasks.done
+        retry -n 30 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
+    }
+
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+        snap download "$core_snap" --edge
+        printf '\0' >> "$core_snap"_*.snap
+
+        snap install "$(ls ${core_snap}_*.snap)" --dangerous --no-wait > refresh-change-id
+        change_id="$(cat refresh-change-id)"
+        test -n "$change_id"
+
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+        REBOOT
+    elif [ "$SPREAD_REBOOT" -eq 1 ]; then
+        change_id="$(cat refresh-change-id)"
+        wait_and_verify_change "$change_id"
+
+        MATCH 'Update certificate database' < tasks.done
+        [ "$(grep -c 'Update certificate database' tasks.done)" -eq 1 ]
+
+        snap revert "$core_snap" --no-wait > revert-change-id
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+        REBOOT
+    elif [ "$SPREAD_REBOOT" -eq 2 ]; then
+        change_id="$(cat revert-change-id)"
+        wait_and_verify_change "$change_id"
+
+        MATCH 'Update certificate database' < tasks.done
+        [ "$(grep -c 'Update certificate database' tasks.done)" -eq 1 ]
+
+        test "$(readlink /snap/$core_snap/current)" = "$(cat core.rev)"
+    else
+        echo "unexpected reboot"
+        exit 1
+    fi

@@ -8,6 +8,7 @@ help() {
     echo "   -m, --mode MODE    - Use selected mode:"
     echo "                        sru-validation   - Ubuntu SRU validation"
     echo "                        native-package   - Use native package"
+    echo "   -a, --arch         - Specify architecture (e.g., amd64, arm64)"
     echo "   -n, --no-rebuild   - Do not rebuild snapd snap (equivalent to NO_REBUILD=1)"
     echo "   -d, --download     - Download latest snapd snap built on master (equivalent to DOWNLOAD_SNAPD_SNAP=1)"
     echo "   --                 - Delimiter for arguments parsed by this script"
@@ -16,6 +17,7 @@ help() {
 }
 
 mode=""
+arch="amd64"
 no_rebuild=0
 download=0
 
@@ -55,6 +57,11 @@ while true; do
             download=1
             shift
             ;;
+        --arch|-a)
+            shift
+            arch="$1"
+            shift
+            ;;
         --)
             shift
             break
@@ -72,7 +79,7 @@ shopt -s nullglob
 if [ "$download" = "1" ] || [ "${DOWNLOAD_SNAPD_SNAP:-0}" = "1" ]; then
     run="$(gh run list --repo github.com/canonical/snapd -w ci-master-push.yaml --json databaseId,conclusion --jq 'first(.[] | select(.conclusion == "success") | .databaseId)')"
     filename="snap-files-amd64-default-test"
-    if uname -m | grep -Eq '(aarch64.*|armv8.*)'; then
+    if uname -m | grep -Eq '(aarch64.*|armv8.*)' || [ "$arch" == "arm64" ]; then
         filename="snap-files-arm64-default-test"
     fi
     rm -rf built-snap

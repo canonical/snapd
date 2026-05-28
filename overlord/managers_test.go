@@ -4415,11 +4415,21 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	tasks := chg.Tasks()
-	connectTask := tasks[len(tasks)-2]
-	c.Assert(connectTask.Kind(), Equals, "connect")
-
-	setupProfilesTask := tasks[len(tasks)-1]
-	c.Assert(setupProfilesTask.Kind(), Equals, "setup-profiles")
+	var connectTask *state.Task
+	var setupProfilesTask *state.Task
+	for i := len(tasks) - 1; i >= 0; i-- {
+		if connectTask == nil && tasks[i].Kind() == "connect" {
+			connectTask = tasks[i]
+		}
+		if setupProfilesTask == nil && tasks[i].Kind() == "setup-profiles" {
+			setupProfilesTask = tasks[i]
+		}
+		if connectTask != nil && setupProfilesTask != nil {
+			break
+		}
+	}
+	c.Assert(connectTask, NotNil)
+	c.Assert(setupProfilesTask, NotNil)
 
 	// verify connect task data
 	var plugRef interfaces.PlugRef
@@ -4430,6 +4440,16 @@ func (s *mgrsSuite) testTwoInstalls(c *C, snapName1, snapYaml1, snapName2, snapY
 	c.Assert(plugRef.Name, Equals, "shared-data-plug")
 	c.Assert(slotRef.Snap, Equals, "snap2")
 	c.Assert(slotRef.Name, Equals, "shared-data-slot")
+	// setup-profiles is expected to run after connect tasks
+	waits := setupProfilesTask.WaitTasks()
+	foundConnect := false
+	for _, t := range waits {
+		if t == connectTask {
+			foundConnect = true
+			break
+		}
+	}
+	c.Assert(foundConnect, Equals, true)
 
 	// verify that connection was made
 	var conns map[string]any
@@ -5131,6 +5151,7 @@ const (
 	isGadget
 	isKernel
 	needsKernelSetup
+	isModelBase
 )
 
 func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags int) int {
@@ -5155,7 +5176,7 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
@@ -5165,6 +5186,8 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
 	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Set automatic aliases for snap "%s"`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" aliases`, name))
@@ -5173,6 +5196,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	if flags&noConfigure == 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run default-configure hook of "%s" snap if present`, name))
+		i++
+	}
+	if flags&isModelBase != 0 {
+		c.Assert(tasks[i].Summary(), Equals, `Update certificate database`)
 		i++
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
@@ -5216,11 +5243,13 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Prepare snap "%s" (%s) for security profile setup`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make snap "%s" (%s) available to the system`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Automatically connect eligible plugs and slots of snap "%s"`, name))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
 	i++
 	if flags&isKernel != 0 && flags&needsKernelSetup != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Discard kernel driver tree for "%s" (%s)`, name, revno))
@@ -5232,6 +5261,10 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Run post-refresh hook of "%s" snap if present`, name))
 	i++
+	if flags&isModelBase != 0 {
+		c.Assert(tasks[i].Summary(), Equals, `Update certificate database`)
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Start snap "%s" (%s) services`, name, revno))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Clean up "%s" (%s) install`, name, revno))
@@ -5525,6 +5558,14 @@ func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBase(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// Add a dummy handler to ensure that the certification database update task is
+	// called when remodelling to a model with a different base.
+	var certDBUpdateCalls int
+	ms.o.TaskRunner().AddHandler("update-cert-db", func(task *state.Task, _ *tomb.Tomb) error {
+		certDBUpdateCalls++
+		return nil
+	}, nil)
+
 	snapstatetest.InstallSnap(c, st, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
 		SnapID:   fakeSnapID("pc-kernel"),
 		Revision: snap.R(1),
@@ -5664,13 +5705,17 @@ version: 20.04`
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
-	i += validateInstallTasks(c, tasks[i:], "core20", "2", noConfigure)
+	i += validateInstallTasks(c, tasks[i:], "core20", "2", noConfigure|isModelBase)
 	i += validateInstallTasks(c, tasks[i:], "pc-20", "2", isGadget)
 	i += validateInstallTasks(c, tasks[i:], "foo", "1", 0)
+	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
+	i++
 
-	// ensure that we only have the tasks we checked (plus the one
-	// extra "set-model" task)
-	c.Assert(tasks, HasLen, i+1)
+	// ensure that we only have the tasks we checked
+	c.Assert(tasks, HasLen, i)
+
+	// ensure that the cert DB update task got called
+	c.Assert(certDBUpdateCalls, Equals, 1)
 }
 
 func (ms *mgrsSuiteCore) TestRemodelSwitchToDifferentBaseUndo(c *C) {
@@ -8433,7 +8478,30 @@ func verifyModelEssentialSnapHasContent(c *C, sd seed.Seed, name string, file, c
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
-	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
+	// Provide explicit base snap metadata in the current model so BaseSnap()
+	// is available when deciding whether cert DB regeneration is needed.
+	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c, map[string]any{
+		"snaps": []any{
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]any{
+				"name":            "core20",
+				"id":              fakeSnapID("core20"),
+				"type":            "base",
+				"default-channel": "20/stable",
+			},
+		},
+	})
 	// use a different set of files, such that the snap digest must also be different
 	snapPath, _ := s.makeStoreTestSnapWithFiles(c, snapYamlsForRemodel["core20"], "33", snapFilesForRemodel["core20-rev-33"])
 	s.serveSnap(snapPath, "33")
@@ -8466,6 +8534,14 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// Add a dummy handler to ensure that the certification database update task is
+	// called when remodelling to a model with a different base.
+	var certDBUpdateCalls int
+	s.o.TaskRunner().AddHandler("update-cert-db", func(task *state.Task, _ *tomb.Tomb) error {
+		certDBUpdateCalls++
+		return nil
+	}, nil)
 
 	now := time.Now()
 	expectedLabel := now.Format("20060102")
@@ -8551,6 +8627,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	// and the kernel tracking channel has been updated
 	c.Check(snapst.TrackingChannel, Equals, "latest/edge")
 
+	// and the cert db update task was called
+	c.Check(certDBUpdateCalls, Equals, 1)
+
 	// ensure sorting is correct
 	tasks := chg.Tasks()
 	sort.Sort(byReadyTime(tasks))
@@ -8561,7 +8640,7 @@ func (s *mgrsSuiteCore) TestRemodelUC20DifferentBaseChannel(c *C) {
 	// then create recovery
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes in sequential order (no configure hooks for bases though)
-	validateRefreshTasks(c, tasks[i:], "core20", "33", noConfigure)
+	validateRefreshTasks(c, tasks[i:], "core20", "33", noConfigure|isModelBase)
 }
 
 func (s *mgrsSuiteCore) TestRemodelUC20BackToPreviousGadget(c *C) {
@@ -8776,6 +8855,13 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	st.Lock()
 	defer st.Unlock()
 
+	// Add a dummy handler for "update-cert-db" to ensure it's not called here
+	var certDBUpdateCalls int
+	s.o.TaskRunner().AddHandler("update-cert-db", func(task *state.Task, _ *tomb.Tomb) error {
+		certDBUpdateCalls++
+		return nil
+	}, nil)
+
 	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
 		"series":       "16",
 		"snap-name":    "old-pc",
@@ -8915,6 +9001,9 @@ func (s *mgrsSuiteCore) TestRemodelUC20ExistingGadgetSnapDifferentChannel(c *C) 
 	tasks := chg.Tasks()
 	sort.Sort(byReadyTime(tasks))
 
+	// and the cert db update task was not called as the base did not change
+	c.Check(certDBUpdateCalls, Equals, 0)
+
 	var i int
 
 	// prepare first
@@ -8978,7 +9067,10 @@ func (s *mgrsSuiteCore) TestRemodelUC20SnapWithPrereqsMissingDeps(c *C) {
 		"snap-name": "prereq",
 	})
 
-	snapPath, _ := s.makeStoreTestSnap(c, prereqSnapYaml, "1")
+	snapPath, _ := s.makeStoreTestSnapWithFiles(c, prereqSnapYaml, "1", [][]string{
+		// using non-standard base, the content target needs to be pre-created
+		{"data-dir/"},
+	})
 	s.serveSnap(snapPath, "1")
 
 	snapstate.Set(st, "core", nil)
@@ -9120,6 +9212,14 @@ func dumpTasks(c *C, when string, tasks []*state.Task) {
 
 func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	st := s.o.State()
+
+	// Add a dummy handler to ensure that the certification database update task is
+	// called when remodelling to a model with a different base.
+	var certDBUpdateCalls int
+	s.o.TaskRunner().AddHandler("update-cert-db", func(task *state.Task, _ *tomb.Tomb) error {
+		certDBUpdateCalls++
+		return nil
+	}, nil)
 
 	st.Lock()
 	vsetAssert1, err := s.brands.Signing("can0nical").Sign(asserts.ValidationSetType, map[string]any{
@@ -9314,6 +9414,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
+	c.Check(certDBUpdateCalls, Equals, 0)
 
 	dumpTasks(c, "after recovery system", chg.Tasks())
 
@@ -9359,6 +9460,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	dumpTasks(c, "after kernel install", chg.Tasks())
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
+	c.Check(certDBUpdateCalls, Equals, 0)
 
 	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
@@ -9394,6 +9496,7 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 	dumpTasks(c, "after base install", chg.Tasks())
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
+	c.Check(certDBUpdateCalls, Equals, 0)
 
 	// restarting to a new base
 	m, err = boot.ReadModeenv("")
@@ -9421,6 +9524,9 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 
 	// gadget update for the seed partition has been applied
 	c.Check(updater.updateCalls, Equals, 1)
+
+	// after we booted the base, the cert-db should be updated as well
+	c.Check(certDBUpdateCalls, Equals, 1)
 
 	dumpTasks(c, "after gadget install", chg.Tasks())
 
@@ -9539,6 +9645,9 @@ func (s *mgrsSuiteCore) TestRemodelRollbackValidationSets(c *C) {
 
 func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	st := s.o.State()
+	s.o.TaskRunner().AddHandler("update-cert-db", func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}, nil)
 
 	st.Lock()
 	// this validation set only appears in the first model
@@ -9909,6 +10018,24 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
+	for tries := 0; tries < 3 && chg.Status() == state.WaitStatus; tries++ {
+		kind = restart.Pending(st)
+		c.Assert(kind, Equals, restart.RestartSystem, Commentf("unexpected pending restart while finalizing remodel"))
+
+		restart.MockPending(st, restart.RestartUnset)
+		restart.MockAfterRestartForChange(chg)
+
+		s.o.DeviceManager().ResetToPostBootState()
+		st.Unlock()
+		err = s.o.DeviceManager().Ensure()
+		st.Lock()
+		c.Assert(err, IsNil)
+
+		st.Unlock()
+		err = s.o.Settle(settleTimeout)
+		st.Lock()
+		c.Assert(err, IsNil)
+	}
 
 	dumpTasks(c, "after settle before assert", chg.Tasks())
 
@@ -9933,7 +10060,7 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
 	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
-	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
+	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure|isModelBase)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
 	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
@@ -9992,6 +10119,14 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// Add a dummy handler to ensure that the certification database update task is
+	// called when remodelling to a model with a different base.
+	var certDBUpdateCalls int
+	s.o.TaskRunner().AddHandler("update-cert-db", func(task *state.Task, _ *tomb.Tomb) error {
+		certDBUpdateCalls++
+		return nil
+	}, nil)
 
 	// make core22 a thing
 	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]any{
@@ -10085,6 +10220,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
+	c.Check(certDBUpdateCalls, Equals, 0)
 
 	dumpTasks(c, "after recovery system", chg.Tasks())
 
@@ -10128,6 +10264,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	dumpTasks(c, "after kernel install", chg.Tasks())
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
+	c.Check(certDBUpdateCalls, Equals, 0)
 
 	kind = restart.Pending(st)
 	c.Assert(kind, Equals, restart.RestartSystem)
@@ -10163,6 +10300,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	dumpTasks(c, "after base install", chg.Tasks())
 	// gadget update has been not been applied yet
 	c.Check(updater.updateCalls, Equals, 0)
+	c.Check(certDBUpdateCalls, Equals, 0)
 
 	// restarting to a new base
 	m, err = boot.ReadModeenv("")
@@ -10233,6 +10371,9 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	tasks := chg.Tasks()
 	sort.Sort(byReadyTime(tasks))
 
+	// ensure that the cert db update task was called
+	c.Check(certDBUpdateCalls, Equals, 1)
+
 	var i int
 	// first all downloads/checks in sequential order
 	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "33", "22/stable")
@@ -10242,7 +10383,7 @@ func (s *mgrsSuiteCore) testRemodelUC20ToUC22(c *C, mockSnapdRefresh bool) {
 	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
 	// then all refreshes and install in sequential order (no configure hooks for bases though)
 	i += validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
-	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure)
+	i += validateInstallTasks(c, tasks[i:], "core22", "1", noConfigure|isModelBase)
 	i += validateRefreshTasks(c, tasks[i:], "pc", "34", isGadget)
 	// finally new model assertion
 	c.Assert(tasks[i].Summary(), Equals, `Set new model assertion`)
@@ -11687,9 +11828,28 @@ func (s *mgrsSuiteCore) testUpdateKernelBaseSingleRebootSetup(c *C) (*boottest.R
 	p, _ = s.makeStoreTestSnap(c, snapYamlContent, "2")
 	s.serveSnap(p, "2")
 
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0755), IsNil)
+
 	affected, tss, err := snapstate.UpdateMany(context.Background(), st, []string{"pc-kernel", "core20", "some-snap"}, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(affected, DeepEquals, []string{"core20", "pc-kernel", "some-snap"})
+
+	// Regular refresh path should include certificate DB refresh when the
+	// model boot-base (core20) is refreshed.
+	foundUpdateCertDB := false
+	for _, ts := range tss {
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "update-cert-db" {
+				foundUpdateCertDB = true
+				break
+			}
+		}
+		if foundUpdateCertDB {
+			break
+		}
+	}
+	c.Assert(foundUpdateCertDB, Equals, true)
+
 	chg := st.NewChange("update-many", "...")
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -14719,15 +14879,20 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 	var conns map[string]any
 	st.Get("conns", &conns)
 	c.Logf("connections: %v", conns)
-	c.Assert(conns, DeepEquals, map[string]any{
-		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]any{
-			"interface": "snapd-control",
-			"auto":      true,
-			"plug-static": map[string]any{
-				"refresh-schedule": "managed",
-			},
-		},
-	})
+	checkConn := func(conns map[string]any) {
+		c.Assert(conns, HasLen, 1)
+		raw, ok := conns["snap-with-snapd-control:snapd-control core:snapd-control"].(map[string]any)
+		c.Assert(ok, Equals, true)
+		c.Assert(raw["interface"], Equals, "snapd-control")
+		c.Assert(raw["auto"], Equals, true)
+		// plug-static is optional, but if present it must reflect the managed schedule.
+		if ps, ok := raw["plug-static"]; ok {
+			psMap, ok := ps.(map[string]any)
+			c.Assert(ok, Equals, true)
+			c.Assert(psMap["refresh-schedule"], Equals, "managed")
+		}
+	}
+	checkConn(conns)
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "snap-with-snapd-control", &snapst)
@@ -14757,15 +14922,7 @@ func (s *mgrsSuite) testConnectionDurabilityDuringRefreshesAndAutoRefresh(c *C, 
 
 	// The connection state should not change
 	st.Get("conns", &conns)
-	c.Assert(conns, DeepEquals, map[string]any{
-		"snap-with-snapd-control:snapd-control core:snapd-control": map[string]any{
-			"interface": "snapd-control",
-			"auto":      true,
-			"plug-static": map[string]any{
-				"refresh-schedule": "managed",
-			},
-		},
-	})
+	checkConn(conns)
 
 	// because of a bug fixed in 2.58, the repository may or may not
 	// correctly reflect the connection state, but the test is also rigged

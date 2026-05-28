@@ -77,6 +77,10 @@ type StoreService interface {
 	// busy and the cleanup could not run.
 	CleanDownloadsCache() error
 
+	// CleanupDownloadArtifacts attempts to remove unused download artifacts of
+	// a given snap.
+	CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error
+
 	ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
 }
 
@@ -91,7 +95,8 @@ type managerBackend interface {
 	LinkSnap(info *snap.Info, dev snap.Device, linkCtx backend.LinkContext, tm timings.Measurer) error
 	LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error
 	StartServices(svcs []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error
-	StopServices(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error
+	// TODO: reduce the number of arguments here, perhaps by grouping some
+	StopServices(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, reason snap.ServiceStopReason, undoer backend.Undoer, meter progress.Meter, tm timings.Measurer) error
 	QueryDisabledServices(info *snap.Info, pb progress.Meter) (*wrappers.DisabledServices, error)
 	MaybeSetNextBoot(info *snap.Info, dev snap.Device, isUndo bool) (boot.RebootInfo, error)
 

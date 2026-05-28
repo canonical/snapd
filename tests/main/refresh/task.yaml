@@ -27,7 +27,7 @@ skip:
         [ "$STORE_TYPE" = "fake" ] && [ "$TRUST_TEST_KEYS" = "false" ]
     - reason: Classic snaps are not supported in this system
       if: |
-        [[ "$SNAP_NAME" =~ classic && "$SPREAD_SYSTEM" =~ ^(fedora-|arch-|centos-) ]]
+        [[ "$SNAP_NAME" =~ classic && "$SPREAD_SYSTEM" =~ ^(fedora-|arch-|centos-|opensuse-) ]]
 
 prepare: |
     flags=

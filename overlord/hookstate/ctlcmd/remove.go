@@ -39,6 +39,8 @@ type removeCommand struct {
 	Positional struct {
 		Names []string `positional-arg-name:"<snap|snap+comp|+comp>" required:"yes" description:"Components to be removed (snap must be the caller snap if specified)."`
 	} `positional-args:"yes"`
+	// TODO: temporarily disabled to prevent partial implementation in release
+	// NoWait bool `long:"no-wait" description:"Run the command in asynchronous mode, returning a change id that can be used to determine if the change is ready using the is-ready command."`
 }
 
 func (c *removeCommand) Execute([]string) error {
@@ -52,8 +54,8 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	if err := runSnapManagementCommand(ctx, managementCommand{
-		operation: removeManagementCommand, components: comps}); err != nil {
+	_, _, err = runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: false})
+	if err != nil {
 		return err
 	}
 

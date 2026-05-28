@@ -24,7 +24,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -36,12 +38,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var confdbstateTransactionForSet = confdbstate.GetTransactionToSet
+var confdbstateWriteConfdb = confdbstate.WriteConfdbFromSnap
 
 type setCommand struct {
 	baseCommand
 
-	View bool `long:"view" description:"return confdb values from the view declared in the plug"`
+	View    bool   `long:"view" description:"return confdb values from the view declared in the plug"`
+	WaitFor string `long:"wait-for" description:"maximum duration to wait for confdb access (e.g. 10s)"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>"`
@@ -130,7 +133,20 @@ func (s *setCommand) Execute(args []string) error {
 			return fmt.Errorf(i18n.G("cannot set %s plug: %w"), s.Positional.PlugOrSlotSpec, err)
 		}
 
-		return setConfdbValues(context, name, requests)
+		copts := &client.ConfdbOptions{}
+		if s.WaitFor != "" {
+			timeout, err := time.ParseDuration(s.WaitFor)
+			if err != nil {
+				return fmt.Errorf("cannot parse --wait-for value %s: %v", s.WaitFor, err)
+			}
+
+			if timeout < 0 {
+				return fmt.Errorf("--wait-for value must be non-negative")
+			}
+
+			copts.AccessTimeout = &timeout
+		}
+		return setConfdbValues(context, name, requests, copts)
 	}
 
 	return s.setInterfaceSetting(context, name)
@@ -244,7 +260,7 @@ func (s *setCommand) setInterfaceSetting(context *hookstate.Context, plugOrSlot 
 	return nil
 }
 
-func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[string]any) error {
+func setConfdbValues(ctx *hookstate.Context, plugName string, values map[string]any, opts *client.ConfdbOptions) error {
 	ctx.Lock()
 	defer ctx.Unlock()
 
@@ -267,28 +283,5 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, requests map[strin
 		return fmt.Errorf("cannot modify confdb in %q hook", ctx.HookName())
 	}
 
-	tx, commitTxFunc, err := confdbstateTransactionForSet(ctx, ctx.State(), view)
-	if err != nil {
-		return err
-	}
-
-	err = confdbstate.SetViaView(tx, view, requests)
-	if err != nil {
-		return err
-	}
-
-	// if a new transaction was created, commit it
-	if commitTxFunc != nil {
-		_, waitChan, err := commitTxFunc()
-		if err != nil {
-			return err
-		}
-
-		// wait for the transaction to be committed
-		ctx.Unlock()
-		<-waitChan
-		ctx.Lock()
-	}
-
-	return nil
+	return confdbstateWriteConfdb(ctx, view, values, opts)
 }

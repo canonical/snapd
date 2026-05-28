@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -44,6 +45,56 @@ func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
 	pattern, err := patterns.ParsePathPattern(patternStr)
 	c.Assert(err, IsNil)
 	return pattern
+}
+
+func (s *constraintsSuite) TestDirectUnmarshal(c *C) {
+
+	type jsonUnmarshaler interface {
+		UnmarshalJSON([]byte) error
+	}
+	permissionsJSON := json.RawMessage(`{"read":"access":{"outcome":"allow","lifespan":"forever"}}`)
+	constraintsJSON := json.RawMessage(`{"permissions":{"read":"access":{"outcome":"allow","lifespan":"forever"}}}`)
+
+	for _, testCase := range []struct {
+		t             jsonUnmarshaler
+		json          []byte
+		expectedPanic string
+	}{
+		{
+			t:             &prompting.Constraints{},
+			json:          constraintsJSON,
+			expectedPanic: "programmer error: cannot unmarshal Constraints directly; must use UnmarshalConstraints with a given interface",
+		},
+		{
+			t:             &prompting.RuleConstraints{},
+			json:          constraintsJSON,
+			expectedPanic: "programmer error: cannot unmarshal RuleConstraints directly; must use UnmarshalRuleConstraints with a given interface",
+		},
+		{
+			t:             &prompting.RuleConstraintsPatch{},
+			json:          constraintsJSON,
+			expectedPanic: "programmer error: cannot unmarshal RuleConstraintsPatch directly; must use UnmarshalRuleConstraintsPatch with a given interface",
+		},
+		{
+			t:             &prompting.PermissionMap{},
+			json:          permissionsJSON,
+			expectedPanic: "programmer error: cannot unmarshal PermissionMap directly; must use unmarshalPermissionMap with a given interface",
+		},
+		{
+			t:             &prompting.RulePermissionMap{},
+			json:          permissionsJSON,
+			expectedPanic: "programmer error: cannot unmarshal RulePermissionMap directly; must use unmarshalRulePermissionMap with a given interface",
+		},
+		{
+			t:             &prompting.RulePermissionMapPatch{},
+			json:          permissionsJSON,
+			expectedPanic: "programmer error: cannot unmarshal RulePermissionMapPatch directly; must use unmarshalRulePermissionMapPatch with a given interface",
+		},
+	} {
+		c.Assert(func() {
+			testCase.t.UnmarshalJSON(testCase.json)
+		}, PanicMatches, testCase.expectedPanic)
+	}
 }
 
 func (s *constraintsSuite) TestParseInterfaceSpecificConstraintsHappy(c *C) {
@@ -259,59 +310,6 @@ func (s *constraintsSuite) TestUnmarshalConstraintsHappy(c *C) {
 			},
 			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
-		{
-			iface: "home",
-			constraintsJSON: prompting.ConstraintsJSON{
-				"path-pattern": json.RawMessage(`"/home/test/foo"`),
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{"notreal":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"session","duration":"shouldn't be here"},"execute":{"outcome":"allow","lifespan":"single"}}`),
-			},
-			expected: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
-					Pattern: mustParsePathPattern(c, "/home/test/foo"),
-				},
-				Permissions: prompting.PermissionMap{
-					"notreal": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanForever,
-					},
-					"write": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeDeny,
-						Lifespan: prompting.LifespanSession,
-						Duration: "shouldn't be here",
-					},
-					"execute": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanSingle,
-					},
-				},
-			},
-			expectedPattern: mustParsePathPattern(c, "/home/test/foo"),
-		},
-		{
-			iface: "camera",
-			constraintsJSON: prompting.ConstraintsJSON{
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{}`),
-			},
-			expected: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions:       prompting.PermissionMap{},
-			},
-			expectedPattern: mustParsePathPattern(c, "/**"),
-		},
-		{
-			iface: "audio-record",
-			constraintsJSON: prompting.ConstraintsJSON{
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{"bad":{}}`),
-			},
-			expected: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions:       prompting.PermissionMap{"bad": &prompting.PermissionEntry{}},
-			},
-			expectedPattern: mustParsePathPattern(c, "/**"),
-		},
 	} {
 		result, err := prompting.UnmarshalConstraints(testCase.iface, testCase.constraintsJSON)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
@@ -337,9 +335,34 @@ func (s *constraintsSuite) TestUnmarshalConstraintsUnhappy(c *C) {
 			expectedErr:     `invalid path pattern: no path pattern: ""`,
 		},
 		{
+			iface: "home",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"path-pattern": json.RawMessage(`"/home/test/foo"`),
+				// invalid permission and duration for session lifespan
+				"permissions": json.RawMessage(`{"notreal":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"session","duration":"shouldn't be here"},"execute":{"outcome":"allow","lifespan":"single"}}`),
+			},
+			expectedErr: joinErrorsUnordered(`invalid duration: cannot have specified duration when lifespan is \"session\": \"shouldn't be here\"`, `cannot create rule with lifespan \"single\"`, `invalid permissions for home interface: "notreal"`),
+		},
+		{
+			iface: "home",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"path-pattern": json.RawMessage(`"/home/test/foo"`),
+				"permissions":  json.RawMessage(`{"read":null}`),
+			},
+			expectedErr: "invalid permissions for home interface: permissions empty",
+		},
+		{
 			iface:           "camera",
 			constraintsJSON: prompting.ConstraintsJSON{},
 			expectedErr:     "invalid permissions for camera interface: permissions empty",
+		},
+		{
+			iface: "camera",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid permission
+				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"forever"}}`),
+			},
+			expectedErr: `invalid permissions for camera interface: "read"`,
 		},
 		{
 			iface: "camera",
@@ -351,6 +374,30 @@ func (s *constraintsSuite) TestUnmarshalConstraintsUnhappy(c *C) {
 		},
 		{
 			iface: "camera",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid lifespan
+				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"foo"}}`),
+			},
+			expectedErr: `invalid lifespan: "foo"`,
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid permission
+				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"forever"}}`),
+			},
+			expectedErr: `invalid permissions for audio-record interface: "read"`,
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid outcome
+				"permissions": json.RawMessage(`{"access":{"outcome":"foo","lifespan":"forever"}}`),
+			},
+			expectedErr: `invalid outcome: "foo"`,
+		},
+		{
+			iface: "audio-record",
 			constraintsJSON: prompting.ConstraintsJSON{
 				// invalid lifespan
 				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"foo"}}`),
@@ -489,12 +536,10 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 	}
 
 	for _, testCase := range []struct {
-		iface       string
 		constraints *prompting.Constraints
 		expected    *prompting.RuleConstraints
 	}{
 		{
-			iface: "home",
 			constraints: &prompting.Constraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 					Pattern: mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**"),
@@ -538,7 +583,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "camera",
+			// permission with lifespan session
 			constraints: &prompting.Constraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.PermissionMap{
@@ -560,7 +605,7 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "audio-record",
+			// permission with lifespan forever
 			constraints: &prompting.Constraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.PermissionMap{
@@ -580,161 +625,28 @@ func (s *constraintsSuite) TestConstraintsToRuleConstraintsHappy(c *C) {
 				},
 			},
 		},
-		{
-			// One with a nil permission, which should be discarded
-			iface: "home",
-			constraints: &prompting.Constraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
-					Pattern: mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**"),
-				},
-				Permissions: prompting.PermissionMap{
-					"read": nil,
-					"write": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeDeny,
-						Lifespan: prompting.LifespanForever,
-					},
-					"execute": nil,
-				},
-			},
-			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
-					Pattern: mustParsePathPattern(c, "/path/to/{foo,*or*,bar}{,/}**"),
-				},
-				Permissions: prompting.RulePermissionMap{
-					"write": &prompting.RulePermissionEntry{
-						Outcome:  prompting.OutcomeDeny,
-						Lifespan: prompting.LifespanForever,
-					},
-				},
-			},
-		},
 	} {
-		result, err := testCase.constraints.ToRuleConstraints(testCase.iface, at)
-		c.Check(err, IsNil)
+		result := testCase.constraints.ToRuleConstraints(at)
 		c.Check(result, DeepEquals, testCase.expected)
 	}
 }
 
-func (s *constraintsSuite) TestConstraintsToRuleConstraintsUnhappy(c *C) {
-	at := prompting.At{
-		Time:      time.Now(),
-		SessionID: prompting.IDType(0),
+func joinErrorsUnordered(errs ...string) string {
+	if len(errs) == 1 {
+		return errs[0]
 	}
 
-	for _, testCase := range []struct {
-		iface  string
-		perms  prompting.PermissionMap
-		errStr string
-	}{
-		{
-			iface:  "foo",
-			errStr: `invalid interface: "foo"`,
-		},
-		{
-			iface:  "home",
-			perms:  nil,
-			errStr: `invalid permissions for home interface: permissions empty`,
-		},
-		{
-			iface: "camera",
-			perms: prompting.PermissionMap{
-				"access": nil,
-			},
-			errStr: `invalid permissions for camera interface: permissions empty`,
-		},
-		{
-			iface: "home",
-			perms: prompting.PermissionMap{
-				"create": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanForever,
-				},
-			},
-			errStr: `invalid permissions for home interface: "create"`,
-		},
-		{
-			iface: "camera",
-			perms: prompting.PermissionMap{
-				"read": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanForever,
-				},
-			},
-			errStr: `invalid permissions for camera interface: "read"`,
-		},
-		{
-			iface: "home",
-			perms: prompting.PermissionMap{
-				"read": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanSingle,
-				},
-			},
-			errStr: `cannot create rule with lifespan "single"`,
-		},
-		{
-			iface: "camera",
-			perms: prompting.PermissionMap{
-				"access": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanTimespan,
-				},
-			},
-			errStr: `invalid duration: cannot have unspecified duration when lifespan is "timespan".*`,
-		},
-		{
-			iface: "home",
-			perms: prompting.PermissionMap{
-				"write": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeDeny,
-					Lifespan: prompting.LifespanSession,
-					Duration: "5s",
-				},
-			},
-			errStr: `invalid duration: cannot have specified duration when lifespan is "session":.*`,
-		},
-		{
-			iface: "camera",
-			perms: prompting.PermissionMap{
-				"access": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeDeny,
-					Lifespan: prompting.LifespanSession,
-				},
-			},
-			// Error will occur because current session is 0 (not found) below
-			errStr: prompting_errors.ErrNewSessionRuleNoSession.Error(),
-		},
-		{
-			iface: "home",
-			perms: prompting.PermissionMap{
-				"read": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanTimespan,
-				},
-				"write": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeDeny,
-					Lifespan: prompting.LifespanSession,
-					Duration: "5s",
-				},
-				"create": &prompting.PermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanForever,
-				},
-			},
-			errStr: joinErrorsUnordered(joinErrorsUnordered(`invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`, `invalid duration: cannot have specified duration when lifespan is "session":.*`), `invalid permissions for home interface: "create"`),
-		},
-	} {
-		constraints := &prompting.Constraints{
-			Permissions: testCase.perms,
-		}
-		result, err := constraints.ToRuleConstraints(testCase.iface, at)
-		c.Check(result, IsNil, Commentf("testCase: %+v", testCase))
-		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
-	}
-}
+	var parts []string
+	for i, err := range errs {
+		rest := make([]string, 0, len(errs)-1)
+		rest = append(rest, errs[:i]...)
+		rest = append(rest, errs[i+1:]...)
 
-func joinErrorsUnordered(err1, err2 string) string {
-	return fmt.Sprintf("(%s\n%s|%s\n%s)", err1, err2, err2, err1)
+		perm := joinErrorsUnordered(rest...)
+		parts = append(parts, fmt.Sprintf("%s\n%s", err, perm))
+	}
+	return fmt.Sprintf("(%s)", strings.Join(parts, "|"))
+
 }
 
 func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
@@ -806,58 +718,6 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsHappy(c *C) {
 			},
 			expectedPattern: mustParsePathPattern(c, "/**"),
 		},
-		{
-			iface: "home",
-			constraintsJSON: prompting.ConstraintsJSON{
-				"path-pattern": json.RawMessage(`"/home/test/foo"`),
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{"notreal":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"timespan"},"execute":{"outcome":"allow","lifespan":"single"}}`),
-			},
-			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
-					Pattern: mustParsePathPattern(c, "/home/test/foo"),
-				},
-				Permissions: prompting.RulePermissionMap{
-					"notreal": &prompting.RulePermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanForever,
-					},
-					"write": &prompting.RulePermissionEntry{
-						Outcome:  prompting.OutcomeDeny,
-						Lifespan: prompting.LifespanTimespan,
-					},
-					"execute": &prompting.RulePermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanSingle,
-					},
-				},
-			},
-			expectedPattern: mustParsePathPattern(c, "/home/test/foo"),
-		},
-		{
-			iface: "camera",
-			constraintsJSON: prompting.ConstraintsJSON{
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{}`),
-			},
-			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions:       prompting.RulePermissionMap{},
-			},
-			expectedPattern: mustParsePathPattern(c, "/**"),
-		},
-		{
-			iface: "audio-record",
-			constraintsJSON: prompting.ConstraintsJSON{
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{"bad":{}}`),
-			},
-			expected: &prompting.RuleConstraints{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions:       prompting.RulePermissionMap{"bad": &prompting.RulePermissionEntry{}},
-			},
-			expectedPattern: mustParsePathPattern(c, "/**"),
-		},
 	} {
 		result, err := prompting.UnmarshalRuleConstraints(testCase.iface, testCase.constraintsJSON)
 		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
@@ -883,6 +743,15 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsUnhappy(c *C) {
 			expectedErr:     `invalid path pattern: no path pattern: ""`,
 		},
 		{
+			iface: "home",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"path-pattern": json.RawMessage(`"/home/test/foo"`),
+				// invalid permission and empty duration for lifespan timespan
+				"permissions": json.RawMessage(`{"notreal":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"timespan"}}`),
+			},
+			expectedErr: "invalid expiration: cannot have unspecified expiration when lifespan is \"timespan\": \"0001-01-01T00:00:00Z\"\ninvalid permissions for home interface: \"notreal\"",
+		},
+		{
 			iface:           "camera",
 			constraintsJSON: prompting.ConstraintsJSON{},
 			expectedErr:     "invalid permissions for camera interface: permissions empty",
@@ -902,6 +771,21 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsUnhappy(c *C) {
 				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"foo"}}`),
 			},
 			expectedErr: `invalid lifespan: "foo"`,
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid permission
+				"permissions": json.RawMessage(`{"bad":{}}`),
+			},
+			expectedErr: "invalid permissions for audio-record interface: \"bad\"",
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"permissions": json.RawMessage(`{"access":null}`),
+			},
+			expectedErr: "invalid permissions for audio-record interface: permissions empty",
 		},
 	} {
 		result, err := prompting.UnmarshalRuleConstraints(testCase.iface, testCase.constraintsJSON)
@@ -956,164 +840,16 @@ func (s *constraintsSuite) TestRuleConstraintsMarshalJSON(c *C) {
 	}
 }
 
-func (s *constraintsSuite) TestRuleConstraintsValidateForInterface(c *C) {
-	at := prompting.At{
-		Time:      time.Now(),
-		SessionID: prompting.IDType(0x12345),
-	}
-
-	// Happy
-	// "home"
-	constraints := &prompting.RuleConstraints{
-		Permissions: prompting.RulePermissionMap{
-			"read": &prompting.RulePermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
-			"write": &prompting.RulePermissionEntry{
-				Outcome:    prompting.OutcomeDeny,
-				Lifespan:   prompting.LifespanTimespan,
-				Expiration: at.Time.Add(time.Second),
-			},
-			"execute": &prompting.RulePermissionEntry{
-				Outcome:   prompting.OutcomeAllow,
-				Lifespan:  prompting.LifespanSession,
-				SessionID: at.SessionID,
-			},
-		},
-	}
-	status, err := constraints.ValidateForInterface("home", at)
-	c.Check(err, IsNil)
-	c.Check(status, Equals, prompting.NoPermsExpired)
-	// "camera"
-	constraints = &prompting.RuleConstraints{
-		Permissions: prompting.RulePermissionMap{
-			"access": &prompting.RulePermissionEntry{
-				Outcome:   prompting.OutcomeAllow,
-				Lifespan:  prompting.LifespanSession,
-				SessionID: at.SessionID,
-			},
-		},
-	}
-	status, err = constraints.ValidateForInterface("camera", at)
-	c.Check(err, IsNil)
-	c.Check(status, Equals, prompting.NoPermsExpired)
-
-	// Bad interface or permissions
-	cases := []struct {
-		iface  string
-		perms  prompting.RulePermissionMap
-		errStr string
-	}{
-		{
-			"foo",
-			prompting.RulePermissionMap{
-				"read": &prompting.RulePermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanForever,
-				},
-			},
-			prompting_errors.NewInvalidInterfaceError("foo", nil).Error(),
-		},
-		{
-			"home",
-			prompting.RulePermissionMap{},
-			prompting_errors.NewPermissionsEmptyError("home", nil).Error(),
-		},
-		{
-			"camera",
-			prompting.RulePermissionMap{},
-			prompting_errors.NewPermissionsEmptyError("camera", nil).Error(),
-		},
-		{
-			"home",
-			prompting.RulePermissionMap{
-				"access": &prompting.RulePermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanForever,
-				},
-			},
-			prompting_errors.NewInvalidPermissionsError("home", []string{"access"}, []string{"read", "write", "execute"}).Error(),
-		},
-		{
-			"camera",
-			prompting.RulePermissionMap{
-				"read": &prompting.RulePermissionEntry{
-					Outcome:   prompting.OutcomeAllow,
-					Lifespan:  prompting.LifespanSession,
-					SessionID: at.SessionID,
-				},
-			},
-			prompting_errors.NewInvalidPermissionsError("camera", []string{"read"}, []string{"access"}).Error(),
-		},
-		{
-			"home",
-			prompting.RulePermissionMap{
-				"read": &prompting.RulePermissionEntry{
-					Outcome:    prompting.OutcomeAllow,
-					Lifespan:   prompting.LifespanForever,
-					Expiration: time.Now().Add(time.Second),
-				},
-			},
-			"invalid expiration: cannot have specified expiration.*",
-		},
-		{
-			"camera",
-			prompting.RulePermissionMap{
-				"access": &prompting.RulePermissionEntry{
-					Outcome:   prompting.OutcomeAllow,
-					Lifespan:  prompting.LifespanForever,
-					SessionID: at.SessionID,
-				},
-			},
-			"invalid expiration: cannot have specified session ID.*",
-		},
-		{
-			"home",
-			prompting.RulePermissionMap{
-				"read": &prompting.RulePermissionEntry{
-					Outcome:  prompting.OutcomeAllow,
-					Lifespan: prompting.LifespanSingle,
-				},
-			},
-			`cannot create rule with lifespan "single"`,
-		},
-		{
-			"camera",
-			prompting.RulePermissionMap{
-				"access": &prompting.RulePermissionEntry{
-					Outcome:    prompting.OutcomeType("bar"),
-					Lifespan:   prompting.LifespanTimespan,
-					Expiration: at.Time.Add(-time.Second),
-				},
-			},
-			`invalid outcome: "bar"`,
-		},
-	}
-	at = prompting.At{
-		Time:      time.Now(),
-		SessionID: prompting.IDType(0),
-	}
-	for _, testCase := range cases {
-		constraints := &prompting.RuleConstraints{
-			Permissions: testCase.perms,
-		}
-		status, err = constraints.ValidateForInterface(testCase.iface, at)
-		c.Check(err, ErrorMatches, testCase.errStr, Commentf("testCase: %+v", testCase))
-		c.Check(status, Equals, prompting.NoPermsExpired)
-	}
-}
-
-func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *C) {
+func (s *constraintsSuite) TestRuleConstraintsPruneExpired(c *C) {
 	at := prompting.At{
 		Time:      time.Now(),
 		SessionID: prompting.IDType(0x12345),
 	}
 
 	for _, testCase := range []struct {
-		perms          prompting.RulePermissionMap
-		expectedStatus prompting.PermExpirationStatus
-		expected       prompting.RulePermissionMap
+		perms    prompting.RulePermissionMap
+		status   prompting.PermExpirationStatus
+		expected prompting.RulePermissionMap
 	}{
 		{
 			prompting.RulePermissionMap{
@@ -1250,19 +986,27 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 			},
 		},
 		{
-			// Some nil permissions
 			prompting.RulePermissionMap{
-				"read": nil,
-				"write": &prompting.RulePermissionEntry{
+				"access": &prompting.RulePermissionEntry{
+					Outcome:    prompting.OutcomeAllow,
+					Lifespan:   prompting.LifespanTimespan,
+					Expiration: at.Time.Add(-time.Minute),
+				},
+			},
+			prompting.AllPermsExpired,
+			prompting.RulePermissionMap{},
+		},
+		{
+			prompting.RulePermissionMap{
+				"access": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
 					Expiration: at.Time.Add(time.Minute),
 				},
-				"execute": nil,
 			},
-			prompting.AnyPermsExpired,
+			prompting.NoPermsExpired,
 			prompting.RulePermissionMap{
-				"write": &prompting.RulePermissionEntry{
+				"access": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,
 					Lifespan:   prompting.LifespanTimespan,
 					Expiration: at.Time.Add(time.Minute),
@@ -1270,14 +1014,30 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 			},
 		},
 		{
-			// All nil permissions
 			prompting.RulePermissionMap{
-				"read":    nil,
-				"write":   nil,
-				"execute": nil,
+				"access": &prompting.RulePermissionEntry{
+					Outcome:   prompting.OutcomeAllow,
+					Lifespan:  prompting.LifespanSession,
+					SessionID: at.SessionID + 1,
+				},
 			},
 			prompting.AllPermsExpired,
 			prompting.RulePermissionMap{},
+		},
+		{
+			prompting.RulePermissionMap{
+				"access": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
+			prompting.NoPermsExpired,
+			prompting.RulePermissionMap{
+				"access": &prompting.RulePermissionEntry{
+					Outcome:  prompting.OutcomeAllow,
+					Lifespan: prompting.LifespanForever,
+				},
+			},
 		},
 	} {
 		copiedPerms := make(prompting.RulePermissionMap, len(testCase.perms))
@@ -1287,9 +1047,8 @@ func (s *constraintsSuite) TestRuleConstraintsValidateForInterfaceExpiration(c *
 		constraints := &prompting.RuleConstraints{
 			Permissions: copiedPerms,
 		}
-		status, err := constraints.ValidateForInterface("home", at)
-		c.Check(err, IsNil)
-		c.Check(status, Equals, testCase.expectedStatus, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
+		status := constraints.PruneExpired(at)
+		c.Check(status, Equals, testCase.status, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 		c.Check(constraints.Permissions, DeepEquals, testCase.expected, Commentf("testCase: %+v\nremaining perms: %+v", testCase, constraints.Permissions))
 	}
 }
@@ -1558,7 +1317,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 			},
 			expected: &prompting.RuleConstraintsPatch{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{},
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"read": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
 						Lifespan: prompting.LifespanForever,
@@ -1573,7 +1332,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 			},
 			expected: &prompting.RuleConstraintsPatch{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeDeny,
 						Lifespan: prompting.LifespanSession,
@@ -1588,7 +1347,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 			},
 			expected: &prompting.RuleConstraintsPatch{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
 						Lifespan: prompting.LifespanSession,
@@ -1606,7 +1365,7 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 					Pattern: mustParsePathPattern(c, "/home/test/foo"),
 				},
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"read": nil,
 					"write": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeDeny,
@@ -1618,53 +1377,6 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchHappy(c *C) {
 						Lifespan: prompting.LifespanSession,
 					},
 				},
-			},
-		},
-		{
-			iface: "home",
-			constraintsJSON: prompting.ConstraintsJSON{
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{"notreal":{"outcome":"allow","lifespan":"forever"},"write":{"outcome":"deny","lifespan":"session","duration":"shouldn't be here"},"execute":{"outcome":"allow","lifespan":"single"}}`),
-			},
-			expected: &prompting.RuleConstraintsPatch{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{},
-				Permissions: prompting.PermissionMap{
-					"notreal": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanForever,
-					},
-					"write": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeDeny,
-						Lifespan: prompting.LifespanSession,
-						Duration: "shouldn't be here",
-					},
-					"execute": &prompting.PermissionEntry{
-						Outcome:  prompting.OutcomeAllow,
-						Lifespan: prompting.LifespanSingle,
-					},
-				},
-			},
-		},
-		{
-			iface: "camera",
-			constraintsJSON: prompting.ConstraintsJSON{
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{"bad": {}}`),
-			},
-			expected: &prompting.RuleConstraintsPatch{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions:       prompting.PermissionMap{"bad": &prompting.PermissionEntry{}},
-			},
-		},
-		{
-			iface: "audio-record",
-			constraintsJSON: prompting.ConstraintsJSON{
-				// Check that permissions aren't validated here
-				"permissions": json.RawMessage(`{"bad": {}}`),
-			},
-			expected: &prompting.RuleConstraintsPatch{
-				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
-				Permissions:       prompting.PermissionMap{"bad": &prompting.PermissionEntry{}},
 			},
 		},
 	} {
@@ -1692,6 +1404,23 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchUnhappy(c *C) {
 			expectedErr: `invalid path pattern: pattern must start with '/': "not a pattern"`,
 		},
 		{
+			iface: "home",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid permission
+				"permissions": json.RawMessage(`{"access":{"outcome":"allow","lifespan":"forever"}}`),
+			},
+			expectedErr: `invalid permissions for home interface: "access"`,
+		},
+		{
+			iface: "home",
+			constraintsJSON: prompting.ConstraintsJSON{
+				"path-pattern": json.RawMessage(`"/home/test/foo"`),
+				// duration not provided for lifespan timespan
+				"permissions": json.RawMessage(`{"write":{"outcome":"deny","lifespan":"timespan"}}`),
+			},
+			expectedErr: "invalid duration: cannot have unspecified duration when lifespan is \"timespan\": \"\"",
+		},
+		{
 			iface: "camera",
 			constraintsJSON: prompting.ConstraintsJSON{
 				// invalid outcome
@@ -1706,6 +1435,30 @@ func (s *constraintsSuite) TestUnmarshalRuleConstraintsPatchUnhappy(c *C) {
 				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"foo"}}`),
 			},
 			expectedErr: `invalid lifespan: "foo"`,
+		},
+		{
+			iface: "camera",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid permission
+				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"forever"}}`),
+			},
+			expectedErr: `invalid permissions for camera interface: "read"`,
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid permission
+				"permissions": json.RawMessage(`{"read":{"outcome":"allow","lifespan":"forever"}}`),
+			},
+			expectedErr: `invalid permissions for audio-record interface: "read"`,
+		},
+		{
+			iface: "audio-record",
+			constraintsJSON: prompting.ConstraintsJSON{
+				// invalid permission
+				"permissions": json.RawMessage(`{"access": {}}`),
+			},
+			expectedErr: "invalid outcome: \"\"",
 		},
 	} {
 		result, err := prompting.UnmarshalRuleConstraintsPatch(testCase.iface, testCase.constraintsJSON)
@@ -1728,13 +1481,11 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 	otherPattern := mustParsePathPattern(c, "/path/to/*/another*")
 
 	for i, testCase := range []struct {
-		iface   string
 		initial *prompting.RuleConstraints
 		patch   *prompting.RuleConstraintsPatch
 		final   *prompting.RuleConstraints
 	}{
 		{
-			iface: "home",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 					Pattern: pathPattern,
@@ -1782,7 +1533,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "home",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 					Pattern: pathPattern,
@@ -1801,7 +1551,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					// Remove read permissions, let write permission expire,
 					// and add new execute permission
 					"read": nil,
@@ -1826,7 +1576,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "home",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 					Pattern: pathPattern,
@@ -1845,7 +1594,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeDeny,
 						Lifespan: prompting.LifespanSession,
@@ -1871,7 +1620,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "home",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 					Pattern: pathPattern,
@@ -1893,7 +1641,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"read": nil,
 					"execute": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
@@ -1915,7 +1663,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "camera",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
@@ -1926,7 +1673,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
 						Lifespan: prompting.LifespanSession,
@@ -1945,7 +1692,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "audio-record",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
@@ -1956,7 +1702,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 				},
 			},
 			patch: &prompting.RuleConstraintsPatch{
-				Permissions: prompting.PermissionMap{
+				Permissions: prompting.RulePermissionMapPatch{
 					"access": &prompting.PermissionEntry{
 						Outcome:  prompting.OutcomeAllow,
 						Lifespan: prompting.LifespanSession,
@@ -1975,7 +1721,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "home",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 					Pattern: pathPattern,
@@ -2007,7 +1752,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "camera",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
@@ -2033,7 +1777,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 		{
-			iface: "audio-record",
 			initial: &prompting.RuleConstraints{
 				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsEmpty{},
 				Permissions: prompting.RulePermissionMap{
@@ -2059,7 +1802,7 @@ func (s *constraintsSuite) TestPatchRuleConstraintsHappy(c *C) {
 			},
 		},
 	} {
-		patched, err := testCase.patch.PatchRuleConstraints(testCase.initial, testCase.iface, patchAt)
+		patched, err := testCase.patch.PatchRuleConstraints(testCase.initial, patchAt)
 		c.Check(err, IsNil, Commentf("testCase %d", i))
 		c.Check(patched, DeepEquals, testCase.final, Commentf("testCase %d", i))
 	}
@@ -2073,7 +1816,6 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 		Time:      patchTime,
 		SessionID: patchSession,
 	}
-	iface := "home"
 
 	pathPattern := mustParsePathPattern(c, "/path/to/foo/ba{r,z{,/**/}}")
 
@@ -2094,8 +1836,9 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 			},
 		},
 	}
+
 	goodPatch := &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"write": nil,
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -2104,41 +1847,37 @@ func (s *constraintsSuite) TestPatchRuleConstraintsUnhappy(c *C) {
 		},
 	}
 
-	badIface := "foo"
-	result, err := goodPatch.PatchRuleConstraints(goodRule, badIface, patchAt)
-	c.Check(err, ErrorMatches, `invalid interface: "foo"`)
-	c.Check(result, IsNil)
+	result, err := goodPatch.PatchRuleConstraints(goodRule, patchAt)
+	expectedResult := &prompting.RuleConstraints{
+		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+			Pattern: pathPattern,
+		},
+		Permissions: prompting.RulePermissionMap{
+			"read": &prompting.RulePermissionEntry{
+				Outcome:    prompting.OutcomeAllow,
+				Lifespan:   prompting.LifespanTimespan,
+				Expiration: patchTime.Add(time.Second),
+			},
+			"execute": &prompting.RulePermissionEntry{
+				Outcome:   prompting.OutcomeDeny,
+				Lifespan:  prompting.LifespanSession,
+				SessionID: patchSession,
+			},
+		},
+	}
+	c.Check(err, IsNil)
+	c.Check(result, DeepEquals, expectedResult)
 
+	// since patches are validated when unmarshalling, the only possible error is
+	// an empty patched rule
 	badPatch := &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
-			"read": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanSingle,
-			},
-			"create": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanForever,
-			},
-			"lock": nil, // even if invalid permission is meant to be removed, include it
-			"execute": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanTimespan,
-			},
+		Permissions: prompting.RulePermissionMapPatch{
+			"read":    nil,
+			"lock":    nil, // even if invalid permission is meant to be removed, include it
+			"execute": nil,
 		},
 	}
-	expected := joinErrorsUnordered(`cannot create rule with lifespan "single"`, `invalid duration: cannot have unspecified duration when lifespan is "timespan": ""`) + "\n" + `invalid permissions for home interface: ("create", "lock"|"lock", "create")`
-
-	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchAt)
-	c.Check(err, ErrorMatches, expected)
-	c.Check(result, IsNil)
-
-	badPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
-			// Remove all permissions
-			"read": nil,
-		},
-	}
-	result, err = badPatch.PatchRuleConstraints(goodRule, iface, patchAt)
+	result, err = badPatch.PatchRuleConstraints(goodRule, patchAt)
 	c.Check(err, Equals, prompting_errors.ErrPatchedRuleHasNoPerms)
 	c.Check(result, IsNil)
 }

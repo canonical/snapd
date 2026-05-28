@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Get PR number
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             let page = 1;
@@ -55,7 +55,7 @@ jobs:
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
-            } while (response.data.artifacts.length === per_page);
+            } while (allArtifacts.length < response.data.total_count);
             let matchArtifact = allArtifacts.filter((artifact) => {
               return artifact.name == "pr_number"
             })[0];
@@ -71,15 +71,7 @@ jobs:
       - name: Unzip PR number
         run: unzip pr_number.zip
 
-      - name: Check for rerun label
-        run: |
-          labels=$(gh pr view $(cat pr_number) --json labels | jq -r '.labels[].name')
-          if grep -q '^Auto rerun spread$' <<<$labels; then
-            echo "AUTO_RERUN=true" >> $GITHUB_ENV
-          fi
-
-      - name: Check for draft and approvals
-        if: env.AUTO_RERUN == 'true'
+      - name: Check for rerun eligibility
         run: |
           pr=$(cat pr_number)
           if [ "$(gh pr view "$pr" --json isDraft --jq '.isDraft')" = "true" ]; then
@@ -87,9 +79,18 @@ jobs:
             echo "AUTO_RERUN=false" >> $GITHUB_ENV
             exit 0
           fi
-          num_approvals=$(gh pr view "$pr" --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .state' | wc -l)
-          if [ $num_approvals = "0" ]; then
-            echo "setting auto rerun to false because it has no approvals"
+
+          labels=$(gh pr view "$pr" --json labels --jq '.labels[].name')
+          has_label=false
+          if grep -q '^Auto rerun spread$' <<<$labels; then
+            has_label=true
+          fi
+
+          num_approvals=$(gh pr view "$pr" --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | sort -u | wc -l)
+          if [ "$has_label" = "true" ] && [ "$num_approvals" -ge 1 ]; then
+            echo "AUTO_RERUN=true" >> $GITHUB_ENV
+          else
+            echo "setting auto rerun to false because it is missing the label or has insufficient approvals"
             echo "AUTO_RERUN=false" >> $GITHUB_ENV
           fi
       
@@ -112,8 +113,8 @@ jobs:
             # analyzer will echo out that same line, so grab the first occurrence.
             num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1)
             
-            if [ -n "$num_failed" ] && [ $num_failed -ge 20 ]; then 
-              echo "Setting rerun to false because there were 20 or more failures on a fundamental system"
+            if [ -n "$num_failed" ] && [ $num_failed -ge 30 ]; then
+              echo "Setting rerun to false because there were 30 or more failures on a fundamental system"
               echo "AUTO_RERUN=false" >> $GITHUB_ENV
             fi
           done

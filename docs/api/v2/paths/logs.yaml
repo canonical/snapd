@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
   summary: Get log contents
   description: |-
@@ -34,7 +34,7 @@ get:
     200:
       description: A stream of log messages. Each line is a self-contained JSON object.
       content:
-        application/x-ndjson:
+        application/json-seq:
           schema:
             $ref: '../components/schemas/Log.yaml'
     400:

@@ -32,6 +32,26 @@ Contributors can help us by observing the following guidelines:
 For further details on our coding conventions, including how to format a PR,
 see [CODING.md](CODING.md).
 
+### External and AI-assisted contributions
+
+External or fully AI-submitted PRs need a sponsor from the team
+assigned to them (as GH assignee). The sponsor is responsible,
+with help from others on the team if needed, for evaluating the
+contributions for viability and priority and then for helping carry
+the PR(s) to landing.
+
+Preferably AI-assisted contributions should disclose this and, when
+reasonable and relevant, provide prompt(s) and tooling information in
+their descriptions.
+
+While we will not prejudge AI-assisted contributions either way on
+correctness, it is important that they are targeted and relatively
+small, or split across many PRs. It is also important to pay extra
+attention to readability and code placement (the latter may not
+always be evident in diffs as presented on GH).
+
+We might simply reject scattershot or overly large PRs.
+
 ## Pull requests and tests
 
 Before merging any changes into the snapd codebase, we need to verify that the
@@ -47,7 +67,7 @@ the standards. They also check the markdown format of documentation files.
 All the existing unit tests are also executed, and the coverage info is
 reported to coveralls.
 
-We use [spread](https://github.com/snapcore/spread) to verify the
+We use [spread](https://github.com/canonical/spread-plus) to verify the
 integrity of the product, exercising it as a whole, both from an end user
 standpoint (eg. all kinds of interactions with the snap tool from the command
 line) and from a more systemic approach (testing upgrades, for instance).

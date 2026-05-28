@@ -51,7 +51,7 @@ func (rdb *RuleDB) IsPathPermAllowed(user uint32, snap string, iface string, pat
 }
 
 func MockReadOrAssignUserSessionID(f func(rdb *RuleDB, user uint32) (prompting.IDType, error)) (restore func()) {
-	return testutil.Mock(&readOrAssignUserSessionID, f)
+	return testutil.Mock(&ReadOrAssignUserSessionID, f)
 }
 
 func (rdb *RuleDB) ReadOrAssignUserSessionID(user uint32) (userSessionID prompting.IDType, err error) {

@@ -551,12 +551,12 @@ func (s *imageSeeder) deriveInfoForLocalSnaps(localCompsPaths []string, f seedwr
 
 	// Check if there are local components that did not belong to one
 	// of the local snaps
-	errMsg := ""
+	var errMsg strings.Builder
 	for path := range cinfos {
-		errMsg += fmt.Sprintf("\n%q local component does not have a matching local snap", path)
+		errMsg.WriteString(fmt.Sprintf("\n%q local component does not have a matching local snap", path))
 	}
-	if errMsg != "" {
-		return nil, fmt.Errorf("missing local snaps:%s", errMsg)
+	if errMsg.Len() > 0 {
+		return nil, fmt.Errorf("missing local snaps:%s", errMsg.String())
 	}
 
 	// derive info first before verifying the arch

@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Snapshots
     - Synchronous
   summary: Export a snapshot set

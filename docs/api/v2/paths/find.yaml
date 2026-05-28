@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - OpenAccess
     - Store
     - Synchronous
@@ -12,7 +12,7 @@ get:
     Finds snaps or components in the store that match the search criteria and
     are compatible with the host system. In order for the user to be authorized
     to use this route, they must be logged in via 'snap-login', hence being
-    tagged as both OpenAccess and AuthenticationRequired. PeerAuth is not listed
+    tagged as both OpenAccess and AuthenticatedAccess. PeerAuth is not listed
     here as sudo is not required to interact with the route.
   operationId: findSnaps
   security: []

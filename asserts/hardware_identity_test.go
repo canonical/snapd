@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"crypto/dsa"
 	"crypto/ecdsa"
-	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -199,27 +198,6 @@ func (s *hardwareIdentitySuite) TestVerifySignatureECDSA(c *C) {
 
 	// invalid signature
 	err = h.VerifyNonceSignature(append(nonce, 1), signature, crypto.SHA3_384)
-	c.Assert(err, ErrorMatches, "invalid signature")
-}
-
-func (s *hardwareIdentitySuite) TestVerifySignatureED25519(c *C) {
-	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
-	c.Assert(err, IsNil)
-
-	h, err := buildHardwareIdentityAssertion(pubKey)
-	c.Assert(err, IsNil)
-
-	nonce := []byte("test nonce")
-	hash := sha3.New384()
-	hash.Write(nonce)
-	hashed := hash.Sum(nil)
-
-	signature := ed25519.Sign(privKey, hashed)
-
-	err = h.VerifyNonceSignature(nonce, signature, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-
-	err = h.VerifyNonceSignature(nonce, append(signature, 1), crypto.SHA3_384)
 	c.Assert(err, ErrorMatches, "invalid signature")
 }
 

@@ -39,6 +39,7 @@ var (
 	_ ExtractedRecoveryKernelImageBootloader = (*piboot)(nil)
 	_ NotScriptableBootloader                = (*piboot)(nil)
 	_ RebootBootloader                       = (*piboot)(nil)
+	_ RecoveryBootConfigBootloader           = (*piboot)(nil)
 )
 
 const (
@@ -233,6 +234,17 @@ func (p *piboot) loadAndApplyConfig(env *ubootenv.Env) error {
 		return err
 	}
 	return p.applyConfig(env, cfgFile, prefix, cfgDir, dstDir)
+}
+
+func (p *piboot) Reconfigure() error {
+	env, err := ubootenv.OpenWithFlags(p.envFile(), ubootenv.OpenBestEffort)
+	if err != nil {
+		return err
+	}
+	// Reconfigure only regenerates the config selected by the persisted boot
+	// state. Leaving try mode and removing tryboot.txt is handled when
+	// SetBootVars clears snap_try_kernel.
+	return p.loadAndApplyConfig(env)
 }
 
 // Writes os_prefix in RPi config.txt or tryboot.txt
@@ -472,4 +484,8 @@ func (p *piboot) GetRebootArguments() (string, error) {
 	}
 
 	return "", nil
+}
+
+func (p *piboot) RequiredByGadget(gadgetDir string) bool {
+	return checkForBlMarker(p, gadgetDir)
 }

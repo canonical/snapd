@@ -4,7 +4,7 @@
 get:
   tags:
     - Apps
-    - OpenAccess
+    - InterfaceOpenAccess
     - Synchronous
   summary: List available apps
   description: |-
@@ -60,7 +60,7 @@ post:
   tags:
     - Apps
     - Asynchronous
-    - AuthenticationRequired
+    - InterfaceAuthenticatedAccess
   summary: Modify attributes of applications
   description: |-
     Perform actions like start, stop, or restart on snap applications, typically services.

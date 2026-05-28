@@ -1,0 +1,19 @@
+    #this backend is used for resealing validation with secure boot enabled
+    testflinger:
+        wait-timeout: 30m
+        kill-timeout: 40m
+        halt-timeout: 1h
+        environment:
+            SNAPD_SKIP_EARLY_REFRESH: true
+            TRUST_TEST_KEYS: "false"
+        systems:
+            - ubuntu-core-20-64-nuc:
+                  queue: dawson-i-uc20-fde
+                  image: core20-latest-stable
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-core-22-64-fde:
+                  queue: uc22-fde
+                  image: core22-latest-stable
+                  username: ubuntu
+                  password: ubuntu

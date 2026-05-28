@@ -26,6 +26,14 @@ jobs:
           include-snapd-build-fips-go-channel: true
           include-latest-go-channel: false
 
+      - name: Check go channels
+        run: |
+          echo "Resolved Go channels: ${{ steps.resolve-go-channels.outputs.go-channels }}"
+          if [ $(jq 'length' <<<'${{ steps.resolve-go-channels.outputs.go-channels }}') -eq 0 ]; then
+            echo "Error: No Go channels resolved" >&2
+            exit 1
+          fi
+
   snap-builds:
     uses: ./.github/workflows/snap-builds.yaml
     with:
@@ -78,7 +86,7 @@ jobs:
           echo "$version" > /tmp/pkg/version
 
       - name: Upload vendors
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: vendor-pkgs
           path: /tmp/pkg
@@ -96,7 +104,7 @@ jobs:
       fail-fast: false
       matrix:
         build-config:
-          - { system: fedora-42-64,           pkg-dir: fedora-42,            config: fedora-42-x86_64           }
+          - { system: fedora-44-64,           pkg-dir: fedora-44,            config: fedora-44-x86_64           }
           - { system: centos-9-64,            pkg-dir: centos-9,             config: centos-stream-9-x86_64     }
 
   package-snapd-rpm-rpmbuild:
@@ -116,7 +124,7 @@ jobs:
       matrix:
         build-config:
           - { system: "opensuse-tumbleweed-64", dockerfile: "opensuse.dockerfile", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
-          - { system: "opensuse-15.6-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "15.6",   pkg-dir: "opensuse-15.6"       }
+          - { system: "opensuse-16.0-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "16.0",   pkg-dir: "opensuse-16.0"       }
           - { system: "amazon-linux-2-64",      dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2",      pkg-dir: "amzn-2"              }
           - { system: "amazon-linux-2023-64",   dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2023",   pkg-dir: "amzn-2023"           }
 
@@ -164,14 +172,14 @@ jobs:
           ln -s packaging/ubuntu-16.04 debian
           sudo apt build-dep -d -y ${{ github.workspace }}
           # for indent
-          sudo apt install texinfo autopoint
+          sudo apt install -y texinfo autopoint
 
     - name: Copy dependencies
       run: |
         sudo tar cvf cached-apt.tar /var/cache/apt
 
     - name: upload Debian dependencies
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: debian-dependencies
         path: ./cached-apt.tar
@@ -402,7 +410,7 @@ jobs:
   unit-tests-fuzzing:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
@@ -442,14 +450,14 @@ jobs:
       GOROOT: ""
     steps:
     - name: Download the coverage files
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v8
       with:
         pattern: coverage-files-*
         path: .coverage/
         merge-multiple: true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v6
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
@@ -676,7 +684,7 @@ jobs:
         run: echo "${{ github.event.pull_request.number }}" > pr_number
       
       - name: Upload PR number
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: pr_number 
           path: pr_number

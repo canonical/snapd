@@ -35,7 +35,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -67,6 +70,8 @@ type snapCachedInfo struct {
 
 // Store is our snappy software store implementation
 type Store struct {
+	lock sync.Mutex
+
 	url       string
 	blobDir   string
 	assertDir string
@@ -79,11 +84,46 @@ type Store struct {
 	channelRepository *ChannelRepository
 
 	snapsCache map[string]snapCachedInfo
+
+	// endpoint -> quota value, note this is stateful, i.e. the quota is counted
+	// for all requests to a given endpoint and after exceeding it, all
+	// subsequent requests will fail until it is reset through a request
+	killAfter map[string]int64
+}
+
+type wrappedWriter struct {
+	http.ResponseWriter
+	s int
+}
+
+func (w *wrappedWriter) WriteHeader(s int) {
+	w.s = s
+	w.ResponseWriter.WriteHeader(s)
+}
+
+func logit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ww := &wrappedWriter{ResponseWriter: w}
+		t0 := time.Now()
+		next.ServeHTTP(ww, r)
+		t := time.Since(t0)
+		logger.Noticef("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
+	})
+}
+
+func logRangeHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if len(r.Header["Range"]) > 0 {
+			logger.Noticef(`%s %s %s range request %v`, r.RemoteAddr, r.Method, r.URL, r.Header["Range"])
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
 func NewStore(topDir, addr string, assertFallback bool) *Store {
-	mux := http.NewServeMux()
+	r := mux.NewRouter()
+
 	var sto *store.Store
 	if assertFallback {
 		snapdenv.SetUserAgentFromVersion("unknown", nil, "fakestore")
@@ -99,28 +139,40 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 		url: fmt.Sprintf("http://%s", addr),
 		srv: &http.Server{
 			Addr:    addr,
-			Handler: mux,
+			Handler: r,
 		},
 		channelRepository: &ChannelRepository{
 			rootDir: filepath.Join(topDir, "channels"),
 		},
 		snapsCache: make(map[string]snapCachedInfo),
+		killAfter:  make(map[string]int64),
 	}
 
-	mux.HandleFunc("/", rootEndpoint)
-	mux.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
-	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
-	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
-	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
+	r.Use(logit)
+	r.Use(store.applyKillAfter)
 
-	mux.HandleFunc("/api/v1/snaps/auth/nonces", store.nonceEndpoint)
-	mux.HandleFunc("/api/v1/snaps/auth/sessions", store.sessionEndpoint)
+	r.HandleFunc("/", rootEndpoint)
+	r.HandleFunc("/api/v1/snaps/search", store.searchEndpoint)
+	r.HandleFunc("/api/v1/snaps/details/{name}", store.detailsEndpoint).Methods("GET")
+	r.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint).Methods("POST")
+
+	fileServer := http.StripPrefix("/download/", http.FileServer(http.Dir(topDir)))
+	dr := r.PathPrefix("/download/").Subrouter()
+	dr.Use(logRangeHeader)
+	dr.PathPrefix("/").HandlerFunc(fileServer.ServeHTTP).Methods("GET")
+
+	r.HandleFunc("/api/v1/snaps/auth/nonces", store.nonceEndpoint)
+	r.HandleFunc("/api/v1/snaps/auth/sessions", store.sessionEndpoint)
 
 	// v2
-	mux.HandleFunc("/v2/assertions/", store.assertionsEndpoint)
-	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
+	// TODO: use path vars for assertion type
+	r.PathPrefix("/v2/assertions/").HandlerFunc(store.assertionsEndpoint).Methods("GET")
+	r.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
 
-	mux.HandleFunc("/v2/repairs/", store.repairsEndpoint)
+	// TODO use path vars for brand and repair IDs
+	r.PathPrefix("/v2/repairs/").HandlerFunc(store.repairsEndpoint).Methods("GET")
+
+	r.HandleFunc("/debug", store.debugEndpoint).Methods("GET", "POST")
 
 	return store
 }
@@ -354,6 +406,180 @@ type detailsReplyJSON struct {
 	Base            string   `json:"base,omitempty"`
 }
 
+type killAfterWriter struct {
+	http.ResponseWriter
+	path         string
+	consumeQuota func(want int) int
+}
+
+func (kaw *killAfterWriter) Write(p []byte) (int, error) {
+	toWrite := p
+	shouldKill := false
+
+	got := kaw.consumeQuota(len(toWrite))
+	if len(p) > got {
+		// write only up to the remaining quota
+		toWrite = p[:got]
+		shouldKill = true
+	}
+
+	n, err := kaw.ResponseWriter.Write(toWrite)
+
+	if shouldKill {
+		logger.Noticef("request to %s was force killed, quota exceeded", kaw.path)
+		kaw.hijackAndClose()
+		return n, fmt.Errorf("connection killed")
+	}
+
+	return n, err
+}
+
+func (kaw *killAfterWriter) hijackAndClose() {
+	// flush any buffered data before closing
+	if f, ok := kaw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+	// and proceed to close
+	hj, ok := kaw.ResponseWriter.(http.Hijacker)
+	if ok {
+		conn, _, _ := hj.Hijack()
+		conn.Close()
+	}
+}
+
+type debugRequestJSON struct {
+	Action string `json:"action"`
+
+	KillPath  string `json:"kill-path"`
+	KillAfter int64  `json:"kill-after"`
+}
+
+type debugResultJSON struct {
+	KillAfter map[string]int64 `json:"kill-after"`
+}
+
+func (s *Store) debugEndpoint(w http.ResponseWriter, req *http.Request) {
+	if req.Method == http.MethodGet {
+		out, err := func() ([]byte, error) {
+			s.lock.Lock()
+			defer s.lock.Unlock()
+			res := debugResultJSON{
+				KillAfter: s.killAfter,
+			}
+			return json.Marshal(res)
+		}()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("cannot marshal: %v", err), 500)
+			return
+		}
+		w.WriteHeader(200)
+		w.Write(out)
+		return
+	}
+
+	if req.Method != http.MethodPost {
+		w.WriteHeader(405) // Method Not Allowed
+		return
+	}
+
+	var debugReq *debugRequestJSON
+	decoder := json.NewDecoder(req.Body)
+	if err := decoder.Decode(&debugReq); err != nil {
+		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), 400)
+		return
+	}
+
+	var err error
+	switch debugReq.Action {
+	case "kill-request":
+		err = s.debugActionKillDownload(debugReq)
+	case "reset":
+		s.debugActionReset(debugReq)
+	default:
+		err = fmt.Errorf("unexpected debug action %q", debugReq.Action)
+	}
+	if err != nil {
+		w.WriteHeader(400)
+		fmt.Fprint(w, err.Error())
+	} else {
+		w.WriteHeader(200)
+	}
+}
+
+func (s *Store) debugActionKillDownload(debugReq *debugRequestJSON) error {
+	if debugReq.KillPath == "" {
+		return fmt.Errorf("kill-path cannot be empty")
+	}
+
+	if strings.HasPrefix(debugReq.KillPath, "/debug/") {
+		return fmt.Errorf("kill-path cannot be applied to /debug/ endpoints")
+	}
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if debugReq.KillAfter == 0 {
+		delete(s.killAfter, debugReq.KillPath)
+	} else {
+		s.killAfter[debugReq.KillPath] = debugReq.KillAfter
+	}
+	return nil
+}
+
+func (s *Store) debugActionReset(_ *debugRequestJSON) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.killAfter = map[string]int64{}
+}
+
+func (s *Store) applyKillAfter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		path := req.URL.Path
+
+		exists := func() bool {
+			s.lock.Lock()
+			defer s.lock.Unlock()
+			_, ok := s.killAfter[path]
+			return ok
+		}()
+
+		if exists {
+			kaw := &killAfterWriter{
+				ResponseWriter: w,
+				path:           path,
+				consumeQuota: func(want int) int {
+					s.lock.Lock()
+					defer s.lock.Unlock()
+
+					v, ok := s.killAfter[path]
+					if !ok {
+						// no quota set
+						return want
+					}
+
+					left := int(v)
+
+					var got int
+					if want > left {
+						got = left
+						left = 0
+					} else {
+						got = want
+						left -= want
+					}
+					s.killAfter[path] = int64(left)
+
+					return got
+				},
+			}
+
+			w = kaw
+		}
+		next.ServeHTTP(w, req)
+	})
+}
+
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(501)
 	fmt.Fprintf(w, "search not implemented")
@@ -438,10 +664,7 @@ func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
-	pkg := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/details/")
-	if pkg == req.URL.Path {
-		panic("how?")
-	}
+	pkg := mux.Vars(req)["name"]
 
 	bs, err := s.collectAssertions()
 	if err != nil {

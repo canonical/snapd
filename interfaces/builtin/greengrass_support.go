@@ -111,7 +111,6 @@ capability sys_admin,
 capability dac_override,  # for various overlayfs accesses
 
 # for setting up mounts
-@{PROC}/[0-9]*/mountinfo r,
 @{PROC}/filesystems r,
 
 # runc needs this
@@ -448,6 +447,7 @@ func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Sp
 		spec.AddSnippet(greengrassSupportProcessModeConnectedPlugAppArmor)
 	}
 
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
 	return nil
 }
 

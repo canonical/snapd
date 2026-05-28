@@ -23,7 +23,13 @@ const dockerSummary = `allows access to Docker socket`
 
 const dockerBaseDeclarationSlots = `
   docker:
-    allow-installation: false
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-installation:
+      slot-snap-type:
+        - app
     deny-connection: true
     deny-auto-connection: true
 `
@@ -48,6 +54,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "docker",
 		summary:               dockerSummary,
+		implicitOnClassic:     true,
 		baseDeclarationSlots:  dockerBaseDeclarationSlots,
 		connectedPlugAppArmor: dockerConnectedPlugAppArmor,
 		connectedPlugSecComp:  dockerConnectedPlugSecComp,

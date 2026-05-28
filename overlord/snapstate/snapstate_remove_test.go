@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1362,14 +1363,16 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "one", SnapID: "one-id", Revision: snap.R(1)},
 		}),
-		Current: snap.R(1),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
 	})
 	snapstate.Set(s.state, "two", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
 			{RealName: "two", SnapID: "two-id", Revision: snap.R(1)},
 		}),
-		Current: snap.R(1),
+		Current:  snap.R(1),
+		SnapType: string(snap.TypeApp),
 	})
 
 	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"}, nil)
@@ -1377,12 +1380,14 @@ func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
 	c.Assert(tts, HasLen, 2)
 	c.Check(removed, DeepEquals, []string{"one", "two"})
 
-	c.Assert(s.state.TaskCount(), Equals, 8*2)
+	// snaps of app type will also have snapshots taken if the purge is not set
+	c.Assert(s.state.TaskCount(), Equals, 9*2)
 	for i, ts := range tts {
 		c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 			"stop-snap-services",
 			"run-hook[remove]",
 			"auto-disconnect",
+			"save-snapshot",
 			"remove-aliases",
 			"unlink-snap",
 			"remove-profiles",
@@ -2103,24 +2108,190 @@ func (s *snapmgrTestSuite) TestRemoveDeduplicatesSnapNames(c *C) {
 			SnapID:   "some-snap-id",
 			Revision: snap.R(1),
 		}}),
-		Current: snap.R(1),
-		Active:  true,
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: string(snap.TypeApp),
 	})
 
-	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
-			RealName: "some-base",
-			SnapID:   "some-base-id",
+			RealName: "some-other-snap",
+			SnapID:   "some-other-snap-id",
 			Revision: snap.R(1),
 		}}),
-		Current: snap.R(1),
-		Active:  true,
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: string(snap.TypeApp),
 	})
 
-	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-base", "some-snap", "some-base"}, nil)
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "some-other-snap", "some-snap", "some-other-snap"}, nil)
 	c.Assert(err, IsNil)
-	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base"})
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-other-snap"})
 	c.Check(ts, HasLen, 2)
+}
+
+func (s *snapmgrTestSuite) TestRemoveAppGadgetAndBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\ntype: app\nbase: some-base", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+		Base:     "some-base",
+	})
+
+	si2 := &snap.SideInfo{RealName: "some-gadget", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-gadget\nversion: 1.0\ntype: gadget\nbase: some-base", si2)
+	snapstate.Set(s.state, "some-gadget", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
+		Current:  si2.Revision,
+		SnapType: string(snap.TypeGadget),
+		Base:     "some-base",
+	})
+
+	si3 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si3)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
+		Current:  si3.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	// removing the base should only succeed when both some-snap and some-gadget
+	// are also removed
+	_, _, err := snapstate.RemoveMany(s.state, []string{"some-base"}, nil)
+	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snaps some-gadget and some-snap.")
+
+	_, _, err = snapstate.RemoveMany(s.state, []string{"some-base", "some-snap"}, nil)
+	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snap some-gadget.")
+
+	_, _, err = snapstate.RemoveMany(s.state, []string{"some-base", "some-gadget"}, nil)
+	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snap some-snap.")
+
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-base", "some-snap", "some-gadget"}, nil)
+	c.Check(err, IsNil)
+
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "some-base", "some-gadget"})
+	c.Check(tss, HasLen, 3)
+
+	// check that the tasks for the bases depend on the tasks for the app and gadget
+	baseFirstTask := tss[0].Tasks()[0]
+	gadgetLastTask := tss[1].Tasks()[len(tss[1].Tasks())-1]
+	appLastTask := tss[2].Tasks()[len(tss[2].Tasks())-1]
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, gadgetLastTask)
+}
+
+func (s *snapmgrTestSuite) TestRemoveAppAndCore16(c *C) {
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core20")))
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\ntype: app\nbase: core16", si)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		SnapType: string(snap.TypeApp),
+		Base:     "core16",
+	})
+
+	si2 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: core\nversion: 1.0\ntype: base\n", si2)
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
+		Current:  si2.Revision,
+		SnapType: string(snap.TypeOS),
+	})
+
+	// some-app should fall back to using core as base
+	_, _, err := snapstate.RemoveMany(s.state, []string{"core"}, nil)
+	c.Check(err, ErrorMatches, "snap \"core\" is not removable: snap is being used by snap some-snap.")
+
+	// removing core should succeed when removing some-app as well
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"core", "some-snap"}, nil)
+	c.Check(err, IsNil)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "core"})
+	// check that the tasks for the bases depend on the tasks for the app
+	baseFirstTask := tss[0].Tasks()[0]
+	appLastTask := tss[1].Tasks()[len(tss[1].Tasks())-1]
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
+
+	si3 := &snap.SideInfo{RealName: "core16", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: core16\nversion: 1.0\ntype: base\n", si3)
+	snapstate.Set(s.state, "core16", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
+		Current:  si3.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	// some-app should not fall back to using core as base since core16 is installed
+	_, _, err = snapstate.RemoveMany(s.state, []string{"core16"}, nil)
+	c.Check(err, ErrorMatches, "snap \"core16\" is not removable: snap is being used by snap some-snap.")
+
+	// removing core16 should succeed when removing some-app as well
+	removed, tss, err = snapstate.RemoveMany(s.state, []string{"core16", "some-snap"}, nil)
+	c.Check(err, IsNil)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-snap", "core16"})
+	// check that the tasks for the bases depend on the tasks for the app
+	baseFirstTask = tss[0].Tasks()[0]
+	appLastTask = tss[1].Tasks()[len(tss[1].Tasks())-1]
+	c.Check(baseFirstTask.WaitTasks(), testutil.Contains, appLastTask)
+}
+
+func (s *snapmgrTestSuite) TestRemoveManyAppRevisionsWithDifferentBases(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// set up different revisions of some-snap to have different bases
+	siRev1 := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\ntype: app\nbase: some-base", siRev1)
+	siRev2 := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
+	snaptest.MockSnap(c, "name: some-snap\nversion: 1.0\ntype: app\nbase: core16", siRev2)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{siRev1, siRev2}),
+		Current:  siRev1.Revision,
+		SnapType: string(snap.TypeApp),
+		Base:     "some-base",
+	})
+
+	si2 := &snap.SideInfo{RealName: "core16", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: core16\nversion: 1.0\ntype: base\n", si2)
+	snapstate.Set(s.state, "core16", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si2}),
+		Current:  si2.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	si3 := &snap.SideInfo{RealName: "some-base", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", si3)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si3}),
+		Current:  si3.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	// removing both core16 and some-base should fail since they are used
+	// by some-snap
+	_, _, err := snapstate.RemoveMany(s.state, []string{"core16"}, nil)
+	c.Check(err, ErrorMatches, "snap \"core16\" is not removable: snap is being used by snap some-snap.")
+
+	_, _, err = snapstate.RemoveMany(s.state, []string{"some-base"}, nil)
+	c.Check(err, ErrorMatches, "snap \"some-base\" is not removable: snap is being used by snap some-snap.")
+
+	removed, tss, err := snapstate.RemoveMany(s.state, []string{"some-base", "core16", "some-snap"}, nil)
+	c.Check(err, IsNil)
+	c.Check(removed, testutil.DeepUnsortedMatches, []string{"some-base", "core16", "some-snap"})
+	c.Check(tss, HasLen, 3)
+
+	base1FirstTask := tss[0].Tasks()[0]
+	base2FirstTask := tss[1].Tasks()[0]
+	appLastTask := tss[2].Tasks()[len(tss[2].Tasks())-1]
+	c.Check(base1FirstTask.WaitTasks(), testutil.Contains, appLastTask)
+	c.Check(base2FirstTask.WaitTasks(), testutil.Contains, appLastTask)
 }
 
 func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
@@ -2163,7 +2334,6 @@ func (s *snapmgrTestSuite) TestRemoveManyWithPurge(c *C) {
 			"discard-snap",
 		})
 	}
-
 }
 
 func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {

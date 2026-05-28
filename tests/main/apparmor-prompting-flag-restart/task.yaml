@@ -19,16 +19,22 @@ skip:
       reason: Ubuntu 22.04 AppArmor parser doesn't support prompting without reexec
 
 prepare: |
+    cat <<'EOF' > /etc/systemd/system/snapd.service.d/zzz-override.conf
+    [Unit]
+    StartLimitIntervalSec=0
+    StartLimitBurst=0
+    EOF
+    systemctl daemon-reload
+    systemctl restart snapd.service
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
 restore: |
-    echo "Restore: Reset start limit so that other queries can succeed"
+    rm -f /etc/systemd/system/snapd.service.d/zzz-override.conf
+    systemctl daemon-reload
     systemctl stop snapd.service snapd.socket || true
-    systemctl stop snapd.failure.service || true
-    systemctl reset-failed snapd.service snapd.socket || true
     systemctl start snapd.service || systemctl status snapd.service || true
     retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
 
@@ -36,15 +42,6 @@ debug: |
     echo "Debug: Check if snapd service and socket are running"
     systemctl is-active snapd.service snapd.socket || true
     systemctl status snapd.service || true
-    echo "Debug: Check if snapd has start-limit-hit"
-    systemctl show --property=Result snapd.service snapd.socket || true
-
-    echo "Debug: Reset start limit so that other queries can succeed"
-    systemctl stop snapd.service snapd.socket || true
-    systemctl stop snapd.failure.service || true
-    systemctl reset-failed snapd.service snapd.socket || true
-    systemctl start snapd.service || systemctl status snapd.service || true
-    retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
 
     echo "Debug: Check kernel version"
     uname -a
@@ -61,33 +58,10 @@ debug: |
 execute: |
     . /etc/os-release
 
-    # Necessary since we restart snapd many times
-    reset_start_limit() {
-        if systemctl show --property=Result snapd.service | grep "start-limit-hit" ; then
-            systemctl stop snapd.service snapd.socket
-            # On core18, snapd.failure.service holds the state lock after a failure
-            # due to start-limit-hit, preventing snapd from progressing from
-            # "activating" to "active".
-            systemctl stop snapd.failure.service || true
-            systemctl reset-failed snapd.service snapd.socket
-            systemctl start snapd.service || systemctl status snapd.service
-            retry --wait 1 -n 100 sh -x -c 'systemctl is-active snapd.service snapd.socket'
-        else
-            echo "Called reset_start_limit but start limit was not hit"
-            false
-        fi
-    }
-
     # Check that snapd has restarted and now has a new PID, then set SNAPD_PID to that new PID.
     check_snapd_restarted() {
         #shellcheck disable=SC2016
         retry --wait 1 -n 100 --env SNAPD_PID="$SNAPD_PID" sh -x -c '
-            if systemctl show --property=Result snapd.service snapd.socket | grep "start-limit-hit" || systemctl is-active snapd.service | grep "activating"; then
-                systemctl stop snapd.service snapd.socket;
-                systemctl stop snapd.failure.service;
-                systemctl reset-failed snapd.service snapd.socket;
-                systemctl restart snapd.service;
-            fi;
             NEW_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)";
             test ! "$NEW_PID" = "0" && test ! "$NEW_PID" = "$SNAPD_PID" && systemctl is-active snapd.service snapd.socket && systemctl status snapd.service'
         SNAPD_PID="$(systemctl show --property MainPID snapd.service | cut -f2 -d=)"
@@ -108,20 +82,20 @@ execute: |
 
     echo "Ensure prompting is initially disabled"
     if snap get system experimental.apparmor-prompting | grep 'true' ; then
-        snap set system experimental.apparmor-prompting=false || reset_start_limit
+        snap set system experimental.apparmor-prompting=false
         check_snapd_restarted
         check_prompting_setting "false"
     fi
 
     echo "Enable AppArmor prompting experimental feature"
-    snap set system experimental.apparmor-prompting=true || reset_start_limit
+    snap set system experimental.apparmor-prompting=true
 
     echo "Check that snapd restarted after prompting set to true via snap client"
     check_snapd_restarted
     check_prompting_setting "true"
 
     echo "Disable prompting via snap client"
-    snap set system experimental.apparmor-prompting=false || reset_start_limit
+    snap set system experimental.apparmor-prompting=false
 
     echo "Check that snapd restarted after prompting set to false via snap client"
     check_snapd_restarted
@@ -131,7 +105,7 @@ execute: |
 
     echo '{"experimental.apparmor-prompting": true}' | \
         snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | \
-        gojq -r '.status' | MATCH "Accepted" || reset_start_limit
+        gojq -r '.status' | MATCH "Accepted"
 
     echo "Check that snapd restarted after prompting set to true via api"
     check_snapd_restarted
@@ -140,7 +114,7 @@ execute: |
     echo "Disable prompting via API request"
     echo '{"experimental.apparmor-prompting": false}' | \
         snap debug api -X PUT -H 'Content-Type: application/json' /v2/snaps/system/conf | \
-        gojq -r '.status' | MATCH "Accepted" || reset_start_limit
+        gojq -r '.status' | MATCH "Accepted"
 
     echo "Check that snapd restarted after prompting set to false via api"
     check_snapd_restarted
@@ -149,7 +123,7 @@ execute: |
     echo "Check that setting the same value multiple times does not restart snapd"
     for value in true false; do
         echo "Initially set value, which will trigger a restart"
-        snap set system experimental.apparmor-prompting="$value" || reset_start_limit
+        snap set system experimental.apparmor-prompting="$value"
         check_snapd_restarted
         check_prompting_setting "$value"
 

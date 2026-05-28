@@ -5361,6 +5361,19 @@ func (s *gadgetYamlTestSuite) TestGadgetInfoHasRole(c *C) {
 	c.Check(info.HasRole(gadget.SystemSeedNull), Equals, false)
 }
 
+func (s *gadgetYamlTestSuite) TestGadgetInfoHasBootloader(c *C) {
+	info := gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"name": {},
+			"other-name": {
+				Bootloader: "u-boot",
+			},
+		},
+	}
+	c.Check(info.HasBootloader("u-boot"), Equals, true)
+	c.Check(info.HasRole("other-bootloader"), Equals, false)
+}
+
 func (s *gadgetYamlTestSuite) TestVolumesHaveRole(c *C) {
 	volumes := map[string]*gadget.Volume{
 		"name": {
@@ -5748,7 +5761,6 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyNoMatchingAssignment(c 
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
 	restore := gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		fmt.Println("update-for-structure", loc, ps, fromPs)
 		updaterForStructureCalls++
 		mu := &mockUpdater{}
 
@@ -5795,7 +5807,6 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyAssignmentChanged(c *C)
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
 	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		fmt.Println("update-for-structure", loc, ps, fromPs)
 		updaterForStructureCalls++
 		mu := &mockUpdater{}
 
@@ -5865,7 +5876,6 @@ func (s *gadgetYamlVolumeAssignmentSuite) TestUpdateApplyHappy(c *C) {
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
 	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		fmt.Println("update-for-structure", loc, ps, fromPs)
 		updaterForStructureCalls++
 		mu := &mockUpdater{}
 

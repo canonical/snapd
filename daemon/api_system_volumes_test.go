@@ -56,10 +56,12 @@ func (s *systemVolumesSuite) SetUpTest(c *C) {
 	s.expectedReadAccess = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}}
 	s.expectedWriteAccess = daemon.ByActionAccess{
 		ByAction: map[string]daemon.AccessChecker{
-			"check-passphrase":  daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
-			"check-pin":         daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
-			"change-passphrase": daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
-			"change-pin":        daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-passphrase-quality": daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-pin-quality":        daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-passphrase":         daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"check-pin":                daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"change-passphrase":        daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
+			"change-pin":               daemon.InterfaceOpenAccess{Interfaces: []string{"snap-fde-control"}},
 			"check-recovery-key": daemon.InterfaceRootAccess{
 				Interfaces: []string{"snap-fde-control", "firmware-updater-support"},
 				Polkit:     "io.snapcraft.snapd.manage-fde",
@@ -1327,7 +1329,7 @@ func (s *systemVolumesSuite) TestSystemVolumesGetGadgetError(c *C) {
 	c.Assert(rsp.Message, Equals, "cannot get encryption information for gadget volumes: boom!")
 }
 
-func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
+func (s *systemVolumesSuite) testSystemVolumesActionCheckPassphraseQuality(c *C, deprecated bool) {
 	s.daemon(c)
 	s.mockHybridSystem()
 
@@ -1347,8 +1349,12 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	defer restore()
 
 	body := map[string]string{
-		"action":     "check-passphrase",
+		"action":     "check-passphrase-quality",
 		"passphrase": "this is a good passphrase",
+	}
+
+	if deprecated {
+		body["action"] = "check-passphrase"
 	}
 
 	b, err := json.Marshal(body)
@@ -1367,7 +1373,17 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphrase(c *C) {
 	})
 }
 
-func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseQuality(c *C) {
+	const deprecated = false
+	s.testSystemVolumesActionCheckPassphraseQuality(c, deprecated)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseQualityDeprecated(c *C) {
+	const deprecated = true
+	s.testSystemVolumesActionCheckPassphraseQuality(c, deprecated)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseQualityError(c *C) {
 	s.daemon(c)
 	s.mockHybridSystem()
 
@@ -1386,7 +1402,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 	}{
 		{
 			passphrase:     "",
-			expectedStatus: 400, expectedErrMsg: `passphrase must be provided in request body for action "check-passphrase"`,
+			expectedStatus: 400, expectedErrMsg: `passphrase must be provided in request body for action "check-passphrase-quality"`,
 		},
 		{
 			passphrase:     "bad-passphrase",
@@ -1400,7 +1416,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 		},
 	} {
 		body := map[string]string{
-			"action":     "check-passphrase",
+			"action":     "check-passphrase-quality",
 			"passphrase": tc.passphrase,
 		}
 
@@ -1432,7 +1448,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPassphraseError(c *C) {
 	}
 }
 
-func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
+func (s *systemVolumesSuite) testSystemVolumesActionCheckPINQuality(c *C, deprecated bool) {
 	s.daemon(c)
 	s.mockHybridSystem()
 
@@ -1452,8 +1468,12 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	defer restore()
 
 	body := map[string]string{
-		"action": "check-pin",
+		"action": "check-pin-quality",
 		"pin":    "20250619",
+	}
+
+	if deprecated {
+		body["action"] = "check-pin"
 	}
 
 	b, err := json.Marshal(body)
@@ -1472,7 +1492,17 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPIN(c *C) {
 	})
 }
 
-func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINQuality(c *C) {
+	const deprecated = false
+	s.testSystemVolumesActionCheckPINQuality(c, deprecated)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINQualityDeprecated(c *C) {
+	const deprecated = true
+	s.testSystemVolumesActionCheckPINQuality(c, deprecated)
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINQualityError(c *C) {
 	s.daemon(c)
 	s.mockHybridSystem()
 
@@ -1491,7 +1521,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 	}{
 		{
 			pin:            "",
-			expectedStatus: 400, expectedErrMsg: `pin must be provided in request body for action "check-pin"`,
+			expectedStatus: 400, expectedErrMsg: `pin must be provided in request body for action "check-pin-quality"`,
 		},
 		{
 			pin:            "0",
@@ -1505,7 +1535,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionCheckPINError(c *C) {
 		},
 	} {
 		body := map[string]string{
-			"action": "check-pin",
+			"action": "check-pin-quality",
 			"pin":    tc.pin,
 		}
 

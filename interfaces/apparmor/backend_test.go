@@ -1227,15 +1227,17 @@ const commonPrefix = `
 @{PROFILE_DBUS}="snap_2esamba_2esmbd"
 @{INSTALL_DIR}="/{,var/lib/snapd/}snap"`
 
+const mountInfoSnippet = "\ndeny @{PROC}/self/mountinfo r,\ndeny @{PROC}/@{pid}/mountinfo r,\n"
+
 var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// By default apparmor is enforcing mode.
 	opts:    interfaces.ConfinementOptions{},
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted) {\n\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted) {\n" + mountInfoSnippet + "\n}\n",
 }, {
 	// Snippets are injected in the space between "{" and "}"
 	opts:    interfaces.ConfinementOptions{},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted) {\nsnippet\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted) {\n" + mountInfoSnippet + "\nsnippet\n}\n",
 }, {
 	// DevMode switches apparmor to non-enforcing (complain) mode.
 	opts:    interfaces.ConfinementOptions{DevMode: true},
@@ -1243,9 +1245,9 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted,complain) {\nsnippet\n}\n",
 }, {
 	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
-	opts:    interfaces.ConfinementOptions{DevMode: true},
+	opts:    interfaces.ConfinementOptions{JailMode: true, DevMode: true},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted,complain) {\nsnippet\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted) {\n" + mountInfoSnippet + "\nsnippet\n}\n",
 }, {
 	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
 	opts:    interfaces.ConfinementOptions{Classic: true},
@@ -1270,6 +1272,7 @@ profile "snap.samba.smbd" flags=(attach_disconnected,mediate_deleted) {
   # snapd snap is installed and executes the snap application.
   @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec rm,
 
+` + mountInfoSnippet + `
 snippet
 }
 `,
@@ -1362,8 +1365,15 @@ func (s *backendSuite) TestUnconfinedFlag(c *C) {
 		if opts.Classic {
 			prefix = "\n#classic" + commonPrefix
 		}
-		contents := fmt.Sprintf(prefix+"\nprofile \"snap.samba.smbd\" flags=(%s) {\n\n}\n",
-			strings.Join(flags, ","))
+		var body string
+		if opts.Classic && !opts.JailMode {
+			// Classic mode ignores all snippets, including base snippets
+			body = "\n\n"
+		} else {
+			body = "\n" + mountInfoSnippet + "\n"
+		}
+		contents := fmt.Sprintf(prefix+"\nprofile \"snap.samba.smbd\" flags=(%s) {%s}\n",
+			strings.Join(flags, ","), body)
 		c.Check(profile, testutil.FileEquals, contents, Commentf("scenario %d: %#v", i, opts))
 		stat, err := os.Stat(profile)
 		c.Assert(err, IsNil)
@@ -1519,7 +1529,7 @@ func (s *backendSuite) TestParallelInstallCombineSnippets(c *C) {
 @{PROFILE_DBUS}="snap_2esamba_5ffoo_2esmbd"
 @{INSTALL_DIR}="/{,var/lib/snapd/}snap"
 profile "snap.samba_foo.smbd" flags=(attach_disconnected,mediate_deleted) {
-
+` + mountInfoSnippet + `
 }
 `
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "samba_foo", ifacetest.SambaYamlV1, 1)
@@ -1558,7 +1568,7 @@ func (s *backendSuite) TestTemplateVarsWithHook(c *C) {
 @{PROFILE_DBUS}="snap_2efoo_2ehook_2econfigure"
 @{INSTALL_DIR}="/{,var/lib/snapd/}snap"
 profile "snap.foo.hook.configure" flags=(attach_disconnected,mediate_deleted) {
-
+` + mountInfoSnippet + `
 }
 `
 	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.HookYaml, 1)
@@ -1597,7 +1607,7 @@ func (s *backendSuite) TestTemplateVarsWithComponentHook(c *C) {
 @{PROFILE_DBUS}="snap_2esnap_2bcomp_2ehook_2einstall"
 @{INSTALL_DIR}="/{,var/lib/snapd/}snap"
 profile "snap.snap+comp.hook.install" flags=(attach_disconnected,mediate_deleted) {
-
+` + mountInfoSnippet + `
 }
 `
 	info := s.InstallSnapWithComponents(c, interfaces.ConfinementOptions{}, "", ifacetest.SnapWithComponentsYaml, 1, []string{ifacetest.ComponentYaml})

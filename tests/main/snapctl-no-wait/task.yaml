@@ -1,0 +1,76 @@
+summary: Ensure snapctl --no-wait and is-ready integrate correctly
+
+details: |
+  Verifies the integration between snapctl --no-wait and snapctl is-ready.
+  When a snapctl command is run with --no-wait from an app (ephemeral) context,
+  a change ID is returned directly on stdout. The is-ready command can then
+  be used to poll the status of that change until it completes.
+
+  This test installs a local snap with two components, then removes each
+  component via snapctl remove --no-wait, capturing the change ID from stdout
+  and polling with snapctl is-ready until the change reaches the Done state.
+  Both removals run to completion before verifying the components are gone.
+
+  Note: snapctl install --no-wait requires the component to be available in
+  the store (snapctl install resolves via the snap store). This test therefore
+  covers the remove --no-wait path, which is fully exercisable with local snaps.
+
+prepare: |
+  snap pack test-snap/
+  snap pack test-comp1/
+  snap pack test-comp2/
+  snap install --dangerous test-snapctl-no-wait_1.0_all.snap
+  snap install --dangerous "test-snapctl-no-wait+comp1_1.0.comp"
+  snap install --dangerous "test-snapctl-no-wait+comp2_1.0.comp"
+
+restore: |
+  snap remove --purge test-snapctl-no-wait || true
+
+execute: |
+  # Poll is-ready until the given change ID reaches Done (exit 0),
+  # failing if the change errors (exit 2+) or times out.
+  wait_for_change() {
+    local change_id="$1"
+    for _ in $(seq 30); do
+      exit_code=0
+      snap run --shell test-snapctl-no-wait.app -c "snapctl is-ready $change_id" || exit_code=$?
+      if [ "$exit_code" -eq 0 ]; then
+        return 0
+      elif [ "$exit_code" -ge 2 ]; then
+        echo "Change $change_id completed with error (exit $exit_code)"
+        return 1
+      fi
+      sleep 1
+    done
+    echo "Timed out waiting for change $change_id"
+    return 1
+  }
+
+  echo "Verify both components are installed before removal"
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp1\s+installed'
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp2\s+installed'
+
+  echo "Remove comp1 via snapctl --no-wait, capturing change ID from stdout"
+  CHANGE_ID_1=$(snap run --shell test-snapctl-no-wait.app -c 'snapctl remove +comp1 --no-wait')
+  test -n "$CHANGE_ID_1"
+
+  echo "Poll is-ready for comp1 removal change ($CHANGE_ID_1)"
+  wait_for_change "$CHANGE_ID_1"
+
+  echo "Remove comp2 via snapctl --no-wait, capturing change ID from stdout"
+  CHANGE_ID_2=$(snap run --shell test-snapctl-no-wait.app -c 'snapctl remove +comp2 --no-wait')
+  test -n "$CHANGE_ID_2"
+
+  echo "Change IDs are distinct"
+  test "$CHANGE_ID_1" != "$CHANGE_ID_2"
+
+  echo "Poll is-ready for comp2 removal change ($CHANGE_ID_2)"
+  wait_for_change "$CHANGE_ID_2"
+
+  echo "Verify both components have been removed"
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp1\s+available'
+  snap components test-snapctl-no-wait | MATCH 'test-snapctl-no-wait\+comp2\s+available'
+
+  echo "is-ready still exits 0 for already-completed changes"
+  snap run --shell test-snapctl-no-wait.app -c "snapctl is-ready $CHANGE_ID_1"
+  snap run --shell test-snapctl-no-wait.app -c "snapctl is-ready $CHANGE_ID_2"

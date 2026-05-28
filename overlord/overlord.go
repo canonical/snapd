@@ -95,7 +95,8 @@ type Overlord struct {
 
 	stateEng *StateEngine
 	// ensure loop
-	loopTomb    *tomb.Tomb
+	loopTomb    tomb.Tomb
+	loopProceed chan struct{}
 	ensureLock  sync.Mutex
 	ensureTimer *time.Timer
 	ensureNext  time.Time
@@ -134,8 +135,11 @@ var storeNew = store.New
 // It can be provided with an optional restart.Handler.
 func New(restartHandler restart.Handler) (*Overlord, error) {
 	o := &Overlord{
-		inited: true,
+		inited:      true,
+		loopProceed: make(chan struct{}),
 	}
+	// create the loop goroutine
+	o.loopTomb.Go(o.loop)
 
 	backend := &overlordStateBackend{
 		path:         dirs.SnapStateFile,
@@ -180,7 +184,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 	o.addManager(assertMgr)
 
-	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.runner, nil, nil)
+	ifaceMgr, err := ifacestate.Manager(s, hookMgr, o.noticeMgr, o.runner, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -490,49 +494,58 @@ var preseedExitWithError = func(err error) {
 }
 
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
+// It can be invoked only once otherwise it panics.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	preseed := snapdenv.Preseeding()
 	if preseed {
 		o.runner.OnTaskError(preseedExitWithError)
 	}
-	if o.loopTomb == nil {
-		o.loopTomb = new(tomb.Tomb)
+	// proceed with the loop
+	close(o.loopProceed)
+}
+
+func (o *Overlord) loop() error {
+	select {
+	case <-o.loopProceed:
+		// proceed with the loop
+	case <-o.loopTomb.Dying():
+		return nil
 	}
-	o.loopTomb.Go(func() error {
-		for {
-			// TODO: pass a proper context into Ensure
-			o.ensureTimerReset()
-			// in case of errors engine logs them,
-			// continue to the next Ensure() try for now
-			err := o.stateEng.Ensure()
-			if err != nil && preseed {
-				st := o.State()
-				// acquire state lock to ensure nothing attempts to write state
-				// as we are exiting; there is no deferred unlock to avoid
-				// potential race on exit.
-				st.Lock()
-				preseedExitWithError(err)
-			}
-			o.ensureDidRun()
-			pruneC := pruneTickerC(o.pruneTicker)
-			select {
-			case <-o.loopTomb.Dying():
-				return nil
-			case <-o.ensureTimer.C:
-			case <-pruneC:
-				if preseed {
-					// in preseed mode avoid setting StartOfOperationTime (it's
-					// an error), and don't Prune.
-					continue
-				}
-				st := o.State()
-				st.Lock()
-				st.Prune(o.startOfOperationTime, pruneWait, abortWait, pruneMaxChanges)
-				st.Unlock()
-			}
+	preseed := snapdenv.Preseeding()
+
+	for {
+		// TODO: pass a proper context into Ensure
+		o.ensureTimerReset()
+		// in case of errors engine logs them,
+		// continue to the next Ensure() try for now
+		err := o.stateEng.Ensure()
+		if err != nil && preseed {
+			st := o.State()
+			// acquire state lock to ensure nothing attempts to write state
+			// as we are exiting; there is no deferred unlock to avoid
+			// potential race on exit.
+			st.Lock()
+			preseedExitWithError(err)
 		}
-	})
+		o.ensureDidRun()
+		pruneC := pruneTickerC(o.pruneTicker)
+		select {
+		case <-o.loopTomb.Dying():
+			return nil
+		case <-o.ensureTimer.C:
+		case <-pruneC:
+			if preseed {
+				// in preseed mode avoid setting StartOfOperationTime (it's
+				// an error), and don't Prune.
+				continue
+			}
+			st := o.State()
+			st.Lock()
+			st.Prune(o.startOfOperationTime, pruneWait, abortWait, pruneMaxChanges)
+			st.Unlock()
+		}
+	}
 }
 
 func (o *Overlord) ensureDidRun() {
@@ -546,11 +559,8 @@ func (o *Overlord) CanStandby() bool {
 
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
-	var err error
-	if o.loopTomb != nil {
-		o.loopTomb.Kill(nil)
-		err = o.loopTomb.Wait()
-	}
+	o.loopTomb.Kill(nil)
+	err := o.loopTomb.Wait()
 	o.stateEng.Stop()
 	if o.stateFLock != nil {
 		// This will also unlock the file
@@ -773,8 +783,12 @@ func Mock() *Overlord {
 // disk. Managers can be added with AddManager. For testing.
 func MockWithState(s *state.State) *Overlord {
 	o := &Overlord{
-		inited: false,
+		inited:      false,
+		loopProceed: make(chan struct{}),
 	}
+	// create the loop goroutine
+	o.loopTomb.Go(o.loop)
+
 	if s == nil {
 		s = state.New(mockBackend{o: o})
 	}

@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=Test Snapd Portal Client
+Exec=test-snapd-portal-client
+Type=Application

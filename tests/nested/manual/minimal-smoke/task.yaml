@@ -29,6 +29,9 @@ execute: |
     if [ "$VERSION" -ge 20 ]; then
         MINIMAL_MEM=512
     fi
+    if [ "${NESTED_ENABLE_SECURE_BOOT}" = "true" ] && [ "$VERSION" -ge 26 ]; then
+        MINIMAL_MEM=768
+    fi
 
     tests.nested create-vm core --param-mem "$MINIMAL_MEM"
 

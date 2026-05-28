@@ -14,6 +14,7 @@ prepare: |
 
 restore: |
   snap unset system experimental.confdb
+  rm first_read last_read || true
 
 execute: |
   changeAfterID() {
@@ -151,3 +152,39 @@ execute: |
   MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/load-view-manage-wifi-ran
   # but query-view gets the value load-view sets
   MATCH "loaded-secret" < /var/snap/loading-custodian/common/query-view-manage-wifi-ran
+
+  # waiting-custodian will block on write or read ops until a flag is written
+  resetTestState
+  snap disconnect loading-custodian:manage-wifi
+  "$TESTSTOOLS"/snaps-state install-local waiting-custodian
+  snap connect waiting-custodian:wifi-setup
+
+  OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
+  snap set developer1/network-ephemeral/wifi-setup password=initial-password &
+
+  # first change blocks on the save-view-* hook
+  changeAfterID "$OLD_CHANGE"
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Doing.*Set confdb through \"developer1/network-ephemeral/wifi-setup\""'
+  BLOCKED_CHANGE=$(( OLD_CHANGE + 1 ))
+  snap change "$BLOCKED_CHANGE" | MATCH "Doing.*Run hook save-view-wifi-setup"
+
+  # the access timeout should make this call error without being unblocked
+  timeout -s KILL 2s snap get developer1/network-ephemeral/wifi-setup --wait-for 0s password 2>&1 | tr -d "\n" | tr -s '  ' ' ' |  MATCH "error: cannot read developer1/network-ephemeral/wifi-setup: timed out waiting for access"
+
+  # queue a series of operations that will block on the previous one sequentially
+  sleep 1
+  snap get developer1/network-ephemeral/wifi-setup password > first-read &
+  sleep 1
+  snap set developer1/network-ephemeral/wifi-setup password=last-password &
+  sleep 1
+  snap get developer1/network-ephemeral/wifi-setup password > last-read &
+
+  # unblock the first write and wait for the next operations to complete
+  touch /var/snap/waiting-custodian/common/flag
+  wait
+
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-setup\""'
+
+  # check the operations executed in the expected order
+  MATCH "initial-password" < first-read
+  MATCH "last-password" < last-read

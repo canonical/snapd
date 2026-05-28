@@ -293,6 +293,9 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 	checkOPTEEEncryption := !checkFDESetupHookEncryption && secbootFDEOpteeTAPresent()
 	checkSecbootEncryption := !checkOPTEEEncryption
 
+	logger.Noticef("has FDE hooks: %t; try snapd OP-TEE: %t",
+		checkFDESetupHookEncryption, checkOPTEEEncryption)
+
 	var checkEncryptionErr error
 	switch {
 	case checkFDESetupHookEncryption:

@@ -375,6 +375,7 @@ rmdir
 
 # glibc 2.35 unconditionally calls rseq for all threads
 rseq
+rseq_slice_yield
 
 rt_sigaction
 rt_sigpending

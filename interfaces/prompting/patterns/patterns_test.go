@@ -36,6 +36,42 @@ type patternsSuite struct{}
 
 var _ = Suite(&patternsSuite{})
 
+func (s *patternsSuite) TestEscapeLiteralPathMatchesOriginalPath(c *C) {
+	for _, testCase := range []struct {
+		original string
+		expected string
+	}{
+		{`/foo/bar`, `/foo/bar`},
+		{`/foo*bar`, `/foo\*bar`},
+		{`/foo?bar`, `/foo\?bar`},
+		{`/foo\bar`, `/foo\\bar`},
+		{`/foo(bar,baz)`, `/foo(bar,baz)`}, // () are not special, so not escaped
+		{`/foo[bar,baz]`, `/foo\[bar,baz\]`},
+		{`/foo{bar,baz}`, `/foo\{bar,baz\}`},
+		{`/foo\*bar`, `/foo\\\*bar`},
+		{`/foo\?bar`, `/foo\\\?bar`},
+		{`/foo\\bar`, `/foo\\\\bar`},
+		{`/foo\(bar,baz\)`, `/foo\\(bar,baz\\)`}, // () are not special, so not escaped
+		{`/foo\[bar,baz\]`, `/foo\\\[bar,baz\\\]`},
+		{`/foo\{bar,baz\}`, `/foo\\\{bar,baz\\\}`},
+		{`/foo*?()[]{}'",\`, `/foo\*\?()\[\]\{\}'",\\`},
+		{`/foo/bar/[アニメ][ゲーム動画].mkv`, `/foo/bar/\[アニメ\]\[ゲーム動画\].mkv`},
+	} {
+		result := patterns.EscapeLiteralPath(testCase.original)
+		c.Check(result, Equals, testCase.expected)
+
+		// Check that a path pattern equal to the escaped path does indeed
+		// match the original path
+		expectedPathPattern, err := patterns.ParsePathPattern(testCase.expected)
+		c.Assert(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Assert(expectedPathPattern, NotNil, Commentf("testCase: %+v", testCase))
+		c.Check(expectedPathPattern.String(), Equals, testCase.expected, Commentf("testCase: %+v", testCase))
+		matches, err := expectedPathPattern.Match(testCase.original)
+		c.Check(err, IsNil, Commentf("testCase: %+v", testCase))
+		c.Check(matches, Equals, true, Commentf("testCase: %+v", testCase))
+	}
+}
+
 func (s *patternsSuite) TestParsePathPatternHappy(c *C) {
 	for _, pattern := range []string{
 		"/",

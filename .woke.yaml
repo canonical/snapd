@@ -6,6 +6,7 @@ ignore_files:
   - cmd/libsnap-confine-private/string-utils.c
   - cmd/snap-confine/snap-confine.apparmor.in
   - cmd/snap-confine/snap-confine.c
+  - interfaces/kmod/backend.go
   - osutil/mount/libmount/libmount_linux.go
   - osutil/mount/libmount/libmount_linux_test.go
   - osutil/vfs/tests/bind-semantics/task.yaml
@@ -28,7 +29,10 @@ ignore_files:
   - osutil/vfs/vfs.go
   - packaging/debian-sid/changelog
   - packaging/fedora/snapd.spec
+  - packaging/ubuntu-16.04/control
+  - packaging/ubuntu-26.04/control
   - packaging/ubuntu-14.04/changelog
   - packaging/ubuntu-16.04/changelog
   - tests/lib/snaps/store/test-snapd-ovmf/snapcraft.yaml
   - tests/lib/tools/tests.session
+  - tests/main/remove-impacted-by-mounts/task.yaml

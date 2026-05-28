@@ -1,0 +1,64 @@
+summary: Check snapd reseals properly after it is refreshed and system rebooted
+
+details: |
+  This test checks that snapd reseals properly after it is refreshed and system rebooted.
+  It is expected that snapd will print "resealing .* succeeded" in the logs after the reboot.
+  This test is intended to be executed in the testflinger backend on real hardware. 
+
+# This test is intended to be executed in the testflinger backend on real hardware. 
+# It is not expected to work in a VM environment.
+# backends: [testflinger]
+
+systems: [ubuntu-core-*]
+
+manual: true
+
+environment:
+  SNAPD_REFRESH_CHANNEL: ${NEW_SNAPD_CHANNEL:-edge}
+  KERNEL_REFRESH_CHANNEL: beta
+
+skip:
+  - reason: Secure boot is not enabled in the current system
+    if: journalctl -b | NOMATCH "secureboot.*enabled"
+
+prepare: |
+  if [ "$SPREAD_REBOOT" = 0 ]; then
+    # In uc20 the refresh is triggering a reboot because of the kernel command lines is updated.
+    # This is expected when running in images with older snapd versions.
+    snap refresh snapd --revision 25202 --no-wait   # this is the revision 2.71 amd64
+    if retry -n 50 --wait 2 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'; then
+      echo "Snapd is waiting for system reboot, rebooting now..."
+      REBOOT
+    else
+      echo "Snapd is not waiting for system reboot"
+    fi
+  fi
+
+execute: |
+  snap list pc-kernel --unicode=never | awk 'NR==2 {print $3}' > kernel_rev_"$SPREAD_REBOOT".txt
+  snap list snapd --unicode=never | awk 'NR==2 {print $3}' > snapd_rev_"$SPREAD_REBOOT".txt
+  if [ "$SPREAD_REBOOT" = 0 ]; then
+    VERSION=$(grep 'VERSION_ID=' /etc/os-release | cut -d '"' -f 2)
+    snap refresh snapd --channel="latest/$SNAPD_REFRESH_CHANNEL"
+    snap refresh pc-kernel --channel="$VERSION/$KERNEL_REFRESH_CHANNEL"
+    REBOOT
+  fi
+
+  # Check the kernel revision has changed after the reboot
+  if diff -q kernel_rev_0.txt kernel_rev_1.txt; then
+    echo "Kernel revision has not changed after reboot, which is unexpected"
+    exit 1
+  else
+    echo "Kernel revision has changed after reboot, as expected"
+  fi
+
+  # Check snapd revision has changed after the reboot
+  if diff -q snapd_rev_0.txt snapd_rev_1.txt; then
+    echo "Snapd revision has not changed after reboot, which is unexpected"
+    exit 1
+  else
+    echo "Snapd revision has changed after reboot, as expected"
+  fi
+
+  # Check snapd resealed properly after the reboot
+  "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "resealing .* succeeded"

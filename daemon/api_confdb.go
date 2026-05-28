@@ -19,10 +19,12 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -64,10 +66,10 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	vars := muxVars(r)
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
+	query := r.URL.Query()
 
-	keysStr := r.URL.Query().Get("keys")
 	var keys []string
-	if keysStr != "" {
+	if keysStr := query.Get("keys"); keysStr != "" {
 		keys = strutil.CommaSeparatedList(keysStr)
 	}
 
@@ -89,11 +91,24 @@ func getView(c *Command, r *http.Request, _ *auth.UserState) Response {
 		return toAPIError(err)
 	}
 
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return toAPIError(err)
+	ctx := r.Context()
+	if timeoutStr := query.Get("access-timeout"); timeoutStr != "" {
+		timeout, err := time.ParseDuration(timeoutStr)
+		if err != nil {
+			return BadRequest("cannot read confdb: invalid access-timeout: %q", timeoutStr)
+		}
+
+		if timeout < 0 {
+			return BadRequest("cannot read confdb: access timeout must be non-negative")
+		}
+
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
-	chgID, err := confdbstateLoadConfdbAsync(st, view, keys, constraints, int(ucred.Uid))
+
+	// Allow both root and snap API admins admin access to confdb data
+	chgID, err := confdbstateReadConfdb(ctx, st, view, keys, constraints, confdb.AdminAccess)
 	if err != nil {
 		return toAPIError(err)
 	}
@@ -135,7 +150,10 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	account, schemaName, viewName := vars["account"], vars["confdb-schema"], vars["view"]
 
 	type setAction struct {
-		Values map[string]any `json:"values"`
+		Values  map[string]any `json:"values"`
+		Options struct {
+			AccessTimeout string `json:"access-timeout"`
+		}
 	}
 
 	var action setAction
@@ -145,31 +163,38 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if len(action.Values) == 0 {
-		return BadRequest("cannot set confdb: request body contains no values")
+		return BadRequest("cannot write confdb: request body contains no values")
 	}
+
+	ctx := r.Context()
+	if action.Options.AccessTimeout != "" {
+		timeout, err := time.ParseDuration(action.Options.AccessTimeout)
+		if err != nil {
+			return BadRequest("cannot write confdb: invalid access-timeout: %q", action.Options.AccessTimeout)
+		}
+
+		if timeout < 0 {
+			return BadRequest("cannot write confdb: access timeout must be non-negative")
+		}
+
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	// TODO: apply some size restrictions to the value (so someone can't pass
 	// a massive string, for instance)
-
 	view, err := confdbstateGetView(st, account, schemaName, viewName)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	tx, commitTxFunc, err := confdbstateGetTransactionToSet(nil, st, view)
+	changeID, err := confdbstateWriteConfdb(ctx, st, view, action.Values)
 	if err != nil {
 		return toAPIError(err)
 	}
 
-	err = confdbstateSetViaView(tx, view, action.Values)
-	if err != nil {
-		return toAPIError(err)
-	}
-
-	changeID, _, err := commitTxFunc()
-	if err != nil {
-		return toAPIError(err)
-	}
-
+	ensureStateSoon(st)
 	return AsyncResponse(nil, changeID)
 }
 

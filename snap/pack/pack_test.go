@@ -622,3 +622,313 @@ func (s *packSuite) TestPackWithCompressionUnhappy(c *C) {
 		c.Assert(snapfile, Equals, "")
 	}
 }
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetExists(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "import"), 0755), IsNil)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, IsNil)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetMissing(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target \$SNAP/import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetNotDirectory(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	c.Assert(os.WriteFile(filepath.Join(sourceDir, "import"), []byte(""), 0644), IsNil)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target \$SNAP/import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetOldBaseSkipped(c *C) {
+	const snapYamlTemplate = `name: hello
+version: 0
+base: %s
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`
+	for _, base := range []string{"core", "core18", "core20", "core22", "core24"} {
+		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, base))
+		var buf bytes.Buffer
+		err := pack.CheckSkeleton(&buf, sourceDir)
+		c.Assert(err, IsNil, Commentf("base: %s", base))
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetBareBase(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: bare
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target \$SNAP/import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetEmptyBase(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+plugs:
+ shared-data:
+  interface: content
+  target: $SNAP/import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, IsNil)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetRuntimePathSkipped(c *C) {
+	const snapYamlTemplate = `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: %s/import
+`
+	for _, prefix := range []string{"$SNAP_DATA", "$SNAP_COMMON"} {
+		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, prefix))
+		var buf bytes.Buffer
+		err := pack.CheckSkeleton(&buf, sourceDir)
+		c.Assert(err, IsNil, Commentf("target prefix: %s", prefix))
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetNoPrefix(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: import
+`)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "shared-data" target import must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetEdgeCases(c *C) {
+	const snapYamlTemplate = `name: hello
+version: 0
+base: core26
+plugs:
+ shared-data:
+  interface: content
+  target: %s
+`
+	for _, tc := range []struct {
+		target string
+		ok     bool
+	}{
+		// all of these resolve to $SNAP and validation is always successful
+		{"$SNAP", true},
+		{"$SNAP/", true},
+		{"/", true},
+		// /path has implicit $SNAP prefix, leading / is stripped
+		{"/import", false},
+	} {
+		sourceDir := makeExampleSnapSourceDir(c, fmt.Sprintf(snapYamlTemplate, tc.target))
+		var buf bytes.Buffer
+		err := pack.CheckSkeleton(&buf, sourceDir)
+		if tc.ok {
+			c.Assert(err, IsNil, Commentf("target: %s", tc.target))
+		} else {
+			c.Assert(err, ErrorMatches, `content interface plug "shared-data" target.*must exist and must be a directory.*`, Commentf("target: %s", tc.target))
+		}
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonContentPlugTargetMultiplePlugs(c *C) {
+	sourceDir := makeExampleSnapSourceDir(c, `name: hello
+version: 0
+base: core26
+plugs:
+ plug-existing:
+  interface: content
+  target: $SNAP/existing
+ plug-missing:
+  interface: content
+  target: $SNAP/missing
+`)
+	c.Assert(os.Mkdir(filepath.Join(sourceDir, "existing"), 0755), IsNil)
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	c.Assert(err, ErrorMatches, `content interface plug "plug-missing" target \$SNAP/missing must exist and must be a directory, ensure it is present in the snap or created before packing`)
+}
+
+type layoutSourceTestCase struct {
+	summary  string
+	base     string
+	layout   string   // layout fragment (indented, under "layout:" key)
+	plugs    string   // plugs fragment (indented, under "plugs:" key)
+	create   []string // paths to create: trailing "/" = dir, 'A -> B' = symlink A pointing to B, otherwise a file
+	errMatch string   // expected error regex, "" = no error expected
+}
+
+func (s *packSuite) checkSkeletonLayoutPath(c *C, tc layoutSourceTestCase) {
+	c.Logf("tc: %+v", tc)
+
+	yamlStr := fmt.Sprintf("name: hello\nversion: 0\nbase: %s\n", tc.base)
+	if tc.plugs != "" {
+		yamlStr += "plugs:\n" + tc.plugs
+	}
+	yamlStr += "layout:\n" + tc.layout
+
+	sourceDir := makeExampleSnapSourceDir(c, yamlStr)
+	for _, f := range tc.create {
+		if before, after, ok := strings.Cut(f, " -> "); ok {
+			// "name -> target" creates a symlink
+			path := filepath.Join(sourceDir, before)
+			c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
+			c.Assert(os.Symlink(after, path), IsNil)
+		} else if strings.HasSuffix(f, "/") {
+			path := filepath.Join(sourceDir, f)
+			c.Assert(os.MkdirAll(path, 0755), IsNil)
+		} else {
+			path := filepath.Join(sourceDir, f)
+			c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)
+			c.Assert(os.WriteFile(path, []byte(""), 0644), IsNil)
+		}
+	}
+	var buf bytes.Buffer
+	err := pack.CheckSkeleton(&buf, sourceDir)
+	if tc.errMatch == "" {
+		c.Assert(err, IsNil, Commentf("test: %s", tc.summary))
+	} else {
+		c.Assert(err, ErrorMatches, tc.errMatch, Commentf("test: %s", tc.summary))
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonLayoutSourceValid(c *C) {
+	for _, tc := range []layoutSourceTestCase{
+		{
+			summary: "bind source directory exists",
+			base:    "core26",
+			layout:  " /opt/lib:\n  bind: $SNAP/lib\n",
+			create:  []string{"lib/"},
+		}, {
+			summary: "bind-file source file exists",
+			base:    "core26",
+			layout:  " /opt/foo.conf:\n  bind-file: $SNAP/foo.conf\n",
+			create:  []string{"foo.conf"},
+		}, {
+			// setup similar to what snapcraft desktop extension injects during build
+			summary: "source under content target with full path present",
+			base:    "core26",
+			plugs:   " gnome:\n  interface: content\n  target: $SNAP/gnome-platform\n",
+			layout:  " /usr/lib/webkit:\n  bind: $SNAP/gnome-platform/usr/lib/webkit\n",
+			create:  []string{"gnome-platform/usr/lib/webkit/"},
+		}, {
+			// symlink target in $SNAP is not required to exist
+			summary: "symlink layout not checked",
+			base:    "core26",
+			layout:  " /opt/data:\n  symlink: $SNAP/data\n",
+		}, {
+			summary: "$SNAP_DATA source skipped",
+			base:    "core26",
+			layout:  " /opt/lib:\n  bind: $SNAP_DATA/lib\n",
+		}, {
+			summary: "$SNAP_COMMON source skipped",
+			base:    "core26",
+			layout:  " /opt/lib:\n  bind: $SNAP_COMMON/lib\n",
+		}, {
+			summary: "tmpfs under $SNAP with directory present",
+			base:    "core26",
+			layout:  " $SNAP/tmpdir:\n  type: tmpfs\n",
+			create:  []string{"tmpdir/"},
+		}, {
+			summary: "tmpfs at system path not checked",
+			base:    "core26",
+			layout:  " /usr/share/foo:\n  type: tmpfs\n",
+		},
+	} {
+		s.checkSkeletonLayoutPath(c, tc)
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonLayoutSourceInvalid(c *C) {
+	for _, tc := range []layoutSourceTestCase{
+		{
+			summary:  "bind source missing",
+			base:     "core26",
+			layout:   " /opt/lib:\n  bind: $SNAP/lib\n",
+			errMatch: `layout "/opt/lib" source "\$SNAP/lib" must exist and be a directory, ensure it is present in the snap or created before packing`,
+		}, {
+			summary:  "bind source is a file not directory",
+			base:     "core26",
+			layout:   " /opt/lib:\n  bind: $SNAP/lib\n",
+			create:   []string{"lib"},
+			errMatch: `layout "/opt/lib" source "\$SNAP/lib" must exist and be a directory, ensure it is present in the snap or created before packing`,
+		}, {
+			summary:  "bind-file source is a directory not file",
+			base:     "core26",
+			layout:   " /opt/foo.conf:\n  bind-file: $SNAP/foo.conf\n",
+			create:   []string{"foo.conf/"},
+			errMatch: `layout "/opt/foo.conf" source "\$SNAP/foo.conf" must exist and be a file, ensure it is present in the snap or created before packing`,
+		}, {
+			summary:  "bind-file source is a symlink not file",
+			base:     "core26",
+			layout:   " /opt/foo.conf:\n  bind-file: $SNAP/foo.conf\n",
+			create:   []string{"foo.conf -> some-target"},
+			errMatch: `layout "/opt/foo.conf" source "\$SNAP/foo.conf" must exist and be a file, ensure it is present in the snap or created before packing`,
+		}, {
+			summary:  "tmpfs under $SNAP directory missing",
+			base:     "core26",
+			layout:   " $SNAP/missing:\n  type: tmpfs\n",
+			errMatch: `layout "\$SNAP/missing" must exist as a directory in the snap, ensure it is present or created before packing`,
+		}, {
+			summary:  "tmpfs under $SNAP target is a file not directory",
+			base:     "core26",
+			layout:   " $SNAP/notadir:\n  type: tmpfs\n",
+			create:   []string{"notadir"},
+			errMatch: `layout "\$SNAP/notadir" must exist as a directory in the snap, ensure it is present or created before packing`,
+		},
+	} {
+		s.checkSkeletonLayoutPath(c, tc)
+	}
+}
+
+func (s *packSuite) TestCheckSkeletonLayoutSourceOldBaseSkipped(c *C) {
+	for _, base := range []string{"core", "core18", "core20", "core22", "core24"} {
+		s.checkSkeletonLayoutPath(c, layoutSourceTestCase{
+			summary: "old base " + base,
+			base:    base,
+			layout:  " /opt/lib:\n  bind: $SNAP/lib\n",
+		})
+	}
+}

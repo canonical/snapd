@@ -490,12 +490,25 @@ nested_cleanup_env() {
     rm -rf "$(nested_get_extra_snaps_path)"
 }
 
-nested_get_core_channel() {
+nested_get_image_channel() {
     if nested_is_core_26_system; then
         # TODO: Remove when it becomes available in the other channels
         echo "edge"
     else
         echo "${NESTED_CORE_CHANNEL}"
+    fi
+}
+
+nested_get_base_channel() {
+    if nested_is_core_26_system; then
+        # TODO: use $CORE_CHANNEL for the risk when core26 is released
+        if [ "$NESTED_USE_CLOUD_INIT" = "true" ]; then
+            echo "cloud-init/edge"
+        else
+            echo "edge"
+        fi
+    else
+        echo "${CORE_CHANNEL:-edge}"
     fi
 }
 
@@ -515,7 +528,7 @@ nested_get_gadget_channel() {
 nested_get_image_name_base() {
     local TYPE="$1"
     local SOURCE
-    SOURCE="$(nested_get_core_channel)"
+    SOURCE="$(nested_get_image_channel)"
     local NAME="${NESTED_IMAGE_ID:-generic}"
     local VERSION
 
@@ -897,10 +910,10 @@ nested_prepare_base() {
             fi
             return
         fi
-        
+
         if [ ! -f "$NESTED_ASSETS_DIR/$output_name" ]; then
             echo "Repacking $snap_name snap"
-            snap download --channel="$CORE_CHANNEL" --basename="$snap_name" "$snap_name"
+            snap download --channel="$(nested_get_base_channel)" --basename="$snap_name" "$snap_name"
             repack_core_snap_with_tweaks "${snap_name}.snap" "new-${snap_name}.snap"
             rm -f "$snap_name".snap "$snap_name".assert
 
@@ -1013,13 +1026,19 @@ nested_create_core_vm() {
             export SNAPPY_FORCE_SAS_URL
             UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
             export UBUNTU_IMAGE_SNAP_CMD
-            local core_channel
-            core_channel="$(nested_get_core_channel)"
-            if [ -n "${core_channel}" ]; then
-                UBUNTU_IMAGE_CHANNEL_ARG="--channel ${core_channel}"
-            else 
+            local image_channel
+            image_channel="$(nested_get_image_channel)"
+            if [ -n "${image_channel}" ]; then
+                UBUNTU_IMAGE_CHANNEL_ARG="--channel ${image_channel}"
+            else
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+
+            # Starting on core26 we have different tracks depending on whether
+            # cloud-init is included in the snap or not. This won't have any
+            # effect if using an unasserted snap.
+            local BASE_CHANNEL=""
+            BASE_CHANNEL=$(nested_get_base_channel)
 
             declare -a UBUNTU_IMAGE_PRESEED_ARGS
             if [ -n "$NESTED_UBUNTU_IMAGE_PRESEED_KEY" ]; then
@@ -1031,6 +1050,7 @@ nested_create_core_vm() {
             SNAPD_DEBUG=1 "$UBUNTU_IMAGE" snap --image-size 10G \
                "$NESTED_MODEL" \
                 $UBUNTU_IMAGE_CHANNEL_ARG \
+                $BASE_CHANNEL \
                 "${UBUNTU_IMAGE_PRESEED_ARGS[@]:-}" \
                 --output-dir "$NESTED_IMAGES_DIR" \
                 --sector-size "${NESTED_DISK_LOGICAL_BLOCK_SIZE}" \
@@ -1843,7 +1863,7 @@ nested_prepare_tools() {
     if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
         REMOTE_PATH="$(remote.exec 'echo $PATH')"
-        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+        remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH:/usr/lib/python | sudo tee -a /etc/environment"
     fi
 
     if [ -n "$TAG_FEATURES" ]; then

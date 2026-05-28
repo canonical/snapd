@@ -22,9 +22,11 @@ package ctlcmd
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/osutil/user"
@@ -51,6 +53,8 @@ var (
 )
 
 type KmodCommand = kmodCommand
+type IsReadyCommand = isReadyCommand
+type ChangeRateLimitKey = changeRateLimitKey
 
 func MockKmodCheckConnection(f func(*hookstate.Context, string, []string) error) (restore func()) {
 	r := testutil.Backup(&kmodCheckConnection)
@@ -187,11 +191,11 @@ func MockNewStatusDecorator(f func(ctx context.Context, isGlobal bool, uid strin
 	return restore
 }
 
-func MockConfdbstateTransactionForSet(f func(*hookstate.Context, *state.State, *confdb.View) (*confdbstate.Transaction, confdbstate.CommitTxFunc, error)) (restore func()) {
-	old := confdbstateTransactionForSet
-	confdbstateTransactionForSet = f
+func MockConfdbstateWriteConfdb(f func(*hookstate.Context, *confdb.View, map[string]any, *client.ConfdbOptions) error) (restore func()) {
+	old := confdbstateWriteConfdb
+	confdbstateWriteConfdb = f
 	return func() {
-		confdbstateTransactionForSet = old
+		confdbstateWriteConfdb = old
 	}
 }
 
@@ -203,10 +207,17 @@ func MockConfdbstateGetView(f func(st *state.State, account, confdbName, viewNam
 	}
 }
 
-func MockConfdbstateTransactionForGet(f func(*hookstate.Context, *confdb.View, []string, map[string]any) (*confdbstate.Transaction, error)) (restore func()) {
-	old := confdbstateTransactionForGet
-	confdbstateTransactionForGet = f
+func MockConfdbstateReadConfdb(f func(*hookstate.Context, *confdb.View, []string, map[string]any, *client.ConfdbOptions) (*confdbstate.Transaction, error)) (restore func()) {
+	old := confdbstateReadConfdb
+	confdbstateReadConfdb = f
 	return func() {
-		confdbstateTransactionForGet = old
+		confdbstateReadConfdb = old
 	}
+}
+
+// TODO:GOVERSION: use time bubbles once project is updated to Go 1.26
+func MockTimeAfter(f func(time.Duration) <-chan time.Time) (restore func()) {
+	old := timeAfter
+	timeAfter = f
+	return func() { timeAfter = old }
 }

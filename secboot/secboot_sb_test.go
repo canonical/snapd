@@ -781,10 +781,10 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 
 			if !tc.noKeyFile && !tc.errorReadKeyFile {
 				if tc.oldKeyFormat {
-					keyPath = filepath.Join("test-data", "keyfile")
+					keyPath = filepath.Join("testdata", "keyfile")
 				} else {
-					keyPath = filepath.Join("test-data", "keydata")
-					keyPath2 = filepath.Join("test-data", "keydata2")
+					keyPath = filepath.Join("testdata", "keydata")
+					keyPath2 = filepath.Join("testdata", "keydata2")
 				}
 				finfo, err := os.Lstat(keyPath)
 				c.Assert(err, IsNil)
@@ -1654,6 +1654,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 			// add options for legacy PCR configuration
 			expectedOptions = append(
 				expectedOptions,
+				sb_efi.WithAllowSecureBootUserMode(),
 				sb_efi.WithSecureBootPolicyProfile(),
 				sb_efi.WithBootManagerCodeProfile(),
 			)
@@ -1768,12 +1769,12 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 				// To create full looking
 				// mockSealedKeyObjects, although {},{} would
 				// have been enough as well
-				mockSealedKeyFile := filepath.Join("test-data", "keyfile")
+				mockSealedKeyFile := filepath.Join("testdata", "keyfile")
 				mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
 				c.Assert(err, IsNil)
 				mockSealedKeyObjects = append(mockSealedKeyObjects, mockSealedKeyObject)
 			} else {
-				mockSealedKeyFile := filepath.Join("test-data", "keydata")
+				mockSealedKeyFile := filepath.Join("testdata", "keydata")
 				reader, err := sb.NewFileKeyDataReader(mockSealedKeyFile)
 				c.Assert(err, IsNil)
 				kd, err := sb.ReadKeyData(reader)
@@ -4098,7 +4099,7 @@ func (s *secbootSuite) TestReadKeyFileKeyData(c *C) {
 func (s *secbootSuite) TestReadKeyFileSealedObject(c *C) {
 	keyLoader := &secboot.DefaultKeyLoader{}
 	const fdeHookHint = false
-	keyPath := filepath.Join("test-data", "keyfile")
+	keyPath := filepath.Join("testdata", "keyfile")
 
 	readSealedKeyObjectFromFileCalls := 0
 	restore := secboot.MockSbReadSealedKeyObjectFromFile(func(path string) (*sb_tpm2.SealedKeyObject, error) {
@@ -5123,7 +5124,6 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 		tpmErr              error
 		sealErr             error
 		addErr              error
-		primaryKeyErr       error
 		unlockKeyErr        error
 		keydataWriteErr     error
 		sealCalls           int
@@ -5133,7 +5133,6 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 	}{
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, sealCalls: 1},
-		{tpmEnabled: true, primaryKeyErr: mockErr, expectedErr: "cannot get primary key from kernel keyring for unlocked disk /dev/foo: some error"},
 		{tpmEnabled: true, unlockKeyErr: mockErr, expectedErr: "cannot get unlock key from kernel keyring for unlocked disk /dev/foo: some error"},
 		{tpmEnabled: true, tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "cannot seal key: some error"},
@@ -5148,13 +5147,6 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 
 		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, false)
 		c.Assert(err, IsNil)
-
-		defer secboot.MockSbGetPrimaryKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.PrimaryKey, error) {
-			c.Check(prefix, Equals, "ubuntu-fde")
-			c.Check(devicePath, Equals, "/dev/foo")
-			c.Check(remove, Equals, false)
-			return sb.PrimaryKey{'p', 'r', 'i', 'm', 'a', 'r', 'y'}, tc.primaryKeyErr
-		})()
 
 		defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
 			c.Check(prefix, Equals, "ubuntu-fde")
@@ -5230,6 +5222,7 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 			PCRPolicyCounterHandle: 12,
 			KeyRole:                "somerole",
 			VolumesAuth:            tc.volumesAuth,
+			PrimaryKey:             sb.PrimaryKey{'p', 'r', 'i', 'm', 'a', 'r', 'y'},
 		}
 		err = secboot.AddContainerTPMProtectedKey("/dev/foo", "bar", &params)
 
@@ -5395,7 +5388,7 @@ func (s *secbootSuite) TestResealKeyTPMKeyFileLegacy(c *C) {
 	})()
 
 	kd := &sb.KeyData{}
-	mockSealedKeyFile := filepath.Join("test-data", "keyfile")
+	mockSealedKeyFile := filepath.Join("testdata", "keyfile")
 	mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObjectFromFile(mockSealedKeyFile)
 	c.Assert(err, IsNil)
 
@@ -5842,4 +5835,70 @@ func (s *secbootSuite) TestActivateStateDegraded(c *C) {
 
 		c.Check(secboot.ActivateStateHasDegradedErrors(state), Equals, true)
 	}
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairDegraded(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	// Incorrect user auth should not cause repair
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncorrectUserAuth
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+
+	for _, failure := range []sb.KeyslotErrorType{
+		// No repair cases since we need reprovision instead
+		sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidPrimaryKey,
+		sb.KeyslotErrorPlatformFailure,
+		sb.KeyslotErrorUnknown,
+	} {
+		state.Activations["a"].KeyslotErrors["b"] = failure
+
+		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	}
+
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncompatibleRoleParams
+
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncorrectUserAuth,
+			},
+		},
+		"ignored": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncompatibleRoleParams,
+			},
+		},
+	}
+
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+
+	for _, failure := range []sb.KeyslotErrorType{
+		// No repair cases since we need reprovision instead
+		//sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidPrimaryKey,
+		sb.KeyslotErrorPlatformFailure,
+		sb.KeyslotErrorUnknown,
+	} {
+		state.Activations["a"].KeyslotErrors["a"] = failure
+		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	}
+
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
 }

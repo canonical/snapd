@@ -1557,7 +1557,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if tc.detectedErrors != ErrorNone {
-			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: .+\n")
+			c.Check(logbuf.String(), Matches, "[\\s\\S]*: not encrypting device storage as checking TPM gave: .+\n")
 		}
 		logbuf.Reset()
 
@@ -1568,7 +1568,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		encryptionType, err = install.CheckEncryptionSupport(constraints, nil)
 		c.Assert(err, IsNil)
 		if tc.detectedErrors != ErrorNone {
-			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: .+\n")
+			c.Check(logbuf.String(), Matches, "[\\s\\S]*: not encrypting device storage as checking TPM gave: .+\n")
 		}
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		logbuf.Reset()
@@ -1578,9 +1578,6 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20-fde-setup")
 	gadgetInfo, _ := s.mountedGadget(c)
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
 
 	for _, tc := range []struct {
 		fdeSetupHookFeatures string
@@ -1615,10 +1612,6 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 		encryptionType, err := install.CheckEncryptionSupport(constraints, runFDESetup)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
-		if !tc.hasTPM {
-			c.Check(logbuf.String(), Equals, "")
-		}
-		logbuf.Reset()
 	}
 }
 

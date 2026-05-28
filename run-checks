@@ -24,11 +24,9 @@ tool_version() {
     golangci-lint) ;& # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
+    dbus-launch) ;&   # fallthrough
     clang-format)
         $tool --version
-        ;;
-    modernize)
-        $tool -V=full
         ;;
     *)
         return 1
@@ -40,15 +38,13 @@ tool_install() {
     local tool=$1
     case "$tool" in
     golangci-lint)
-        go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.0.2 >/dev/null
-        ;;
-    modernize)
-        go install golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.18.1 >/dev/null
+        go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 >/dev/null
         ;;
     go) ;&         # fallthrough
     shellcheck) ;& # fallthrough
     python3) ;&    # fallthrough
     pytest-3) ;&   # fallthrough
+    dbus-launch) ;&   # fallthrough
     clang-format) ;;
     *)
         return 1
@@ -71,14 +67,14 @@ tool_configure() {
         # when *not* running inside github, and go-1.18 is available, use it
         if [ "${CI:-}" != "true" ] && [ -e "/usr/lib/go-1.18/bin" ]; then
             export PATH=/usr/lib/go-1.18/bin:"${PATH}"
-	    echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
+            echo "WARNING: Forcing the use of Go 1.18 (preferred version for this project)" >&2
         fi
         ;;
     shellcheck) ;&    # fallthrough
     golangci-lint) ;& # fallthrough
-    modernize) ;&     # fallthrough
     python3) ;&       # fallthrough
     pytest-3) ;&      # fallthrough
+    dbus-launch) ;&   # fallthrough
     clang-format) ;;
     *)
         return 1
@@ -264,6 +260,7 @@ addtrap endmsg
 short=
 STATIC=
 UNIT=
+VERIFY_TOOLS=
 
 case "${1:-all}" in
 all)
@@ -280,14 +277,22 @@ all)
     UNIT=1
     short="-short"
     ;;
+--verify-tools)
+    VERIFY_TOOLS=1
+    ;;
 *)
-    echo "Wrong flag ${1}. To run a single suite use --static, --unit."
+    echo "Wrong flag ${1}" >&2
+    echo "usage: $0 [all|--static|--unit|--short-unit|--verify-tools]" >&2
     exit 1
     ;;
 esac
 
 echo "> Verify tool dependencies"
 verify_tools "$AUTO_INSTALL" "$IGNORE_MISSING"
+
+if [ "$VERIFY_TOOLS" = 1 ]; then
+    exit 0
+fi
 
 if [ "$STATIC" = 1 ]; then
     ./get-deps.sh
@@ -374,15 +379,15 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
+    if command -v dbus-launch>/dev/null && [ -z "${SKIP_DBUS_LAUNCH:-}" ]; then
+        echo ">> [Shell] Checking for dbus-launch"
+        dbus-launch --version
+    else
+        echo ">> [Shell] Skipping tests that require dbus-launch"
+    fi
+
     echo ">> [Go] Checking cmd binaries for forbidden dependencies"
     forbidden_cmd_go_deps
-
-    if command -v modernize>/dev/null && [ -z "${SKIP_MODERNIZE_LINT:-}" ]; then
-        echo ">> [Go] Checking modernize"
-        modernize -test ./...
-    else
-        echo ">> [Go] Skipping modernize check"
-    fi
 
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
@@ -523,6 +528,9 @@ if [ "$STATIC" = 1 ]; then
         fi
         if [ -n "${SKIP_NAKEDRET:-}" ]; then
             disable+=" nakedret"
+        fi
+        if [ -n "${SKIP_MODERNIZE_LINT:-}" ]; then
+            disable+=" modernize"
         fi
 
         enabled=$(golangci-lint linters | awk '

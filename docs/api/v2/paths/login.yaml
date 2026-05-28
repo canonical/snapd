@@ -3,7 +3,7 @@
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Store
     - Synchronous
   summary: Authenticate user with snapd and store

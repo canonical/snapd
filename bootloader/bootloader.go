@@ -115,12 +115,26 @@ type Bootloader interface {
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error
+
+	// RequiredByGadget returns true if this bootloader is necessary for
+	// images using the gadget snap extracted in gadgetDir.
+	RequiredByGadget(gadgetDir string) bool
 }
 
 type RecoveryAwareBootloader interface {
 	Bootloader
 	SetRecoverySystemEnv(recoverySystemDir string, values map[string]string) error
 	GetRecoverySystemEnv(recoverySystemDir string, key string) (string, error)
+}
+
+// RecoveryBootConfigBootloader can explicitly regenerate recovery boot
+// configuration files from the currently persisted bootloader state.
+type RecoveryBootConfigBootloader interface {
+	Bootloader
+
+	// Reconfigure rebuilds the bootloader recovery
+	// configuration using the current boot variables and on-disk state.
+	Reconfigure() error
 }
 
 type ExtractedRecoveryKernelImageBootloader interface {
@@ -241,7 +255,7 @@ type TrustedAssetsBootloader interface {
 	BootChains(runBl Bootloader, kernelPath string) ([][]BootFile, error)
 
 	// RevocationTriggeringAssets provides the identifiers
-	// for assets that want revocation of keys on update.
+	// for assets that want revocation of older FDE sealed keys on update.
 	// The identifiers correspond to identifiers used in the
 	// modeenv (CurrentTrustedBootAssets and
 	// CurrentTrustedRecoveryBootAssets).
@@ -340,8 +354,10 @@ type bootloaderNewFunc func(rootdir string, opts *Options) Bootloader
 
 var (
 	//  bootloaders list all possible bootloaders by their constructor
-	//  function.
+	//  function. Order is relevant (ubootpart should be chosen over uboot
+	//  when the system-boot-state partition is defined).
 	bootloaders = []bootloaderNewFunc{
+		newUbootPart,
 		newUboot,
 		newGrub,
 		newAndroidBoot,
@@ -439,6 +455,49 @@ func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
 	return nil
 }
 
+// ubootKernelAssets is the list of kernel assets to extract for U-Boot bootloaders.
+var ubootKernelAssets = []string{"kernel.img", "initrd.img", "dtbs/*"}
+
+// ubootName is the bootloader name for U-Boot implementations.
+const ubootName = "uboot"
+
+// envGetter is the interface for getting environment variables.
+type envGetter interface {
+	Get(string) string
+}
+
+// envSetter is the interface for setting environment variables and saving.
+type envSetter interface {
+	envGetter
+	Set(string, string)
+	Save() error
+}
+
+// getBootVarsFromEnv retrieves boot variables from a U-Boot environment.
+func getBootVarsFromEnv(env envGetter, names ...string) map[string]string {
+	out := make(map[string]string, len(names))
+	for _, name := range names {
+		out[name] = env.Get(name)
+	}
+	return out
+}
+
+// setBootVarsInEnv sets boot variables in a U-Boot environment, saving only if changed.
+func setBootVarsInEnv(env envSetter, values map[string]string) error {
+	dirty := false
+	for k, v := range values {
+		if env.Get(k) == v {
+			continue
+		}
+		env.Set(k, v)
+		dirty = true
+	}
+	if dirty {
+		return env.Save()
+	}
+	return nil
+}
+
 // ForGadget returns a bootloader matching a given gadget by inspecting the
 // contents of gadget directory or an error if no matching bootloader is found.
 func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
@@ -450,13 +509,20 @@ func ForGadget(gadgetDir, rootDir string, opts *Options) (Bootloader, error) {
 	}
 	for _, blNew := range bootloaders {
 		bl := blNew(rootDir, opts)
-		markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
-		// do we have a marker file?
-		if osutil.FileExists(markerConf) {
+		if bl.RequiredByGadget(gadgetDir) {
 			return bl, nil
 		}
 	}
 	return nil, ErrBootloader
+}
+
+// checkForBlMarker is a helper used by implementations of RequiredByGadget in
+// case they check for a file marker to determine if they are the right
+// bootloader.
+func checkForBlMarker(bl Bootloader, gadgetDir string) bool {
+	markerConf := filepath.Join(gadgetDir, bl.Name()+".conf")
+	// do we have a marker file?
+	return osutil.FileExists(markerConf)
 }
 
 // BootFile represents each file in the chains of trusted assets and

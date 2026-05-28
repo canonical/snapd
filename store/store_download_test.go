@@ -124,7 +124,7 @@ func (s *storeDownloadSuite) TestDownloadOK(c *C) {
 	c.Assert(path, testutil.FileEquals, expectedContent)
 }
 
-func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
+func (s *storeDownloadSuite) TestDownloadRangeRequestNon0Partial(c *C) {
 	partialContentStr := "partial content "
 	missingContentStr := "was downloaded"
 	expectedContentStr := partialContentStr + missingContentStr
@@ -145,6 +145,34 @@ func (s *storeDownloadSuite) TestDownloadRangeRequest(c *C) {
 
 	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
 	err := os.WriteFile(targetFn+".partial", []byte(partialContentStr), 0644)
+	c.Assert(err, IsNil)
+
+	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(targetFn, testutil.FileEquals, expectedContentStr)
+}
+
+func (s *storeDownloadSuite) TestDownloadRangeRequest0Partial(c *C) {
+	expectedContentStr := "partial content was downloaded"
+
+	restore := store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		c.Check(resume, Equals, int64(0)) // full download
+		c.Check(url, Equals, "URL")
+		w.Write([]byte(expectedContentStr))
+		return nil
+	})
+	defer restore()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.DownloadURL = "URL"
+	snap.Sha3_384 = "abcdabcd"
+	snap.Size = int64(len(expectedContentStr))
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	// 0-sized partial download
+	err := os.WriteFile(targetFn+".partial", nil, 0644)
 	c.Assert(err, IsNil)
 
 	err = s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
@@ -770,19 +798,44 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 type cacheObserver struct {
 	inCache map[string]bool
 
-	gets []string
-	puts []string
+	gets  []string
+	puts  []string
+	drops []string
 
 	// list of errors to return on Put() to a specific key
 	putFailForKey map[string][]error
 	putErrHits    map[string]int
+
+	dropErr map[string]error
+
+	data map[string][]byte
 
 	cleanupCalls int
 }
 
 func (co *cacheObserver) Get(cacheKey, targetPath string) bool {
 	co.gets = append(co.gets, fmt.Sprintf("%s:%s", cacheKey, targetPath))
-	return co.inCache[cacheKey]
+	if co.inCache[cacheKey] {
+		// Simulate the real cache behavior of creating a hard link.
+		// If the target already exists, os.Link() would return EEXIST
+		// which the real cache silently ignores, returning true without
+		// overwriting.
+		if _, err := os.Lstat(targetPath); err == nil {
+			return true
+		}
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			panic(fmt.Sprintf("cannot create directory: %v", err))
+		}
+		var data []byte
+		if co.data != nil {
+			data = co.data[cacheKey]
+		}
+		if err := os.WriteFile(targetPath, data, 0600); err != nil {
+			panic(fmt.Sprintf("cannot write file: %v", err))
+		}
+		return true
+	}
+	return false
 }
 
 func (co *cacheObserver) GetPath(cacheKey string) string {
@@ -803,7 +856,42 @@ func (co *cacheObserver) Put(cacheKey, sourcePath string) error {
 		}
 	}
 	co.inCache[cacheKey] = true
+	// Simulate real cache: store content for future Get() calls
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		panic(fmt.Sprintf("cacheObserver Put(): cannot read source %q: %v", sourcePath, err))
+	}
+	if co.data == nil {
+		co.data = make(map[string][]byte)
+	}
+	co.data[cacheKey] = data
 	return nil
+}
+
+func (co *cacheObserver) Drop(cacheKey string) error {
+	co.drops = append(co.drops, cacheKey)
+
+	if co.dropErr != nil {
+		return co.dropErr[cacheKey]
+	}
+	return nil
+}
+
+func (co *cacheObserver) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
+	if co.inCache[cacheKey] {
+		s := "content"
+
+		// strings.NewReader returns an *strings.Reader that implements io.{Reader,Seeker}
+		sr := strings.NewReader(s)
+
+		// io.NopCloser adds a no-op Close() method
+		var rsc io.ReadSeekCloser = struct {
+			*strings.Reader
+			io.Closer
+		}{sr, io.NopCloser(nil)}
+		return rsc, int64(len(s)), nil
+	}
+	return nil, 0, errors.New("not found in cache")
 }
 
 func (co *cacheObserver) Cleanup() error {
@@ -811,8 +899,13 @@ func (co *cacheObserver) Cleanup() error {
 	return nil
 }
 
-func (s *storeDownloadSuite) TestDownloadCacheHit(c *C) {
-	obs := &cacheObserver{inCache: map[string]bool{"the-snaps-sha3_384": true}}
+func (s *storeDownloadSuite) TestDownloadCacheHitHappy(c *C) {
+	obs := &cacheObserver{
+		inCache: map[string]bool{"the-snaps-sha3_384": true},
+		data: map[string][]byte{
+			"the-snaps-sha3_384": []byte("happy-content"),
+		},
+	}
 	restore := s.store.MockCacher(obs)
 	defer restore()
 
@@ -822,16 +915,166 @@ func (s *storeDownloadSuite) TestDownloadCacheHit(c *C) {
 	})
 	defer restore()
 
-	snap := &snap.Info{}
-	snap.Sha3_384 = "the-snaps-sha3_384"
+	si := &snap.Info{}
+	si.Sha3_384 = "the-snaps-sha3_384"
+	// expected size is non-zero, so that we hit the non-download code path
+	si.DownloadInfo.Size = int64(len([]byte("happy-content")))
 
 	path := filepath.Join(c.MkDir(), "downloaded-file")
-	err := s.store.Download(s.ctx, "foo", path, &snap.DownloadInfo, nil, nil, nil)
+	err := s.store.Download(s.ctx, "foo", path, &si.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", snap.Sha3_384, path)})
+	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", si.Sha3_384, path)})
 	c.Check(obs.puts, IsNil)
+	c.Check(obs.drops, IsNil)
 	c.Check(obs.cleanupCalls, Equals, 0)
+}
+
+func (s *storeDownloadSuite) TestDownloadCacheHitNoSizeKnown(c *C) {
+	obs := &cacheObserver{
+		inCache: map[string]bool{"the-snaps-sha3_384": true},
+		data: map[string][]byte{
+			"the-snaps-sha3_384": []byte("happy-content"),
+		},
+	}
+	restore := s.store.MockCacher(obs)
+	defer restore()
+
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		c.Fatalf("download should not be called when results come from the cache")
+		return nil
+	})
+	defer restore()
+
+	si := &snap.Info{}
+	si.Sha3_384 = "the-snaps-sha3_384"
+	// download info has no size, so that we hit the size-mismatch path
+	si.DownloadInfo.Size = 0
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &si.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("%s:%s", si.Sha3_384, path)})
+	c.Check(obs.puts, IsNil)
+	c.Check(obs.drops, IsNil)
+	c.Check(obs.cleanupCalls, Equals, 0)
+}
+
+func (s *storeDownloadSuite) TestDownloadCacheHitCorruptRedownloads(c *C) {
+	// Cache reports a hit but the file has size smaller than expected by store provided information.
+	obs := &cacheObserver{
+		inCache: map[string]bool{"the-snaps-sha3_384": true},
+		data:    map[string][]byte{"the-snaps-sha3_384": []byte("too-short")},
+	}
+	restore := s.store.MockCacher(obs)
+	defer restore()
+
+	downloadWasCalled := false
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		downloadWasCalled = true
+		return nil
+	})
+	defer restore()
+
+	si := &snap.Info{}
+	si.Sha3_384 = "the-snaps-sha3_384"
+	si.DownloadInfo.Size = 1024 // expected size is non-zero
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &si.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(downloadWasCalled, Equals, true)
+
+	// The mock Get() writes mocked data, if any, to the target path. The file is
+	// shorter than the size reported by the store, so it's treated as corrupt and
+	// removed before re-downloading. Get() is called twice (initial + retry).
+	c.Check(obs.gets, DeepEquals, []string{
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+	})
+	// The file is dropped.
+	c.Check(obs.drops, DeepEquals, []string{si.Sha3_384})
+}
+
+func (s *storeDownloadSuite) TestDownloadCacheHitCorruptRedownloads0Size(c *C) {
+	// Cache reports a hit but file has 0 size, and also the download info has
+	// no expected size information.
+	obs := &cacheObserver{
+		inCache: map[string]bool{"the-snaps-sha3_384": true},
+		data:    map[string][]byte{"the-snaps-sha3_384": nil},
+	}
+	restore := s.store.MockCacher(obs)
+	defer restore()
+
+	downloadWasCalled := false
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		downloadWasCalled = true
+		return nil
+	})
+	defer restore()
+
+	si := &snap.Info{}
+	si.Sha3_384 = "the-snaps-sha3_384"
+	si.DownloadInfo.Size = 0 // expected size is zero
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	err := s.store.Download(s.ctx, "foo", path, &si.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(downloadWasCalled, Equals, true)
+
+	// The mock Get() creates a 0-byte file which lacking any additional hint on
+	// the expected size is clearly invalid. Get() is called twice (initial + retry).
+	c.Check(obs.gets, DeepEquals, []string{
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+	})
+	// The file is dropped.
+	c.Check(obs.drops, DeepEquals, []string{si.Sha3_384})
+}
+
+func (s *storeDownloadSuite) TestDownloadCacheHitRecoveryFromPreexistingCorruptTarget(c *C) {
+	// A pre-existing corrupt (0-byte) file at targetPath causes the first
+	// Get() to return true without overwriting (simulating os.Link EEXIST).
+	// Download() detects the size mismatch, removes the target, retries
+	// Get() which now successfully writes the cached data, and recovery
+	// succeeds without re-downloading.
+	validData := []byte("valid-snap-data-1234567890")
+	obs := &cacheObserver{
+		inCache: map[string]bool{"the-snaps-sha3_384": true},
+		data:    map[string][]byte{"the-snaps-sha3_384": validData},
+	}
+	restore := s.store.MockCacher(obs)
+	defer restore()
+
+	restore = store.MockDownload(func(ctx context.Context, name, sha3, url string, user *auth.UserState, s *store.Store, w io.ReadWriteSeeker, resume int64, pbar progress.Meter, dlOpts *store.DownloadOptions) error {
+		// download not called, we recover from the cache
+		c.Fatalf("download should not be called when results come from the cache")
+		return nil
+	})
+	defer restore()
+
+	si := &snap.Info{}
+	si.Sha3_384 = "the-snaps-sha3_384"
+	si.DownloadInfo.Size = int64(len(validData))
+
+	path := filepath.Join(c.MkDir(), "downloaded-file")
+	// Create a pre-existing 0-byte file at targetPath to simulate a stale
+	// corrupt blob from a previous interrupted operation.
+	err := os.WriteFile(path, nil, 0600)
+	c.Assert(err, IsNil)
+
+	err = s.store.Download(s.ctx, "foo", path, &si.DownloadInfo, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	// Get() was called twice: first hit returns true but target is corrupt,
+	// second hit after removal writes valid data.
+	c.Check(obs.gets, DeepEquals, []string{
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+		fmt.Sprintf("%s:%s", si.Sha3_384, path),
+	})
+	// No drops — the cache entry is valid.
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
@@ -856,6 +1099,7 @@ func (s *storeDownloadSuite) TestDownloadCacheMiss(c *C) {
 
 	c.Check(obs.gets, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("the-snaps-sha3_384:%s", path)})
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
@@ -915,6 +1159,8 @@ func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
 	restore = store.MockApplyDelta(func(_ context.Context, s *store.Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error {
 		applyDeltaCalls++
 		c.Check(deltaPath, Equals, pathDeltaPartial)
+		// Simulate successful delta application by creating the target file
+		c.Assert(os.WriteFile(targetPath, []byte("rebuilt-snap"), 0600), IsNil)
 		return nil
 	})
 	defer restore()
@@ -940,6 +1186,7 @@ func (s *storeDownloadSuite) TestDownloadDeltaCacheMiss(c *C) {
 	})
 	c.Check(obs.puts, DeepEquals, []string{fmt.Sprintf("%s:%s", snapInfo.Sha3_384, path)})
 	c.Check(obs.cleanupCalls, Equals, 0)
+	c.Check(obs.drops, IsNil)
 }
 
 func (s *storeDownloadSuite) TestDownloadDeltaRebuitlButCachePutFail(c *C) {
@@ -1133,6 +1380,69 @@ func (s *storeDownloadSuite) TestDownloadBadCache(c *C) {
 	c.Check(stream, IsNil)
 }
 
+func (s *storeDownloadSuite) TestDownloadCacheDropMocked(c *C) {
+	// sha3_384 of "content"
+	contentSha3 := "21e42a075b0d7bb6177c0eb3b3a1c8c6de6d4b4f902759eae5555e9cf3bebd21277a27102fd5426da989bde96c0cf848"
+	fakeSha3 := "fake-sha3"
+	obs := &cacheObserver{
+		inCache: map[string]bool{
+			contentSha3: true,
+			fakeSha3:    true,
+		},
+	}
+	defer s.store.MockCacher(obs)()
+
+	snapInCache := &snap.Info{}
+	snapInCache.RealName = "foo"
+	snapInCache.DownloadURL = "URL"
+	snapInCache.Size = int64(len("content"))
+	snapInCache.Sha3_384 = contentSha3
+	// Size and hash ok, do not drop
+	err := s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, IsNil)
+
+	// Size does not match, we drop
+	snapInCache.Size = int64(len("content")) + 1
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, DeepEquals, []string{contentSha3})
+
+	// Hash does not match, we drop
+	snapInCache.Size = int64(len("content"))
+	// This actually does not match "content", but it forces the hash check to fail
+	snapInCache.Sha3_384 = fakeSha3
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, IsNil)
+	c.Check(obs.drops, DeepEquals, []string{fakeSha3})
+
+	// Error while dropping due to wrong size
+	snapInCache.Size = int64(len("content")) + 1
+	snapInCache.Sha3_384 = contentSha3
+	obs.dropErr = map[string]error{
+		contentSha3: errors.New("mock error"),
+	}
+	obs.drops = nil
+	err = s.store.CleanupDownloadArtifacts("foo.snap", &snapInCache.DownloadInfo)
+	c.Assert(err, ErrorMatches, "cannot drop cached download entry: cannot drop: mock error")
+	c.Check(obs.drops, DeepEquals, []string{contentSha3})
+
+	snapNotInCache := &snap.Info{}
+	snapNotInCache.RealName = "unhappy"
+	snapNotInCache.DownloadURL = "URL"
+	snapNotInCache.Size = 7
+	snapNotInCache.Sha3_384 = "sha3_384-of-unhappy"
+	obs.drops = nil
+
+	// Error, cannot open
+	err = s.store.CleanupDownloadArtifacts("unhappy.snap", &snapNotInCache.DownloadInfo)
+	c.Assert(err, ErrorMatches, "cannot drop cached download entry: cannot open: not found in cache")
+
+	c.Check(obs.drops, IsNil)
+}
+
 type fakeCacher struct {
 	getPathCalls []string
 }
@@ -1147,6 +1457,14 @@ func (co *fakeCacher) GetPath(cacheKey string) string {
 }
 
 func (co *fakeCacher) Put(cacheKey, sourcePath string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Drop(cacheKey string) error {
+	panic("unexpected call")
+}
+
+func (co *fakeCacher) Open(cacheKey string) (io.ReadSeekCloser, int64, error) {
 	panic("unexpected call")
 }
 

@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "prompt-filter": {
+    "snap": "prompt-requester",
+    "interface": "audio-record"
+  },
+  "prompts": [
+    {
+      "prompt-filter": {
+        "interface": "audio-record",
+        "constraints": {
+          "requested-permissions": [ "access" ]
+        }
+      },
+      "reply": {
+        "action": "allow",
+        "lifespan": "timespan",
+        "duration": "10s",
+        "constraints": {
+          "permissions": [ "access" ]
+        }
+      }
+    },
+    {
+      "prompt-filter": {
+        "interface": "audio-record",
+        "constraints": {
+          "requested-permissions": [ "access" ]
+        }
+      },
+      "reply": {
+        "action": "deny",
+        "lifespan": "single",
+        "constraints": {
+          "permissions": [ "access" ]
+        }
+      }
+    }
+  ]
+}

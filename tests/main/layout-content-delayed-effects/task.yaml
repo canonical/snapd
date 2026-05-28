@@ -212,16 +212,11 @@ execute: |
     wait || true
 
     # join it to observe updated content
-    # TODO: the output should be:
-    # > content mod v1;content p2;special content mod v3;
-    # however due to a buggy mount ns update new content is not, or shows up at
-    # connected-content-v2-2, the previously visible content from p2 and p2 is
-    # messed up as well
     # shellcheck disable=SC2016
     snap run --shell test-snapd-content-consumer-c1.app -c \
          'cat $SNAP/connected-content{,-2,-v2}/special-content-file' | \
          tr '\n' ';' | \
-         MATCH '^.*;special content mod v2;$'
+         MATCH '^.*;special content mod v3;$'
 
     # discard and observe correct content'
     snapd.tool exec snap-discard-ns test-snapd-content-consumer-c1

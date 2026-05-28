@@ -1,3 +1,4 @@
+# spread-variant=plus
 project: snapd
 
 environment:
@@ -11,7 +12,7 @@ environment:
     GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
-    PATH: $PROJECT_PATH/tests/bin:$GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin
+    PATH: $PROJECT_PATH/tests/bin:$GOHOME/bin:/snap/bin:$PATH:/var/lib/snapd/snap/bin:/usr/lib/python
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
     TESTSTMP: /var/tmp/snapd-tools
@@ -66,7 +67,10 @@ environment:
     https_proxy: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
     NO_PROXY: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
     no_proxy: '$(HOST: echo "${SPREAD_NO_PROXY:-127.0.0.1}")'
+    # use NEW_CORE_CHANNEL to control the core channel used in refresh tests
     NEW_CORE_CHANNEL: '$(HOST: echo "$SPREAD_NEW_CORE_CHANNEL")'
+    # use NEW_SNAPD_CHANNEL to control the snapd channel used in refresh tests
+    NEW_SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_NEW_SNAPD_CHANNEL:-edge}")'
     SRU_VALIDATION: '$(HOST: echo "${SPREAD_SRU_VALIDATION:-0}")'
     # use the ppa_validation_name to install snapd from a public ppa
     PPA_VALIDATION_NAME: '$(HOST: echo "${SPREAD_PPA_VALIDATION_NAME:-}")'
@@ -136,6 +140,9 @@ environment:
     # to the journal
     SNAPD_LOG_SNAP_TO_JOURNAL: '$(HOST: echo "${SPREAD_SNAPD_LOG_SNAP_TO_JOURNAL:-$SPREAD_TAG_FEATURES}")'
     SNAPD_TRACE: '$(HOST: echo "${SPREAD_SNAPD_TRACE:-$SPREAD_TAG_FEATURES}")'
+
+    # Whether snapd should skip early refreshes.
+    SNAPD_SKIP_EARLY_REFRESH: '$(HOST: echo "${SPREAD_SNAPD_SKIP_EARLY_REFRESH:-}")'
 
 backends:
     google:
@@ -266,7 +273,7 @@ backends:
                   storage: preserve-size
                   image: centos-9-64
 
-            - opensuse-15.6-64:
+            - opensuse-16.0-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -437,12 +444,12 @@ backends:
                 image: snapd-spread/arch-linux-64
                 workers: 6
 
-            - fedora-42-64:
-                  image: snapd-spread/fedora-42-64
+            - fedora-44-64:
+                  image: snapd-spread/fedora-44-64
                   workers: 12
 
-            - opensuse-15.6-64:
-                image: snapd-spread/opensuse-15.6-64
+            - opensuse-16.0-64:
+                image: snapd-spread/opensuse-16.0-64
                 workers: 6
             - opensuse-tumbleweed-64:
                 image: snapd-spread/opensuse-tumbleweed-64
@@ -744,29 +751,23 @@ backends:
             exec image-garden discard "$SPREAD_SYSTEM_ADDRESS"
         systems:
             - ubuntu-core-16-64:
-                  image: ubuntu-16.04-64
                   username: root
                   password: root
                   # Disable due to ENOSPC.
                   manual: true
             - ubuntu-core-18-64:
-                  image: ubuntu-18.04-64
                   username: root
                   password: root
             - ubuntu-core-20-64:
-                  image: ubuntu-20.04-64
                   username: root
                   password: root
             - ubuntu-core-22-64:
-                  image: ubuntu-22.04-64
                   username: root
                   password: root
             - ubuntu-core-24-64:
-                  image: ubuntu-24.04-64
                   username: root
                   password: root
             - ubuntu-core-26-64:
-                  image: ubuntu-26.04-64
                   username: root
                   password: root
             - ubuntu-16.04-64:
@@ -796,13 +797,16 @@ backends:
             - debian-sid-64:
                   username: root
                   password: root
+            - opensuse-16.0-64:
+                  username: root
+                  password: root
             - opensuse-tumbleweed-64:
                   username: root
                   password: root
             - opensuse-tumbleweed-selinux-64:
                   username: root
                   password: root
-            - fedora-42-64:
+            - fedora-44-64:
                   username: root
                   password: root
             - centos-9-64:
@@ -1438,18 +1442,20 @@ prepare: |
     # major differences:
     # - map keys are sorted by default
     # - with --yaml-input, can parse YAML
-    if os.query is-arm64; then
-        "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
-            https://github.com/itchyny/gojq/releases/download/v0.12.16/gojq_v0.12.16_linux_arm64.tar.gz
-    elif os.query is-arm; then
-        # upstream does not provide prebuilt binaries for armhf
-        # built with: GOARCH=arm GOARM=7
-        "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
-            https://storage.googleapis.com/snapd-spread-tests/dependencies/gojq_v0.12.16_linux_armhf.tar.gz
-    else
-        # must be amd64
-        "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
-            https://github.com/itchyny/gojq/releases/download/v0.12.16/gojq_v0.12.16_linux_amd64.tar.gz
+    if [ ! -e /tmp/gojq.tar.gz ]; then
+        if os.query is-arm64; then
+            "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
+                https://github.com/itchyny/gojq/releases/download/v0.12.16/gojq_v0.12.16_linux_arm64.tar.gz
+        elif os.query is-arm; then
+            # upstream does not provide prebuilt binaries for armhf
+            # built with: GOARCH=arm GOARM=7
+            "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
+                https://storage.googleapis.com/snapd-spread-tests/dependencies/gojq_v0.12.16_linux_armhf.tar.gz
+        else
+            # must be amd64
+            "$TESTSTOOLS"/simpleget -o /tmp/gojq.tar.gz \
+                https://github.com/itchyny/gojq/releases/download/v0.12.16/gojq_v0.12.16_linux_amd64.tar.gz
+        fi
     fi
 
     (
@@ -1472,8 +1478,9 @@ restore-each: |
 suites:
     tests/lib/tools/suite/:
         summary: Tests for tests/lib/tools tools
-        backends: [google, qemu]
+        backends: [google, qemu, garden]
         prepare-each: |
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
@@ -1481,6 +1488,7 @@ suites:
         summary: Test building snapd in different architectures
         manual: true
         prepare-each: |
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each-minimal-no-snaps
         restore-each: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite-each-minimal-no-snaps
@@ -1571,6 +1579,19 @@ suites:
         restore: |
             "$TESTSLIB"/prepare-restore.sh --restore-suite
 
+    tests/release/:
+        summary: Tests for snapd during the release process
+        systems: [ubuntu-1*, ubuntu-2*]
+        environment:
+            CORE_CHANNEL: stable
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        # This suite does not have restore steps due to the destructive
+        # nature of its tests that will cause the vanila restore scripts to
+        # fail. The tests in this suite are all meant to be run in isolation.
+
     tests/upgrade/:
         summary: Tests for snapd upgrade
         # Test cases are not yet ported to openSUSE that is why we keep
@@ -1588,6 +1609,8 @@ suites:
     tests/cross/:
         summary: Cross-compile tests
         systems: [ubuntu-24.04-64]
+        prepare: |
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
 
     tests/unit/:
         summary: Suite to run unit tests (non-go and different go runtimes)
@@ -1614,6 +1637,7 @@ suites:
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
             prepare_classic
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/reset.sh --reuse-core
             #shellcheck source=tests/lib/prepare.sh
@@ -1702,6 +1726,7 @@ suites:
             - openstack-ext
             - openstack-arm-ext
             - openstack-ext-dev
+            - openstack-validation
         environment:
             NESTED_TYPE: "classic"
             # Enable kvm in the qemu command line
@@ -1757,6 +1782,7 @@ suites:
                 . "$TESTSLIB"/core-initrd.sh
                 build_and_install_initramfs_deb
             fi
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
 
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
@@ -1825,6 +1851,7 @@ suites:
 
             tests.nested prepare
             tests.nested build-image classic
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm classic
@@ -1898,6 +1925,7 @@ suites:
 
             tests.nested prepare
             tests.nested build-image core
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core
@@ -1971,6 +1999,7 @@ suites:
 
             tests.nested prepare
             tests.nested build-image core
+            tests.invariant set snap-mount-dir "$(os.paths snap-mount-dir)"
         prepare-each: |
             "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
             tests.nested create-vm core --param-cpus "$NESTED_CPUS" --param-mem "$NESTED_MEM"

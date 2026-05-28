@@ -31,22 +31,28 @@ tags:
     description: List and add assertion types.
   - name: Asynchronous
     description: Return the reference to a change that will occur in the background.
-  - name: AuthenticationRequired
-    description: Access is restricted to the root user.
+  - name: AuthenticatedAccess
+    description: Allows requests from authenticated users (root, provide macaroon, or via polkit) provided they are not received on snapd-snap.socket.
+  - name: ByActionAccess
+    description: Access checking depends on the action included in the request body.
   - name: Changes
     description: Interact with changes.
   - name: Experimental
     description: Interact with experimental features.
+  - name: InterfaceAuthenticatedAccess
+    description: Allows requests from authenticated users (root, provide macaroon, or via polkit), including requests from snapd-snap.socket for snaps that plug one of the provided interfaces.
+  - name: InterfaceOpenAccess
+    description: Allows requests without authentication, including requests from snapd-snap.socket for snaps that plug one of the provided interfaces.
   - name: Interfaces
     description: Display and manage interactions between snaps.
   - name: Notices
     description: Interact with notices.
   - name: OpenAccess
-    description: Do not require the user to authenticate.
+    description: Allows requests without authentication, provided they are not received on snapd-snap.socket.
   - name: Prompting
-    description:  Interact with the prompting subsystem.
-  - name: Root
-    description: Requires the user to authenticate with root access.    # TODO Properly describe the difference between AuthenticationRequired and Root
+    description: Interact with the prompting subsystem.
+  - name: RootAccess
+    description: Allows requests from the root user, provided they were not received on snapd-snap.socket.
   - name: Snaps
     description: Interact with snaps.
   - name: Store
@@ -84,6 +90,8 @@ components:
       $ref: './v2/components/responses/MethodNotAllowed.yaml'
     NotFound:
       $ref: './v2/components/responses/NotFound.yaml'
+    ServiceUnavailable:
+      $ref: './v2/components/responses/ServiceUnavailable.yaml'
 
   schemas:
     ConfdbError:
@@ -102,6 +110,14 @@ components:
       $ref: './v2/components/errors/NoSSHKeysError.yaml'
     NotFoundError:
       $ref: './v2/components/errors/NotFoundError.yaml'
+    PromptingInvalidFieldsError:
+      $ref: './v2/components/errors/PromptingInvalidFieldsError.yaml'
+    PromptingNotRunningError:
+      $ref: './v2/components/errors/PromptingNotRunningError.yaml'
+    PromptingReplyNotMatchRequestError:
+      $ref: './v2/components/errors/PromptingReplyNotMatchRequestError.yaml'
+    PromptingRuleConflictError:
+      $ref: './v2/components/errors/PromptingRuleConflictError.yaml'
     SnapNotInstalledError:
       $ref: './v2/components/errors/SnapNotInstalledError.yaml'
     UserNotFoundError:
@@ -153,10 +169,16 @@ components:
       $ref: './v2/components/schemas/PlugRef.yaml'
     Progress:
       $ref: './v2/components/schemas/Progress.yaml'
+    PromptingActionAsk:
+      $ref: './v2/components/schemas/PromptingActionAsk.yaml'
+    PromptingConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingConstraintsAudioRecord.yaml'
     PromptingConstraintsCamera:
       $ref: './v2/components/schemas/PromptingConstraintsCamera.yaml'
     PromptingConstraintsHome:
       $ref: './v2/components/schemas/PromptingConstraintsHome.yaml'
+    PromptingPatchConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingPatchConstraintsAudioRecord.yaml'
     PromptingPatchConstraintsCamera:
       $ref: './v2/components/schemas/PromptingPatchConstraintsCamera.yaml'
     PromptingPatchConstraintsHome:
@@ -167,12 +189,16 @@ components:
       $ref: './v2/components/schemas/PromptingPermissionRuleEntry.yaml'
     PromptingPrompt:
       $ref: './v2/components/schemas/PromptingPrompt.yaml'
+    PromptingPromptConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingPromptConstraintsAudioRecord.yaml'
     PromptingPromptConstraintsCamera:
       $ref: './v2/components/schemas/PromptingPromptConstraintsCamera.yaml'
     PromptingPromptConstraintsHome:
       $ref: './v2/components/schemas/PromptingPromptConstraintsHome.yaml'
     PromptingReply:
       $ref: './v2/components/schemas/PromptingReply.yaml'
+    PromptingReplyConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingReplyConstraintsAudioRecord.yaml'
     PromptingReplyConstraintsCamera:
       $ref: './v2/components/schemas/PromptingReplyConstraintsCamera.yaml'
     PromptingReplyConstraintsHome:
@@ -187,6 +213,8 @@ components:
       $ref: './v2/components/schemas/PromptingRuleActionRemove.yaml'
     PromptingRuleActionRemoveByID:
       $ref: './v2/components/schemas/PromptingRuleActionRemoveById.yaml'
+    PromptingRuleConstraintsAudioRecord:
+      $ref: './v2/components/schemas/PromptingRuleConstraintsAudioRecord.yaml'
     PromptingRuleConstraintsCamera:
       $ref: './v2/components/schemas/PromptingRuleConstraintsCamera.yaml'
     PromptingRuleConstraintsHome:
@@ -265,6 +293,8 @@ paths:
     $ref: './v2/paths/icons-name-icon.yaml'
   /v2/interfaces:
     $ref: './v2/paths/interfaces.yaml'
+  /v2/interfaces/requests:
+    $ref: './v2/paths/interfaces-requests.yaml'
   /v2/interfaces/requests/prompts:
     $ref: './v2/paths/interfaces-requests-prompts.yaml'
   /v2/interfaces/requests/prompts/{id}:

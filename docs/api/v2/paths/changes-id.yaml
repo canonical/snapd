@@ -11,8 +11,8 @@ parameters:
 
 get:
   tags:
-    - AuthenticationRequired
     - Changes
+    - InterfaceOpenAccess
     - Synchronous
   summary: Get the status of a change
   description: |-
@@ -32,7 +32,7 @@ get:
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Changes
     - Synchronous
   summary: Abort a change

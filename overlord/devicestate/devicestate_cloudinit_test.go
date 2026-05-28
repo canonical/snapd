@@ -15,6 +15,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -41,6 +42,10 @@ func (s *cloudInitBaseSuite) SetUpTest(c *C) {
 
 	r := release.MockOnClassic(false)
 	defer r()
+
+	s.AddCleanup(devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error) error {
+		return nil
+	}))
 
 	st := s.o.State()
 	st.Lock()
@@ -1135,7 +1140,7 @@ fi`, cloudInitScriptStateFile))
 	c.Assert(restrictCalls, Equals, 1)
 
 	// we now have a message about restricting
-	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init reported to be done, set datasource_list to \[ NoCloud \] and disabled auto-import by filesystem label.*`)
 }
 func (s *cloudInitSuite) TestCloudInitHappyNotFound(c *C) {
 	// pretend that cloud-init was not found on PATH
@@ -1161,5 +1166,5 @@ func (s *cloudInitSuite) TestCloudInitHappyNotFound(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(statusCalls, Equals, 1)
 	c.Assert(restrictCalls, Equals, 1)
-	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init not found, disabled permanently`)
+	c.Assert(strings.TrimSpace(s.logbuf.String()), Matches, `.*System initialized, cloud-init not found, disabled permanently.*`)
 }

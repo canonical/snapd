@@ -1,0 +1,185 @@
+summary: roll back failed seed-refresh on UC20+
+
+details: |
+  Verify that a seed-refresh failure in the essential post-reboot path rolls
+  back the refreshed seed and the refreshed snaps on Ubuntu Core. The test uses
+  the nested fake store, enables secure boot and TPM-backed encryption,
+  refreshes the kernel and base, injects a failing post-refresh hook into the
+  refreshed kernel, and then checks that the refresh change errors, the live
+  system reverts to the original revisions, and the failed recovery seed is not
+  retained.
+
+systems:
+  - -ubuntu-1*
+
+environment:
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_GADGET_SNAP: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_REPACK_BASE_SNAP: true
+  NESTED_UBUNTU_SEED_SIZE: 3000M
+  NESTED_REPACK_FOR_FAKESTORE: true
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+skip:
+  - reason: This test needs test keys to be trusted
+    if: |
+      [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+  snap install test-snapd-swtpm --edge
+
+  "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+  cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+  version="$(tests.nested show version)"
+  base_snap="core${version}"
+
+  tests.nested prepare-essential-snaps
+
+  snapd_snap="$(echo /tmp/extra-snaps/snapd_*.snap)"
+
+  export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+  ubuntu-image snap --image-size 10G "$TESTSLIB/assertions/developer1-${version}-dangerous.model" \
+    --snap /tmp/extra-snaps/pc.snap \
+    --snap /tmp/extra-snaps/pc-kernel.snap \
+    --snap "${snapd_snap}" \
+    --snap "/tmp/extra-snaps/${base_snap}.snap"
+
+  image_dir=$(tests.nested get images-path)
+  image_name=$(tests.nested get image-name core)
+  mv ./pc.img "${image_dir}/${image_name}"
+  tests.nested configure-default-user
+
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+  # shellcheck source=tests/lib/core-config.sh
+  . "${TESTSLIB}/core-config.sh"
+  wait_for_first_boot_change
+
+  remote.exec 'sudo systemctl stop snapd snapd.socket'
+  remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon" = "fake-session"' > state.json
+  remote.push state.json
+  remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+  remote.exec 'sudo systemctl start snapd snapd.socket'
+
+  remote.refresh disable-refreshes
+
+restore: |
+  systemctl stop fakedevicesvc.service || true
+  "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
+
+execute: |
+  # shellcheck source=tests/lib/core-config.sh
+  . "${TESTSLIB}/core-config.sh"
+
+  version="$(tests.nested show version)"
+  base_snap="core${version}"
+  model_json="$TESTSLIB/assertions/developer1-${version}-dangerous.json"
+  base_id="$(gojq -r --arg name "${base_snap}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
+  kernel_id="$(gojq -r '.snaps[] | select(.name == "pc-kernel") | .id' "${model_json}")"
+
+  test -n "${base_id}"
+  test -n "${kernel_id}"
+
+  # make a fake store revision from a snap
+  make_fake_store_revision() {
+    local source_snap="$1"
+    local output_snap="$2"
+    local snap_id="$3"
+    local revision="$4"
+    local bad_post_refresh="$5"
+
+    rm -rf squashfs-root
+    unsquashfs -d squashfs-root "${source_snap}"
+    gojq --yaml-input --yaml-output --arg version "v${revision}" ".version = \$version" squashfs-root/meta/snap.yaml > snap.yaml.new
+    mv snap.yaml.new squashfs-root/meta/snap.yaml
+
+    if [ "${bad_post_refresh}" = true ]; then
+      mkdir -p squashfs-root/meta/hooks
+      printf '#!/bin/sh\nexit 1\n' > squashfs-root/meta/hooks/post-refresh
+      chmod +x squashfs-root/meta/hooks/post-refresh
+    fi
+
+    snap pack --filename="${output_snap}" ./squashfs-root
+    rm -rf squashfs-root
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack \
+      --revision "${revision}" \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      "${output_snap}" \
+      "${snap_id}"
+  }
+
+  # capture seeded system state and the on-disk recovery systems
+  capture_seed_state() {
+    local suffix="$1"
+
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > "seeded-systems-${suffix}.json"
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["default-recovery-system"]' > "default-recovery-system-${suffix}.json"
+    remote.exec 'find /run/mnt/ubuntu-seed/systems -mindepth 1 -maxdepth 1 -type d -printf "%f\n" | sort' > "seed-system-labels-${suffix}.txt"
+  }
+
+  echo "Capture the initial seeded system state"
+  capture_seed_state before
+
+  echo "Enable seed-refresh"
+  remote.exec 'sudo snap set core experimental.seed-refresh=true'
+
+  echo "Publish refreshed base and kernel snaps, with a failing kernel post-refresh hook"
+  make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/${base_snap}.snap" "./${base_snap}-rev2.snap" "${base_id}" 2 false
+  make_fake_store_revision "${NESTED_FAKESTORE_BLOB_DIR}/pc-kernel.snap" "./pc-kernel-rev2-badhook.snap" "${kernel_id}" 2 true
+
+  echo "Refresh the base and kernel"
+  initial_boot_id="$(tests.nested boot-id)"
+  change_id="$(remote.exec "sudo snap refresh --no-wait ${base_snap} pc-kernel")"
+
+  echo "Wait for the reboot into the refreshed system"
+  remote.wait-for reboot "${initial_boot_id}"
+  rollback_boot_id="$(tests.nested boot-id)"
+
+  echo "Wait for the rollback reboot after the failing kernel post-refresh hook"
+  remote.wait-for reboot "${rollback_boot_id}"
+  remote.wait-for snap-command
+
+  echo "Wait for the refresh change to fail"
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\\s+(Done|Undone|Error)'"
+  remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Error"
+  not remote.exec "sudo snap watch ${change_id}"
+  remote.exec "sudo snap tasks --abs-time ${change_id}" > "change-${change_id}.log"
+
+  candidate_label="$(awk -F'"' '/Create recovery system with label/ { print $2; exit }' "change-${change_id}.log")"
+  test -n "${candidate_label}"
+
+  echo "Verify that the create task was undone and finalize did not complete"
+  MATCH "^Undone +.* +Create recovery system with label \"${candidate_label}\"$" < "change-${change_id}.log"
+  MATCH "^Hold +.* +Finalize recovery system with label \"${candidate_label}\"$" < "change-${change_id}.log"
+  MATCH '^Error +.* +Run post-refresh hook of "pc-kernel" snap if present$' < "change-${change_id}.log"
+
+  echo "Verify the live system rolled back to the original revisions"
+  remote.exec "snap list ${base_snap}" | awk 'NR != 1 { print $3 }' | MATCH '^1$'
+  remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $3 }' | MATCH '^1$'
+
+  echo "Verify seed state, recovery metadata, and recovery systems were restored"
+  capture_seed_state after
+  cmp -s seeded-systems-before.json seeded-systems-after.json
+  cmp -s default-recovery-system-before.json default-recovery-system-after.json
+  cmp -s seed-system-labels-before.txt seed-system-labels-after.txt
+
+  echo "Verify the failed candidate seed was cleaned up"
+  remote.exec "test ! -d /run/mnt/ubuntu-seed/systems/${candidate_label}"
+  remote.exec "test -f /var/lib/snapd/seed/snaps/${base_snap}_1.snap"
+  remote.exec 'test -f /var/lib/snapd/seed/snaps/pc-kernel_1.snap'
+  remote.exec "test ! -f /var/lib/snapd/seed/snaps/${base_snap}_2.snap"
+  remote.exec 'test ! -f /var/lib/snapd/seed/snaps/pc-kernel_2.snap'

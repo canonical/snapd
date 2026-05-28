@@ -950,7 +950,8 @@ class TestQueryFeatures:
                 system2='system',
                 remove_failed=False,
                 only_same=False,
-                match_snap_types=True
+                match_snap_types=True,
+                sort_by_test=False
             )
             query_features.main()
             expected = {'cmds': [{'cmd': 'b'}], 'endpoints': [{'1': 'a'}]}

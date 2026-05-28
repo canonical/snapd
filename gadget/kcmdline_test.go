@@ -21,6 +21,7 @@ package gadget_test
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -220,11 +221,11 @@ kernel-cmdline:
 	}
 
 	for _, t := range tests {
-		lines := ""
+		var lines strings.Builder
 		for _, m := range t.matches {
-			lines += fmt.Sprintf(yamlRemoveLineTemplate, m)
+			lines.WriteString(fmt.Sprintf(yamlRemoveLineTemplate, m))
 		}
-		yaml := fmt.Sprintf(yamlTemplate, lines)
+		yaml := fmt.Sprintf(yamlTemplate, lines.String())
 
 		snap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
 			{"meta/gadget.yaml", yaml},

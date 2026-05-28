@@ -1,0 +1,169 @@
+summary: Tests for snap remove impacted by mounts
+
+details: |
+    Snap remove is impacted by mounts under the snap's global (SNAP_COMMON, SNAP_DATA)
+    and user (SNAP_USER_COMMON, SNAP_USER_DATA) data directories.
+    These mounts can be created, for example, by a snap using the mount-control interface
+    or by a user on classic systems.
+    The test checks that
+    - snap remove succeeds if the mounts under snap's global data directories
+      are visible only in the snap's namespace (and not in the host's namespace)
+    - _currently_ snap remove fails if the mounts under snap's global/user data
+      directories are visible in the host's namespace. This behavior needs to be fixed.
+
+environment:
+    SNAP_NAME: test-snapd-mount-control
+    SNAP_COMMON: /var/snap/$SNAP_NAME/common
+    SNAP_DATA: /var/snap/$SNAP_NAME/x1
+    SNAP_USER_COMMON: /root/snap/$SNAP_NAME/common
+    SNAP_USER_DATA: /root/snap/$SNAP_NAME/x1
+    # what: /var/tmp/** | where: $SNAP_<COMMON|DATA>/target1 | options: [rw, bind]
+    # mount-control interface does not allow mounts under snap's
+    # user directories (SNAP_USER_COMMON, SNAP_USER_DATA)
+    MOUNT_SRC: /var/tmp/$SNAP_NAME
+    MOUNT_DEST_GLOBAL_COMMON: $SNAP_COMMON/target1
+    MOUNT_DEST_GLOBAL_DATA: $SNAP_DATA/target1
+    MOUNT_DEST_USER_COMMON: $SNAP_USER_COMMON/target1
+    MOUNT_DEST_USER_DATA: $SNAP_USER_DATA/target1
+    # each test variant will execute: test_$CASE $MOUNT_DEST
+    CASE/v1,v2: remove_succeeds_when_slave_mount_in_snap_ns_under
+    CASE/v3,v4: remove_currently_fails_when_snapctl_mount_in_host_ns_under
+    CASE/v5,v6: remove_currently_fails_when_user_mount_in_host_ns_under
+    MOUNT_DEST/v1,v3: $MOUNT_DEST_GLOBAL_COMMON
+    MOUNT_DEST/v2,v4: $MOUNT_DEST_GLOBAL_DATA
+    MOUNT_DEST/v5: $MOUNT_DEST_USER_COMMON
+    MOUNT_DEST/v6: $MOUNT_DEST_USER_DATA
+
+restore: |
+    rm -rf "$MOUNT_SRC" "$MOUNT_DEST"
+
+execute: |
+    setup_src_data() {
+        mkdir -p "$MOUNT_SRC/dir1"
+        echo "Something" > "$MOUNT_SRC/file1"
+    }
+
+    setup_test_snap() {
+        echo "Install the test snap with mount-control interface"
+        "$TESTSTOOLS"/snaps-state install-local "${SNAP_NAME}"
+        echo "Connect its mount-control interface"
+        snap connect "${SNAP_NAME}":mntctl
+    }
+        
+    when_slave_mount_in_snap_ns() {
+        local mount_dest=$1
+        echo "Create a mount under snap's $mount_dest data directory in the snap's namespace"
+        "${SNAP_NAME}".cmd mkdir -p "$mount_dest"
+        "${SNAP_NAME}".cmd mount -o bind,rw "$MOUNT_SRC" "$mount_dest"
+        echo "Verify that the mount has been performed"
+        "${SNAP_NAME}".cmd grep "$mount_dest" /proc/self/mountinfo
+        echo "and that it's only in the snap's namespace"
+        NOMATCH "$mount_dest" < /proc/self/mountinfo
+        echo "Ensure that the mounted files are visible"
+        "${SNAP_NAME}".cmd test -e "$mount_dest/file1"
+    }
+
+    then_remove_succeeds_ns_removed_src_data_intact() {
+        echo "Verify that snap remove succeeds"
+        snap remove "${SNAP_NAME}"
+        echo "and the snap's mount namespace is cleaned up"
+        test ! -e /run/snapd/ns/"${SNAP_NAME}".mnt
+        echo "but the mount's source data is still there"
+        test -e "$MOUNT_SRC/file1"
+    }
+
+    test_remove_succeeds_when_slave_mount_in_snap_ns_under() {
+        local mount_dest=$1
+        setup_src_data
+        setup_test_snap
+        when_slave_mount_in_snap_ns "$mount_dest"
+        then_remove_succeeds_ns_removed_src_data_intact
+        echo
+    }
+
+    when_snapctl_mount_in_host_ns() {
+        local mount_dest=$1
+        echo "Create a mount under snap's $mount_dest data directory in the host's namespace"
+        mkdir -p "$mount_dest"
+        "${SNAP_NAME}".cmd snapctl mount -o bind,rw "$MOUNT_SRC" "$mount_dest"
+        echo "Verify that the mount has been performed in the host's namespace"
+        MATCH "$mount_dest" < /proc/self/mountinfo
+        echo "and that it's also visible in the snap's namespace"
+        "${SNAP_NAME}".cmd grep "$mount_dest" /proc/self/mountinfo
+        echo "Ensure that the mounted files are visible"
+        test -e "$mount_dest/file1"
+    }
+
+    then_remove_currently_fails_mount_remains_src_data_lost () {
+        local mount_dest=$1
+        echo "Currently snap remove will fail due to the mount being present in the snap's data directory"
+        echo "THIS NEEDS TO BE FIXED!"
+        not snap remove "${SNAP_NAME}"
+        echo "and the mount is still active"
+        echo "THIS NEEDS TO BE FIXED!"
+        MATCH "$mount_dest" < /proc/self/mountinfo
+        echo "and currently the mount's source data is unfortunately removed"
+        echo "THIS NEEDS TO BE FIXED!"
+        test ! -e "$MOUNT_SRC/file1"
+    }
+
+    cleaning_up_snapctl_mount_should_make_remove_successful() {
+        local mount_dest=$1
+        echo "Below steps can be removed once the above snap remove issues are fixed"
+        echo "Enable the snap (if required) after a failed remove to allow cleanup"
+        snap enable "${SNAP_NAME}" || true
+        echo "Unmount via snapctl"
+        "${SNAP_NAME}".cmd snapctl umount "$mount_dest"
+        echo "and unmount should have succeeded"
+        NOMATCH "$mount_dest" < /proc/self/mountinfo
+        echo "Now snap remove should succeed"
+        snap remove "${SNAP_NAME}"
+    }
+
+    test_remove_currently_fails_when_snapctl_mount_in_host_ns_under() {
+        local mount_dest=$1
+        setup_src_data
+        setup_test_snap
+        when_snapctl_mount_in_host_ns "$mount_dest"
+        then_remove_currently_fails_mount_remains_src_data_lost "$mount_dest"
+        cleaning_up_snapctl_mount_should_make_remove_successful "$mount_dest"
+        echo
+    }
+
+    when_user_mount_in_host_ns() {
+        local mount_dest=$1
+        echo "Create a mount under snap's $mount_dest data directory in the host's namespace"
+        mkdir -p "$mount_dest"
+        mount -o bind,rw "$MOUNT_SRC" "$mount_dest"
+        echo "Verify that the mount has been performed in the host's namespace"
+        MATCH "$mount_dest" < /proc/self/mountinfo
+        echo "and that it's also visible in the snap's namespace"
+        "${SNAP_NAME}".cmd grep "$mount_dest" /proc/self/mountinfo
+        echo "Ensure that the mounted files are visible"
+        test -e "$mount_dest/file1"
+    }
+
+    cleaning_up_user_mount_should_make_remove_successful() {
+        local mount_dest=$1
+        echo "Below steps can be removed once the above snap remove issues are fixed"
+        echo "Unmount the user created mount"
+        umount "$mount_dest"
+        echo "and unmount should have succeeded"
+        NOMATCH "$mount_dest" < /proc/self/mountinfo
+        echo "Now snap remove should succeed"
+        snap remove "${SNAP_NAME}"
+    }
+
+    test_remove_currently_fails_when_user_mount_in_host_ns_under() {
+        local mount_dest=$1
+        setup_src_data
+        setup_test_snap
+        when_user_mount_in_host_ns "$mount_dest"
+        then_remove_currently_fails_mount_remains_src_data_lost "$mount_dest"
+        cleaning_up_user_mount_should_make_remove_successful "$mount_dest"
+        echo
+    }
+
+    echo
+    echo "Executing test_$CASE $MOUNT_DEST"
+    test_$CASE $MOUNT_DEST

@@ -773,12 +773,35 @@ func (s *specSuite) TestRegisterSameSnippetKeyTwice(c *C) {
 	c.Assert(func() { apparmor.RegisterSnippetKey("testkey1") }, PanicMatches, "priority key testkey1 is already registered")
 }
 
+func (s *specSuite) TestAddBasePrioritizedSnippet(c *C) {
+	restoreScope := apparmor.SetSpecScope(s.spec, []string{"snap.demo.app"})
+	defer restoreScope()
+
+	s.spec.AddBasePrioritizedSnippet("#foo#", key1)
+
+	// it's there, if no prioritized snippet is added
+	snippets := s.spec.SnippetForTag("snap.demo.app")
+	c.Assert(snippets, testutil.Contains, "#foo#")
+
+	// but a snippet of any priority is enough to override the base snippet
+	s.spec.AddPrioritizedSnippet("#bar#", key1, 0)
+	snippets = s.spec.SnippetForTag("snap.demo.app")
+
+	c.Assert(snippets, testutil.Contains, "#bar#")
+	c.Assert(snippets, Not(testutil.Contains), "#foo#")
+}
+
+func (s *specSuite) TestBasePrioritizedSnippetInvalid(c *C) {
+	key := apparmor.NewSnippetKey("unregistered-key")
+	c.Assert(func() { s.spec.AddBasePrioritizedSnippet("#foo#", key) }, PanicMatches, "snippet key \"unregistered-key\" is not registered")
+
+	s.spec.AddBasePrioritizedSnippet("#foo#", key1)
+	c.Assert(func() { s.spec.AddBasePrioritizedSnippet("#foo#", key1) }, PanicMatches, `already registered a snippet for key "testkey1" \(one base snippet per key expected\)`)
+}
+
 func (s *specSuite) TestMoreSnippets(c *C) {
 	keylist := apparmor.RegisteredSnippetKeys()
-	c.Assert(keylist, testutil.Contains, "testkey1")
-	c.Assert(keylist, testutil.Contains, "testkey2")
-	c.Assert(len(keylist), Equals, 2)
-
+	c.Assert(keylist, testutil.DeepUnsortedMatches, []string{"testkey1", "testkey2", "mount-info"})
 }
 
 func (s *specSuite) TestInterfaceForMetadataTag(c *C) {

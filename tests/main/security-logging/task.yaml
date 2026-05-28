@@ -1,0 +1,83 @@
+summary: Checks that security audit events are written to the kernel audit log
+
+details: |
+    The snapd daemon writes structured security audit events via the kernel
+    audit subsystem (AUDIT_TRUSTED_APP, type 1121). This test verifies that
+    a failed login attempt produces an "authn_login_failure" event and,
+    when store credentials are available, that a successful login produces
+    an "authn_login_success" event in the audit log.
+
+# Amazon Linux 2: systemd-journald-audit.socket is not available
+systems: [ -amazon-linux-2-64 ]
+
+prepare: |
+    # Enable the kernel audit subsystem if it isn't already enabled.
+    python3 -c "
+    import socket, struct
+    NETLINK_AUDIT = 9
+    AUDIT_SET = 1001
+    NLM_F_REQUEST = 1
+    # audit_status struct: mask=1 (AUDIT_STATUS_ENABLED), enabled=1, rest zeroed
+    status = struct.pack('IIIIIIiii', 1, 1, 0, 0, 0, 0, 0, 0, 0)
+    hdr = struct.pack('IHHII', 16 + len(status), AUDIT_SET, NLM_F_REQUEST, 1, 0)
+    s = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_AUDIT)
+    s.sendto(hdr + status, (0, 0))
+    s.close()
+    "
+
+    if ! systemctl is-active systemd-journald-audit.socket; then
+        touch audit-socket-was-inactive
+        systemctl stop systemd-journald.service
+        systemctl start systemd-journald-audit.socket
+        systemctl restart systemd-journald.service
+    fi
+    systemctl restart snapd.service
+
+restore: |
+    if [ -f audit-socket-was-inactive ]; then
+        systemctl stop systemd-journald-audit.socket
+        systemctl restart systemd-journald.service
+        rm -f audit-socket-was-inactive
+    fi
+
+    snap logout || true
+
+execute: |
+    # Pin snapd journal search position to the current journal position
+    journal_pin() {
+        "$TESTSTOOLS"/journal-state start_new_log
+    }
+
+    # Assert that journal logs since the pinned position match expression
+    # Usage: journal_match <expression> [-u <unit>]
+    journal_match() {
+        local expression="$1"; shift
+        "$TESTSTOOLS"/journal-state match-log "$expression" -n 3 "$@" >/dev/null 2>&1
+    }
+
+    echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
+    journal_pin
+    systemctl restart snapd.service
+    snap wait system seed.loaded
+    journal_match "security logger disabled" -u snapd.service
+    journal_match "security logger enabled" -u snapd.service
+
+    echo "Checking that restart produces disable/enable audit events"
+    journal_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
+    journal_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
+
+    echo "Checking that a failed login attempt produces an audit event"
+    echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \
+        snap debug api -X POST -H 'Content-Type: application/json' /v2/login || true
+
+    journal_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: invalid-credentials:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":{"snapd-user-id":0,"store-user-name":"","store-user-email":"someemail@testing.com","expiration":"never"},"error":{"code":"invalid-credentials","message":"invalid credentials"}'
+
+
+    # SPREAD_STORE_USER and SPREAD_STORE_PASSWORD are only available when running off master
+    # core does not have expect, so skip core systems
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ] && os-query is-classic; then
+        echo "Checking that a successful login produces an audit event"
+        expect -d -f "$TESTSLIB"/successful_login.exp
+
+        journal_match '"level":"INFO","description":"User [^ ]* login success","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_success","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
+    fi

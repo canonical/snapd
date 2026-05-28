@@ -201,6 +201,24 @@ func (s *BoolFileInterfaceSuite) TestAddConnectedPlugAdditionalSnippetsForLeds(c
 			"/sys/devices/platform/leds/leds/status-grn-led/trigger rw,",
 		},
 	})
+
+	// Make sure that deep SoC paths (e.g. I2C-connected LED controllers on ARM
+	// boards) also get the additional snippets. These resolve to paths with
+	// multiple bus hierarchy segments between platform/ and leds/.
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		return "/sys/devices/platform/soc@0/soc@0:bus@30800000/30a50000.i2c/i2c-3/3-003f/leds/DL25:red/brightness", nil
+	})
+	apparmorSpec3 := apparmor.NewSpecification(s.plug.AppSet())
+	err = apparmorSpec3.AddConnectedPlug(s.iface, s.plug, s.ledSlot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec3.Snippets(), DeepEquals, map[string][]string{
+		"snap.other.app": {
+			"/sys/devices/platform/soc@0/soc@0:bus@30800000/30a50000.i2c/i2c-3/3-003f/leds/DL25:red/brightness rwk,",
+			"/sys/devices/platform/soc@0/soc@0:bus@30800000/30a50000.i2c/i2c-3/3-003f/leds/DL25:red/delay_off rw,",
+			"/sys/devices/platform/soc@0/soc@0:bus@30800000/30a50000.i2c/i2c-3/3-003f/leds/DL25:red/delay_on rw,",
+			"/sys/devices/platform/soc@0/soc@0:bus@30800000/30a50000.i2c/i2c-3/3-003f/leds/DL25:red/trigger rw,",
+		},
+	})
 }
 
 func (s *BoolFileInterfaceSuite) TestPlugSnippetDereferencesSymlinks(c *C) {

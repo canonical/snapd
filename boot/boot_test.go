@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -35,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -68,6 +68,9 @@ func (s *baseBootenvSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
 	s.AddCleanup(restore)
+	// Mock EFI as unavailable so ubootpart.Present() does not
+	// trigger real mountinfo access.
+	s.AddCleanup(efi.MockVars(nil, nil))
 
 	s.bootdir = filepath.Join(s.rootdir, "boot")
 
@@ -4377,6 +4380,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextSameGadgetSnap(c *C) {
 
 	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+	c.Assert(s.bootloader.ReconfigureRecoveryBootConfigCalls, Equals, 0)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
@@ -4412,6 +4416,7 @@ func (s *bootenv20Suite) TestCoreParticipant20SetNextNewGadgetSnap(c *C) {
 
 	// we didn't call SetBootVars on the bootloader (unneeded for gadget)
 	c.Assert(s.bootloader.SetBootVarsCalls, Equals, 0)
+	c.Assert(s.bootloader.ReconfigureRecoveryBootConfigCalls, Equals, 1)
 }
 
 func (s *bootenv20Suite) TestCoreParticipant20UndoKernelSnapInstallSame(c *C) {
@@ -5263,50 +5268,4 @@ func (s *bootenv20Suite) TestMarkBootSuccessfulClassModes(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m2.Base, Equals, "")
 	c.Check(m2.TryBase, Equals, "")
-}
-
-func (s *bootenv20Suite) TestMarkBootSuccessfulAutoRepair(c *C) {
-	m := &boot.Modeenv{
-		Mode:           "run",
-		CurrentKernels: []string{s.kern1.Filename()},
-	}
-	defer setupUC20Bootenv(
-		c,
-		s.bootloader,
-		&bootenv20Setup{
-			modeenv:    m,
-			kern:       s.kern1,
-			kernStatus: boot.DefaultStatus,
-		},
-	)()
-
-	data := map[string]any{
-		"ubuntu-data": map[string]any{
-			"unlock-key": "recovery",
-		},
-		"ubuntu-save": map[string]any{
-			"unlock-key": "run",
-		},
-	}
-	jsonData, err := json.Marshal(data)
-	c.Assert(err, IsNil)
-
-	err = os.MkdirAll(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap"), 0755)
-	c.Assert(err, IsNil)
-	err = os.WriteFile(filepath.Join(s.rootdir, "run/snapd/snap-bootstrap/unlocked.json"), jsonData, 0644)
-	c.Assert(err, IsNil)
-
-	resealCalls := 0
-	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
-		resealCalls++
-		c.Check(opts.Force, Equals, true)
-		c.Check(opts.EnsureProvisioned, Equals, true)
-		return nil
-	})()
-
-	dev := boottest.MockClassicWithModesDevice("", nil)
-
-	err = boot.MarkBootSuccessful(dev)
-	c.Assert(err, IsNil)
-	c.Check(resealCalls, Equals, 1)
 }

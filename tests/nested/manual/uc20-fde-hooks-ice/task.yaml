@@ -23,7 +23,7 @@ prepare: |
   unsquashfs -d corebase corebase.snap
   mv corebase/sbin/cryptsetup corebase/sbin/cryptsetup.real
   cat >corebase/sbin/cryptsetup <<'EOF'
-  #!/usr/bin/python3
+  #!/usr/bin/env python3
   import os,sys
   with open("/run/mnt/ubuntu-seed/cryptsetup.calls", "a") as fp:
     fp.write(f"{sys.argv}\n")

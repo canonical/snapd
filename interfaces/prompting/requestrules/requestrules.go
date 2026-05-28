@@ -89,12 +89,11 @@ func (rule *Rule) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Validate verifies internal correctness of the rule's constraints and
-// permissions and prunes any expired permissions. Returns a
-// [prompting.PermExpirationStatus] indicating whether all, any, or no
-// permissions were expired. If the rule is invalid, returns an error.
-func (rule *Rule) validate(at prompting.At) (status prompting.PermExpirationStatus, err error) {
-	return rule.Constraints.ValidateForInterface(rule.Interface, at)
+// pruneExpired prunes any permissions from the rule's constraints which have
+// expired at the given point in time. If all permissions are expired, returns
+// true.
+func (rule *Rule) pruneExpired(at prompting.At) prompting.PermExpirationStatus {
+	return rule.Constraints.PruneExpired(at)
 }
 
 // expired returns true if all permissions for the receiving rule have expired
@@ -280,12 +279,7 @@ func (rdb *RuleDB) load() (retErr error) {
 		if err != nil {
 			return err
 		}
-		status, err := rule.validate(at)
-		if err != nil {
-			// we're loading previously saved rules, so this should not happen
-			errInvalid = err
-			break
-		}
+		status := rule.pruneExpired(at)
 		if status == prompting.AllPermsExpired {
 			expiredRules[rule.ID] = true
 			continue
@@ -312,6 +306,7 @@ func (rdb *RuleDB) load() (retErr error) {
 
 	if errInvalid != nil {
 		// The DB on disk was invalid, so drop every rule and start over
+		logger.Debug("WARNING: rule DB invalid, so dropping every rule")
 		data := map[string]string{"removed": "dropped"}
 		for _, rule := range wrapped.Rules {
 			rdb.notifyRule(rule.User, rule.ID, data)
@@ -755,21 +750,26 @@ func (rdb *RuleDB) addRulePermissionToTree(rule *Rule, permission string, permis
 			continue
 		}
 		if !maybeExpired.expired(at) {
+			// This should not occur during load since expired permissions are
+			// pruned when the rule is unmarshalled. Thus, it should only occur
+			// when adding a new rule which overlaps with another rule which
+			// has partially expired.
+
 			// Previously removed the rule's permission entry from the tree for
 			// this permission, now let's remove it from the rule as well.
 			delete(maybeExpired.Constraints.Permissions, permission)
 
-			// This should not occur during load since it calls rule.validate()
-			// which calls RuleConstraints.ValidateForInterface, which prunes
-			// any expired permissions. Thus, it should only occur when adding
-			// a new rule which overlaps with another rule which has partially
-			// expired.
+			logger.Debugf("expired permission %q was pruned from partially-expired rule because it conflicted with new rule %q: %q", permission, ruleID, maybeExpired.ID)
+			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, nil)
 			continue
 		}
 		_, err = rdb.removeRuleByID(ruleID)
 		// Error shouldn't occur. If it does, the rule was already removed.
 		if err == nil {
+			logger.Debugf("rule was expired when new rule %q was added: %q", ruleID, maybeExpired.ID)
 			rdb.notifyRule(maybeExpired.User, maybeExpired.ID, expiredData)
+		} else {
+			logger.Debugf("WARNING: error occurred when trying to remove expired rule %q: %v", maybeExpired.ID, err)
 		}
 	}
 
@@ -961,7 +961,7 @@ func newUserSessionID() prompting.IDType {
 }
 
 // Allow readOrAssignUserSessionID to be mocked in tests.
-var readOrAssignUserSessionID = (*RuleDB).readOrAssignUserSessionID
+var ReadOrAssignUserSessionID = (*RuleDB).readOrAssignUserSessionID
 
 // readOrAssignUserSessionID returns the existing user session ID for the given
 // user, if an ID exists, otherwise generates a new ID and writes it as an
@@ -1033,19 +1033,18 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, prompting_errors.ErrPromptingClosed
 	}
 
-	currSession, err := readOrAssignUserSessionID(rdb, user)
-	if err != nil && !errors.Is(err, errNoUserSession) {
+	currSession, err := ReadOrAssignUserSessionID(rdb, user)
+	// return all errors including when root tries to adjust rules for a user that is not logged in
+	if err != nil {
 		return nil, err
 	}
+	// currSession is never 0
 	at := prompting.At{
 		Time:      time.Now(),
 		SessionID: currSession,
 	}
 
-	newRule, err := rdb.makeNewRule(user, snap, iface, constraints, at)
-	if err != nil {
-		return nil, err
-	}
+	newRule := rdb.makeNewRule(user, snap, iface, constraints, at)
 	const save = true
 	newRule, _, err = rdb.addOrMergeRule(newRule, at, save)
 	if err != nil {
@@ -1053,6 +1052,7 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 		return nil, fmt.Errorf("cannot add rule: %w", err)
 	}
 
+	logger.Debugf("new rule added: %q", newRule.ID)
 	rdb.notifyRule(user, newRule.ID, nil)
 	return newRule, nil
 }
@@ -1063,12 +1063,9 @@ func (rdb *RuleDB) AddRule(user uint32, snap string, iface string, constraints *
 // Constructs a new rule with the given parameters as values. The given
 // constraints are converted to rule constraints at the given point in time.
 //
-// If any of the given parameters are invalid, returns an error.
-func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, at prompting.At) (*Rule, error) {
-	ruleConstraints, err := constraints.ToRuleConstraints(iface, at)
-	if err != nil {
-		return nil, err
-	}
+// The caller is expected to validate the constraints and interface.
+func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constraints *prompting.Constraints, at prompting.At) *Rule {
+	ruleConstraints := constraints.ToRuleConstraints(at)
 
 	newRule := Rule{
 		Timestamp:   at.Time,
@@ -1078,7 +1075,7 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 		Constraints: ruleConstraints,
 	}
 
-	return &newRule, nil
+	return &newRule
 }
 
 // IsRequestAllowed checks whether a request with the given parameters is
@@ -1091,7 +1088,7 @@ func (rdb *RuleDB) makeNewRule(user uint32, snap string, iface string, constrain
 func (rdb *RuleDB) IsRequestAllowed(user uint32, snap string, iface string, path string, permissions []string) (allowedPerms []string, anyDenied bool, outstandingPerms []string, err error) {
 	allowedPerms = make([]string, 0, len(permissions))
 	outstandingPerms = make([]string, 0, len(permissions))
-	currSession, err := readOrAssignUserSessionID(rdb, user)
+	currSession, err := ReadOrAssignUserSessionID(rdb, user)
 	if err != nil && !errors.Is(err, errNoUserSession) {
 		return nil, false, nil, err
 	}
@@ -1301,6 +1298,7 @@ func (rdb *RuleDB) RemoveRule(user uint32, id prompting.IDType) (*Rule, error) {
 	// rule was affected. We want the rule fully removed, so this is fine.
 
 	data := map[string]string{"removed": "removed"}
+	logger.Debugf("rule was removed: %q", id)
 	rdb.notifyRule(user, id, data)
 	return rule, nil
 }
@@ -1333,12 +1331,14 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 		return nil
 	}
 
+	removedRuleIDs := make([]string, 0, len(rules))
 	for _, rule := range rules {
 		// Remove rule from the rules list. Caller should ensure that the rule
 		// exists, and thus this should not error. We don't want to return any
 		// error here, because that would leave some of the given rules removed
 		// and others not, and the caller can ensure that this will not happen.
 		rdb.removeRuleByIDFromRulesList(rule.ID)
+		removedRuleIDs = append(removedRuleIDs, rule.ID.String())
 	}
 
 	// Now that rules have been removed from rules list, attempt to save
@@ -1351,6 +1351,7 @@ func (rdb *RuleDB) removeRulesInternal(user uint32, rules []*Rule) error {
 	}
 
 	// Save successful, now remove rules' variants from tree
+	logger.Debugf("removed rules: %q", removedRuleIDs)
 	data := map[string]string{"removed": "removed"}
 	for _, rule := range rules {
 		rdb.removeRuleFromTree(rule)
@@ -1429,8 +1430,10 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	// support patching it? Currently, we don't include fully expired rules
 	// in the output of Rules(), should the same be done here?
 
-	currSession, err := readOrAssignUserSessionID(rdb, user)
-	if err != nil && !errors.Is(err, errNoUserSession) {
+	currSession, err := ReadOrAssignUserSessionID(rdb, user)
+	// return all errors including when root tries to adjust rules for a
+	// user that is not logged in
+	if err != nil {
 		return nil, err
 	}
 	// At is used to check whether existing permission entries are expired,
@@ -1449,7 +1452,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 	if constraintsPatch == nil {
 		constraintsPatch = &prompting.RuleConstraintsPatch{}
 	}
-	ruleConstraints, err := constraintsPatch.PatchRuleConstraints(origRule.Constraints, origRule.Interface, at)
+	ruleConstraints, err := constraintsPatch.PatchRuleConstraints(origRule.Constraints, at)
 	if err != nil {
 		return nil, err
 	}
@@ -1482,6 +1485,7 @@ func (rdb *RuleDB) PatchRule(user uint32, id prompting.IDType, constraintsPatch 
 		return nil, err
 	}
 
+	logger.Debugf("rule was patched: %q", newRule.ID)
 	rdb.notifyRule(newRule.User, newRule.ID, nil)
 	return newRule, nil
 }
@@ -1499,7 +1503,7 @@ func (cache userSessionIDCache) getUserSessionID(rdb *RuleDB, user uint32) (prom
 	if ok {
 		return sessionID, nil
 	}
-	sessionID, err := readOrAssignUserSessionID(rdb, user)
+	sessionID, err := ReadOrAssignUserSessionID(rdb, user)
 	if err != nil && !errors.Is(err, errNoUserSession) {
 		return 0, err
 	}

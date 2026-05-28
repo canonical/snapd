@@ -227,6 +227,13 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
+        "$TESTSTOOLS"/snapd-state cancel-autorefresh
+
+        # Set a far future date to prevent automatic refreshes during the test execution.
+        snap set system refresh.hold="2050-01-01T00:00:00Z"
+    fi
+
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
@@ -683,9 +690,18 @@ prepare_suite() {
         snap set system journal.persistent=true
     fi
 
+    initial_mount_dir="$(os.paths snap-mount-dir)"
+    tests.invariant set snap-mount-dir "$initial_mount_dir"
+    # capture the snap mount directory, which should have been created by
+    # package installation
+    echo "$initial_mount_dir" | MATCH "(/var/lib/snapd)?/snap"
+
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+
+    # make sure that reset did not break anything
+    tests.invariant check snap-mount-dir
 }
 
 prepare_suite_each() {

@@ -191,9 +191,12 @@ func (iface *customDeviceInterface) validateUDevTaggingRule(rule map[string]any,
 			err = iface.validateUDevValueMap(value)
 		case "for-device":
 			// override of implicit device match
-			deviceOverrideVal = value.(string)
-			if !strutil.ListContains(devices, deviceOverrideVal) {
-				err = fmt.Errorf("cannot find matching device %q", deviceOverrideVal)
+			var ok bool
+			deviceOverrideVal, ok = value.(string)
+			if !ok {
+				err = fmt.Errorf(`"for-device" must be a string, but got %T: %v`, value, value)
+			} else if !strutil.ListContains(devices, deviceOverrideVal) {
+				err = fmt.Errorf(`cannot find matching device %q`, deviceOverrideVal)
 			}
 		default:
 			err = errors.New(`unknown tag`)

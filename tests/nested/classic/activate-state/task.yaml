@@ -1,10 +1,10 @@
-summary: Check that FDE activate state reports indeterminate
+summary: Check that FDE activate state reports inactive on classic
 
 details: |
   Classic, compared to hybrid, will not find whether FDE is used since
   there is no compliant snap-bootstrap in initramfs.
   However, we should not totally fail and instead report the FDE state
-  as not detected
+  as inactive.
 
 prepare: |
   echo "Install snapd.deb in the nested vm"
@@ -13,4 +13,4 @@ prepare: |
   remote.exec "sudo apt install -y ./snapd_*.deb"
 
 execute: |
-  remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null" | gojq '.result.status' | MATCH "indeterminate"
+  remote.exec "sudo snap debug api /v2/system-info/storage-encrypted 2>/dev/null" | gojq '.result.status' | MATCH "inactive"

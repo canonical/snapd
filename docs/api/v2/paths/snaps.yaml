@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - OpenAccess
+    - InterfaceOpenAccess
     - Snaps
     - Synchronous
   summary: List installed snaps
@@ -42,7 +42,7 @@ get:
 post:
   tags:
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Snaps
   summary: Manage snaps
   description: |-

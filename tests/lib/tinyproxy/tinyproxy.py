@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 # Tiny HTTP Proxy. Based on the work of SUZUKI Hisao.
 #

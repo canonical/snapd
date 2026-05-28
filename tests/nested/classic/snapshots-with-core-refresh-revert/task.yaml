@@ -8,6 +8,13 @@ details: |
     stable or compatible across snapd updates.
 
 prepare: |
+    echo "Prepare a local core snap revision"
+    snap download core --channel="${NESTED_CORE_CHANNEL}" --basename=core
+    unsquashfs -d core core.snap
+    current_core_version=$(awk '/^version: / {print $2}' core/meta/snap.yaml)
+    sed -i -e "s/^version: .*/version: ${current_core_version}+local/" core/meta/snap.yaml
+    snap pack --filename=core-repack.snap core
+
     echo "Configure hosts file"
     # shellcheck disable=SC2016
     remote.exec 'echo "127.0.1.1 $HOSTNAME" | sudo tee /etc/hosts'
@@ -18,10 +25,11 @@ prepare: |
     remote.exec "sudo apt install -y ./snapd_*.deb"
     remote.exec "sudo snap install test-snapd-sh"
     remote.exec "sudo snap install test-snapd-rsync"
+    remote.push core-repack.snap
 
 execute: |
-    echo "Make sure the core in the nested vm is the correct one"
-    remote.exec "sudo snap refresh core --${NESTED_CORE_CHANNEL}"
+    echo "Make sure the core in the nested vm is the local revision"
+    remote.exec "sudo snap install --dangerous core-repack.snap"
 
     echo "Use the snaps, so they create the dirs:"
     remote.exec "sudo test-snapd-sh.sh -c 'true'"
@@ -39,7 +47,7 @@ execute: |
     remote.exec "sudo rm /root/snap/test-snapd-rsync/{current,common}/canary.txt"
 
     echo "When the core is refreshed the snap snapshot can be restored"
-    remote.exec "sudo snap refresh core --${NESTED_CORE_REFRESH_CHANNEL}"
+    remote.exec "sudo snap refresh core --amend --channel=${NESTED_CORE_REFRESH_CHANNEL}"
     remote.exec "sudo snap restore $SET_ID test-snapd-rsync"
     test "$( remote.exec "sudo cat /root/snap/test-snapd-rsync/current/canary.txt" )" = "hello versioned test-snapd-rsync"
     test "$( remote.exec "sudo cat /root/snap/test-snapd-rsync/common/canary.txt" )" = "hello common test-snapd-rsync"

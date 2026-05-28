@@ -188,6 +188,35 @@ func (s *desktopSuite) TestEnsurePackageDesktopFilesWithDesktopFileName(c *C) {
 	s.testEnsurePackageDesktopFilesWithDesktopInterface(c, desktopFileID)
 }
 
+func (s *desktopSuite) TestEnsurePackageDesktopFilesWithMultipleDesktopPlugs(c *C) {
+	const desktopAppYaml = `
+name: foo
+version: 1.0
+apps:
+  foobar:
+plugs:
+  desktop:
+  desktop-file:
+    interface: desktop
+    desktop-file-ids: [org.example.Foo]
+`
+
+	info := snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{Revision: snap.R(11)})
+	c.Assert(info.Plugs["desktop"], NotNil)
+	c.Assert(info.Plugs["desktop-file"], NotNil)
+
+	baseDir := info.MountDir()
+	c.Assert(os.MkdirAll(filepath.Join(baseDir, "meta", "gui"), 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "org.example.Foo.desktop"), mockDesktopFile, 0644), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseDir, "meta", "gui", "foobar.desktop"), mockDesktopFile, 0644), IsNil)
+
+	err := wrappers.EnsureSnapDesktopFiles([]*snap.Info{info})
+	c.Assert(err, IsNil)
+
+	c.Check(filepath.Join(dirs.SnapDesktopFilesDir, "org.example.Foo.desktop"), testutil.FilePresent)
+	c.Check(filepath.Join(dirs.SnapDesktopFilesDir, "foo_foobar.desktop"), testutil.FilePresent)
+}
+
 func (s *desktopSuite) TestEnsurePackageDesktopFilesWithBadDesktopFileIDs(c *C) {
 	const desktopAppYamlTemplate = `
 name: foo

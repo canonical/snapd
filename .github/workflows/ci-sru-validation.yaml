@@ -1,0 +1,44 @@
+name: SRU Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      maximum-reruns:
+        type: number
+        description: 'Maximum number of times to rerun failed spread tasks'
+        default: 3
+        required: true
+      sru-validation-version:
+        type: string
+        description: 'The version of snapd to use for SRU validation (see tests/main/sru-validation-check test for details)'
+        required: true
+
+jobs:
+  run-validation:
+    uses: ./.github/workflows/spread-tests.yaml
+    name: "SRU Validation spread"
+    secrets: inherit
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: sru
+      backend: openstack-sru
+      systems: ALL
+      tasks: tests/...
+      # This run has no changed files, so no need to specify a rule
+      rules: ''
+      use-snapd-snap-from-master: true
+      spread-env: "SPREAD_SRU_VALIDATION_VERSION=${{ inputs.sru-validation-version }}"
+
+  re-run:
+    name: "Rerun failed jobs"
+    permissions:
+      actions: write
+    needs: [run-validation]
+    # If the spread tests ended in failure, rerun the workflow up to maximum-reruns times
+    if: ${{ failure() && fromJSON(github.run_attempt) <= fromJSON(inputs.maximum-reruns) }}
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run rerun.yaml -F run_id=${{ github.run_id }}

@@ -3,7 +3,7 @@
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Store
     - Synchronous
   summary: Log user out of snapd and the store

@@ -363,7 +363,6 @@ func (s *gadgetYamlEMMCSuite) TestUpdateApplyHappy(c *C) {
 	muo := &mockUpdateProcessObserver{}
 	updaterForStructureCalls := 0
 	restore = gadget.MockUpdaterForStructure(func(loc gadget.StructureLocation, fromPs, ps *gadget.LaidOutStructure, rootDir, rollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
-		fmt.Println("update-for-structure", loc, ps, fromPs)
 		updaterForStructureCalls++
 		mu := &mockUpdater{}
 

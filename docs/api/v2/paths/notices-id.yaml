@@ -3,8 +3,8 @@
 
 get:
   tags:
+    - InterfaceOpenAccess
     - Notices
-    - OpenAccess
     - Synchronous
   summary: Retrieve a specific system notice
   description: |-

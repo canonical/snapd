@@ -30,6 +30,11 @@ type Backend struct {
 	preseed bool
 }
 
+// Undoer collects undo actions to reverse system changes on error.
+type Undoer interface {
+	AddUndo(f func() error)
+}
+
 // Candidate is a test hook.
 func (b Backend) Candidate(*snap.SideInfo) {}
 

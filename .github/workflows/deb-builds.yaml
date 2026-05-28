@@ -28,7 +28,7 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Download vendor
-      uses: actions/download-artifact@v6
+      uses: actions/download-artifact@v8
       with:
         name: vendor-pkgs
         path: /tmp/pkg
@@ -47,10 +47,15 @@ jobs:
         target_system="${{ inputs.os }}-${{ inputs.os-version }}"
         case "$target_system" in
             debian-sid)
-                cp -av packaging/debian-sid debian
+                ln -sfn packaging/debian-sid debian
                 ;;
             ubuntu-*)
-                cp -av packaging/ubuntu-16.04 debian
+                version="${target_system#ubuntu-}"
+                if dpkg --compare-versions "$version" ge 26.04; then
+                    ln -sfn packaging/ubuntu-26.04 debian
+                else
+                    ln -sfn packaging/ubuntu-16.04 debian
+                fi
                 ;;
             *)
                 echo "unsupported deb packaging for $target_system"
@@ -59,10 +64,10 @@ jobs:
         esac
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@v4
 
     - name: Build Docker image
-      uses: docker/build-push-action@v6
+      uses: docker/build-push-action@v7
       with:
         context: .
         push: false
@@ -91,7 +96,7 @@ jobs:
           "
 
     - name: upload packages
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v7
       with:
         name: package-${{ inputs.system }}
         path: /tmp/builds/

@@ -1,0 +1,5 @@
+component: test-snapctl-no-wait+comp2
+type: standard
+version: 1.0
+summary: Second test component for snapctl --no-wait
+description: Second test component for snapctl --no-wait

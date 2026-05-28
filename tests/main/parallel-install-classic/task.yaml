@@ -32,26 +32,17 @@ prepare: |
 
     snap pack "$TESTSLIB/snaps/test-snapd-classic-confinement/"
 
-    case "$SPREAD_SYSTEM" in
-        fedora-*|arch-*|centos-*)
-            # although classic snaps do not work out of the box on fedora,
-            # we still want to verify if the basics do work if the user
-            # symlinks /snap to $SNAP_MOUNT_DIR themselves
-            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-            ln -sf "$SNAP_MOUNT_DIR" /snap
-            ;;
-    esac
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
+        # set up classic execution support
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
 
     snap set system experimental.parallel-instances=true
 
 restore: |
     snap unset system experimental.parallel-instances
-
-    case "$SPREAD_SYSTEM" in
-        fedora-*|arch-*|centos-*)
-            rm -f /snap
-            ;;
-    esac
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic

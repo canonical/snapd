@@ -415,10 +415,10 @@ func (s *linkSuite) TestLinkSnapdSnapCallsWrappersWithPreseedingFlag(c *C) {
 	defer restore()
 
 	var called bool
-	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error) {
+	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) error {
 		c.Check(opts.Preseeding, Equals, true)
 		called = true
-		return nil, nil
+		return nil
 	})
 	defer restoreAddSnapdSnapWrappers()
 
@@ -1091,58 +1091,6 @@ func (r *OverridenSnapdRestart) Restart() error {
 	return r.callback()
 }
 
-func (s *linkSuite) TestLinkSnapdSnapSetSymlinks(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	const yaml = `name: snapd
-version: 1.0
-type: snapd
-`
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
-	mountDir := info.MountDir()
-	dataDir := info.DataDir()
-	currentActiveSymlink := filepath.Join(filepath.Dir(mountDir), "current")
-	currentDataSymlink := filepath.Join(filepath.Dir(dataDir), "current")
-	err := os.Symlink("oldactivevalue", currentActiveSymlink)
-	c.Assert(err, IsNil)
-	err = os.MkdirAll(filepath.Dir(dataDir), os.ModePerm)
-	c.Assert(err, IsNil)
-	err = os.Symlink("olddatavalue", currentDataSymlink)
-	c.Assert(err, IsNil)
-
-	var restartDone bool
-	restartFunc := func() error {
-		restartDone = true
-		mountTarget, err := os.Readlink(currentDataSymlink)
-		c.Assert(err, IsNil)
-		dataTarget, err := os.Readlink(currentDataSymlink)
-		c.Assert(err, IsNil)
-		c.Check(mountTarget, Equals, filepath.Base(mountDir))
-		c.Check(dataTarget, Equals, filepath.Base(dataDir))
-		return fmt.Errorf("BROKEN")
-	}
-	restoreAddSnapdSnapWrappers := backend.MockWrappersAddSnapdSnapServices(func(s *snap.Info, opts *wrappers.AddSnapdSnapServicesOptions, inter wrappers.Interacter) (wrappers.SnapdRestart, error) {
-		return &OverridenSnapdRestart{callback: restartFunc}, nil
-	})
-	defer restoreAddSnapdSnapWrappers()
-
-	be := backend.NewForPreseedMode()
-	coreDev := boottest.MockUC20Device("run", nil)
-
-	err = be.LinkSnap(info, coreDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
-	c.Assert(err, ErrorMatches, `BROKEN`)
-	c.Assert(restartDone, Equals, true)
-
-	readMountTarget, err := os.Readlink(currentActiveSymlink)
-	c.Assert(err, IsNil)
-	readDataTarget, err := os.Readlink(currentDataSymlink)
-	c.Assert(err, IsNil)
-
-	c.Check(readMountTarget, Equals, "oldactivevalue")
-	c.Check(readDataTarget, Equals, "olddatavalue")
-}
-
 func (s *linkSuite) TestLinkComponentIdempotent(c *C) {
 	compName := "mycomp"
 	compRev := snap.R(-2)
@@ -1268,6 +1216,103 @@ func (s *linkSuite) TestKillSnapApps(c *C) {
 	err := s.be.KillSnapApps("foo", snap.KillReasonRemove, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(called, Equals, 1)
+}
+
+func (s *linkSuite) TestStartServices(c *C) {
+	var called int
+	restore := backend.MockWrappersStartServices(func(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error {
+		called++
+		c.Assert(apps, HasLen, 1)
+		c.Check(apps[0].Name, Equals, "svc")
+		return nil
+	})
+	defer restore()
+
+	apps := []*snap.AppInfo{{Name: "svc"}}
+	err := s.be.StartServices(apps, nil, progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, 1)
+}
+
+func (s *linkSuite) TestStartServicesSortsServices(c *C) {
+	var sortedNames []string
+	restore := backend.MockWrappersStartServices(func(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error {
+		sortedNames = make([]string, len(apps))
+		for i, app := range apps {
+			sortedNames[i] = app.Name
+		}
+		return nil
+	})
+	defer restore()
+
+	svc1 := &snap.AppInfo{Name: "svc1", Before: []string{"svc3"}}
+	svc2 := &snap.AppInfo{Name: "svc2", After: []string{"svc1"}}
+	svc3 := &snap.AppInfo{Name: "svc3", Before: []string{"svc2"}}
+
+	// pass in unsorted order
+	apps := []*snap.AppInfo{svc1, svc2, svc3}
+	err := s.be.StartServices(apps, nil, progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	// wrappers.StartServices should receive them sorted
+	c.Check(sortedNames, DeepEquals, []string{"svc1", "svc3", "svc2"})
+}
+
+func (s *linkSuite) TestStartServicesFailsOnCycle(c *C) {
+	restore := backend.MockWrappersStartServices(func(apps []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, opts *wrappers.StartServicesOptions, inter wrappers.Interacter, tm timings.Measurer) error {
+		c.Fatal("wrappers.StartServices should not be called when sorting fails")
+		return nil
+	})
+	defer restore()
+
+	svc1 := &snap.AppInfo{Name: "svc1", After: []string{"svc2"}}
+	svc2 := &snap.AppInfo{Name: "svc2", After: []string{"svc1"}}
+
+	apps := []*snap.AppInfo{svc1, svc2}
+	err := s.be.StartServices(apps, nil, progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, "applications are part of a before/after cycle: .*")
+}
+
+type nullUndoer struct{}
+
+func (nu nullUndoer) AddUndo(f func() error) {}
+
+func (s *linkSuite) TestStopServices(c *C) {
+	var called int
+	restore := backend.MockWrappersStopServices(func(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, opts *wrappers.StopServicesOptions, reason snap.ServiceStopReason, inter wrappers.Interacter, tm timings.Measurer) error {
+		called++
+		c.Assert(svcs, HasLen, 1)
+		c.Check(svcs[0].Name, Equals, "svc")
+		return nil
+	})
+	defer restore()
+
+	apps := []*snap.AppInfo{{Name: "svc"}}
+	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, &nullUndoer{}, progress.Null, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, 1)
+}
+
+type fakeUndoer struct {
+	undoFuncs []func() error
+}
+
+func (u *fakeUndoer) AddUndo(f func() error) {
+	u.undoFuncs = append(u.undoFuncs, f)
+}
+
+func (s *linkSuite) TestStopServicesWithNotNilUndoerRegistersUndo(c *C) {
+	restore := backend.MockWrappersStopServices(func(svcs []*snap.AppInfo, removedSvcs map[string]*snap.AppInfo, opts *wrappers.StopServicesOptions, reason snap.ServiceStopReason, inter wrappers.Interacter, tm timings.Measurer) error {
+		c.Assert(svcs, HasLen, 1)
+		c.Check(svcs[0].Name, Equals, "svc")
+		return errors.New("mock StopServices error")
+	})
+	defer restore()
+
+	undoer := &fakeUndoer{}
+	apps := []*snap.AppInfo{{Name: "svc"}}
+	err := s.be.StopServices(apps, nil, nil, snap.StopReasonRefresh, undoer, progress.Null, s.perfTimings)
+	c.Assert(err, ErrorMatches, "mock StopServices error")
+	c.Assert(undoer.undoFuncs, HasLen, 1)
 }
 
 func (s *linkSuite) TestLinkSnapNilStateUnlockerError(c *C) {
