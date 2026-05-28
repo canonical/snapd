@@ -10,11 +10,11 @@ metadata:
 
 This skill covers how to build the snapd snap artifact required for spread integration testing.
 
-**Command**: `./tests/build-test-snapd-snap`
+Command: `./tests/build-test-snapd-snap`
 
-**Purpose**: Builds the snapd snap package using snapcraft, creating a snap file in the `built-snap/` directory.
+Purpose: Builds the snapd snap package using snapcraft, creating a snap file in the `built-snap/` directory.
 
-**Output**: `built-snap/snapd_*.snap.keep`
+Output: `built-snap/snapd_*.snap.keep`
 
 ## When to Use This Skill
 
@@ -23,11 +23,11 @@ Use this skill when you need to:
 - Rebuild after making changes to snapd code
 - Determine which build option to use based on code changes
 
-**When you do NOT need to build**:
+When you do NOT need to build:
 - The `tests/unit/` suite does not require a prebuilt snapd snap. Use `spread` directly for those tests (e.g., `spread garden:ubuntu-24.04-64:tests/unit/go`).
-- Changes only to test infrastructure files (`tests/lib/`, `tests/unit/`, etc.) that don't affect the snap contents — use `spread` directly or `NO_REBUILD=1`.
+- Changes only to test infrastructure files (`tests/lib/`, `tests/unit/`, etc.) that don't affect the snap contents — use `./run-spread --download` to fetch the prebuilt snap from master, or set `NO_REBUILD=1` if a snap already exists locally.
 
-**Preferred approach**: Use `--clean-snapd-only` to ensure the snapd part is fully rebuilt (clean + rebuild) while preserving other parts.
+Preferred approach: Use `--clean-snapd-only` to ensure the snapd part is fully rebuilt (clean + rebuild) while preserving other parts.
 
 ## Build Options
 
@@ -37,20 +37,20 @@ Use this skill when you need to:
 ./tests/build-test-snapd-snap --clean-snapd-only
 ```
 
-**Use this as the default choice** for most development work.
+Use this as the default choice for most development work.
 
-**What it does**: 
+What it does:
 - Cleans and fully rebuilds only the `snapd` part in `build-aux/snap/snapcraft.yaml`
 - Ensures the snapd part is completely rebuilt from scratch (clean + rebuild)
 - Preserves all other parts (dynamic-linker, runtime, apparmor, etc.)
 
-**Perfect for**:
+Perfect for:
 - Changes to Go code in cmd/, daemon/, overlord/, interfaces/, etc.
 - Iterating on snapd daemon logic
 - Bug fixes in Go code
 - Most day-to-day development work
 
-**Avoids rebuilding**:
+Avoids rebuilding:
 - `dynamic-linker` (custom glibc dynamic linker)
 - `runtime` (runtime library dependencies)
 - `apparmor` (AppArmor parser and libraries)
@@ -58,7 +58,7 @@ Use this skill when you need to:
 - `squashfs-tools` (squashfs filesystem tools)
 - `libcrypto-fips` (FIPS-compliant crypto libraries)
 
-**Build time**: Approximately 1-2 minutes (Go compilation and linking only).
+Build time: Approximately 1-2 minutes (Go compilation and linking only).
 
 ### Option 2: Full Clean (no flags) - Use When Needed
 
@@ -66,7 +66,7 @@ Use this skill when you need to:
 ./tests/build-test-snapd-snap
 ```
 
-**Use when `--clean-snapd-only` is not sufficient**:
+Use when `--clean-snapd-only` is not sufficient:
 - Non-snapd parts of `build-aux/snap/snapcraft.yaml` were changed
 - AppArmor part configuration in `build-aux/snap/snapcraft.yaml` was modified
 - Changes to `build-aux/snap/local/` scripts
@@ -74,7 +74,7 @@ Use this skill when you need to:
 - First build of the day after pulling major changes
 - When in doubt about dependencies
 
-**Build time**: Several minutes (builds glibc, apparmor, and all dependencies).
+Build time: Several minutes (builds glibc, apparmor, and all dependencies).
 
 ### Option 3: No Clean (--no-clean) - Use With Caution
 
@@ -82,25 +82,25 @@ Use this skill when you need to:
 ./tests/build-test-snapd-snap --no-clean
 ```
 
-**Use when**: Iterating rapidly and confident that no dependencies changed.
+Use when: Iterating rapidly and confident that no dependencies changed.
 
-**What it does**: Skips `snapcraft clean` (equivalent to `SNAPCRAFT_NO_CLEAN=1`). Note: `built-snap/` directory is still removed and recreated.
+What it does: Skips `snapcraft clean` (equivalent to `SNAPCRAFT_NO_CLEAN=1`). Note: `built-snap/` directory is still removed and recreated.
 
-**Warning**: May produce incorrect builds if any dependencies have changed. Use with caution.
+Warning: May produce incorrect builds if any dependencies have changed. Use with caution.
 
-**Build time**: Fastest option, typically under a minute.
+Build time: Fastest option, typically under a minute.
 
 ## Snapcraft Parts Reference
 
 The snapd snap consists of multiple parts defined in `build-aux/snap/snapcraft.yaml`:
 
-- **snapd**: Main Go code (daemon, commands, libraries) - the core snapd implementation
-- **apparmor**: AppArmor parser and libraries for security confinement
-- **dynamic-linker**: Custom glibc dynamic linker for the snap
-- **runtime**: Runtime library dependencies (libc, libcap, libseccomp, etc.)
-- **patchelf**: ELF manipulation tool
-- **squashfs-tools**: Tools for creating and managing squashfs filesystems
-- **libcrypto-fips**: FIPS-compliant crypto libraries (conditional)
+- `snapd`: Main Go code (daemon, commands, libraries) - the core snapd implementation
+- `apparmor`: AppArmor parser and libraries for security confinement
+- `dynamic-linker`: Custom glibc dynamic linker for the snap
+- `runtime`: Runtime library dependencies (libc, libcap, libseccomp, etc.)
+- `patchelf`: ELF manipulation tool
+- `squashfs-tools`: Tools for creating and managing squashfs filesystems
+- `libcrypto-fips`: FIPS-compliant crypto libraries (conditional)
 
 ## Decision Tree
 
@@ -132,7 +132,7 @@ Changes made to:
 6. Unsure about what changed or dependencies unclear
    -> Use: --clean-snapd-only (PREFERRED - covers most cases without rebuilding everything)
    -> Reason: Fast rebuild of the snapd part; only use full clean (no flags) as a last resort
-      when you are certain non-snapd parts (apparmor, dynamic-linker, runtime, etc.) need rebuilding
+     when you are certain non-snapd parts (apparmor, dynamic-linker, runtime, etc.) need rebuilding
 
 7. Rapid iteration with no dependency changes (USE WITH CAUTION)
    -> Use: --no-clean
@@ -162,25 +162,25 @@ The built snap is automatically used by the spread test infrastructure:
 
 ## Common Scenarios
 
-**Scenario 1: Fixed a bug in snapd daemon**
+Scenario 1 — Fixed a bug in snapd daemon:
 ```bash
 # Only Go code changed
 ./tests/build-test-snapd-snap --clean-snapd-only
 ```
 
-**Scenario 2: Modified AppArmor part configuration**
+Scenario 2 — Modified AppArmor part configuration:
 ```bash
 # Non-snapd part changed
 ./tests/build-test-snapd-snap
 ```
 
-**Scenario 3: Modified snapcraft.yaml to add new runtime dependency**
+Scenario 3 — Modified snapcraft.yaml to add new runtime dependency:
 ```bash
 # Runtime part affected
 ./tests/build-test-snapd-snap
 ```
 
-**Scenario 4: Quick iteration on interface implementation**
+Scenario 4 — Quick iteration on interface implementation:
 ```bash
 # First build: use --clean-snapd-only
 ./tests/build-test-snapd-snap --clean-snapd-only
@@ -191,13 +191,13 @@ The built snap is automatically used by the spread test infrastructure:
 
 ## Best Practices
 
-**DO**:
+DO:
 - Use `--clean-snapd-only` as your default for Go code changes (ensures full rebuild)
 - Use full clean when in doubt about dependencies
 - Verify the snap was created after build completes
 - Check build logs for warnings or errors
 
-**DON'T**:
+DON'T:
 - Use `--no-clean` unless you're certain dependencies haven't changed
 - Ignore build warnings (they may indicate real issues)
 - Assume a previous build is still valid after pulling changes
