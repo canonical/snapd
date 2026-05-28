@@ -1,6 +1,6 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 /*
- * Copyright (C) 2023-2025 Canonical Ltd
+ * Copyright (C) 2023-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,8 +26,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -199,30 +197,17 @@ func setView(c *Command, r *http.Request, _ *auth.UserState) Response {
 }
 
 func toAPIError(err error) *apiError {
+	kind := confdbstate.ToErrorKind(err)
+	if kind != "" {
+		return &apiError{
+			Status:  400,
+			Message: err.Error(),
+			Kind:    kind,
+			Value:   err,
+		}
+	}
+
 	switch {
-	case errors.Is(err, &asserts.NotFoundError{}):
-		return &apiError{
-			Status:  400,
-			Message: err.Error(),
-			Kind:    client.ErrorKindAssertionNotFound,
-			Value:   err,
-		}
-	case errors.Is(err, &confdbstate.NoViewError{}):
-		fallthrough
-	case errors.Is(err, &confdb.NoMatchError{}):
-		return &apiError{
-			Status:  400,
-			Message: err.Error(),
-			Kind:    client.ErrorKindOptionNotAvailable,
-			Value:   err,
-		}
-	case errors.Is(err, &confdb.NoDataError{}):
-		return &apiError{
-			Status:  400,
-			Message: err.Error(),
-			Kind:    client.ErrorKindConfigNoSuchOption,
-			Value:   err,
-		}
 	case errors.Is(err, &confdb.BadRequestError{}),
 		errors.Is(err, &confdb.UnconstrainedParamsError{}),
 		errors.Is(err, &confdb.UnmatchedConstraintsError{}):

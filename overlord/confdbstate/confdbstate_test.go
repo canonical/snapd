@@ -20,6 +20,7 @@ package confdbstate_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -3157,5 +3158,23 @@ func (s *confdbTestSuite) TestAPIBlockingAccessTimedOutRacesWithUnblock(c *C) {
 	case <-waitChan:
 	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 		c.Fatal("expected access to block but timed out")
+	}
+}
+
+func (s *confdbTestSuite) TestToErrorKind(c *C) {
+	type test struct {
+		err      error
+		expected client.ErrorKind
+	}
+	tests := []test{
+		{&asserts.NotFoundError{Type: asserts.ConfdbSchemaType}, client.ErrorKindAssertionNotFound},
+		{&confdbstate.NoViewError{}, client.ErrorKindOptionNotAvailable},
+		{&confdb.NoMatchError{}, client.ErrorKindOptionNotAvailable},
+		{&confdb.NoDataError{}, client.ErrorKindConfigNoSuchOption},
+		{errors.New("some other error"), ""},
+	}
+
+	for _, tt := range tests {
+		c.Check(confdbstate.ToErrorKind(tt.err), Equals, tt.expected)
 	}
 }
