@@ -22,8 +22,8 @@ systems:
 
 environment:
     MODULE: minix
-    # core24 and core26 contain compressed kernel module file
-    MODULE_PATH: $(if [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ]; then echo "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko"; else echo "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko.zst" ; fi)
+    # some systems contain a compressed kernel module object file
+    MODULE_PATH: $(path="/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko"; if [ -f "$path" ]; then echo "$path"; else echo "$path.zst" ; fi)
 
 skip:
     - reason: minix module not available in the system
