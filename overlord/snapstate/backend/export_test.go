@@ -34,6 +34,7 @@ import (
 var (
 	AddMountUnit       = addMountUnit
 	RemoveMountUnit    = removeMountUnit
+	IsUnderAnyDir      = isUnderAnyDir
 	RemoveIfEmpty      = removeIfEmpty
 	SnapDataDirs       = snapDataDirs
 	SnapCommonDataDirs = snapCommonDataDirs
