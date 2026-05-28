@@ -55,6 +55,10 @@ func (fm *fakeManager) Ensure() error {
 	return fm.ensureError
 }
 
+func (fm *fakeManager) ShutDown() {
+	*fm.calls = append(*fm.calls, "shutdown:"+fm.name)
+}
+
 func (fm *fakeManager) Stop() {
 	*fm.calls = append(*fm.calls, "stop:"+fm.name)
 }
@@ -159,6 +163,27 @@ func (ses *stateEngineSuite) TestEnsureError(c *C) {
 	err := se.Ensure()
 	c.Check(err.Error(), DeepEquals, "state ensure errors: [boom1 boom2]")
 	c.Check(calls, DeepEquals, []string{"ensure:mgr1", "ensure:mgr2"})
+}
+
+func (ses *stateEngineSuite) TestShutDown(c *C) {
+	s := state.New(nil)
+	se := overlord.NewStateEngine(s)
+
+	calls := []string{}
+
+	mgr1 := &fakeManager{name: "mgr1", calls: &calls}
+	mgr2 := &fakeManager{name: "mgr2", calls: &calls}
+
+	se.AddManager(mgr1)
+	se.AddManager(mgr2)
+
+	c.Assert(se.StartUp(), IsNil)
+	calls = []string{}
+
+	se.ShutDown()
+	c.Check(calls, DeepEquals, []string{"shutdown:mgr1", "shutdown:mgr2"})
+	se.ShutDown()
+	c.Check(calls, HasLen, 2)
 }
 
 func (ses *stateEngineSuite) TestStop(c *C) {
