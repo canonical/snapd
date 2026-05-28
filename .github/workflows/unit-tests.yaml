@@ -151,7 +151,8 @@ jobs:
     - name: Test Go (with network isolation)
       if: ${{ inputs.code == 'go' }}
       run: |
-        sudo -E unshare --net -- bash -c 'ip link set lo up && runuser -u "$1" -- ./run-checks --unit' -- "$USER"
+        sudo --preserve-env=PATH,GOROOT,GO_BUILD_TAGS,SNAPD_DEBUG,GO_TEST_RACE,SKIP_COVERAGE \
+          unshare --net -- bash -c 'ip link set lo up && runuser -u "$1" -- ./run-checks --unit' -- "$USER"
 
     - name: Create coverage results name
       if: ${{ ! inputs.skip-coverage }}
