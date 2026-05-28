@@ -108,6 +108,10 @@ snap changes
 snap tasks <change-id>
 ```
 
+## spread.yaml structure
+
+Key sections: `environment:` (global vars), `backends:` (garden/google/qemu configs), `backends:<backend>:systems:` (available systems), `suites:` (test suite configs). Individual tests can override settings in their `task.yaml`.
+
 ## Rules
 
 - Always use `-debug` to avoid re-runs on failure
