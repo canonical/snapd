@@ -1635,7 +1635,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
 	if err != nil {
 		return nil, false, nil, err
 	}
@@ -3653,7 +3653,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	// from, we use ReplaceLatest to indicate that the most recent seed should
 	// be replaced with the incoming one. this is only applicable if this snap
 	// triggers a seed refresh.
-	seedTS, err := arrangeRebootAndUpdateSeed(st, []snapInstallTaskSet{installTS}, nil, SeedRefreshEvictionPolicy{
+	seedTS, err := arrangeRebootAndUpdateSeed(st, []snapInstallTaskSet{installTS}, SeedRefreshEvictionPolicy{
 		SeedsToRetain: 1,
 		ReplaceLatest: true,
 	}, Options{
