@@ -23,21 +23,20 @@ systems:
 environment:
     MODULE: minix
     MODULE_PATH_FILE: "/home/test/module_path"
+    MODULE_BASE_PATH: "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko"
 
 skip:
     - reason: minix module not available in the system
       if: |
-        ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ] &&
-        ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko.zst" ]
+        ! [ -f "$MODULE_BASE_PATH" ] && ! [ -f "$MODULE_BASE_PATH.zst" ]
 
 prepare: |
-    MODULE_PATH="/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko"
-    if [ -f "$MODULE_PATH" ]; then
-        echo "$MODULE_PATH" > "$MODULE_PATH_FILE"
+    if [ -f "$MODULE_BASE_PATH" ]; then
+        echo "$MODULE_BASE_PATH" > "$MODULE_PATH_FILE"
     else
         # Some systems contain a compressed kernel module object file.
         # The test would have been skipped otherwise.
-        echo "$MODULE_PATH.zst" > "$MODULE_PATH_FILE"
+        echo "$MODULE_BASE_PATH.zst" > "$MODULE_PATH_FILE"
     fi
 
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
