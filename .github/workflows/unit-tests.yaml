@@ -52,7 +52,6 @@ jobs:
       GOROOT: ""
       GO_BUILD_TAGS: ${{ inputs.go-build-tags }}
       CC: ${{ inputs.c-compiler }}
-      GOTRACEBACK: all
       
     steps:
     - name: Checkout code
