@@ -28,31 +28,3 @@ jobs:
         github.event.pull_request.draft == true &&
         !contains(github.event.pull_request.labels.*.name, 'Skip spread')
       run: gh pr edit ${{ github.event.pull_request.number }} --add-label 'Run only one system'
-
-  auto-rerun-label-on-approval:
-    if: github.event_name == 'pull_request_review' && github.event.review.state == 'approved'
-    permissions:
-      pull-requests: write
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-
-    - name: Add Auto rerun spread label after second approval
-      run: |
-        if [ "${{ github.event.pull_request.draft }}" = "true" ]; then
-          exit 0
-        fi
-
-        labels=$(gh pr view "$PR_NUMBER" --json labels --jq '.labels[].name')
-        if grep -q '^Skip spread$' <<<"$labels" || grep -q '^Run only one system$' <<<"$labels"; then
-          exit 0
-        fi
-
-        approvals=$(gh pr view "$PR_NUMBER" --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | sort -u | wc -l)
-        if [ "$approvals" -ge 2 ] && ! grep -q '^Auto rerun spread$' <<<"$labels"; then
-          gh pr edit "$PR_NUMBER" --add-label 'Auto rerun spread'
-        fi
