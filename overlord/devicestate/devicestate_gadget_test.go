@@ -808,6 +808,61 @@ volumes:
 	c.Check(updaterForStructureCalls, Equals, 1)
 }
 
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCorePibootPreservesExistingOsPrefix(c *C) {
+	var updateCalled int
+	currentConfig := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
+	s.bootloader.ReconfigureRecoveryBootConfigFunc = func() error {
+		buf, err := os.ReadFile(currentConfig)
+		if err != nil {
+			return err
+		}
+		updated := strings.Replace(string(buf), "os_prefix=\n", "os_prefix=/piboot/ubuntu/pi-kernel_1/\n", 1)
+		if updated == string(buf) {
+			return fmt.Errorf("cannot update %s: blank os_prefix not found", currentConfig)
+		}
+		return os.WriteFile(currentConfig, []byte(updated), 0644)
+	}
+	defer func() {
+		s.bootloader.ReconfigureRecoveryBootConfigFunc = nil
+		s.bootloader.ReconfigureRecoveryBootConfigCalls = 0
+	}()
+
+	restore := devicestate.MockGadgetUpdate(func(model gadget.Model, current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error {
+		updateCalled++
+		c.Assert(os.WriteFile(currentConfig, []byte("gpu_mem=64\nos_prefix=\ndtoverlay=disable-bt\n"), 0644), IsNil)
+		return nil
+	})
+	defer restore()
+
+	chg, t := s.setupGadgetUpdate(c, "dangerous", strings.Replace(uc20gadgetYaml, "bootloader: grub", "bootloader: piboot", 1), "", false)
+
+	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
+	err := os.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt"), []byte("gpu_mem=16\nos_prefix=/piboot/ubuntu/pi-kernel_1/\n"), 0644)
+	c.Assert(err, IsNil)
+	s.mockModeenvForMode(c, "run")
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// simulate restart and settle again
+	s.mockRestartAndSettle(c, s.state, chg)
+
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(updateCalled, Equals, 1)
+	c.Check(s.bootloader.ReconfigureRecoveryBootConfigCalls, Equals, 1)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt"), testutil.FileEquals, "gpu_mem=64\nos_prefix=/piboot/ubuntu/pi-kernel_1/\ndtoverlay=disable-bt\n")
+}
+
 func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 	siCurrent := &snap.SideInfo{
 		RealName: "foo-gadget",

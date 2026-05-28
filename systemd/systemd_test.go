@@ -1216,6 +1216,9 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestConfigureMountUnitOptions(c *C) {
 	sysd := NewUnderRoot(dirs.GlobalRootDir, SystemMode, nil)
 
+	restore := MockSquashFsType(func() (string, []string) { return "squashfs.foo", []string{"foo", "bar", "baz"} })
+	defer restore()
+
 	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
 	makeMockFile(c, mockSnapPath)
 
@@ -1309,8 +1312,8 @@ func (s *SystemdTestSuite) TestConfigureMountUnitOptions(c *C) {
 				Origin:                   "origin",
 				RootDir:                  "/root/dir",
 				// overridden by fstype="squashfs"
-				Fstype:  "squashfs",
-				Options: []string{"nodev", "ro", "x-gdu.hide", "x-gvfs-hide"},
+				Fstype:  "squashfs.foo",
+				Options: []string{"nodev", "foo", "bar", "baz"},
 				// overridden by startBeforeDrivers=true
 				MountUnitType: BeforeDriversLoadMountUnit,
 			},
@@ -2085,6 +2088,58 @@ func (s *SystemdTestSuite) TestRemoveMountUnit(c *C) {
 	})
 }
 
+func (s *SystemdTestSuite) TestRemoveMountUnitWhenIsMountedButDeletedUnitFile(c *C) {
+	// When the unit file is missing but the directory is still mounted
+	// (e.g. a user manually deleted the unit file), RemoveMountUnitFile
+	// must still unmount the directory and return nil error
+	rootDir := dirs.GlobalRootDir
+	mountDir := rootDir + "/snap/foo/42"
+
+	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+		c.Check(path, Equals, mountDir)
+		return true, nil
+	})
+	defer restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	// No unit file on disk
+	err := NewUnderRoot(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir)
+	c.Assert(err, IsNil)
+
+	// umount was called
+	c.Check(mockUmountCmd.Calls(), HasLen, 1)
+	c.Check(mockUmountCmd.Calls()[0], DeepEquals, []string{"umount", "-d", "-l", mountDir})
+	// no systemctl calls: no unit file to disable or daemon-reload for
+	c.Check(s.argses, HasLen, 0)
+}
+
+func (s *SystemdTestSuite) TestRemoveMountUnitWhenIsNotMountedAndDeletedUnitFile(c *C) {
+	// When the unit file is missing and the directory is not mounted
+	// RemoveMountUnitFile must return nil error without calling umount
+	// or systemctl
+	rootDir := dirs.GlobalRootDir
+	mountDir := rootDir + "/snap/foo/42"
+
+	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+		c.Check(path, Equals, mountDir)
+		return false, nil
+	})
+	defer restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	// No unit file on disk
+	err := NewUnderRoot(rootDir, SystemMode, nil).RemoveMountUnitFile(mountDir)
+	c.Assert(err, IsNil)
+
+	// nothing to unmount or disable
+	c.Check(mockUmountCmd.Calls(), HasLen, 0)
+	c.Check(s.argses, HasLen, 0)
+}
+
 func (s *SystemdTestSuite) TestDaemonReloadMutex(c *C) {
 	s.testDaemonOpWithMutex(c, Systemd.DaemonReload)
 }
@@ -2679,6 +2734,56 @@ func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmounted(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"--root", dirs.GlobalRootDir, "disable", "snap-foo-42.mount"}})
 	// umount was not called
 	c.Check(mockUmountCmd.Calls(), HasLen, 0)
+}
+
+func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitMountedButNoUnitFile(c *C) {
+	// When the unit file is missing but the directory is still mounted,
+	// emulation-mode RemoveMountUnitFile must still unmount and return nil
+	// error.
+	mountDir := dirs.GlobalRootDir + "/snap/foo/42"
+
+	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+		c.Check(path, Equals, mountDir)
+		return true, nil
+	})
+	defer restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	// No unit file on disk
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
+
+	// umount was called
+	c.Check(mockUmountCmd.Calls(), HasLen, 1)
+	c.Check(mockUmountCmd.Calls()[0], DeepEquals, []string{"umount", "-d", "-l", mountDir})
+	// no systemctl calls: no unit file to disable
+	c.Check(s.argses, HasLen, 0)
+}
+
+func (s *SystemdTestSuite) TestPreseedModeRemoveMountUnitUnmountedAndNoUnitFile(c *C) {
+	// When the unit file is missing and the directory is not mounted
+	// RemoveMountUnitFile must return nil error without calling umount
+	// or systemctl
+	mountDir := dirs.GlobalRootDir + "/snap/foo/42"
+
+	restore := MockOsutilIsMounted(func(path string) (bool, error) {
+		c.Check(path, Equals, mountDir)
+		return false, nil
+	})
+	defer restore()
+
+	mockUmountCmd := testutil.MockCommand(c, "umount", "")
+	defer mockUmountCmd.Restore()
+
+	// No unit file on disk
+	sysd := NewEmulationMode(dirs.GlobalRootDir)
+	c.Assert(sysd.RemoveMountUnitFile(mountDir), IsNil)
+
+	// nothing to unmount or disable
+	c.Check(mockUmountCmd.Calls(), HasLen, 0)
+	c.Check(s.argses, HasLen, 0)
 }
 
 func (s *SystemdTestSuite) TestPreseedModeBindmountNotSupported(c *C) {

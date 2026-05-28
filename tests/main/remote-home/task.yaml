@@ -86,12 +86,10 @@ prepare: |
         tests.cleanup defer rm -f /etc/exports.d/test.exports
         ;;
       cifs)
-        # Install samba.
         tests.pkgs install samba
+        tests.cleanup defer tests.pkgs remove --purge samba
 
         # Create the var-home share.
-        tests.backup prepare /etc/samba
-        tests.cleanup defer tests.backup restore /etc/samba
         # NOTE: due to <<- and the fact that this is shell-in-yaml, the spaces
         # are followed by tabs.
         cat <<-__SMB__ >>'/etc/samba/smb.conf'

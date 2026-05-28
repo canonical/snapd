@@ -60,13 +60,24 @@ func newNoticeBackends(noticeMgr *notices.NoticeManager) (*noticeBackends, error
 		return nil, fmt.Errorf("cannot create interfaces requests run directory: %w", err)
 	}
 
+	if err := os.MkdirAll(dirs.SnapInterfacesRequestsStateDir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create interfaces requests state directory: %w", err)
+	}
+
+	// The prompting notice backend is more tightly coupled to the prompt/rule
+	// state, since they rely on the prompt/rule state providing unique IDs.
+	// Thus, store prompt/rule notice state in the same directory as the
+	// prompts/rules themselves.
+
+	// Store prompt notices alongside the prompt ID mapping, in the run dir.
 	path := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "prompt-notices.json")
 	promptNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsPromptNotice, promptNoticeNamespace)
 	if err != nil {
 		return nil, err
 	}
 
-	path = filepath.Join(dirs.SnapInterfacesRequestsRunDir, "rule-notices.json")
+	// Store rule notices alongside the rule state, in the state dir.
+	path = filepath.Join(dirs.SnapInterfacesRequestsStateDir, "rule-notices.json")
 	ruleNoticeBackend, err := newNoticeTypeBackend(now, nextNoticeTimestamp, path, state.InterfacesRequestsRuleUpdateNotice, ruleNoticeNamespace)
 	if err != nil {
 		return nil, err
@@ -96,8 +107,25 @@ func (nb *noticeBackends) registerWithManager(noticeMgr *notices.NoticeManager) 
 		// responsible for notices of this type.
 		for _, notice := range drainedNotices {
 			// Re-create each notice in the backend, so no data is lost before
-			// a client can receive it. The ID will be different, but the key
-			// will be the same.
+			// a client can receive it. The notice ID will be different, but
+			// the notice key (prompt/rule ID) will be the same.
+			//
+			// It's possible that notices were already recorded to this backend
+			// during startup of other sub-services (e.g. the rules backend)
+			// prior to registering it with the notice manager. In that case,
+			// those notices are "fresher" than the notices we drained from the
+			// state, so we want to make sure we don't overwrite the data from
+			// those notices with the stale data from state.
+			noticeID := bknd.noticeKeyToID(notice.Key())
+			if bknd.BackendNotice(noticeID) != nil {
+				// The notice has already been re-added with fresher data.
+				// XXX: Technically, it's possible that the existing notice
+				// could have a different user and by skipping re-adding it,
+				// we silently ignore it rather than throwing an error. But
+				// this should not occur in practice, and we would prefer the
+				// fresher notice anyway.
+				continue
+			}
 			userID, _ := notice.UserID() // prompting notices always have UserID
 			promptingID, err := prompting.IDFromString(notice.Key())
 			if err != nil {
@@ -164,6 +192,10 @@ func newNoticeTypeBackend(now time.Time, nextNoticeTimestamp func() time.Time, p
 	return ntb, nil
 }
 
+func (ntb *noticeTypeBackend) noticeKeyToID(key string) string {
+	return fmt.Sprintf("%s-%s", ntb.namespace, key)
+}
+
 // addNotice records an occurrence of a notice with the specified user ID, a
 // key equal to the given prompt/rule ID, and the given data, with notice ID
 // and type derived from the receiver.
@@ -171,7 +203,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	ntb.rwmu.Lock()
 	defer ntb.rwmu.Unlock()
 	key := id.String()
-	noticeID := fmt.Sprintf("%s-%s", ntb.namespace, key)
+	noticeID := ntb.noticeKeyToID(key)
 
 	userNotices, existingNotice, existingIndex, err := ntb.searchExistingNotices(userID, noticeID)
 	if err != nil {
@@ -227,7 +259,7 @@ func (ntb *noticeTypeBackend) addNotice(userID uint32, id prompting.IDType, data
 	return nil
 }
 
-// searchExistingNotice looks up the list of existing notices for the given
+// searchExistingNotices looks up the list of existing notices for the given
 // userID and checks whether a notice with the given noticeID already exists.
 //
 // Returns the slice of existing notices for the given userID. If the notice

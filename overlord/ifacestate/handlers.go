@@ -56,7 +56,7 @@ var snapstateFinishRestart = snapstate.FinishRestart
 
 // journalQuotaLayout returns the necessary journal quota mount layouts
 // to mimick what systemd does for services with log namespaces.
-func journalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
+func journalQuotaLayout(info *snap.Info, quotaGroup *quota.Group) []snap.Layout {
 	if quotaGroup.JournalLimit == nil {
 		return nil
 	}
@@ -64,6 +64,7 @@ func journalQuotaLayout(quotaGroup *quota.Group) []snap.Layout {
 	// bind mount the journal namespace folder on top of the journal folder
 	// /run/systemd/journal.<ns> -> /run/systemd/journal
 	layouts := []snap.Layout{{
+		Snap: info,
 		Bind: path.Join(dirs.SnapSystemdRunDir, fmt.Sprintf("journal.%s", quotaGroup.JournalNamespaceName())),
 		Path: path.Join(dirs.SnapSystemdRunDir, "journal"),
 		Mode: 0755,
@@ -82,7 +83,7 @@ func getExtraLayouts(st *state.State, snapInfo *snap.Info) ([]snap.Layout, error
 
 	var extraLayouts []snap.Layout
 	if snapOpts.QuotaGroup != nil {
-		extraLayouts = append(extraLayouts, journalQuotaLayout(snapOpts.QuotaGroup)...)
+		extraLayouts = append(extraLayouts, journalQuotaLayout(snapInfo, snapOpts.QuotaGroup)...)
 	}
 
 	return extraLayouts, nil
@@ -337,6 +338,9 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 	d[snapName][backend] = append(d[snapName][backend], item)
 }
 
+// refreshAppSetConnections refreshes repository connections for appSet and, on
+// the setup-profiles do path, records undo data for persisted connection state
+// that reloadConnections changed or dropped.
 func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
 	snapName := appSet.InstanceName()
@@ -369,11 +373,21 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	affectedConnections, err := m.reloadConnections(snapName)
+	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(snapName)
 	if err != nil {
 		return nil, nil, err
 	}
-	return disconnectedSnaps, affectedConnections, nil
+
+	// if this task modified any connection states, take a snapshot of the
+	// original connections so that setup-profiles' undo can restore them, if
+	// needed
+	if task.Status() != state.UndoingStatus {
+		if err := snapshotChangedConnectionsForUndo(task, snapName, changedOrDroppedConns); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return disconnectedSnaps, reloadedConns, nil
 }
 
 func (m *InterfaceManager) setupProfilesForAppSet(
@@ -385,7 +399,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	st := task.State()
 
 	snapName := appSet.InstanceName()
-	disconnectedSnaps, affectedConnections, err := m.refreshAppSetConnections(task, appSet)
+	disconnectedSnaps, reloadedConns, err := m.refreshAppSetConnections(task, appSet)
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +413,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	snapsWithConnectedSlots := make(map[string]bool)
 	newConnectedSnaps := make(map[string]bool)
 	// Identify affected snaps on either side of the connection.
-	for _, connID := range affectedConnections {
+	for _, connID := range reloadedConns {
 		connRef, err := interfaces.ParseConnRef(connID)
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot parse existing connection: %w", err)
@@ -694,6 +708,13 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		FinishRestartDefault: snapsup.Type == snap.TypeSnapd,
 	}
 	if err := snapstateFinishRestart(task, snapsup, finishOpts); err != nil {
+		return err
+	}
+
+	// restore any connection state snapshot saved by refreshAppSetConnections on
+	// the original setup-profiles do path before rebuilding profiles for the old
+	// revision
+	if err := restoreConnectionsForSetupProfiles(task); err != nil {
 		return err
 	}
 
@@ -2003,7 +2024,7 @@ func (m *InterfaceManager) transitionConnectionsCoreMigration(st *state.State, o
 	// on disk are rewritten. This is ok because core/ubuntu-core have
 	// exactly the same profiles and nothing in the generated policies
 	// has the core snap-name encoded.
-	if _, err := m.reloadConnections(newName); err != nil {
+	if _, _, err := m.reloadConnections(newName); err != nil {
 		return err
 	}
 

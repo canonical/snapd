@@ -446,6 +446,31 @@ func SetRecoveryBootSystemAndMode(dev snap.Device, systemLabel, mode string) err
 	return bl.SetBootVars(m)
 }
 
+// ReconfigureRecoveryBootConfig rebuilds recovery boot configuration files for
+// bootloaders that support it. Returns true when the recovery bootloader
+// provides the capability and the reconfiguration was attempted.
+func ReconfigureRecoveryBootConfig(dev snap.Device) (updated bool, err error) {
+	if !dev.HasModeenv() || !dev.RunMode() {
+		return false, nil
+	}
+
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	}
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return false, err
+	}
+	rcb, ok := bl.(bootloader.RecoveryBootConfigBootloader)
+	if !ok {
+		return false, nil
+	}
+	if err := rcb.Reconfigure(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // UpdateManagedBootConfigs updates managed boot config assets if
 // those are present for the ubuntu-boot bootloader. To do this it
 // needs information from the model, the gadget we are updating to,

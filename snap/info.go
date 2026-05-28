@@ -806,20 +806,40 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	// always inside the mount namespace snap-confine creates and there
 	// we will always have a /snap directory available regardless if the
 	// system we're running on supports this or not.
-	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir)
+	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, PerspectiveSelf)
 }
+
+type ExpandSnapPerspective int
+
+const (
+	// Expand variables from own perspective, assuming the parallel instance
+	// magic mapping of $SNAP_INSTANCE_NAME to $SNAP is in effect.
+	PerspectiveSelf ExpandSnapPerspective = iota
+	// Expand special variables from other snap's perspective, where $SNAP means
+	// the actual instance name
+	PerspectiveOther
+)
 
 // ExpandSnapVariablesSetSnapMountDir resolves $SNAP, $SNAP_DATA and
 // $SNAP_COMMON in path for this snap using snapMountDir as root directory.
-func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string) string {
+// Depending on the context, e.g. $SNAP used on the slot side of the connection,
+// while being expanded for use in the context of the plug, special variables
+// may mean instance-specific value.
+func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, expandFor ExpandSnapPerspective) string {
+	name := s.SnapName()
+
+	if expandFor == PerspectiveOther {
+		name = s.InstanceName()
+	}
+
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
-			return filepath.Join(snapMountDir, s.SnapName(), s.Revision.String())
+			return filepath.Join(snapMountDir, name, s.Revision.String())
 		case "SNAP_DATA":
-			return DataDir(s.SnapName(), s.Revision)
+			return DataDir(name, s.Revision)
 		case "SNAP_COMMON":
-			return CommonDataDir(s.SnapName())
+			return CommonDataDir(name)
 		}
 		return ""
 	})
@@ -968,44 +988,57 @@ func (s *Info) DesktopPrefix() string {
 // Note: DesktopPlugFileIDs doesn't check if the desktop plug is connected because
 // the desktop-file-ids attribute is controlled by an allow-installation rule.
 func (s *Info) DesktopPlugFileIDs() ([]string, error) {
-	var desktopPlug *PlugInfo
-	for _, plug := range s.Plugs {
+	desktopPlugNames := make([]string, 0, len(s.Plugs))
+	for name, plug := range s.Plugs {
 		if plug.Interface == "desktop" {
-			desktopPlug = plug
-			break
+			desktopPlugNames = append(desktopPlugNames, name)
 		}
 	}
-	if desktopPlug == nil {
+	if len(desktopPlugNames) == 0 {
 		return nil, nil
 	}
-
-	attrVal, exists := desktopPlug.Lookup("desktop-file-ids")
-	if !exists {
-		// desktop-file-ids attribute is optional
-		return nil, nil
-	}
+	sort.Strings(desktopPlugNames)
 
 	// TODO: The internal errors below should never happen due to validation
 	// in the desktop interface. It would be a good candidate for telemetry
 	// error reporting.
 
-	// desktop-file-ids must be a list of strings
-	attrList, ok := attrVal.([]any)
-	if !ok {
-		return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
-	}
+	desktopFileIDs := make([]string, 0)
+	seenDesktopFileIDs := make(map[string]bool)
+	for _, plugName := range desktopPlugNames {
+		desktopPlug := s.Plugs[plugName]
 
-	desktopFileIDs := make([]string, 0, len(attrList))
-	for _, val := range attrList {
-		desktopFileID, ok := val.(string)
+		attrVal, exists := desktopPlug.Lookup("desktop-file-ids")
+		if !exists {
+			// desktop-file-ids attribute is optional
+			continue
+		}
+
+		// desktop-file-ids must be a list of strings
+		attrList, ok := attrVal.([]any)
 		if !ok {
 			return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
 		}
-		if !strings.HasSuffix(desktopFileID, ".desktop") {
-			logger.Noticef("adding missing .desktop suffix to desktop file ID %s (snap %s)", desktopFileID, s.InstanceName())
-			desktopFileID = desktopFileID + ".desktop"
+
+		for _, val := range attrList {
+			desktopFileID, ok := val.(string)
+			if !ok {
+				return nil, errors.New(`internal error: "desktop-file-ids" must be a list of strings`)
+			}
+			if !strings.HasSuffix(desktopFileID, ".desktop") {
+				logger.Noticef("adding missing .desktop suffix to desktop file ID %s (snap %s)", desktopFileID, s.InstanceName())
+				desktopFileID = desktopFileID + ".desktop"
+			}
+			if seenDesktopFileIDs[desktopFileID] {
+				continue
+			}
+			seenDesktopFileIDs[desktopFileID] = true
+			desktopFileIDs = append(desktopFileIDs, desktopFileID)
 		}
-		desktopFileIDs = append(desktopFileIDs, desktopFileID)
+	}
+
+	if len(desktopFileIDs) == 0 {
+		return nil, nil
 	}
 	return desktopFileIDs, nil
 }

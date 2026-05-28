@@ -98,6 +98,10 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if snapsup.DownloadInfo != nil && snapSize == 0 {
+		return fmt.Errorf("cannot verify snap %q, snap file is unexpected empty and possibly corrupted", snapsup.InstanceName())
+	}
+
 	deviceCtx, err := snapstate.DeviceCtx(st, t, nil)
 	if err != nil {
 		return err

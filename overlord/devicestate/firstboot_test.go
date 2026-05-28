@@ -716,7 +716,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedMissingBootloader(c *C) {
 	c.Assert(err, IsNil)
 	o.AddManager(snapmgr)
 
-	ifacemgr, err := ifacestate.Manager(st, nil, o.TaskRunner(), nil, nil)
+	ifacemgr, err := ifacestate.Manager(st, nil, nil, o.TaskRunner(), nil, nil)
 	c.Assert(err, IsNil)
 	o.AddManager(ifacemgr)
 	c.Assert(o.StartUp(), IsNil)
@@ -2413,6 +2413,10 @@ snaps:
 		chg.AddAll(ts)
 	}
 	c.Assert(st.Changes(), HasLen, 1)
+
+	// avoid device registration
+	chg1 := st.NewChange("become-operational", "init device")
+	chg1.SetStatus(state.DoingStatus)
 
 	checkOrder(c, tsAll, "snapd", "core18", "pc-kernel", "pc")
 

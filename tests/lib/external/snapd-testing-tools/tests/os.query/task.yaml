@@ -192,9 +192,9 @@ execute: |
             os.query is-classic
             ! os.query is-core
             ;;
-        fedora-42-64)
+        fedora-44-64)
             os.query is-fedora
-            os.query is-fedora 42
+            os.query is-fedora 44
             ! os.query is-fedora rawhide
             os.query is-classic
             ! os.query is-core

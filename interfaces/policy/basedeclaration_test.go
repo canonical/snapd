@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2024 Canonical Ltd
+ * Copyright (C) 2016-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -889,7 +889,7 @@ var (
 		"docker":                   nil,
 		"egl-driver-libs":          nil,
 		"gbm-driver-libs":          nil,
-		"vulkan-driver-libs":       nil,
+		"gpio-chardev":             nil,
 		"lxd":                      nil,
 		"microceph":                nil,
 		"microceph-support":        nil,
@@ -898,9 +898,10 @@ var (
 		"opengl-driver-libs":       nil,
 		"opengles-driver-libs":     nil,
 		"pkcs11":                   nil,
+		"podman":                   nil,
 		"posix-mq":                 nil,
 		"shared-memory":            nil,
-		"gpio-chardev":             nil,
+		"vulkan-driver-libs":       nil,
 	}
 
 	restrictedPlugInstallation = map[string][]string{
@@ -958,17 +959,42 @@ func (s *baseDeclSuite) TestSlotInstallation(c *C) {
 	err = icMin.Check()
 	c.Check(err, IsNil)
 
-	// test docker specially
+	// test docker specially - allow-installation for app and core
 	ic = s.installSlotCand(c, "docker", snap.TypeApp, ``)
 	err = ic.Check()
-	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "installation not allowed by \"docker\" slot rule of interface \"docker\"")
+	c.Assert(err, ErrorMatches, "installation denied by \"docker\" slot rule of interface \"docker\"")
+
+	// The core snap may provide a docker slot (implicit on classic)
+	ic = s.installSlotCand(c, "docker", snap.TypeOS, `name: core
+version: 0
+type: os
+slots:
+  docker:
+`)
+	ic.SnapDeclaration = s.mockSnapDecl(c, "core", "99T7MUlRhtI3U0QFgl5mXXESAiSwt776", "canonical", "")
+	c.Assert(ic.Check(), IsNil)
+
+	// or the snapd snap may provide a docker slot (implicit on classic)
+	ic = s.installSlotCand(c, "docker", snap.TypeOS, `name: snapd
+version: 0
+type: snapd
+slots:
+  docker:
+`)
+	ic.SnapDeclaration = s.mockSnapDecl(c, "snapd", "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4", "canonical", "")
+	c.Assert(ic.Check(), IsNil)
 
 	// test lxd specially
 	ic = s.installSlotCand(c, "lxd", snap.TypeApp, ``)
 	err = ic.Check()
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "installation not allowed by \"lxd\" slot rule of interface \"lxd\"")
+
+	// test podman specially
+	ic = s.installSlotCand(c, "podman", snap.TypeApp, ``)
+	err = ic.Check()
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "installation not allowed by \"podman\" slot rule of interface \"podman\"")
 
 	// test microceph specially
 	ic = s.installSlotCand(c, "microceph", snap.TypeApp, ``)
@@ -1168,6 +1194,7 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"microovn":                  true,
 		"mir":                       true,
 		"online-accounts-service":   true,
+		"podman":                    true,
 		"posix-mq":                  true,
 		"qualcomm-ipc-router":       true,
 		"raw-volume":                true,

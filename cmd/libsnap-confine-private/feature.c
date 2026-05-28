@@ -33,9 +33,6 @@ static const char *feature_flag_dir = "/var/lib/snapd/features";
 bool sc_feature_enabled(sc_feature_flag flag) {
     const char *file_name;
     switch (flag) {
-        case SC_FEATURE_PER_USER_MOUNT_NAMESPACE:
-            file_name = "per-user-mount-namespace";
-            break;
         case SC_FEATURE_REFRESH_APP_AWARENESS:
             file_name = "refresh-app-awareness";
             break;

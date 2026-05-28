@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+import socket, os, sys, subprocess, threading
+
+
+def main() -> None:
+    # Create socketpair
+    s1, s2 = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+
+    # Use subprocess to run the command with stdout/stderr connected to the socket.
+    # The socket fd s2 is inherited as stdout/stderr by the child process.
+    proc = subprocess.Popen(sys.argv[1:], stdout=s2.fileno(), stderr=s2.fileno())
+
+    # Parent: close s2 (parent's copy), start drain thread (reads from s1), wait
+    s2.close()
+
+    # Drain socket into stdout.
+    def drain() -> None:
+        try:
+            while True:
+                data = s1.recv(65536)
+                if not data:
+                    break
+                sys.stdout.buffer.write(data)
+                sys.stdout.buffer.flush()
+        except Exception as exc:
+            println("exception: {}".format(exc), file=os.stderr)
+            pass
+        finally:
+            s1.close()
+
+    t = threading.Thread(target=drain, daemon=True)
+    t.start()
+
+    # Wait for child (draining socket during wait)
+    proc.wait()
+
+    # Close s1 to signal EOF to drain thread
+    s1.close()
+    t.join()
+
+
+if __name__ == "__main__":
+    main()

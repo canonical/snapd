@@ -117,6 +117,52 @@ func (s *cacheSuite) TestGet(c *C) {
 	c.Assert(targetPath, testutil.FileEquals, canary)
 }
 
+func (s *cacheSuite) TestDrop(c *C) {
+	canary := "some content"
+	p := s.makeTestFile(c, "foo", canary)
+	err := s.cm.Put("some-cache-key", p)
+	c.Assert(err, IsNil)
+	c.Check(s.cm.Count(), Equals, 1)
+
+	// remove the test file making the cache entry be unique instance of the
+	// content
+	c.Assert(os.Remove(p), IsNil)
+
+	targetPath := filepath.Join(s.tmp, "new-location")
+	cacheHit := s.cm.Get("some-cache-key", targetPath)
+	c.Check(cacheHit, Equals, true)
+	c.Check(osutil.FileExists(targetPath), Equals, true)
+
+	// grab the hardlink count, which should be 2 now
+	fi, err := os.Stat(targetPath)
+	c.Assert(err, IsNil)
+	cnt, err := store.HardLinkCount(fi)
+	c.Assert(err, IsNil)
+	c.Check(cnt, Equals, uint64(2))
+
+	err = s.cm.Drop("some-cache-key")
+	c.Assert(err, IsNil)
+
+	// hardlink count should be 1, as entry got dropped
+	fi, err = os.Stat(targetPath)
+	c.Assert(err, IsNil)
+	cnt, err = store.HardLinkCount(fi)
+	c.Assert(err, IsNil)
+	c.Check(cnt, Equals, uint64(1))
+
+	// cache count is 0
+	c.Check(s.cm.Count(), Equals, 0)
+
+	// no errors if key did not exist
+	err = s.cm.Drop("some-cache-key")
+	c.Assert(err, IsNil)
+
+	// empty cache key
+	err = s.cm.Drop("")
+	c.Assert(err, IsNil)
+	c.Check(osutil.IsDirectory(s.cm.CacheDir()), Equals, true)
+}
+
 func (s *cacheSuite) makeTestFiles(c *C, n int) (cacheKeys []string, testFiles []string) {
 	cacheKeys = make([]string, n)
 	testFiles = make([]string, n)

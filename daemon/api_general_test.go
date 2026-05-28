@@ -33,6 +33,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
@@ -40,9 +41,12 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1236,9 +1240,8 @@ func (s *generalSuite) TestAckWarnings(c *check.C) {
 	c.Check(result, check.DeepEquals, 0)
 }
 
-func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
+func (s *generalSuite) TestSysInfoStorageEncHappyWithoutModel(c *check.C) {
 	s.daemon(c)
-	s.expectSystemInfoStorageEncReadAccess()
 
 	expectedStatus := ""
 	expectedResponse := map[string]any{}
@@ -1249,7 +1252,7 @@ func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
 		expectedResponse["auto-repair-result"] = "not-initialized"
 	}
 
-	defer daemon.MockFdestateSystemState(func(*state.State) (*fdestate.FDESystemState, error) {
+	defer daemon.MockFdestateSystemState(func(s *state.State, model *asserts.Model) (*fdestate.FDESystemState, error) {
 		switch expectedStatus {
 		case "active":
 			return &fdestate.FDESystemState{
@@ -1263,6 +1266,83 @@ func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
 			}, nil
 		}
+
+		c.Check(model, check.IsNil)
+
+		return nil, errors.New("cannot set unsupported expected status")
+	})()
+
+	req, err := http.NewRequest("GET", "/v2/system-info/storage-encrypted", nil)
+	c.Assert(err, check.IsNil)
+
+	setExpectedStatus("active")
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	resultBytes, err := json.Marshal(rsp.Result)
+	c.Assert(err, check.IsNil)
+	var resultAbstract any
+	err = json.Unmarshal(resultBytes, &resultAbstract)
+	c.Assert(err, check.IsNil)
+	c.Check(resultAbstract, check.DeepEquals, expectedResponse)
+
+	setExpectedStatus("inactive")
+	rsp = s.syncReq(c, req, nil, actionIsExpected)
+	c.Assert(err, check.IsNil)
+	resultBytes, err = json.Marshal(rsp.Result)
+	c.Assert(err, check.IsNil)
+	err = json.Unmarshal(resultBytes, &resultAbstract)
+	c.Assert(err, check.IsNil)
+	c.Check(resultAbstract, check.DeepEquals, expectedResponse)
+}
+
+func (s *generalSuite) TestSysInfoStorageEncHappyWithModel(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore()
+	s.expectSystemInfoStorageEncReadAccess()
+
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
+	c.Assert(err, check.IsNil)
+	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
+	c.Assert(err, check.IsNil)
+	d.Overlord().AddManager(deviceMgr)
+	func() {
+		st := d.Overlord().State()
+		st.Lock()
+		defer st.Unlock()
+		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+		assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
+		s.mockModel(st, s.Brands.Model("my-brand", "my-model", map[string]any{
+			"architecture": "amd64",
+			"gadget":       "gadget",
+			"kernel":       "kernel",
+		}))
+	}()
+
+	expectedStatus := ""
+	expectedResponse := map[string]any{}
+
+	setExpectedStatus := func(status string) {
+		expectedStatus = status
+		expectedResponse["status"] = status
+		expectedResponse["auto-repair-result"] = "not-initialized"
+	}
+
+	defer daemon.MockFdestateSystemState(func(s *state.State, model *asserts.Model) (*fdestate.FDESystemState, error) {
+		switch expectedStatus {
+		case "active":
+			return &fdestate.FDESystemState{
+				Status:           fdestate.FDEStatusActive,
+				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+			}, nil
+
+		case "inactive":
+			return &fdestate.FDESystemState{
+				Status:           fdestate.FDEStatusInactive,
+				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+			}, nil
+		}
+
+		c.Check(model, check.NotNil)
 
 		return nil, errors.New("cannot set unsupported expected status")
 	})()
@@ -1294,7 +1374,7 @@ func (s *generalSuite) TestSysInfoStorageEncHappy(c *check.C) {
 func (s *generalSuite) TestSysInfoStorageEncErrorImpl(c *check.C) {
 	s.daemon(c)
 
-	defer daemon.MockFdestateSystemState(func(*state.State) (*fdestate.FDESystemState, error) {
+	defer daemon.MockFdestateSystemState(func(*state.State, *asserts.Model) (*fdestate.FDESystemState, error) {
 		return nil, errors.New("cannot calculate status")
 	})()
 

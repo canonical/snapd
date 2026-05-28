@@ -1,0 +1,5 @@
+#!/bin/sh
+
+until [ -e "$SNAP_COMMON"/flag ]; do
+	sleep 2
+done

@@ -47,23 +47,23 @@ static void test_feature_enabled__missing_dir(void) {
     char subd[PATH_MAX];
     sc_must_snprintf(subd, sizeof subd, "%s/absent", d);
     sc_mock_feature_flag_dir(subd);
-    g_assert_false(sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
+    g_assert_false(sc_feature_enabled(SC_FEATURE_HIDDEN_SNAP_FOLDER));
 }
 
 static void test_feature_enabled__missing_file(void) {
     const char *d = sc_testdir();
     sc_mock_feature_flag_dir(d);
-    g_assert_false(sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
+    g_assert_false(sc_feature_enabled(SC_FEATURE_HIDDEN_SNAP_FOLDER));
 }
 
 static void test_feature_enabled__present_file(void) {
     const char *d = sc_testdir();
     sc_mock_feature_flag_dir(d);
     char pname[PATH_MAX];
-    sc_must_snprintf(pname, sizeof pname, "%s/per-user-mount-namespace", d);
+    sc_must_snprintf(pname, sizeof pname, "%s/hidden-snap-folder", d);
     g_assert_true(g_file_set_contents(pname, "", -1, NULL));
 
-    g_assert_true(sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
+    g_assert_true(sc_feature_enabled(SC_FEATURE_HIDDEN_SNAP_FOLDER));
 }
 
 static void test_feature_parallel_instances(void) {

@@ -26,6 +26,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 var (
@@ -72,7 +74,7 @@ func CheckMemoryCgroup() error {
 }
 
 func checkV1CgroupMemoryController() (bool, error) {
-	cgroupsFile, err := os.Open(filepath.Join(rootPath, cgroupV1ControllersPath))
+	cgroupsFile, err := os.Open(filepath.Join(dirs.GlobalRootDir, cgroupV1ControllersPath))
 	if err != nil {
 		return false, fmt.Errorf("cannot open cgroups file: %w", err)
 	}
@@ -101,7 +103,7 @@ func checkV1CgroupMemoryController() (bool, error) {
 
 func checkV2CgroupMemoryController() (bool, error) {
 	// check at the root controller
-	f, err := os.Open(filepath.Join(rootPath, cgroupV2ControllersPath))
+	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, cgroupV2ControllersPath))
 	if err != nil {
 		return false, err
 	}

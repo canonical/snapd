@@ -6,6 +6,7 @@ ignore_files:
   - cmd/libsnap-confine-private/string-utils.c
   - cmd/snap-confine/snap-confine.apparmor.in
   - cmd/snap-confine/snap-confine.c
+  - interfaces/kmod/backend.go
   - osutil/mount/libmount/libmount_linux.go
   - osutil/mount/libmount/libmount_linux_test.go
   - osutil/vfs/tests/bind-semantics/task.yaml

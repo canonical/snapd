@@ -114,6 +114,11 @@ func InstallComponents(
 		return nil, err
 	}
 
+	// TODO: assess if there are other flags we need to copy from the current
+	// snap's set of flags. we know that just adding components should not
+	// impact confinement of the snap itself.
+	copyConfinementFlagsFromSnapState(&opts.Flags, &snapst)
+
 	snapsup := SnapSetup{
 		Base:                        info.Base,
 		SideInfo:                    &info.SideInfo,
@@ -178,6 +183,16 @@ func InstallComponents(
 	return append(tss, ts), nil
 }
 
+// copyConfinementFlagsFromSnapState ensures that the flag set used for a
+// component installation carries the flags that define the snap's current
+// confinement. This ensures that task handlers that consume the flags (example,
+// setup-profiles) see the proper set of flags.
+func copyConfinementFlagsFromSnapState(flags *Flags, snapst *SnapState) {
+	flags.Classic = snapst.Classic
+	flags.DevMode = snapst.DevMode
+	flags.JailMode = snapst.JailMode
+}
+
 func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, snapst SnapState, revOpts RevisionOptions, opts Options) ([]ComponentSetup, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -188,8 +203,11 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 		return nil, err
 	}
 
-	// TODO:COMPS: figure out which user to use here
-	user, err := userFromUserID(st, opts.UserID)
+	userID, err := userIDForSnap(st, &snapst, opts.UserID)
+	if err != nil {
+		return nil, err
+	}
+	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -287,6 +305,11 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: assess if there are other flags we need to copy from the current
+	// snap's set of flags. we know that just adding components should not
+	// impact confinement of the snap itself.
+	copyConfinementFlagsFromSnapState(&opts.Flags, &snapst)
 
 	snapsup := SnapSetup{
 		Base:                        info.Base,
@@ -809,6 +832,11 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 		CompSideInfo: compst.SideInfo,
 		CompType:     compst.CompType,
 	}
+
+	// TODO: assess if there are other flags we need to copy from the current
+	// snap's set of flags. we know that just removing components should not
+	// impact confinement of the snap itself.
+	copyConfinementFlagsFromSnapState(&snapSup.Flags, snapst)
 
 	removeHook := SetupRemoveComponentHook(st, instName, compst.SideInfo.Component.ComponentName)
 	removeHook.Set("component-setup", compSetup)

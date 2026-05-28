@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -67,15 +68,15 @@ type messageQueueError struct {
 }
 
 func (e *messageQueueError) Error() string {
-	msg := ""
+	var msg strings.Builder
 	for i, err := range e.ErrorList {
 		if i > 0 {
-			msg += "; "
+			msg.WriteString("; ")
 		}
-		msg += fmt.Sprintf("%s (code: %s)", err.Message, err.Code)
+		msg.WriteString(fmt.Sprintf("%s (code: %s)", err.Message, err.Code))
 	}
 
-	return msg
+	return msg.String()
 }
 
 // Message represents a message and its format.

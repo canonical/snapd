@@ -2755,8 +2755,14 @@ func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRes
 	}
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{keepSeededSystem, removeSeededSystem})
 
-	seedTS, err := devicestate.SeedRefreshTasks(s.state, nil, nil)
+	dctx := &snapstatetest.TrivialDeviceContext{DeviceModel: s.model}
+	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName: s.model.Kernel(),
+		},
+	})
 	c.Assert(err, IsNil)
+	c.Assert(added, DeepEquals, map[string]bool{s.model.Kernel(): true})
 	c.Assert(seedTS, NotNil)
 	c.Assert(seedTS.Remove, HasLen, 1)
 

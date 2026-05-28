@@ -909,17 +909,12 @@ static void enter_non_classic_execution_environment(sc_invocation *inv, struct s
                 die("cannot unshare the mount namespace");
             }
             sc_setup_user_mounts(aa, snap_update_ns_fd, inv->snap_instance);
-            /* Preserve the mount per-user namespace. But only if the
-             * experimental feature is enabled. This way if the feature is
-             * disabled user mount namespaces will still exist but will be
+            /* Do not preserve the mount per-user namespace. User mount
+             * namespaces will still exist but will be
              * entirely ephemeral. In addition the call
              * sc_join_preserved_user_ns() will never find a preserved mount
-             * namespace and will always enter this code branch. */
-            if (sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE)) {
-                sc_preserve_populated_per_user_mount_ns(group);
-            } else {
-                debug("NOT preserving per-user mount namespace");
-            }
+             * namespace. */
+            debug("NOT preserving per-user mount namespace");
         }
     }
     // With cgroups v1, associate each snap process with a dedicated

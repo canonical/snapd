@@ -57,16 +57,12 @@ func (s *apparmorSuite) TestDecodeLabelUnrecognisedSnapLabel(c *C) {
 }
 
 func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
-	d := c.MkDir()
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
-
 	// when the new file exists we use that one
-	newProcFile := filepath.Join(d, "proc/42/attr/apparmor/current")
+	newProcFile := filepath.Join(s.fakeroot, "proc/42/attr/apparmor/current")
 	c.Assert(os.MkdirAll(filepath.Dir(newProcFile), 0755), IsNil)
 	c.Assert(os.WriteFile(newProcFile, []byte("snap.foo.app"), 0644), IsNil)
 
-	oldProcFile := filepath.Join(d, "proc/42/attr/current")
+	oldProcFile := filepath.Join(s.fakeroot, "proc/42/attr/current")
 	c.Assert(os.MkdirAll(filepath.Dir(oldProcFile), 0755), IsNil)
 	c.Assert(os.WriteFile(oldProcFile, []byte("random-other-unread-data"), 0644), IsNil)
 
@@ -78,15 +74,11 @@ func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 }
 
 func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
-	d := c.MkDir()
-	restore := apparmor.MockFsRootPath(d)
-	defer restore()
-
 	// When no /proc/$pid/attr/current exists, assume unconfined
 	_, _, _, err := apparmor.SnapAppFromPid(42)
 	c.Check(err, ErrorMatches, `security label "unconfined" does not belong to a snap`)
 
-	procFile := filepath.Join(d, "proc/42/attr/current")
+	procFile := filepath.Join(s.fakeroot, "proc/42/attr/current")
 	c.Assert(os.MkdirAll(filepath.Dir(procFile), 0755), IsNil)
 
 	c.Assert(os.WriteFile(procFile, []byte("not-read"), 0000), IsNil)

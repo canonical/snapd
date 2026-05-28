@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -2440,9 +2441,10 @@ func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic
 func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, model *asserts.Model, options map[string]string, expectedCmdline, errMsg string) {
 	bootloader.Force(nil)
 
-	defaults := "defaults:\n  system:\n"
+	var defaults strings.Builder
+	defaults.WriteString("defaults:\n  system:\n")
 	for k, v := range options {
-		defaults += fmt.Sprintf("    %s: %s\n", k, v)
+		defaults.WriteString(fmt.Sprintf("    %s: %s\n", k, v))
 	}
 
 	unpackedGadgetDir := c.MkDir()
@@ -2450,7 +2452,7 @@ func (s *makeBootable20Suite) testMakeBootableImageOptionalKernelArgs(c *C, mode
 	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
 		{"grub.conf", grubCfg},
 		{"meta/snap.yaml", gadgetSnapYaml},
-		{"meta/gadget.yaml", gadgetYaml + defaults},
+		{"meta/gadget.yaml", gadgetYaml + defaults.String()},
 	})
 
 	// on uc20 the seed layout is different

@@ -7,6 +7,9 @@ details: |
     when store credentials are available, that a successful login produces
     an "authn_login_success" event in the audit log.
 
+# Amazon Linux 2: systemd-journald-audit.socket is not available
+systems: [ -amazon-linux-2-64 ]
+
 prepare: |
     # Enable the kernel audit subsystem if it isn't already enabled.
     python3 -c "
@@ -71,7 +74,8 @@ execute: |
 
 
     # SPREAD_STORE_USER and SPREAD_STORE_PASSWORD are only available when running off master
-    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ]; then
+    # core does not have expect, so skip core systems
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ] && os-query is-classic; then
         echo "Checking that a successful login produces an audit event"
         expect -d -f "$TESTSLIB"/successful_login.exp
 

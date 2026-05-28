@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/apparmor/notify"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -125,8 +125,7 @@ func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
 		c.Assert(testCase.expectedSupport, HasLen, len(notify.Versions))
 
 		tmpdir := c.MkDir()
-		restore := apparmor.MockFsRootPath(tmpdir)
-		defer restore()
+		dirs.SetRootDir(tmpdir)
 
 		versionsDir := filepath.Join(tmpdir, "sys/kernel/security/apparmor/features/policy/notify_versions")
 
@@ -140,7 +139,7 @@ func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
 			c.Assert(f.Close(), IsNil)
 		}
 
-		restore = notify.MockApparmorMetadataTagsSupportedByKernel(func() bool {
+		restore := notify.MockApparmorMetadataTagsSupportedByKernel(func() bool {
 			return testCase.metadataTagsSupported
 		})
 		defer restore()
@@ -151,6 +150,7 @@ func (s *versionSuite) TestVersionsLikelySupportedChecks(c *C) {
 			c.Check(supported, Equals, testCase.expectedSupport[i], Commentf("version: %d\ntestCase: %+v", version, testCase))
 		}
 	}
+	dirs.SetRootDir("")
 }
 
 var fakeVersions = []notify.VersionAndCheck{

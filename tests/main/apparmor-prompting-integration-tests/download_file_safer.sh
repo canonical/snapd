@@ -15,7 +15,7 @@ mkdir -p "${TEST_DIR}/Downloads"
 touch "${TEST_DIR}/Downloads/existing.txt"
 
 echo "Attempt to list the contents of the downloads directory"
-if ! snap run --shell prompt-requester.home -c "ls ${TEST_DIR}/Downloads" | grep "existing.txt" ; then
+if ! snap run --shell prompt-requester.home -c "ls ${TEST_DIR}/Downloads" | grep -F "existing.txt" ; then
 	echo "Failed to list contents of ${TEST_DIR}/Downloads"
 	exit 1
 fi
@@ -46,10 +46,9 @@ if [ "$CLIENT_OUTPUT" != "success" ] ; then
 	exit 1
 fi
 
-# Rules with identical path patterns are merged, so we don't expect any rules
-# with duplicate path patterns.
-snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep '^[[:space:]]*1[[:space:]]'
-! snap debug api /v2/interfaces/requests/rules | jq '."result".[]."constraints"."path-pattern"' | grep "${TEST_DIR}" | uniq -c | grep -q '^[[:space:]]*[^1[[:space:]]]'
+# Rules with identical path patterns are merged, so we expect a single rule
+# related to this test run.
+snap debug api '/v2/interfaces/requests/rules?snap=prompt-requester' | jq '.result[].constraints."path-pattern"' | grep -F "${TEST_DIR}" | wc -l | grep '^1$'
 
 TEST_OUTPUT="$(cat "${TEST_DIR}/Downloads/test.txt")"
 

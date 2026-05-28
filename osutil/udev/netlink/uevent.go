@@ -47,11 +47,12 @@ type UEvent struct {
 }
 
 func (e UEvent) String() string {
-	rv := fmt.Sprintf("%s@%s\000", e.Action.String(), e.KObj)
+	var rv strings.Builder
+	rv.WriteString(fmt.Sprintf("%s@%s\000", e.Action.String(), e.KObj))
 	for k, v := range e.Env {
-		rv += k + "=" + v + "\000"
+		rv.WriteString(k + "=" + v + "\000")
 	}
-	return rv
+	return rv.String()
 }
 
 func (e UEvent) Bytes() []byte {

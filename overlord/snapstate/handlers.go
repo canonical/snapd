@@ -618,7 +618,7 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 		return nil, nil
 	}
 
-	if err := maybeMergeLateSeedRefreshPrereq(t.Change(), deviceCtx, snapName, ts); err != nil {
+	if err := maybeMergeLateSeedRefreshPrereq(t.Change(), deviceCtx, ts); err != nil {
 		return nil, err
 	}
 
@@ -991,6 +991,35 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	t.Set("snap-setup", snapsup)
 	perfTimings.Save(st)
 	st.Unlock()
+
+	return nil
+}
+
+func (m *SnapManager) undoDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, theStore, _, err := downloadSnapParams(st, t)
+	if err != nil {
+		t.Logf("cannot obtain download info: %v", err)
+		return nil
+	}
+
+	fname := snapsup.BlobPath()
+
+	err = func() error {
+		st.Unlock()
+		defer st.Lock()
+		// Remove the snap blob from downloads directory but keep the cache
+		// entry for reuse if the download is triggered again in another change
+		// pertaining to the same snap revision.
+		return theStore.CleanupDownloadArtifacts(fname, snapsup.DownloadInfo)
+	}()
+	if err != nil {
+		t.Logf("cannot clean up downloaded snap artifacts: %v", err)
+		return nil
+	}
 
 	return nil
 }

@@ -1,0 +1,40 @@
+summary: Snap remove with missing snap mount unit file
+
+details: |
+    The test verifies that snap remove succeeds even if the snap's mount unit file
+    is missing (e.g. manually deleted by a user) while the mount is still active.
+
+environment:
+  SNAP_NAME: test-snapd-tools
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local $SNAP_NAME
+    tests.cleanup defer snap remove --purge $SNAP_NAME
+
+execute: |
+    snap_mount_dir="$(os.paths snap-mount-dir)"
+    revision=$(snap list $SNAP_NAME | awk 'NR==2 {print $3}')
+    mount_dir="$snap_mount_dir/$SNAP_NAME/$revision"
+    mount_unit_name="$(systemd-escape --path "$mount_dir").mount"
+    mount_unit_file="/etc/systemd/system/$mount_unit_name"
+
+    echo "Verify that snap is currently mounted"
+    MATCH "$mount_dir" < /proc/self/mountinfo
+
+    echo "Verify that the mount unit file exists"
+    test -f "$mount_unit_file"
+
+    echo "Simulate user deleting the mount unit file"
+    rm "$mount_unit_file"
+    systemctl daemon-reload
+
+    echo "Verify that the mount unit file is gone but the mount is still active"
+    test ! -f "$mount_unit_file"
+    MATCH "$mount_dir" < /proc/self/mountinfo
+
+    echo "Snap remove must succeed even with the mount unit file missing"
+    snap remove --purge $SNAP_NAME
+
+    echo "Verify that the snap is fully removed"
+    NOMATCH "$mount_dir" < /proc/self/mountinfo
+    not snap list $SNAP_NAME &>/dev/null

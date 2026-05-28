@@ -28,7 +28,7 @@ type msgID struct {
 var msgIDs map[string][]msgID
 
 func formatComment(com string) string {
-	out := ""
+	var out strings.Builder
 	for _, rawline := range strings.Split(com, "\n") {
 		line := rawline
 		line = strings.TrimPrefix(line, "//")
@@ -36,11 +36,11 @@ func formatComment(com string) string {
 		line = strings.TrimSuffix(line, "*/")
 		line = strings.TrimSpace(line)
 		if line != "" {
-			out += fmt.Sprintf("#. %s\n", line)
+			out.WriteString(fmt.Sprintf("#. %s\n", line))
 		}
 	}
 
-	return out
+	return out.String()
 }
 
 func findCommentsForTranslation(fset *token.FileSet, f *ast.File, posCall token.Position) string {

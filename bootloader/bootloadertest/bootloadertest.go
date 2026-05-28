@@ -50,6 +50,10 @@ type MockBootloader struct {
 	InstallBootConfigCalled []string
 	InstallBootConfigErr    error
 
+	ReconfigureRecoveryBootConfigCalls int
+	ReconfigureRecoveryBootConfigErr   error
+	ReconfigureRecoveryBootConfigFunc  func() error
+
 	enabledKernel    snap.PlaceInfo
 	enabledTryKernel snap.PlaceInfo
 
@@ -68,6 +72,7 @@ var _ bootloader.NotScriptableBootloader = (*MockNotScriptableBootloader)(nil)
 var _ bootloader.NotScriptableBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelNotScriptableBootloader)(nil)
 var _ bootloader.RebootBootloader = (*MockRebootBootloader)(nil)
+var _ bootloader.RecoveryBootConfigBootloader = (*MockBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -160,6 +165,14 @@ func (b *MockBootloader) SetEnabledTryKernel(s snap.PlaceInfo) (restore func()) 
 func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) error {
 	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
 	return b.InstallBootConfigErr
+}
+
+func (b *MockBootloader) Reconfigure() error {
+	b.ReconfigureRecoveryBootConfigCalls++
+	if b.ReconfigureRecoveryBootConfigFunc != nil {
+		return b.ReconfigureRecoveryBootConfigFunc()
+	}
+	return b.ReconfigureRecoveryBootConfigErr
 }
 
 // SetMockToPanic allows setting any method in the Bootloader interface or derived
