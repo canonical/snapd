@@ -13,11 +13,11 @@ plugs:
 
 apps:
     lsmod:
-        command: bin/lsmod
+        command: /usr/sbin/lsmod
     insmod:
-        command: bin/insmod
+        command: /usr/sbin/insmod
     rmmod:
-        command: bin/rmmod
+        command: /usr/sbin/rmmod
 
 parts:
   kmod-bundle:
