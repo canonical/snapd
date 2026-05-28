@@ -100,11 +100,29 @@ jobs:
           run_id=$(awk -F'/' '{print $(NF-1)}' <<<"${{ github.event.workflow_run.rerun_url }}")
           echo "RUN_ID=$run_id" >> $GITHUB_ENV
 
-      - name: Check number of fundamental failures
+      - name: Check number of required system failures
         if: env.AUTO_RERUN == 'true'
         run: |
-          failed_fund=$(gh run view "$RUN_ID" --json jobs --jq '.jobs[] | select(.name | test("\\(fundamental\\)")) | select(.conclusion == "failure") | .databaseId')
-          for failed in $failed_fund; do
+          pr_base=$(gh pr view "$PR_NUMBER" --json baseRefName --jq '.baseRefName')
+          required_spread_checks=$(gh api \
+            -X GET \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/rules/branches/$pr_base" \
+            --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | map(select(startswith("spread "))) | unique | .[]')
+
+          if [ -z "$required_spread_checks" ]; then
+            echo "No required checks detected for branch $pr_base; skipping required spread target filtering"
+            exit 0
+          fi
+
+          failed_required_system_targets=""
+          while IFS=$'\t' read -r failed_id failed_name; do
+            if grep -Fxq "$failed_name" <<<"$required_spread_checks"; then
+              failed_required_system_targets+="$failed_id "$'\n'
+            fi
+          done < <(gh run view "$RUN_ID" --json jobs --jq '.jobs[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
+
+          for failed in $failed_required_system_targets; do
 
             # The number of failed tasks are reported in the logs as a line with 
             # a date and timestamp, followed by "Failed tasks: " and the number
@@ -114,7 +132,7 @@ jobs:
             num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1)
             
             if [ -n "$num_failed" ] && [ $num_failed -ge 30 ]; then
-              echo "Setting rerun to false because there were 30 or more failures on a fundamental system"
+              echo "Setting rerun to false because there were 30 or more failures on a system target"
               echo "AUTO_RERUN=false" >> $GITHUB_ENV
             fi
           done

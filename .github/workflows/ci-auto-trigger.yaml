@@ -3,7 +3,7 @@ name: Auto Rerun Approved PRs
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '*/20 * * * *'
 
 permissions:
   contents: read
@@ -16,6 +16,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      MAX_RUN_ATTEMPTS: 5
+      MAX_FAILED_TASKS: 30
     steps:
       - name: Scan open PRs and trigger reruns
         run: |
@@ -26,6 +28,7 @@ jobs:
             | .requested_changes = ([.reviews[]? | select(.state == "CHANGES_REQUESTED") | .author.login] | unique | length)
             | select(.isDraft == false and .approvals >= 2 and .requested_changes == 0)
           ]')
+          echo "Inspecting $(echo "$prs" | jq 'length') eligible PRs for rerun..."
 
           echo "$prs" | jq -c '.[]' | while read -r pr; do
             pr_number=$(echo "$pr" | jq -r '.number')
@@ -74,8 +77,43 @@ jobs:
               continue
             fi
 
-            if [[ "$run_attempt" -ge 5 ]]; then
+            if [[ "$run_attempt" -ge "$MAX_RUN_ATTEMPTS" ]]; then
               echo "Skipping PR #$pr_number: run_id=$last_run_id already at attempt $run_attempt"
+              continue
+            fi
+
+            # Check if any required spread system targets failed, and if so, inspect the logs to see if we should block the rerun based on failure count.
+            auto_rerun=true
+            pr_base=$(gh pr view "$pr_number" --json baseRefName --jq '.baseRefName')
+            required_spread_checks=$(gh api \
+              -X GET \
+              -H "Accept: application/vnd.github+json" \
+              "repos/$GH_REPO/rules/branches/$pr_base" \
+              --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | map(select(startswith("spread "))) | unique | .[]')
+
+            if [[ -z "$required_spread_checks" ]]; then
+              echo "No required checks detected for branch $pr_base; skipping required spread target filtering"
+            else
+              failed_required_system_targets=""
+              while IFS=$'\t' read -r failed_id failed_name; do
+                if grep -Fxq "$failed_name" <<<"$required_spread_checks"; then
+                  failed_required_system_targets+="$failed_id "$'\n'
+                fi
+              done < <(gh run view "$last_run_id" --json jobs --jq '.jobs[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
+
+              for failed in $failed_required_system_targets; do
+                # Grab the first spread "Failed tasks" count from logs and block rerun if too high.
+                num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1 || true)
+
+                if [[ -n "$num_failed" && "$num_failed" -ge "$MAX_FAILED_TASKS" ]]; then
+                  echo "Skipping PR #$pr_number: there were $MAX_FAILED_TASKS or more failures on a required system target"
+                  auto_rerun=false
+                  break
+                fi
+              done
+            fi
+
+            if [[ "$auto_rerun" != "true" ]]; then
               continue
             fi
 
