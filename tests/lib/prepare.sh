@@ -549,6 +549,7 @@ prepare_classic() {
         prepare_reexec_override
         prepare_state_lock "SNAPD PROJECT"
         prepare_tag_features
+        prepare_generate_coverage
         prepare_memory_limit_override
         disable_refreshes
 
@@ -1898,6 +1899,32 @@ EOF
     fi
 }
 
+prepare_generate_coverage() {
+    CONF_FILE="/etc/systemd/system/snapd.service.d/99-generate-coverage.conf"
+    RESTART=false
+
+    if [ -n "$GENERATE_COVERAGE" ]; then
+        # Generate the config file when it does not exist and when the threshold has changed different
+        if ! [ -f "$CONF_FILE" ]; then
+            cat <<EOF > "$CONF_FILE"
+[Service]
+Environment=GOCOVERDIR=$GOCOVERDIR
+EOF
+            RESTART=true
+        fi
+    elif [ -f "$CONF_FILE" ]; then
+        rm -f "$CONF_FILE"
+        RESTART=true
+    fi
+
+    if [ "$RESTART" = "true" ]; then
+        # the service setting may have changed in the service so we need
+        # to ensure snapd is reloaded
+        systemctl daemon-reload
+        systemctl restart snapd
+    fi
+}
+
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # Configure the proxy in the system when it is required
@@ -2024,6 +2051,7 @@ prepare_ubuntu_core() {
         prepare_memory_limit_override
         prepare_state_lock "SNAPD PROJECT"
         prepare_tag_features
+        prepare_generate_coverage
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state
