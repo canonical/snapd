@@ -22,8 +22,7 @@ systems:
 
 environment:
     MODULE: minix
-    # some systems contain a compressed kernel module object file
-    MODULE_PATH: $(path="/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko"; if [ -f "$path" ]; then echo "$path"; else echo "$path.zst" ; fi)
+    MODULE_PATH_FILE: "/home/test/module_path"
 
 skip:
     - reason: minix module not available in the system
@@ -52,6 +51,16 @@ prepare: |
     fi
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
     snap install "$@" test-snapd-kernel-module-consumer
+
+    MODULE_PATH="/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko"
+    if [ -f "$MODULE_PATH" ]; then
+        echo "$MODULE_PATH" > "$MODULE_PATH_FILE"
+    else
+        # Some systems contain a compressed kernel module object file.
+        # The test would have been skipped otherwise.
+        echo "$MODULE_PATH.zst" > "$MODULE_PATH_FILE"
+    fi
+
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_generic_consumer kernel-module-control
@@ -66,14 +75,18 @@ restore: |
     if lsmod | MATCH "$MODULE" && [ ! -f module_present ]; then
         rmmod "$MODULE"
     elif [ -f module_present ] && ! lsmod | MATCH "$MODULE" ; then
+        MODULE_PATH="$(cat "$MODULE_PATH_FILE")"
         insmod "$MODULE_PATH"
     fi
+
+    rm -f "$MODULE_PATH_FILE"
 
 debug: |
     lsmod
     ls -R /lib/modules/"$(uname -r)"/kernel/fs
 
 execute: |
+    MODULE_PATH="$(cat "$MODULE_PATH_FILE")"
     echo "The plug is disconnected by default"
     snap interfaces -i kernel-module-control | MATCH '^- +test-snapd-kernel-module-consumer:kernel-module-control'
 
