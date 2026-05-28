@@ -7,16 +7,17 @@ base: core26
 confinement: strict
 grade: stable
 
+plugs:
+    kernel-module-control:
+      interface: kernel-module-control
+
 apps:
     lsmod:
         command: bin/lsmod
-        plugs: [kernel-module-control]
     insmod:
         command: bin/insmod
-        plugs: [kernel-module-control]
     rmmod:
         command: bin/rmmod
-        plugs: [kernel-module-control]
 
 parts:
   kmod-bundle:
