@@ -82,6 +82,13 @@ jobs:
               continue
             fi
 
+            run_jobs=$(gh run view "$last_run_id" --json jobs --jq '.jobs')
+            spread_jobs_ran=$(echo "$run_jobs" | jq '[.[] | select(.name | test("^spread ")) | select(.status == "completed")] | length')
+            if [[ "$spread_jobs_ran" -lt 1 ]]; then
+              echo "Skipping PR #$pr_number: no completed spread jobs found in run_id=$last_run_id"
+              continue
+            fi
+
             # Check if any required spread system targets failed, and if so, inspect the logs to see if we should block the rerun based on failure count.
             auto_rerun=true
             pr_base=$(gh pr view "$pr_number" --json baseRefName --jq '.baseRefName')
@@ -99,7 +106,7 @@ jobs:
                 if grep -Fxq "$failed_name" <<<"$required_spread_checks"; then
                   failed_required_system_targets+="$failed_id "$'\n'
                 fi
-              done < <(gh run view "$last_run_id" --json jobs --jq '.jobs[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
+              done < <(echo "$run_jobs" | jq -r '.[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
 
               for failed in $failed_required_system_targets; do
                 # Grab the first spread "Failed tasks" count from logs and block rerun if too high.
