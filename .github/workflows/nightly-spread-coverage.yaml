@@ -12,99 +12,62 @@ jobs:
       toolchain: default
       variant: test
 
-  # nightly-spread-coverage:
-  #   uses: ./.github/workflows/spread-tests.yaml
-  #   needs: snap-builds
-  #   name: "spread"
-  #   secrets: inherit
-  #   with:
-  #     runs-on: '["self-hosted", "spread-enabled"]'
-  #     group: noble
-  #     backend: openstack
-  #     systems: ubuntu-24.04-64
-  #     tasks: tests/...
-  #     rules: main
-  #     upload-artifacts: true
-  #     spread-env: "SPREAD_GENERATE_COVERAGE=true"
+  read-systems:
+    runs-on: ubuntu-latest
+    outputs:
+      systems: ${{ steps.read-systems.outputs.systems }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-  nightly-spread-coveragea:
+      - name: Read matrix file
+        id: read-systems
+        shell: bash
+        run: |
+          echo "systems=$(jq -cs '{include: (map(.include // []) | add)}' \
+            ./.github/workflows/data-fundamental-systems.json \
+            ./.github/workflows/data-non-fundamental-systems.json \
+            ./.github/workflows/data-nested-systems.json)" >> $GITHUB_OUTPUT
+
+  spread-coverage:
     uses: ./.github/workflows/spread-tests.yaml
-    needs: snap-builds
-    name: "spread fedora"
+    name: "spread master ${{ matrix.group }}"
+    needs: [read-systems, snap-builds]
     secrets: inherit
     with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: fedora
-      backend: openstack
-      systems: fedora-44-64
-      tasks: tests/...
-      rules: main
+      runs-on: '${{ matrix.runs-on }}'
+      group: ${{ matrix.group }}
+      backend: ${{ matrix.backend }}
+      alternative-backend: ${{ matrix.alternative-backend }}
+      systems: ${{ matrix.systems }}
+      tasks: ${{ matrix.tasks }}
+      rules: ${{ matrix.rules }}
       upload-artifacts: true
       spread-env: "SPREAD_GENERATE_COVERAGE=true"
+      skip-tests: 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build ubuntu-fips-2'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.read-systems.outputs.systems) }}
 
-  nightly-spread-coverageb:
-    uses: ./.github/workflows/spread-tests.yaml
-    needs: snap-builds
-    name: "spread fedora"
-    secrets: inherit
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: arch
-      backend: openstack
-      systems: arch-linux-64
-      tasks: tests/...
-      rules: main
-      upload-artifacts: true
-      spread-env: "SPREAD_GENERATE_COVERAGE=true"
+  process-coverage:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [spread-coverage]
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: coverage
+          pattern: spread-artifacts-*
+          merge-multiple: true
 
-  nightly-spread-coveragec:
-    uses: ./.github/workflows/spread-tests.yaml
-    needs: snap-builds
-    name: "spread 18"
-    secrets: inherit
-    with:
-      runs-on: '["self-hosted", "spread-enabled"]'
-      group: ubuntu-18
-      backend: openstack
-      systems: ubuntu-18.04-64
-      tasks: tests/...
-      rules: main
-      upload-artifacts: true
-      spread-env: "SPREAD_GENERATE_COVERAGE=true"
+      - name: Download spread results artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: coverage
+          pattern: spread-results-*
 
-  # nightly-spread-coverage-nested:
-  #   uses: ./.github/workflows/spread-tests.yaml
-  #   needs: snap-builds
-  #   name: "spread nested"
-  #   secrets: inherit
-  #   with:
-  #     runs-on: '["self-hosted", "spread-enabled"]'
-  #     group: nested
-  #     backend: openstack-ext
-  #     systems: ubuntu-24.04-64
-  #     tasks: tests/nested/classic/...
-  #     rules: nested
-  #     upload-artifacts: true
-  #     spread-env: "SPREAD_GENERATE_COVERAGE=true"
-
-  # process-coverage:
-  #   runs-on: ubuntu-latest
-  #   needs: [nightly-spread-coverage]
-  #   steps:
-  #     - name: Download coverage artifacts
-  #       uses: actions/download-artifact@v8
-  #       with:
-  #         path: coverage
-  #         pattern: spread-artifacts-*
-  #         merge-multiple: true
-
-  #     - name: Download spread results artifacts
-  #       uses: actions/download-artifact@v8
-  #       with:
-  #         path: coverage
-  #         pattern: spread-results-*
-
-  #     - name: tree
-  #       run: |
-  #         sudo apt install tree
-  #         tree coverage
+      - name: tree
+        run: |
+          sudo apt install tree
+          tree coverage

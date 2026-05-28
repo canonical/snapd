@@ -1884,8 +1884,17 @@ nested_prepare_tools() {
     fi
 
     if [ -n "$GENERATE_COVERAGE" ] && ! remote.exec "grep -q '^GOCOVERDIR' /etc/environment"; then
-        remote.exec "sudo mkdir -p $TESTSTMP/coverage"
-        remote.exec "echo GOCOVERDIR=$TESTSTMP/coverage | sudo tee -a /etc/environment"
+        remote.exec "sudo mkdir -p $GOCOVERDIR"
+        remote.exec "echo GOCOVERDIR=$GOCOVERDIR | sudo tee -a /etc/environment"
+        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+        remote.exec "printf '[Service]\nEnvironment=GOCOVERDIR=$GOCOVERDIR\n' | sudo tee /etc/systemd/system/snapd.service.d/99-coverage-generation.conf"
+        # We changed the service configuration so we need to reload and restart
+        # the units to get them applied
+        remote.exec "sudo systemctl daemon-reload"
+        # stop the socket (it pulls down the service)
+        remote.exec "sudo systemctl stop snapd.socket"
+        # start the service (it pulls up the socket)
+        remote.exec "sudo systemctl start snapd.service"
     fi
 }
 
