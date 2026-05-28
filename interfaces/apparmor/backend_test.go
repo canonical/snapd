@@ -1242,12 +1242,12 @@ var combineSnippetsScenarios = []combineSnippetsScenario{{
 	// DevMode switches apparmor to non-enforcing (complain) mode.
 	opts:    interfaces.ConfinementOptions{DevMode: true},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted,complain) {\n" + mountInfoSnippet + "\nsnippet\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted,complain) {\nsnippet\n}\n",
 }, {
 	// JailMode switches apparmor to enforcing mode even in the presence of DevMode.
-	opts:    interfaces.ConfinementOptions{DevMode: true},
+	opts:    interfaces.ConfinementOptions{JailMode: true, DevMode: true},
 	snippet: "snippet",
-	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted,complain) {\n" + mountInfoSnippet + "\nsnippet\n}\n",
+	content: commonPrefix + "\nprofile \"snap.samba.smbd\" flags=(attach_disconnected,mediate_deleted) {\n" + mountInfoSnippet + "\nsnippet\n}\n",
 }, {
 	// Classic confinement (without jailmode) uses apparmor in complain mode by default and ignores all snippets.
 	opts:    interfaces.ConfinementOptions{Classic: true},
