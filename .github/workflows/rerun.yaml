@@ -12,6 +12,9 @@ on:
   pull_request_target:
     types:
       - labeled
+  pull_request_review:
+    types:
+      - submitted
 
 jobs:
   rerun:
@@ -31,7 +34,8 @@ jobs:
   rerun-pr:
     if: >
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 5) ||
-      (github.event_name == 'pull_request_target' && github.event.action == 'labeled' && github.event.label.name == 'Auto rerun spread')
+      (github.event_name == 'pull_request_target' && github.event.action == 'labeled' && github.event.label.name == 'Auto rerun spread') ||
+      (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'approved')
     permissions:
       actions: write
       pull-requests: read
@@ -99,7 +103,7 @@ jobs:
           fi
 
           num_approvals=$(gh pr view "$pr" --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | sort -u | wc -l)
-          if [ "$has_label" = "true" ] && [ "$num_approvals" -ge 1 ]; then
+          if [ "$has_label" = "true" ] && [ "$num_approvals" -ge 2 ]; then
             echo "AUTO_RERUN=true" >> $GITHUB_ENV
           else
             echo "setting auto rerun to false because it is missing the label or has insufficient approvals"
