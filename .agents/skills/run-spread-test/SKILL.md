@@ -11,9 +11,9 @@ metadata:
 
 Run spread integration tests in VMs to verify snapd functionality across different Linux distributions.
 
-**Command**: `./run-spread <backend>:<system>:<test-path>`
+Command: `./run-spread <backend>:<system>:<test-path>`
 
-**Critical**: Tests take 5-15 minutes each. Collect as much information as possible in each run to avoid wasting cycles.
+Critical: Tests take 5-15 minutes each. Collect as much information as possible in each run to avoid wasting cycles.
 
 ## Prerequisites
 
@@ -21,48 +21,45 @@ Build the snapd snap first (load the `build-snapd-snap` skill for details):
 - First build: `./tests/build-test-snapd-snap`
 - Fast rebuild: `./tests/build-test-snapd-snap --clean-snapd-only`
 
-**Skip rebuild when snap exists**: Set `NO_REBUILD=1` in the environment before calling `./run-spread`. If no prebuilt snap exists in `built-snap/`, the script exits with an error — unset `NO_REBUILD` to trigger a build, or run the build skill first.
+Skip rebuild when snap exists: Set `NO_REBUILD=1` in the environment before calling `./run-spread`. If no prebuilt snap exists in `built-snap/`, the script exits with an error — unset `NO_REBUILD` to trigger a build, or run the build skill first.
+
+Download prebuilt snap from 'master' branch: Use `./run-spread --download <backend>:<system>:<test>`. This is useful when only test infrastructure files changed and you don't need a locally built snap.
 
 ## Command Format
 
 ```bash
-./run-spread [--no-rebuild|-n] [--] [spread-flags] <backend>:<system>:<test-path>
+./run-spread [spread-flags] <backend>:<system>:<test-path>
 ```
 
-**IMPORTANT**: A `<backend>:<system>:<test-path>` argument is REQUIRED. Never call `./run-spread` without specifying what to run — spread would attempt to execute all tests on all backends.
+A `<backend>:<system>:<test-path>` argument is REQUIRED. Never call `./run-spread` without specifying what to run — spread would attempt to execute all tests on all backends.
 
-**run-spread flags**:
-- `--no-rebuild` / `-n`: Skip rebuilding snapd snap. Prefer setting `NO_REBUILD=1` in the environment instead.
-
-**spread flags** (passed through after optional `--`):
-- `-debug`: Create SSH shell on test failure (use when logs lack clarity)
+Spread flags (passed through):
+- `-debug`: Create SSH shell on test failure. Use this by default — it avoids needing a re-run when logs are unclear.
 - `-reuse`: Keep VMs running between tests (faster iteration)
 
 ## Backend and System Selection
 
-**Always use `garden` backend** for local development (no credentials, fast, full control).
+Always use `garden` backend for local development (no credentials, fast, full control).
 
-**IMPORTANT**: Do NOT use other backends (`qemu`, `google-*`, `openstack`, etc.) unless the user explicitly instructs you to do so.
+Do NOT use other backends (`qemu`, `google-*`, `openstack`, etc.) unless the user explicitly instructs you to do so.
 
-**System selection by change type**:
-- **AppArmor changes**: Pick a recent Ubuntu LTS and optionally a Debian system
-- **SELinux changes**: Pick an openSUSE SELinux or Fedora system
-- **Systemd changes**: Pick a recent Ubuntu and a Fedora system
-- **General changes**: Pick the most recent Ubuntu LTS available
+System selection by change type:
+- AppArmor changes: Pick a recent Ubuntu LTS and optionally a Debian system
+- SELinux changes: Pick an openSUSE SELinux or Fedora system
+- Systemd changes: Pick a recent Ubuntu and a Fedora system
+- General changes: Pick the most recent Ubuntu LTS available
 
-**Available systems**: Discover concrete system names from `spread.yaml` under `backends:garden:systems:`. Do not hardcode system names — they change as releases are added/removed.
+Available systems: Discover concrete system names from `spread.yaml` under `backends:garden:systems:`. Do not hardcode system names — they change as releases are added/removed.
 
-**When in doubt**: Follow user's guidance or pick the most recent Ubuntu LTS from `spread.yaml`.
+When in doubt: Follow user's guidance or pick the most recent Ubuntu LTS from `spread.yaml`.
 
 ## Test Path Specification
 
 ```bash
 tests/main/snap-mgmt              # Single test
-tests/main/interfaces-...            # Pattern matching
-tests/main/...                     # All tests in directory
+tests/main/interfaces-...         # Pattern matching
+tests/main/...                    # All tests in directory
 ```
-
-Common suites: `tests/main/`, `tests/nested/`, `tests/regression/`
 
 ## Tests That Don't Need the Snapd Snap
 
@@ -75,76 +72,70 @@ spread garden:ubuntu-24.04-64:tests/cross/go-build
 
 This avoids the snap build/check entirely and is significantly faster. The suite's prepare phase installs snapd from distro packages when `USE_PREBUILT_SNAPD_SNAP` is not set to `true`.
 
-**When to use `spread` directly** (without `run-spread`):
+When to use `spread` directly (without `run-spread`):
 - `tests/unit/` suite — runs Go unit tests and static checks, no snap needed
 - `tests/cross/` suite — cross-compiles Go commands, no snap needed
 - Any test where only test infrastructure files (e.g., `tests/lib/`) were changed and you don't need the snapd snap to be rebuilt/installed
 
-**When you must use `run-spread`**:
+When you must use `run-spread`:
 - `tests/main/`, `tests/nested/`, `tests/regression/` — these suites install and exercise the snapd snap
 
 ## Common Workflows
 
-**Standard run (after building snap)**:
+Standard run (after building snap):
 ```bash
-NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/snap-mgmt
+NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
 ```
 
-**With debug shell (when logs unclear)**:
+Faster iteration (reuse VMs):
 ```bash
-NO_REBUILD=1 ./run-spread -- -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
-```
-On failure, provides interactive SSH to inspect logs, re-run commands, examine state.
-
-**Faster iteration (reuse VMs)**:
-```bash
-NO_REBUILD=1 ./run-spread -- -reuse garden:ubuntu-24.04-64:tests/main/snap-mgmt
+NO_REBUILD=1 ./run-spread -reuse garden:ubuntu-24.04-64:tests/main/snap-mgmt
 ```
 
-**First run (builds snap automatically)**:
+First run (builds snap automatically):
 ```bash
-./run-spread garden:ubuntu-24.04-64:tests/main/snap-mgmt
+./run-spread -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
+```
+
+Download prebuilt snap from master (test-only changes):
+```bash
+./run-spread --download -debug garden:ubuntu-24.04-64:tests/main/snap-mgmt
 ```
 
 ## Running Multiple Tests in Parallel
 
-**Option 1: Single invocation** (spread handles parallelism):
+Option 1 — Single invocation (serial execution on garden backend since it uses 1 worker):
 ```bash
-NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/test-a garden:ubuntu-24.04-64:tests/main/test-b
+NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/test-a garden:ubuntu-24.04-64:tests/main/test-b
 ```
 
-**Option 2: Delegate to subagents** (true parallel execution):
+Option 2 — Delegate to subagents (true parallel execution):
 - Each subagent runs one test
-- **Limit: 4 parallel tests maximum** (each VM uses 3-4 GB RAM)
+- Limit: 4 parallel tests maximum (each VM uses 3-4 GB RAM)
 - Requires 16GB+ system RAM for 4 parallel tests
 - Use when tests are independent and time savings justify complexity
 
 Example:
 ```bash
-# Subagent 1: NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/test-1
-# Subagent 2: NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/test-2
+# Subagent 1: NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/test-1
+# Subagent 2: NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/test-2
 # (up to 4 total)
 ```
 
 ## Interpreting Test Failures
 
-**Test phases**:
+Test phases:
 1. `prepare`: Setup (install dependencies, configure system)
 2. `execute`: Main test logic and assertions
 3. `restore`: Cleanup (should be idempotent)
 4. `debug`: Debug output (shown on failure)
 
-**Common failure patterns**:
-- **Execute failure**: Check assertion failures (MATCH, NOMATCH), compare actual vs expected output
-- **Prepare failure**: Missing dependencies or system incompatibility
-- **Restore failure**: Incomplete cleanup logic (fix to avoid test pollution)
+Common failure patterns:
+- Execute failure: Check assertion failures (MATCH, NOMATCH — these are `grep -qE` wrappers from `tests/lib/`), compare actual vs expected output
+- Prepare failure: Missing dependencies or system incompatibility
+- Restore failure: Incomplete cleanup logic (fix to avoid test pollution)
 
-**When to use `-debug`**:
-- Test fails but logs don't show clear reason
-- Need to inspect files, run commands manually, check service status
-- Don't use by default (adds overhead, requires interaction)
-
-**Debug shell commands**:
+Debug shell commands:
 ```bash
 journalctl -u snapd              # View snapd logs
 snap changes                     # See all operations
@@ -164,45 +155,36 @@ Tests can override via `tests/<suite>/<test>/task.yaml` with their own `environm
 
 ## Examples by Scenario
 
-**AppArmor changes**:
+AppArmor changes:
 ```bash
 # Primary
-NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/security-apparmor
+NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/security-apparmor
 # Verify portability
-NO_REBUILD=1 ./run-spread garden:debian-12-64:tests/main/security-apparmor
+NO_REBUILD=1 ./run-spread -debug garden:debian-12-64:tests/main/security-apparmor
 ```
 
-**SELinux changes**:
+Investigating unclear failure:
 ```bash
-NO_REBUILD=1 ./run-spread garden:opensuse-tumbleweed-selinux-64:tests/main/selinux-classic-confinement
-NO_REBUILD=1 ./run-spread garden:fedora-42-64:tests/main/selinux-clean
-# Other SELinux tests: selinux-data-context, selinux-lxd, selinux-snap-restorecon
+NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/flaky-test
+# -debug gives you a shell on failure to inspect the system
 ```
 
-**Investigating unclear failure**:
-```bash
-# First run
-NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/flaky-test
-# If logs unclear, add -debug
-NO_REBUILD=1 ./run-spread -- -debug garden:ubuntu-24.04-64:tests/main/flaky-test
-```
-
-**Multiple related tests**:
+Multiple related tests:
 ```bash
 # Pattern matching
-NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/interfaces-...
+NO_REBUILD=1 ./run-spread -debug garden:ubuntu-24.04-64:tests/main/interfaces-...
 # Or delegate to up to 4 subagents for parallel execution
 ```
 
 ## Best Practices
 
-**DO**:
+DO:
+- Use `-debug` by default to get a shell on failure without re-running
 - Prefer `NO_REBUILD=1` in environment when snap already built
 - When unclear whether a suite needs the prebuilt snap, assume it does — build with `./tests/build-test-snapd-snap --clean-snapd-only` then run with `NO_REBUILD=1`
 - Collect maximum information per run to minimize cycles
 - Prefer `garden` backend for local development
 - Choose systems appropriate to change type (see system selection guidelines above)
-- Use `-debug` when logs lack clarity, investigate in shell provided by spread
 - Plan what information you need before executing
 - Follow user's guidance when in doubt
 - Limit parallel tests to 4 when using subagents (RAM constraint)
@@ -210,14 +192,13 @@ NO_REBUILD=1 ./run-spread garden:ubuntu-24.04-64:tests/main/interfaces-...
   `built-snap/snapd_*.snap.keep`, if not, suggest building it, or use the
   build-snapd-snap skill to do so, respecting guidelines listed in the skill.
 
-**DON'T**:
+DON'T:
 - Call `./run-spread` without a `backend:system:test` argument (would run everything)
 - Use backends other than `garden` unless explicitly instructed
 - Waste test cycles running without clear purpose
 - Exceed 4 parallel tests with subagents (RAM exhaustion)
 - Ignore `restore` section failures (indicates cleanup issues)
 - Assume portability between LSMs without testing
-- Use `-debug` by default (only when needed)
 - Forget `NO_REBUILD=1` when snap exists (wastes time rebuilding)
 - Call `./run-spread` without `NO_REBUILD=1` when a snap already exists in `built-snap/` — without it, `run-spread` triggers a full rebuild which takes several minutes
 - Use `run-spread` for `tests/unit/` or `tests/cross/` suites — use `spread` directly instead (no snap needed)
