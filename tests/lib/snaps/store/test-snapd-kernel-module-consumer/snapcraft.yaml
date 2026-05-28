@@ -4,8 +4,9 @@ summary: Basic kernel-module-control consumer snap
 description: A basic snap declaring a plug on kernel-module-control
 type: app
 base: core26
+build-base: devel
 confinement: strict
-grade: stable
+grade: devel
 
 plugs:
     kernel-module-control:
