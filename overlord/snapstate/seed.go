@@ -134,7 +134,7 @@ func changeHasPendingSeedRefresh(chg *state.Change) bool {
 func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, eviction SeedRefreshEvictionPolicy, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
 	// try mode doesn't actually install the snap, should never trigger a
 	// seed-refresh
-	if opts.Flags.TryMode {
+	if opts.Flags.TryMode || opts.NoSeedRefresh {
 		return nil, nil, nil
 	}
 

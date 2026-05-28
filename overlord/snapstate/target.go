@@ -77,6 +77,8 @@ type Options struct {
 	// pre-existing behavior of calling InstallMany with one snap vs calling
 	// Install.
 	ExpectOneSnap bool
+	// NoSeedRefresh prevents creating seed-refresh tasks for this operation.
+	NoSeedRefresh bool
 }
 
 func (opts *Options) setDefaultLane(st *state.State) error {

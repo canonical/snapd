@@ -21794,3 +21794,40 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshDisabled(c *C) {
 	c.Check(firstLocalModApp.WaitTasks(), Not(testutil.Contains), lastBeforeLocalBase)
 	c.Check(firstLocalModApp.WaitTasks(), Not(testutil.Contains), lastBeforeLocalKernel)
 }
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoSeedRefreshOption(c *C) {
+	restore := snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	}, []string{"kernel", "core18"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+	)
+
+	goal := snapstate.StoreUpdateGoal(
+		snapstate.StoreUpdate{InstanceName: "kernel"},
+		snapstate.StoreUpdate{InstanceName: "core18"},
+	)
+	_, uts, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{
+		UserID:        s.user.ID,
+		NoSeedRefresh: true,
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	_, seedTS := parseSeedRefreshTaskSets(uts)
+	c.Check(seedTS, IsNil)
+	c.Check(observed.initial, HasLen, 0)
+	c.Check(observed.prerequisites, HasLen, 0)
+}
