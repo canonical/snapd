@@ -299,6 +299,7 @@ func delayedCrossMgrInit() {
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
 	snapstate.SeedRefreshTasks = SeedRefreshTasks
+	snapstate.PendingSeedRefreshTasks = PendingSeedRefreshTasks
 	snapstate.UpdateSeedRefreshChange = UpdateSeedRefreshChange
 	snapstate.CheckSeedRefreshRemove = CheckSeedRefreshRemove
 }
@@ -1813,37 +1814,36 @@ func SeedRefreshTasks(
 	}, added, nil
 }
 
+// PendingSeedRefreshTasks returns the pending seed-refresh task set in the
+// provided task set, or nil when it has no pending seed refresh.
+func PendingSeedRefreshTasks(ts *state.TaskSet) (*snapstate.SeedRefreshTaskSet, error) {
+	return findSeedRefreshTasks(ts)
+}
+
 // UpdateSeedRefreshChange adds a late candidate to an existing seed-refresh
-// change when the snap should participate in the refreshed seed. Returns nil if
-// snap isn't part of the seed refresh, otherwise returns the seed refresh task
-// set.
-func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
+// task set when the snap should participate in the refreshed seed. Returns
+// whether the candidate was added to the seed refresh.
+func UpdateSeedRefreshChange(seedTS *snapstate.SeedRefreshTaskSet, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (bool, error) {
 	// remodel creates its own seed creation tasks explicitly, seed-refresh
 	// should never create them.
 	if dctx.ForRemodeling() {
-		return nil, nil
+		return false, nil
 	}
 
-	triggers := seedRefreshTriggers(chg.State(), dctx)
-
+	triggers := seedRefreshTriggers(seedTS.Create.State(), dctx)
 	ok, err := triggers(candidate.InstanceName)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
 	if !ok {
-		return nil, nil
-	}
-
-	seedTS, err := findSeedRefreshTasks(chg)
-	if err != nil {
-		return nil, err
+		return false, nil
 	}
 
 	if err := appendSeedRefreshCandidate(seedTS.Create, candidate.SnapSetupTaskIDs, candidate.ComponentSetupTaskIDs); err != nil {
-		return nil, err
+		return false, err
 	}
 
-	return seedTS, nil
+	return true, nil
 }
 
 func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTasks []string) error {
@@ -1941,10 +1941,10 @@ func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(str
 	}
 }
 
-func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, error) {
+func findSeedRefreshTasks(ts *state.TaskSet) (*snapstate.SeedRefreshTaskSet, error) {
 	var finalize *state.Task
 	var removals []*state.Task
-	for _, t := range chg.Tasks() {
+	for _, t := range ts.Tasks() {
 		switch t.Kind() {
 		case "finalize-recovery-system":
 			if t.Status().Ready() {
@@ -1962,7 +1962,7 @@ func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, err
 	}
 
 	if finalize == nil {
-		return nil, errors.New("internal error: seed-refresh change is missing pending finalize-recovery-system task")
+		return nil, nil
 	}
 
 	var createID string
@@ -1970,9 +1970,21 @@ func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, err
 		return nil, err
 	}
 
-	create := chg.State().Task(createID)
-	if create == nil || create.Change().ID() != chg.ID() || create.Kind() != "create-recovery-system" {
+	var create *state.Task
+	for _, t := range ts.Tasks() {
+		if t.ID() == createID {
+			create = t
+			break
+		}
+	}
+	if create == nil || create.Kind() != "create-recovery-system" {
 		return nil, errors.New("internal error: seed-refresh change is missing paired create-recovery-system task")
+	}
+
+	// attempting to inspect seed refresh tasks after creation but before
+	// finalization is always a bug in the current design
+	if create.Status() != state.DoStatus {
+		return nil, fmt.Errorf("internal error: seed-refresh creation task has already started with status %s while finalization is still pending", create.Status())
 	}
 
 	return &snapstate.SeedRefreshTaskSet{
