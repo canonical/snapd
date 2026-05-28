@@ -88,6 +88,7 @@ type observedSeedRefreshCandidates struct {
 
 func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, func()) {
 	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
+	oldPendingSeedRefreshTasks := snapstate.PendingSeedRefreshTasks
 	oldUpdateSeedRefreshChange := snapstate.UpdateSeedRefreshChange
 	triggered := make(map[string]bool, len(triggers))
 	for _, instanceName := range triggers {
@@ -127,22 +128,27 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 		return currentSeedTS, added, nil
 	}
 
-	snapstate.UpdateSeedRefreshChange = func(chg *state.Change, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
+	snapstate.PendingSeedRefreshTasks = func(*state.TaskSet) (*snapstate.SeedRefreshTaskSet, error) {
+		return currentSeedTS, nil
+	}
+
+	snapstate.UpdateSeedRefreshChange = func(seedTS *snapstate.SeedRefreshTaskSet, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (bool, error) {
 		observed.prerequisites = append(observed.prerequisites, candidate)
 
 		if !triggered[candidate.InstanceName] {
-			return nil, nil
+			return false, nil
 		}
 
-		if currentSeedTS == nil {
-			return nil, fmt.Errorf("missing recovery-system tasks")
+		if seedTS == nil {
+			return false, fmt.Errorf("missing recovery-system tasks")
 		}
 
-		return currentSeedTS, nil
+		return true, nil
 	}
 
 	return &observed, func() {
 		snapstate.SeedRefreshTasks = oldSeedRefreshTasks
+		snapstate.PendingSeedRefreshTasks = oldPendingSeedRefreshTasks
 		snapstate.UpdateSeedRefreshChange = oldUpdateSeedRefreshChange
 	}
 }

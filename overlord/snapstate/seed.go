@@ -65,9 +65,15 @@ var SeedRefreshTasks = func(st *state.State, dctx DeviceContext, candidates []Se
 	panic("internal error: snapstate.SeedRefreshTasks is unset")
 }
 
+// PendingSeedRefreshTasks is set by devicestate to avoid an import cycle. See
+// devicestate.PendingSeedRefreshTasks.
+var PendingSeedRefreshTasks = func(ts *state.TaskSet) (*SeedRefreshTaskSet, error) {
+	panic("internal error: snapstate.PendingSeedRefreshTasks is unset")
+}
+
 // UpdateSeedRefreshChange is set by devicestate to avoid an import cycle. See
 // devicestate.UpdateSeedRefreshChange.
-var UpdateSeedRefreshChange = func(chg *state.Change, dctx DeviceContext, candidate SeedRefreshCandidate) (*SeedRefreshTaskSet, error) {
+var UpdateSeedRefreshChange = func(seedTS *SeedRefreshTaskSet, dctx DeviceContext, candidate SeedRefreshCandidate) (bool, error) {
 	panic("internal error: snapstate.UpdateSeedRefreshChange is unset")
 }
 
@@ -193,18 +199,25 @@ func maybeMergeLateSeedRefreshPrereq(chg *state.Change, dctx DeviceContext, prov
 		return nil
 	}
 
+	seedTS, err := PendingSeedRefreshTasks(state.NewTaskSet(chg.Tasks()...))
+	if err != nil {
+		return err
+	}
+	if seedTS == nil {
+		return nil
+	}
+
 	candidate, err := seedRefreshCandidateForTaskSet(providerTS)
 	if err != nil {
 		return err
 	}
 
-	seedTS, err := UpdateSeedRefreshChange(chg, dctx, candidate)
+	added, err := UpdateSeedRefreshChange(seedTS, dctx, candidate)
 	if err != nil {
 		return err
 	}
 
-	// snap didn't trigger a seed refresh
-	if seedTS == nil {
+	if !added {
 		return nil
 	}
 
