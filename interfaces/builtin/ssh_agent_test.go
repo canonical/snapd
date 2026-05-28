@@ -78,16 +78,15 @@ func (s *SshAgentInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /tmp/ssh-*/agent.* rw,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /run/user/*/keyring/ssh rw,`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /run/user/*/gcr/ssh rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /run/user/[0-9]*/keyring/ssh rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `owner /run/user/[0-9]*/gcr/ssh rw,`)
 }
 
 func (s *SshAgentInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Assert(si.ImplicitOnCore, Equals, true)
+	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to users ssh-agent`)
+	c.Assert(si.Summary, Equals, `allows access to the user's gnome keyring or gcr based ssh-agent`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "ssh-agent")
 }
 

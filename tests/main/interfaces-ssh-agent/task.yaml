@@ -40,11 +40,15 @@ execute: |
     test-snapd-sh.with-ssh-agent-plug -c "cat $GCR_SOCKET"
     test-snapd-sh.with-ssh-agent-plug -c "cat $OPENSSH_SOCKET"
 
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:ssh-agent
     
     echo "Then the snap is not able to access the ssh-agent socket"
-    if test-snapd-sh.with-ssh-agent -c "cat $KEYRING_SOCKET" 2> call.error; then
+    if test-snapd-sh.with-ssh-agent-plug -c "cat $KEYRING_SOCKET" 2> call.error; then
         echo "Expected permission error accessing ssh-agent socket"
         exit 1
     fi

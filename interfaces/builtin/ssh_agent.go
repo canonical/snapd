@@ -19,7 +19,7 @@
 
 package builtin
 
-const sshAgentSummary = `allows access to users ssh-agent`
+const sshAgentSummary = `allows access to the user's gnome keyring or gcr based ssh-agent`
 const sshAgentBaseDeclarationSlots = `
   ssh-agent:
     allow-installation:
@@ -29,8 +29,6 @@ const sshAgentBaseDeclarationSlots = `
 `
 
 const sshAgentConnectedPlugAppArmor = `
-# allow access to socket owned by user in default location for openssh ssh-agent
-owner /tmp/ssh-*/agent.* rw,
 # allow access to default location for gnome keyring ssh-agent
 owner /run/user/[0-9]*/keyring/ssh rw,
 # allow access to default location for gcr ssh-agent socket
@@ -41,7 +39,7 @@ func init() {
 	registerIface(&commonInterface{
 		name:                  "ssh-agent",
 		summary:               sshAgentSummary,
-		implicitOnCore:        true,
+		implicitOnCore:        false,
 		implicitOnClassic:     true,
 		baseDeclarationSlots:  sshAgentBaseDeclarationSlots,
 		connectedPlugAppArmor: sshAgentConnectedPlugAppArmor,
