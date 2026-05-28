@@ -243,7 +243,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 	}
 
 	if opts.Sudoer {
-		if err := AtomicWriteFile(sudoersFile(name), []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
+		if err := AtomicWriteFile(sudoersFile(name), []byte(fmt.Sprintf(sudoersTemplate, name)), 0400); err != nil {
 			return fmt.Errorf("cannot create file under sudoers.d: %s", err)
 		}
 	}
@@ -290,7 +290,7 @@ func AddUser(name string, opts *AddUserOptions) error {
 	}
 	authKeys := filepath.Join(sshDir, "authorized_keys")
 	authKeysContent := strings.Join(opts.SSHKeys, "\n")
-	if err := AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, 0, uid, gid); err != nil {
+	if err := AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, uid, gid); err != nil {
 		return fmt.Errorf("cannot write %s: %s", authKeys, err)
 	}
 

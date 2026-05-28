@@ -344,7 +344,7 @@ func (r *rawTestSuite) TestRawUpdaterBackupUpdateRestoreSame(c *C) {
 	c.Check(gadget.RawContentBackupPath(r.backup, ps, &ps.LaidOutContent[1])+".same", testutil.FilePresent)
 
 	emptyDiskPath := filepath.Join(r.dir, "disk-not-written.img")
-	err = osutil.AtomicWriteFile(emptyDiskPath, nil, 0644, 0)
+	err = osutil.AtomicWriteFile(emptyDiskPath, nil, 0644)
 	c.Assert(err, IsNil)
 	// update should be a noop now, use the same locations, point to a file
 	// of 0 size, so that seek fails and write would increase the size

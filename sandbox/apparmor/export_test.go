@@ -23,7 +23,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -47,7 +46,7 @@ func MockMkdirAll(f func(string, os.FileMode) error) func() {
 	return r
 }
 
-func MockAtomicWrite(f func(string, io.Reader, os.FileMode, osutil.AtomicWriteFlags) error) func() {
+func MockAtomicWrite(f func(string, io.Reader, os.FileMode) error) func() {
 	r := testutil.Backup(&osutilAtomicWrite)
 	osutilAtomicWrite = f
 	return r

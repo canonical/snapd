@@ -68,7 +68,7 @@ func switchHandlePowerKey(action string, opts *fsOnlyContext) error {
 	content := fmt.Sprintf(`[Login]
 HandlePowerKey=%s
 `, action)
-	return osutil.AtomicWriteFile(powerBtnCfg(opts), []byte(content), 0644, 0)
+	return osutil.AtomicWriteFile(powerBtnCfg(opts), []byte(content), 0644)
 }
 
 func handlePowerButtonConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyContext) error {

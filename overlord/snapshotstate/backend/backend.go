@@ -335,7 +335,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]any, use
 		}
 	}
 
-	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, err
 	}

@@ -203,7 +203,7 @@ func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, param
 	}
 
 	if primaryKey != nil && params.AuxKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600, 0); err != nil {
+		if err := osutil.AtomicWriteFile(params.AuxKeyFile, primaryKey, 0600); err != nil {
 			return fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}

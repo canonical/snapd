@@ -337,7 +337,7 @@ func (s *Store) DownloadIcon(ctx context.Context, name string, targetPath string
 	// once the download succeeds, thus leaving any previous icon linked to the
 	// original unchanged icon contents, until a future task re-links to the
 	// new contents.
-	aw, err := osutil.NewAtomicFile(targetPath, 0o644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(targetPath, 0o644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot create file for snap icon for snap %s: %v", name, err)
 	}

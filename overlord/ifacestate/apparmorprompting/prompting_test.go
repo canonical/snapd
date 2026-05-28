@@ -780,7 +780,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
 	const requestMapping = `{"request-mapping":{"api:1000:audio-record:obs-studio:1234":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600), IsNil)
 
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
@@ -885,7 +885,7 @@ func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
 	const requestMapping = `{"request-mapping":{"api:1000:audio-record:obs-studio:1234":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600), IsNil)
 
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
@@ -1768,7 +1768,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyAfterPromptsNotReady(c *C) {
 	const requestMapping = `{"request-mapping":{"api:foo":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600), IsNil)
 
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
@@ -1812,7 +1812,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfN
 	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600), IsNil)
 
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
@@ -1857,7 +1857,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfO
 	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000},"api:1000:audio-record:firefox:1234":{"prompt-id":"0000000000000002","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600), IsNil)
 
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
@@ -1928,7 +1928,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	const requestMapping = `{"request-mapping":{"kernel:1":{"prompt-id":"0000000000000001","user-id":1000},"kernel:2":{"prompt-id":"0000000000000001","user-id":1000},"kernel:3":{"prompt-id":"0000000000000002","user-id":1000},"api:1000:audio-record:obs-studio:12345":{"prompt-id":"0000000000000003","user-id":1000},"api:1000:audio-record:signal-desktop:67890":{"prompt-id":"0000000000000004","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600), IsNil)
 
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
@@ -2093,7 +2093,7 @@ func (s *apparmorpromptingSuite) testReadyBlocks(c *C, f func(mgr *apparmorpromp
 	const requestMapping = `{"request-mapping":{"kernel:0000000000000001":{"prompt-id":"0000000000000001","user-id":1000}}}`
 	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
-	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600), IsNil)
 
 	// Need a new noticeMgr each time so we can re-register backends with the same types
 	st := state.New(nil)

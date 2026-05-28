@@ -110,7 +110,7 @@ func (seed *Seed16) Write(seedFn string) error {
 	if err != nil {
 		return err
 	}
-	if err := osutil.AtomicWriteFile(seedFn, data, 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(seedFn, data, 0644); err != nil {
 		return err
 	}
 	return nil

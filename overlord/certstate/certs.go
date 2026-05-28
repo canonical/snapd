@@ -258,7 +258,7 @@ func writeUniqueCACertificates(certs *certificates, out io.Writer) error {
 // output path.
 func generateCACertificates(certs *certificates, outputPath string) error {
 	certsPath := filepath.Join(outputPath, "ca-certificates.crt")
-	tmpFile, err := osutil.NewAtomicFile(certsPath, 0o644, 0, osutil.NoChown, osutil.NoChown)
+	tmpFile, err := osutil.NewAtomicFile(certsPath, 0o644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot create temporary ca-certificates.crt: %v", err)
 	}

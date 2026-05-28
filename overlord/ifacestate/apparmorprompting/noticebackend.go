@@ -633,5 +633,5 @@ func (ntb *noticeTypeBackend) save() error {
 		// Should not occur, marshalling should always succeed
 		return fmt.Errorf("cannot marshal %s notices: %w", ntb.namespace, err)
 	}
-	return osutil.AtomicWriteFile(ntb.filepath, b, 0o600, 0)
+	return osutil.AtomicWriteFile(ntb.filepath, b, 0o600)
 }

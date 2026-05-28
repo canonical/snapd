@@ -159,7 +159,7 @@ func createCookieFile(instanceName string) (cookieID string, err error) {
 		return "", err
 	}
 	path := filepath.Join(dirs.SnapCookieDir, fmt.Sprintf("snap.%s", instanceName))
-	err = osutil.AtomicWriteFile(path, []byte(cookieID), 0600, 0)
+	err = osutil.AtomicWriteFile(path, []byte(cookieID), 0600)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create cookie file %q: %s", path, err)
 	}

@@ -145,7 +145,7 @@ func (options *Options20) Write(optionsFn string) error {
 	if err != nil {
 		return err
 	}
-	if err := osutil.AtomicWriteFile(optionsFn, data, 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(optionsFn, data, 0644); err != nil {
 		return err
 	}
 	return nil

@@ -105,7 +105,7 @@ func run(assetName, inputFile, outputFile string) error {
 		return fmt.Errorf("cannot copy input data: %v", err)
 	}
 
-	outf, err := osutil.NewAtomicFile(outputFile, 0644, 0, osutil.NoChown, osutil.NoChown)
+	outf, err := osutil.NewAtomicFile(outputFile, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot open output file: %v", err)
 	}

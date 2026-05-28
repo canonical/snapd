@@ -144,7 +144,7 @@ func (s *requestpromptsSuite) TestNewValidMaxID(c *C) {
 	} {
 		var initialData [8]byte
 		*(*uint64)(unsafe.Pointer(&initialData[0])) = testCase.initial
-		c.Assert(osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0o600, 0), IsNil)
+		c.Assert(osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0o600), IsNil)
 		pdb, err := requestprompts.New(notifyPrompt)
 		c.Assert(err, IsNil)
 		defer pdb.Close()
@@ -180,7 +180,7 @@ func (s *requestpromptsSuite) TestNewInvalidMaxID(c *C) {
 		[]byte("1234567"),
 		[]byte("123456789"),
 	} {
-		c.Assert(osutil.AtomicWriteFile(s.maxIDPath, initial, 0o600, 0), IsNil)
+		c.Assert(osutil.AtomicWriteFile(s.maxIDPath, initial, 0o600), IsNil)
 		pdb, err := requestprompts.New(notifyPrompt)
 		c.Assert(err, IsNil)
 		defer pdb.Close()
@@ -198,7 +198,7 @@ func (s *requestpromptsSuite) TestNewNextIDUniqueIDs(c *C) {
 	var initialMaxID uint64 = 42
 	var initialData [8]byte
 	*(*uint64)(unsafe.Pointer(&initialData[0])) = initialMaxID
-	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0600), IsNil)
 
 	pdb1, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -263,7 +263,7 @@ func (s *requestpromptsSuite) TestNewNextIDCompatibility(c *C) {
 	var initialMaxID uint64 = 42
 	var initialData [8]byte
 	*(*uint64)(unsafe.Pointer(&initialData[0])) = initialMaxID
-	c.Assert(osutil.AtomicWriteFile(s.legacyMaxIDPath, initialData[:], 0600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.legacyMaxIDPath, initialData[:], 0600), IsNil)
 
 	pdb1, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -333,12 +333,12 @@ func (s *requestpromptsSuite) TestNewPendingHandleReadying(c *C) {
 	}
 	data, err := json.Marshal(jsonMapping)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600), IsNil)
 	// Write max ID corresponding to mapping
 	expectedID := uint64(2)
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
-	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -407,12 +407,12 @@ func (s *requestpromptsSuite) TestNewPendingReadyTimeout(c *C) {
 	}
 	data, err := json.Marshal(mapping)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600), IsNil)
 	// Write max ID corresponding to mapping
 	expectedID := uint64(2)
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
-	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -1016,12 +1016,12 @@ func (s *requestpromptsSuite) TestAddOrMergeInvalidMapping(c *C) {
 	}
 	data, err := json.Marshal(jsonMapping)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600), IsNil)
 	// Write max ID corresponding to mapping
 	expectedID := uint64(1)
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
-	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -1881,12 +1881,12 @@ func (s *requestpromptsSuite) TestCloseBeforeReady(c *C) {
 	}
 	data, err := json.Marshal(jsonMapping)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600), IsNil)
 	// Write max ID corresponding to mapping
 	expectedID := uint64(2)
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
-	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -1986,11 +1986,11 @@ func (s *requestpromptsSuite) TestRequestMappingAcrossRestarts(c *C) {
 	}
 	data, err := json.Marshal(mapping)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600), IsNil)
 	// Write max ID corresponding to mapping
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = uint64(2)
-	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)
@@ -2102,12 +2102,12 @@ func (s *requestpromptsSuite) TestHandleReadying(c *C) {
 	}
 	data, err := json.Marshal(mapping)
 	c.Assert(err, IsNil)
-	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.requestMapFilepath, data, 0o600), IsNil)
 	// Write max ID corresponding to mapping
 	expectedID := uint64(6)
 	var maxIDData [8]byte
 	*(*uint64)(unsafe.Pointer(&maxIDData)) = expectedID
-	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(s.maxIDPath, maxIDData[:], 0o600), IsNil)
 
 	pdb, err := requestprompts.New(s.defaultNotifyPrompt)
 	c.Assert(err, IsNil)

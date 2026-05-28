@@ -111,7 +111,7 @@ func Reboot(action RebootAction, rebootDelay time.Duration, rebootInfo *RebootIn
 	}
 	if rebArgs != "" {
 		if err := osutil.AtomicWriteFile(rebootArgsPath,
-			[]byte(rebArgs+"\n"), 0644, 0); err != nil {
+			[]byte(rebArgs+"\n"), 0644); err != nil {
 			return err
 		}
 	}

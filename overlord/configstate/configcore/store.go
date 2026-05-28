@@ -78,5 +78,5 @@ func handleStoreAccess(_ sysconfig.Device, cfg ConfGetter, opts *fsOnlyContext) 
 		return err
 	}
 
-	return osutil.AtomicWriteFile(configFilePath, data, 0644, 0)
+	return osutil.AtomicWriteFile(configFilePath, data, 0644)
 }

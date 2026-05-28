@@ -116,7 +116,7 @@ func Open(rootdir string) (*SystemParams, error) {
 func (ssp *SystemParams) Write() error {
 	sspFile := sysparamsFile(ssp.rootdir)
 	contents := fmt.Sprintf("homedirs=%s\n", ssp.Homedirs)
-	if err := osutilAtomicWriteFile(sspFile, []byte(contents), 0644, 0); err != nil {
+	if err := osutilAtomicWriteFile(sspFile, []byte(contents), 0644); err != nil {
 		return fmt.Errorf("cannot write system-params: %v", err)
 	}
 	return nil

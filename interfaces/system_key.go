@@ -230,7 +230,7 @@ func WriteSystemKey(extraData SystemKeyExtraData) error {
 	if err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, sks, 0644, 0)
+	return osutil.AtomicWriteFile(dirs.SnapSystemKeyFile, sks, 0644)
 }
 
 // SystemKeyMismatch checks if the running binary expects a different

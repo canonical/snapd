@@ -60,7 +60,7 @@ func (s *SnapSuite) TestWhoamiEmptyAuthFile(c *C) {
 	s.Login(c)
 	defer s.Logout(c)
 
-	err := osutil.AtomicWriteFile(s.AuthFile, []byte(``), 0600, 0)
+	err := osutil.AtomicWriteFile(s.AuthFile, []byte(``), 0600)
 	c.Assert(err, IsNil)
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"whoami"})
