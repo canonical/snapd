@@ -53,6 +53,41 @@ Available systems: Discover concrete system names from `spread.yaml` under `back
 
 When in doubt: Follow user's guidance or pick the most recent Ubuntu LTS from `spread.yaml`.
 
+## Debugging a failing test
+
+A failing test produces a log like shown below, where the test execution log appears in the place of `<TEST EXECUTION LOG>`, and the test's debug section execution log will appear in place of `<TEST debug: SECTION EXECUTION LOG>`:
+
+
+```bash
++ exec spread -debug garden:ubuntu-24.04-64:tests/main/snap-download-corrupted-cleanup:valid_cache
+2026-05-26 14:01:03 Project content is packed for delivery (124.87MB).
+2026-05-26 14:01:03 If killed, discard servers with: spread -reuse-pid=3762927 -discard
+2026-05-26 14:01:03 Allocating garden:ubuntu-24.04-64...
+2026-05-26 14:01:03 Waiting for garden:ubuntu-24.04-64 to make SSH available at localhost:6374...
+2026-05-26 14:01:03 Allocated garden:ubuntu-24.04-64.
+2026-05-26 14:01:03 Connecting to garden:ubuntu-24.04-64...
+2026-05-26 14:01:10 Connected to garden:ubuntu-24.04-64 at localhost:6374.
+2026-05-26 14:01:10 Sending project content to garden:ubuntu-24.04-64...
+2026-05-26 14:01:12 Preparing garden:ubuntu-24.04-64 (garden:ubuntu-24.04-64)...
+2026-05-26 14:01:57 Preparing garden:ubuntu-24.04-64:tests/main/ (garden:ubuntu-24.04-64)...
+2026-05-26 14:02:44 Checking garden:ubuntu-24.04-64:tests/main/snap-download-corrupted-cleanup:valid_cache (garden:ubuntu-24.04-64)...
+2026-05-26 14:02:44 Preparing garden:ubuntu-24.04-64:tests/main/snap-download-corrupted-cleanup:valid_cache (garden:ubuntu-24.04-64)...
+2026-05-26 14:02:51 Executing garden:ubuntu-24.04-64:tests/main/snap-download-corrupted-cleanup:valid_cache (garden:ubuntu-24.04-64) (1/1)...
+2026-05-26 14:02:54 Error executing garden:ubuntu-24.04-64:tests/main/snap-download-corrupted-cleanup:valid_cache (garden:ubuntu-24.04-64) :
+-----
+<TEST EXECUTION LOG>
+-----
+.
+2026-05-26 14:02:54 Debug output for garden:ubuntu-24.04-64:tests/main/snap-download-corrupted-cleanup:valid_cache (garden:ubuntu-24.04-64) :
+-----
+<TEST debug: SECTION EXECUTION LOG>
+-----
+.
+2026-05-26 14:02:54 Starting shell to debug...
+```
+
+Attempt to capture as much as possible of the error execution log and debug section execution logs, so that you do not need to re-run the same test again.
+
 ## Test Path Specification
 
 ```bash
