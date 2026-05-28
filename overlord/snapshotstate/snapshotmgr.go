@@ -235,7 +235,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	snapshot.Options = addMountControlExcludes(cur, snapshot.Options)
+	snapshot.excludeMountControlMountPoints(cur)
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
 	if err != nil {
 		st.Lock()
@@ -267,28 +267,26 @@ func mapMountPointsInGlobalDataDirsToExcludes(si *snap.Info, mountPoints []strin
 	return excludes
 }
 
-// addMountControlExcludes returns snapshot options that additionally exclude
-// any currently-active mount-control mount points under the snap's data
-// directories. When opts is nil and there are excludes to add, a new
-// SnapshotOptions is created and returned. Errors from querying mount units
-// are logged and opts is returned unchanged, making the exclusion best-effort.
-func addMountControlExcludes(si *snap.Info, opts *snap.SnapshotOptions) *snap.SnapshotOptions {
+// excludeMountControlMountPoints appends any currently-active mount-control
+// mount points under the snap's data directories to s.Options. Errors from
+// querying mount units are logged and s.Options is left unchanged, making the
+// exclusion best-effort.
+func (s *snapshotSetup) excludeMountControlMountPoints(si *snap.Info) {
 	mountPts, err := listMountControlMountPoints(si.InstanceName())
 	if err != nil {
 		logger.Noticef("cannot list mount-control units for %q: %v", si.InstanceName(), err)
-		return opts
+		return
 	}
 	excludes := mapMountPointsInGlobalDataDirsToExcludes(si, mountPts)
 	if len(excludes) == 0 {
-		return opts
+		return
 	}
-	if opts == nil {
-		opts = &snap.SnapshotOptions{}
+	if s.Options == nil {
+		s.Options = &snap.SnapshotOptions{}
 	}
-	if err := opts.MergeDynamicExcludes(excludes); err != nil {
+	if err := s.Options.MergeDynamicExcludes(excludes); err != nil {
 		logger.Noticef("internal error: cannot add mount-control excludes for %q: %v", si.InstanceName(), err)
 	}
-	return opts
 }
 
 // prepareRestore does the steps of doRestore that require the state lock
