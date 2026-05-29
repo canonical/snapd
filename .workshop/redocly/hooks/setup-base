@@ -1,0 +1,2 @@
+apt update
+apt install -y reuse

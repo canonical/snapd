@@ -1,0 +1,25 @@
+# XXX: Workshop containers do not support kvm acceleration, so running spread
+# via image-garden causes qemu to fall back to tcg, which is to slow to
+# successfully provision a spread VM. Thus, this is broken until workshop
+# adds support for kvm (likely by allowing workshops themselves to be VMs
+# instead of containers).
+
+# The image-garden snap cannot access `/project` directory, so instead build
+# image-garden from source
+
+# Install image-garden dependencies
+apt update
+apt install -y make git wget qemu-system-x86 qemu-system-aarch64 qemu-system-riscv64 qemu-system-s390x qemu-utils xorriso
+
+# Install python dependency to make rulegen.py work on python 3.10
+apt install python3-pip
+pip install StrEnum
+
+# Build and install image-garden from source
+cd $HOME
+git clone https://gitlab.com/zygoon/image-garden.git
+cd image-garden
+# Patch to use `strenum` module for `StrEnum`
+sed -i '/import sys/i import strenum' rulegen.py
+sed -i 's/enum\.StrEnum/strenum.LowercaseStrEnum/' rulegen.py
+make && make install

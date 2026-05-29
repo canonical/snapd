@@ -1,0 +1,19 @@
+snap install snapcraft --classic
+
+# Snapcraft can't use lxd containers to build within the workshop container,
+# so must use `--destructive-mode` and run as root.
+# If in the future workshop supports VMs instead of containers, this can all be
+# removed and instead simply install and initialize lxd alongside snapcraft.
+
+# /home/workshop/.local/bin is first in path, so create script there.
+LOCAL_BIN="/home/workshop/.local/bin"
+sudo -iu workshop mkdir -p "$LOCAL_BIN"
+
+# Using `cat <<EOF` mangles the $@, so echo manually
+echo 'sudo snap run snapcraft clean --destructive-mode' > "$LOCAL_BIN"/snapcraft
+echo 'sudo snap run snapcraft $@ --destructive-mode' >> "$LOCAL_BIN"/snapcraft
+echo 'sudo snap run snapcraft clean --destructive-mode' >> "$LOCAL_BIN"/snapcraft
+echo 'if [ -f snapd_*.snap ] ; then sudo chown workshop:workshop snapd_*.snap ; fi' >> "$LOCAL_BIN"/snapcraft
+
+chmod 755 "$LOCAL_BIN"/snapcraft
+chown workshop:workshop "$LOCAL_BIN"/snapcraft
