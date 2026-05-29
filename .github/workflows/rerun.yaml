@@ -32,6 +32,7 @@ jobs:
     env:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
+      MAX_FAILED_TASKS: 30
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -72,71 +73,42 @@ jobs:
         run: unzip pr_number.zip
 
       - name: Check for rerun eligibility
+        id: eligibility
         run: |
-          pr=$(cat pr_number)
-          if [ "$(gh pr view "$pr" --json isDraft --jq '.isDraft')" = "true" ]; then
-            echo "setting auto rerun to false because the PR is a draft"
-            echo "AUTO_RERUN=false" >> $GITHUB_ENV
+          source .github/scripts/rerun-common.sh
+
+          pr_number=$(cat pr_number)
+          pr_json=$(gh pr view "$pr_number" --json number,isDraft,labels,reviews,baseRefName)
+
+          if ! pr_is_rerun_eligible "$pr_json" 1 true; then
+            echo "setting auto rerun to false because $RERUN_REASON"
+            echo "auto_rerun=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          labels=$(gh pr view "$pr" --json labels --jq '.labels[].name')
-          has_label=false
-          if grep -q '^Auto rerun spread$' <<<$labels; then
-            has_label=true
-          fi
-
-          num_approvals=$(gh pr view "$pr" --json reviews --jq '.reviews[] | select(.state == "APPROVED") | .author.login' | sort -u | wc -l)
-          if [ "$has_label" = "true" ] && [ "$num_approvals" -ge 1 ]; then
-            echo "AUTO_RERUN=true" >> $GITHUB_ENV
-          else
-            echo "setting auto rerun to false because it is missing the label or has insufficient approvals"
-            echo "AUTO_RERUN=false" >> $GITHUB_ENV
-          fi
+          echo "auto_rerun=true" >> "$GITHUB_OUTPUT"
+          echo "PR_NUMBER=$pr_number" >> "$GITHUB_ENV"
+          echo "PR_BASE=$(echo "$pr_json" | jq -r '.baseRefName // empty')" >> "$GITHUB_ENV"
       
       - name: Set run ID
-        if: env.AUTO_RERUN == 'true'
+        if: steps.eligibility.outputs.auto_rerun == 'true'
         run: |
           run_id=$(awk -F'/' '{print $(NF-1)}' <<<"${{ github.event.workflow_run.rerun_url }}")
           echo "RUN_ID=$run_id" >> $GITHUB_ENV
 
       - name: Check number of required system failures
-        if: env.AUTO_RERUN == 'true'
+        id: threshold
+        if: steps.eligibility.outputs.auto_rerun == 'true'
         run: |
-          pr_base=$(gh pr view "$PR_NUMBER" --json baseRefName --jq '.baseRefName')
-          required_spread_checks=$(gh api \
-            -X GET \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/${{ github.repository }}/rules/branches/$pr_base" \
-            --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | map(select(startswith("spread "))) | unique | .[]')
+          source .github/scripts/rerun-common.sh
 
-          if [ -z "$required_spread_checks" ]; then
-            echo "No required checks detected for branch $pr_base; skipping required spread target filtering"
-            exit 0
+          echo "threshold_ok=true" >> "$GITHUB_OUTPUT"
+
+          if ! required_spread_failure_threshold_allows_rerun "$RUN_ID" "$PR_BASE" "$GH_REPO" "$MAX_FAILED_TASKS"; then
+            echo "Setting rerun to false because $RERUN_REASON"
+            echo "threshold_ok=false" >> "$GITHUB_OUTPUT"
           fi
-
-          failed_required_system_targets=""
-          while IFS=$'\t' read -r failed_id failed_name; do
-            if grep -Fxq "$failed_name" <<<"$required_spread_checks"; then
-              failed_required_system_targets+="$failed_id "$'\n'
-            fi
-          done < <(gh run view "$RUN_ID" --json jobs --jq '.jobs[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
-
-          for failed in $failed_required_system_targets; do
-
-            # The number of failed tasks are reported in the logs as a line with 
-            # a date and timestamp, followed by "Failed tasks: " and the number
-            # ex: 2025-07-03 08:31:46 Failed tasks: 2
-            # That line will appear multiple times in the logs since the spread
-            # analyzer will echo out that same line, so grab the first occurrence.
-            num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1)
-            
-            if [ -n "$num_failed" ] && [ $num_failed -ge 30 ]; then
-              echo "Setting rerun to false because there were 30 or more failures on a system target"
-              echo "AUTO_RERUN=false" >> $GITHUB_ENV
-            fi
-          done
       
       - name: Rerun workflow
-        if: env.AUTO_RERUN == 'true'
+        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true'
         run: gh run rerun "$RUN_ID" --failed

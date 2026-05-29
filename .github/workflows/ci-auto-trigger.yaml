@@ -19,32 +19,28 @@ jobs:
       MAX_RUN_ATTEMPTS: 5
       MAX_FAILED_TASKS: 30
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Scan open PRs and trigger reruns
         run: |
           set -euo pipefail
 
-          prs=$(gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,reviews --jq '[.[]
-            | .approvals = ([.reviews[]? | select(.state == "APPROVED") | .author.login] | unique | length)
-            | .requested_changes = ([.reviews[]? | select(.state == "CHANGES_REQUESTED") | .author.login] | unique | length)
-            | select(.isDraft == false and .approvals >= 2 and .requested_changes == 0)
-          ]')
-          echo "Inspecting $(echo "$prs" | jq 'length') eligible PRs for rerun..."
+          source .github/scripts/rerun-common.sh
+
+          prs=$(gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,reviews,baseRefName)
+          echo "Inspecting $(echo "$prs" | jq 'length') open PRs for rerun..."
 
           echo "$prs" | jq -c '.[]' | while read -r pr; do
             pr_number=$(echo "$pr" | jq -r '.number')
-            is_draft=$(echo "$pr" | jq -r '.isDraft')
             head_sha=$(echo "$pr" | jq -r '.headRefOid')
-            has_label=$(echo "$pr" | jq -r '[.labels[].name] | index("Auto rerun spread") != null')
 
-            if [[ "$is_draft" == "true" ]]; then
-              echo "Skipping draft PR #$pr_number"
+            if ! pr_is_rerun_eligible "$pr" 2 false; then
+              echo "Skipping PR #$pr_number: $RERUN_REASON"
               continue
             fi
 
-            if [[ "$has_label" != "true" ]]; then
-              echo "Adding Auto rerun spread label to PR #$pr_number"
-              gh pr edit "$pr_number" --add-label 'Auto rerun spread'
-            fi
+            ensure_auto_rerun_label "$pr_number" "$pr"
 
             if [[ -z "$head_sha" || "$head_sha" == "null" ]]; then
               echo "Skipping PR #$pr_number: missing head SHA"
@@ -65,15 +61,14 @@ jobs:
 
             last_run_id=$(echo "$last_run" | jq -r '.id // empty')
             run_attempt=$(echo "$last_run" | jq -r '.run_attempt // 0')
-            run_status=$(echo "$last_run" | jq -r '.status // empty')
 
             if [[ -z "$last_run_id" ]]; then
               echo "Skipping PR #$pr_number: no pull_request run found for head SHA $head_sha"
               continue
             fi
 
-            if [[ "$run_status" != "completed" ]]; then
-              echo "Skipping PR #$pr_number: latest run_id=$last_run_id is still $run_status"
+            if ! run_is_completed "$last_run" "$last_run_id"; then
+              echo "Skipping PR #$pr_number: $RERUN_REASON"
               continue
             fi
 
@@ -89,38 +84,9 @@ jobs:
               continue
             fi
 
-            # Check if any required spread system targets failed, and if so, inspect the logs to see if we should block the rerun based on failure count.
-            auto_rerun=true
-            pr_base=$(gh pr view "$pr_number" --json baseRefName --jq '.baseRefName')
-            required_spread_checks=$(gh api \
-              -X GET \
-              -H "Accept: application/vnd.github+json" \
-              "repos/$GH_REPO/rules/branches/$pr_base" \
-              --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | map(select(startswith("spread "))) | unique | .[]')
-
-            if [[ -z "$required_spread_checks" ]]; then
-              echo "No required checks detected for branch $pr_base; skipping required spread target filtering"
-            else
-              failed_required_system_targets=""
-              while IFS=$'\t' read -r failed_id failed_name; do
-                if grep -Fxq "$failed_name" <<<"$required_spread_checks"; then
-                  failed_required_system_targets+="$failed_id "$'\n'
-                fi
-              done < <(echo "$run_jobs" | jq -r '.[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
-
-              for failed in $failed_required_system_targets; do
-                # Grab the first spread "Failed tasks" count from logs and block rerun if too high.
-                num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1 || true)
-
-                if [[ -n "$num_failed" && "$num_failed" -ge "$MAX_FAILED_TASKS" ]]; then
-                  echo "Skipping PR #$pr_number: there were $MAX_FAILED_TASKS or more failures on a required system target"
-                  auto_rerun=false
-                  break
-                fi
-              done
-            fi
-
-            if [[ "$auto_rerun" != "true" ]]; then
+            pr_base=$(echo "$pr" | jq -r '.baseRefName // empty')
+            if ! required_spread_failure_threshold_allows_rerun "$last_run_id" "$pr_base" "$GH_REPO" "$MAX_FAILED_TASKS"; then
+              echo "Skipping PR #$pr_number: $RERUN_REASON"
               continue
             fi
 
