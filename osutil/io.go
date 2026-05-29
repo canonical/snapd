@@ -26,6 +26,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -74,6 +75,11 @@ type AtomicFile struct {
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
 func NewAtomicFile(filename string, perm os.FileMode, _ AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
+	basename := filepath.Base(filename)
+	dirname := filepath.Dir(filename)
+	if strings.Contains(basename, "*") {
+		return nil, fmt.Errorf("cannot create tempfile for filename containing '*': %q", basename)
+	}
 	// The tilde is appended so that programs that inspect all files in some
 	// directory are more likely to ignore this file as an editor backup file.
 	//
@@ -81,7 +87,7 @@ func NewAtomicFile(filename string, perm os.FileMode, _ AtomicWriteFlags, uid sy
 	// aa-enforce. Tools from this package enumerate all profiles by loading
 	// parsing any file found in /etc/apparmor.d/, skipping only very specific
 	// suffixes, such as the one we selected below.
-	fd, err := os.CreateTemp(filepath.Dir(filename), filepath.Base(filename)+".*~")
+	fd, err := os.CreateTemp(dirname, basename+".*~")
 	if err != nil {
 		return nil, err
 	}
@@ -319,7 +325,12 @@ func AtomicRename(oldName, newName string) (err error) {
 }
 
 func atomicLinkOp(target, linkPath string, op func(target, tmp string) error) error {
-	tmpDir, err := os.MkdirTemp(filepath.Dir(linkPath), filepath.Base(linkPath)+".*~")
+	basename := filepath.Base(linkPath)
+	dirname := filepath.Dir(linkPath)
+	if strings.Contains(basename, "*") {
+		return fmt.Errorf("cannot create tempfile for link path containing '*': %q", basename)
+	}
+	tmpDir, err := os.MkdirTemp(dirname, basename+".*~")
 	if err != nil {
 		return err
 	}
