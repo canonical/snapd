@@ -28,7 +28,7 @@ jobs:
 
           source .github/scripts/rerun-common.sh
 
-          prs=$(gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,reviews,baseRefName)
+          prs=$(gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,latestReviews,baseRefName)
           echo "Inspecting $(echo "$prs" | jq 'length') open PRs for rerun..."
 
           echo "$prs" | jq -c '.[]' | while read -r pr; do
@@ -47,12 +47,11 @@ jobs:
               continue
             fi
 
-            last_run=$(gh api \
-              "repos/$GH_REPO/actions/runs" \
-              -f event='pull_request' \
-              -f head_sha="$head_sha" \
-              -f per_page='1' \
-              --jq '.workflow_runs[0] // empty')
+            last_run=$(gh run list \
+              --workflow .github/workflows/ci-test.yaml \
+              --branch "$head_sha" \
+              --limit 1 \
+              --json databaseId -q '.[0].databaseId // empty')
 
             if [[ -z "$last_run" || "$last_run" == "null" ]]; then
               echo "Skipping PR #$pr_number: no pull_request run found for head SHA $head_sha"

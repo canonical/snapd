@@ -16,7 +16,7 @@ pr_review_count() {
     local pr_json="$1"
     local review_state="$2"
 
-    jq -r --arg review_state "$review_state" '[.reviews[]? | select(.state == $review_state) | .author.login] | unique | length' <<<"$pr_json"
+    jq -r --arg review_state "$review_state" '[.latestReviews[]? | select(.state == $review_state) | .author.login] | unique | length' <<<"$pr_json"
 }
 
 ensure_auto_rerun_label() {
