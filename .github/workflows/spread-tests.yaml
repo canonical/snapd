@@ -58,6 +58,11 @@ on:
         description: 'Space-separated list of regex expressions identifying tests to skip. As a regex, they can identify any part of the spread test like an entire suite or a single test. End a single test with $ to avoid inadvertently matching others.'
         required: false
         type: string
+      log-to-grafana:
+        description: 'If true, will filter spread logs and send them to Grafana'
+        type: boolean
+        required: false
+        default: true
 
 
 jobs:
@@ -349,7 +354,7 @@ jobs:
         echo REQUIRED="$required" >> $GITHUB_ENV
 
     - name: Setup grafana parameters
-      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && inputs.log-to-grafana == 'true' }}
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
           CHANGE_ID="${{ github.event.number }}"
@@ -538,7 +543,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Report spread errors
-      if: always()
+      if: ${{ always() && inputs.log-to-grafana == 'true' }}
       run: |
         if [ -e results.json ]; then
             echo "Adding to the filtered log any spread errors found"

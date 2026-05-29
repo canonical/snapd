@@ -92,6 +92,7 @@ jobs:
       spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
       skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
+      log-to-grafana: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
@@ -114,6 +115,7 @@ jobs:
       spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
       skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
+      log-to-grafana: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
@@ -136,6 +138,7 @@ jobs:
       spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
       skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
+      log-to-grafana: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}

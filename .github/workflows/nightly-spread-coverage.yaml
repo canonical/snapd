@@ -45,6 +45,7 @@ jobs:
       upload-artifacts: true
       spread-env: "SPREAD_GENERATE_COVERAGE=true"
       skip-tests: 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build ubuntu-fips-2'
+      log-to-grafana: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.read-systems.outputs.systems) }}
