@@ -849,6 +849,24 @@ func CheckCrossConsistency(assert Assertion, signingKey *AccountKey, roDB ROData
 	return nil
 }
 
+// CheckSingleton checks that, for types marked as singleton, no other assertion
+// of that type is present in the database.
+func CheckSingleton(assert Assertion, _ *AccountKey, roDB RODatabase, _, _ time.Time) error {
+	if assert.Type().flags&singleton == 0 {
+		return nil
+	}
+
+	_, err := roDB.FindMany(assert.Type(), nil)
+	if err != nil {
+		if !errors.Is(err, &NotFoundError{}) {
+			return fmt.Errorf("internal error: cannot check singleton %q assertion is unique: %w", assert.Type().Name, err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("singleton %q assertion already present in the database", assert.Type().Name)
+}
+
 // DefaultCheckers lists the default and recommended assertion
 // checkers used by Database if none are specified in the
 // DatabaseConfig.Checkers.
@@ -857,4 +875,5 @@ var DefaultCheckers = []Checker{
 	CheckSignature,
 	CheckTimestampVsSigningKeyValidity,
 	CheckCrossConsistency,
+	CheckSingleton,
 }

@@ -42,6 +42,7 @@ const (
 	noAuthority typeFlags = 1 << iota
 	sequenceForming
 	jsonBody
+	singleton
 )
 
 // MetaHeaders is a list of headers in assertions which are about the assertion
@@ -136,7 +137,7 @@ var (
 	RepairType               = &AssertionType{"repair", []string{"brand-id", "repair-id"}, nil, assembleRepair, sequenceForming}
 	ModelType                = &AssertionType{"model", []string{"series", "brand-id", "model"}, nil, assembleModel, 0}
 	SerialType               = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, nil, assembleSerial, 0}
-	BaseDeclarationType      = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, 0}
+	BaseDeclarationType      = &AssertionType{"base-declaration", []string{"series"}, nil, assembleBaseDeclaration, singleton}
 	SnapDeclarationType      = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, nil, assembleSnapDeclaration, 0}
 	SnapBuildType            = &AssertionType{"snap-build", []string{"snap-sha3-384"}, nil, assembleSnapBuild, 0}
 	SnapRevisionType         = &AssertionType{"snap-revision", []string{"snap-sha3-384", "provenance"}, map[string]string{"provenance": naming.DefaultProvenance}, assembleSnapRevision, 0}
