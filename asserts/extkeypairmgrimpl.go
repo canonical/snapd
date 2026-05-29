@@ -133,12 +133,13 @@ func (m *extKeypairMgrImpl) cacheLoadedKey(loaded *extKeypairMgrLoadedKey) (*ext
 			pubKey:    loaded.pubKey,
 		}
 		m.cache[keyID] = entry
+		m.nameToID[loaded.name] = keyID
 	} else {
-		entry.name = loaded.name
-		entry.keyHandle = loaded.keyHandle
-		entry.pubKey = loaded.pubKey
+		// we expect and assume that for the same key ID (which represents the key content) the name and keyHandle will not change
+		if entry.keyHandle != loaded.keyHandle || entry.name != loaded.name {
+			return nil, fmt.Errorf("inconsistent external loaded key %q: cached name %q, cached handle %q, loaded name %q, loaded handle %q", keyID, entry.name, entry.keyHandle, loaded.name, loaded.keyHandle)
+		}
 	}
-	m.nameToID[loaded.name] = keyID
 	return entry, nil
 }
 

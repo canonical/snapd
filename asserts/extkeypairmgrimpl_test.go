@@ -410,6 +410,31 @@ func (s *extKeypairMgrImplSuite) TestCacheLoadedKeyInvalidPublicKeyErrorIsNotRep
 	c.Check(err.Error(), check.Not(check.Matches), `internal error: loaded key .*: internal error: .*`)
 }
 
+func (s *extKeypairMgrImplSuite) TestListPropagatesSameIDInconsistency(c *check.C) {
+	_, loaded := s.newLoadedKey(c, "default", "handle-default")
+	backend := &fakeExtKeypairMgrBackendWithoutByNameLookup{
+		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
+			signingMethod: extKeypairMgrSigningRSAPKCS,
+			visitKeys: []*extKeypairMgrLoadedKey{
+				loaded,
+				{
+					name:      "renamed",
+					keyHandle: loaded.keyHandle,
+					pubKey:    loaded.pubKey,
+				},
+			},
+		},
+	}
+
+	impl, err := newExtKeypairMgrImpl(backend, fakeExtKeypairMgrConfig)
+	c.Assert(err, check.IsNil)
+
+	_, err = impl.List()
+	c.Assert(err, check.ErrorMatches, `inconsistent external loaded key ".*": cached name "default", cached handle "handle-default", loaded name "renamed", loaded handle "handle-default"`)
+	c.Check(backend.visitCalls, check.Equals, 1)
+	c.Check(impl.nameToID, check.DeepEquals, map[string]string{"default": loaded.pubKey.ID()})
+}
+
 func (s *extKeypairMgrImplSuite) TestGetMissingUsesKeyStoreError(c *check.C) {
 	backend := &fakeExtKeypairMgrBackend{
 		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
