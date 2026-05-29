@@ -487,7 +487,7 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	encryptionParams := observerImpl.GetEncryptionParams()
+	encryptionParams := observerImpl.EncryptionSetup()
 	c.Assert(encryptionParams, NotNil)
 	c.Check(encryptionParams.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
 	c.Check(encryptionParams.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
@@ -518,7 +518,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	encryptionParams := observerImpl.GetEncryptionParams()
+	encryptionParams := observerImpl.EncryptionSetup()
 	c.Assert(encryptionParams, NotNil)
 	c.Check(encryptionParams.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
 	c.Check(encryptionParams.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
@@ -3127,7 +3127,7 @@ func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 
 	obs.ObserveExistingTrustedRecoveryAssets(d)
 
-	bootAssets := obs.GetBootAssets()
+	bootAssets := obs.BootAssets()
 	c.Assert(bootAssets, NotNil)
 	err = bootAssets.UpdateBootEntry()
 	c.Assert(err, IsNil)

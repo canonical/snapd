@@ -266,14 +266,14 @@ type TrustedAssetsInstallObserver interface {
 	)
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
 
-	// GetBootAssets exposes the trusted assets as well
+	// BootAssets exposes the trusted assets as well
 	// as aw to update the boot entry.
-	GetBootAssets() BootAssets
-	// GetEncryptionParams extracts the encryption parmeters
-	GetEncryptionParams() *EncryptionSetup
+	BootAssets() BootAssets
+	// EncryptionSetup extracts the encryption parmeters
+	EncryptionSetup() *EncryptionSetup
 }
 
-// EncryptionSetup represents the parameters for encryption.
+// EncryptionSetup contains the setup for encryption.
 // It contains reference to the encrypted containers where
 // to registers keys, and alls the information (other than the
 // boot chains) to calculate PCR profiles.
@@ -290,7 +290,7 @@ type EncryptionSetup struct {
 	checkResult *secboot.PreinstallCheckResult
 }
 
-// BootAssets represents the assets trusted that may be accepted in
+// BootAssets carries the assets trusted that may be accepted in
 // boot chains and the method to update the boot entry.
 type BootAssets interface {
 	// GetTrackedRecoveryAssets returns the boot assets for the run boot chains
@@ -455,7 +455,7 @@ func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(
 	o.encryption = NewEncryptionSetup(key, saveKey, primaryKey, volumesAuth, checkResult)
 }
 
-func (o *trustedAssetsInstallObserverImpl) GetBootAssets() BootAssets {
+func (o *trustedAssetsInstallObserverImpl) BootAssets() BootAssets {
 	ret := &bootAssetsImpl{
 		trackedAssets:         o.trackedAssets,
 		trackedRecoveryAssets: o.trackedRecoveryAssets,
@@ -481,7 +481,7 @@ func (o *trustedAssetsInstallObserverImpl) GetBootAssets() BootAssets {
 	return ret
 }
 
-func (o *trustedAssetsInstallObserverImpl) GetEncryptionParams() *EncryptionSetup {
+func (o *trustedAssetsInstallObserverImpl) EncryptionSetup() *EncryptionSetup {
 	return o.encryption
 }
 

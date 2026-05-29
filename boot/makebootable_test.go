@@ -559,7 +559,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 	})
 	defer restore()
 
-	err := boot.MakeRunnableSystem(model, bootWith, observer.GetBootAssets(), observer.GetEncryptionParams())
+	err := boot.MakeRunnableSystem(model, bootWith, observer.BootAssets(), observer.EncryptionSetup())
 	c.Assert(err, IsNil)
 
 	c.Assert(gotFlags.HookKeyProtectorFactory, NotNil)
@@ -569,7 +569,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, observer.GetBootAssets(), observer.GetEncryptionParams())
+	err = boot.MakeRunnableSystem(model, bootWith, observer.BootAssets(), observer.EncryptionSetup())
 	c.Assert(err, IsNil)
 
 	// now, we don't have the key protector
@@ -860,15 +860,15 @@ version: 5.0
 
 	switch {
 	case opts.standalone && opts.fromInitrd:
-		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
+		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
 	case opts.standalone && !opts.fromInitrd:
 		u := mockUnlocker{}
-		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams(), u.unlocker)
+		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs.BootAssets(), obs.EncryptionSetup(), u.unlocker)
 		c.Check(u.unlocked, Equals, 1)
 	case opts.factoryReset && !opts.fromInitrd:
-		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
+		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
 	default:
-		err = boot.MakeRunnableSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
+		err = boot.MakeRunnableSystem(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
 	}
 	c.Assert(err, IsNil)
 
@@ -1353,7 +1353,7 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
+	err = boot.MakeRunnableSystem(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
 	c.Assert(err, ErrorMatches, "seal error")
 	// the TPM was provisioned
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
@@ -1548,7 +1548,7 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
+	err = boot.MakeRunnableSystem(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
 	if errMsg != "" {
 		c.Assert(err, ErrorMatches, errMsg)
 		return
