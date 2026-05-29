@@ -349,6 +349,8 @@ func (s *envSuite) TestExpandEnvVariable(c *C) {
 		"B", "${B:+goodvalue}",
 		"C", "${C:-}",
 		"D", "${D:-$D_default}",
+		"BROKEN1", "${A:,fallback}",
+		"BROKEN2", "${,A:-fallback}",
 	))
 	c.Check(env, DeepEquals, osutil.Environment{
 		"LD_LIBRARY_PATH": "/usr/lib:/usr/local/lib:/usr/lib/x86_64-linux-gnu",
@@ -359,5 +361,8 @@ func (s *envSuite) TestExpandEnvVariable(c *C) {
 		"B":               "goodvalue",
 		"C":               "",
 		"D":               "default",
-		"D_default":       "default"})
+		"D_default":       "default",
+		"BROKEN1":         "",
+		"BROKEN2":         "",
+	})
 }

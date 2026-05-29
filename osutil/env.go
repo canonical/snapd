@@ -210,9 +210,9 @@ func NewExpandableEnv(pairs ...string) ExpandableEnv {
 	return ExpandableEnv{OrderedMap: strutil.NewOrderedMap(pairs...)}
 }
 
-var envExpandRegExp = regexp.MustCompile("[a-zA-Z0-9_]+:[+-]")
+var envExpandRegExp = regexp.MustCompile("^[a-zA-Z0-9_]+:[-+]")
 
-// Adds support for bash conditional syntax ${VARIABLE:+XXX} and ${VARIABLE:-XXX}
+// expand value with support for bash conditional syntax ${VARIABLE:+XXX} and ${VARIABLE:-XXX}
 func (env *Environment) expand(value string) string {
 	return os.Expand(value, func(varName string) string {
 		loc := envExpandRegExp.FindStringIndex(varName)
@@ -246,7 +246,8 @@ func (env *Environment) expand(value string) string {
 //
 // Environment is modified in place. Each variable defined by eenv is
 // expanded according to os.Expand, using the environment itself as it
-// gets extended. Undefined variables expand to an empty string.
+// gets extended. This also supports bash conditional syntax ${VARIABLE:+XXX} and ${VARIABLE:-XXX} in the values of eenv.
+// Undefined variables expand to an empty string.
 func (env *Environment) ExtendWithExpanded(eenv ExpandableEnv) {
 	if *env == nil {
 		*env = make(Environment)
