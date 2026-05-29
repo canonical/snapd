@@ -28,11 +28,16 @@ import (
 )
 
 var (
-	NsProfile                       = nsProfile
-	ProfileGlobs                    = profileGlobs
-	SnapConfineFromSnapProfile      = snapConfineFromSnapProfile
-	DefaultCoreRuntimeTemplateRules = defaultCoreRuntimeTemplateRules
-	DefaultOtherBaseTemplateRules   = defaultOtherBaseTemplateRules
+	NsProfile                             = nsProfile
+	ProfileGlobs                          = profileGlobs
+	SnapConfineFromSnapProfile            = snapConfineFromSnapProfile
+	DefaultCoreRuntimeTemplateRules       = defaultCoreRuntimeTemplateRules
+	DefaultOtherBaseTemplateRules         = defaultOtherBaseTemplateRules
+	DefaultPerlTemplateRules              = defaultPerlTemplateRules
+	DefaultCoreRuntimePerlTemplateRules   = defaultCoreRuntimePerlTemplateRules
+	DefaultPythonTemplateRules            = defaultPythonTemplateRules
+	DefaultCoreRuntimePythonTemplateRules = defaultCoreRuntimePythonTemplateRules
+	TemplateFooter                        = templateFooter
 )
 
 func MockLoadProfiles(f func(fnames []string, cacheDir string, flags apparmor_sandbox.AaParserFlags) error) (restore func()) {
@@ -62,6 +67,20 @@ func MockProcSelfExe(symlink string) (restore func()) {
 // NOTE: The real apparmor template is long. For testing it is convenient for
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate string) (restore func()) {
+	origTemplate := defaultCoreRuntimeTemplate
+	origExtraRules := coreRuntimeExtraRules
+	defaultCoreRuntimeTemplate = fakeTemplate
+	coreRuntimeExtraRules = func(string) string { return "" }
+	return func() {
+		defaultCoreRuntimeTemplate = origTemplate
+		coreRuntimeExtraRules = origExtraRules
+	}
+}
+
+// MockCoreRuntimeTemplate replaces the core runtime apparmor template string
+// only, without suppressing the extra rules insertion. Use this when testing
+// that coreRuntimeExtraRules correctly inserts perl/python rules based on base.
+func MockCoreRuntimeTemplate(fakeTemplate string) (restore func()) {
 	orig := defaultCoreRuntimeTemplate
 	defaultCoreRuntimeTemplate = fakeTemplate
 	return func() { defaultCoreRuntimeTemplate = orig }
