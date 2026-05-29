@@ -58,8 +58,7 @@ type DeviceState struct {
 // UserState represents an authenticated user.
 //
 // NOTE: When adding or removing fields, also update changedFields
-// in this file and seclog.SnapdUserState in seclog/types.go to keep
-// security audit logging of user updates accurate.
+// in this file to keep security audit logging of user updates accurate.
 type UserState struct {
 	ID              int       `json:"id"`
 	Username        string    `json:"username,omitempty"`
@@ -72,18 +71,63 @@ type UserState struct {
 }
 
 // changedFields returns a sorted list of spec-defined field names
-// whose values differ between u and other.
+// whose values differ between u and other. The field names are the
+// canonical audit specification identifiers (not Go struct field names).
+// time.Time fields are compared by instant in UTC, ignoring location
+// and any monotonic clock reading. String slice fields are compared
+// order-independently.
 func (u *UserState) changedFields(other *UserState) []string {
-	toAuditState := func(us *UserState) seclog.SnapdUserState {
-		return seclog.SnapdUserState{
-			SnapdUser:       us.snapdUser(),
-			LocalMacaroon:   us.Macaroon,
-			LocalDischarges: us.Discharges,
-			StoreMacaroon:   us.StoreMacaroon,
-			StoreDischarges: us.StoreDischarges,
+	var changed []string
+	if u.ID != other.ID {
+		changed = append(changed, "snapd-user-id")
+	}
+	if u.Username != other.Username {
+		changed = append(changed, "store-user-name")
+	}
+	if u.Email != other.Email {
+		changed = append(changed, "store-user-email")
+	}
+	if !u.Expiration.UTC().Equal(other.Expiration.UTC()) {
+		changed = append(changed, "expiration")
+	}
+	if u.Macaroon != other.Macaroon {
+		changed = append(changed, "local-macaroon")
+	}
+	if !stringMultisetsEqual(u.Discharges, other.Discharges) {
+		changed = append(changed, "local-discharges")
+	}
+	if u.StoreMacaroon != other.StoreMacaroon {
+		changed = append(changed, "store-macaroon")
+	}
+	if !stringMultisetsEqual(u.StoreDischarges, other.StoreDischarges) {
+		changed = append(changed, "store-discharges")
+	}
+	sort.Strings(changed)
+	return changed
+}
+
+// stringMultisetsEqual reports whether two string slices contain the same
+// elements regardless of order. Both nil and empty slices are treated
+// as equal.
+func stringMultisetsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if len(a) == 0 {
+		return true
+	}
+	ac := make([]string, len(a))
+	bc := make([]string, len(b))
+	copy(ac, a)
+	copy(bc, b)
+	sort.Strings(ac)
+	sort.Strings(bc)
+	for i := range ac {
+		if ac[i] != bc[i] {
+			return false
 		}
 	}
-	return toAuditState(u).ChangedFields(toAuditState(other))
+	return true
 }
 
 // snapdUser returns a seclog.SnapdUser populated with the identity

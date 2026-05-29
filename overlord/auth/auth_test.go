@@ -617,6 +617,63 @@ func (as *authSuite) TestChangedFieldsFieldMapping(c *C) {
 	})
 }
 
+func (as *authSuite) TestChangedFieldsNoChanges(c *C) {
+	u := &auth.UserState{
+		ID: 1, Username: "jdoe", Email: "j@d.com",
+		Macaroon: "m1", StoreMacaroon: "sm1",
+	}
+	c.Check(u.ChangedFields(u), HasLen, 0)
+}
+
+func (as *authSuite) TestChangedFieldsSliceOrderIndependent(c *C) {
+	// Slice fields with the same elements in different order must not
+	// produce a spurious entry in changed_fields.
+	a := &auth.UserState{
+		ID:              1,
+		Discharges:      []string{"a", "b", "c"},
+		StoreDischarges: []string{"x", "y"},
+	}
+	b := &auth.UserState{
+		ID:              1,
+		Discharges:      []string{"c", "a", "b"},
+		StoreDischarges: []string{"y", "x"},
+	}
+	c.Check(a.ChangedFields(b), HasLen, 0)
+}
+
+func (as *authSuite) TestChangedFieldsSingleField(c *C) {
+	a := &auth.UserState{
+		ID: 1, Email: "old@test.com",
+		StoreMacaroon: "sm1",
+	}
+	b := &auth.UserState{
+		ID: 1, Email: "new@test.com",
+		StoreMacaroon: "sm1",
+	}
+	c.Check(a.ChangedFields(b), DeepEquals, []string{"store-user-email"})
+}
+
+func (as *authSuite) TestChangedFieldsExpirationLocationIndependent(c *C) {
+	// Same instant expressed in UTC and a non-UTC fixed zone must not
+	// produce a spurious expiration entry in changed_fields.
+	instant := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	loc := time.FixedZone("UTC+10", 10*60*60)
+	a := &auth.UserState{ID: 1, Expiration: instant}
+	b := &auth.UserState{ID: 1, Expiration: instant.In(loc)}
+	c.Check(a.ChangedFields(b), HasLen, 0)
+}
+
+func (as *authSuite) TestChangedFieldsExpirationMonotonicIndependent(c *C) {
+	// time.Now() carries a monotonic clock reading. A round-trip through
+	// JSON strips it, leaving only the wall clock. Both must compare as
+	// equal so that re-loading a user does not produce a spurious
+	// expiration entry in changed_fields.
+	now := time.Now().Add(time.Hour)
+	a := &auth.UserState{ID: 1, Expiration: now}
+	b := &auth.UserState{ID: 1, Expiration: now.Round(0)}
+	c.Check(a.ChangedFields(b), HasLen, 0)
+}
+
 func (as *authSuite) TestNewUserLogsCreated(c *C) {
 	as.state.Lock()
 	_, err := auth.NewUser(as.state, auth.NewUserParams{

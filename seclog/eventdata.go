@@ -40,7 +40,6 @@ package seclog
 
 import (
 	"fmt"
-	"sort"
 	"time"
 )
 
@@ -111,74 +110,3 @@ func (u SnapdUser) String() string {
 	return id + ":" + email + ":" + name
 }
 
-// SnapdUserState represents the full set of auditable fields for a
-// snapd user. It embeds [SnapdUser] for the identity subset and adds
-// the credential and discharge fields. The JSON tags are the canonical
-// field names for the security logging specification (SD236, "User
-// Updated") and serve as the single source of truth for field naming
-// in the "changed_fields" audit attribute.
-//
-// NOTE: if fields or tags are added to or removed from this type,
-// ChangedFields must be updated to match.
-type SnapdUserState struct {
-	SnapdUser
-	LocalMacaroon   string   `json:"local-macaroon"`
-	LocalDischarges []string `json:"local-discharges"`
-	StoreMacaroon   string   `json:"store-macaroon"`
-	StoreDischarges []string `json:"store-discharges"`
-}
-
-// ChangedFields returns a sorted list of field names whose values
-// differ between s and other. The names are the JSON struct tag names.
-// String slice fields are compared order-independently.
-// time.Time fields are compared by instant, ignoring location and any
-// monotonic clock reading.
-func (s SnapdUserState) ChangedFields(other SnapdUserState) []string {
-	var changed []string
-	changed = appendIfChanged(changed, "snapd-user-id", s.ID, other.ID)
-	changed = appendIfChanged(changed, "store-user-name", s.StoreUserName, other.StoreUserName)
-	changed = appendIfChanged(changed, "store-user-email", s.StoreUserEmail, other.StoreUserEmail)
-	changed = appendIfChanged(changed, "expiration", s.Expiration.UTC(), other.Expiration.UTC())
-	changed = appendIfChanged(changed, "local-macaroon", s.LocalMacaroon, other.LocalMacaroon)
-	if !stringMultisetsEqual(s.LocalDischarges, other.LocalDischarges) {
-		changed = append(changed, "local-discharges")
-	}
-	changed = appendIfChanged(changed, "store-macaroon", s.StoreMacaroon, other.StoreMacaroon)
-	if !stringMultisetsEqual(s.StoreDischarges, other.StoreDischarges) {
-		changed = append(changed, "store-discharges")
-	}
-	sort.Strings(changed)
-	return changed
-}
-
-// appendIfChanged appends name to changed if a and b differ.
-func appendIfChanged[T comparable](changed []string, name string, a, b T) []string {
-	if a != b {
-		return append(changed, name)
-	}
-	return changed
-}
-
-// stringMultisetsEqual reports whether two string slices contain the same
-// elements regardless of order. Both nil and empty slices are treated
-// as equal.
-func stringMultisetsEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	if len(a) == 0 {
-		return true
-	}
-	ac := make([]string, len(a))
-	bc := make([]string, len(b))
-	copy(ac, a)
-	copy(bc, b)
-	sort.Strings(ac)
-	sort.Strings(bc)
-	for i := range ac {
-		if ac[i] != bc[i] {
-			return false
-		}
-	}
-	return true
-}
