@@ -72,34 +72,34 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, init
 }
 
 func (s *isReadySuite) TestIsReadyNoContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"is-ready", "1"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(nil, []string{"is-ready", "1"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot invoke snapctl operation commands.*from outside of a snap`)
 }
 
 func (s *isReadySuite) TestIsReadyArgCount(c *C) {
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 0`)
 
-	_, _, err = ctlcmd.Run(ctx, []string{"is-ready", "1", "extra-arg"}, 0, nil)
+	_, _, _, err = ctlcmd.Run(ctx, []string{"is-ready", "1", "extra-arg"}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 2`)
 }
 
 func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "")
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
 	c.Assert(err, ErrorMatches, `change "nonexistent-id" not found`)
 }
 
 func (s *isReadySuite) TestIsReadyChangeWithoutInitiatorNotFound(c *C) {
 	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, "")
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 	c.Assert(err, ErrorMatches, `change .* not found`)
 }
 
 func (s *isReadySuite) TestIsReadyChangeFromOtherSnapNotFound(c *C) {
 	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, "other-snap")
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 	c.Assert(err, ErrorMatches, `change .* not found`)
 }
 
@@ -136,7 +136,7 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 
 	for _, tt := range logicTests {
 		_, ctx, changeID := s.setupChangeAndContext(c, tt.taskStatus, tt.initiatorSnap)
-		stdout, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+		stdout, stderr, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 		if tt.errValue != nil {
 			c.Assert(err, DeepEquals, tt.errValue)
 		} else {
@@ -181,7 +181,7 @@ func (s *isReadySuite) rateLimitSetup(c *C, taskStatus state.Status, lastAccesse
 func (s *isReadySuite) TestIsReadyMissingLastAccessed(c *C) {
 	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, nil)
 
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
 	c.Assert(err, IsNil)
 }
@@ -201,7 +201,7 @@ func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
 	})
 	defer restore()
 
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
 	c.Assert(err, IsNil)
 	c.Check(waitedFor > 0, Equals, true)
@@ -223,7 +223,7 @@ func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
 	})
 	defer restore()
 
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
 	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
 	c.Check(len(timerCh), Equals, 0) // element was consumed by the select
@@ -242,7 +242,7 @@ func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
 	})
 	defer restore()
 
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, false)
@@ -254,6 +254,6 @@ func (s *isReadySuite) TestIsReadyCommandAllowedForUnprivilegedUser(c *C) {
 	const unprivilegedUID = uint32(1000)
 	_, ctx, chgID := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
 
-	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", chgID}, unprivilegedUID, nil)
+	_, _, _, err := ctlcmd.Run(ctx, []string{"is-ready", chgID}, unprivilegedUID, nil)
 	c.Assert(err, IsNil)
 }

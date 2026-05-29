@@ -664,6 +664,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 		return chg.ID(), affectedComponents, nil
 	}
 
+	// This case is still needed for backward compatibility with older versions of snapctl
 	select {
 	case <-chg.Ready():
 		st.Lock()
