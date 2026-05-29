@@ -193,6 +193,7 @@ type NewUserParams struct {
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
+// Note that this logs a security event via the security logger.
 func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	var authStateData AuthState
 
@@ -239,11 +240,13 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 var ErrInvalidUser = errors.New("invalid user")
 
 // RemoveUser removes a user from the state given its ID.
+// Note that this logs a security event via the security logger.
 func RemoveUser(st *state.State, userID int) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
 }
 
 // RemoveUserByUsername removes a user from the state given its username. Returns a *UserState with the identification information for them.
+// Note that this logs a security event via the security logger.
 func RemoveUserByUsername(st *state.State, username string) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.Username == username })
 }
@@ -331,6 +334,7 @@ func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 }
 
 // UpdateUser updates user in state
+// Note that this logs a security event via the security logger.
 func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
