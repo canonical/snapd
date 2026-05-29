@@ -25,14 +25,13 @@
 // Design goals:
 //
 //  1. Spec alignment: field names and JSON tags match the security audit
-//     specification directly. These types are the single source of truth for
-//     what appears in the audit log.
+//     specification directly.
 //
-//  2. Independence from internal types: no type in this file may reference
-//     types from other snapd packages. This means that renaming or
-//     restructuring internal types (e.g. auth.UserState) cannot silently
-//     change the audit format. The translation from an internal type to an
-//     audit event type is the explicit responsibility of the caller.
+//  2. No imports from other snapd packages: seclog is imported by
+//     packages such as overlord/auth, so it cannot import them back.
+//     Types here must be self-contained. The translation from an
+//     internal type (e.g. auth.UserState) to an audit event type is
+//     the responsibility of the caller.
 //
 // When adding a new event category, define its types here.
 
