@@ -32,6 +32,12 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
+// `snap routine file-access` is called whenever a snap uses the portal API to
+// open a path, so that the document portal knows whether the snap has direct
+// access to the file, or whether the portal needs to proxy access to it.
+//
+// Concretely, the command is called here:
+// https://github.com/flatpak/xdg-desktop-portal/blob/c6f217875485e28799a524b643c34474a289ba4f/document-portal/document-portal.c#L747-L788
 type cmdRoutineFileAccess struct {
 	clientMixin
 	FileAccessOptions struct {
@@ -128,11 +134,20 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 	return nil
 }
 
+// FileAccess corresponds to the XDG desktop portal's concept of file access
+// modes.
 type FileAccess string
 
 const (
-	FileAccessHidden    FileAccess = "hidden"
-	FileAccessReadOnly  FileAccess = "read-only"
+	// FileAccessHidden means that the XDG desktop portal needs to proxy access
+	// to the file.
+	FileAccessHidden FileAccess = "hidden"
+	// FileAccessReadOnly means that applications may read the file directly
+	// without the XDG desktop portal needing to proxy access to it.
+	FileAccessReadOnly FileAccess = "read-only"
+	// FileAccessReadWrite means that applications may read or write to the
+	// file directly without the XDG desktop portal needing to proxy access to
+	// it.
 	FileAccessReadWrite FileAccess = "read-write"
 )
 
