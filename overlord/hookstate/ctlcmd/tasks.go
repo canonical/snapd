@@ -112,7 +112,6 @@ func (c *tasksCommand) Execute(args []string) error {
 			summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(pi.Done)/float64(pi.Total)*100.0)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", status, spawnTime, readyTime, summary)
-
 	}
 
 	w.Flush()

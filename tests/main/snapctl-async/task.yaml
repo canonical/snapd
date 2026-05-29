@@ -78,6 +78,19 @@ execute: |
   echo "abort the change to ensure it is in a failure state"
   snap abort "$change_id"
 
+  echo "wait for the change to be marked as failed"
+  while true; do
+    exit_code=0
+    snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id" || exit_code=$?
+    if [ "$exit_code" -eq 2 ]; then
+      echo "Change $change_id is marked as failed."
+      break
+    else
+      echo "Change $change_id is not yet marked as failed (exit $exit_code)..."
+      sleep 1
+    fi
+  done
+
   exit_code=0
   echo "is-ready returns 2 for a change that did not complete successfully"
   snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id" || exit_code=$?

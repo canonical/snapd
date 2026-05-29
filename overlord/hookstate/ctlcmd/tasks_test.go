@@ -103,24 +103,28 @@ func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
 	c.Assert(err, IsNil)
 	output := string(stdout)
 
-	c.Assert(output, testutil.Contains, "task-1-done")
-	c.Assert(output, testutil.Contains, "Done")
+	// Validate table headers are present and first task shows done status
+	c.Assert(output, Matches, "(?s).*Status.*Spawn.*Ready.*Summary.*")
+	c.Assert(output, Matches, "(?s).*Done.*task-1-done.*")
 
-	// Validate table headers are present
-	c.Assert(output, testutil.Contains, "Status")
-	c.Assert(output, testutil.Contains, "Spawn")
-	c.Assert(output, testutil.Contains, "Ready")
-	c.Assert(output, testutil.Contains, "Summary")
-
-	st.Lock()
 	// Create second task (doing) in same change
+	st.Lock()
 	chg := st.Change(chg1ID)
 	task2 := st.NewTask("test-task-2", "task-2-doing")
 	chg.AddTask(task2)
 	chg.Set("initiated-by-snap", "test-snap")
 	task2.SetStatus(state.DoingStatus)
+	st.Unlock()
+
+	// Verify task 2 (doing)
+	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
+	c.Assert(err, IsNil)
+	output = string(stdout)
+
+	c.Assert(output, Matches, "(?s).*Doing.*task-2-doing.*")
 
 	// Create third task / second change (error)
+	st.Lock()
 	chg2 := st.NewChange("snapctl-install", "change-3-error")
 	task3 := st.NewTask("test-task-3", "task-3-error")
 	chg2.AddTask(task3)
@@ -132,21 +136,12 @@ func (s *tasksSuite) TestTasksCommandNormalOperation(c *C) {
 	chg2ID := chg2.ID()
 	st.Unlock()
 
-	// Verify task 2 (doing)
-	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg1ID}, 0, nil)
-	c.Assert(err, IsNil)
-	output = string(stdout)
-
-	c.Assert(output, testutil.Contains, "task-2-doing")
-	c.Assert(output, testutil.Contains, "Doing")
-
 	// Verify task 3 (error)
 	stdout, _, err = ctlcmd.Run(ctx, []string{"tasks", chg2ID}, 0, nil)
 	c.Assert(err, IsNil)
 	output = string(stdout)
 
-	c.Assert(output, testutil.Contains, "task-3-error")
-	c.Assert(output, testutil.Contains, "Error")
+	c.Assert(output, Matches, "(?s).*Error.*task-3-error.*")
 }
 
 // TestTasksCommandNoAssociatedChanges tests that a change with an unassociated snap returns an error
