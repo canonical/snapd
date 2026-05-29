@@ -114,6 +114,8 @@ func (s *OpenglInterfaceSuite) TestAppArmorSpec(c *C) {
 	umount /usr/share/nvidia/,
 `, tmpdir))
 
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/usr/lib/wsl/{,**} rm,`)
+
 	c.Check(updateNS, testutil.Contains, fmt.Sprintf(`	# Access to WSL libs in /usr/lib/wsl
 	mount options=(rbind) /var/lib/snapd/hostfs%s/usr/lib/wsl/ -> /usr/lib/wsl/,
 	umount /usr/lib/wsl/,
