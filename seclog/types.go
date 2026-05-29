@@ -40,9 +40,7 @@ package seclog
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -119,6 +117,9 @@ func (u SnapdUser) String() string {
 // field names for the security logging specification (SD236, "User
 // Updated") and serve as the single source of truth for field naming
 // in the "changed_fields" audit attribute.
+//
+// NOTE: if fields or tags are added to or removed from this type,
+// ChangedFields must be updated to match.
 type SnapdUserState struct {
 	SnapdUser
 	LocalMacaroon   string   `json:"local-macaroon"`
@@ -128,45 +129,40 @@ type SnapdUserState struct {
 }
 
 // ChangedFields returns a sorted list of field names whose values
-// differ between s and other. The names are derived from JSON struct
-// tags. String slice fields are compared order-independently.
+// differ between s and other. The names are the JSON struct tag names.
+// String slice fields are compared order-independently.
 // time.Time fields are compared by instant, ignoring location and any
 // monotonic clock reading.
 func (s SnapdUserState) ChangedFields(other SnapdUserState) []string {
 	var changed []string
-	sv := reflect.ValueOf(s)
-	ov := reflect.ValueOf(other)
-	for _, sf := range reflect.VisibleFields(sv.Type()) {
-		if sf.Anonymous {
-			continue
-		}
-		tag := strings.SplitN(sf.Tag.Get("json"), ",", 2)[0]
-		if tag == "" || tag == "-" {
-			continue
-		}
-		sval := sv.FieldByIndex(sf.Index).Interface()
-		oval := ov.FieldByIndex(sf.Index).Interface()
-		var equal bool
-		switch sv := sval.(type) {
-		case []string:
-			equal = stringSlicesEqual(sv, oval.([]string))
-		case time.Time:
-			equal = sv.Equal(oval.(time.Time))
-		default:
-			equal = reflect.DeepEqual(sval, oval)
-		}
-		if !equal {
-			changed = append(changed, tag)
-		}
+	changed = appendIfChanged(changed, "snapd-user-id", s.ID, other.ID)
+	changed = appendIfChanged(changed, "store-user-name", s.StoreUserName, other.StoreUserName)
+	changed = appendIfChanged(changed, "store-user-email", s.StoreUserEmail, other.StoreUserEmail)
+	changed = appendIfChanged(changed, "expiration", s.Expiration.UTC(), other.Expiration.UTC())
+	changed = appendIfChanged(changed, "local-macaroon", s.LocalMacaroon, other.LocalMacaroon)
+	if !stringMultisetsEqual(s.LocalDischarges, other.LocalDischarges) {
+		changed = append(changed, "local-discharges")
+	}
+	changed = appendIfChanged(changed, "store-macaroon", s.StoreMacaroon, other.StoreMacaroon)
+	if !stringMultisetsEqual(s.StoreDischarges, other.StoreDischarges) {
+		changed = append(changed, "store-discharges")
 	}
 	sort.Strings(changed)
 	return changed
 }
 
-// stringSlicesEqual reports whether two string slices contain the same
+// appendIfChanged appends name to changed if a and b differ.
+func appendIfChanged[T comparable](changed []string, name string, a, b T) []string {
+	if a != b {
+		return append(changed, name)
+	}
+	return changed
+}
+
+// stringMultisetsEqual reports whether two string slices contain the same
 // elements regardless of order. Both nil and empty slices are treated
 // as equal.
-func stringSlicesEqual(a, b []string) bool {
+func stringMultisetsEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
