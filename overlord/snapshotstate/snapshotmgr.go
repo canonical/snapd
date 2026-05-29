@@ -235,7 +235,9 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	snapshot.excludeMountControlMountPoints(cur)
+	if err := snapshot.excludeMountControlMountPoints(cur); err != nil {
+		logger.Noticef("cannot exclude mount-control mount points: %v", err)
+	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
 	if err != nil {
 		st.Lock()
@@ -268,25 +270,23 @@ func mapMountPointsInGlobalDataDirsToExcludes(si *snap.Info, mountPoints []strin
 }
 
 // excludeMountControlMountPoints appends any currently-active mount-control
-// mount points under the snap's data directories to s.Options. Errors from
-// querying mount units are logged and s.Options is left unchanged, making the
-// exclusion best-effort.
-func (s *snapshotSetup) excludeMountControlMountPoints(si *snap.Info) {
+// mount points under the snap's data directories to s.Options.
+func (s *snapshotSetup) excludeMountControlMountPoints(si *snap.Info) error {
 	mountPts, err := listMountControlMountPoints(si.InstanceName())
 	if err != nil {
-		logger.Noticef("cannot list mount-control units for %q: %v", si.InstanceName(), err)
-		return
+		return fmt.Errorf("cannot list mount-control units for %q: %v", si.InstanceName(), err)
 	}
 	excludes := mapMountPointsInGlobalDataDirsToExcludes(si, mountPts)
 	if len(excludes) == 0 {
-		return
+		return nil
 	}
 	if s.Options == nil {
 		s.Options = &snap.SnapshotOptions{}
 	}
 	if err := s.Options.MergeDynamicExcludes(excludes); err != nil {
-		logger.Noticef("internal error: cannot add mount-control excludes for %q: %v", si.InstanceName(), err)
+		return fmt.Errorf("internal error: cannot add mount-control excludes for %q: %v", si.InstanceName(), err)
 	}
+	return nil
 }
 
 // prepareRestore does the steps of doRestore that require the state lock

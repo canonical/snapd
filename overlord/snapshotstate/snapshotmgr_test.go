@@ -497,7 +497,7 @@ func (snapshotSuite) TestDoSaveMountControlExcludesListMountsError(c *check.C) {
 	// Original setup options passed through unchanged despite list error
 	c.Check(gotOptions, check.DeepEquals, setupOptions)
 	// Verify error was logged
-	c.Check(logbuf.String(), testutil.Contains, "cannot list mount-control units for \"a-snap\": mock ListMountControlMountPoints error")
+	c.Check(logbuf.String(), check.Matches, "(?s).*cannot exclude mount-control mount points.* mock ListMountControlMountPoints error.*")
 }
 
 func (snapshotSuite) TestDoSaveNoMountControlMounts(c *check.C) {
