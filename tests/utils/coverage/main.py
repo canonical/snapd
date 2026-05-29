@@ -113,48 +113,90 @@ def parse_profile(profile_path: Path, module_path: str) -> dict[str, set[int]]:
     return result
 
 
+def profile_with_existing_files(profile_path: Path, module_path: str) -> Path:
+    fd, tmp_path = tempfile.mkstemp(prefix="snapd-cov-profile-existing-", suffix=".out")
+    os.close(fd)
+    out_path = Path(tmp_path)
+
+    with profile_path.open(encoding="utf-8") as src, out_path.open("w", encoding="utf-8") as dst:
+        for raw_line in src:
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if line.startswith("mode:"):
+                dst.write(raw_line if raw_line.endswith("\n") else raw_line + "\n")
+                continue
+
+            match = PROFILE_LINE_RE.match(line)
+            if not match:
+                # Preserve unexpected lines so go tool cover can fail normally.
+                dst.write(raw_line if raw_line.endswith("\n") else raw_line + "\n")
+                continue
+
+            normalized = normalize_profile_path(match.group(1), module_path)
+            if normalized and not Path(normalized).is_file():
+                continue
+
+            dst.write(raw_line if raw_line.endswith("\n") else raw_line + "\n")
+
+    return out_path
+
+
 def covered_functions_by_file(profile_path: Path, module_path: str) -> dict[str, set[str]]:
-    cmd = ["go", "tool", "cover", f"-func={profile_path}"]
-    proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
-    if proc.returncode != 0:
-        details = (proc.stdout + "\n" + proc.stderr).strip()
-        raise RuntimeError(f"cannot extract covered functions: exit code {proc.returncode} ({details})")
+    filtered_profile = profile_with_existing_files(profile_path, module_path)
 
-    result: dict[str, set[str]] = {}
-    for raw_line in proc.stdout.splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("total:"):
-            continue
+    try:
+        cmd = ["go", "tool", "cover", f"-func={filtered_profile}"]
+        proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
+        if proc.returncode != 0:
+            details = (proc.stdout + "\n" + proc.stderr).strip()
+            raise RuntimeError(f"cannot extract covered functions: exit code {proc.returncode} ({details})")
 
-        fields = line.split()
-        if len(fields) < 2:
-            continue
+        result: dict[str, set[str]] = {}
+        for raw_line in proc.stdout.splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("total:"):
+                continue
 
-        location = fields[0]
-        percent = fields[-1]
-        if not percent.endswith("%"):
-            continue
+            fields = line.split()
+            if len(fields) < 3:
+                continue
 
+            location = fields[0]
+            func_name = fields[1]
+            percent = fields[-1]
+            if not percent.endswith("%"):
+                continue
+
+            try:
+                covered_percent = float(percent[:-1])
+            except ValueError:
+                continue
+            if covered_percent <= 0:
+                continue
+
+            if not location.endswith(":"):
+                continue
+            file_path_and_line = location[:-1]
+            if ":" not in file_path_and_line:
+                continue
+            file_path, _line = file_path_and_line.rsplit(":", 1)
+
+            normalized = normalize_profile_path(file_path, module_path)
+            if not normalized:
+                continue
+
+            if normalized not in result:
+                result[normalized] = set()
+            result[normalized].add(func_name)
+
+        return result
+    finally:
         try:
-            covered_percent = float(percent[:-1])
-        except ValueError:
-            continue
-        if covered_percent <= 0:
-            continue
-
-        if ":" not in location:
-            continue
-        file_path, func_name = location.rsplit(":", 1)
-
-        normalized = normalize_profile_path(file_path, module_path)
-        if not normalized:
-            continue
-
-        if normalized not in result:
-            result[normalized] = set()
-        result[normalized].add(func_name)
-
-    return result
+            filtered_profile.unlink()
+        except OSError:
+            pass
 
 
 def print_covered_files(coverage: dict[str, set[int]]) -> None:

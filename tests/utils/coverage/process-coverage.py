@@ -31,13 +31,14 @@ def main():
         if not os.path.isfile(file):
             coverage_data_dir = os.path.join(args.coverage_dir, dir)
             result = subprocess.run(
-                ["go", "run", "./tests/utils/coverage", "-results-dir", coverage_data_dir, "-output", "functions"],
+                ["./tests/utils/coverage/main.py", "-results-dir", coverage_data_dir, "-output", "functions"],
+                # ["go", "run", "./tests/utils/coverage", "-results-dir", coverage_data_dir, "-output", "functions"],
                 stdout=open(file, 'w'),
                 stderr=subprocess.PIPE,
                 text=True
             )
             if result.returncode != 0:
-                print(f"ERROR: could not generate {file}, skipping", file=sys.stderr)
+                print(f"ERROR: could not generate {file}, skipping due to {result.stderr}", file=sys.stderr)
                 continue
         split = dir.split(":")
         passed = test_passed(results, split[0], split[1], split[2].replace("--", "/"))

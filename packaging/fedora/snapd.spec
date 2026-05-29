@@ -578,7 +578,7 @@ with_testkeys = %{with_test_keys}
 with_vendor = %{with_bundled}
 with_static_pie = 0
 # follow what %%gobuild does
-EXTRA_GO_BUILD_FLAGS = -v -x -compiler gc -cover
+EXTRA_GO_BUILD_FLAGS = -v -x -compiler gc
 EXTRA_GO_LDFLAGS = -linkmode external -extldflags '%__global_ldflags'
 EXTRA_GO_STATIC_LDFLAGS = -linkmode external -extldflags '%__global_ldflags -static'
 EXTRA_GO_BUILD_TAGS = rpm_crashtraceback $EXTRA_TAGS

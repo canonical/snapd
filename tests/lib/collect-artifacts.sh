@@ -44,7 +44,7 @@ coverage_after_non_nested_task() {
         local task_dir
         task_dir="$(_prepare_artifacts_path coverage-results)"
         pushd "$SPREAD_PATH"
-        go run "$SPREAD_PATH"/tests/utils/coverage -results-dir "$TESTSTMP"/coverage -output functions > "$task_dir"/coverage.json || true
+        "$SPREAD_PATH"/tests/utils/coverage/main.py -results-dir "$TESTSTMP"/coverage -output functions > "$task_dir"/coverage.json || true
         popd
         if ! [ -s "$task_dir"/coverage.json ]; then
             cp "$TESTSTMP"/coverage/* "$task_dir" || true
@@ -64,7 +64,7 @@ coverage_after_nested_task() {
         return
     fi
     pushd "$SPREAD_PATH"
-    go run "$SPREAD_PATH"/tests/utils/coverage -results-dir "$task_dir" -output functions > "$task_dir"/coverage.json
+    "$SPREAD_PATH"/tests/utils/coverage/main.py -results-dir "$task_dir" -output functions > "$task_dir"/coverage.json
     popd
     if [ -s "$task_dir"/coverage.json ]; then
         find "$task_dir" -not -name coverage.json -type f -exec rm {} \;

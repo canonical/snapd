@@ -89,6 +89,7 @@ parts:
       "${CRAFT_PART_SRC_WORK}/configure" --prefix=/snap/snapd/current/usr
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}" -C .. objdir="${PWD}" "${PWD}/linkobj/libc_pic.a"
       make elf/ldso_install DESTDIR="${CRAFT_PART_INSTALL}"
+      "${CRAFT_PROJECT_DIR}/build-aux/snap/local/minidebuginfo" "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
       install -Dm755 -t "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
     stage:
       - usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/ld*.so*
@@ -438,7 +439,7 @@ parts:
         fi
 
         output="${CRAFT_PART_INSTALL}/usr/${cmd}"
-        go build -cover -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
+        go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
         if [ "${CHECK_STATIC-}" = 1 ]; then
           if objdump -p "${output}" | grep INTERP; then
             echo "${output} is not static!" 1>&2
@@ -496,6 +497,7 @@ parts:
         ) > "${CRAFT_PART_INSTALL}/usr/lib/snapd/dirty-git-tree-info.txt"
       fi
 
+      find "${CRAFT_PART_INSTALL}/usr/lib/snapd" "${CRAFT_PART_INSTALL}/usr/bin" -type f -exec "${CRAFT_PROJECT_DIR}/build-aux/snap/local/minidebuginfo" {} ";"
 
       if [ -f fips-build ]; then
         touch "${CRAFT_PART_INSTALL}/fips-build"

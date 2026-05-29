@@ -6,11 +6,43 @@ on:
 
 jobs:
   snap-builds:
-    uses: ./.github/workflows/snap-builds.yaml
-    with:
-      runs-on: '["ubuntu-22.04"]'
-      toolchain: default
-      variant: test
+    runs-on: ${{ fromJSON(matrix.runs-on) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Patch builds
+      run: tests/utils/coverage/patch-builds.sh
+
+    - name: Commit changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "bot@githubactions.com"
+        git add .
+        git commit -m "Patch builds for coverage"
+    
+    - name: Build and upload snap
+      uses: ./.github/actions/build-snap-checks
+      with:
+        toolchain: ${{ matrix.toolchain }}
+        variant: test
+        runs-on: ${{ matrix.runs-on }}
+        pr-number: ${{ github.event.pull_request.number || '' }}
+    strategy:
+      matrix:
+        runs-on:
+          - '["ubuntu-22.04"]'
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
+        toolchain:
+          - default
+          - FIPS
+        exclude:
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
+            toolchain: FIPS
 
   read-systems:
     runs-on: ubuntu-latest
@@ -40,11 +72,12 @@ jobs:
       backend: ${{ matrix.backend }}
       alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
+      # tasks: ${{ matrix.tasks }}
+      tasks: tests/main/alias
       rules: ${{ matrix.rules }}
       upload-artifacts: true
       spread-env: "SPREAD_GENERATE_COVERAGE=true"
-      skip-tests: 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build ubuntu-fips-2'
+      skip-tests: 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build ubuntu-fips-2 ubuntu-secboot'
       log-to-grafana: false
     strategy:
       fail-fast: false
@@ -55,6 +88,9 @@ jobs:
     if: always()
     needs: [spread-coverage]
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
       - name: Download coverage artifacts
         uses: actions/download-artifact@v8
         with:
@@ -68,7 +104,33 @@ jobs:
           path: coverage
           pattern: spread-results-*
 
-      - name: tree
+      # - name: Calculate feature-based coverage over last two schedule runs
+      #   env: 
+      #     MONGO_USER: ${{ secrets.MONGO_USER }}
+      #     MONGO_PASSWORD: ${{ secrets.MONGO_PASS }}
+      #     MONGO_HOST: ${{ secrets.MONGO_HOST }}
+      #     MONGO_PORT: ${{ secrets.MONGO_PORT }}
+      #   run: tests/utils/coverage/calculate-core-set.sh > coverage/feature-core-set.json
+
+      - name: Calculate coverage
         run: |
-          sudo apt install tree
-          tree coverage
+          sudo snap install go --classic 
+          tests/utils/coverage/write-conclusions.sh --coverage-dir coverage
+          mkdir results
+          while IFS= read -r -d '' execution_file; do
+            result_name="$(basename "$(dirname "$execution_file")")"
+            mv "$execution_file" "results/${result_name}.json"
+          done < <(find coverage -type f -name execution.json -print0)
+          tar -czvf coverage-results.tar.gz results/
+
+      - name: Upload coverage results
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-results
+          path: coverage-results.tar.gz
+
+      # - name: Upload feature core set
+      #   uses: actions/upload-artifact@v7
+      #   with:
+      #     name: feature-core-set
+      #     path: coverage/feature-core-set.json

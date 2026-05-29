@@ -111,6 +111,10 @@ jobs:
             echo "$env" >> $GITHUB_ENV
           done
 
+    - name: Patch builds for coverage
+      if: ${{ env.SPREAD_GENERATE_COVERAGE == 'true' }}
+      run: tests/utils/coverage/patch-builds.sh
+
     - name: Set PR labels as environment variables
       if: ${{ github.event.pull_request.number }}
       run: |
