@@ -515,8 +515,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 	var currentTrustedBootAssets bootAssetsMap
 	var currentTrustedRecoveryBootAssets bootAssetsMap
 	if bootAssets != nil {
-		currentTrustedBootAssets = bootAssets.GetTrackedAssets()
-		currentTrustedRecoveryBootAssets = bootAssets.GetTrackedRecoveryAssets()
+		currentTrustedBootAssets = bootAssets.TrackedAssets()
+		currentTrustedRecoveryBootAssets = bootAssets.TrackedRecoveryAssets()
 	}
 	recoverySystemLabel := bootWith.RecoverySystemLabel
 	// write modeenv on the ubuntu-data partition

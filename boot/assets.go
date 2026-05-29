@@ -293,10 +293,10 @@ type EncryptionSetup struct {
 // BootAssets carries the assets trusted that may be accepted in
 // boot chains and the method to update the boot entry.
 type BootAssets interface {
-	// GetTrackedRecoveryAssets returns the boot assets for the run boot chains
-	GetTrackedAssets() bootAssetsMap
-	// GetTrackedRecoveryAssets returns the boot assets for the recovery boot chains
-	GetTrackedRecoveryAssets() bootAssetsMap
+	// TrackedRecoveryAssets returns the boot assets for the run boot chains
+	TrackedAssets() bootAssetsMap
+	// TrackedRecoveryAssets returns the boot assets for the recovery boot chains
+	TrackedRecoveryAssets() bootAssetsMap
 	// UpdateBootEntry update the boot entry to boot the current asset chains
 	UpdateBootEntry() error
 }
@@ -308,11 +308,11 @@ type bootAssetsImpl struct {
 	updatedAssets         []string
 }
 
-func (b *bootAssetsImpl) GetTrackedAssets() bootAssetsMap {
+func (b *bootAssetsImpl) TrackedAssets() bootAssetsMap {
 	return b.trackedAssets
 }
 
-func (b *bootAssetsImpl) GetTrackedRecoveryAssets() bootAssetsMap {
+func (b *bootAssetsImpl) TrackedRecoveryAssets() bootAssetsMap {
 	return b.trackedRecoveryAssets
 }
 
