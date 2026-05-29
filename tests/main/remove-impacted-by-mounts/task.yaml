@@ -8,8 +8,11 @@ details: |
     The test checks that
     - snap remove succeeds if the mounts under snap's global data directories
       are visible only in the snap's namespace (and not in the host's namespace)
+    - snap remove succeeds if the mounts under snap's global data directories were
+      created via the mount-control interface (snapctl mount)
     - _currently_ snap remove fails if the mounts under snap's global/user data
-      directories are visible in the host's namespace. This behavior needs to be fixed.
+      directories were created directly by the user (not via mount-control).
+      This behavior needs to be fixed.
 
 environment:
     SNAP_NAME: test-snapd-mount-control
@@ -27,7 +30,7 @@ environment:
     MOUNT_DEST_USER_DATA: $SNAP_USER_DATA/target1
     # each test variant will execute: test_$CASE $MOUNT_DEST
     CASE/v1,v2: remove_succeeds_when_slave_mount_in_snap_ns_under
-    CASE/v3,v4: remove_currently_fails_when_snapctl_mount_in_host_ns_under
+    CASE/v3,v4: remove_succeeds_when_snapctl_mount_in_host_ns_under
     CASE/v5,v6: remove_currently_fails_when_user_mount_in_host_ns_under
     MOUNT_DEST/v1,v3: $MOUNT_DEST_GLOBAL_COMMON
     MOUNT_DEST/v2,v4: $MOUNT_DEST_GLOBAL_DATA
@@ -94,39 +97,26 @@ execute: |
         test -e "$mount_dest/file1"
     }
 
-    then_remove_currently_fails_mount_remains_src_data_lost () {
+    then_remove_succeeds_mount_removed_src_data_intact() {
         local mount_dest=$1
-        echo "Currently snap remove will fail due to the mount being present in the snap's data directory"
-        echo "THIS NEEDS TO BE FIXED!"
-        not snap remove "${SNAP_NAME}"
-        echo "and the mount is still active"
-        echo "THIS NEEDS TO BE FIXED!"
-        MATCH "$mount_dest" < /proc/self/mountinfo
-        echo "and currently the mount's source data is unfortunately removed"
-        echo "THIS NEEDS TO BE FIXED!"
-        test ! -e "$MOUNT_SRC/file1"
-    }
-
-    cleaning_up_snapctl_mount_should_make_remove_successful() {
-        local mount_dest=$1
-        echo "Below steps can be removed once the above snap remove issues are fixed"
-        echo "Enable the snap (if required) after a failed remove to allow cleanup"
-        snap enable "${SNAP_NAME}" || true
-        echo "Unmount via snapctl"
-        "${SNAP_NAME}".cmd snapctl umount "$mount_dest"
-        echo "and unmount should have succeeded"
-        NOMATCH "$mount_dest" < /proc/self/mountinfo
-        echo "Now snap remove should succeed"
+        echo "Verify that snap remove succeeds"
         snap remove "${SNAP_NAME}"
+        echo "and the mount is no longer active in the host's namespace"
+        NOMATCH "$mount_dest" < /proc/self/mountinfo
+        echo "and the mount unit file is removed from disk"
+        UNIT_NAME="$(systemd-escape -p "$mount_dest").mount"
+        test ! -e "/etc/systemd/system/$UNIT_NAME"
+        test ! -e "/run/systemd/system/$UNIT_NAME"
+        echo "but the mount's source data is still there"
+        test -e "$MOUNT_SRC/file1"
     }
 
-    test_remove_currently_fails_when_snapctl_mount_in_host_ns_under() {
+    test_remove_succeeds_when_snapctl_mount_in_host_ns_under() {
         local mount_dest=$1
         setup_src_data
         setup_test_snap
         when_snapctl_mount_in_host_ns "$mount_dest"
-        then_remove_currently_fails_mount_remains_src_data_lost "$mount_dest"
-        cleaning_up_snapctl_mount_should_make_remove_successful "$mount_dest"
+        then_remove_succeeds_mount_removed_src_data_intact "$mount_dest"
         echo
     }
 
@@ -152,6 +142,19 @@ execute: |
         NOMATCH "$mount_dest" < /proc/self/mountinfo
         echo "Now snap remove should succeed"
         snap remove "${SNAP_NAME}"
+    }
+
+    then_remove_currently_fails_mount_remains_src_data_lost () {
+        local mount_dest=$1
+        echo "Currently snap remove will fail due to the mount being present in the snap's data directory"
+        echo "THIS NEEDS TO BE FIXED!"
+        not snap remove "${SNAP_NAME}"
+        echo "and the mount is still active"
+        echo "THIS NEEDS TO BE FIXED!"
+        MATCH "$mount_dest" < /proc/self/mountinfo
+        echo "and currently the mount's source data is unfortunately removed"
+        echo "THIS NEEDS TO BE FIXED!"
+        test ! -e "$MOUNT_SRC/file1"
     }
 
     test_remove_currently_fails_when_user_mount_in_host_ns_under() {
