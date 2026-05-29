@@ -112,13 +112,13 @@ func (sdbs *sysDBSuite) TestTrusted(c *C) {
 
 func (sdbs *sysDBSuite) TestGeneric(c *C) {
 	generic := sysdb.Generic()
-	c.Check(generic, HasLen, 3)
+	c.Check(generic, HasLen, 2)
 
 	restore := sysdb.InjectGeneric(sdbs.extraGeneric)
 	defer restore()
 
 	genericEx := sysdb.Generic()
-	c.Check(genericEx, HasLen, 4)
+	c.Check(genericEx, HasLen, 3)
 }
 
 func (sdbs *sysDBSuite) TestGenericClassicModel(c *C) {

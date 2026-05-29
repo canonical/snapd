@@ -27,7 +27,7 @@ import (
 
 var builtinAssertions []Assertion
 
-func BuiltinAssertions() []Assertion {
+func Builtin() []Assertion {
 	return builtinAssertions
 }
 
@@ -40,21 +40,13 @@ type builtinCheckParams struct {
 
 // assembleBuiltinAssertion creates a builtin assertion of the given type.
 // The header bytes are expected to be YAML and are checked against the
-// expected headers in checkParams. The account-id must be "system" and the
-// authority-id must be "canonical". The assembled assertion carries a special
+// expected headers in checkParams. The assembled assertion carries a special
 // "$builtin" signature marker and is not subject to normal trust verification.
 func assembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byte, checkParams builtinCheckParams) (Assertion, error) {
 	trimmed := bytes.TrimSpace(headerBytes)
 	h, err := parseHeaders(trimmed)
 	if err != nil {
 		return nil, err
-	}
-
-	if acc := h["account-id"]; acc != "system" {
-		return nil, fmt.Errorf(`the "account-id" for builtin %s must be set to "system"`, assertType.Name)
-	}
-	if auth := h["authority-id"]; auth != "canonical" {
-		return nil, fmt.Errorf(`the "authority-id" for builtin %s must be set to "canonical"`, assertType.Name)
 	}
 
 	for _, field := range checkParams.order {

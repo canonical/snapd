@@ -2063,7 +2063,7 @@ slots:
 	c.Assert(err, IsNil)
 
 	var baseDecl *asserts.BaseDeclaration
-	for _, as := range asserts.BuiltinAssertions() {
+	for _, as := range asserts.Builtin() {
 		var ok bool
 		baseDecl, ok = as.(*asserts.BaseDeclaration)
 		if ok {
@@ -2094,8 +2094,8 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 		err     string
 	}{
 		{"", `header entry missing ':' separator: ""`},
-		{"type: foo\n", `the "account-id" for builtin base-declaration must be set to "system"`},
-		{"type: base-declaration\naccount-id: system", `the "authority-id" for builtin base-declaration must be set to "canonical"`},
+		{"type: foo\n", `the builtin base-declaration "type" header is not set to expected value "base-declaration"`},
+		{"type: base-declaration\naccount-id: system", `the builtin base-declaration "authority-id" header is not set to expected value "canonical"`},
 		{"type: base-declaration\naccount-id: system\nauthority-id: canonical", `the builtin base-declaration "series" header is not set to expected value "16"`},
 		{"type: base-declaration\naccount-id: system\nauthority-id: canonical\nseries: 16\nrevision: zzz", `cannot assemble the builtin base-declaration: "revision" header is not an integer: zzz`},
 		{"type: base-declaration\naccount-id: system\nauthority-id: canonical\nseries: 16\nplugs: foo", `cannot assemble the builtin base-declaration: "plugs" header must be a map`},

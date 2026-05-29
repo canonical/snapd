@@ -159,10 +159,6 @@ func Generic() []asserts.Assertion {
 		generic = append(generic, genericStagingAssertions...)
 	}
 	generic = append(generic, genericExtraAssertions...)
-
-	// builtin assertions must be obtained at runtime as we cannot depend on them
-	// being present at init time
-	generic = append(generic, asserts.BuiltinAssertions()...)
 	return generic
 }
 

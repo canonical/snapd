@@ -114,10 +114,11 @@ func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
 }
 
 var (
-	baseDeclarationCheckOrder      = []string{"type", "series"}
+	baseDeclarationCheckOrder      = []string{"type", "authority-id", "series"}
 	baseDeclarationExpectedHeaders = map[string]any{
-		"type":   "base-declaration",
-		"series": release.Series,
+		"type":         "base-declaration",
+		"authority-id": "canonical",
+		"series":       release.Series,
 	}
 )
 

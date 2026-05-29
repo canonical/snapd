@@ -43,9 +43,14 @@ func openDatabaseAt(path string, cfg *asserts.DatabaseConfig) (*asserts.Database
 // OpenAt opens a system assertion database at the given location with
 // the trusted assertions set configured.
 func OpenAt(path string) (*asserts.Database, error) {
+	predef := append([]asserts.Assertion{}, Generic()...)
+	// builtin assertions must be obtained at runtime as we cannot depend on them
+	// being present at init time
+	predef = append(predef, asserts.Builtin()...)
+
 	cfg := &asserts.DatabaseConfig{
 		Trusted:         Trusted(),
-		OtherPredefined: Generic(),
+		OtherPredefined: predef,
 	}
 	return openDatabaseAt(path, cfg)
 }
