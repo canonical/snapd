@@ -108,4 +108,3 @@ func (u SnapdUser) String() string {
 
 	return id + ":" + email + ":" + name
 }
-
