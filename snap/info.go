@@ -806,20 +806,40 @@ func (s *Info) ExpandSnapVariables(path string) string {
 	// always inside the mount namespace snap-confine creates and there
 	// we will always have a /snap directory available regardless if the
 	// system we're running on supports this or not.
-	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir)
+	return s.ExpandSnapVariablesSetSnapMountDir(path, dirs.CoreSnapMountDir, PerspectiveSelf)
 }
+
+type ExpandSnapPerspective int
+
+const (
+	// Expand variables from own perspective, assuming the parallel instance
+	// magic mapping of $SNAP_INSTANCE_NAME to $SNAP is in effect.
+	PerspectiveSelf ExpandSnapPerspective = iota
+	// Expand special variables from other snap's perspective, where $SNAP means
+	// the actual instance name
+	PerspectiveOther
+)
 
 // ExpandSnapVariablesSetSnapMountDir resolves $SNAP, $SNAP_DATA and
 // $SNAP_COMMON in path for this snap using snapMountDir as root directory.
-func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string) string {
+// Depending on the context, e.g. $SNAP used on the slot side of the connection,
+// while being expanded for use in the context of the plug, special variables
+// may mean instance-specific value.
+func (s *Info) ExpandSnapVariablesSetSnapMountDir(path, snapMountDir string, expandFor ExpandSnapPerspective) string {
+	name := s.SnapName()
+
+	if expandFor == PerspectiveOther {
+		name = s.InstanceName()
+	}
+
 	return os.Expand(path, func(v string) string {
 		switch v {
 		case "SNAP":
-			return filepath.Join(snapMountDir, s.SnapName(), s.Revision.String())
+			return filepath.Join(snapMountDir, name, s.Revision.String())
 		case "SNAP_DATA":
-			return DataDir(s.SnapName(), s.Revision)
+			return DataDir(name, s.Revision)
 		case "SNAP_COMMON":
-			return CommonDataDir(s.SnapName())
+			return CommonDataDir(name)
 		}
 		return ""
 	})

@@ -188,8 +188,15 @@ func (s *specSuite) TestMountEntryFromLayout(c *C) {
 }
 
 func (s *specSuite) TestMountEntryFromExtraLayouts(c *C) {
+	const minimalSnap = `
+name: vanguard
+version: 0
+`
+	snapInfo := snaptest.MockInfo(c, minimalSnap, &snap.SideInfo{Revision: snap.R(42)})
+	s.spec.AddLayout(snapInfo)
 	extraLayouts := []snap.Layout{
 		{
+			Snap: snapInfo,
 			Path: "/test",
 			Bind: "/usr/home/test",
 			Mode: 0755,
