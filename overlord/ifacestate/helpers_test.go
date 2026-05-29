@@ -67,7 +67,7 @@ func (s *helpersSuite) SetUpTest(c *C) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         storeSigning.Trusted,
-		OtherPredefined: asserts.BuiltinAssertions(),
+		OtherPredefined: asserts.Builtin(),
 	})
 	c.Assert(err, IsNil)
 	err = db.Add(storeSigning.StoreAccountKey(""))

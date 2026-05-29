@@ -91,7 +91,7 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore:       asserts.NewMemoryBackstore(),
 		Trusted:         am.storeSigning.Trusted,
-		OtherPredefined: asserts.BuiltinAssertions(),
+		OtherPredefined: asserts.Builtin(),
 	})
 	c.Assert(err, IsNil)
 	am.Db = db
