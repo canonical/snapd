@@ -25,6 +25,14 @@ prepare: |
     s.close()
     "
 
+    # auditd holds the netlink audit socket exclusively; if it is running,
+    # journald cannot receive audit messages. Stop it so that
+    # systemd-journald-audit.socket can pick them up.
+    if systemctl is-active auditd.service; then
+        touch auditd-was-active
+        systemctl stop auditd.service
+    fi
+
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
         systemctl stop systemd-journald.service
@@ -38,6 +46,11 @@ restore: |
         systemctl stop systemd-journald-audit.socket
         systemctl restart systemd-journald.service
         rm -f audit-socket-was-inactive
+    fi
+
+    if [ -f auditd-was-active ]; then
+        systemctl start auditd.service
+        rm -f auditd-was-active
     fi
 
     snap logout || true
