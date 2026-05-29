@@ -68,11 +68,11 @@ func (m *MockObserver) Observe(op gadget.ContentOperation, partRole, root, relat
 	return m.ObserveFunc(op, partRole, root, relativeTarget, data)
 }
 
-func (m *MockObserver) GetBootAssets() boot.BootAssets {
+func (m *MockObserver) BootAssets() boot.BootAssets {
 	return nil
 }
 
-func (m *MockObserver) GetEncryptionParams() *boot.EncryptionSetup {
+func (m *MockObserver) EncryptionSetup() *boot.EncryptionSetup {
 	return nil
 }
 
