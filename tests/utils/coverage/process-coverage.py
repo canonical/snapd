@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import subprocess
 import sys
 
 
@@ -24,43 +25,38 @@ def main():
     dirs = os.listdir(args.coverage_dir)
 
     execution_dict = {}
-    execution_dict_with_init = {}
 
     for dir in dirs:
         file = os.path.join(args.coverage_dir, dir, "coverage.json")
-        if os.path.isfile(file):
-            split = dir.split(":")
-            passed = test_passed(results, split[0], split[1], split[2].replace("--", "/"))
-            if not passed:
-                print(f"WARNING: test {dir} did not pass, skipping", file=sys.stderr)
+        if not os.path.isfile(file):
+            coverage_data_dir = os.path.join(args.coverage_dir, dir)
+            result = subprocess.run(
+                ["go", "run", "./tests/utils/coverage", "-results-dir", coverage_data_dir, "-output", "functions"],
+                stdout=open(file, 'w'),
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if result.returncode != 0:
+                print(f"ERROR: could not generate {file}, skipping", file=sys.stderr)
                 continue
-            with open(file) as f:
-                try:
-                    data = json.load(f)
-                    for entry in data["files"]:
-                        functions = entry["covered_functions"]
-                        if len(functions) == 1 and functions[0] == "init":
-                            if entry["path"] not in execution_dict_with_init:
-                                execution_dict_with_init[entry["path"]] = []
-                            execution_dict_with_init[entry["path"]].append(dir.replace("--", "/"))
-                            continue
-                        if entry["path"] not in execution_dict:
-                            execution_dict[entry["path"]] = []
-                        execution_dict[entry["path"]].append(dir.replace("--", "/"))
-                        if entry["path"] not in execution_dict_with_init:
-                            execution_dict_with_init[entry["path"]] = []
-                        execution_dict_with_init[entry["path"]].append(dir.replace("--", "/"))
-                except:
-                    print(f"ERROR: could not load {file}, skipping", file=sys.stderr)
-                    continue
+        split = dir.split(":")
+        passed = test_passed(results, split[0], split[1], split[2].replace("--", "/"))
+        with open(file) as f:
+            try:
+                data = json.load(f)
+                for entry in data["files"]:
+                    if entry["path"] not in execution_dict:
+                        execution_dict[entry["path"]] = []
+                    execution_dict[entry["path"]].append({"test": dir.replace("--", "/"), "passed": passed, "functions": entry["covered_functions"]})
+                    
+            except:
+                print(f"ERROR: could not load {file}, skipping", file=sys.stderr)
+                continue
 
     os.makedirs(args.output_dir, exist_ok=True)
 
     with open(os.path.join(args.output_dir, "execution.json"), mode="w") as f:
         json.dump(execution_dict, f)
-
-    with open(os.path.join(args.output_dir, "execution-w-init.json"), mode="w") as f:
-        json.dump(execution_dict_with_init, f)
 
 
 if __name__ == "__main__":

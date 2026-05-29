@@ -1809,6 +1809,7 @@ suites:
         backends:
             - google-nested
             - qemu-nested
+            - garden
             - google-nested-arm
             - openstack-ext
             - openstack-arm-ext
