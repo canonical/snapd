@@ -71,7 +71,7 @@ run_is_completed() {
 
     run_status=$(jq -r '.status // empty' <<<"$run_json")
 
-    if [[ "$run_status" != "completed" ]]; then
+    if [[ "$run_status" != "completed" && "$run_status" != "failure" ]]; then
         RERUN_REASON="latest run_id=$run_id status=$run_status"
         return 1
     fi
