@@ -13,7 +13,7 @@ sudo -iu workshop mkdir -p "$LOCAL_BIN"
 echo 'sudo snap run snapcraft clean --destructive-mode' > "$LOCAL_BIN"/snapcraft
 echo 'sudo snap run snapcraft $@ --destructive-mode' >> "$LOCAL_BIN"/snapcraft
 echo 'sudo snap run snapcraft clean --destructive-mode' >> "$LOCAL_BIN"/snapcraft
-echo 'if [ -f snapd_*.snap ] ; then sudo chown workshop:workshop snapd_*.snap ; fi' >> "$LOCAL_BIN"/snapcraft
+echo 'for built_snap in snapd_*.snap ; do if [ -f "$built_snap" ] ; then sudo chown workshop:workshop "$built_snap" ; fi ; done' >> "$LOCAL_BIN"/snapcraft
 
 chmod 755 "$LOCAL_BIN"/snapcraft
 chown workshop:workshop "$LOCAL_BIN"/snapcraft
