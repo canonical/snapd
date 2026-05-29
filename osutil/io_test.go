@@ -88,6 +88,25 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
 	c.Assert(err, NotNil)
 }
 
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileAsteriskInDirOkay(c *C) {
+	tmpdir := c.MkDir()
+
+	dir := filepath.Join(tmpdir, "foo*bar")
+	c.Assert(os.MkdirAll(dir, 0o755), IsNil)
+
+	p := filepath.Join(dir, "baz")
+	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, 0)
+	c.Assert(err, IsNil)
+}
+
+func (ts *AtomicWriteTestSuite) TestAtomicWriteFileAsteriskInBasenameError(c *C) {
+	tmpdir := c.MkDir()
+
+	p := filepath.Join(tmpdir, "foo*bar")
+	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, 0)
+	c.Assert(err, ErrorMatches, `cannot create tempfile for filename containing '\*': "foo\*bar"`)
+}
+
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileTmpFileCreateError(c *C) {
 	tmpdir := c.MkDir()
 
@@ -332,6 +351,31 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 	checkLeftoverFiles(nestedBarSymlink, []string{nestedBarSymlink})
 }
 
+func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkAsteriskInDirOkay(c *C) {
+	tmpdir := c.MkDir()
+
+	target := filepath.Join(tmpdir, "target")
+	c.Assert(os.WriteFile(target, []byte("some data"), 0o644), IsNil)
+
+	dir := filepath.Join(tmpdir, "foo*bar")
+	c.Assert(os.MkdirAll(dir, 0o755), IsNil)
+
+	p := filepath.Join(dir, "baz")
+	err := osutil.AtomicSymlink(target, p)
+	c.Assert(err, IsNil)
+}
+
+func (ts *AtomicSymlinkTestSuite) TestAtomicSymlinkAsteriskInBasenameError(c *C) {
+	tmpdir := c.MkDir()
+
+	target := filepath.Join(tmpdir, "target")
+	c.Assert(os.WriteFile(target, []byte("some data"), 0o644), IsNil)
+
+	p := filepath.Join(tmpdir, "foo*bar")
+	err := osutil.AtomicSymlink(target, p)
+	c.Assert(err, ErrorMatches, `cannot create tempfile for link path containing '\*': "foo\*bar"`)
+}
+
 type AtomicLinkTestSuite struct{}
 
 var _ = Suite(&AtomicLinkTestSuite{})
@@ -396,6 +440,31 @@ func (ts *AtomicLinkTestSuite) TestAtomicLink(c *C) {
 	c.Assert(err, IsNil)
 	mustReadLink(nestedBarLink, newTarget)
 	checkLeftoverFiles(nestedBarLink, []string{nestedBarLink})
+}
+
+func (ts *AtomicLinkTestSuite) TestAtomicLinkAsteriskInDirOkay(c *C) {
+	tmpdir := c.MkDir()
+
+	target := filepath.Join(tmpdir, "target")
+	c.Assert(os.WriteFile(target, []byte("some data"), 0o644), IsNil)
+
+	dir := filepath.Join(tmpdir, "foo*bar")
+	c.Assert(os.MkdirAll(dir, 0o755), IsNil)
+
+	p := filepath.Join(dir, "baz")
+	err := osutil.AtomicLink(target, p)
+	c.Assert(err, IsNil)
+}
+
+func (ts *AtomicLinkTestSuite) TestAtomicLinkAsteriskInBasenameError(c *C) {
+	tmpdir := c.MkDir()
+
+	target := filepath.Join(tmpdir, "target")
+	c.Assert(os.WriteFile(target, []byte("some data"), 0o644), IsNil)
+
+	p := filepath.Join(tmpdir, "foo*bar")
+	err := osutil.AtomicLink(target, p)
+	c.Assert(err, ErrorMatches, `cannot create tempfile for link path containing '\*': "foo\*bar"`)
 }
 
 type AtomicRenameTestSuite struct{}
