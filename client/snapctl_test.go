@@ -27,6 +27,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
@@ -137,6 +138,115 @@ func (cs *clientSuite) TestClientRunSnapctlHeader(c *check.C) {
 		Args:      []string{"foo", "bar"},
 	}
 	_, _, err := cs.cli.RunSnapctl(options, nil)
-	c.Check(cs.req.Header.Get("X-Snapctl-Features"), check.Equals, "")
+
+	for _, feature := range client.TestSupportedFeatures {
+		c.Check(cs.req.Header.Get("X-Snapctl-Features"), testutil.Contains, feature)
+	}
 	c.Check(err, check.IsNil)
+}
+
+func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
+	cs.rsps = []string{
+		`{
+			"type": "sync",
+			"status-code": 200,
+			"result": {
+				"change-id": "123"
+			}
+		}`,
+		`{
+			"type": "error",
+			"status-code": 400,
+			"result": {
+				"message": "snap is not ready",
+				"kind": "unsuccessful",
+				"value": {
+					"exit-code": 1
+				}
+			}
+		}`,
+		`{
+			"type": "sync",
+			"status-code": 200,
+			"result": {
+				"stdout": "snap installed",
+				"stderr": ""
+			}
+		}`,
+	}
+
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"install", "some-snap"},
+	}
+	stdout, stderr, err := cs.cli.RunSnapctl(options, nil)
+
+	c.Assert(err, check.IsNil)
+	c.Check(string(stdout), check.Equals, "snap installed")
+	c.Check(stderr, check.HasLen, 0)
+
+	c.Assert(cs.reqs, check.HasLen, 3)
+
+	// Check the daemon makes the is-ready call, and loops when error code 1 is returned
+	var payload0 map[string]any
+	err = json.NewDecoder(cs.reqs[0].Body).Decode(&payload0)
+	c.Check(err, check.IsNil)
+	c.Check(payload0["args"], check.DeepEquals, []any{"install", "some-snap"})
+
+	var payload1 map[string]any
+	err = json.NewDecoder(cs.reqs[1].Body).Decode(&payload1)
+	c.Check(err, check.IsNil)
+	c.Check(payload1["args"], check.DeepEquals, []any{"--is-ready"})
+
+	var payload2 map[string]any
+	err = json.NewDecoder(cs.reqs[2].Body).Decode(&payload2)
+	c.Check(err, check.IsNil)
+	c.Check(payload2["args"], check.DeepEquals, []any{"--is-ready"})
+}
+
+func (cs *clientSuite) TestClientRunSnapctlAsyncFatalError(c *check.C) {
+	cs.rsps = []string{
+		`{
+			"type": "sync",
+			"status-code": 200,
+			"result": {
+				"change-id": "123"
+			}
+		}`,
+		`{
+			"type": "error",
+			"status-code": 400,
+			"result": {
+				"message": "snap is not ready",
+				"kind": "unsuccessful",
+				"value": {
+					"exit-code": 2
+				}
+			}
+		}`,
+	}
+
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"install", "some-snap"},
+	}
+	stdout, stderr, err := cs.cli.RunSnapctl(options, nil)
+
+	c.Assert(err, check.NotNil)
+	c.Check(string(stdout), check.Equals, "")
+	c.Check(stderr, check.HasLen, 0)
+
+	c.Assert(cs.reqs, check.HasLen, 2)
+
+	// Check the daemon makes the is-ready call, and stops looping when non 1
+	// error code is returned
+	var payload0 map[string]any
+	err = json.NewDecoder(cs.reqs[0].Body).Decode(&payload0)
+	c.Check(err, check.IsNil)
+	c.Check(payload0["args"], check.DeepEquals, []any{"install", "some-snap"})
+
+	var payload1 map[string]any
+	err = json.NewDecoder(cs.reqs[1].Body).Decode(&payload1)
+	c.Check(err, check.IsNil)
+	c.Check(payload1["args"], check.DeepEquals, []any{"--is-ready"})
 }

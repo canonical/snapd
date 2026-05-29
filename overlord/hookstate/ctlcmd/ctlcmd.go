@@ -42,11 +42,12 @@ func (e *MissingContextError) Error() string {
 }
 
 type baseCommand struct {
-	stdout io.Writer
-	stderr io.Writer
-	c      *hookstate.Context
-	name   string
-	uid    string
+	stdout   io.Writer
+	stderr   io.Writer
+	c        *hookstate.Context
+	name     string
+	uid      string
+	changeID string
 }
 
 func (c *baseCommand) setName(name string) {
@@ -96,6 +97,14 @@ func (c *baseCommand) ensureContext() (context *hookstate.Context, err error) {
 	return c.c, err
 }
 
+func (c *baseCommand) ChangeID() string {
+	return c.changeID
+}
+
+func (c *baseCommand) setChangeID(id string) {
+	c.changeID = id
+}
+
 type command interface {
 	setName(name string)
 	setUid(uid uint32)
@@ -105,6 +114,9 @@ type command interface {
 
 	setContext(context *hookstate.Context)
 	context() *hookstate.Context
+
+	setChangeID(changeID string)
+	ChangeID() string
 
 	Execute(args []string) error
 }
@@ -151,20 +163,23 @@ func (f ForbiddenCommandError) Error() string {
 var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode", "refresh", "model", "version", "is-ready"}
 
 // Run runs the requested command.
-func Run(context *hookstate.Context, args []string, uid uint32, features []string) (stdout, stderr []byte, err error) {
+func Run(context *hookstate.Context, args []string, uid uint32, features []string) (stdout, stderr []byte, changeID string, err error) {
 	if len(args) == 0 {
-		return nil, nil, fmt.Errorf("internal error: snapctl cannot run without args")
+		return nil, nil, "", fmt.Errorf("internal error: snapctl cannot run without args")
 	}
 
 	if !isAllowedToRun(uid, args) {
-		return nil, nil, &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", args[0], uid)}
+		return nil, nil, "", &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", args[0], uid)}
 	}
 
 	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
 
+	instantiatedCommands := make(map[string]command)
+
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
+	var chgID string
 	for name, cmdInfo := range commands {
 		cmd := cmdInfo.generator()
 		cmd.setName(name)
@@ -172,6 +187,8 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
+
+		instantiatedCommands[name] = cmd
 
 		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		theCmd.Hidden = cmdInfo.hidden
@@ -181,7 +198,13 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 	}
 
 	_, err = parser.ParseArgs(args)
-	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), err
+
+	if parser.Active != nil {
+		if activeCmd, ok := instantiatedCommands[parser.Active.Name]; ok {
+			chgID = activeCmd.ChangeID()
+		}
+	}
+	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), chgID, err
 }
 
 // isAllowedToRun returns true if the user with the given UID can run the given snapctl command vector.
