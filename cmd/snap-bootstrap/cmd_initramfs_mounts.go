@@ -602,7 +602,7 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 	}
 
 	if err := bootEnsureNextBootToRunMode(mst.recoverySystem); err != nil {
-		return fmt.Errorf("failed to set system to run mode: %v\n", err)
+		return fmt.Errorf("cannot set system to run mode: %v", err)
 	}
 
 	mst.mode = "run"
