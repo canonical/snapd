@@ -64,8 +64,8 @@ class TaskIdVariant(TaskId):
 
     def __str__(self) -> str:
         if self.variant:
-            return self.suite + ":" + self.task_name + ":" + self.variant
-        return self.suite + ":" + self.task_name
+            return self.suite + "/" + self.task_name + ":" + self.variant
+        return self.suite + "/" + self.task_name
 
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -698,23 +698,29 @@ def find_tasks_with_isolated_features(system_json: SystemFeatures) -> set[TaskId
     return isolated_tasks
 
 
-def minimal_coverage(retriever: Retriever, timestamp: str, system: str, match_snap_types: bool = False) -> set[TaskIdVariant]:
+def minimal_coverage(retriever: Retriever, timestamp: str, system: str, match_snap_types: bool = False) -> list[TaskIdVariant]:
     '''
     Given a timestamp and system, gets the minimal set of tasks that cover the same features as the entire system.
     '''
-    system_json = retriever.get_single_json(timestamp, system)
-    clean_dictionary(system_json, not match_snap_types)
-    tasks = system_json['tests']
-    covered_features = {}
-    minimal_tasks = find_tasks_with_isolated_features(system_json)
-    for task in tasks:
-        task_id = TaskIdVariant(suite=task['suite'], task_name=task['task_name'], variant=task['variant'])
-        task_features = {key: value for key, value in task.items() if key in KNOWN_FEATURES}
-        new_covered = minus(task_features, covered_features)
-        if new_covered:
-            minimal_tasks.add(task_id)
-            covered_features = union(covered_features, task_features)
-    return minimal_tasks
+    if system:
+        sys_jsons = [retriever.get_single_json(timestamp, system)]
+    else:
+        sys_jsons = retriever.get_systems(timestamp)
+    coverage = {}
+    for sys_json in sys_jsons:
+        clean_dictionary(sys_json, not match_snap_types)
+        tasks = sys_json['tests']
+        covered_features = {}
+        minimal_tasks = find_tasks_with_isolated_features(sys_json)
+        for task in tasks:
+            task_id = TaskIdVariant(suite=task['suite'], task_name=task['task_name'], variant=task['variant'])
+            task_features = {key: value for key, value in task.items() if key in KNOWN_FEATURES}
+            new_covered = minus(task_features, covered_features)
+            if new_covered:
+                minimal_tasks.add(task_id)
+                covered_features = union(covered_features, task_features)
+        coverage[sys_json['system']] = list(minimal_tasks)
+    return coverage
 
 
 def add_data_source_args(parser: argparse.ArgumentParser) -> None:
@@ -879,7 +885,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
                                      description='Lists minimal set of tests that cover all features of a system')
     add_data_source_args(cover)
     cover.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
-    cover.add_argument('-s', '--system', help='system to search for feature in', required=True, type=str)
+    cover.add_argument('-s', '--system', help='system to search for feature in', default=None, type=str)
     cover.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     cover.add_argument('--match-snap-types', help='match the entire feature, including snap types', action='store_true')
     return cmd, cmd_all, cmd_sys, cmd_find, cmd_cover
