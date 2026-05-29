@@ -26,12 +26,20 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 )
 
+type apiMixin struct {
+	Addr string `long:"addr" default:"localhost:11028" description:"Fakestore address"`
+}
+
+func (a *apiMixin) apiURL(ep string) string {
+	return fmt.Sprintf("http://%s/%s", a.Addr, strings.TrimPrefix(ep, "/"))
+}
+
 type cmdDebugAPI struct {
-	Addr string `long:"addr" default:"localhost:11028" description:"Store address"`
 }
 
 var shortDebugAPIHelp = "Interact with the fakestore debug API"
@@ -56,24 +64,21 @@ func init() {
 	}
 }
 
-func debugAPIURL() string {
-	// Find the parent command's --addr option value
-	opt := debugAPICmd.FindOptionByLongName("addr")
-	addr := opt.Value().(string)
-	return fmt.Sprintf("http://%s/debug", addr)
-}
-
 // reset
 
-type cmdDebugAPIReset struct{}
+type cmdDebugAPIReset struct {
+	apiMixin
+}
 
 func (x *cmdDebugAPIReset) Execute(args []string) error {
-	return doDebugPost(map[string]any{"action": "reset"})
+	return doDebugPost(x.apiURL("/debug"), map[string]any{"action": "reset"})
 }
 
 // kill-request
 
 type cmdDebugAPIKillRequest struct {
+	apiMixin
+
 	Positional struct {
 		Path  string `positional-arg-name:"endpoint" description:"URL path to apply kill-after to"`
 		Bytes int64  `positional-arg-name:"bytes" description:"Number of bytes to serve before killing the connection"`
@@ -81,7 +86,7 @@ type cmdDebugAPIKillRequest struct {
 }
 
 func (x *cmdDebugAPIKillRequest) Execute(args []string) error {
-	return doDebugPost(map[string]any{
+	return doDebugPost(x.apiURL("/debug"), map[string]any{
 		"action":     "kill-request",
 		"kill-path":  x.Positional.Path,
 		"kill-after": x.Positional.Bytes,
@@ -90,10 +95,12 @@ func (x *cmdDebugAPIKillRequest) Execute(args []string) error {
 
 // stats
 
-type cmdDebugAPIStats struct{}
+type cmdDebugAPIStats struct {
+	apiMixin
+}
 
 func (x *cmdDebugAPIStats) Execute(args []string) error {
-	url := debugAPIURL()
+	url := x.apiURL("/debug")
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -118,8 +125,7 @@ func (x *cmdDebugAPIStats) Execute(args []string) error {
 
 // helpers
 
-func doDebugPost(body map[string]any) error {
-	url := debugAPIURL()
+func doDebugPost(url string, body map[string]any) error {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return err

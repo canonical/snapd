@@ -1430,7 +1430,6 @@ func (s *storeTestSuite) TestDebugEndpointMethodNotAllowed(c *C) {
 }
 
 func (s *storeTestSuite) TestDebugActionReset(c *C) {
-	// Set a rule for endpoint connection interrupt
 	resp, err := s.StorePostJSON("/debug", []byte(`{
 		"action": "kill-request",
 		"kill-path": "/foo/bar",
@@ -1450,7 +1449,7 @@ func (s *storeTestSuite) TestDebugActionReset(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(buf.String(), Equals, `{"kill-after":{"/foo/bar":123},"request-stats":{"/debug":2}}`)
 
-	// Clear it by setting kill-after to 0
+	// Reset everything using the 'reset' action
 	resp, err = s.StorePostJSON("/debug", []byte(`{
 		"action": "reset"
 	}`))
