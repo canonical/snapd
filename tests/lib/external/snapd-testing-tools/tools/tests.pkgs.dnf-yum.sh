@@ -65,6 +65,8 @@ cmd_query() {
 }
 
 cmd_list_installed() {
+    # Keep only the stable package identity (name.arch), excluding version data,
+    # so restore diffs do not treat package upgrades during a test as new installs.
     rpm -qa --qf '%{NAME}.%{ARCH}\n' | sort -u
 }
 
