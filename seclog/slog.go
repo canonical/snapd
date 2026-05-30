@@ -163,6 +163,15 @@ func (h *errorAwareHandler) WithGroup(name string) slog.Handler {
 	return &errorAwareHandler{inner: h.inner.WithGroup(name)}
 }
 
+// LogValue implements [slog.LogValuer], allowing Reason to be
+// used directly as a structured log attribute value.
+func (r Reason) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("code", r.Code),
+		slog.String("message", r.Message),
+	)
+}
+
 // LogValue implements [slog.LogValuer], allowing SnapdUser to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
@@ -175,5 +184,30 @@ func (u SnapdUser) LogValue() slog.Value {
 		slog.String("store-user-name", u.StoreUserName),
 		slog.String("store-user-email", u.StoreUserEmail),
 		slog.String("expiration", expiration),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing Endpoint to be
+// used directly as a structured log attribute value.
+func (e Endpoint) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("method", e.Method),
+		slog.String("path", e.Path),
+		slog.String("action", e.Action),
+		slog.String("access-check", e.AccessCheck),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing AuthzChecks to be
+// used directly as a structured log attribute value.
+func (a AuthzChecks) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("peer-credentials-available", string(a.PeerCreds)),
+		slog.String("socket-allowed", string(a.Socket)),
+		slog.String("interface-requirements", string(a.Interface)),
+		slog.String("open-access", string(a.Open)),
+		slog.String("user-authentication", string(a.UserAuth)),
+		slog.String("root", string(a.Root)),
+		slog.String("polkit", string(a.Polkit)),
 	)
 }

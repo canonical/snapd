@@ -43,10 +43,8 @@ func TestSecLog(t *testing.T) { TestingT(t) }
 func (s *SecLogSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.buf = &bytes.Buffer{}
-	// No cleanup of the global logger is needed: every suite that
-	// uses seclog calls Setup in its own SetUpTest, replacing any
-	// leftover logger from a previous suite.
 	seclog.Setup(seclogtest.MockSecurityLogger(s.buf))
+	s.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
 }
 
 func (s *SecLogSuite) TearDownTest(c *C) {
@@ -83,41 +81,6 @@ func (s *SecLogSuite) TestString(c *C) {
 	}
 
 	c.Assert(expected, DeepEquals, obtained)
-}
-
-func (s *SecLogSuite) TestSnapdUserString(c *C) {
-	// All fields set.
-	c.Check(seclog.SnapdUser{
-		ID: 42, StoreUserEmail: "a@b.com", StoreUserName: "jdoe",
-	}.String(), Equals, "42:a@b.com:jdoe")
-
-	// All fields zero/empty — all "<unknown>".
-	c.Check(seclog.SnapdUser{}.String(), Equals, "<unknown>:<unknown>:<unknown>")
-
-	// Only ID set.
-	c.Check(seclog.SnapdUser{ID: 7}.String(), Equals, "7:<unknown>:<unknown>")
-
-	// Only email set.
-	c.Check(seclog.SnapdUser{StoreUserEmail: "x@y.z"}.String(), Equals, "<unknown>:x@y.z:<unknown>")
-
-	// Only username set.
-	c.Check(seclog.SnapdUser{StoreUserName: "root"}.String(), Equals, "<unknown>:<unknown>:root")
-}
-
-func (s *SecLogSuite) TestReasonString(c *C) {
-	// Both fields set.
-	c.Check(seclog.Reason{
-		Code: seclog.ReasonInvalidCredentials, Message: "bad password",
-	}.String(), Equals, "invalid-credentials:bad password")
-
-	// Both fields empty — all "<unknown>".
-	c.Check(seclog.Reason{}.String(), Equals, "<unknown>:<unknown>")
-
-	// Only code set.
-	c.Check(seclog.Reason{Code: seclog.ReasonInternal}.String(), Equals, "internal:<unknown>")
-
-	// Only message set.
-	c.Check(seclog.Reason{Message: "something broke"}.String(), Equals, "<unknown>:something broke")
 }
 
 func (s *SecLogSuite) TestSetupSuccess(c *C) {
@@ -214,4 +177,44 @@ func (s *SecLogSuite) TestLogLoggerDisabledNopSkipsNoticef(c *C) {
 	seclog.LogLoggerDisabled()
 
 	c.Check(logBuf.String(), Not(testutil.Contains), "security logger disabled")
+}
+
+func (s *SecLogSuite) TestLogUserCreated(c *C) {
+	user := seclog.SnapdUser{
+		ID:             1,
+		StoreUserEmail: "jdoe@test.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogUserCreated(user)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_created")
+	c.Check(s.buf.String(), testutil.Contains, "jdoe")
+	c.Check(s.buf.String(), testutil.Contains, "jdoe@test.com")
+}
+
+func (s *SecLogSuite) TestLogUserUpdated(c *C) {
+	user := seclog.SnapdUser{
+		ID:             1,
+		StoreUserEmail: "new@test.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogUserUpdated(user, []string{"email", "store-macaroon"})
+
+	c.Check(s.buf.String(), testutil.Contains, "user_updated")
+	c.Check(s.buf.String(), testutil.Contains, "jdoe")
+	c.Check(s.buf.String(), testutil.Contains, "new@test.com")
+	c.Check(s.buf.String(), testutil.Contains, `[changed_fields=[]string{"email", "store-macaroon"}]`)
+}
+
+func (s *SecLogSuite) TestLogUserRemoved(c *C) {
+	user := seclog.SnapdUser{
+		ID:             1,
+		StoreUserEmail: "jdoe@test.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogUserRemoved(user)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_removed")
+	c.Check(s.buf.String(), testutil.Contains, "jdoe")
+	c.Check(s.buf.String(), testutil.Contains, "jdoe@test.com")
 }

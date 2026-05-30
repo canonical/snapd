@@ -45,6 +45,7 @@ type (
 
 var (
 	CheckAccess                   = checkAccess
+	AccessCheckerName             = accessCheckerName
 	CheckPolkitActionImpl         = checkPolkitActionImpl
 	RequireInterfaceApiAccessImpl = requireInterfaceApiAccessImpl
 )

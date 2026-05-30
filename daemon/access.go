@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -78,20 +79,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 // accessUnknown, which indicates the decision should be delegated to
 // the next access checker.
 type accessChecker interface {
-	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
-}
-
-// requireSockets ensures the request was received via one of the specified sockets.
-func requireSockets(ucred *ucrednet, sockets []string) *apiError {
-	if ucred == nil {
-		return Forbidden("access denied")
-	}
-
-	if !strutil.ListContains(sockets, ucred.Socket) {
-		return Forbidden("access denied")
-	}
-
-	return nil
+	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks)
 }
 
 type accessLevel string
@@ -130,56 +118,81 @@ func (o accessOptions) validate() error {
 	return nil
 }
 
-func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, opts accessOptions) *apiError {
+func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, opts accessOptions) (*apiError, seclog.AuthzChecks) {
+	checks := seclog.NewAuthzChecks()
+
 	if err := opts.validate(); err != nil {
-		return InternalError(err.Error())
+		return InternalError(err.Error()), checks
 	}
 
-	if rspe := requireSockets(ucred, opts.Sockets); rspe != nil {
-		return rspe
+	// Peer credentials check
+	if ucred == nil {
+		checks.PeerCreds = seclog.AuthzFail
+		return Forbidden("access denied"), checks
 	}
+	checks.PeerCreds = seclog.AuthzPass
 
+	// Socket check
+	if !strutil.ListContains(opts.Sockets, ucred.Socket) {
+		checks.Socket = seclog.AuthzFail
+		return Forbidden("access denied"), checks
+	}
+	checks.Socket = seclog.AuthzPass
+
+	// Interface check
 	if opts.InterfaceAccess != nil {
-		// No interface checks are made if request is coming from snapd.socket
-		// to account for the snapd-control interface.
 		rspe := requireInterfaceApiAccess(d, r, ucred, *opts.InterfaceAccess)
 		if rspe != nil {
-			return rspe
+			checks.Interface = seclog.AuthzFail
+			return rspe, checks
 		}
+		checks.Interface = seclog.AuthzPass
 	}
 
 	if opts.AccessLevel == accessLevelOpen {
-		return nil
+		checks.Open = seclog.AuthzPass
+		return nil, checks
 	}
 
+	// Macaroon/user auth check
 	if opts.AccessLevel == accessLevelAuthenticated && user != nil {
-		// user != nil means we have an authenticated user
-		return nil
+		checks.UserAuth = seclog.AuthzPass
+		return nil, checks
+	}
+	if opts.AccessLevel == accessLevelAuthenticated {
+		checks.UserAuth = seclog.AuthzFail
 	}
 
+	// Root check
 	if ucred.Uid == 0 {
-		return nil
+		checks.Root = seclog.AuthzPass
+		return nil, checks
 	}
+	checks.Root = seclog.AuthzFail
 
-	// We check polkit last because it may result in the user
-	// being prompted for authorisation. This should be avoided if
-	// access is otherwise granted.
+	// Polkit check (last because it may prompt the user)
 	if opts.PolkitAction != "" {
-		return checkPolkitAction(r, ucred, opts.PolkitAction)
+		rspe := checkPolkitAction(r, ucred, opts.PolkitAction)
+		if rspe == nil {
+			checks.Polkit = seclog.AuthzPass
+			return nil, checks
+		}
+		checks.Polkit = seclog.AuthzFail
+		return rspe, checks
 	}
 
 	// XXX: when to 403 vs 401?
 	if opts.AccessLevel == accessLevelAuthenticated || opts.InterfaceAccess != nil {
-		return Unauthorized("access denied")
+		return Unauthorized("access denied"), checks
 	}
-	return Forbidden("access denied")
+	return Forbidden("access denied"), checks
 }
 
 // openAccess allows requests without authentication, provided they
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapdSocket},
@@ -202,7 +215,7 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel:  accessLevelAuthenticated,
 		Sockets:      []string{dirs.SnapdSocket},
@@ -215,7 +228,7 @@ func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket},
@@ -226,7 +239,7 @@ func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 // snapAccess allows requests from the snapd-snap.socket only.
 type snapAccess struct{}
 
-func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapSocket},
@@ -323,7 +336,7 @@ type interfaceOpenAccess struct {
 	Interfaces []string
 }
 
-func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -348,7 +361,7 @@ type interfaceAuthenticatedAccess struct {
 	Polkit string
 }
 
-func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel: accessLevelAuthenticated,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -368,7 +381,7 @@ type interfaceProviderRootAccess struct {
 	Interfaces []string
 }
 
-func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -398,7 +411,7 @@ type interfaceRootAccess struct {
 	Polkit string
 }
 
-func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -432,7 +445,7 @@ type byActionAccess struct {
 
 const maxBodySize = 4 * 1024 * 1024 // 4MB
 
-func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks) {
 	switch ac.Default.(type) {
 	// TODO: If less strict interfaces are needed as defaults then
 	// we might need to introduce access checker sorting so that the
@@ -440,11 +453,11 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 	// action access checker.
 	case rootAccess, interfaceRootAccess, interfaceProviderRootAccess:
 	default:
-		return InternalError("internal error: default access checker must have root-level access: got %T", ac.Default)
+		return InternalError("internal error: default access checker must have root-level access: got %T", ac.Default), seclog.NewAuthzChecks()
 	}
 
 	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
-		return BadRequest("unexpected content type: %q", contentType)
+		return BadRequest("unexpected content type: %q", contentType), seclog.NewAuthzChecks()
 	}
 
 	req := actionRequest{}
@@ -461,13 +474,13 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 	err := decoder.Decode(&req)
 	if err != nil {
 		if (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) && lr.N <= 0 {
-			return BadRequest("body size limit exceeded")
+			return BadRequest("body size limit exceeded"), seclog.NewAuthzChecks()
 		}
 		// Content type is JSON, but it's invalid
-		return BadRequest(err.Error())
+		return BadRequest(err.Error()), seclog.NewAuthzChecks()
 	}
 	if decoder.More() {
-		return BadRequest("unexpected data after request body")
+		return BadRequest("unexpected data after request body"), seclog.NewAuthzChecks()
 	}
 
 	r.Body.Close()

@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -159,9 +160,14 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+	if rspe, checks := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+		logUnauthorizedAccess(c, r, ucred, user, access, rspe, checks)
 		rspe.ServeHTTP(w, r)
 		return
+	} else {
+		defer func() {
+			logAdminActivity(c, r, user, access, checks)
+		}()
 	}
 
 	traceSnapdAPI(c, w, r)
@@ -184,6 +190,72 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rsp.ServeHTTP(w, r)
+}
+
+func accessCheckerName(ac accessChecker) string {
+	switch ac.(type) {
+	case openAccess:
+		return "open"
+	case authenticatedAccess:
+		return "authenticated"
+	case rootAccess:
+		return "root"
+	case snapAccess:
+		return "snap"
+	case interfaceOpenAccess:
+		return "interface-open"
+	case interfaceAuthenticatedAccess:
+		return "interface-authenticated"
+	case interfaceProviderRootAccess:
+		return "interface-provider-root"
+	case interfaceRootAccess:
+		return "interface-root"
+	case byActionAccess:
+		return "by-action"
+	default:
+		return "unknown"
+	}
+}
+
+func snapdUser(user *auth.UserState) seclog.SnapdUser {
+	if user == nil {
+		return seclog.SnapdUser{}
+	}
+	return seclog.SnapdUser{
+		ID:             int64(user.ID),
+		StoreUserName:  user.Username,
+		StoreUserEmail: user.Email,
+	}
+}
+
+func logAdminActivity(c *Command, r *http.Request, user *auth.UserState, ac accessChecker, checks seclog.AuthzChecks) {
+	// Only log write operations
+	if r.Method != "PUT" && r.Method != "POST" {
+		return
+	}
+	endpoint := seclog.Endpoint{
+		Method:      r.Method,
+		Path:        c.Path,
+		AccessCheck: accessCheckerName(ac),
+	}
+	seclog.LogAdminActivity(snapdUser(user), endpoint, checks)
+}
+
+func logUnauthorizedAccess(c *Command, r *http.Request, ucred *ucrednet, user *auth.UserState, ac accessChecker, rspe *apiError, checks seclog.AuthzChecks) {
+	var pid int32
+	if ucred != nil {
+		pid = ucred.Pid
+	}
+	endpoint := seclog.Endpoint{
+		Method:      r.Method,
+		Path:        c.Path,
+		AccessCheck: accessCheckerName(ac),
+	}
+	reason := seclog.Reason{
+		Code:    fmt.Sprintf("%d", rspe.Status),
+		Message: rspe.Message,
+	}
+	seclog.LogUnauthorizedAccess(snapdUser(user), endpoint, checks, pid, reason)
 }
 
 func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
