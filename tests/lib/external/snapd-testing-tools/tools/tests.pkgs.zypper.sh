@@ -57,7 +57,7 @@ cmd_query() {
 }
 
 cmd_list_installed() {
-    rpm -qa | sort
+    rpm -qa --qf '%{NAME}.%{ARCH}\n' | sort -u
 }
 
 cmd_remove() {

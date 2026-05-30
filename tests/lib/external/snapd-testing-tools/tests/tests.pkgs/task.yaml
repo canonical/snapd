@@ -26,6 +26,11 @@ execute: |
     tests.pkgs install test-snapd-pkg-1
     tests.pkgs query test-snapd-pkg-1
     tests.pkgs is-installed test-snapd-pkg-1
+    if os.query is-fedora || os.query is-centos || os.query is-amazon-linux; then
+        tests.pkgs list-installed | MATCH '^freeglut\.[[:alnum:]_]+$'
+    elif os.query is-opensuse; then
+        tests.pkgs list-installed | MATCH '^nudoku\.[[:alnum:]_]+$'
+    fi
 
     # Remove the test pkg and check it is not installed anymore and query it
     tests.pkgs remove test-snapd-pkg-1
