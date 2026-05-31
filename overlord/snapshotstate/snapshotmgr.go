@@ -56,8 +56,7 @@ var (
 
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 
-	getSnapDirOpts              = snapstate.GetSnapDirOpts
-	listMountControlMountPoints = backend.ListMountControlMountPoints
+	getSnapDirOpts = snapstate.GetSnapDirOpts
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -272,7 +271,7 @@ func mapMountPointsInGlobalDataDirsToExcludes(si *snap.Info, mountPoints []strin
 // excludeMountControlMountPoints appends any currently-active mount-control
 // mount points under the snap's data directories to s.Options.
 func (s *snapshotSetup) excludeMountControlMountPoints(si *snap.Info) error {
-	mountPts, err := listMountControlMountPoints(si.InstanceName())
+	mountPts, err := backend.ListMountControlMountPoints(si.InstanceName())
 	if err != nil {
 		return fmt.Errorf("cannot list mount-control units for %q: %v", si.InstanceName(), err)
 	}
