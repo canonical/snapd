@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type ServiceState struct {
@@ -97,4 +98,77 @@ FragmentPath=%s
 `, mountInfo.Description, mountInfo.Where, mountInfo.FragmentPath))...)
 	}
 	return output, true
+}
+
+type FakeSystemd struct {
+	systemd.Systemd
+
+	ConfigureMountUnitOptionsCalls   []ParamsForConfigureMountUnitOptions
+	ConfigureMountUnitOptionsResults ResultForConfigureMountUnitOptions
+
+	EnsureMountUnitFileCalls  []*systemd.MountUnitOptions
+	EnsureMountUnitFileResult ResultForEnsureMountUnitFile
+
+	RemoveMountUnitFileCalls  []string
+	RemoveMountUnitFileResult error
+
+	ListMountUnitsCalls  []ParamsForListMountUnits
+	ListMountUnitsResult ResultForListMountUnits
+}
+
+type ParamsForConfigureMountUnitOptions struct {
+	What               string
+	Fstype             string
+	StartBeforeDrivers bool
+}
+
+type ResultForConfigureMountUnitOptions struct {
+	Fstype        string
+	Options       []string
+	MountUnitType systemd.MountUnitType
+}
+
+type ResultForEnsureMountUnitFile struct {
+	Path string
+	Err  error
+}
+
+type ParamsForListMountUnits struct {
+	SnapName string
+	Origin   string
+}
+
+type ResultForListMountUnits struct {
+	MountPoints []string
+	Err         error
+}
+
+func (s *FakeSystemd) ConfigureMountUnitOptions(o *systemd.MountUnitOptions, fstype string, startBeforeDrivers bool) error {
+	s.ConfigureMountUnitOptionsCalls = append(s.ConfigureMountUnitOptionsCalls, ParamsForConfigureMountUnitOptions{
+		What:               o.What,
+		Fstype:             fstype,
+		StartBeforeDrivers: startBeforeDrivers,
+	})
+
+	o.Fstype = s.ConfigureMountUnitOptionsResults.Fstype
+	o.MountUnitType = s.ConfigureMountUnitOptionsResults.MountUnitType
+	o.Options = s.ConfigureMountUnitOptionsResults.Options
+
+	return nil
+}
+
+func (s *FakeSystemd) EnsureMountUnitFile(mountOptions *systemd.MountUnitOptions) (string, error) {
+	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls, mountOptions)
+	return s.EnsureMountUnitFileResult.Path, s.EnsureMountUnitFileResult.Err
+}
+
+func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
+	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, mountDir)
+	return s.RemoveMountUnitFileResult
+}
+
+func (s *FakeSystemd) ListMountUnits(snapName, origin string) ([]string, error) {
+	s.ListMountUnitsCalls = append(s.ListMountUnitsCalls,
+		ParamsForListMountUnits{SnapName: snapName, Origin: origin})
+	return s.ListMountUnitsResult.MountPoints, s.ListMountUnitsResult.Err
 }

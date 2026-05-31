@@ -30,85 +30,9 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
-
-type ParamsForConfigureMountUnitOptions struct {
-	what, fstype       string
-	startBeforeDrivers bool
-}
-
-type ResultForConfigureMountUnitOptions struct {
-	fsType        string
-	options       []string
-	mountUnitType systemd.MountUnitType
-}
-
-type ParamsForEnsureMountUnitFile struct {
-	description string
-	where       string
-	options     []string
-}
-
-type ResultForEnsureMountUnitFile struct {
-	path string
-	err  error
-}
-
-type FakeSystemd struct {
-	systemd.Systemd
-
-	ConfigureMountUnitOptionsCalls   []ParamsForConfigureMountUnitOptions
-	ConfigureMountUnitOptionsResults ResultForConfigureMountUnitOptions
-
-	EnsureMountUnitFileCalls  []ParamsForEnsureMountUnitFile
-	EnsureMountUnitFileResult ResultForEnsureMountUnitFile
-
-	RemoveMountUnitFileCalls  []string
-	RemoveMountUnitFileResult error
-
-	ListMountUnitsCalls  []ParamsForListMountUnits
-	ListMountUnitsResult ResultForListMountUnits
-}
-
-func (s *FakeSystemd) ConfigureMountUnitOptions(o *systemd.MountUnitOptions, fstype string, startBeforeDrivers bool) error {
-	s.ConfigureMountUnitOptionsCalls = append(s.ConfigureMountUnitOptionsCalls, ParamsForConfigureMountUnitOptions{o.What, fstype, startBeforeDrivers})
-
-	o.Fstype = s.ConfigureMountUnitOptionsResults.fsType
-	o.MountUnitType = s.ConfigureMountUnitOptionsResults.mountUnitType
-	o.Options = s.ConfigureMountUnitOptionsResults.options
-
-	return nil
-}
-
-func (s *FakeSystemd) EnsureMountUnitFile(mountOptions *systemd.MountUnitOptions) (string, error) {
-	s.EnsureMountUnitFileCalls = append(s.EnsureMountUnitFileCalls, ParamsForEnsureMountUnitFile{
-		mountOptions.Description,
-		mountOptions.Where,
-		mountOptions.Options,
-	})
-	return s.EnsureMountUnitFileResult.path, s.EnsureMountUnitFileResult.err
-}
-
-func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
-	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, mountDir)
-	return s.RemoveMountUnitFileResult
-}
-
-type ParamsForListMountUnits struct {
-	snapName, origin string
-}
-
-type ResultForListMountUnits struct {
-	mountPoints []string
-	err         error
-}
-
-func (s *FakeSystemd) ListMountUnits(snapName, origin string) ([]string, error) {
-	s.ListMountUnitsCalls = append(s.ListMountUnitsCalls,
-		ParamsForListMountUnits{snapName, origin})
-	return s.ListMountUnitsResult.mountPoints, s.ListMountUnitsResult.err
-}
 
 type mountunitSuite struct {
 	testutil.BaseTest
@@ -135,10 +59,10 @@ func (s *mountunitSuite) TestAddBeforeDriversMountUnit(c *C) {
 func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
 	expectedErr := errors.New("creation error")
 
-	var sysd *FakeSystemd
+	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
-		sysd = &FakeSystemd{}
-		sysd.EnsureMountUnitFileResult = ResultForEnsureMountUnitFile{"", expectedErr}
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.EnsureMountUnitFileResult.Err = expectedErr
 		return sysd
 	})
 	defer restore()
@@ -155,21 +79,22 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
 	c.Check(err, Equals, expectedErr)
 
 	// ensure correct parameters
-	expectedMountUnitParameters := ParamsForConfigureMountUnitOptions{
-		what:               "/var/lib/snapd/snaps/foo_13.snap",
-		fstype:             "squashfs",
-		startBeforeDrivers: flags.StartBeforeDriversLoad,
+	expectedMountUnitParameters := systemdtest.ParamsForConfigureMountUnitOptions{
+		What:               "/var/lib/snapd/snaps/foo_13.snap",
+		Fstype:             "squashfs",
+		StartBeforeDrivers: flags.StartBeforeDriversLoad,
 	}
-	c.Check(sysd.ConfigureMountUnitOptionsCalls, DeepEquals, []ParamsForConfigureMountUnitOptions{
+	c.Check(sysd.ConfigureMountUnitOptionsCalls, DeepEquals, []systemdtest.ParamsForConfigureMountUnitOptions{
 		expectedMountUnitParameters,
 	})
 
-	expectedParameters := ParamsForEnsureMountUnitFile{
-		description: "Mount unit for foo, revision 13",
-		where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
+	expectedParameters := &systemd.MountUnitOptions{
+		Lifetime:    systemd.Persistent,
+		Description: "Mount unit for foo, revision 13",
+		What:        "/var/lib/snapd/snaps/foo_13.snap",
+		Where:       fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
 	}
-
-	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []ParamsForEnsureMountUnitFile{
+	c.Check(sysd.EnsureMountUnitFileCalls, DeepEquals, []*systemd.MountUnitOptions{
 		expectedParameters,
 	})
 }
@@ -177,9 +102,9 @@ func (s *mountunitSuite) testAddMountUnit(c *C, flags backend.MountUnitFlags) {
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	expectedErr := errors.New("removal error")
 
-	var sysd *FakeSystemd
+	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
-		sysd = &FakeSystemd{}
+		sysd = &systemdtest.FakeSystemd{}
 		sysd.RemoveMountUnitFileResult = expectedErr
 		return sysd
 	})
@@ -203,10 +128,10 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 
 	expectedErr := errors.New("listing error")
 
-	var sysd *FakeSystemd
+	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
-		sysd = &FakeSystemd{}
-		sysd.ListMountUnitsResult = ResultForListMountUnits{nil, expectedErr}
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ListMountUnitsResult.Err = expectedErr
 		return sysd
 	})
 	defer restore()
@@ -215,8 +140,8 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 	err := b.RemoveContainerMountUnits(info, progress.Null, "", nil)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
-	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
-		{snapName: "foo", origin: ""},
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
+		{SnapName: "foo", Origin: ""},
 	})
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 0)
 }
@@ -234,10 +159,10 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	expectedErr := errors.New("removal error")
 	returnedMountPoints := []string{"/here", "/and/there"}
 
-	var sysd *FakeSystemd
+	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
-		sysd = &FakeSystemd{}
-		sysd.ListMountUnitsResult = ResultForListMountUnits{returnedMountPoints, nil}
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ListMountUnitsResult.MountPoints = returnedMountPoints
 		sysd.RemoveMountUnitFileResult = expectedErr
 		return sysd
 	})
@@ -247,8 +172,8 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	err := b.RemoveContainerMountUnits(info, progress.Null, "", nil)
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
-	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
-		{snapName: "foo", origin: ""},
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
+		{SnapName: "foo", Origin: ""},
 	})
 
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 1)
@@ -267,11 +192,10 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 
 	returnedMountPoints := []string{"/here", "/and/there", "/here/too"}
 
-	var sysd *FakeSystemd
+	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
-		sysd = &FakeSystemd{}
-		sysd.ListMountUnitsResult = ResultForListMountUnits{returnedMountPoints, nil}
-		sysd.RemoveMountUnitFileResult = nil
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ListMountUnitsResult.MountPoints = returnedMountPoints
 		return sysd
 	})
 	defer restore()
@@ -280,8 +204,8 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 	err := b.RemoveContainerMountUnits(info, progress.Null, "", nil)
 	c.Check(err, IsNil)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
-	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
-		{snapName: "foo", origin: ""},
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
+		{SnapName: "foo", Origin: ""},
 	})
 
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 3)
@@ -304,10 +228,10 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFiltersBaseDirs(c *C) {
 		"/var/snap/other-snap/1/target",  // unrelated snap: not matched
 	}
 
-	var sysd *FakeSystemd
+	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
-		sysd = &FakeSystemd{}
-		sysd.ListMountUnitsResult = ResultForListMountUnits{mountPoints, nil}
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ListMountUnitsResult.MountPoints = mountPoints
 		return sysd
 	})
 	defer restore()
@@ -316,8 +240,8 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFiltersBaseDirs(c *C) {
 	err := b.RemoveContainerMountUnits(info, progress.Null, "mount-control", baseDirs)
 	c.Assert(err, IsNil)
 
-	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
-		{snapName: "some-snap", origin: "mount-control"},
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
+		{SnapName: "some-snap", Origin: "mount-control"},
 	})
 	// Only the two matching mount points should have been removed.
 	c.Assert(sysd.RemoveMountUnitFileCalls, HasLen, 2)
