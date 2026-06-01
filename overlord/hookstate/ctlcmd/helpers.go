@@ -57,6 +57,10 @@ var (
 	snapctlRemoveChangeKind  = swfeats.RegisterChangeKind("snapctl-remove")
 )
 
+func changeNotFoundError(changeID string) error {
+	return fmt.Errorf("change %q not found", changeID)
+}
+
 func init() {
 	finalTasks = make(map[string]bool, len(snapstate.FinalTasks))
 	for _, kind := range snapstate.FinalTasks {
@@ -64,7 +68,7 @@ func init() {
 	}
 }
 
-const snapctlDebounceWindow = 200 * time.Millisecond
+const snapctlDebounceWindow = 100 * time.Millisecond
 
 // finalSeedTask is the last task that should run during seeding. This is used
 // in the special handling of the "seed" change, which requires that we
@@ -161,6 +165,44 @@ func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
 	}
 
 	return chgInfo
+}
+
+// changeInfoToClientChange converts a ChangeInfo struct to a client.Change struct
+// which is used for JSON marshaling. This function discards the data tagged to the change.
+func changeInfoToClientChange(chgInfo *ChangeInfo) *client.Change {
+	derefTimePtr := func(t *time.Time) time.Time {
+		if t == nil {
+			return time.Time{}
+		}
+		return *t
+	}
+
+	chg := client.Change{
+		ID:        chgInfo.ID,
+		Kind:      chgInfo.Kind,
+		Summary:   chgInfo.Summary,
+		Status:    chgInfo.Status,
+		Ready:     chgInfo.Ready,
+		Tasks:     make([]*client.Task, len(chgInfo.Tasks)),
+		SpawnTime: chgInfo.SpawnTime,
+		ReadyTime: derefTimePtr(chgInfo.ReadyTime),
+		Err:       chgInfo.Err,
+	}
+
+	for i, t := range chgInfo.Tasks {
+		chg.Tasks[i] = &client.Task{
+			ID:        t.ID,
+			Kind:      t.Kind,
+			Summary:   t.Summary,
+			Status:    t.Status,
+			Log:       t.Log,
+			Progress:  t.Progress,
+			SpawnTime: t.SpawnTime,
+			ReadyTime: derefTimePtr(t.ReadyTime),
+		}
+	}
+
+	return &chg
 }
 
 // taskApiData returns a map similar to change data which is currently
@@ -674,17 +716,17 @@ func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
 	chg := st.Change(changeID)
 
 	if chg == nil {
-		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
 	var initiatorSnapName string
 	err := chg.Get("initiated-by-snap", &initiatorSnapName)
 	if err != nil {
-		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
 	if initiatorSnapName != callerSnapName {
-		return state.DefaultStatus, fmt.Errorf("change %q not found", changeID)
+		return state.DefaultStatus, changeNotFoundError(changeID)
 	}
 
 	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
@@ -791,6 +833,41 @@ func changeAccessedAt(st *state.State, changeID string) (time.Time, error) {
 func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
 	key := changeRateLimitKey{ChangeID: changeID}
 	st.Cache(key, accessed.UnixNano())
+}
+
+// getAssociatedChange returns a change associated with the snapctl context and passed change ID,
+// otherwise nil with error. This function expects the lock to be held by the caller during operation.
+func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Change, error) {
+	callerSnapName := hctx.InstanceName()
+
+	st := hctx.State()
+
+	chg := st.Change(changeID)
+
+	if chg == nil {
+		return nil, changeNotFoundError(changeID)
+	}
+
+	var initiatorSnapName string
+	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	if err != nil {
+		return nil, changeNotFoundError(changeID)
+	}
+
+	if initiatorSnapName != callerSnapName {
+		return nil, changeNotFoundError(changeID)
+	}
+
+	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
+	if err != nil {
+		return nil, err
+	}
+
+	st.Unlock()
+	<-timeAfter(wait)
+	st.Lock()
+
+	return chg, nil
 }
 
 // getAttribute unmarshals into result the value of the provided key from attributes map.

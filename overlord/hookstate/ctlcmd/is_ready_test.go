@@ -50,8 +50,6 @@ func (s *isReadySuite) SetUpTest(c *C) {
 // setupChangeAndContext creates a state, a change (with an optional initiator),
 // and a non-ephemeral hook context for "test-snap".
 func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, initiatorSnap string) (*state.State, *hookstate.Context, string) {
-	c.Skip("Content removed for release 2.76")
-
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -74,15 +72,11 @@ func (s *isReadySuite) setupChangeAndContext(c *C, taskStatus state.Status, init
 }
 
 func (s *isReadySuite) TestIsReadyNoContext(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	_, _, err := ctlcmd.Run(nil, []string{"is-ready", "1"}, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot invoke snapctl operation commands.*from outside of a snap`)
 }
 
 func (s *isReadySuite) TestIsReadyArgCount(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
 	_, _, err := ctlcmd.Run(ctx, []string{"is-ready"}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid number of arguments: expected 1, got 0`)
@@ -92,17 +86,24 @@ func (s *isReadySuite) TestIsReadyArgCount(c *C) {
 }
 
 func (s *isReadySuite) TestIsReadyChangeNotFound(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	_, ctx, _ := s.setupChangeAndContext(c, state.DoneStatus, "")
-	_, stderr, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
-	c.Check(string(stderr), Matches, `change "nonexistent-id" not found`)
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", "nonexistent-id"}, 0, nil)
+	c.Assert(err, ErrorMatches, `change "nonexistent-id" not found`)
+}
+
+func (s *isReadySuite) TestIsReadyChangeWithoutInitiatorNotFound(c *C) {
+	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, "")
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	c.Assert(err, ErrorMatches, `change .* not found`)
+}
+
+func (s *isReadySuite) TestIsReadyChangeFromOtherSnapNotFound(c *C) {
+	_, ctx, changeID := s.setupChangeAndContext(c, state.DoneStatus, "other-snap")
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
+	c.Assert(err, ErrorMatches, `change .* not found`)
 }
 
 func (s *isReadySuite) TestIsReadyLogic(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	var logicTests = []struct {
 		taskStatus     state.Status
 		initiatorSnap  string // empty = don't set initiated-by-snap on the change
@@ -111,24 +112,13 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 		expectedStderr string // if set, checked as regexp match against stderr
 	}{
 		{
-			taskStatus:     state.DoneStatus,
-			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr: `change .* not found`,
-		},
-		{
-			taskStatus:     state.DoneStatus,
-			initiatorSnap:  "other-snap", // different from context snap "test-snap"
-			errValue:       &ctlcmd.UnsuccessfulError{ExitCode: 3},
-			expectedStderr: `change .* not found`,
-		},
-		{
 			taskStatus:    state.DoneStatus,
 			initiatorSnap: "test-snap",
 		},
 		{
 			taskStatus:    state.DoingStatus,
 			initiatorSnap: "test-snap",
-			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 1},
+			errValue:      &ctlcmd.UnsuccessfulError{ExitCode: 3},
 		},
 		{
 			taskStatus:     state.ErrorStatus,
@@ -163,8 +153,6 @@ func (s *isReadySuite) TestIsReadyLogic(c *C) {
 
 // Rate-limiting tests
 func (s *isReadySuite) rateLimitSetup(c *C, taskStatus state.Status, lastAccessedTime any) (*hookstate.Context, string) {
-	c.Skip("Content removed for release 2.76")
-
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -191,8 +179,6 @@ func (s *isReadySuite) rateLimitSetup(c *C, taskStatus state.Status, lastAccesse
 // last-accessed cache entry (e.g. after a snapd restart) as a first access and
 // proceeds to report the real change status rather than returning an error.
 func (s *isReadySuite) TestIsReadyMissingLastAccessed(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, nil)
 
 	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
@@ -204,8 +190,6 @@ func (s *isReadySuite) TestIsReadyMissingLastAccessed(c *C) {
 // 200 ms debounce window, is-ready sleeps for the remaining window duration
 // before checking the change status.
 func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	// A last-accessed time in the future guarantees we are within the debounce
 	// window, ensuring timeAfter is called with a positive duration.
 	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, time.Now().Add(time.Second).UnixNano())
@@ -224,11 +208,9 @@ func (s *isReadySuite) TestIsReadyRateLimitDelaysPolling(c *C) {
 }
 
 // TestIsReadyRateLimitTimerFires verifies that when timeAfter fires before the
-// change is ready, is-ready reports DoingStatus (exit code 1) and the timer
+// change is ready, is-ready reports DoingStatus (exit code 3) and the timer
 // channel is drained.
 func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	// A last-accessed time in the future puts us inside the debounce window.
 	// The task is left in DoingStatus so chg.Ready() never fires, ensuring
 	// the timer case is the only one that can win the select.
@@ -243,15 +225,13 @@ func (s *isReadySuite) TestIsReadyRateLimitTimerFires(c *C) {
 
 	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", changeID}, 0, nil)
 
-	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 1})
+	c.Assert(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: 3})
 	c.Check(len(timerCh), Equals, 0) // element was consumed by the select
 }
 
 // TestIsReadyExpiredWindowSkipsTimeAfter verifies that when the debounce window
 // has already elapsed, is-ready returns the change status directly
 func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
-	c.Skip("Content removed for release 2.76")
-
 	// A last-accessed time sufficiently in the past guarantees toWait <= 0.
 	ctx, changeID := s.rateLimitSetup(c, state.DoneStatus, time.Now().Add(-time.Second).UnixNano())
 
@@ -266,4 +246,14 @@ func (s *isReadySuite) TestIsReadyExpiredWindowSkipsTimeAfter(c *C) {
 
 	c.Assert(err, IsNil)
 	c.Check(called, Equals, false)
+}
+
+// TestIsReadyCommandAllowedForUnprivilegedUser verifies that "is-ready" is in the
+// non-root allowlist and executes successfully when called with a non-zero UID.
+func (s *isReadySuite) TestIsReadyCommandAllowedForUnprivilegedUser(c *C) {
+	const unprivilegedUID = uint32(1000)
+	_, ctx, chgID := s.setupChangeAndContext(c, state.DoneStatus, "test-snap")
+
+	_, _, err := ctlcmd.Run(ctx, []string{"is-ready", chgID}, unprivilegedUID, nil)
+	c.Assert(err, IsNil)
 }
