@@ -8,7 +8,7 @@ import sys
 
 
 def test_passed(results_json: dict, backend: str, system: str, test_name: str) -> bool:
-    results = [result for result in results_json["items"] if result["backend"] == backend and result["system"] == system and result["name"] == test_name]
+    results = [result for result in results_json["items"] if result["backend"] == backend and result["system"] == system and result["name"] == test_name and result["verb"] != "checking"]
     return all(result["success"] == True for result in results)
 
 
