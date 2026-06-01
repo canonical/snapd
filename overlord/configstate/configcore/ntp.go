@@ -210,14 +210,14 @@ func validateSystemdTimeSpanFormat(span string) (timeSpanUs int64, err error) {
 	return convertSystemdTimespanToUs(span)
 }
 
-// NTPConfigurationDeepEqual compares two NTP configurations and returns true if they are equal,
+// ntpConfigurationDeepEqual compares two NTP configurations and returns true if they are equal,
 // false otherwise.
 // The standard reflect.DeepEqual cannot be used to compare the configurations as the values
 // of fields "servers" and "fallback-servers" parsed by unit.Deserialize (i.e. the oldConfig)
 // are of type []string, while the ones coming from snapd are of type []any.
 // reflect.DeepEqual considers them as different, but we want to consider them as equal as
 // long as their content is the same.
-func NTPConfigurationDeepEqual(oldConfig, newConfig map[string]any) bool {
+func ntpConfigurationDeepEqual(oldConfig, newConfig map[string]any) bool {
 	// Check if both maps have the same number of keys
 	// Automatically handles empty and nil maps
 	if len(oldConfig) != len(newConfig) {
@@ -269,7 +269,7 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 		if err != nil {
 			return err
 		}
-		if NTPConfigurationDeepEqual(oldConfig, cfg) {
+		if ntpConfigurationDeepEqual(oldConfig, cfg) {
 			// If the configuration has not changed, do nothing.
 			return nil
 		}
