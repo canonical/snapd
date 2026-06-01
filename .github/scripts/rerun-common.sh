@@ -68,11 +68,18 @@ run_is_completed() {
     local run_json="$1"
     local run_id="$2"
     local run_status
+    local run_conclusion
 
     run_status=$(jq -r '.status // empty' <<<"$run_json")
+    run_conclusion=$(jq -r '.conclusion // empty' <<<"$run_json")
 
-    if [[ "$run_status" != "completed" && "$run_status" != "failure" ]]; then
+    if [[ "$run_status" != "completed" ]]; then
         NOT_RERUN_REASON="latest run_id=$run_id status=$run_status"
+        return 1
+    fi
+
+    if [[ "$run_conclusion" == "success" ]]; then
+        NOT_RERUN_REASON="latest run_id=$run_id completed successfully"
         return 1
     fi
 
@@ -84,15 +91,22 @@ required_spread_failure_threshold_allows_rerun() {
     local pr_base="$2"
     local repo="$3"
     local max_failed_tasks="$4"
+    local encoded_base
     local required_spread_checks
     local failed_required_system_targets=""
     local num_failed
 
-    required_spread_checks=$(gh api \
+    # Encode the branch name for use in the API URL
+    encoded_base=$(jq -Rr @uri <<< "$pr_base")
+
+    if ! required_spread_checks=$(gh api \
         -X GET \
         -H "Accept: application/vnd.github+json" \
-        "repos/$repo/rules/branches/$pr_base" \
-        --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | map(select(startswith("spread "))) | unique | .[]')
+        "repos/$repo/rules/branches/$encoded_base" \
+        --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context] | map(select(startswith("spread "))) | unique | .[]'); then
+        NOT_RERUN_REASON="could not fetch branch protection rules for $pr_base"
+        return 1
+    fi
 
     if [[ -z "$required_spread_checks" ]]; then
         echo "No required checks detected for branch $pr_base; skipping required spread target filtering"
