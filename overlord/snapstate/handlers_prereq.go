@@ -481,6 +481,48 @@ func hasAllContentAttrs(st *state.State, snapName string, requiredContentAttrs [
 	return true, nil
 }
 
+func instanceNameFromTask(t *state.Task) (string, bool) {
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return "", false
+	}
+	return snapsup.InstanceName(), true
+}
+
+func isInstalled(st *state.State, snapName string) (bool, error) {
+	var snapState SnapState
+	err := Get(st, snapName, &snapState)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	}
+	return snapState.IsInstalled(), nil
+}
+
+func prereqError(what, snapName string, err error) error {
+	if _, ok := err.(*state.Retry); ok {
+		return err
+	}
+	return fmt.Errorf("cannot install %s %q: %v", what, snapName, err)
+}
+
+func maybeFindTaskInChangeForSnap(chg *state.Change, kind, snapName string) (*state.Task, error) {
+	for _, t := range chg.Tasks() {
+		if t.Status().Ready() || t.Kind() != kind {
+			continue
+		}
+
+		snapsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return nil, err
+		}
+		if snapsup.InstanceName() == snapName {
+			return t, nil
+		}
+	}
+
+	return nil, nil
+}
+
 func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, error) {
 	for _, chg := range st.Changes() {
 		if chg.IsReady() {
@@ -498,15 +540,6 @@ func findLinkSnapTaskForSnap(st *state.State, snapName string) (*state.Task, err
 	}
 
 	return nil, nil
-}
-
-func isInstalled(st *state.State, snapName string) (bool, error) {
-	var snapState SnapState
-	err := Get(st, snapName, &snapState)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return false, err
-	}
-	return snapState.IsInstalled(), nil
 }
 
 // willWaitOn returns true if graph waits (directly or transitively) on target.
@@ -593,37 +626,4 @@ func snapWaitsForBaseLinkInSameLane(prereqs *state.Task, baseLink *state.Task) (
 	}
 
 	return false, nil
-}
-
-func instanceNameFromTask(t *state.Task) (string, bool) {
-	snapsup, err := TaskSnapSetup(t)
-	if err != nil {
-		return "", false
-	}
-	return snapsup.InstanceName(), true
-}
-
-func prereqError(what, snapName string, err error) error {
-	if _, ok := err.(*state.Retry); ok {
-		return err
-	}
-	return fmt.Errorf("cannot install %s %q: %v", what, snapName, err)
-}
-
-func maybeFindTaskInChangeForSnap(chg *state.Change, kind, snapName string) (*state.Task, error) {
-	for _, t := range chg.Tasks() {
-		if t.Status().Ready() || t.Kind() != kind {
-			continue
-		}
-
-		snapsup, err := TaskSnapSetup(t)
-		if err != nil {
-			return nil, err
-		}
-		if snapsup.InstanceName() == snapName {
-			return t, nil
-		}
-	}
-
-	return nil, nil
 }
