@@ -32,9 +32,9 @@ type isReadyCommand struct {
 
 const (
 	changeReadyExitCode = iota
-	changeNotReadyExitCode
+	fatalErrorExitCode
 	changeUnsuccessfulExitCode
-	otherErrorExitCode
+	changeNotReadyExitCode
 )
 
 var shortIsReadyHelp = i18n.G(`Return the status of the associated change id.`)
@@ -44,11 +44,11 @@ by asynchronous snapctl commands.
 
 $ snapctl is-ready <change-id>
   0: change completed successfully (Done)
-  1: change is not ready
+  1: fatal errors (invalid change id, permissions error)
   2: change is ready but did not complete successfully (Undone, Error, Hold)
-  3: other errors (invalid change id, permissions error)
+  3: change is not ready
 stdout: empty, exit code conveys change readiness
-stderr: empty for exit codes 0 and 1. Contains relevant errors for exit codes 2 and 3.
+stderr: empty for exit codes 0 and 3. Contains relevant errors for exit codes 1 and 2.
 `)
 
 func init() {
@@ -72,8 +72,7 @@ func (c *isReadyCommand) Execute(args []string) error {
 	ready, err := isReady(ctx, changeID)
 
 	if err != nil {
-		fmt.Fprint(c.stderr, err.Error())
-		return &UnsuccessfulError{ExitCode: otherErrorExitCode}
+		return err
 	}
 
 	if !ready.Ready() {
