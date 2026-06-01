@@ -1656,7 +1656,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, opts)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
 	if err != nil {
 		return nil, false, nil, err
 	}
@@ -3647,22 +3647,71 @@ func Revert(st *state.State, name string, flags Flags, fromChange string) (*stat
 }
 
 func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Flags, fromChange string) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(st, name, &snapst)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	seedRefresh, err := seedRefreshEnabled(st)
+	if err != nil {
 		return nil, err
 	}
 
+	// when seed refresh is enabled, the reboot boundaries are set by the
+	// single-reboot and seed-creation code below. thus, we disable their
+	// creation here, in order to not add more than the necessary restart
+	// boundaries.
+	noRestartBoundaries := seedRefresh
+	installTS, err := revertToRevisionTaskSet(st, name, rev, flags, fromChange, noRestartBoundaries)
+	if err != nil {
+		return nil, err
+	}
+
+	if !seedRefresh {
+		return installTS.ts, nil
+	}
+
+	// since the user probably doesn't want a seed containing a revision they've
+	// reverted away from, we use ReplaceLatest to indicate that the most recent
+	// seed should be replaced with the incoming one. this is only applicable if
+	// this snap triggers a seed refresh.
+	seedTS, err := arrangeRebootAndUpdateSeed(st, []snapInstallTaskSet{installTS}, nil, SeedRefreshEvictionPolicy{
+		SeedsToRetain: 1,
+		ReplaceLatest: true,
+	}, Options{
+		ConflictOptions: ConflictOptions{FromChange: fromChange},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// no seed refresh was triggered, nothing more to do
+	if seedTS == nil {
+		return installTS.ts, nil
+	}
+
+	// note: seed refresh isn't a real task kind, but a specialization of a
+	// normal refresh/revert.
+	if err := checkChangeConflictExclusiveKinds(st, "seed refresh", fromChange); err != nil {
+		return nil, err
+	}
+
+	installTS.ts.AddAll(seedTS)
+	return installTS.ts, nil
+}
+
+func revertToRevisionTaskSet(st *state.State, name string, rev snap.Revision, flags Flags, fromChange string, noRestartBoundaries bool) (snapInstallTaskSet, error) {
+	var snapst SnapState
+	err := Get(st, name, &snapst)
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return snapInstallTaskSet{}, err
+	}
+
 	if snapst.Current == rev {
-		return nil, fmt.Errorf("already on requested revision")
+		return snapInstallTaskSet{}, fmt.Errorf("already on requested revision")
 	}
 
 	if !snapst.Active {
-		return nil, fmt.Errorf("cannot revert inactive snaps")
+		return snapInstallTaskSet{}, fmt.Errorf("cannot revert inactive snaps")
 	}
 	i := snapst.LastIndex(rev)
 	if i < 0 {
-		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
+		return snapInstallTaskSet{}, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
 
 	flags.Revert = true
@@ -3682,7 +3731,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 
 	info, err := Info(st, name, rev)
 	if err != nil {
-		return nil, err
+		return snapInstallTaskSet{}, err
 	}
 
 	snapsup := SnapSetup{
@@ -3708,12 +3757,13 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	}
 
 	installTS, err := doInstallOrPreDownload(st, &snapst, &snapsup, compsups, installContext{
-		ConflictOptions: ConflictOptions{FromChange: fromChange},
+		ConflictOptions:     ConflictOptions{FromChange: fromChange},
+		NoRestartBoundaries: noRestartBoundaries,
 	})
 	if err != nil {
-		return nil, err
+		return snapInstallTaskSet{}, err
 	}
-	return installTS.ts, nil
+	return installTS, nil
 }
 
 // TransitionCore transitions from an old core snap name to a new core

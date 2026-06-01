@@ -305,17 +305,6 @@ func seedRefreshCandidateFromTaskSet(c *C, ts *state.TaskSet) snapstate.SeedRefr
 	return candidate
 }
 
-func (observed *observedSeedRefreshCandidates) CheckInitialCandidates(c *C, expected ...snapstate.SeedRefreshCandidate) {
-	// we expect just one set of initial candidates, since we should only call
-	// [snapstate.SeedRefreshTasks] just once
-	c.Assert(observed.initial, HasLen, 1)
-	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, expected)
-}
-
-func (observed *observedSeedRefreshCandidates) CheckPrereqCandidates(c *C, expected ...snapstate.SeedRefreshCandidate) {
-	c.Check(observed.prerequisites, testutil.DeepUnsortedMatches, expected)
-}
-
 func mustTaskSetForSnap(c *C, taskSetsBySnap map[string]*state.TaskSet, snapName string) *state.TaskSet {
 	ts := taskSetsBySnap[snapName]
 	c.Assert(ts, NotNil, Commentf("missing task set for %q", snapName))
@@ -20059,11 +20048,13 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 	baseTS := mustTaskSetForSnap(c, taskSetsBySnap, "core18")
 	kernelTS := mustTaskSetForSnap(c, taskSetsBySnap, "kernel")
 	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
-	observed.CheckInitialCandidates(c,
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
 		seedRefreshCandidateFromTaskSet(c, kernelTS),
 		seedRefreshCandidateFromTaskSet(c, baseTS),
 		seedRefreshCandidateFromTaskSet(c, appTS),
-	)
+	})
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
 
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetsShareLane(baseTS, kernelTS), Equals, true)
@@ -20138,12 +20129,14 @@ func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshEarlyDownloadModelSnap(c
 	kernelTS := mustTaskSetForSnap(c, taskSetsBySnap, "kernel")
 	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
 	extraAppTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-other-snap")
-	observed.CheckInitialCandidates(c,
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
 		seedRefreshCandidateFromTaskSet(c, kernelTS),
 		seedRefreshCandidateFromTaskSet(c, baseTS),
 		seedRefreshCandidateFromTaskSet(c, appTS),
 		seedRefreshCandidateFromTaskSet(c, extraAppTS),
-	)
+	})
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
 
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetsShareLane(baseTS, kernelTS, appTS), Equals, true)
@@ -20314,10 +20307,10 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 	providerSnapSetup, err := snapstate.TaskSnapSetup(providerSnapSetupTask)
 	c.Assert(err, IsNil)
 	c.Check(providerSnapSetup.InstanceName(), Equals, "content-provider")
-	observed.CheckPrereqCandidates(c, snapstate.SeedRefreshCandidate{
+	c.Check(observed.prerequisites, testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
 		InstanceName:     providerSnapSetup.InstanceName(),
 		SnapSetupTaskIDs: []string{providerSnapSetupTask.ID()},
-	})
+	}})
 
 	// ensure create-recovery-system waits on the LastBeforeLocalModificationsEdge for content-provider
 	c.Check(waitTasksContainKindForSnap(c, seedCreate, "content-provider", "validate-snap"), Equals, true)
@@ -20563,13 +20556,14 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c
 	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
 	extraAppTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-other-snap")
 
-	observed.CheckInitialCandidates(c,
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
 		seedRefreshCandidateFromTaskSet(c, snapdTS),
 		seedRefreshCandidateFromTaskSet(c, kernelTS),
 		seedRefreshCandidateFromTaskSet(c, baseTS),
 		seedRefreshCandidateFromTaskSet(c, appTS),
 		seedRefreshCandidateFromTaskSet(c, extraAppTS),
-	)
+	})
 
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetsShareLane(snapdTS, baseTS, kernelTS, appTS), Equals, true)
@@ -20777,7 +20771,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 	defer s.state.Unlock()
 
 	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
-	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, _ snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
 		added := make(map[string]bool, len(candidates))
 		for _, candidate := range candidates {
 			if candidate.InstanceName != "kernel" && candidate.InstanceName != "core18" && candidate.InstanceName != "some-app" {
@@ -21002,6 +20996,247 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentials(c *C) {
 	c.Check(waitsOnTransitively(seedEnd, appEndTask), Equals, true)
 }
 
+func setupSeedRefreshRevertSnapOfType(c *C, st *state.State, spec seedRefreshSnap) (*snap.SideInfo, *snap.SideInfo) {
+	oldSideInfo := &snap.SideInfo{RealName: spec.name, SnapID: spec.snapID, Revision: snap.R(5)}
+	newSideInfo := &snap.SideInfo{RealName: spec.name, SnapID: spec.snapID, Revision: snap.R(7)}
+
+	var oldSnapYaml strings.Builder
+	fmt.Fprintf(&oldSnapYaml, "name: %s\nversion: 1.0\n", spec.name)
+	if spec.snapType != "" {
+		fmt.Fprintf(&oldSnapYaml, "type: %s\n", spec.snapType)
+	}
+	if spec.base != "" {
+		fmt.Fprintf(&oldSnapYaml, "base: %s\n", spec.base)
+	}
+	snaptest.MockSnap(c, oldSnapYaml.String(), oldSideInfo)
+
+	var newSnapYaml strings.Builder
+	fmt.Fprintf(&newSnapYaml, "name: %s\nversion: 2.0\n", spec.name)
+	if spec.snapType != "" {
+		fmt.Fprintf(&newSnapYaml, "type: %s\n", spec.snapType)
+	}
+	if spec.base != "" {
+		fmt.Fprintf(&newSnapYaml, "base: %s\n", spec.base)
+	}
+	snaptest.MockSnap(c, newSnapYaml.String(), newSideInfo)
+
+	snapstate.Set(st, spec.name, &snapstate.SnapState{
+		Active:          true,
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{oldSideInfo, newSideInfo}),
+		Current:         newSideInfo.Revision,
+		TrackingChannel: "latest/stable",
+		SnapType:        spec.snapType,
+		Base:            spec.base,
+	})
+
+	return oldSideInfo, newSideInfo
+}
+
+func (s *snapmgrTestSuite) testRevertSeedRefreshRunThrough(c *C, spec seedRefreshSnap, model map[string]any) {
+	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, model, []string{spec.name})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restartRequested := mockSeedRefreshRebootHandlers(s, c, nil)
+
+	if spec.snapType == "gadget" {
+		s.o.TaskRunner().AddHandler("update-gadget-cmdline", func(t *state.Task, _ *tomb.Tomb) error {
+			st := t.State()
+			st.Lock()
+			defer st.Unlock()
+			t.SetStatus(state.DoneStatus)
+			return nil
+		}, nil)
+	}
+
+	oldSideInfo, _ := setupSeedRefreshRevertSnapOfType(c, s.state, spec)
+
+	ts, err := snapstate.RevertToRevision(s.state, spec.name, oldSideInfo.Revision, snapstate.Flags{}, "")
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	chg.AddAll(ts)
+	c.Assert(chg.CheckTaskDependencies(), IsNil)
+
+	setupTask, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(setupTask)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revert, Equals, true)
+	c.Check(snapsup.Revision(), Equals, oldSideInfo.Revision)
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
+		InstanceName:     spec.name,
+		SnapSetupTaskIDs: []string{setupTask.ID()},
+	}})
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{
+		SeedsToRetain: 1,
+		ReplaceLatest: true,
+	}})
+
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, ts)
+	lastBeforeLocal, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedCreate, lastBeforeLocal), Equals, true)
+
+	endTask, err := ts.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedFinalize, endTask), Equals, true)
+
+	linkTask, err := ts.Edge(snapstate.MaybeRebootEdge)
+	c.Assert(err, IsNil)
+	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
+	c.Check(hasDoRestartBoundary(linkTask), Equals, false)
+
+	s.settle(c)
+
+	c.Check(restart.Pending(s.state), Equals, restart.RestartSystem)
+
+	s.mockRestartAndSettle(c, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+	expectedRestarts := []restart.RestartType{restart.RestartSystem}
+	if spec.snapType == "snapd" {
+		expectedRestarts = []restart.RestartType{restart.RestartDaemon, restart.RestartSystem}
+	}
+	c.Check(*restartRequested, DeepEquals, expectedRestarts)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, spec.name, &snapst), IsNil)
+	c.Check(snapst.Current, Equals, oldSideInfo.Revision)
+}
+
+func (s *snapmgrTestSuite) TestRevertSeedRefreshSnapdRunThrough(c *C) {
+	s.testRevertSeedRefreshRunThrough(c, seedRefreshSnap{
+		name:     "snapd",
+		snapID:   "snapd-snap-id",
+		snapType: "snapd",
+	}, map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRevertSeedRefreshBaseRunThrough(c *C) {
+	s.testRevertSeedRefreshRunThrough(c, seedRefreshSnap{
+		name:     "core18",
+		snapID:   "core18-snap-id",
+		snapType: "base",
+	}, map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRevertSeedRefreshGadgetRunThrough(c *C) {
+	s.testRevertSeedRefreshRunThrough(c, seedRefreshSnap{
+		name:     "brand-gadget",
+		snapID:   "brand-gadget-id",
+		snapType: "gadget",
+	}, map[string]any{
+		"gadget": "brand-gadget",
+		"kernel": "kernel",
+		"base":   "core18",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRevertSeedRefreshKernelRunThrough(c *C) {
+	s.testRevertSeedRefreshRunThrough(c, seedRefreshSnap{
+		name:     "kernel",
+		snapID:   "kernel-id",
+		snapType: "kernel",
+	}, map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	})
+}
+
+func (s *snapmgrTestSuite) TestRevertSeedRefreshAppRunThrough(c *C) {
+	s.testRevertSeedRefreshRunThrough(c, seedRefreshSnap{
+		name:     "some-app",
+		snapID:   "some-app-id",
+		snapType: "app",
+		base:     "core18",
+	}, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"some-app"},
+	})
+}
+
+func (s *snapmgrTestSuite) TestRevertSeedRefreshBlockedByOtherChanges(c *C) {
+	_, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"some-app"},
+	}, []string{"some-app"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+	)
+	oldSideInfo, _ := setupSeedRefreshRevertSnapOfType(c, s.state, seedRefreshSnap{
+		name:     "some-app",
+		snapID:   "some-app-id",
+		snapType: "app",
+		base:     "core18",
+	})
+
+	chg := s.state.NewChange("unrelated", "...")
+	chg.AddTask(s.state.NewTask("task", "..."))
+
+	_, err := snapstate.RevertToRevision(s.state, "some-app", oldSideInfo.Revision, snapstate.Flags{}, "")
+	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "unrelated"\), change "seed refresh" not allowed until they are done`)
+}
+
+func (s *snapmgrTestSuite) TestRevertSeedRefreshNoopWhenSnapNotSelected(c *C) {
+	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"some-app"},
+	}, nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+	)
+	oldSideInfo, _ := setupSeedRefreshRevertSnapOfType(c, s.state, seedRefreshSnap{
+		name:     "some-app",
+		snapID:   "some-app-id",
+		snapType: "app",
+		base:     "core18",
+	})
+
+	ts, err := snapstate.RevertToRevision(s.state, "some-app", oldSideInfo.Revision, snapstate.Flags{}, "")
+	c.Assert(err, IsNil)
+
+	setupTask, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(setupTask)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revert, Equals, true)
+	c.Check(snapsup.Revision(), Equals, oldSideInfo.Revision)
+
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
+		InstanceName:     "some-app",
+		SnapSetupTaskIDs: []string{setupTask.ID()},
+	}})
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1, ReplaceLatest: true}})
+	c.Check(countTasksOfKind(ts.Tasks(), "create-recovery-system"), Equals, 0)
+	c.Check(countTasksOfKind(ts.Tasks(), "finalize-recovery-system"), Equals, 0)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAdditionalComponents(c *C) {
 	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
 		"kernel":         "kernel",
@@ -21048,11 +21283,13 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 	var appCompSetupTaskIDs []string
 	c.Assert(appSnapSetupTask.Get("component-setup-tasks", &appCompSetupTaskIDs), IsNil)
 	c.Assert(appCompSetupTaskIDs, HasLen, 1)
-	observed.CheckInitialCandidates(c, snapstate.SeedRefreshCandidate{
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
 		InstanceName:          "some-app",
 		SnapSetupTaskIDs:      []string{appSnapSetupTask.ID()},
 		ComponentSetupTaskIDs: appCompSetupTaskIDs,
-	})
+	}})
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
 
 	c.Assert(seedTS, NotNil)
 	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(appTS))
@@ -21137,7 +21374,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshAllowedOnceParentSeedRef
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshReRefreshCreatesSecondSeed(c *C) {
-	_, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
 		"kernel":         "kernel",
 		"base":           "core18",
 		"required-snaps": []any{"some-app"},
@@ -21186,6 +21423,16 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshReRefreshCreatesSecondSe
 	c.Check(restart.Pending(s.state), Equals, restart.RestartSystem)
 	c.Check(countTasksOfKind(chg.Tasks(), "create-recovery-system"), Equals, 2)
 	c.Check(countTasksOfKind(chg.Tasks(), "finalize-recovery-system"), Equals, 2)
+	c.Assert(observed.initial, HasLen, 2)
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{
+		{SeedsToRetain: 1},
+		{SeedsToRetain: 1},
+	})
+	c.Assert(observed.initial, HasLen, 2)
+	c.Assert(observed.initial[0], HasLen, 1)
+	c.Check(observed.initial[0][0].InstanceName, Equals, "some-app")
+	c.Assert(observed.initial[1], HasLen, 1)
+	c.Check(observed.initial[1][0].InstanceName, Equals, "some-app")
 
 	// the second reboot completes the re-refresh seed update.
 	s.mockRestartAndSettle(c, chg)
@@ -21305,6 +21552,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshDisabled(c *C) {
 	c.Assert(seedTS, IsNil)
 	c.Check(observed.initial, HasLen, 0)
 	c.Check(observed.prerequisites, HasLen, 0)
+	c.Check(observed.evictions, HasLen, 0)
 
 	lastBeforeLocalBase, err := baseTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
