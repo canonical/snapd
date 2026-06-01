@@ -1,0 +1,55 @@
+summary: Ensure that the scheduler-control interface works.
+
+details: |
+    The scheduler-control interface allows a snap to run sched_ext BPF CPU
+    schedulers. It grants access to BPF type information (BTF), the sched_ext
+    control filesystem, the BPF filesystem for pinning maps/programs, and CPU
+    power management knobs.
+
+    A snap which defines the scheduler-control plug must be shown in the
+    interfaces list. The plug must not be auto-connected on install and must
+    be able to be reconnected.
+
+    A snap declaring a plug on this interface must be able to read
+    /sys/kernel/btf/vmlinux and /sys/fs/bpf/ when the plug is connected, and
+    must be denied access to these paths when disconnected.
+
+skip:
+    - reason: sched_ext was merged in Linux 6.12
+      if: os.query is-kernel-lt 6.12
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+execute: |
+    if ! ([ -f "/boot/config-$(uname -r)" ] && MATCH "CONFIG_SCHED_CLASS_EXT=y" < "/boot/config-$(uname -r)") && \
+       ! ([ -f /proc/config.gz ] && zcat /proc/config.gz | MATCH "CONFIG_SCHED_CLASS_EXT=y"); then
+        echo "CONFIG_SCHED_CLASS_EXT is not enabled, skipping test"
+        exit 0
+    fi
+
+    echo "The interface is not connected by default"
+    snap interfaces -i scheduler-control | MATCH '^- +test-snapd-sh:scheduler-control'
+
+    echo "When the plug is connected"
+    snap connect test-snapd-sh:scheduler-control
+
+    echo "Then the snap is able to read the BTF type information"
+    test-snapd-sh.with-scheduler-control-plug -c "ls /sys/kernel/btf/vmlinux"
+
+    echo "Then the snap is able to list the BPF filesystem"
+    test-snapd-sh.with-scheduler-control-plug -c "ls /sys/fs/bpf/"
+
+    echo "Then the snap is able to access the sched_ext filesystem"
+    test-snapd-sh.with-scheduler-control-plug -c "ls /sys/kernel/sched_ext/"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:scheduler-control
+
+    echo "Then the snap is no longer able to read /sys/kernel/btf/vmlinux"
+    not test-snapd-sh.with-scheduler-control-plug -c "ls /sys/kernel/btf/vmlinux" 2> access.error
+    MATCH "Permission denied" < access.error
