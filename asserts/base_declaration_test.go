@@ -230,7 +230,6 @@ func (s *baseDeclSuite) TestBuiltinBaseDeclaration(c *C) {
 	const headers = `
 type: base-declaration
 authority-id: canonical
-account-id: system
 series: 16
 revision: 0
 plugs:
@@ -278,10 +277,10 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 	}{
 		{"", `header entry missing ':' separator: ""`},
 		{"type: foo\n", `the builtin base-declaration "type" header is not set to expected value "base-declaration"`},
-		{"type: base-declaration\naccount-id: system", `the builtin base-declaration "authority-id" header is not set to expected value "canonical"`},
-		{"type: base-declaration\naccount-id: system\nauthority-id: canonical", `the builtin base-declaration "series" header is not set to expected value "16"`},
-		{"type: base-declaration\naccount-id: system\nauthority-id: canonical\nseries: 16\nrevision: zzz", `cannot assemble the builtin base-declaration: "revision" header is not an integer: zzz`},
-		{"type: base-declaration\naccount-id: system\nauthority-id: canonical\nseries: 16\nplugs: foo", `cannot assemble the builtin base-declaration: "plugs" header must be a map`},
+		{"type: base-declaration\n", `the builtin base-declaration "authority-id" header is not set to expected value "canonical"`},
+		{"type: base-declaration\nauthority-id: canonical", `the builtin base-declaration "series" header is not set to expected value "16"`},
+		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nrevision: zzz", `cannot assemble the builtin base-declaration: "revision" header is not an integer: zzz`},
+		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nplugs: foo", `cannot assemble the builtin base-declaration: "plugs" header must be a map`},
 	}
 
 	for _, t := range tests {

@@ -1743,7 +1743,6 @@ func (s *baseDeclSuite) TestComposeBaseDeclaration(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(decl), testutil.Contains, `
 type: base-declaration
-account-id: system
 authority-id: canonical
 series: 16
 revision: 0
