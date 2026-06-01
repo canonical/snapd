@@ -213,7 +213,7 @@ func (m *HookManager) Ensure() error {
 	return nil
 }
 
-// ShutDown implements StateShutDowner.ShutDown.
+// ShutDown implements the ShutDowner interface for the HookManager.
 func (m *HookManager) ShutDown() {
 	// Don't proceed before the state lock has been released by the code
 	// path which may request a restart.

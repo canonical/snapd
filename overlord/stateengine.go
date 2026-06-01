@@ -52,7 +52,8 @@ type StateWaiter interface {
 }
 
 // StateShutDowner is optionally implemented by StateManagers that have
-// running activities that can be shutdown.
+// running activities that should be cleaned up prior to stopping the daemon's
+// HTTP server.
 type StateShutDowner interface {
 	// ShutDown asks the manager to stop accepting new requests and
 	// finish handling existing requests.

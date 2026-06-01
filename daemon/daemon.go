@@ -556,11 +556,10 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// use the time we may spend on waiting for hooks against the shutdown
 	// delay.
 	ts := time.Now()
+	d.overlord.ShutDown()
 	if d.snapListener != nil {
-		// stop running hooks first
-		d.overlord.HookManager().ShutDown()
+		d.snapListener.Close()
 	}
-	d.snapListener.Close()
 	timeSpent := time.Since(ts)
 
 	// When shutting down the snapd listener wait until the rebootNoticeWait

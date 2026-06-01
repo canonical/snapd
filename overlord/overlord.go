@@ -557,6 +557,17 @@ func (o *Overlord) CanStandby() bool {
 	return run != 0
 }
 
+// ShutDown asks the manager that implement the ShutDowner interface
+// to stop accepting new requests and finish handling existing requests.
+func (o *Overlord) ShutDown() {
+	o.stateEng.ShutDown()
+	if o.stateFLock != nil {
+		// This will also unlock the file
+		o.stateFLock.Close()
+		logger.Noticef("Released state lock file")
+	}
+}
+
 // Stop stops the ensure loop and the managers under the StateEngine.
 func (o *Overlord) Stop() error {
 	o.loopTomb.Kill(nil)
