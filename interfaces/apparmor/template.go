@@ -989,7 +989,7 @@ var updateNSTemplate = `
 
 ###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
-profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
+profile snap-update-ns.###SNAP_INSTANCE_NAME### flags=(attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,
