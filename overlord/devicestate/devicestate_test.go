@@ -2517,6 +2517,40 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeSkipsOptionalSnapNotInCurren
 	c.Check(setup.SnapSetupTasks, DeepEquals, []string{snap1Task.ID()})
 }
 
+func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveBlocksOptionalSnapInCurrentSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-2", "presence": "optional"},
+	}, "snap-2")
+	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
+
+	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
+	c.Assert(err, ErrorMatches, `cannot remove snap present in the current seed while seed-refresh is enabled`)
+}
+
+func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalSnapNotInCurrentSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-2", "presence": "optional"},
+	})
+	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
+
+	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
+	c.Assert(err, IsNil)
+}
+
 func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeUsesPendingSeedRefreshTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

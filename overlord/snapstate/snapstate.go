@@ -3089,6 +3089,16 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 
+	seedRefresh, err := seedRefreshEnabled(st)
+	if err != nil {
+		return err
+	}
+	if seedRefresh && removeAll {
+		if err := CheckSeedRefreshRemove(st, si, deviceCtx); err != nil {
+			return err
+		}
+	}
+
 	// check if this snap is required by any validation set in enforcing mode
 	enforcedSets, err := EnforcedValidationSets(st)
 	if err != nil {
