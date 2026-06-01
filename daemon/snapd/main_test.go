@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package snapd_test
 
 import (
 	"fmt"
@@ -30,7 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	snapd "github.com/snapcore/snapd/cmd/snapd"
+	"github.com/snapcore/snapd/daemon/snapd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
