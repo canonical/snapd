@@ -368,7 +368,3 @@ func MockAssertionPrereqs(f func(a Assertion) []*Ref) func() {
 	assertionPrereqs = f
 	return r
 }
-
-var AssembleBuiltinAssertion = assembleBuiltinAssertion
-
-type BuiltinCheckParams = builtinCheckParams

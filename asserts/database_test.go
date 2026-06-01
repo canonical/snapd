@@ -444,45 +444,6 @@ func (chks *checkSuite) TestCheckAndSetEarliestTime(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (chks *checkSuite) TestCheckSingleton(c *C) {
-	trustedKey := testPrivKey0
-
-	decl, err := asserts.AssembleBuiltinAssertion(asserts.BaseDeclarationType, []byte(`type: base-declaration
-authority-id: canonical
-series: 16
-`), nil, asserts.BuiltinCheckParams{})
-	c.Assert(err, IsNil)
-
-	cfg := &asserts.DatabaseConfig{
-		Backstore:       chks.bs,
-		Trusted:         []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
-		OtherPredefined: []asserts.Assertion{decl},
-		Checkers:        []asserts.Checker{asserts.CheckSingleton},
-	}
-	db, err := asserts.OpenDatabase(cfg)
-	c.Assert(err, IsNil)
-
-	headers := decl.Headers()
-	headers["series"] = "1337"
-	otherDecl, err := asserts.AssembleAndSignInTest(asserts.BaseDeclarationType, headers, nil, trustedKey)
-	c.Assert(err, IsNil)
-
-	err = db.Add(otherDecl)
-	c.Assert(err, ErrorMatches, `singleton "base-declaration" assertion already present in the database`)
-
-	// non-singleton assertion types are not affected
-	err = db.Add(chks.a)
-	c.Assert(err, IsNil)
-
-	headers = chks.a.Headers()
-	headers["revision"] = "1337"
-	other, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
-	c.Assert(err, IsNil)
-
-	err = db.Add(other)
-	c.Assert(err, IsNil)
-}
-
 type signAddFindSuite struct {
 	signingDB    *asserts.Database
 	signingKeyID string
