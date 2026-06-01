@@ -52,6 +52,14 @@ def parse_args() -> argparse.Namespace:
         help="Path to failed-tests JSON file",
     )
     parser.add_argument(
+        "--hook-feature",
+        default="/home/katie.may@canonical.com/Desktop/coverage/2026-05-31/tmp/run-hook",
+        help=(
+            "Path to hook-feature JSON mapping with keys as <backend>:<system> and "
+            "values as test name lists"
+        ),
+    )
+    parser.add_argument(
         "--fundamental-data",
         default=".github/workflows/data-fundamental-systems.json",
         help="Path to workflow group mapping for fundamental systems",
@@ -101,6 +109,13 @@ def read_files_input(files_list: str) -> list[tuple[str, str]]:
 
 def immediate_directory(file_path: str) -> str:
     return str(PurePosixPath(file_path).parent)
+
+
+def changed_files_touch_hookstate(changed_files: list[tuple[str, str]]) -> bool:
+    for file_path, _ in changed_files:
+        if "hookstate" in PurePosixPath(file_path).parts:
+            return True
+    return False
 
 
 def load_json_file(path: str) -> dict | list:
@@ -250,6 +265,25 @@ def coverage_tests(system_data: dict, selected_systems: set[str]) -> set[str]:
     return selected
 
 
+def hook_feature_tests(hook_feature_file: str, selected_systems: set[str]) -> set[str]:
+    data = load_json_file(hook_feature_file)
+    if not isinstance(data, dict):
+        raise RuntimeError("unexpected hook-feature shape; expected JSON object")
+
+    selected: set[str] = set()
+    for system in selected_systems:
+        tests = data.get(system, [])
+        if not isinstance(tests, list):
+            raise RuntimeError(
+                f"unexpected hook-feature tests shape for {system}; expected JSON array"
+            )
+        for test_name in tests:
+            if isinstance(test_name, str) and test_name:
+                selected |= expand_test_names(test_name, {system})
+
+    return selected
+
+
 def tests_missing_from_coverage(
     spread_tests: list[str], system_data: dict, selected_systems: set[str]
 ) -> set[str]:
@@ -331,6 +365,9 @@ def main():
     for test_name in failed:
         if isinstance(test_name, str):
             selected_tests |= expand_test_names(test_name, selected_systems)
+
+    if changed_files_touch_hookstate(changed_files):
+        selected_tests |= hook_feature_tests(args.hook_feature, selected_systems)
 
     selected_tests |= tests_missing_from_coverage(
         spread_tests, systems[args.group], selected_systems
