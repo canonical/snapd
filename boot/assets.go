@@ -264,8 +264,63 @@ type TrustedAssetsInstallObserver interface {
 		volumesAuth *device.VolumesAuthOptions,
 		checkResult *secboot.PreinstallCheckResult,
 	)
-	UpdateBootEntry() error
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
+
+	// BootAssets exposes the trusted assets as well
+	// as aw to update the boot entry.
+	BootAssets() BootAssets
+	// EncryptionSetup extracts the encryption parmeters
+	EncryptionSetup() *EncryptionSetup
+}
+
+// EncryptionSetup contains the setup for encryption.
+// It contains reference to the encrypted containers where
+// to registers keys, and alls the information (other than the
+// boot chains) to calculate PCR profiles.
+type EncryptionSetup struct {
+	dataBootstrappedContainer secboot.BootstrappedContainer
+	saveBootstrappedContainer secboot.BootstrappedContainer
+
+	primaryKey []byte
+
+	volumesAuth *device.VolumesAuthOptions
+
+	// checkResult contains information required during and post install
+	// for optimum PCR configuration and resealing.
+	checkResult *secboot.PreinstallCheckResult
+}
+
+// BootAssets carries the assets trusted that may be accepted in
+// boot chains and the method to update the boot entry.
+type BootAssets interface {
+	// TrackedRecoveryAssets returns the boot assets for the run boot chains
+	TrackedAssets() bootAssetsMap
+	// TrackedRecoveryAssets returns the boot assets for the recovery boot chains
+	TrackedRecoveryAssets() bootAssetsMap
+	// UpdateBootEntry update the boot entry to boot the current asset chains
+	UpdateBootEntry() error
+}
+
+type bootAssetsImpl struct {
+	trackedAssets         bootAssetsMap
+	trackedRecoveryAssets bootAssetsMap
+	bootLoader            bootloader.UefiBootloader
+	updatedAssets         []string
+}
+
+func (b *bootAssetsImpl) TrackedAssets() bootAssetsMap {
+	return b.trackedAssets
+}
+
+func (b *bootAssetsImpl) TrackedRecoveryAssets() bootAssetsMap {
+	return b.trackedRecoveryAssets
+}
+
+func (b *bootAssetsImpl) UpdateBootEntry() error {
+	if b.bootLoader == nil && b.updatedAssets == nil {
+		return nil
+	}
+	return doUpdateBootEntry(b.bootLoader, b.updatedAssets)
 }
 
 type trustedAssetsInstallObserverImpl struct {
@@ -286,19 +341,9 @@ type trustedAssetsInstallObserverImpl struct {
 	trustedRecoveryAssets map[string]string
 	trackedRecoveryAssets bootAssetsMap
 
-	useEncryption             bool
-	dataBootstrappedContainer secboot.BootstrappedContainer
-	saveBootstrappedContainer secboot.BootstrappedContainer
-
 	seedBootloader bootloader.Bootloader
 
-	primaryKey []byte
-
-	volumesAuth *device.VolumesAuthOptions
-
-	// checkResult contains information required during and post install
-	// for optimum PCR configuration and resealing.
-	checkResult *secboot.PreinstallCheckResult
+	encryption *EncryptionSetup
 }
 
 func (o *trustedAssetsInstallObserverImpl) BootLoaderSupportsEfiVariables() bool {
@@ -383,35 +428,61 @@ func (o *trustedAssetsInstallObserverImpl) currentTrustedRecoveryBootAssetsMap()
 	return o.trackedRecoveryAssets
 }
 
+// NewEncryptionSetup create a new EncryptionSetup that references to
+// the encrypted containers where to registers keys, and the local FDE
+// configuration.
+func NewEncryptionSetup(
+	key, saveKey secboot.BootstrappedContainer,
+	primaryKey []byte,
+	volumesAuth *device.VolumesAuthOptions,
+	checkResult *secboot.PreinstallCheckResult,
+) *EncryptionSetup {
+	return &EncryptionSetup{
+		dataBootstrappedContainer: key,
+		saveBootstrappedContainer: saveKey,
+		primaryKey:                primaryKey,
+		volumesAuth:               volumesAuth,
+		checkResult:               checkResult,
+	}
+}
+
 func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(
 	key, saveKey secboot.BootstrappedContainer,
 	primaryKey []byte,
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 ) {
-	o.useEncryption = true
-	o.dataBootstrappedContainer = key
-	o.saveBootstrappedContainer = saveKey
-	o.primaryKey = primaryKey
-	o.volumesAuth = volumesAuth
-	o.checkResult = checkResult
+	o.encryption = NewEncryptionSetup(key, saveKey, primaryKey, volumesAuth, checkResult)
 }
 
-func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {
+func (o *trustedAssetsInstallObserverImpl) BootAssets() BootAssets {
+	ret := &bootAssetsImpl{
+		trackedAssets:         o.trackedAssets,
+		trackedRecoveryAssets: o.trackedRecoveryAssets,
+	}
+
 	if o.seedBootloader == nil {
-		return nil
+		return ret
 	}
 	efiBl, ok := o.seedBootloader.(bootloader.UefiBootloader)
 	if !ok {
-		return nil
+		return ret
 	}
 
+	// FIXME: we should abstract this into bootloader
 	var updatedAssets []string
 	for name := range o.trackedRecoveryAssets {
 		updatedAssets = append(updatedAssets, name)
 	}
 
-	return doUpdateBootEntry(efiBl, updatedAssets)
+	ret.bootLoader = efiBl
+	ret.updatedAssets = updatedAssets
+
+	return ret
+}
+
+func (o *trustedAssetsInstallObserverImpl) EncryptionSetup() *EncryptionSetup {
+	return o.encryption
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
