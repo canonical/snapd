@@ -81,8 +81,10 @@ var (
 	secbootTransitionEncryptionKeyChange = secboot.TransitionEncryptionKeyChange
 	secbootRemoveOldCounterHandles       = secboot.RemoveOldCounterHandles
 	secbootTemporaryNameOldKeys          = secboot.TemporaryNameOldKeys
+	secbootVerifyPrimaryKeyDigest        = secboot.VerifyPrimaryKeyDigest
 	fdestateGetRecoveryKey               = fdestate.GetRecoveryKey
 	fdestateGenerateRecoveryKey          = fdestate.GenerateRecoveryKey
+	fdestateGetEncryptedContainers       = fdestate.GetEncryptedContainers
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
 )
@@ -679,12 +681,31 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
+	var primaryKey []byte
+	var legacyKeyFile string
+	if useEncryption {
+		primaryKey = trustedInstallObserver.PrimaryKey()
+		if primaryKey == nil || len(primaryKey) == 0 {
+			legacyKeyFile = device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
+			if !osutil.FileExists(legacyKeyFile) {
+				return fmt.Errorf("internal error: no primary key and no legacy key file were created")
+			}
+		}
+	}
 	// leave a marker that factory reset was performed
 	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
-	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
+	if err := writeFactoryResetMarker(factoryResetMarker, primaryKey, legacyKeyFile); err != nil {
 		return fmt.Errorf("cannot write the marker file: %v", err)
 	}
 	return nil
+}
+
+func fileDigest(p string) (string, error) {
+	digest, _, err := osutil.FileDigest(p, crypto.SHA3_384)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest), nil
 }
 
 func restoreDeviceFromSave(model *asserts.Model) error {
@@ -794,42 +815,44 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 
 type factoryResetMarker struct {
 	FallbackSaveKeyHash string `json:"fallback-save-key-sha3-384,omitempty"`
+	PrimaryKeyHash      []byte `json:"primary-key-hash,omitempty"`
+	Salt                []byte `json:"salt,omitempty"`
 }
 
-func fileDigest(p string) (string, error) {
-	digest, _, err := osutil.FileDigest(p, crypto.SHA3_384)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(digest), nil
-}
+const markerHashAlg = crypto.SHA256
 
-func writeFactoryResetMarker(marker string, hasEncryption bool) error {
-	keyDigest := ""
-	if hasEncryption {
+func writeFactoryResetMarker(marker string, primaryKey []byte, legacyKeyFile string) error {
+	data := factoryResetMarker{}
+	var salt []byte
+	var digest []byte
+	logger.Noticef("MYDEBUG: has primary key?")
+	if primaryKey == nil && legacyKeyFile != "" {
 		d, err := fileDigest(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
 		if err != nil {
 			return err
 		}
-		keyDigest = d
+		data.FallbackSaveKeyHash = d
+	} else if primaryKey != nil {
+		var err error
+		logger.Noticef("MYDEBUG: hashing primary key: %v", primaryKey)
+		salt, digest, err = secboot.KeyDigest(primaryKey, crypto.Hash(markerHashAlg))
+		if err != nil {
+			return err
+		}
+		data.PrimaryKeyHash = digest
+		data.Salt = salt
 	}
 	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(factoryResetMarker{
-		FallbackSaveKeyHash: keyDigest,
-	})
+	err := json.NewEncoder(&buf).Encode(data)
 	if err != nil {
 		return err
 	}
 
-	if hasEncryption {
-		logger.Noticef("writing factory-reset marker at %v with key digest %q", marker, keyDigest)
-	} else {
-		logger.Noticef("writing factory-reset marker at %v", marker)
-	}
+	logger.Noticef("writing factory-reset marker at %v", marker)
 	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
 }
 
-func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
+func verifyFactoryResetMarkerInRun(st *state.State, marker string, hasEncryption bool) error {
 	f, err := os.Open(marker)
 	if err != nil {
 		return err
@@ -839,7 +862,7 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 	if err := json.NewDecoder(f).Decode(&frm); err != nil {
 		return err
 	}
-	if hasEncryption {
+	if hasEncryption && frm.FallbackSaveKeyHash != "" {
 		saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 		d, err := fileDigest(saveFallbackKeyFactory)
 		if err != nil {
@@ -852,18 +875,34 @@ func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
 				// unless it's a different error
 				return err
 			}
-			saveFallbackKeyFactory := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-			d, err = fileDigest(saveFallbackKeyFactory)
-			if err != nil {
-				return err
-			}
 		}
 		if d != frm.FallbackSaveKeyHash {
 			return fmt.Errorf("fallback sealed key digest mismatch, got %v expected %v", d, frm.FallbackSaveKeyHash)
 		}
+	} else if hasEncryption {
+		containers, err := fdestateGetEncryptedContainers(st)
+		if err != nil {
+			return err
+		}
+		for _, container := range containers {
+			logger.Noticef("MYDEBUG: verifying primary key for %s salt: %v, digest: %v", container.DevPath(), frm.Salt, frm.PrimaryKeyHash)
+			matches, err := secbootVerifyPrimaryKeyDigest(container.DevPath(), crypto.Hash(markerHashAlg), frm.Salt, frm.PrimaryKeyHash)
+			if err != nil && err != secboot.ErrKernelKeyNotFound {
+				// If not using tokens, save disk is not unlocked with primary key, other errors
+				// should be logged.
+				logger.Noticef("WARNING: an error occurred when looking at disk %s: %s", container.ContainerRole(), err)
+			}
+			if err == nil && !matches {
+				logger.Noticef("WARNING: primary key is not matching for disk %s", container.ContainerRole())
+			}
+			if matches {
+				return nil
+			}
+		}
+		return fmt.Errorf("no disk unlocked with expected primary key")
 	} else {
-		if frm.FallbackSaveKeyHash != "" {
-			return fmt.Errorf("unexpected non-empty fallback key digest")
+		if frm.PrimaryKeyHash != nil || frm.Salt != nil {
+			return fmt.Errorf("unexpected non-empty primary key digest")
 		}
 	}
 	return nil

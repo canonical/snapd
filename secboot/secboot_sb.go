@@ -24,7 +24,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/hmac"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -661,14 +660,7 @@ func GetPrimaryKeyDigest(devicePath string, alg crypto.Hash) (salt []byte, diges
 		return nil, nil, err
 	}
 
-	var saltArray [32]byte
-	if _, err := rand.Read(saltArray[:]); err != nil {
-		return nil, nil, err
-	}
-
-	h := hmac.New(alg.New, saltArray[:])
-	h.Write(p)
-	return saltArray[:], h.Sum(nil), nil
+	return KeyDigest(p, alg)
 }
 
 // VerifyPrimaryKeyDigest retrieve the primary key for a disk from the
@@ -683,10 +675,13 @@ func VerifyPrimaryKeyDigest(devicePath string, alg crypto.Hash, salt []byte, dig
 		}
 		return false, err
 	}
+	logger.Noticef("MYDEBUG: primary key found: %v", p)
 
 	h := hmac.New(alg.New, salt[:])
 	h.Write(p)
-	return hmac.Equal(h.Sum(nil), digest), nil
+	found := h.Sum(nil)
+	logger.Noticef("MYDEBUG: digest found: %v", found)
+	return hmac.Equal(found, digest), nil
 }
 
 type HashAlg = sb.HashAlg

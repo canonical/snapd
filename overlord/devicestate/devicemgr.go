@@ -1917,7 +1917,7 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 	}
 
 	// verify the marker
-	if err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted); err != nil {
+	if err := verifyFactoryResetMarkerInRun(m.state, factoryResetMarker, encrypted); err != nil {
 		return fmt.Errorf("cannot verify factory reset marker: %v", err)
 	}
 

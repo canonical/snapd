@@ -266,6 +266,7 @@ type TrustedAssetsInstallObserver interface {
 	)
 	UpdateBootEntry() error
 	Observe(op gadget.ContentOperation, partRole, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error)
+	PrimaryKey() []byte
 }
 
 type trustedAssetsInstallObserverImpl struct {
@@ -389,12 +390,17 @@ func (o *trustedAssetsInstallObserverImpl) SetEncryptionParams(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 ) {
+	logger.Noticef("MYDEBUG: setting primary key %v", primaryKey)
 	o.useEncryption = true
 	o.dataBootstrappedContainer = key
 	o.saveBootstrappedContainer = saveKey
 	o.primaryKey = primaryKey
 	o.volumesAuth = volumesAuth
 	o.checkResult = checkResult
+}
+
+func (o *trustedAssetsInstallObserverImpl) PrimaryKey() []byte {
+	return o.primaryKey
 }
 
 func (o *trustedAssetsInstallObserverImpl) UpdateBootEntry() error {

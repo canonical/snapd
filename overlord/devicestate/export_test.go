@@ -21,6 +21,7 @@ package devicestate
 
 import (
 	"context"
+	"crypto"
 	"net/http"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -753,4 +755,12 @@ func MockOsutilBootID(bootID string) (restore func()) {
 
 func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error, runPostInstallChecks bool) error) (restore func()) {
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
+}
+
+func MockFdestateGetEncryptedContainers(f func(st *state.State) ([]fdeBackend.EncryptedContainer, error)) (restore func()) {
+	return testutil.Mock(&fdestateGetEncryptedContainers, f)
+}
+
+func MockSecbootVerifyPrimaryKeyDigest(f func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error)) (restore func()) {
+	return testutil.Mock(&secbootVerifyPrimaryKeyDigest, f)
 }

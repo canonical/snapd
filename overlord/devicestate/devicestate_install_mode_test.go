@@ -21,6 +21,10 @@ package devicestate_test
 
 import (
 	"compress/gzip"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -2243,6 +2247,7 @@ type resetTestCase struct {
 	tpm               bool
 	encrypt           bool
 	trustedBootloader bool
+	tokens            bool
 }
 
 func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts.Model, tc resetTestCase) error {
@@ -2425,7 +2430,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		}
 		bootMakeBootableCalled++
 
-		if tc.encrypt {
+		if tc.encrypt && !tc.tokens {
 			// those 2 keys are removed
 			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 				testutil.FileAbsent)
@@ -2437,7 +2442,7 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		}
 
 		// this would be done by boot
-		if tc.encrypt {
+		if tc.encrypt && !tc.tokens {
 			err := os.WriteFile(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
 				[]byte("save"), 0644)
 			c.Check(err, IsNil)
@@ -2445,6 +2450,10 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 				[]byte("new-data"), 0644)
 			c.Check(err, IsNil)
 		}
+		if tc.encrypt && tc.tokens {
+			obs.SetEncryptionParams(nil, nil, []byte{1, 2, 3, 4}, nil, nil)
+		}
+
 		return nil
 	})
 	defer restore()
@@ -2512,6 +2521,9 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		trustedInstallObserver, ok := installSealingObserver.(boot.TrustedAssetsInstallObserver)
 		c.Assert(ok, Equals, true, Commentf("unexpected type: %T", installSealingObserver))
 		c.Assert(trustedInstallObserver, NotNil)
+		if tc.tokens {
+			c.Assert(trustedInstallObserver.PrimaryKey(), NotNil)
+		}
 	} else {
 		c.Assert(installSealingObserver, IsNil)
 	}
@@ -2524,13 +2536,37 @@ func (s *deviceMgrInstallModeSuite) doRunFactoryResetChange(c *C, model *asserts
 		c.Assert(bootstrapContainer, NotNil)
 		saveKey, hasSaveKey := bootstrapContainer.Slots["default"]
 		c.Assert(hasSaveKey, Equals, true)
-		c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
-		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
-		// sha3-384 of the mocked ubuntu-save sealed key
-		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),
-			testutil.FileEquals,
-			`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
+		if tc.tokens {
+			buf, err := os.ReadFile(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"))
+			c.Assert(err, IsNil)
+			var data map[string]any
+			err = json.Unmarshal(buf, &data)
+			c.Assert(err, IsNil)
+
+			hashAny, hasHash := data["primary-key-hash"]
+			c.Assert(hasHash, Equals, true)
+			hashString, hashIsString := hashAny.(string)
+			c.Assert(hashIsString, Equals, true)
+			hash, err := base64.StdEncoding.DecodeString(hashString)
+			c.Assert(err, IsNil)
+			saltAny, saltash := data["salt"]
+			c.Assert(saltash, Equals, true)
+			saltString, saltIsString := saltAny.(string)
+			c.Assert(saltIsString, Equals, true)
+			salt, err := base64.StdEncoding.DecodeString(saltString)
+			c.Assert(err, IsNil)
+			h := hmac.New(sha256.New, salt)
+			h.Write([]byte{1, 2, 3, 4})
+			c.Check(hmac.Equal(h.Sum(nil), hash), Equals, true)
+		} else {
+			c.Check(filepath.Join(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/device/fde"), "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
+			c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"), testutil.FileEquals, "new-data")
+			// sha3-384 of the mocked ubuntu-save sealed key
+			c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),
+				testutil.FileEquals,
+				`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
 `)
+		}
 	} else {
 		c.Check(filepath.Join(dirs.SnapDeviceDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "factory-reset"),
 			testutil.FileEquals, "{}\n")
@@ -2676,15 +2712,23 @@ echo "mock output of: $(basename "$0") $*"
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyFull(c *C) {
 	const withKMods = false
-	s.testFactoryResetEncryptionHappyFull(c, withKMods)
+	const tokens = false
+	s.testFactoryResetEncryptionHappyFull(c, withKMods, tokens)
+}
+
+func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyFullTokens(c *C) {
+	const withKMods = false
+	const tokens = true
+	s.testFactoryResetEncryptionHappyFull(c, withKMods, tokens)
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyFullWithComps(c *C) {
 	const withKMods = true
-	s.testFactoryResetEncryptionHappyFull(c, withKMods)
+	const tokens = true
+	s.testFactoryResetEncryptionHappyFull(c, withKMods, tokens)
 }
 
-func (s *deviceMgrInstallModeSuite) testFactoryResetEncryptionHappyFull(c *C, withKMods bool) {
+func (s *deviceMgrInstallModeSuite) testFactoryResetEncryptionHappyFull(c *C, withKMods bool, tokens bool) {
 	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
 		return fmt.Errorf("unexpected copy call")
 	}
@@ -2752,7 +2796,7 @@ echo "mock output of: $(basename "$0") $*"
 	})()
 
 	err = s.doRunFactoryResetChange(c, model, resetTestCase{
-		tpm: true, encrypt: true, trustedBootloader: true,
+		tpm: true, encrypt: true, trustedBootloader: true, tokens: tokens,
 	})
 	c.Logf("logs:\n%v", logbuf.String())
 	c.Assert(err, IsNil)
@@ -2774,13 +2818,15 @@ echo "mock output of: $(basename "$0") $*"
 	})
 	c.Assert(err, IsNil)
 	c.Assert(ass, HasLen, 1)
-	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		testutil.FileEquals, "new-data")
-	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-		testutil.FileEquals, "old-save")
-	// new key was written
-	c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
-		testutil.FileEquals, "save")
+	if !tokens {
+		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+			testutil.FileEquals, "new-data")
+		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			testutil.FileEquals, "old-save")
+		// new key was written
+		c.Check(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key.factory-reset"),
+			testutil.FileEquals, "save")
+	}
 }
 
 func (s *deviceMgrInstallModeSuite) TestFactoryResetEncryptionHappyAfterReboot(c *C) {
