@@ -164,7 +164,9 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	}
 
 	for _, key := range confKeys {
-		tr.Set(s.context().InstanceName(), key, confValues[key])
+		if err := tr.Set(s.context().InstanceName(), key, confValues[key]); err != nil {
+			return err
+		}
 	}
 
 	return nil
