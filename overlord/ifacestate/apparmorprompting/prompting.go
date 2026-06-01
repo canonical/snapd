@@ -52,7 +52,7 @@ type listenerBackend interface {
 // A Manager holds outstanding prompts and mediates their replies, further it
 // stores and applies persistent rules.
 type Manager interface {
-	Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error)
+	Ask(uid uint32, iface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error)
 	Prompts(userID uint32, clientActivity bool) ([]*requestprompts.Prompt, error)
 	PromptWithID(userID uint32, promptID prompting.IDType, clientActivity bool) (*requestprompts.Prompt, error)
 	HandleReply(userID uint32, promptID prompting.IDType, replyConstraintsJSON prompting.ConstraintsJSON, outcome prompting.OutcomeType, lifespan prompting.LifespanType, duration string, clientActivity bool) ([]prompting.IDType, error)
@@ -84,6 +84,9 @@ type InterfacesRequestsManager struct {
 	// to ready. Thus, this channel is used to avoid repeatedly observing the
 	// listener readiness.
 	listenerAlreadySignalled chan struct{}
+
+	snapdShuttingDown chan struct{}
+	shuttingDownOnce  sync.Once
 
 	askRequests chan *prompting.Request
 }
@@ -140,6 +143,7 @@ func New(noticeMgr *notices.NoticeManager) (m *InterfacesRequestsManager, retErr
 		prompts:                  promptsBackend,
 		rules:                    rulesBackend,
 		listenerAlreadySignalled: make(chan struct{}),
+		snapdShuttingDown:        make(chan struct{}),
 		askRequests:              make(chan *prompting.Request),
 	}
 
@@ -328,21 +332,18 @@ func (m *InterfacesRequestsManager) disconnect() error {
 //
 // If the given channel closes or the prompting subsystem is shutting down,
 // then returns [prompting_errors.ErrPromptingClosed].
-// TODO: replace this ad-hoc channel with a proper shutdown handler in the
-// manager itself, so this method will observe the shutdown from within the
-// manager and act accordingly.
 //
 // The given interface must be one for which we expect requests to be created
 // directly, rather than via AppArmor. The requested permissions will include
 // all available permissions for the given interface.
-func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
+func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error) {
 	replyChan := make(chan []string)
 
 	reply := func(allowedPerms []string) error {
 		select {
 		case replyChan <- allowedPerms:
 			return nil
-		case <-snapdShuttingDown:
+		case <-m.snapdShuttingDown:
 			return prompting_errors.ErrPromptingClosed
 		case <-m.tomb.Dying():
 			return prompting_errors.ErrPromptingClosed
@@ -360,7 +361,7 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int3
 	select {
 	case m.askRequests <- req:
 		// request received and being processed
-	case <-snapdShuttingDown:
+	case <-m.snapdShuttingDown:
 		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
 	case <-m.tomb.Dying():
 		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
@@ -371,7 +372,7 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int3
 	select {
 	case allowedPermissions = <-replyChan:
 		// received reply
-	case <-snapdShuttingDown:
+	case <-m.snapdShuttingDown:
 		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
 	case <-m.tomb.Dying():
 		return prompting.OutcomeUnset, prompting_errors.ErrPromptingClosed
@@ -384,6 +385,14 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int3
 		}
 	}
 	return prompting.OutcomeAllow, nil
+}
+
+// ShutDown stops the listener, prompt DB, and rule DB from receiving new
+// requests.
+func (m *InterfacesRequestsManager) ShutDown() {
+	m.shuttingDownOnce.Do(func() {
+		close(m.snapdShuttingDown)
+	})
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and
