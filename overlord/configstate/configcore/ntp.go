@@ -336,7 +336,7 @@ func mapOptionValueTimesyncdToSnap(option *unit.UnitOption) (result any) {
 		if len(trimmedString) == 0 {
 			return []string{}
 		}
-		return strings.Split(trimmedString, " ")
+		return strings.Fields(trimmedString)
 
 	case "RootDistanceMaxSec", "PollIntervalMinSec", "PollIntervalMaxSec", "ConnectionRetrySec", "SaveIntervalSec":
 		return strings.TrimSpace(option.Value)
