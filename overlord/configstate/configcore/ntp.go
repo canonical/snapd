@@ -159,7 +159,7 @@ func validateNTPServers(servers []any) error {
 	for _, serverAny := range servers {
 		server, ok := serverAny.(string)
 		if !ok {
-			return fmt.Errorf("%q is not a valid string", serverAny)
+			return fmt.Errorf("server %v is not a valid string", serverAny)
 		}
 		if err := validateServerName(server); err != nil {
 			return err

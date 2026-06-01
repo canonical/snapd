@@ -187,7 +187,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 					},
 				},
 			},
-			expectedError: "invalid NTP configuration: '\\*' is not a valid string",
+			expectedError: "invalid NTP configuration: server 42 is not a valid string",
 		},
 		// 6: Malformed IP address in server list
 		{
