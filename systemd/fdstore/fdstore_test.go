@@ -292,6 +292,9 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), IsNil)
 	c.Check(s.closeFds, DeepEquals, []int{3})
 
+	// cannot remove again
+	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, `cannot remove file descriptor from fdstore: file descriptor not found`)
+
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), IsNil)
 	// 7 is duplicated as 1002
 	c.Check(s.duplicatedFds, DeepEquals, []int{3, 7})
@@ -303,6 +306,8 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 
 	// cannot remove socket fds
 	c.Check(fdstore.Remove(fdstore.FdName("snapd.socket")), ErrorMatches, "cannot remove file descriptor from fdstore: sockets cannot be removed")
+	// or unknown fds
+	c.Check(fdstore.Remove(fdstore.FdName("unknown")), ErrorMatches, `cannot remove file descriptor from fdstore: file descriptor not found`)
 
 	c.Check(s.sdNotifyCalls, DeepEquals, []string{
 		"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state",
