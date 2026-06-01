@@ -5,7 +5,10 @@ details: |
     audit subsystem (AUDIT_TRUSTED_APP, type 1121). This test verifies that
     a failed login attempt produces an "authn_login_failure" event and,
     when store credentials are available, that a successful login produces
-    an "authn_login_success" event in the audit log.
+    an "authn_login_success" event in the audit log. It also checks that
+    user lifecycle events (user_created, user_updated, user_removed) are
+    recorded when users are created via login, updated on re-login, and
+    removed via logout.
 
 # Amazon Linux 2: systemd-journald-audit.socket is not available
 systems: [ -amazon-linux-2-64 ]
@@ -77,7 +80,27 @@ execute: |
     # core does not have expect, so skip core systems
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ] && os-query is-classic; then
         echo "Checking that a successful login produces an audit event"
+        journal_pin
         expect -d -f "$TESTSLIB"/successful_login.exp
 
         journal_match '"level":"INFO","description":"User [^ ]* login success","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_success","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
+
+        echo "Checking that user creation produces an audit event"
+        journal_match '"category":"USER","event":"user_created","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
+
+        echo "Checking that a second login produces a user_updated audit event"
+        # A second login refreshes the store macaroon and discharges, so the
+        # store always returns new tokens and changed_fields will be non-empty.
+        # If the store ever returns identical tokens, no user_updated event
+        # will fire and this journal_match will time out.
+        journal_pin
+        expect -d -f "$TESTSLIB"/successful_login.exp
+
+        journal_match '"category":"USER","event":"user_updated","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\},"changed_fields":\[.*\]'
+
+        echo "Checking that logout produces a user_removed audit event"
+        journal_pin
+        snap logout
+
+        journal_match '"category":"USER","event":"user_removed","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
     fi
