@@ -28,6 +28,16 @@ def parse_args() -> argparse.Namespace:
         help="Path to a newline-separated changed-file list (alternative to --files)",
     )
     parser.add_argument(
+        "--spread-list",
+        required=True,
+        help="A file that contains the list of spread tests that would be executed in theory",
+    )
+    parser.add_argument(
+        "--always-run-suites",
+        nargs="+",
+        help="list of suites that should always be run",
+    )
+    parser.add_argument(
         "--coverage-dir",
         default="/home/katie.may@canonical.com/Desktop/coverage/2026-05-31/coverages",
         help="Coverage directory containing per-group JSON files",
@@ -82,6 +92,16 @@ def load_json_file(path: str) -> dict | list:
         return json.load(f)
 
 
+def read_spread_list(path: str) -> list[str]:
+    tests: list[str] = []
+    for line in Path(path).expanduser().read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        tests.append(stripped)
+    return tests
+
+
 def load_group_mapping(files: list[str]) -> dict[str, tuple[str, list[str]]]:
     mapping: dict[str, tuple[str, list[str]]] = {}
 
@@ -111,23 +131,48 @@ def group_coverage_file_path(coverage_dir: str, group: str) -> Path:
 
 
 def test_system_prefix(test_name: str) -> str:
-    parts = test_name.split(":", 2)
-    if len(parts) < 2:
+    parsed = parse_full_test_name(test_name)
+    if not parsed:
         return ""
-    return f"{parts[0]}:{parts[1]}"
+    backend, system, _ = parsed
+    return f"{backend}:{system}"
+
+
+def parse_full_test_name(test_name: str) -> tuple[str, str, str] | None:
+    parts = test_name.split(":", 2)
+    if len(parts) != 3:
+        return None
+
+    backend, system, test_part = parts
+    # Fully qualified IDs are backend:system:test; short test names usually begin with
+    # paths like tests/... and should not be parsed as backend/system prefixes.
+    if not backend or not system or not test_part:
+        return None
+    if "/" in backend or "/" in system:
+        return None
+
+    return backend, system, test_part
 
 
 def full_test_name(test_name: str, system_prefix: str) -> str:
-    if test_name.count(":") >= 2:
+    if parse_full_test_name(test_name):
         return test_name
     return f"{system_prefix}:{test_name}"
+
+
+def short_test_name(test_name: str) -> str:
+    parsed = parse_full_test_name(test_name)
+    if parsed:
+        _, _, test_part = parsed
+        return test_part
+    return test_name
 
 
 def expand_test_names(test_name: str, selected_systems: set[str]) -> set[str]:
     if not test_name:
         return set()
 
-    if test_name.count(":") >= 2:
+    if parse_full_test_name(test_name):
         if test_system_prefix(test_name) in selected_systems:
             return {test_name}
         return set()
@@ -163,10 +208,27 @@ def tests_for_changed_files(
     return selected
 
 
+def should_keep_test(
+    test_name: str, selected_tests: set[str], always_run_suites: list[str]
+) -> bool:
+    if test_name in selected_tests:
+        return True
+
+    short_name = short_test_name(test_name)
+    for suite_prefix in always_run_suites:
+        if test_name.startswith(suite_prefix) or short_name.startswith(suite_prefix):
+            return True
+
+    return False
+
+
 def main():
     args = parse_args()
 
+
     changed_files = read_files_input(args.files, args.files_list)
+    spread_tests = read_spread_list(args.spread_list)
+    always_run_suites = args.always_run_suites or []
     group_mapping = load_group_mapping(
         [args.fundamental_data, args.non_fundamental_data, args.nested_data]
     )
@@ -215,7 +277,13 @@ def main():
         if isinstance(test_name, str):
             selected_tests |= expand_test_names(test_name, selected_systems)
 
-    print("\n".join(sorted(selected_tests)))
+    final_tests = [
+        test_name
+        for test_name in spread_tests
+        if should_keep_test(test_name, selected_tests, always_run_suites)
+    ]
+
+    print("\n".join(final_tests))
 
 
 if __name__ == "__main__":
