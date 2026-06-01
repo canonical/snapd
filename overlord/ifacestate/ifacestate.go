@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/mcp"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
@@ -564,6 +565,10 @@ func delayedCrossMgrInit() {
 		snapstate.AddLinkSnapParticipant(snapstate.LinkSnapParticipantFunc(OnSnapLinkageChanged))
 
 		snapstate.ProcessDelayedSecurityBackendEffects = ProcessDelayedSecurityBackendEffects
+		mcp.RegisterTool(listConnectionsTool{})
+		mcp.RegisterTool(listPlugsTool{})
+		mcp.RegisterTool(listSlotsTool{})
+		mcp.RegisterTool(listInterfaceTypesTool{})
 	})
 }
 

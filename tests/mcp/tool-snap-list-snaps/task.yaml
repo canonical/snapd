@@ -1,0 +1,23 @@
+summary: Verify tool snap_list_snaps via snap mcp
+
+details: |
+    Verify that snap mcp can invoke the snap_list_snaps tool
+    and that the response includes an expected installed snap.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+execute: |
+    snap set system experimental.mcp=true
+
+    req='{"jsonrpc":"2.0","id":"tool-snap-list-snaps","method":"tools/call","params":{"name":"snap_list_snaps","arguments":{"name":"test-snapd-sh"}}}'
+    printf '%s\n' "$req" | snap mcp > response.json
+    NOMATCH "Structured content does not match the tool's output schema" < response.json
+
+    gojq -r '.jsonrpc' < response.json | MATCH '^2.0$'
+    gojq -r '.id' < response.json | MATCH '^tool-snap-list-snaps$'
+    gojq -r 'has("error")' < response.json | MATCH '^false$'
+
+    gojq -r '.result.isError' < response.json | MATCH '^false$'
+    gojq -r '.result.content[0].type' < response.json | MATCH '^text$'
+    gojq -r '.result.content[0].text | fromjson | .snaps | map(.name == "test-snapd-sh") | any' < response.json | MATCH '^true$'

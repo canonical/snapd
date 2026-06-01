@@ -83,6 +83,8 @@ const (
 	SeedRefresh
 	// SnapDeltaFormat enables deltas that use the "snap delta" format
 	SnapDeltaFormat
+	// MCP enables experimental model context protocol support.
+	MCP
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
 )
@@ -138,6 +140,8 @@ var featureNames = map[SnapdFeature]string{
 	SeedRefresh: "seed-refresh",
 
 	SnapDeltaFormat: "snap-delta-format",
+
+	MCP: "mcp",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.

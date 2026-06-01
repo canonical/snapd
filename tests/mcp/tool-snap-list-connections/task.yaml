@@ -1,0 +1,25 @@
+summary: Verify tool snap_list_connections via snap mcp
+
+details: |
+    Verify that snap mcp can invoke the snap_list_connections
+    tool and report key fields for a known active connection.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-plug
+    snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+
+execute: |
+    snap set system experimental.mcp=true
+
+    req='{"jsonrpc":"2.0","id":"tool-snap-list-connections","method":"tools/call","params":{"name":"snap_list_connections","arguments":{"snap":"test-snapd-content-plug"}}}'
+    printf '%s\n' "$req" | snap mcp > response.json
+    NOMATCH "Structured content does not match the tool's output schema" < response.json
+
+    gojq -r '.jsonrpc' < response.json | MATCH '^2.0$'
+    gojq -r '.id' < response.json | MATCH '^tool-snap-list-connections$'
+    gojq -r 'has("error")' < response.json | MATCH '^false$'
+
+    gojq -r '.result.isError' < response.json | MATCH '^false$'
+    gojq -r '.result.content[0].type' < response.json | MATCH '^text$'
+    gojq -r '.result.content[0].text | fromjson | .connections | map(.plug_snap == "test-snapd-content-plug" and .slot_snap == "test-snapd-content-slot" and .interface == "content") | any' < response.json | MATCH '^true$'
