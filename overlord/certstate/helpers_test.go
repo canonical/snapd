@@ -374,7 +374,7 @@ func (s *helpersSuite) TestCanonicalSubjectNameDER(c *C) {
 	}
 
 	// Helper: parse the first ATAV value from the canonical output.
-	parseFirstValue := func(canonical []byte) (tag int, value string) {
+	parseFirstRawValue := func(canonical []byte) asn1.RawValue {
 		var rdn asn1.RawValue
 		_, err := asn1.Unmarshal(canonical, &rdn)
 		c.Assert(err, IsNil)
@@ -388,7 +388,12 @@ func (s *helpersSuite) TestCanonicalSubjectNameDER(c *C) {
 		var strVal asn1.RawValue
 		_, err = asn1.Unmarshal(rem, &strVal)
 		c.Assert(err, IsNil)
-		return strVal.Tag, string(strVal.Bytes)
+		return strVal
+	}
+
+	parseFirstValue := func(canonical []byte) (tag int, value string) {
+		raw := parseFirstRawValue(canonical)
+		return raw.Tag, string(raw.Bytes)
 	}
 
 	// String attributes are trimmed, whitespace-collapsed, and lowercased.
@@ -461,6 +466,34 @@ func (s *helpersSuite) TestCanonicalSubjectNameDER(c *C) {
 	_, err = asn1.Unmarshal(firstOIDRaw.FullBytes, &firstOID)
 	c.Assert(err, IsNil)
 	c.Check(firstOID, DeepEquals, oOID)
+
+	// Non-string attribute values are preserved byte-for-byte end to end.
+	intBytes, err := asn1.Marshal(42)
+	c.Assert(err, IsNil)
+	integerSubject := makeSubject(append(cnOIDBytes, intBytes...))
+	canonical, err = certstate.CanonicalSubjectNameDER(integerSubject)
+	c.Assert(err, IsNil)
+	intVal := parseFirstRawValue(canonical)
+	c.Check(intVal.Tag, Equals, asn1.TagInteger)
+	c.Check(intVal.FullBytes, DeepEquals, intBytes)
+
+	// Error: malformed DER input.
+	_, err = certstate.CanonicalSubjectNameDER([]byte{})
+	c.Check(err, NotNil)
+
+	// An empty subject SEQUENCE is valid and canonicalises to empty contents.
+	canonical, err = certstate.CanonicalSubjectNameDER([]byte{0x30, 0x00})
+	c.Assert(err, IsNil)
+	c.Check(canonical, HasLen, 0)
+
+	// Error: malformed ATAV inside an otherwise valid subject.
+	_, err = certstate.CanonicalSubjectNameDER(makeSubject(cnOIDBytes))
+	c.Check(err, NotNil)
+
+	// Error: invalid canonicalizable string encoding inside the subject.
+	badUTF8ValBytes := certstate.MarshalASN1Value(asn1.TagUTF8String, false, []byte{0xFF, 0xFE})
+	_, err = certstate.CanonicalSubjectNameDER(makeSubject(append(cnOIDBytes, badUTF8ValBytes...)))
+	c.Check(err, ErrorMatches, "invalid UTF8String")
 
 	// Error: malformed DER input.
 	_, err = certstate.CanonicalSubjectNameDER([]byte{0xFF, 0xFF})
