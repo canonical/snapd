@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -141,6 +142,9 @@ func (s *getSuite) TestGetTests(c *C) {
 		state := state.New(nil)
 		state.Lock()
 
+		snapJSON := json.RawMessage(`{}`)
+		state.Set("snaps", map[string]*json.RawMessage{"test-snap": &snapJSON})
+
 		task := state.NewTask("test-task", "my test task")
 		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
@@ -202,6 +206,9 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 		state := state.New(nil)
 		state.Lock()
 
+		snapJSON := json.RawMessage(`{}`)
+		state.Set("snaps", map[string]*json.RawMessage{"test-snap": &snapJSON})
+
 		task := state.NewTask("test-task", "my test task")
 		setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
@@ -242,6 +249,9 @@ func (s *getSuite) TestGetPartialNestedStruct(c *C) {
 func (s *getSuite) TestGetRegularUser(c *C) {
 	state := state.New(nil)
 	state.Lock()
+
+	snapJSON := json.RawMessage(`{}`)
+	state.Set("snaps", map[string]*json.RawMessage{"test-snap": &snapJSON})
 
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}

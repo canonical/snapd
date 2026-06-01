@@ -154,8 +154,8 @@ func (s *setCommand) Execute(args []string) error {
 
 func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 	context.Lock()
+	defer context.Unlock()
 	tr := configstate.ContextTransaction(context)
-	context.Unlock()
 
 	opts := &clientutil.ParseConfigOptions{String: s.String, Typed: s.Typed}
 	confValues, confKeys, err := clientutil.ParseConfigValues(s.Positional.ConfValues, opts)

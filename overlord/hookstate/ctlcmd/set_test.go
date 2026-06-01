@@ -58,6 +58,11 @@ func (s *setSuite) SetUpTest(c *C) {
 	state.Lock()
 	defer state.Unlock()
 
+	snapJSON := json.RawMessage(`{"base": "core26"}`)
+	state.Set("snaps", map[string]*json.RawMessage{
+		"test-snap": &snapJSON,
+	})
+
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 

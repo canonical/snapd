@@ -87,11 +87,11 @@ execute: |
     fi
     [[ "$obtained" == *"invalid option name"* ]]
 
-    if obtained=$(snap set -t snapctl-hooks 'command=[{"Foo":123}]' 2>&1); then
-        echo "Expected usage of an invalid key to result in an error"
-        exit 1
-    fi
-    [[ "$obtained" == *"invalid option name"* ]]
+    # although the "Foo" field is invalid, we only error on this for core26+ snaps.
+    # For other snaps we log a warning
+    snap set snapctl-hooks command=test-snapctl-set-invalid-field
+    snap warnings | tail -n2 | tr -d '\n' | tr -s '  ' ' ' | grep -F 'Option value has invalid field name "Foo". For core26+ snaps, fields must be dash separated lowercase alphanumerics.'
+    snap okay
 
     echo "Install should fail altogether as it has a broken hook"
     if obtained=$(snap install --dangerous failing-config-hooks_1.0_all.snap 2>&1); then

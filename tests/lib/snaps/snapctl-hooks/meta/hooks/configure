@@ -24,6 +24,14 @@ test_snapctl_set_bar_doc() {
   fi
 }
 
+test_snapctl_set_invalid_field() {
+  echo "Setting bar to object with invalid field"
+  if ! snapctl set -t bar="{\"Foo\":3}"; then
+    echo "snapctl set unexpectedly failed"
+    exit 1
+  fi
+}
+
 test_snapctl_get_foo() {
 	echo "Getting foo"
 	if ! output="$(snapctl get foo)"; then
@@ -141,12 +149,15 @@ case $command in
     ;;
   "test-unset-with-unset")
     test_snapctl_unset_with_unset
-	;;
+		;;
   "noop")
-	;;
+		;;
   "test-unset")
     test_snapctl_unset
-	;;
+		;;
+  "test-snapctl-set-invalid-field")
+    test_snapctl_set_invalid_field
+		;;
 	*)
 		echo "Invalid command: '$command'"
 		exit 1

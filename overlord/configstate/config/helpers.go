@@ -48,14 +48,22 @@ func ParseKey(key string) (subkeys []string, err error) {
 	return subkeys, nil
 }
 
+type invalidKeyError struct {
+	field string
+}
+
+func (e *invalidKeyError) Error() string {
+	return fmt.Sprintf("invalid option name: %q", e.field)
+}
+
 // validateMapKeys takes an unmarshalled JSON object and checks that any map
 // keys nested within match the format expected by path keys.
-func validateMapKeys(value any) error {
+func validateMapKeys(value any) *invalidKeyError {
 	switch v := value.(type) {
 	case map[string]any:
 		for k, sub := range v {
 			if !validKey.MatchString(k) {
-				return fmt.Errorf("invalid option name: %q", k)
+				return &invalidKeyError{field: k}
 			}
 
 			if err := validateMapKeys(sub); err != nil {
@@ -321,6 +329,7 @@ type ConfSetter interface {
 // patch keys can be dotted as the key argument to Set.
 // The patch is applied according to the order of its keys sorted by depth,
 // with top keys sorted first.
+// State must be locked by caller.
 func Patch(cfg ConfSetter, snapName string, patch map[string]any) error {
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, key := range patchKeys {
