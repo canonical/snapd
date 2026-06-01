@@ -203,8 +203,9 @@ func (gkm *GPGKeypairManager) walkSecretKeys(consider func(fingerprint string, u
 		fpr := ""
 		// look for fpr:, uid: lines, order may vary and gpg2.1
 		// may springle additional lines in (like gpr:)
+		// stop at the next primary key or any subkey record so we only collect metadata for this sec: entry.
 	Loop:
-		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:"); k++ {
+		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:") && !strings.HasPrefix(lines[k], "ssb:") && !strings.HasPrefix(lines[k], "sub:"); k++ {
 			switch {
 			case strings.HasPrefix(lines[k], "fpr:"):
 				fprFields := strings.Split(lines[k], ":")
