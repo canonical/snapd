@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
 const openglSummary = `allows access to OpenGL stack`
@@ -220,6 +221,36 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 /run/nvidia-persistenced/socket rw,
 `
 
+const openglHybrisConnectedPlugAppArmor = `
+# Support for non-redistributable Android GL drivers on Halium systems
+# These drivers are built against Android's bionic libc, located on
+# vendor-provided partitions, and generally loaded using libhybris on
+# GNU/Linux systems, like via hybris-2404.
+/android{,/**} r,
+/{,android/}system/build.prop r,
+/{,android/}vendor/build.prop r,
+/{,android/}odm/build.prop    r,
+/{,android/}vendor/lib{,64}/**           r,
+/{,android/}vendor/lib{,64}/**.so        m,
+/{,android/}system/lib{,64}/**           r,
+/{,android/}system/lib{,64}/**.so        m,
+/{,android/}system/vendor/lib{,64}/**    r,
+/{,android/}system/vendor/lib{,64}/**.so m,
+/{,android/}odm/lib{,64}/**    r,
+/{,android/}odm/lib{,64}/**.so m,
+/{,android/}apex/com.android.*/lib{,64}/**     r,
+/{,android/}apex/com.android.*/lib{,64}/**.so  m,
+/{,dev/}socket/property_service rw, # attach_disconnected path
+/{,dev/}socket/logdw rw, # attach_disconnected path
+/{,dev/}__properties__/** r, # attach_disconnected path
+/dev/{,binderfs/}binder rw,
+/dev/{,binderfs/}hwbinder rw,
+/dev/ashmem rw,
+/dev/ion rw,
+/dev/kgsl-3d0 rw,
+/sys/devices/platform/soc/**/kgsl/kgsl-3d0/gpu_model rw,
+`
+
 type openglInterface struct {
 	commonInterface
 }
@@ -265,6 +296,14 @@ const (
 	wslDirInMountNs        = "/usr/lib/wsl"
 )
 
+// Set up hybris/Halium device access for GLES to work on Touch
+var openglHybrisConnectedPlugUDev = []string{
+	`KERNEL=="kgsl-3d0"`,
+	`KERNEL=="ion"`,
+	`KERNEL=="binder"`,
+	`KERNEL=="hwbinder"`,
+}
+
 func (iface *openglInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(openglConnectedPlugAppArmor)
 
@@ -300,6 +339,11 @@ func (iface *openglInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 		)
 	}
 
+	// Ensure Ubuntu Touch allows for use of non-redistributable EGL & Vulkan drivers
+	if release.OnTouch {
+		spec.AddSnippet(openglHybrisConnectedPlugAppArmor)
+	}
+
 	return nil
 }
 
@@ -333,6 +377,10 @@ func (iface *openglInterface) MountConnectedPlug(spec *mount.Specification, plug
 }
 
 func init() {
+	connectedPlugUDev := openglConnectedPlugUDev
+	if release.OnTouch {
+		connectedPlugUDev = append(openglConnectedPlugUDev, openglHybrisConnectedPlugUDev...)
+	}
 	registerIface(&openglInterface{
 		commonInterface: commonInterface{
 			name:                 "opengl",
@@ -340,7 +388,7 @@ func init() {
 			implicitOnCore:       true,
 			implicitOnClassic:    true,
 			baseDeclarationSlots: openglBaseDeclarationSlots,
-			connectedPlugUDev:    openglConnectedPlugUDev,
+			connectedPlugUDev:    connectedPlugUDev,
 		},
 	})
 }
