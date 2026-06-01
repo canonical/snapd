@@ -1045,7 +1045,7 @@ func readLockoutAuth(lockoutAuthFile string) (data []byte, isValue bool, err err
 		isValue = false
 	}
 
-	return
+	return data, isValue, nil
 }
 
 func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFile string) error {
