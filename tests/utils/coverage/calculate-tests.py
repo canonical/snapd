@@ -3,7 +3,7 @@
 import argparse
 import json
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,13 +19,12 @@ def parse_args() -> argparse.Namespace:
         help="Group name (e.g. ubuntu-core-20 or nested-ubuntu-24.04)",
     )
     parser.add_argument(
-        "--files",
-        nargs="+",
-        help="Repository-relative changed file paths (e.g. arch/arch.go)",
-    )
-    parser.add_argument(
         "--files-list",
-        help="Path to a newline-separated changed-file list (alternative to --files)",
+        required=True,
+        help=(
+            "Path to JSON changed-files list. Format: "
+            "[{\"path\": \"arch/arch.go\", \"changeType\": \"MODIFIED\"}]"
+        ),
     )
     parser.add_argument(
         "--spread-list",
@@ -70,21 +69,38 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def read_files_input(files: list[str] | None, files_list: str | None) -> list[str]:
-    selected_files: set[str] = set()
+def read_files_input(files_list: str) -> list[tuple[str, str]]:
+    changed_files_data = load_json_file(files_list)
+    if not isinstance(changed_files_data, list):
+        raise RuntimeError("unexpected changed-files shape; expected JSON array")
 
-    for file_path in files or []:
-        stripped = file_path.strip()
-        if stripped:
-            selected_files.add(stripped)
+    changed_files: list[tuple[str, str]] = []
+    valid_change_types = {"ADDED", "MODIFIED", "DELETED"}
 
-    if files_list:
-        for line in Path(files_list).expanduser().read_text().splitlines():
-            stripped = line.strip()
-            if stripped:
-                selected_files.add(stripped)
+    for item in changed_files_data:
+        if not isinstance(item, dict):
+            raise RuntimeError("invalid changed-files entry; expected JSON object")
 
-    return sorted(selected_files)
+        path = item.get("path")
+        change_type = item.get("changeType")
+        if not isinstance(path, str) or not path.strip():
+            raise RuntimeError("invalid changed-files entry; missing non-empty path")
+        if not isinstance(change_type, str):
+            raise RuntimeError("invalid changed-files entry; missing changeType")
+
+        normalized_change_type = change_type.strip().upper()
+        if normalized_change_type not in valid_change_types:
+            raise RuntimeError(
+                f"invalid changeType '{change_type}'; expected one of {sorted(valid_change_types)}"
+            )
+
+        changed_files.append((path.strip(), normalized_change_type))
+
+    return changed_files
+
+
+def immediate_directory(file_path: str) -> str:
+    return str(PurePosixPath(file_path).parent)
 
 
 def load_json_file(path: str) -> dict | list:
@@ -196,16 +212,55 @@ def remove_inits(systems):
 
 
 def tests_for_changed_files(
-    system_data: dict, changed_files: list[str], selected_systems: set[str]
+    system_data: dict, changed_files: list[tuple[str, str]], selected_systems: set[str]
 ) -> set[str]:
     selected: set[str] = set()
-    for file_path in changed_files:
-        for entry in system_data.get(file_path, []):
+
+    coverage_paths_by_dir: dict[str, list[str]] = {}
+    for covered_path in system_data:
+        covered_dir = immediate_directory(covered_path)
+        coverage_paths_by_dir.setdefault(covered_dir, []).append(covered_path)
+
+    for file_path, change_type in changed_files:
+        candidate_paths: list[str]
+        if change_type == "MODIFIED":
+            candidate_paths = [file_path]
+        else:
+            changed_dir = immediate_directory(file_path)
+            candidate_paths = coverage_paths_by_dir.get(changed_dir, [])
+
+        for candidate_path in candidate_paths:
+            for entry in system_data.get(candidate_path, []):
+                if isinstance(entry, dict):
+                    test_name = entry.get("test")
+                    if isinstance(test_name, str):
+                        selected |= expand_test_names(test_name, selected_systems)
+
+    return selected
+
+
+def coverage_tests(system_data: dict, selected_systems: set[str]) -> set[str]:
+    selected: set[str] = set()
+    for entries in system_data.values():
+        for entry in entries:
             if isinstance(entry, dict):
                 test_name = entry.get("test")
                 if isinstance(test_name, str):
                     selected |= expand_test_names(test_name, selected_systems)
     return selected
+
+
+def tests_missing_from_coverage(
+    spread_tests: list[str], system_data: dict, selected_systems: set[str]
+) -> set[str]:
+    represented_in_coverage = coverage_tests(system_data, selected_systems)
+    missing: set[str] = set()
+
+    for test_name in spread_tests:
+        if test_name not in represented_in_coverage:
+            missing.add(test_name)
+
+    return missing
 
 
 def should_keep_test(
@@ -226,7 +281,7 @@ def main():
     args = parse_args()
 
 
-    changed_files = read_files_input(args.files, args.files_list)
+    changed_files = read_files_input(args.files_list)
     spread_tests = read_spread_list(args.spread_list)
     always_run_suites = args.always_run_suites or []
     group_mapping = load_group_mapping(
@@ -276,6 +331,10 @@ def main():
     for test_name in failed:
         if isinstance(test_name, str):
             selected_tests |= expand_test_names(test_name, selected_systems)
+
+    selected_tests |= tests_missing_from_coverage(
+        spread_tests, systems[args.group], selected_systems
+    )
 
     final_tests = [
         test_name
