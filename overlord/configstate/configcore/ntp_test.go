@@ -73,7 +73,8 @@ func (s *ntpSuite) writeExampleConfigFile(c *C) {
 func (s *ntpSuite) verifyConfigfileContent(c *C, expectedContent []string, comment string) {
 	// The serialization order of the individual options is not predictable. Read the file, sort
 	// the lines and compare them against the (already sorted) expected content.
-	content, _ := os.ReadFile(s.timesyncdConfigFile)
+	content, err := os.ReadFile(s.timesyncdConfigFile)
+	c.Assert(err, IsNil)
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
 	// Sort in reverse order so the output looks "normal" with the "[Time]" line at the top
 	sort.Sort(sort.Reverse(sort.StringSlice(lines)))
@@ -346,11 +347,11 @@ func (s *ntpSuite) TestNTPSetCannotCreateSystemdFolder(c *C) {
 	systemdConfigFolder := filepath.Join(etcFolder, "systemd")
 	systemdConfigFolderAlternateName := filepath.Join(etcFolder, "systemd.bak")
 	// Instead of removing it, we rename it to avoid issues for other files
-	os.Rename(systemdConfigFolder, systemdConfigFolderAlternateName)
+	c.Assert(os.Rename(systemdConfigFolder, systemdConfigFolderAlternateName), IsNil)
 	// Remove write permission for /etc so that /etc/systemd cannot be recreated
 	c.Assert(os.Chmod(etcFolder, 0111), IsNil)
+	defer func() { c.Assert(os.Rename(systemdConfigFolderAlternateName, systemdConfigFolder), IsNil) }()
 	defer os.Chmod(etcFolder, 0755)
-	defer os.Rename(systemdConfigFolderAlternateName, systemdConfigFolder)
 
 	conf := configcore.PlainCoreConfig(validConfigurationExample)
 
