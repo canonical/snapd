@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,32 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
 
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/jessevdk/go-flags"
 )
 
-func main() {
-	argv0 := filepath.Base(os.Args[0])
+type cmdGetStacktraces struct {
+	clientMixin
+}
 
-	// dispatch the binary multi entry point
-	// TODO add snap-preseed
-	switch argv0 {
-	case "snapd":
-		snapdMain()
-	default: // "snap"
-		cli.Main()
+func init() {
+	addDebugCommand("stacktraces",
+		"Obtain stacktraces of all snapd goroutines",
+		"Obtain stacktraces of all snapd goroutines.",
+		func() flags.Commander {
+			return &cmdGetStacktraces{}
+		}, nil, nil)
+}
+
+func (x *cmdGetStacktraces) Execute(args []string) error {
+	var stacktraces string
+	if err := x.client.Debug("stacktraces", nil, &stacktraces); err != nil {
+		return err
 	}
+	fmt.Fprint(Stdout, stacktraces)
+	return nil
 }

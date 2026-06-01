@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,29 @@
  *
  */
 
-package main
+package cli_test
 
 import (
 	"os"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	. "gopkg.in/check.v1"
+
+	snap "github.com/snapcore/snapd/cmd/snapd/cli"
 )
 
-func main() {
-	argv0 := filepath.Base(os.Args[0])
+func (s *SnapSuite) TestDebugValidateCannotValidate(c *C) {
+	tmpf := filepath.Join(c.MkDir(), "seed.yaml")
+	err := os.WriteFile(tmpf, []byte(`
+snaps:
+ -
+   name: core
+   channel: stable
+   file: core_6673.snap
+`), 0644)
+	c.Assert(err, IsNil)
 
-	// dispatch the binary multi entry point
-	// TODO add snap-preseed
-	switch argv0 {
-	case "snapd":
-		snapdMain()
-	default: // "snap"
-		cli.Main()
-	}
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "validate-seed", tmpf})
+	c.Assert(err, ErrorMatches, `cannot validate seed:
+ - no seed assertions`)
 }

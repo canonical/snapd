@@ -1,5 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+//go:build linux
+
 /*
  * Copyright (C) 2026 Canonical Ltd
  *
@@ -20,21 +22,9 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
-
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/snapcore/snapd/cmd/snapd/daemon"
 )
 
-func main() {
-	argv0 := filepath.Base(os.Args[0])
-
-	// dispatch the binary multi entry point
-	// TODO add snap-preseed
-	switch argv0 {
-	case "snapd":
-		snapdMain()
-	default: // "snap"
-		cli.Main()
-	}
+func snapdMain() {
+	daemon.Main()
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,12 @@
  *
  */
 
-package main
+package cli
 
 import (
 	"os"
-	"path/filepath"
-
-	"github.com/snapcore/snapd/cmd/snapd/cli"
 )
 
-func main() {
-	argv0 := filepath.Base(os.Args[0])
-
-	// dispatch the binary multi entry point
-	// TODO add snap-preseed
-	switch argv0 {
-	case "snapd":
-		snapdMain()
-	default: // "snap"
-		cli.Main()
-	}
+func maybeReserveDiskSpace(f *os.File, size int64) error {
+	return nil
 }

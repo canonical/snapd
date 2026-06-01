@@ -1,5 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+//go:build !linux
+
 /*
  * Copyright (C) 2026 Canonical Ltd
  *
@@ -20,21 +22,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
-	"path/filepath"
-
-	"github.com/snapcore/snapd/cmd/snapd/cli"
 )
 
-func main() {
-	argv0 := filepath.Base(os.Args[0])
-
-	// dispatch the binary multi entry point
-	// TODO add snap-preseed
-	switch argv0 {
-	case "snapd":
-		snapdMain()
-	default: // "snap"
-		cli.Main()
-	}
+func snapdMain() {
+	fmt.Fprintf(os.Stderr, "error: snapd mode is not supported on this system\n")
+	os.Exit(1)
 }

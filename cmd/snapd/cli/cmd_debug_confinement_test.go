@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2017 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,24 +17,23 @@
  *
  */
 
-package main
+package cli_test
 
 import (
-	"os"
-	"path/filepath"
+	"fmt"
+	"net/http"
 
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	. "gopkg.in/check.v1"
+
+	snap "github.com/snapcore/snapd/cmd/snapd/cli"
 )
 
-func main() {
-	argv0 := filepath.Base(os.Args[0])
-
-	// dispatch the binary multi entry point
-	// TODO add snap-preseed
-	switch argv0 {
-	case "snapd":
-		snapdMain()
-	default: // "snap"
-		cli.Main()
-	}
+func (s *SnapSuite) TestConfinement(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type": "sync", "result": {"confinement": "strict"}}`)
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "confinement"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, "strict\n")
+	c.Assert(s.Stderr(), Equals, "")
 }
