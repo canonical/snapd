@@ -83,7 +83,8 @@ var (
 	tpmReleaseResources     = tpmReleaseResourcesImpl
 	tpmGetCapabilityHandles = (*sb_tpm2.Connection).GetCapabilityHandles
 
-	sbTPMDictionaryAttackLockReset = (*sb_tpm2.Connection).DictionaryAttackLockReset
+	sbTPMResetDictionaryAttackLockWithAuthValue = (*sb_tpm2.Connection).ResetDictionaryAttackLockWithAuthValue
+	sbTPMResetDictionaryAttackLock              = (*sb_tpm2.Connection).ResetDictionaryAttackLock
 
 	sbUpdateKeyDataPCRProtectionPolicy = sb_tpm2.UpdateKeyDataPCRProtectionPolicy
 
@@ -1020,29 +1021,45 @@ func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *P
 	return mu.MarshalToBytes(pcrProfile)
 }
 
+func readLockoutAuth(lockoutAuthFile string) (data []byte, isValue bool, err error) {
+	logger.Debugf("using existing lockout authorization")
+	data, err = os.ReadFile(lockoutAuthFile)
+	if err != nil {
+		return nil, false, fmt.Errorf("cannot read existing lockout auth: %v", err)
+	}
+
+	if len(data) == 16 {
+		// This could be an old auth value (not json)
+		jsonTop := make(map[string]any)
+		if err := json.Unmarshal(data, &jsonTop); err != nil {
+			// Not json, definitely!
+			isValue = true
+		} else if _, hasAuthValue := jsonTop["auth-value"]; !hasAuthValue {
+			// Has no field "auth-value"
+			isValue = true
+		} else {
+			// Looks like a valid auth data, so go for that
+			isValue = false
+		}
+	} else {
+		isValue = false
+	}
+
+	return
+}
+
 func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFile string) error {
 	var currentAuth sb_tpm2.EnsureProvisionedOption
 
 	if mode == TPMPartialReprovision {
 		logger.Debugf("using existing lockout authorization")
-		d, err := os.ReadFile(lockoutAuthFile)
+		d, isValue, err := readLockoutAuth(lockoutAuthFile)
 		if err != nil {
-			return fmt.Errorf("cannot read existing lockout auth: %v", err)
+			return err
 		}
 
-		if len(d) == 16 {
-			// This could be an old auth value (not json)
-			jsonTop := make(map[string]any)
-			if err := json.Unmarshal(d, &jsonTop); err != nil {
-				// Not json, definitely!
-				currentAuth = sb_tpm2.WithLockoutAuthValue(d)
-			} else if _, hasAuthValue := jsonTop["auth-value"]; !hasAuthValue {
-				// Has no field "auth-value"
-				currentAuth = sb_tpm2.WithLockoutAuthValue(d)
-			} else {
-				// Looks like a valid auth data, so go for that
-				currentAuth = sb_tpm2.WithLockoutAuthData(d)
-			}
+		if isValue {
+			currentAuth = sb_tpm2.WithLockoutAuthValue(d)
 		} else {
 			currentAuth = sb_tpm2.WithLockoutAuthData(d)
 		}
@@ -1127,20 +1144,25 @@ func releasePCRResourceHandles(handles ...uint32) error {
 }
 
 func resetLockoutCounter(lockoutAuthFile string) error {
+	auth, isValue, err := readLockoutAuth(lockoutAuthFile)
+	if err != nil {
+		return err
+	}
+
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
 		return fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 	defer tpm.Close()
 
-	lockoutAuth, err := os.ReadFile(lockoutAuthFile)
-	if err != nil {
-		return fmt.Errorf("cannot read existing lockout auth: %v", err)
-	}
-	tpm.LockoutHandleContext().SetAuthValue(lockoutAuth)
-
-	if err := sbTPMDictionaryAttackLockReset(tpm, tpm.LockoutHandleContext(), tpm.HmacSession()); err != nil {
-		return err
+	if isValue {
+		if err := sbTPMResetDictionaryAttackLockWithAuthValue(tpm, auth); err != nil {
+			return err
+		}
+	} else {
+		if err := sbTPMResetDictionaryAttackLock(tpm, auth); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -3149,14 +3149,21 @@ func (s *secbootSuite) TestMarkSuccessfulNotEncrypted(c *C) {
 }
 
 func (s *secbootSuite) TestMarkSuccessfulEncryptedTPM(c *C) {
-	s.testMarkSuccessfulEncrypted(c, device.SealingMethodTPM, 1)
+	const newFormat = false
+	s.testMarkSuccessfulEncrypted(c, device.SealingMethodTPM, 1, newFormat)
+}
+
+func (s *secbootSuite) TestMarkSuccessfulEncryptedTPMNewFormat(c *C) {
+	const newFormat = true
+	s.testMarkSuccessfulEncrypted(c, device.SealingMethodTPM, 1, newFormat)
 }
 
 func (s *secbootSuite) TestMarkSuccessfulEncryptedFDE(c *C) {
-	s.testMarkSuccessfulEncrypted(c, device.SealingMethodFDESetupHook, 0)
+	const newFormat = true
+	s.testMarkSuccessfulEncrypted(c, device.SealingMethodFDESetupHook, 0, newFormat)
 }
 
-func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.SealingMethod, expectedDaLockResetCalls int) {
+func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.SealingMethod, expectedDaLockResetCalls int, newFormat bool) {
 	_, restore := mockSbTPMConnection(c, nil)
 	defer restore()
 
@@ -3171,32 +3178,40 @@ func (s *secbootSuite) testMarkSuccessfulEncrypted(c *C, sealingMethod device.Se
 	c.Assert(err, IsNil)
 
 	// write fake lockout auth
-	lockoutAuthValue := []byte("tpm-lockout-auth-key")
-	err = os.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthValue, 0600)
+	var lockoutAuthData []byte
+	if newFormat {
+		lockoutAuthData = []byte("{\"auth-value\":\"tpm-lockout-akey\"}")
+	} else {
+		lockoutAuthData = []byte("tpm-lockout-akey") // len 16
+		c.Assert(lockoutAuthData, HasLen, 16)
+	}
+	err = os.WriteFile(filepath.Join(saveFDEDir, "tpm-lockout-auth"), lockoutAuthData, 0600)
 	c.Assert(err, IsNil)
 
-	daLockResetCalls := 0
-	restore = secboot.MockSbTPMDictionaryAttackLockReset(func(tpm *sb_tpm2.Connection, lockContext tpm2.ResourceContext, lockContextAuthSession tpm2.SessionContext, sessions ...tpm2.SessionContext) error {
-		daLockResetCalls++
-		// Below this code pokes at the private data from
-		//   github.com/canonical/go-tpm2/resources.go
-		//   type resourceContext struct {
-		//     ...
-		//     authValue []byte
-		//   }
-		// there is no exported API to get the auth value. If go-tpm2
-		// starts chaning it's probably not worth updating this
-		// part of the test and it can just get removed.
-		fv := reflect.ValueOf(lockContext).Elem().FieldByName("authValue")
-		c.Check(fv.Bytes(), DeepEquals, lockoutAuthValue)
+	daLockResetCallsWithValue := 0
+	defer secboot.MockTPMResetDictionaryAttackLockWithAuthValue(func(tpm *sb_tpm2.Connection, value []byte) error {
+		daLockResetCallsWithValue++
+		c.Check(value, DeepEquals, lockoutAuthData)
 		return nil
-	})
-	defer restore()
+	})()
+
+	daLockResetCallsWithData := 0
+	defer secboot.MockTPMResetDictionaryAttackLock(func(tpm *sb_tpm2.Connection, data []byte) error {
+		daLockResetCallsWithData++
+		c.Check(data, DeepEquals, lockoutAuthData)
+		return nil
+	})()
 
 	err = secboot.MarkSuccessful()
 	c.Check(err, IsNil)
 
-	c.Check(daLockResetCalls, Equals, expectedDaLockResetCalls)
+	if newFormat {
+		c.Check(daLockResetCallsWithValue, Equals, 0)
+		c.Check(daLockResetCallsWithData, Equals, expectedDaLockResetCalls)
+	} else {
+		c.Check(daLockResetCallsWithValue, Equals, expectedDaLockResetCalls)
+		c.Check(daLockResetCallsWithData, Equals, 0)
+	}
 }
 
 func (s *secbootSuite) TestHookKeyRevealV3(c *C) {
