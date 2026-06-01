@@ -26,6 +26,7 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"os"
+	"os/exec"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
@@ -51,6 +52,26 @@ func (gkms *gpgKeypairMgrSuite) SetUpSuite(c *C) {
 
 func (gkms *gpgKeypairMgrSuite) importKey(key string) {
 	assertstest.GPGImportKey(gkms.homedir, key)
+}
+
+func (gkms *gpgKeypairMgrSuite) addSigningSubkey(c *C, fingerprint string) {
+	path, err := exec.LookPath("gpg")
+	if err != nil {
+		c.Skip("gpg with --quick-add-key support not installed")
+	}
+	gpg := exec.Command(path,
+		"--homedir", gkms.homedir,
+		"-q",
+		"--batch",
+		"--pinentry-mode", "loopback",
+		"--passphrase", "",
+		"--quick-add-key", fingerprint,
+		"rsa4096",
+		"sign",
+		"0",
+	)
+	out, err := gpg.CombinedOutput()
+	c.Assert(err, IsNil, Commentf("cannot add test subkey: %q", out))
 }
 
 func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
@@ -341,6 +362,17 @@ Preferences: SHA512
 func (gkms *gpgKeypairMgrSuite) TestList(c *C) {
 	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
 
+	keys, err := gpgKeypairMgr.List()
+	c.Assert(err, IsNil)
+	c.Check(keys, HasLen, 1)
+	c.Check(keys[0].ID, Equals, assertstest.DevKeyID)
+	c.Check(keys[0].Name, Not(Equals), "")
+}
+
+func (gkms *gpgKeypairMgrSuite) TestListWithSubkey(c *C) {
+	gkms.addSigningSubkey(c, assertstest.DevKeyPGPFingerprint)
+
+	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
 	keys, err := gpgKeypairMgr.List()
 	c.Assert(err, IsNil)
 	c.Check(keys, HasLen, 1)
