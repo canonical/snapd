@@ -303,6 +303,20 @@ var (
 	AppendEntry  = appendEntry
 )
 
+// builtin assertion tests
+
+type BuiltinCheckParams struct {
+	Order           []string
+	ExpectedHeaders map[string]any
+}
+
+func AssembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byte, params BuiltinCheckParams) (Assertion, error) {
+	return assembleBuiltinAssertion(assertType, headerBytes, body, builtinCheckParams{
+		order:           params.Order,
+		expectedHeaders: params.ExpectedHeaders,
+	})
+}
+
 // ParametersForGenerate exposes parametersForGenerate for tests.
 func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
 	return gkm.parametersForGenerate(passphrase, name)

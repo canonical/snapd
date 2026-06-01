@@ -59,7 +59,6 @@ func (basedcl *BaseDeclaration) SlotRule(interfaceName string) *SlotRule {
 
 // Implement further consistency checks.
 func (basedcl *BaseDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
-	// XXX: not signed or stored yet in a db, but being ready for that
 	if !db.IsTrustedAccount(basedcl.AuthorityID()) {
 		return fmt.Errorf("base-declaration assertion for series %s is not signed by a directly trusted authority: %s", basedcl.Series(), basedcl.AuthorityID())
 	}

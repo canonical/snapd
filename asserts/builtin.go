@@ -27,8 +27,14 @@ import (
 
 var builtinAssertions []Assertion
 
+// Builtin returns a copy of the list of builtin assertions which is assembled
+// at init-time.
 func Builtin() []Assertion {
-	return builtinAssertions
+	builtins := make([]Assertion, 0, len(builtinAssertions))
+	for _, as := range builtinAssertions {
+		builtins = append(builtins, as)
+	}
+	return builtins
 }
 
 type builtinCheckParams struct {
@@ -49,8 +55,19 @@ func assembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byt
 		return nil, err
 	}
 
+	if len(checkParams.order) != len(checkParams.expectedHeaders) {
+		return nil, fmt.Errorf("internal error: inconsistent length of order checking list (%d) and expected values map (%d)",
+			len(checkParams.order),
+			len(checkParams.expectedHeaders),
+		)
+	}
+
 	for _, field := range checkParams.order {
-		expected := checkParams.expectedHeaders[field]
+		expected, ok := checkParams.expectedHeaders[field]
+		if !ok {
+			return nil, fmt.Errorf("the builtin %s %q header is missing an expected value", assertType.Name, field)
+		}
+
 		if h[field] != expected {
 			return nil, fmt.Errorf("the builtin %s %q header is not set to expected value %q", assertType.Name, field, expected)
 		}
