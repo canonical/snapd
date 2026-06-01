@@ -652,8 +652,7 @@ func (s *apparmorpromptingSuite) testAskWithOutcome(c *C, outcome prompting.Outc
 	outcomeChan := make(chan prompting.OutcomeType)
 	errChan := make(chan error)
 	go func() {
-		snapdShuttingDown := make(chan struct{})
-		out, err := mgr.Ask(uid, iface, snap, pid, cgroup, snapdShuttingDown)
+		out, err := mgr.Ask(uid, iface, snap, pid, cgroup)
 		logger.WithLoggerLock(func() {
 			c.Check(err, IsNil, Commentf(logbuf.String()))
 		})
@@ -742,20 +741,10 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
 	)
 
 	// Stop the manager now so that it will not receive the request.
-	//
-	// Unfortunately, there's not a way to test the snapdShuttingDown channel
-	// closing as well, since if the manager has not stopped, there is a race
-	// where the run loop may receive the request. So we close the listener to
-	// ensure the run loop does not receive the request.
-	//
-	// XXX: in the future, when we remove the snapdShuttingDown channel in
-	// favor of a manager-level shutdown triggered by the daemon stopping, most
-	// of this comment can be removed.
+	mgr.ShutDown()
 	c.Check(mgr.Stop(), IsNil)
 
-	timeoutChan := make(chan struct{})
-	time.AfterFunc(time.Second, func() { close(timeoutChan) })
-	outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, timeoutChan)
+	outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup)
 	c.Check(outcome, Equals, prompting.OutcomeUnset)
 	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 }
@@ -785,12 +774,10 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
 
-	neverClose := make(chan struct{})
-
 	// Call Ask, then signal when response has been validated
 	doneChan := make(chan struct{})
 	go func() {
-		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, neverClose)
+		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup)
 		c.Check(outcome, Equals, prompting.OutcomeUnset)
 		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 		close(doneChan)
@@ -890,12 +877,10 @@ func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
 	mgr, err := apparmorprompting.New(s.noticeMgr)
 	c.Assert(err, IsNil)
 
-	snapdShuttingDown := make(chan struct{})
-
 	// Call Ask, then signal when response has been validated
 	doneChan := make(chan struct{})
 	go func() {
-		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup, snapdShuttingDown)
+		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup)
 		c.Check(outcome, Equals, prompting.OutcomeUnset)
 		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
 		close(doneChan)
@@ -909,8 +894,8 @@ func (s *apparmorpromptingSuite) TestAskShutdownViaChannelBeforeReply(c *C) {
 		c.Errorf("manager failed to become ready after receiving request")
 	}
 
-	// Now Ask should be waiting for a reply. Close snapdShuttingDown instead.
-	close(snapdShuttingDown)
+	// Now Ask should be waiting for a reply. Shutdown the manager instead.
+	mgr.ShutDown()
 
 	select {
 	case <-doneChan:
@@ -1873,8 +1858,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyCausesPromptsHandleReadyingIfO
 	// Ask for other request in the background so we can see and respond to the prompt
 	whenSent := time.Now()
 	go func() {
-		snapdShuttingDown := make(chan struct{})
-		mgr.Ask(1000, "audio-record", "firefox", 1234, "some-cgroup", snapdShuttingDown)
+		mgr.Ask(1000, "audio-record", "firefox", 1234, "some-cgroup")
 	}()
 	// Wait for a notice
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -1976,11 +1960,10 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 
 	// Now add remaining API requests via Ask()
 
-	shutDownChan := make(chan struct{})
 	outcomeChan := make(chan prompting.OutcomeType)
 	errChan := make(chan error)
 	go func() {
-		outcome, err := mgr.Ask(1000, "audio-record", "obs-studio", 12345, "/cgroup-path/snap.obs-studio.obs-studio-someuuid.scope", shutDownChan)
+		outcome, err := mgr.Ask(1000, "audio-record", "obs-studio", 12345, "/cgroup-path/snap.obs-studio.obs-studio-someuuid.scope")
 		outcomeChan <- outcome
 		errChan <- err
 	}()
@@ -1994,7 +1977,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	}
 
 	go func() {
-		outcome, err := mgr.Ask(1000, "audio-record", "signal-desktop", 67890, "/cgroup-path/snap.signal-desktop.signal-desktop.someuuid.scope", shutDownChan)
+		outcome, err := mgr.Ask(1000, "audio-record", "signal-desktop", 67890, "/cgroup-path/snap.signal-desktop.signal-desktop.someuuid.scope")
 		outcomeChan <- outcome
 		errChan <- err
 	}()
@@ -2018,7 +2001,7 @@ func (s *apparmorpromptingSuite) TestListenerReadyNotCausesPromptsHandleReadying
 	}
 
 	// Signal that snapd is shutting down and Ask calls should return
-	close(shutDownChan)
+	mgr.ShutDown()
 	for i := 0; i < 2; i++ {
 		select {
 		case outcome := <-outcomeChan:
