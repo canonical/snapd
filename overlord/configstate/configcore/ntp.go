@@ -260,19 +260,19 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 		return fmt.Errorf("cannot get NTP config: %v", err)
 	}
 
-	oldConfig, err := getNTPFromSystem()
-	if err != nil {
-		return err
-	}
-	if NTPConfigurationDeepEqual(oldConfig, cfg) {
-		// If the configuration has not changed, do nothing.
-		return nil
-	}
-
 	rootDir := dirs.GlobalRootDir
 	if opts != nil {
-		// runtime system
+		// filesystem-only context (e.g. image build)
 		rootDir = opts.RootDir
+	} else {
+		oldConfig, err := getNTPFromSystem()
+		if err != nil {
+			return err
+		}
+		if NTPConfigurationDeepEqual(oldConfig, cfg) {
+			// If the configuration has not changed, do nothing.
+			return nil
+		}
 	}
 
 	// Create systemd configuration folder, if not present
@@ -296,10 +296,12 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 		}
 	}
 
-	// Restart systemd-timesyncd.service to pick up the updated configuration
-	sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
-	if err := sysd.ReloadOrRestart([]string{"systemd-timesyncd.service"}); err != nil {
-		return fmt.Errorf("cannot restart timesyncd daemon after configuration change: %v", err)
+	// Restart systemd-timesyncd.service to pick up the updated configuration (runtime only).
+	if opts == nil {
+		sysd := systemd.New(systemd.SystemMode, &sysdLogger{})
+		if err := sysd.ReloadOrRestart([]string{"systemd-timesyncd.service"}); err != nil {
+			return fmt.Errorf("cannot restart timesyncd daemon after configuration change: %v", err)
+		}
 	}
 
 	return nil
