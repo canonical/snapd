@@ -60,6 +60,7 @@ struct sc_device_cgroup {
         struct {
             int devmap_fd;
             int prog_fd;
+            int ringbuf_fd;
             char *tag;
             char pretty_name[BPF_OBJ_NAME_LEN]; /* only for presentation */
             struct rlimit old_limit;
@@ -152,7 +153,7 @@ typedef struct sc_cgroup_v2_device_key sc_cgroup_v2_device_key;
 typedef uint8_t sc_cgroup_v2_device_value;
 
 #ifdef ENABLE_BPF
-static int load_devcgroup_prog(int map_fd, const char *name) {
+static int load_devcgroup_prog(int map_fd, int ringbuf_fd, const char *name) {
     /* Basic rules about registers:
      * r0    - return value of built in functions and exit code of the program
      * r1-r5 - respective arguments to built in functions, clobbered by calls
@@ -182,7 +183,152 @@ static int load_devcgroup_prog(int map_fd, const char *name) {
      * described above and such that the whole structure fits on the stack (even
      * with some spare room) */
     size_t key_start = 17;
-    struct bpf_insn prog[] = {
+
+    /* Stack layout (growing down from r10):
+     *   r10 - 17 .. r10 - 8:  device key (9 bytes, packed)
+     *   r10 - 64 .. r10 - 24: deny event (40 bytes) for ring buffer output
+     *                          (placed at -64 for 8-byte alignment of timestamp)
+     *
+     * The deny event struct sc_device_deny_event is 40 bytes:
+     *   offset 0:  dev_type  (u8)
+     *   offset 1:  access    (u8)
+     *   offset 2:  _pad      (u16)
+     *   offset 4:  major     (u32)
+     *   offset 8:  minor     (u32)
+     *   offset 12: pid       (u32)
+     *   offset 16: timestamp (u64)
+     *   offset 24: comm      (16 bytes)
+     */
+    const int evt_start = 64; /* event starts at sp - 64 */
+    const int evt_size = 40;  /* sizeof(struct sc_device_deny_event) */
+
+    /* Build the program. When ringbuf_fd is valid (>= 0), the deny path
+     * emits an event to the ring buffer before returning 0. When ringbuf_fd
+     * is -1 (ring buffers not supported), the deny path simply returns 0
+     * as before. */
+
+    /* We build the program in two parts: the common prefix (device type
+     * detection and map lookups) and the deny epilogue (with or without
+     * ring buffer output). */
+
+    struct bpf_insn prog_with_ringbuf[] = {
+        /* === COMMON PREFIX === */
+        /* r1 holds pointer to bpf_cgroup_dev_ctx */
+        /* initialize r0 */
+        BPF_MOV64_IMM(BPF_REG_0, 0), /* r0 = 0 */
+        /* make some place on the stack for the key */
+        BPF_MOV64_REG(BPF_REG_6, BPF_REG_10), /* r6 = r10 (sp) */
+        /* r6 = where the key starts on the stack */
+        BPF_ALU64_IMM(BPF_ADD, BPF_REG_6, -key_start), /* r6 = sp + (-key start offset) */
+        /* save ctx pointer in r7 for later use in deny path */
+        BPF_MOV64_REG(BPF_REG_7, BPF_REG_1), /* r7 = r1 (ctx) */
+        /* copy major to our key */
+        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_1,
+                    offsetof(struct bpf_cgroup_dev_ctx, major)), /* r2 = *(u32)(r1->major) */
+        BPF_STX_MEM(BPF_W, BPF_REG_6, BPF_REG_2,
+                    offsetof(struct sc_cgroup_v2_device_key, major)), /* *(r6 + offsetof(major)) = r2 */
+        /* copy minor to our key */
+        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_1,
+                    offsetof(struct bpf_cgroup_dev_ctx, minor)), /* r2 = *(u32)(r1->minor) */
+        BPF_STX_MEM(BPF_W, BPF_REG_6, BPF_REG_2,
+                    offsetof(struct sc_cgroup_v2_device_key, minor)), /* *(r6 + offsetof(minor)) = r2 */
+        /* copy device access_type to r2 */
+        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_1,
+                    offsetof(struct bpf_cgroup_dev_ctx, access_type)), /* r2 = *(u32*)(r1->access_type) */
+        /* save access_type in r8 for later use in deny event */
+        BPF_MOV64_REG(BPF_REG_8, BPF_REG_2), /* r8 = r2 (access_type) */
+        /* access_type is encoded as (BPF_DEVCG_ACC_* << 16) | BPF_DEVCG_DEV_*,
+         * but we only care about type */
+        BPF_ALU32_IMM(BPF_AND, BPF_REG_2, 0xffff), /* r2 = r2 & 0xffff */
+        /* is it a block device? */
+        BPF_JMP_IMM(BPF_JNE, BPF_REG_2, BPF_DEVCG_DEV_BLOCK, 2), /* if (r2 != BPF_DEVCG_DEV_BLOCK) goto pc + 2 */
+        BPF_ST_MEM(BPF_B, BPF_REG_6, offsetof(struct sc_cgroup_v2_device_key, type),
+                   'b'), /* *(uint8*)(r6->type) = 'b' */
+        BPF_JMP_A(5),
+        BPF_JMP_IMM(BPF_JNE, BPF_REG_2, BPF_DEVCG_DEV_CHAR, 2), /* if (r2 != BPF_DEVCG_DEV_CHAR) goto pc + 2 */
+        BPF_ST_MEM(BPF_B, BPF_REG_6, offsetof(struct sc_cgroup_v2_device_key, type),
+                   'c'), /* *(uint8*)(r6->type) = 'c' */
+        BPF_JMP_A(2),
+        /* unknown device type */
+        BPF_MOV64_IMM(BPF_REG_0, 0), /* r0 = 0 */
+        BPF_EXIT_INSN(),
+        /* back on happy path, prepare arguments for map lookup */
+        BPF_LD_MAP_FD(BPF_REG_1, map_fd),
+        BPF_MOV64_REG(BPF_REG_2, BPF_REG_6),                                 /* r2 = (struct key *) r6, */
+        BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_map_lookup_elem), /* r0 = bpf_map_lookup_elem(<map>,
+                                                                                 &key) */
+        BPF_JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 2),                               /* if (value_ptr == 0) goto pc + 2 */
+        /* we found an exact match, allow access */
+        BPF_MOV64_IMM(BPF_REG_0, 1), /* r0 = 1 */
+        BPF_EXIT_INSN(),             /* return 1 (allow) */
+        /* maybe the minor number is using 0xffffffff (any) mask */
+        BPF_ST_MEM(BPF_W, BPF_REG_6, offsetof(struct sc_cgroup_v2_device_key, minor), UINT32_MAX),
+        BPF_LD_MAP_FD(BPF_REG_1, map_fd),
+        BPF_MOV64_REG(BPF_REG_2, BPF_REG_6),                                 /* r2 = (struct key *) r6, */
+        BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_map_lookup_elem), /* r0 = bpf_map_lookup_elem(<map>,
+                                                                                 &key) */
+        BPF_JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 2),                               /* if (value_ptr == 0) goto pc + 2 */
+        /* we found a match with any minor number for that type|major */
+        BPF_MOV64_IMM(BPF_REG_0, 1), /* r0 = 1 */
+        BPF_EXIT_INSN(),             /* return 1 (allow) */
+
+        /* === DENY PATH WITH RING BUFFER OUTPUT === */
+        /* no match found, access is denied; emit event to ring buffer */
+        BPF_MOV64_IMM(BPF_REG_0, 0), /* r0 = 0 (will be return value) */
+
+        /* zero-initialize the event area on stack (5 x 8-byte stores) */
+        BPF_STX_MEM(BPF_DW, BPF_REG_10, BPF_REG_0, -evt_start + 0),
+        BPF_STX_MEM(BPF_DW, BPF_REG_10, BPF_REG_0, -evt_start + 8),
+        BPF_STX_MEM(BPF_DW, BPF_REG_10, BPF_REG_0, -evt_start + 16),
+        BPF_STX_MEM(BPF_DW, BPF_REG_10, BPF_REG_0, -evt_start + 24),
+        BPF_STX_MEM(BPF_DW, BPF_REG_10, BPF_REG_0, -evt_start + 32),
+
+        /* event.dev_type = key.type (from r6) */
+        BPF_LDX_MEM(BPF_B, BPF_REG_2, BPF_REG_6, offsetof(struct sc_cgroup_v2_device_key, type)),
+        BPF_STX_MEM(BPF_B, BPF_REG_10, BPF_REG_2, -evt_start + 0),
+
+        /* event.access = access_type >> 16 (saved in r8) */
+        BPF_MOV64_REG(BPF_REG_2, BPF_REG_8),
+        BPF_ALU32_IMM(BPF_RSH, BPF_REG_2, 16),
+        BPF_STX_MEM(BPF_B, BPF_REG_10, BPF_REG_2, -evt_start + 1),
+
+        /* event.major = ctx->major (from saved r7) */
+        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_7, offsetof(struct bpf_cgroup_dev_ctx, major)),
+        BPF_STX_MEM(BPF_W, BPF_REG_10, BPF_REG_2, -evt_start + 4),
+
+        /* event.minor = ctx->minor */
+        BPF_LDX_MEM(BPF_W, BPF_REG_2, BPF_REG_7, offsetof(struct bpf_cgroup_dev_ctx, minor)),
+        BPF_STX_MEM(BPF_W, BPF_REG_10, BPF_REG_2, -evt_start + 8),
+
+        /* event.pid = bpf_get_current_pid_tgid() >> 32 (tgid = userspace PID) */
+        BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_get_current_pid_tgid),
+        BPF_ALU64_IMM(BPF_RSH, BPF_REG_0, 32),
+        BPF_STX_MEM(BPF_W, BPF_REG_10, BPF_REG_0, -evt_start + 12),
+
+        /* event.timestamp = bpf_ktime_get_ns() */
+        BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_ktime_get_ns),
+        BPF_STX_MEM(BPF_DW, BPF_REG_10, BPF_REG_0, -evt_start + 16),
+
+        /* event.comm = bpf_get_current_comm(&event.comm, 16) */
+        BPF_MOV64_REG(BPF_REG_1, BPF_REG_10),
+        BPF_ALU64_IMM(BPF_ADD, BPF_REG_1, -evt_start + 24),
+        BPF_MOV64_IMM(BPF_REG_2, TASK_COMM_LEN),
+        BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_get_current_comm),
+
+        /* bpf_ringbuf_output(ringbuf_map, &event, sizeof(event), 0) */
+        BPF_LD_MAP_FD(BPF_REG_1, ringbuf_fd),
+        BPF_MOV64_REG(BPF_REG_2, BPF_REG_10),
+        BPF_ALU64_IMM(BPF_ADD, BPF_REG_2, -evt_start),
+        BPF_MOV64_IMM(BPF_REG_3, evt_size),
+        BPF_MOV64_IMM(BPF_REG_4, 0),
+        BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_ringbuf_output),
+
+        /* return 0 (deny) */
+        BPF_MOV64_IMM(BPF_REG_0, 0),
+        BPF_EXIT_INSN(),
+    };
+
+    struct bpf_insn prog_without_ringbuf[] = {
         /* r1 holds pointer to bpf_cgroup_dev_ctx */
         /* initialize r0 */
         BPF_MOV64_IMM(BPF_REG_0, 0), /* r0 = 0 */
@@ -222,7 +368,7 @@ static int load_devcgroup_prog(int map_fd, const char *name) {
         BPF_LD_MAP_FD(BPF_REG_1, map_fd),
         BPF_MOV64_REG(BPF_REG_2, BPF_REG_6),                                 /* r2 = (struct key *) r6, */
         BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_map_lookup_elem), /* r0 = bpf_map_lookup_elem(<map>,
-                                                                                &key) */
+                                                                                 &key) */
         BPF_JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 1),                               /* if (value_ptr == 0) goto pc + 1 */
         /* we found an exact match */
         BPF_JMP_A(5), /* else goto pc + 5 */
@@ -231,7 +377,7 @@ static int load_devcgroup_prog(int map_fd, const char *name) {
         BPF_LD_MAP_FD(BPF_REG_1, map_fd),
         BPF_MOV64_REG(BPF_REG_2, BPF_REG_6),                                 /* r2 = (struct key *) r6, */
         BPF_RAW_INSN(BPF_JMP | BPF_CALL, 0, 0, 0, BPF_FUNC_map_lookup_elem), /* r0 = bpf_map_lookup_elem(<map>,
-                                                                                &key) */
+                                                                                 &key) */
         BPF_JMP_IMM(BPF_JEQ, BPF_REG_0, 0, 2),                               /* if (value_ptr == 0) goto pc + 2 */
         /* we found a match with any minor number for that type|major */
         BPF_MOV64_IMM(BPF_REG_0, 1), /* r0 = 1 */
@@ -240,9 +386,16 @@ static int load_devcgroup_prog(int map_fd, const char *name) {
         BPF_EXIT_INSN(),
     };
 
-    char log_buf[4096] = {0};
+    char log_buf[65536] = {0};
+    int prog_fd;
 
-    int prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog, SC_ARRAY_SIZE(prog), log_buf, sizeof(log_buf), name);
+    if (ringbuf_fd >= 0) {
+        prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog_with_ringbuf, SC_ARRAY_SIZE(prog_with_ringbuf),
+                                log_buf, sizeof(log_buf), name);
+    } else {
+        prog_fd = bpf_load_prog(BPF_PROG_TYPE_CGROUP_DEVICE, prog_without_ringbuf, SC_ARRAY_SIZE(prog_without_ringbuf),
+                                log_buf, sizeof(log_buf), name);
+    }
     if (prog_fd < 0) {
         die("cannot load program:\n%s\n", log_buf);
     }
@@ -323,6 +476,7 @@ static bool _sc_is_snap_cgroup(const char *group, const char *expected_group_nam
 static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     self->v2.devmap_fd = -1;
     self->v2.prog_fd = -1;
+    self->v2.ringbuf_fd = -1;
 
     /* fix the memlock limit if needed, this affects creating maps */
     self->v2.old_limit = _sc_cgroup_v2_adjust_memlock_limit();
@@ -501,8 +655,43 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
 
     if (!from_existing) {
+        /* Try to create a ring buffer for logging denied device accesses.
+         * This requires kernel 5.8+ (BPF_MAP_TYPE_RINGBUF support).
+         * If the kernel doesn't support ring buffers, we gracefully skip
+         * this and load the program without ring buffer output. */
+        char ringbuf_path[PATH_MAX] = {0};
+        static const char bpf_base[] = "/sys/fs/bpf";
+        sc_must_snprintf(ringbuf_path, sizeof ringbuf_path, "%s/snap/%s@denylog", bpf_base, self->v2.tag);
+
+        int ringbuf_fd = bpf_get_by_path(ringbuf_path);
+        if (ringbuf_fd < 0) {
+            if (errno != ENOENT) {
+                debug("cannot get existing deny ring buffer: %s", strerror(errno));
+            }
+            /* try to create a new ring buffer */
+            ringbuf_fd = bpf_create_ringbuf(SC_BPF_DENY_RINGBUF_SIZE, self->v2.pretty_name);
+            if (ringbuf_fd < 0) {
+                debug("ring buffer not supported by kernel, deny logging disabled");
+            } else {
+                debug("created deny ring buffer at fd: %d", ringbuf_fd);
+                if (bpf_pin_to_path(ringbuf_fd, ringbuf_path) < 0) {
+                    debug("cannot pin ring buffer to %s: %s", ringbuf_path, strerror(errno));
+                    close(ringbuf_fd);
+                    ringbuf_fd = -1;
+                } else {
+                    if (chown(ringbuf_path, 0, 0) != 0) {
+                        debug("cannot chown ring buffer path: %s", strerror(errno));
+                    }
+                }
+            }
+        } else {
+            debug("reusing existing deny ring buffer at fd: %d", ringbuf_fd);
+        }
+
+        self->v2.ringbuf_fd = ringbuf_fd;
+
         /* load and attach the BPF program */
-        int prog_fd = load_devcgroup_prog(devmap_fd, self->v2.pretty_name);
+        int prog_fd = load_devcgroup_prog(devmap_fd, ringbuf_fd, self->v2.pretty_name);
         /* keep track of the program */
         self->v2.prog_fd = prog_fd;
     }
@@ -521,6 +710,7 @@ static void _sc_cgroup_v2_close_bpf(sc_device_cgroup *self) {
      * program */
     sc_cleanup_close(&self->v2.devmap_fd);
     sc_cleanup_close(&self->v2.prog_fd);
+    sc_cleanup_close(&self->v2.ringbuf_fd);
 }
 
 static void _sc_cgroup_v2_allow_bpf(sc_device_cgroup *self, int kind, int major, int minor) {
