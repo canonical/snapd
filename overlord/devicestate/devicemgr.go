@@ -1890,21 +1890,10 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 
 	m.ensurePostFactoryResetRan = true
 
-	factoryResetMarker := filepath.Join(dirs.SnapDeviceDir, "factory-reset")
-	if !osutil.FileExists(factoryResetMarker) {
-		// marker is gone already
-		return nil
-	}
-
 	encrypted := true
 	// XXX have a helper somewhere for this?
 	if !osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "marker")) {
 		encrypted = false
-	}
-
-	// verify the marker
-	if err := verifyFactoryResetMarkerInRun(factoryResetMarker, encrypted); err != nil {
-		return fmt.Errorf("cannot verify factory reset marker: %v", err)
 	}
 
 	if encrypted {
@@ -1913,7 +1902,7 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 		}
 	}
 
-	return os.Remove(factoryResetMarker)
+	return nil
 }
 
 // ensureExpiredUsersRemoved is periodically called as a part of Ensure()
