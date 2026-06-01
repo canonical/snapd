@@ -81,7 +81,7 @@ jobs:
           pr_json=$(gh pr view "$pr_number" --json number,isDraft,labels,latestReviews,baseRefName)
 
           if ! pr_is_rerun_eligible "$pr_json" 1 true; then
-            echo "setting auto rerun to false because $RERUN_REASON"
+            echo "setting auto rerun to false because $NOT_RERUN_REASON"
             echo "auto_rerun=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -102,11 +102,11 @@ jobs:
         run: |
           source .github/scripts/rerun-common.sh
 
-          echo "threshold_ok=true" >> "$GITHUB_OUTPUT"
-
           if ! required_spread_failure_threshold_allows_rerun "$RUN_ID" "$PR_BASE" "$GH_REPO" "$MAX_FAILED_TASKS"; then
-            echo "Setting rerun to false because $RERUN_REASON"
+            echo "Setting rerun to false because $NOT_RERUN_REASON"
             echo "threshold_ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "threshold_ok=true" >> "$GITHUB_OUTPUT"
           fi
       
       - name: Rerun workflow

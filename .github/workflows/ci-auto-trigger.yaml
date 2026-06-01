@@ -36,7 +36,7 @@ jobs:
             head_sha=$(echo "$pr" | jq -r '.headRefOid')
 
             if ! pr_is_rerun_eligible "$pr" 2 false; then
-              echo "Skipping PR #$pr_number: $RERUN_REASON"
+              echo "Skipping PR #$pr_number: $NOT_RERUN_REASON"
               continue
             fi
 
@@ -47,48 +47,48 @@ jobs:
               continue
             fi
 
-            last_run=$(gh run list \
+            last_run_json=$(gh run list \
               --workflow .github/workflows/ci-test.yaml \
-              --branch "$head_sha" \
-              --limit 1 \
-              --json databaseId -q '.[0].databaseId // empty')
+              --limit 100 \
+              --json databaseId,attempt,status,headSha \
+              | jq -c --arg head_sha "$head_sha" 'map(select(.headSha == $head_sha)) | first // empty')
 
-            if [[ -z "$last_run" || "$last_run" == "null" ]]; then
+            if [[ -z "$last_run_json" || "$last_run_json" == "null" ]]; then
               echo "Skipping PR #$pr_number: no pull_request run found for head SHA $head_sha"
               continue
             fi
 
-            last_run_id=$(echo "$last_run" | jq -r '.id // empty')
-            run_attempt=$(echo "$last_run" | jq -r '.run_attempt // 0')
+            last_run=$(echo "$last_run_json" | jq -r '.databaseId // empty')
+            run_attempt=$(echo "$last_run_json" | jq -r '.attempt // 0')
 
-            if [[ -z "$last_run_id" ]]; then
+            if [[ -z "$last_run" ]]; then
               echo "Skipping PR #$pr_number: no pull_request run found for head SHA $head_sha"
               continue
             fi
 
-            if ! run_is_completed "$last_run" "$last_run_id"; then
-              echo "Skipping PR #$pr_number: $RERUN_REASON"
+            if ! run_is_completed "$last_run_json" "$last_run"; then
+              echo "Skipping PR #$pr_number: $NOT_RERUN_REASON"
               continue
             fi
 
             if [[ "$run_attempt" -ge "$MAX_RUN_ATTEMPTS" ]]; then
-              echo "Skipping PR #$pr_number: run_id=$last_run_id already at attempt $run_attempt"
+              echo "Skipping PR #$pr_number: run_id=$last_run already at attempt $run_attempt"
               continue
             fi
 
-            run_jobs=$(gh run view "$last_run_id" --json jobs --jq '.jobs')
+            run_jobs=$(gh run view "$last_run" --json jobs --jq '.jobs')
             spread_jobs_ran=$(echo "$run_jobs" | jq '[.[] | select(.name | test("^spread ")) | select(.status == "completed")] | length')
             if [[ "$spread_jobs_ran" -lt 1 ]]; then
-              echo "Skipping PR #$pr_number: no completed spread jobs found in run_id=$last_run_id"
+              echo "Skipping PR #$pr_number: no completed spread jobs found in run_id=$last_run"
               continue
             fi
 
             pr_base=$(echo "$pr" | jq -r '.baseRefName // empty')
-            if ! required_spread_failure_threshold_allows_rerun "$last_run_id" "$pr_base" "$GH_REPO" "$MAX_FAILED_TASKS"; then
-              echo "Skipping PR #$pr_number: $RERUN_REASON"
+            if ! required_spread_failure_threshold_allows_rerun "$last_run" "$pr_base" "$GH_REPO" "$MAX_FAILED_TASKS"; then
+              echo "Skipping PR #$pr_number: $NOT_RERUN_REASON"
               continue
             fi
 
-            echo "Triggering rerun workflow for PR #$pr_number using run_id=$last_run_id (attempt $run_attempt)"
-            gh workflow run rerun.yaml -f run_id="$last_run_id"
+            echo "Triggering rerun workflow for PR #$pr_number using run_id=$last_run (attempt $run_attempt)"
+            gh workflow run rerun.yaml -f run_id="$last_run"
           done

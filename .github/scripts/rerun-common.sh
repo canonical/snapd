@@ -3,7 +3,7 @@
 AUTO_RERUN_LABEL="Auto rerun spread"
 SKIP_SPREAD_LABEL="Skip spread"
 RUN_ONLY_ONE_SYSTEM_LABEL="Run only one system"
-export RERUN_REASON=""
+export NOT_RERUN_REASON=""
 
 pr_has_label() {
     local pr_json="$1"
@@ -36,28 +36,28 @@ pr_is_rerun_eligible() {
     local min_approvals="$2"
     local require_auto_rerun_label="$3"
 
-    if [[ "$(jq -r '.isDraft' <<<"$pr_json")" == "true" ]]; then
-        RERUN_REASON="PR is a draft"
+    if [ "$(jq -r '.isDraft' <<<"$pr_json")" = "true" ]; then
+        NOT_RERUN_REASON="PR is a draft"
         return 1
     fi
 
     if pr_has_label "$pr_json" "$SKIP_SPREAD_LABEL" || pr_has_label "$pr_json" "$RUN_ONLY_ONE_SYSTEM_LABEL"; then
-        RERUN_REASON="PR has blocking labels ($SKIP_SPREAD_LABEL or $RUN_ONLY_ONE_SYSTEM_LABEL)"
+        NOT_RERUN_REASON="PR has blocking labels ($SKIP_SPREAD_LABEL or $RUN_ONLY_ONE_SYSTEM_LABEL)"
         return 1
     fi
 
     if [[ "$require_auto_rerun_label" == "true" ]] && ! pr_has_label "$pr_json" "$AUTO_RERUN_LABEL"; then
-        RERUN_REASON="PR is missing the $AUTO_RERUN_LABEL label"
+        NOT_RERUN_REASON="PR is missing the $AUTO_RERUN_LABEL label"
         return 1
     fi
 
     if [[ "$(pr_review_count "$pr_json" "CHANGES_REQUESTED")" -gt 0 ]]; then
-        RERUN_REASON="PR has requested changes"
+        NOT_RERUN_REASON="PR has requested changes"
         return 1
     fi
 
     if [[ "$(pr_review_count "$pr_json" "APPROVED")" -lt "$min_approvals" ]]; then
-        RERUN_REASON="PR has fewer than $min_approvals approvals"
+        NOT_RERUN_REASON="PR has fewer than $min_approvals approvals"
         return 1
     fi
 
@@ -72,7 +72,7 @@ run_is_completed() {
     run_status=$(jq -r '.status // empty' <<<"$run_json")
 
     if [[ "$run_status" != "completed" && "$run_status" != "failure" ]]; then
-        RERUN_REASON="latest run_id=$run_id status=$run_status"
+        NOT_RERUN_REASON="latest run_id=$run_id status=$run_status"
         return 1
     fi
 
@@ -109,7 +109,7 @@ required_spread_failure_threshold_allows_rerun() {
         num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1 || true)
 
         if [[ -n "$num_failed" && "$num_failed" -ge "$max_failed_tasks" ]]; then
-            RERUN_REASON="there were $max_failed_tasks or more failures on a required system target"
+            NOT_RERUN_REASON="there were $max_failed_tasks or more failures on a required system target"
             return 1
         fi
     done
