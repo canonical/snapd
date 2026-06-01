@@ -556,21 +556,8 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// use the time we may spend on waiting for hooks against the shutdown
 	// delay.
 	ts := time.Now()
+	d.overlord.ShutDown()
 	if d.snapListener != nil {
-		// stop running hooks first
-		// and do it more gracefully if we are restarting
-		hookMgr := d.overlord.HookManager()
-		// Don't proceed before the state lock has been released by the code
-		// path which may request a restart.
-		d.state.Lock()
-		restartType := d.overlord.RestartManager().Pending()
-		d.state.Unlock()
-		if restartType != restart.RestartUnset {
-			logger.Noticef("gracefully waiting for running hooks")
-			hookMgr.GracefullyWaitRunningHooks()
-			logger.Noticef("done waiting for running hooks")
-		}
-		hookMgr.StopHooks()
 		d.snapListener.Close()
 	}
 	timeSpent := time.Since(ts)
