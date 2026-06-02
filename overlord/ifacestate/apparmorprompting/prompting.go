@@ -85,8 +85,12 @@ type InterfacesRequestsManager struct {
 	// listener readiness.
 	listenerAlreadySignalled chan struct{}
 
+	// snapdShuttingDown is closed when overlord.ShutDown is called to
+	// signal that the daemon is going to be stopped and the
+	// InterfacesRequestsManager needs to stop receiving requests and
+	// finish handling existing requests.
 	snapdShuttingDown chan struct{}
-	shuttingDownOnce  sync.Once
+	shutdown          bool
 
 	askRequests chan *prompting.Request
 }
@@ -390,9 +394,11 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int3
 // ShutDown stops the listener, prompt DB, and rule DB from receiving new
 // requests.
 func (m *InterfacesRequestsManager) ShutDown() {
-	m.shuttingDownOnce.Do(func() {
-		close(m.snapdShuttingDown)
-	})
+	if m.shutdown {
+		return
+	}
+	close(m.snapdShuttingDown)
+	m.shutdown = true
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and

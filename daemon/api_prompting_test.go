@@ -58,7 +58,6 @@ type fakeInterfacesRequestsManager struct {
 	iface                string
 	pid                  int32
 	cgroup               string
-	snapdShuttingDown    <-chan struct{}
 	id                   prompting.IDType // used for prompt ID or rule ID
 	ruleConstraintsJSON  prompting.ConstraintsJSON
 	constraintsPatchJSON prompting.ConstraintsJSON
@@ -732,7 +731,6 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 	c.Check(s.manager.snap, Equals, expectedSnap)
 	c.Check(s.manager.pid, Equals, fakePID)
 	c.Check(s.manager.cgroup, Equals, fakeCgroup)
-	c.Check(s.manager.snapdShuttingDown, NotNil)
 
 	// Check return value
 	responseBody, ok := rsp.Result.(daemon.PostInterfacesRequestsResponse)
