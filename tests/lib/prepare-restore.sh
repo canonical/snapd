@@ -534,7 +534,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             do_depinstall() {
-                best_golang=golang-1.18
+                best_golang=golang-1.23
                 case "$SPREAD_SYSTEM" in
                     ubuntu-fips-*)
                         # we are limited by the FIPS variants of go toolchain
@@ -546,14 +546,26 @@ prepare_project() {
                         quiet apt install -y golang-1.23
                         ;;
                 esac
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                # The go 1.18 backport is not using alternatives or anything else so
-                # we need to get it on path somehow. This is not perfect but simple.
-                if [ -z "$(command -v go)" ]; then
-                    # the path filesystem path is: /usr/lib/go-1.18/bin
-                    ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+                apt build-dep -y ./ # we don't run this for 14.04
+                # We need to ensure the correct version of golang is used.
+                go_path="$(command -v go)" || true
+                if [ -n "$go_path" ]; then
+                    # Ignore existing go so we ensure the desired one is used
+                    mv "$go_path" "$go_path"-orig
+                else
+                    go_path="/usr/bin/go"
+                fi
+                for real_golang in "$best_golang" golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
+                    real_golang_path="/usr/lib/${real_golang/lang/}/bin/go"
+                    if [ -e "$real_golang_path" ]; then
+                        ln -s "$real_golang_path" "$go_path"
+                        break
+                    fi
+                done
+                if [ ! -e "$go_path" ]; then
+                    # We didn't see any versioned go, so use the original go
+                    # from the path, or fail if it doesn't exist
+                    mv "$go_path"-orig "$go_path"
                 fi
             }
 
@@ -618,10 +630,8 @@ prepare_project() {
                 exit 1
                 ;;
             ubuntu-*|debian-*)
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                
+                apt-get build-dep -y ./ # 14.04 is handled above
+
                 build_deb
                 ;;
             fedora-*|opensuse-*|amazon-*|centos-*)
