@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -35,34 +36,13 @@ type mountunitSuite struct {
 
 var _ = Suite(&mountunitSuite{})
 
-type fakeSystemd struct {
-	systemd.Systemd
-
-	listMountUnitsCalls  []listMountUnitsCall
-	listMountUnitsResult listMountUnitsResult
-}
-
-type listMountUnitsCall struct {
-	snapName, origin string
-}
-
-type listMountUnitsResult struct {
-	mountPoints []string
-	err         error
-}
-
-func (s *fakeSystemd) ListMountUnits(snapName, origin string) ([]string, error) {
-	s.listMountUnitsCalls = append(s.listMountUnitsCalls, listMountUnitsCall{snapName, origin})
-	return s.listMountUnitsResult.mountPoints, s.listMountUnitsResult.err
-}
-
 func (s *mountunitSuite) TestListMountControlMountPointsHappy(c *C) {
 	returnedMounts := []string{"/var/snap/a-snap/x1/data/mymount", "/var/snap/a-snap/common/media"}
 
-	var sysd *fakeSystemd
-	restore := systemd.MockNewSystemd(func(_ systemd.Backend, _ string, mode systemd.InstanceMode, rep systemd.Reporter) systemd.Systemd {
-		sysd = &fakeSystemd{}
-		sysd.listMountUnitsResult = listMountUnitsResult{mountPoints: returnedMounts}
+	var sysd *systemdtest.FakeSystemd
+	restore := systemd.MockNewSystemd(func(_ systemd.Backend, _ string, _ systemd.InstanceMode, _ systemd.Reporter) systemd.Systemd {
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ListMountUnitsResult.MountPoints = returnedMounts
 		return sysd
 	})
 	defer restore()
@@ -71,16 +51,16 @@ func (s *mountunitSuite) TestListMountControlMountPointsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(mountPts, DeepEquals, returnedMounts)
 
-	c.Check(sysd.listMountUnitsCalls, DeepEquals, []listMountUnitsCall{{snapName: "a-snap", origin: "mount-control"}})
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{{SnapName: "a-snap", Origin: "mount-control"}})
 }
 
 func (s *mountunitSuite) TestListMountControlMountPointsError(c *C) {
 	expectedErr := errors.New("systemd failure")
 
-	var sysd *fakeSystemd
-	restore := systemd.MockNewSystemd(func(_ systemd.Backend, _ string, mode systemd.InstanceMode, rep systemd.Reporter) systemd.Systemd {
-		sysd = &fakeSystemd{}
-		sysd.listMountUnitsResult = listMountUnitsResult{err: expectedErr}
+	var sysd *systemdtest.FakeSystemd
+	restore := systemd.MockNewSystemd(func(_ systemd.Backend, _ string, _ systemd.InstanceMode, _ systemd.Reporter) systemd.Systemd {
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ListMountUnitsResult.Err = expectedErr
 		return sysd
 	})
 	defer restore()
@@ -89,14 +69,14 @@ func (s *mountunitSuite) TestListMountControlMountPointsError(c *C) {
 	c.Check(err, Equals, expectedErr)
 	c.Check(mountPts, IsNil)
 
-	c.Check(sysd.listMountUnitsCalls, DeepEquals, []listMountUnitsCall{{snapName: "a-snap", origin: "mount-control"}})
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{{SnapName: "a-snap", Origin: "mount-control"}})
 }
 
 func (s *mountunitSuite) TestListMountControlMountPointsEmpty(c *C) {
-	var sysd *fakeSystemd
+	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(_ systemd.Backend, _ string, _ systemd.InstanceMode, _ systemd.Reporter) systemd.Systemd {
-		sysd = &fakeSystemd{}
-		sysd.listMountUnitsResult = listMountUnitsResult{mountPoints: []string{}}
+		sysd = &systemdtest.FakeSystemd{}
+		sysd.ListMountUnitsResult.MountPoints = []string{}
 		return sysd
 	})
 	defer restore()
@@ -105,5 +85,5 @@ func (s *mountunitSuite) TestListMountControlMountPointsEmpty(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(mountPts, DeepEquals, []string{})
 
-	c.Check(sysd.listMountUnitsCalls, DeepEquals, []listMountUnitsCall{{snapName: "a-snap", origin: "mount-control"}})
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{{SnapName: "a-snap", Origin: "mount-control"}})
 }
