@@ -126,9 +126,9 @@ case $command in
 	"test-nonexisting")
 		test_nonexisting
 		;;
-  "test-snapctl-set-bar-doc")
-    test_snapctl_set_bar_doc
-    ;;
+	"test-snapctl-set-bar-doc")
+		test_snapctl_set_bar_doc
+		;;
 	"test-snapctl-set-foo")
 		test_snapctl_set_foo
 		;;
@@ -136,27 +136,27 @@ case $command in
 		test_snapctl_get_foo
 		;;
 	"test-snapctl-foo-null")
-    test_snapctl_foo_null
-    ;;
+		test_snapctl_foo_null
+		;;
 	"test-exit-one")
 		test_exit_one
 		;;
-  "test-get-int")
-    test_get_int_number
-    ;;
-  "test-get-nested")
-    test_get_nested
-    ;;
-  "test-unset-with-unset")
-    test_snapctl_unset_with_unset
+	"test-get-int")
+		test_get_int_number
 		;;
-  "noop")
+	"test-get-nested")
+		test_get_nested
 		;;
-  "test-unset")
-    test_snapctl_unset
+	"test-unset-with-unset")
+		test_snapctl_unset_with_unset
 		;;
-  "test-snapctl-set-invalid-field")
-    test_snapctl_set_invalid_field
+	"noop")
+		;;
+	"test-unset")
+		test_snapctl_unset
+		;;
+	"test-snapctl-set-invalid-field")
+		test_snapctl_set_invalid_field
 		;;
 	*)
 		echo "Invalid command: '$command'"
