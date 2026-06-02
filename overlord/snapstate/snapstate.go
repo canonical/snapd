@@ -922,7 +922,18 @@ func downloadTasks(
 
 		revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-		download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+		// Use SideInfo.Channel (the store's effective-channel response) to
+		// decide whether to include the channel in the summary. snapsup.Channel
+		// is the requested/tracking channel which may default to "stable" even
+		// when a specific revision was requested and no channel is meaningful.
+		var downloadSummary string
+		if snapsup.SideInfo != nil && snapsup.SideInfo.Channel != "" {
+			downloadSummary = fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.SideInfo.Channel)
+		} else {
+			downloadSummary = fmt.Sprintf(i18n.G("Download snap %q%s"), snapsup.InstanceName(), revisionStr)
+		}
+
+		download := st.NewTask("download-snap", downloadSummary)
 		addTask(download)
 
 		validate := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))

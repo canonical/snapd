@@ -1324,6 +1324,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					Action      string     `json:"action"`
 					SnapID      string     `json:"snap-id"`
 					Name        string     `json:"name"`
+					Channel     string     `json:"channel"`
 					InstanceKey string     `json:"instance-key"`
 					Epoch       snap.Epoch `json:"epoch"`
 					// assertions
@@ -1349,11 +1350,12 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 			}
 
 			type resultJSON struct {
-				Result      string          `json:"result"`
-				SnapID      string          `json:"snap-id"`
-				Name        string          `json:"name"`
-				Snap        json.RawMessage `json:"snap"`
-				InstanceKey string          `json:"instance-key"`
+				Result           string          `json:"result"`
+				SnapID           string          `json:"snap-id"`
+				Name             string          `json:"name"`
+				Snap             json.RawMessage `json:"snap"`
+				InstanceKey      string          `json:"instance-key"`
+				EffectiveChannel string          `json:"effective-channel,omitempty"`
 				// For assertions
 				Key           string   `json:"key"`
 				AssertionURLs []string `json:"assertion-stream-urls"`
@@ -1398,12 +1400,19 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					revno = strconv.Itoa(a.Revision)
 				}
 
+				// The real store returns effective-channel when a
+				// channel is included in the request. When no channel
+				// is sent (e.g. revision-only or validation-set-pinned
+				// installs), no effective-channel is returned.
+				effectiveChannel := a.Channel
+
 				results = append(results, resultJSON{
-					Result:      a.Action,
-					SnapID:      a.SnapID,
-					InstanceKey: a.InstanceKey,
-					Name:        name,
-					Snap:        json.RawMessage(fillHit(snapV2, revno, info, rawInfo)),
+					Result:           a.Action,
+					SnapID:           a.SnapID,
+					InstanceKey:      a.InstanceKey,
+					Name:             name,
+					Snap:             json.RawMessage(fillHit(snapV2, revno, info, rawInfo)),
+					EffectiveChannel: effectiveChannel,
 				})
 			}
 			w.WriteHeader(200)
@@ -5139,7 +5148,11 @@ func validateDownloadCheckTasks(c *C, tasks []*state.Task, name, revno, channel 
 	var i int
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Ensure prerequisites for "%s" are available`, name))
 	i++
-	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Download snap "%s" (%s) from channel "%s"`, name, revno, channel))
+	if channel != "" {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Download snap "%s" (%s) from channel "%s"`, name, revno, channel))
+	} else {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Download snap "%s" (%s)`, name, revno))
+	}
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Fetch and check assertions for snap "%s" (%s)`, name, revno))
 	i++
@@ -10053,7 +10066,9 @@ func (s *mgrsSuiteCore) TestRemodelReplaceValidationSets(c *C) {
 
 	var i int
 	// first all downloads/checks in sequential order
-	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "33", "latest/stable")
+	// pc-kernel has its revision pinned by a validation set, so the channel
+	// is not sent to the store and not included in the summary.
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "33", "")
 	i += validateDownloadCheckTasks(c, tasks[i:], "core22", "1", "latest/stable")
 	i += validateDownloadCheckTasks(c, tasks[i:], "pc", "34", "22/stable")
 	// then create recovery
@@ -14004,6 +14019,7 @@ func (s *mgrsSuite) TestDownload(c *C) {
 	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
 		RealName:          "foo",
 		SnapID:            fakeSnapID("foo"),
+		Channel:           "stable",
 		Revision:          snap.R(snapRev),
 		EditedSummary:     "Foo",
 		EditedDescription: "this is a description",
@@ -14067,6 +14083,7 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
 		RealName:          "foo",
 		SnapID:            fakeSnapID("foo"),
+		Channel:           "stable",
 		Revision:          snap.R(snapOldRev),
 		EditedSummary:     "Foo",
 		EditedDescription: "this is a description",
@@ -14096,6 +14113,62 @@ func (s *mgrsSuite) TestDownloadSpecificRevision(c *C) {
 		"snap-sha3-384": digest,
 	})
 	c.Check(err, IsNil)
+}
+
+func (s *mgrsSuite) TestDownloadSpecificRevisionWithChannel(c *C) {
+	// When both a revision and a channel are specified, the store returns
+	// effective-channel, so the download task summary includes the channel.
+	s.prereqSnapAssertions(c)
+
+	const snapRev = "1"
+
+	testSnapPath, _ := s.makeStoreTestSnap(c, "{name: foo, version: 0}", snapRev)
+	s.serveSnap(testSnapPath, snapRev)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	dir := c.MkDir()
+	ts, info, err := snapstate.Download(context.TODO(), st, "foo", nil, dir, snapstate.RevisionOptions{
+		Channel:  "edge",
+		Revision: snap.R(snapRev),
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	chg := st.NewChange("download-snap", "...")
+	chg.AddAll(ts)
+
+	// The store returns effective-channel even when a specific revision is
+	// requested, as long as a channel was sent in the request.
+	c.Check(info.SideInfo, DeepEquals, snap.SideInfo{
+		RealName:          "foo",
+		SnapID:            fakeSnapID("foo"),
+		Channel:           "edge",
+		Revision:          snap.R(snapRev),
+		EditedSummary:     "Foo",
+		EditedDescription: "this is a description",
+	})
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("download-snap change failed with: %v", chg.Err()))
+
+	// Verify the download task summary includes the channel
+	var downloadTask *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "download-snap" {
+			downloadTask = t
+			break
+		}
+	}
+	c.Assert(downloadTask, NotNil)
+	c.Check(downloadTask.Summary(), Equals, `Download snap "foo" (1) from channel "edge"`)
 }
 
 const snapYamlMonitoredAppFormat = `

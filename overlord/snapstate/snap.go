@@ -134,9 +134,21 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 		prepare = st.NewTask("prepare-snap", fmt.Sprintf(
 			i18n.G("Prepare snap %q%s"), sc.snapsup.SnapPath, sc.revisionString()))
 	} else {
-		prepare = st.NewTask("download-snap", fmt.Sprintf(
-			i18n.G("Download snap %q%s from channel %q"),
-			sc.snapsup.InstanceName(), sc.revisionString(), sc.snapsup.Channel))
+		var summary string
+		// Use SideInfo.Channel (the store's effective-channel response) to
+		// decide whether to include the channel in the summary. snapsup.Channel
+		// is the requested/tracking channel which may default to "stable" even
+		// when a specific revision was requested and no channel is meaningful.
+		if sc.snapsup.SideInfo != nil && sc.snapsup.SideInfo.Channel != "" {
+			summary = fmt.Sprintf(
+				i18n.G("Download snap %q%s from channel %q"),
+				sc.snapsup.InstanceName(), sc.revisionString(), sc.snapsup.SideInfo.Channel)
+		} else {
+			summary = fmt.Sprintf(
+				i18n.G("Download snap %q%s"),
+				sc.snapsup.InstanceName(), sc.revisionString())
+		}
+		prepare = st.NewTask("download-snap", summary)
 	}
 	prepare.Set("snap-setup", sc.snapsup)
 	prepare.WaitFor(prereq)

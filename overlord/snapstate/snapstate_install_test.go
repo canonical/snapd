@@ -2386,6 +2386,19 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	snapID := snapName + "-id"
 	snapFileName := snapName + "_42.snap"
 
+	// effectiveChannel is what the store returns as effective-channel
+	// (becomes SideInfo.Channel). The store echoes back the requested
+	// channel as effective-channel. RedirectChannel is a separate field
+	// that tells the client to track a different channel, but doesn't
+	// change what SideInfo.Channel is set to.
+	var effectiveChannel string
+	switch {
+	case requestedChannel != "":
+		effectiveChannel = requestedChannel
+	default:
+		effectiveChannel = ""
+	}
+
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: requestedChannel, Revision: snap.R(42)}
 	ts, err := snapstate.Install(context.Background(), s.state, snapName, opts, s.user.ID, snapstate.Flags{})
@@ -2439,7 +2452,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 				RealName: snapName,
 				SnapID:   snapID,
 				Revision: snap.R(42),
-				Channel:  requestedChannel,
+				Channel:  effectiveChannel,
 			},
 		},
 		{
@@ -2468,7 +2481,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 				RealName: snapName,
 				SnapID:   snapID,
 				Revision: snap.R(42),
-				Channel:  requestedChannel,
+				Channel:  effectiveChannel,
 			},
 		},
 		{
@@ -2515,7 +2528,14 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
-	c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42) from channel "%s"`, snapName, setupChannel))
+	if requestedChannel == "" && defaultTrack == "" {
+		// When only a revision is specified, the store does not report a channel.
+		c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42)`, snapName))
+	} else {
+		// The summary displays the store's effective-channel (SideInfo.Channel),
+		// not the tracked channel (which may differ due to redirect).
+		c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42) from channel "%s"`, snapName, effectiveChannel))
+	}
 
 	// check link/start snap summary
 	linkTask := findLastTaskInTasks(ta, "link-snap")
@@ -2546,7 +2566,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 		RealName: snapName,
 		Revision: snap.R(42),
 		SnapID:   snapID,
-		Channel:  requestedChannel,
+		Channel:  effectiveChannel,
 	})
 
 	// verify snaps in the system state
@@ -2563,7 +2583,7 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 		RealName: snapName,
 		SnapID:   snapID,
 		Revision: snap.R(42),
-		Channel:  requestedChannel,
+		Channel:  effectiveChannel,
 	}, nil))
 	c.Assert(snapst.Required, Equals, false)
 }

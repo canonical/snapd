@@ -1824,6 +1824,102 @@ func (s *storeActionSuite) testSnapActionGetWithRevision(action string, c *C) {
 	c.Assert(results[0].Channel, Equals, "")
 }
 
+func (s *storeActionSuite) TestSnapActionInstallWithRevisionAndChannel(c *C) {
+	s.testSnapActionGetWithRevisionAndChannel("install", c)
+}
+
+func (s *storeActionSuite) TestSnapActionDownloadWithRevisionAndChannel(c *C) {
+	s.testSnapActionGetWithRevisionAndChannel("download", c)
+}
+
+func (s *storeActionSuite) testSnapActionGetWithRevisionAndChannel(action string, c *C) {
+	// When both a revision and a channel are specified in the request, the
+	// store serves the specific revision and returns effective-channel
+	// reflecting the requested channel.
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+
+		jsonReq, err := io.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]any `json:"context"`
+			Actions []map[string]any `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 0)
+		c.Assert(req.Actions, HasLen, 1)
+		// both channel and revision are sent in the request
+		c.Assert(req.Actions[0], DeepEquals, map[string]any{
+			"action":       action,
+			"instance-key": action + "-1",
+			"name":         "hello-world",
+			"channel":      "beta",
+			"revision":     float64(28),
+			"epoch":        nil,
+		})
+
+		// The store returns the requested revision and reports
+		// the effective-channel.
+		fmt.Fprintf(w, `{
+  "results": [{
+     "result": "%s",
+     "instance-key": "%[1]s-1",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "effective-channel": "beta",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 28,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`, action)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, _, err := sto.SnapAction(s.ctx, nil,
+		[]*store.SnapAction{
+			{
+				Action:       action,
+				InstanceName: "hello-world",
+				Channel:      "beta",
+				Revision:     snap.R(28),
+			},
+		}, nil, nil, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(28))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].Publisher.ID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
+	// effective-channel is set even when a revision is specified, as long
+	// as a channel was included in the request
+	c.Assert(results[0].Channel, Equals, "beta")
+}
+
 func (s *storeActionSuite) TestSnapActionRevisionNotAvailable(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assertRequest(c, r, "POST", snapActionPath)
