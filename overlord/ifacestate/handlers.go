@@ -261,7 +261,6 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 			return fmt.Errorf("internal error: cannot delay backend effects without a handler task")
 		}
 		logger.Debugf("has delayed effects for snaps: %v", delayedEffects)
-		task.Logf("delayed effects for snaps:\n%v", delayedEffects)
 		err := DelayedBackendEffectsFor(delayedTask, triggeringSnap(snapsup.InstanceName()), delayedEffects)
 		if err != nil {
 			return err
@@ -2621,7 +2620,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 	snapsWithDelayedEffects := newDelayedEffectsForSnaps()
 	for triggeredBySnap, affectedSnaps := range delayed.TriggeringSnaps {
 		if _, ok := successfulTriggeringSnaps[triggeredBySnap]; !ok {
-			task.Logf("skipping effects triggered by failed snap %q", triggeredBySnap)
+			logger.Noticef("skipping effects triggered by failed snap %q", triggeredBySnap)
 			continue
 		}
 
@@ -2646,7 +2645,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 			continue
 		}
 
-		task.Logf("scheduling delayed effects for snap %q", affectedSnap)
+		logger.Noticef("scheduling delayed effects for snap %q", affectedSnap)
 
 		// One task per connected snap instance
 		updateTask := st.NewTask("apply-delayed-snap-security-backend-effects",
