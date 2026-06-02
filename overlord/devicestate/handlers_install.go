@@ -22,9 +22,6 @@ package devicestate
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -679,11 +676,6 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
-	// leave a marker that factory reset was performed
-	factoryResetMarker := filepath.Join(dirs.SnapDeviceDirUnder(boot.InstallHostWritableDir(model)), "factory-reset")
-	if err := writeFactoryResetMarker(factoryResetMarker, useEncryption); err != nil {
-		return fmt.Errorf("cannot write the marker file: %v", err)
-	}
 	return nil
 }
 
@@ -788,83 +780,6 @@ func restoreDeviceSerialFromSave(model *asserts.Model) error {
 	}
 	if err := b.CommitTo(toDB, nil); err != nil {
 		return fmt.Errorf("cannot commit assertions: %v", err)
-	}
-	return nil
-}
-
-type factoryResetMarker struct {
-	FallbackSaveKeyHash string `json:"fallback-save-key-sha3-384,omitempty"`
-}
-
-func fileDigest(p string) (string, error) {
-	digest, _, err := osutil.FileDigest(p, crypto.SHA3_384)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(digest), nil
-}
-
-func writeFactoryResetMarker(marker string, hasEncryption bool) error {
-	keyDigest := ""
-	if hasEncryption {
-		d, err := fileDigest(device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir))
-		if err != nil {
-			return err
-		}
-		keyDigest = d
-	}
-	var buf bytes.Buffer
-	err := json.NewEncoder(&buf).Encode(factoryResetMarker{
-		FallbackSaveKeyHash: keyDigest,
-	})
-	if err != nil {
-		return err
-	}
-
-	if hasEncryption {
-		logger.Noticef("writing factory-reset marker at %v with key digest %q", marker, keyDigest)
-	} else {
-		logger.Noticef("writing factory-reset marker at %v", marker)
-	}
-	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
-}
-
-func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {
-	f, err := os.Open(marker)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	var frm factoryResetMarker
-	if err := json.NewDecoder(f).Decode(&frm); err != nil {
-		return err
-	}
-	if hasEncryption {
-		saveFallbackKeyFactory := device.FactoryResetFallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-		d, err := fileDigest(saveFallbackKeyFactory)
-		if err != nil {
-			// possible that there was unexpected reboot
-			// before, after the key was moved, but before
-			// the marker was removed, in which case the
-			// actual fallback key should have the right
-			// digest
-			if !os.IsNotExist(err) {
-				// unless it's a different error
-				return err
-			}
-			saveFallbackKeyFactory := device.FallbackSaveSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
-			d, err = fileDigest(saveFallbackKeyFactory)
-			if err != nil {
-				return err
-			}
-		}
-		if d != frm.FallbackSaveKeyHash {
-			return fmt.Errorf("fallback sealed key digest mismatch, got %v expected %v", d, frm.FallbackSaveKeyHash)
-		}
-	} else {
-		if frm.FallbackSaveKeyHash != "" {
-			return fmt.Errorf("unexpected non-empty fallback key digest")
-		}
 	}
 	return nil
 }

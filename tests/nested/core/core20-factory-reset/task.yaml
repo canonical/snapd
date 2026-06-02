@@ -6,16 +6,22 @@ details: |
 systems: [ubuntu-2*]
 
 environment:
-    NESTED_ENABLE_SECURE_BOOT/fde: true
-    NESTED_ENABLE_TPM/fde: true
-    FDE/fde: "enabled"
+    NESTED_ENABLE_SECURE_BOOT/fde-files: true
+    NESTED_ENABLE_TPM/fde-files: true
+    USES_KEY_FILES/fde-files: true
+    FDE/fde-files: "enabled"
+    NESTED_EXTRA_CMDLINE/fde-files: ubuntu-core.force-experimental-tokens=0
+
+    NESTED_ENABLE_SECURE_BOOT/fde-tokens: true
+    NESTED_ENABLE_TPM/fde-tokens: true
+    FDE/fde-tokens: "enabled"
+    USES_KEY_FILES/fde-tokens: false
+    NESTED_EXTRA_CMDLINE/fde-tokens: ubuntu-core.force-experimental-tokens=1
 
     NESTED_ENABLE_SECURE_BOOT/nofde: false
     NESTED_ENABLE_TPM/nofde: false
     FDE/nofde: "disabled"
-
-    # FIXME: make the test also able to backup/restore tokens
-    NESTED_EXTRA_CMDLINE: ubuntu-core.force-experimental-tokens=0
+    USES_KEY_FILES/nofde: false
 
 execute: |
     echo "Wait for the system to be seeded first"
@@ -36,7 +42,7 @@ execute: |
     remote.exec sudo touch /writable/marker
 
     # grab the ubuntu-save key
-    if [ "${FDE}" = enabled ]; then
+    if [ "${USES_KEY_FILES}" = true ]; then
       remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > pre-reset-save-fallback-key
     fi
 
@@ -112,16 +118,14 @@ execute: |
 
     # the temp factory-reset key is gone
     # TODO this is a very weak check
-    if [ "${FDE}" = enabled ]; then
+    if [ "${USES_KEY_FILES}" = enabled ]; then
       remote.exec test ! -e /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key.factory-reset
     fi
-    # no factory reset marker
-    remote.exec test ! -e /var/lib/snapd/device/factory-reset
 
     # verify that the factory-reset log was collected
     remote.exec "zcat /var/log/factory-reset-mode.log.gz" | MATCH 'performing factory reset on an installed system'
 
-    if [ "${FDE}" = enabled ]; then
+    if [ "${USES_KEY_FILES}" = enabled ]; then
       remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > post-reset-save-fallback-key
       # not a great check as the fallback key may have been resealed, but it
       # should be different nonetheless
@@ -145,7 +149,7 @@ execute: |
     # the markers are still there
     remote.exec test -e /run/mnt/ubuntu-save/marker
     remote.exec test -e /run/mnt/ubuntu-seed/marker
-    if [ "${FDE}" = enabled ]; then
+    if [ "${USES_KEY_FILES}" = true ]; then
       # get the key
       remote.exec cat /run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key > subsequent-reset-save-fallback-key
       # and the key is different again
