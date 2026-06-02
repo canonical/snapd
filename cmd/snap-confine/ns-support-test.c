@@ -132,8 +132,123 @@ static void test_nsfs_fs_id(void) {
     g_assert_cmpint(buf.f_type, ==, NSFS_MAGIC);
 }
 
+// Helper: write content to a file under the given directory.
+static void write_file(const char *dir, const char *name, const char *content) {
+    char path[PATH_MAX] = {0};
+    sc_must_snprintf(path, sizeof path, "%s/%s", dir, name);
+    FILE *f = fopen(path, "w");
+    g_assert_nonnull(f);
+    if (content != NULL) {
+        fputs(content, f);
+    }
+    fclose(f);
+}
+
+// When the info file does not exist, the function should return false (no
+// change detected).
+static void test_managed_ca_cert_db_changed__no_info_file(void) {
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+    (void)ns_dir;
+
+    sc_invocation inv = {.snap_instance = "test-snap"};
+    g_assert_false(managed_ca_cert_db_changed(&inv));
+}
+
+// When the info file exists but has no managed CA cert mtime key, the
+// function should return false (upgraded from older snap-confine).
+static void test_managed_ca_cert_db_changed__no_mtime_key(void) {
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+
+    write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\n");
+
+    sc_invocation inv = {.snap_instance = "test-snap"};
+    g_assert_false(managed_ca_cert_db_changed(&inv));
+}
+
+// When the recorded mtime matches the current mtime of the managed CA cert
+// directory, the function should return false.
+static void test_managed_ca_cert_db_changed__mtime_unchanged(void) {
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+
+    // We cannot redirect SC_MANAGED_CA_CERTS_DIR in a unit test, so if the
+    // real managed CA cert directory happens to exist, record its actual
+    // mtime to get a "not changed" result. Otherwise skip to the changed
+    // tests which exercise the same parsing code.
+    struct stat ca_stat;
+    if (stat(SC_MANAGED_CA_CERTS_DIR, &ca_stat) != 0) {
+        g_test_skip("managed CA cert directory not present on this system");
+        return;
+    }
+
+    char mtime_str[64] = {0};
+    snprintf(mtime_str, sizeof mtime_str, "%lld.%09ld",
+             (long long)ca_stat.st_mtim.tv_sec, ca_stat.st_mtim.tv_nsec);
+
+    char info_content[512] = {0};
+    snprintf(info_content, sizeof info_content,
+             "base-snap-name=core24\nmanaged-ca-certs-dir-mtime=%s\n", mtime_str);
+    write_file(ns_dir, "snap.test-snap.info", info_content);
+
+    sc_invocation inv = {.snap_instance = "test-snap"};
+    g_assert_false(managed_ca_cert_db_changed(&inv));
+}
+
+// When the managed CA cert directory has been updated (mtime differs), the
+// function should return true.
+static void test_managed_ca_cert_db_changed__legacy_bundle_key(void) {
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+
+    write_file(ns_dir, "snap.test-snap.info",
+               "base-snap-name=core24\nmanaged-ca-cert-db-mtime=0.000000000\n");
+
+    sc_invocation inv = {.snap_instance = "test-snap"};
+    g_assert_true(managed_ca_cert_db_changed(&inv));
+}
+
+// When the managed CA cert directory has been updated (mtime differs), the
+// should return true.
+static void test_managed_ca_cert_db_changed__mtime_changed(void) {
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+
+    // Write an info file with a clearly stale mtime.
+    write_file(ns_dir, "snap.test-snap.info",
+               "base-snap-name=core24\nmanaged-ca-certs-dir-mtime=0.000000000\n");
+
+    sc_invocation inv = {.snap_instance = "test-snap"};
+    // The real SC_MANAGED_CA_CERTS_DIR either doesn't exist (returns true
+    // because mtime was recorded but file is gone) or has a different
+    // mtime than 0.000000000 (returns true).
+    g_assert_true(managed_ca_cert_db_changed(&inv));
+}
+
+// When the managed CA cert directory has a clearly stale recorded mtime, the
+// function should return true.
+static void test_managed_ca_cert_db_changed__db_removed(void) {
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+
+    write_file(ns_dir, "snap.test-snap.info",
+               "base-snap-name=core24\nmanaged-ca-certs-dir-mtime=9999999999.000000000\n");
+
+    sc_invocation inv = {.snap_instance = "test-snap"};
+    // SC_MANAGED_CA_CERTS_DIR almost certainly doesn't exist at that mtime,
+    // so the function detects a change.
+    g_assert_true(managed_ca_cert_db_changed(&inv));
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
     g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
     g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/no_info_file",
+                     test_managed_ca_cert_db_changed__no_info_file);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/no_mtime_key",
+                     test_managed_ca_cert_db_changed__no_mtime_key);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/mtime_unchanged",
+                     test_managed_ca_cert_db_changed__mtime_unchanged);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/legacy_bundle_key",
+                     test_managed_ca_cert_db_changed__legacy_bundle_key);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/mtime_changed",
+                     test_managed_ca_cert_db_changed__mtime_changed);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/db_removed",
+                     test_managed_ca_cert_db_changed__db_removed);
 }

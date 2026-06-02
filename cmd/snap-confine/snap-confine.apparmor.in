@@ -209,6 +209,13 @@
     # should be handled here.
     /{,run/}media/ w,
     mount options=(rw rbind) /{,run/}media/ -> /tmp/snap.rootfs_*/{,run/}media/,
+
+    # allow bind mounting the managed CA certificate directory over the
+    # namespace's default trust store directory and then locking that view
+    # read-only inside the namespace
+    mount options=(rw bind) /var/lib/snapd/pki/v1/merged/ -> /tmp/snap.rootfs_*/etc/ssl/certs/,
+    mount options=(remount ro bind) -> /tmp/snap.rootfs_*/etc/ssl/certs/,
+
     /run/netns/ w,
     mount options=(rw rbind) /run/netns/ -> /tmp/snap.rootfs_*/run/netns/,
     # unidirectional mounts (only for classic system)

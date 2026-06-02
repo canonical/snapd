@@ -58,6 +58,13 @@
  **/
 #define SC_NS_DIR "/run/snapd/ns"
 
+/*
+ * Preserved namespaces need enough metadata to tell when their trust store
+ * view no longer matches what new launches should see. This key is used so
+ * namespaces created before the directory-mount change are discarded on reuse.
+ */
+#define SC_MANAGED_CA_CERTS_DIR_MTIME_KEY "managed-ca-certs-dir-mtime"
+
 /**
  * Effective value of SC_NS_DIR.
  *
@@ -318,6 +325,62 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_home
     return all_seen;
 }
 
+/**
+ * managed_ca_cert_db_changed returns true when the modification time of the
+ * managed CA certificate directory has changed since the namespace was created.
+ *
+ * The directory mtime is recorded to detect when the namespace predates the
+ * directory mount and must be recreated so confined processes can see the
+ * full managed trust store layout. If the key is not present (e.g. upgraded
+ * from an older snap-confine before managed CA namespace tracking existed),
+ * no staleness is reported so that creation of the namespace is not forced
+ * unnecessarily. If the new key is present but the directory does not exist,
+ * staleness is reported.
+ **/
+static bool managed_ca_cert_db_changed(const sc_invocation *inv) {
+    char info_path[PATH_MAX] = {0};
+    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir,
+                     inv->snap_instance);
+
+    FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
+    stream = fopen(info_path, "r");
+    if (stream == NULL) {
+        return false;
+    }
+
+    char *saved_mtime SC_CLEANUP(sc_cleanup_string) = NULL;
+    sc_error *err = NULL;
+    if (sc_infofile_get_key(stream, SC_MANAGED_CA_CERTS_DIR_MTIME_KEY, &saved_mtime, &err) < 0) {
+        sc_die_on_error(err);
+    }
+
+    if (saved_mtime == NULL) {
+        // No mtime recorded; this namespace was created before the
+        // feature was available.  Do not force a discard.
+        return false;
+    }
+
+    struct stat ca_stat;
+    if (stat(SC_MANAGED_CA_CERTS_DIR, &ca_stat) != 0) {
+        // The managed directory does not exist (yet). If a mtime was
+        // recorded the directory has been removed, which counts as a
+        // change.
+        return true;
+    }
+
+    char current_mtime[64] = {0};
+    sc_must_snprintf(current_mtime, sizeof current_mtime, "%lld.%09ld",
+                     (long long)ca_stat.st_mtim.tv_sec,
+                     ca_stat.st_mtim.tv_nsec);
+
+    if (!sc_streq(saved_mtime, current_mtime)) {
+        debug("managed CA cert directory mtime changed: %s -> %s", saved_mtime, current_mtime);
+        return true;
+    }
+
+    return false;
+}
+
 // Inspect the namespace and check if we should discard it.
 static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t base_snap_dev) {
     sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
@@ -336,6 +399,11 @@ static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t bas
     // changed: so this code will check that all homedirs are mounted in the
     // namespace.
     if (!homedirs_are_mounted(mi, inv->homedirs, inv->num_homedirs)) {
+        return true;
+    }
+    // Reuse is only safe while the preserved namespace still exposes the same
+    // managed trust store view that new launches would receive.
+    if (managed_ca_cert_db_changed(inv)) {
         return true;
     }
 
@@ -366,7 +434,7 @@ enum sc_discard_vote {
 /**
  * is_base_transition returns true if a base transition is occurring.
  *
- * The function inspects /run/snapd/ns/snap.$SNAP_INSTANCE_NAME.info as well
+ * The function inspects $SC_NS_DIR/snap.$SNAP_INSTANCE_NAME.info as well
  * as the invocation parameters of snap-confine. If the base snap name, as
  * encoded in the info file and as described by the invocation parameters
  * differ then a base transition is occurring. If the info file is absent or
@@ -375,7 +443,7 @@ enum sc_discard_vote {
  **/
 static bool is_base_transition(const sc_invocation *inv) {
     char info_path[PATH_MAX] = {0};
-    sc_must_snprintf(info_path, sizeof info_path, "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
 
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     stream = fopen(info_path, "r");
@@ -874,7 +942,7 @@ void sc_wait_for_helper(struct sc_mount_ns *group) {
 void sc_store_ns_info(const sc_invocation *inv) {
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     char info_path[PATH_MAX] = {0};
-    sc_must_snprintf(info_path, sizeof info_path, "/run/snapd/ns/snap.%s.info", inv->snap_instance);
+    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
     int fd = -1;
     fd = open(info_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
     if (fd < 0) {
@@ -889,6 +957,17 @@ void sc_store_ns_info(const sc_invocation *inv) {
         die("cannot get stream from file descriptor");
     }
     fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
+
+    // Record the directory mtime so preserved namespaces are recreated when
+    // snapd regenerates any part of the managed trust store, not just the
+    // bundle file.
+    struct stat ca_stat;
+    if (stat(SC_MANAGED_CA_CERTS_DIR, &ca_stat) == 0) {
+        fprintf(stream, SC_MANAGED_CA_CERTS_DIR_MTIME_KEY "=%lld.%09ld\n",
+                (long long)ca_stat.st_mtim.tv_sec,
+                ca_stat.st_mtim.tv_nsec);
+    }
+
     if (ferror(stream) != 0) {
         die("I/O error when writing to %s", info_path);
     }
