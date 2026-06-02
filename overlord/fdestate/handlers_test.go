@@ -129,6 +129,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		expectedAdds, expectedDeletes []string
 		badRecoveryKeyID              bool
 		expiredRecoveryKeyID          bool
+		removeAllOnError              bool
 		errOn                         []string
 		expectedErr                   string
 	}
@@ -200,6 +201,66 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 			},
 			expectedErr: `insufficient capacity on container system-data`,
 		},
+		// test "remove-all-on-error"
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-3"},
+			},
+			removeAllOnError: true,
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-recovery-3",
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-2",
+			},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-2",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-3",
+			},
+			expectedErr: `cannot add recovery key slot \(container-role: "system-data", name: "tmp-default-recovery-3"\): add error on /dev/disk/by-uuid/data:tmp-default-recovery-3`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "some-key-1"}, // already exists
+				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
+				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
+			},
+			removeAllOnError: true,
+			errOn:            []string{"add:/dev/disk/by-uuid/save:tmp-default-recovery"},
+			expectedAdds:     []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:some-key-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery",
+				"/dev/disk/by-uuid/save:tmp-default-recovery",
+			},
+			expectedErr: `cannot add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-3"},
+			},
+			removeAllOnError: true,
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-recovery-3",    // to trigger clean up
+				"delete:/dev/disk/by-uuid/data:tmp-default-recovery-2", // to test best effort deletion
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-2",
+			},
+			// best effort deletion still applies
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-3",
+			},
+			expectedErr: `cannot add recovery key slot \(container-role: "system-data", name: "tmp-default-recovery-3"\): add error on /dev/disk/by-uuid/data:tmp-default-recovery-3`,
+		},
 	}
 
 	for i, tc := range tcs {
@@ -229,6 +290,9 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 
 		task := s.st.NewTask("fde-add-recovery-keys", "test")
 		task.Set("keyslots", tc.keyslots)
+		if tc.removeAllOnError {
+			task.Set("remove-all-on-error", true)
+		}
 
 		var rkeyID string
 		var err error
@@ -912,6 +976,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		badAuthValue                  bool
 		recoveryMode                  bool
 		noop                          bool
+		removeAllOnError              bool
 		roles                         [][]string
 		expectedAdds, expectedDeletes []string
 		errOn                         []string
@@ -984,6 +1049,73 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			keyslots: []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
 			authMode: device.AuthModePassphrase,
 			noop:     true,
+		},
+		// test "remove-all-on-error"
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-3"},
+			},
+			removeAllOnError: true,
+			authMode:         device.AuthModePassphrase,
+			roles:            [][]string{{"run"}, {"run"}, {"run"}},
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-3",
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+			},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+				"/dev/disk/by-uuid/data:tmp-default-3",
+			},
+			expectedErr: `cannot add platform key slot \(container-role: "system-data", name: "tmp-default-3"\): add error on /dev/disk/by-uuid/data:tmp-default-3`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "default"}, // already exists
+				{ContainerRole: "system-data", Name: "tmp-default-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-2"},
+			},
+			removeAllOnError: true,
+			authMode:         device.AuthModePIN,
+			roles:            [][]string{{"run"}, {"run"}, {"run"}},
+			errOn:            []string{"add:/dev/disk/by-uuid/data:tmp-default-2"},
+			expectedAdds:     []string{"/dev/disk/by-uuid/data:tmp-default-1"},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:default",
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+			},
+			expectedErr: `cannot add platform key slot \(container-role: "system-data", name: "tmp-default-2"\): add error on /dev/disk/by-uuid/data:tmp-default-2`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-3"},
+			},
+			removeAllOnError: true,
+			authMode:         device.AuthModeNone,
+			noVolumesAuth:    true,
+			roles:            [][]string{{"run"}, {"run"}, {"run"}},
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-3",    // to trigger clean up
+				"delete:/dev/disk/by-uuid/data:tmp-default-2", // to test best effort deletion
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+			},
+			// best effort deletion still applies
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-3",
+			},
+			expectedErr: `cannot add platform key slot \(container-role: "system-data", name: "tmp-default-3"\): add error on /dev/disk/by-uuid/data:tmp-default-3`,
 		},
 	}
 
@@ -1106,6 +1238,9 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		task.Set("keyslots", tc.keyslots)
 		task.Set("auth-mode", tc.authMode)
 		task.Set("roles", roles)
+		if tc.removeAllOnError {
+			task.Set("remove-all-on-error", true)
+		}
 
 		chg := s.st.NewChange("sample", "...")
 		chg.AddTask(task)
