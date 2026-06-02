@@ -1900,29 +1900,48 @@ EOF
 }
 
 prepare_generate_coverage() {
-    CONF_FILE="/etc/systemd/system/snapd.service.d/99-generate-coverage.conf"
+    CONF_FILE="99-generate-coverage.conf"
     RESTART=false
 
     if [ -n "$GENERATE_COVERAGE" ]; then
-        # Generate the config file when it does not exist and when the threshold has changed different
-        if ! [ -f "$CONF_FILE" ]; then
-            cat <<EOF > "$CONF_FILE"
+        # dirs=$(find data/systemd data/systemd-user -type f -name '*.service.in' -exec basename {} \; | sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|')
+        while IFS= read -r line; do
+            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
+            mkdir -p "$dir"
+            RESTART=false
+            if ! [ -f "$dir/$CONF_FILE" ]; then
+                cat <<EOF > "$CONF_FILE"
 [Service]
 Environment=GOCOVERDIR=$GOCOVERDIR
 EOF
-            RESTART=true
-        fi
-    elif [ -f "$CONF_FILE" ]; then
-        rm -f "$CONF_FILE"
-        RESTART=true
-    fi
+                RESTART=true
+            fi
+            if [ "$RESTART" = "true" ]; then
+                systemctl daemon-reload
+                systemctl restart "$(sed -E 's|^(.*)\.in$|1|' <<<"$line")"
+            fi
 
-    if [ "$RESTART" = "true" ]; then
-        # the service setting may have changed in the service so we need
-        # to ensure snapd is reloaded
-        systemctl daemon-reload
-        systemctl restart snapd
+        done < <(find data/systemd data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
     fi
+        # Generate the config file when it does not exist and when the threshold has changed different
+#         if ! [ -f "$CONF_FILE" ]; then
+#             cat <<EOF > "$CONF_FILE"
+# [Service]
+# Environment=GOCOVERDIR=$GOCOVERDIR
+# EOF
+#             RESTART=true
+#         fi
+#     elif [ -f "$CONF_FILE" ]; then
+#         rm -f "$CONF_FILE"
+#         RESTART=true
+#     fi
+
+#     if [ "$RESTART" = "true" ]; then
+#         # the service setting may have changed in the service so we need
+#         # to ensure snapd is reloaded
+#         systemctl daemon-reload
+#         systemctl restart snapd
+#     fi
 }
 
 # prepare_ubuntu_core will prepare ubuntu-core 16+

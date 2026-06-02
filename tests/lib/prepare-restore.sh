@@ -779,8 +779,10 @@ prepare_suite_each() {
     tests.invariant check
 
     if [[ "$GENERATE_COVERAGE" = true ]]; then
-        mkdir -p "$TESTSTMP"/coverage
-        rm -f "$TESTSTMP"/coverage/*
+        mkdir -p "$GOCOVERDIR"
+        systemctl stop snapd
+        rm -f "$GOCOVERDIR/*"
+        systemctl start snapd
     fi
 }
 

@@ -9,8 +9,14 @@ from pathlib import Path, PurePosixPath
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Calculate tests to execute for selected systems by combining core-set tests "
-            "and tests relevant to the provided files."
+            "Calculate tests to execute for selected systems according to the criteria (only for non-test golang files):"
+            "1. A core set of tests that completely cover features independently of the change"
+            "2. Any file change inside of overlord/hookstate will execute all tests with the run-hook feature in addition to whatever coverage is present" # look at this again
+            "3. Any tests without feature coverage data will always be executed"
+            "4. Any tests that failed during coverage data collection will always be executed"
+            "5. If a single file change does not identify any tests to execute, all tests will be executed (excluding case #2)"
+            "6. If a file is added/deleted (rather than modified), then all the tests from coverage data for each file contained in that dir will be executed"
+            "7. If a change is inside certain key areas (cmd/snap/cmd_run.go), then all tests will run"
         )
     )
     parser.add_argument(
@@ -391,9 +397,8 @@ def should_keep_test(
     return False
 
 
-def main():
+def main():    
     args = parse_args()
-
 
     changed_files = read_files_input(args.files_list)
     spread_tests = read_spread_list(args.spread_list)
@@ -427,6 +432,20 @@ def main():
         raise RuntimeError("unexpected failure list shape; expected JSON array")
 
     remove_inits(systems)
+    
+    with open("/tmp/keys") as f:
+        keys = f.readlines()
+    keys = [key.rstrip() for key in keys]
+        
+    subset = []
+    for system in systems[args.group]:
+        if system in keys:
+            subset.append({system: systems[args.group][system]})
+            
+    not_present = []
+    for key in keys:
+        if key not in systems[args.group]:
+            not_present.append(key)
 
     selected_tests: set[str] = set()
     

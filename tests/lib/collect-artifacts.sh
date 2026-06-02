@@ -40,17 +40,19 @@ locks(){
 
 coverage_after_non_nested_task() {
     # Copy the coverage files to the artifacts directory
-    if [ -d "$TESTSTMP"/coverage ] && [ $(ls "$TESTSTMP"/coverage | wc -l) -gt 0 ]; then
+    if [ -d "$GOCOVERDIR" ] && [ $(ls "$GOCOVERDIR" | wc -l) -gt 0 ]; then
         local task_dir
         task_dir="$(_prepare_artifacts_path coverage-results)"
+        systemctl stop snapd || true
         pushd "$SPREAD_PATH"
-        "$SPREAD_PATH"/tests/utils/coverage/main.py -results-dir "$TESTSTMP"/coverage -output functions > "$task_dir"/coverage.json || true
+        "$SPREAD_PATH"/tests/utils/coverage/main.py -results-dir "$GOCOVERDIR" -output functions > "$task_dir"/coverage.json || true
         popd
         if ! [ -s "$task_dir"/coverage.json ]; then
-            cp "$TESTSTMP"/coverage/* "$task_dir" || true
+            cp "$GOCOVERDIR"/* "$task_dir" || true
             chmod 666 "$task_dir"/* || true
             rm -f "$task_dir"/coverage.json
         fi
+        systemctl start snapd || true
     fi
 }
 
@@ -58,7 +60,8 @@ coverage_after_nested_task() {
     # Copy the coverage files to the artifacts directory
     local task_dir
     task_dir="$(_prepare_artifacts_path coverage-results)"
-    "$TESTSTOOLS"/remote.pull "$TESTSTMP"/coverage/* "$task_dir" || true
+    "$TESTSTOOLS"/remote.exec systemctl stop snapd || true
+    "$TESTSTOOLS"/remote.pull "$GOCOVERDIR"/* "$task_dir" || true
     if [ $(ls "$task_dir" | wc -l) -eq 0 ]; then
         rm -r "$task_dir"
         return
