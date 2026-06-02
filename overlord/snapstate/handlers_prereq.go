@@ -233,16 +233,12 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 	}
 	// add the base if needed, prereqs else must wait on this
 	if baseTS != nil {
-		for _, t := range chg.Tasks() {
-			t.WaitAll(baseTS)
-		}
+		serializeTaskSetBeforeInProgressChange(baseTS, chg)
 		chg.AddAll(baseTS)
 	}
 	// add snapd if needed, everything must wait on this
 	if snapdTS != nil {
-		for _, t := range chg.Tasks() {
-			t.WaitAll(snapdTS)
-		}
+		serializeTaskSetBeforeInProgressChange(snapdTS, chg)
 		chg.AddAll(snapdTS)
 	}
 
