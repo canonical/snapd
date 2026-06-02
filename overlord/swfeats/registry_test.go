@@ -133,7 +133,7 @@ func (s *swfeatsSuite) TestCheckChangeRegistrations(c *C) {
 	}
 	goFiles, err := getGoFiles("../../", exclusions...)
 	if err != nil {
-		c.Error("Could not find any go files in snapd directory")
+		c.Errorf("Could not find any go files in snapd directory: %v", err)
 	}
 	var files []*ast.File
 	fset := token.NewFileSet()
