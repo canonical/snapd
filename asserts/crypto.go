@@ -406,25 +406,6 @@ func readOpenPGPRSAPublicKey(exportedPubKeyStream io.Reader) (PublicKey, string,
 	return RSAPublicKey(rsaPubKey), fmt.Sprintf("%X", pubKey.Fingerprint), nil
 }
 
-func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(content []byte) (*packet.Signature, error)) (*extPGPPrivateKey, error) {
-	pubKey, fingerprint, err := readOpenPGPRSAPublicKey(exportedPubKeyStream)
-	if err != nil {
-		return nil, err
-	}
-	rsaPubKey, err := cryptoRSAPublicKey(pubKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return &extPGPPrivateKey{
-		pubKey:     pubKey,
-		from:       from,
-		externalID: fingerprint,
-		bitLen:     rsaPubKey.N.BitLen(),
-		doSign:     sign,
-	}, nil
-}
-
 func (expk *extPGPPrivateKey) PublicKey() PublicKey {
 	return expk.pubKey
 }
