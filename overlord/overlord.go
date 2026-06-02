@@ -561,11 +561,6 @@ func (o *Overlord) CanStandby() bool {
 // to stop accepting new requests and finish handling existing requests.
 func (o *Overlord) ShutDown() {
 	o.stateEng.ShutDown()
-	if o.stateFLock != nil {
-		// This will also unlock the file
-		o.stateFLock.Close()
-		logger.Noticef("Released state lock file")
-	}
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.
