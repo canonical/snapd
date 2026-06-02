@@ -33,6 +33,7 @@ import (
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -304,10 +305,22 @@ func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
 
 // testPreinstallCheckAndAction is a helper to test PreinstallCheck and PreinstallCheckAction
 func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboot.PreinstallAction, detectErrors, failUnwrap bool) {
+	rootdir := c.MkDir()
+
 	bootImagePaths := []string{
-		"/cdrom/EFI/boot/bootXXX.efi",
-		"/cdrom/EFI/boot/grubXXX.efi",
-		"/cdrom/casper/vmlinuz",
+		filepath.Join(rootdir, "/cdrom/EFI/boot/bootXXX.efi"),
+		filepath.Join(rootdir, "/cdrom/EFI/boot/grubXXX.efi"),
+		filepath.Join(rootdir, "/cdrom/casper/vmlinuz"),
+	}
+
+	var bootImageFiles []bootloader.BootFile
+	for _, path := range bootImagePaths {
+		err := os.MkdirAll(filepath.Dir(path), 0755)
+		c.Assert(err, IsNil)
+		err = os.WriteFile(path, []byte{}, 0644)
+		c.Assert(err, IsNil)
+		// role is not important
+		bootImageFiles = append(bootImageFiles, bootloader.NewBootFile("", path, bootloader.RoleRecovery))
 	}
 
 	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", "exit 1")
@@ -387,7 +400,7 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 	if checkAction == nil {
 		// test PreinstallCheck
 		expectedAction = sb_preinstall.ActionNone
-		checkContext, errorDetails, err = secboot.PreinstallCheck(context.Background(), bootImagePaths)
+		checkContext, errorDetails, err = secboot.PreinstallCheck(context.Background(), bootImageFiles)
 		if failUnwrap {
 			c.Assert(checkContext, IsNil)
 		} else {

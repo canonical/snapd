@@ -329,14 +329,14 @@ func (s *installSuite) TestOrderedCurrentBootImagesHybrid(c *C) {
 	} {
 		s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.imageError, tc.errorBootImage)
 
-		bootImagePaths, err := install.OrderedCurrentBootImagesHybrid()
+		bootImageFiles, err := install.OrderedCurrentBootImagesHybrid()
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
 			c.Assert(err, IsNil)
 
-			for i, path := range bootImagePaths {
-				c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+			for i, path := range bootImageFiles {
+				c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 			}
 		}
 	}
@@ -385,15 +385,15 @@ func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
 		}
 		modelMock := s.mockModel(modelMods)
 
-		bootImagePaths, err := install.OrderedCurrentBootImages(modelMock)
+		bootImageFiles, err := install.OrderedCurrentBootImages(modelMock)
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
 			c.Assert(err, IsNil)
 		}
 
-		for i, path := range bootImagePaths {
-			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		for i, path := range bootImageFiles {
+			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 		}
 	}
 }
@@ -616,12 +616,12 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 	}
 
 	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
-	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		c.Assert(ctx, NotNil)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
-		c.Assert(bootImagePaths, HasLen, len(relBootImagePaths))
-		for i, path := range bootImagePaths {
-			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		c.Assert(bootImageFiles, HasLen, len(relBootImagePaths))
+		for i, path := range bootImageFiles {
+			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 		}
 
 		if checkFailErrors == ErrorSecbootPreinstall {

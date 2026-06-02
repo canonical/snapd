@@ -751,6 +751,6 @@ func MockOsutilBootID(bootID string) (restore func()) {
 	return testutil.Mock(&osutilBootID, func() (string, error) { return bootID, nil })
 }
 
-func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error) error) (restore func()) {
+func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error, runPostInstallChecks bool) error) (restore func()) {
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
 }

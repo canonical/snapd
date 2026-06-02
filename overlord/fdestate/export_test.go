@@ -20,9 +20,11 @@
 package fdestate
 
 import (
+	"context"
 	"time"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
@@ -190,4 +192,16 @@ func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState) bool) (res
 
 func MockSecbootGetPrimaryKey(f func(devices []string, fallbackKeyFiles []string) ([]byte, error)) (restore func()) {
 	return testutil.Mock(&secbootGetPrimaryKey, f)
+}
+
+func MockBootloaderFind(f func(rootdir string, opts *bootloader.Options) (bootloader.Bootloader, error)) (restore func()) {
+	return testutil.Mock(&bootloaderFind, f)
+}
+
+func MockBootReadModeenv(f func(rootdir string) (*boot.Modeenv, error)) (restore func()) {
+	return testutil.Mock(&bootReadModeenv, f)
+}
+
+func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+	return testutil.Mock(&secbootPostinstallCheck, f)
 }
