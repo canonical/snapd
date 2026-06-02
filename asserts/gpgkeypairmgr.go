@@ -21,14 +21,11 @@ package asserts
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
@@ -125,7 +122,9 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 var runGPG = runGPGImpl
 
 // A key pair manager backed by a local GnuPG setup.
-type GPGKeypairManager struct{}
+type GPGKeypairManager struct {
+	impl *extKeypairMgrImpl
+}
 
 func (gkm *GPGKeypairManager) gpg(input []byte, args ...string) ([]byte, error) {
 	return runGPG(input, args...)
@@ -136,10 +135,19 @@ func (gkm *GPGKeypairManager) gpg(input []byte, args ...string) ([]byte, error) 
 // suppored.
 // Main purpose is allowing signing using keys from a GPG setup.
 func NewGPGKeypairManager() *GPGKeypairManager {
-	return &GPGKeypairManager{}
+	gkm := &GPGKeypairManager{}
+	impl, err := newExtKeypairMgrImpl(&gpgKeypairMgrBackend{manager: gkm}, extKeypairMgrConfig{
+		signingWith: "GPG",
+		keyStore:    "GPG keyring",
+	})
+	if err != nil {
+		panic(fmt.Sprintf("internal error: cannot setup keypair manager: %v", err))
+	}
+	gkm.impl = impl
+	return gkm
 }
 
-func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
+func (gkm *GPGKeypairManager) retrieveLoadedKey(fpr string, uid string) (*extKeypairMgrLoadedKey, error) {
 	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", "0x"+fpr)
 	if err != nil {
 		return nil, err
@@ -148,22 +156,21 @@ func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 		return nil, fmt.Errorf("cannot retrieve key with fingerprint %q in GPG keyring", fpr)
 	}
 
-	pubKeyBuf := bytes.NewBuffer(out)
-	privKey, err := newExtPGPPrivateKey(pubKeyBuf, "GPG", func(content []byte) (*packet.Signature, error) {
-		return gkm.sign(fpr, content)
-	})
+	pubKey, gotFingerprint, err := readOpenPGPRSAPublicKey(bytes.NewBuffer(out))
 	if err != nil {
 		return nil, fmt.Errorf("cannot load GPG public key with fingerprint %q: %v", fpr, err)
 	}
-	gotFingerprint := privKey.externalID
 	if gotFingerprint != fpr {
 		return nil, fmt.Errorf("got wrong public key from GPG, expected fingerprint %q: %s", fpr, gotFingerprint)
 	}
-	return privKey, nil
+	return &extKeypairMgrLoadedKey{
+		name:      uid,
+		keyHandle: fpr,
+		pubKey:    pubKey,
+	}, nil
 }
 
-// Walk iterates over all the RSA private keys in the local GPG setup calling the provided callback until this returns an error
-func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string, uid string) error) error {
+func (gkm *GPGKeypairManager) walkSecretKeys(consider func(fingerprint string, uid string) error) error {
 	// see GPG source doc/DETAILS
 	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons", "--fixed-list-mode")
 	if err != nil {
@@ -194,11 +201,11 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		keyID := secFields[4]
 		uid := ""
 		fpr := ""
-		var privKey PrivateKey
 		// look for fpr:, uid: lines, order may vary and gpg2.1
 		// may springle additional lines in (like gpr:)
+		// stop at the next primary key or any subkey record so we only collect metadata for this sec: entry.
 	Loop:
-		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:"); k++ {
+		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:") && !strings.HasPrefix(lines[k], "ssb:") && !strings.HasPrefix(lines[k], "sub:"); k++ {
 			switch {
 			case strings.HasPrefix(lines[k], "fpr:"):
 				fprFields := strings.Split(lines[k], ":")
@@ -209,11 +216,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 				}
 				fpr = fprFields[9]
 				if !strings.HasSuffix(fpr, keyID) {
-					break // strange, skip
-				}
-				privKey, err = gkm.retrieve(fpr)
-				if err != nil {
-					return err
+					break Loop // strange, skip
 				}
 			case strings.HasPrefix(lines[k], "uid:"):
 				uidFields := strings.Split(lines[k], ":")
@@ -225,11 +228,11 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 			}
 		}
 		// validity checking
-		if privKey == nil || uid == "" {
+		if fpr == "" || uid == "" {
 			continue
 		}
 		// collected it all
-		err = consider(privKey, fpr, uid)
+		err = consider(fpr, uid)
 		if err != nil {
 			return err
 		}
@@ -242,106 +245,34 @@ func (gkm *GPGKeypairManager) Put(privKey PrivateKey) error {
 	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-type gpgKeypairInfo struct {
-	privKey     PrivateKey
-	fingerprint string
-}
-
-var errKeypairNotFoundInGPGKeyring = &keyNotFoundError{msg: "cannot find key pair in GPG keyring"}
-
-func (gkm *GPGKeypairManager) findByID(keyID string) (*gpgKeypairInfo, error) {
-	stop := errors.New("stop marker")
-	var hit *gpgKeypairInfo
-	match := func(privk PrivateKey, fpr string, uid string) error {
-		if privk.PublicKey().ID() == keyID {
-			hit = &gpgKeypairInfo{
-				privKey:     privk,
-				fingerprint: fpr,
-			}
-			return stop
-		}
-		return nil
-	}
-	err := gkm.Walk(match)
-	if err == stop {
-		return hit, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return nil, errKeypairNotFoundInGPGKeyring
-}
-
 func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
-	keyInfo, err := gkm.findByID(keyID)
-	if err != nil {
-		return nil, err
-	}
-	return keyInfo.privKey, nil
+	return gkm.impl.Get(keyID)
 }
 
 func (gkm *GPGKeypairManager) Delete(keyID string) error {
-	keyInfo, err := gkm.findByID(keyID)
+	entry, err := gkm.impl.loadByID(keyID)
 	if err != nil {
 		return err
 	}
-	_, err = gkm.gpg(nil, "--batch", "--delete-secret-and-public-key", "0x"+keyInfo.fingerprint)
+	_, err = gkm.gpg(nil, "--batch", "--delete-secret-and-public-key", "0x"+entry.keyHandle)
 	if err != nil {
 		return err
 	}
+	gkm.impl.dropCachedKey(keyID)
 	return nil
 }
 
-func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.Signature, error) {
+func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, error) {
 	out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--detach-sign")
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign using GPG: %v", err)
 	}
-
-	const badSig = "bad GPG produced signature: "
-	sigpkt, err := packet.Read(bytes.NewBuffer(out))
-	if err != nil {
-		return nil, fmt.Errorf(badSig+"%v", err)
-	}
-
-	sig, ok := sigpkt.(*packet.Signature)
-	if !ok {
-		return nil, fmt.Errorf(badSig+"got %T", sigpkt)
-	}
-
-	return sig, nil
-}
-
-func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
-	stop := errors.New("stop marker")
-	var hit *gpgKeypairInfo
-	match := func(privk PrivateKey, fpr string, uid string) error {
-		if uid == name {
-			hit = &gpgKeypairInfo{
-				privKey:     privk,
-				fingerprint: fpr,
-			}
-			return stop
-		}
-		return nil
-	}
-	err := gkm.Walk(match)
-	if err == stop {
-		return hit, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return nil, errKeypairNotFoundInGPGKeyring
+	return out, nil
 }
 
 // GetByName looks up a private key by name and returns it.
 func (gkm *GPGKeypairManager) GetByName(name string) (PrivateKey, error) {
-	keyInfo, err := gkm.findByName(name)
-	if err != nil {
-		return nil, err
-	}
-	return keyInfo.privKey, nil
+	return gkm.impl.GetByName(name)
 }
 
 var generateTemplate = `
@@ -363,7 +294,7 @@ func (gkm *GPGKeypairManager) parametersForGenerate(passphrase string, name stri
 
 // Generate creates a new key with the given passphrase and name.
 func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
-	_, err := gkm.findByName(name)
+	_, err := gkm.impl.loadByName(name)
 	if err == nil {
 		return fmt.Errorf("key named %q already exists in GPG keyring", name)
 	}
@@ -377,37 +308,56 @@ func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
 
 // Export returns the encoded text of the named public key.
 func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
-	keyInfo, err := gkm.findByName(name)
-	if err != nil {
-		return nil, err
-	}
-	return EncodePublicKey(keyInfo.privKey.PublicKey())
+	return gkm.impl.Export(name)
 }
 
 // DeleteByName removes the named key pair from GnuPG's storage.
 func (gkm *GPGKeypairManager) DeleteByName(name string) error {
-	keyInfo, err := gkm.findByName(name)
+	entry, err := gkm.impl.loadByName(name)
 	if err != nil {
 		return err
 	}
-	_, err = gkm.gpg(nil, "--batch", "--delete-secret-and-public-key", "0x"+keyInfo.fingerprint)
+	keyID := entry.pubKey.ID()
+	_, err = gkm.gpg(nil, "--batch", "--delete-secret-and-public-key", "0x"+entry.keyHandle)
 	if err != nil {
 		return err
 	}
+	gkm.impl.dropCachedKey(keyID)
 	return nil
 }
 
 func (gkm *GPGKeypairManager) List() (res []ExternalKeyInfo, err error) {
-	collect := func(privk PrivateKey, fpr string, uid string) error {
-		key := ExternalKeyInfo{
-			Name: uid,
-			ID:   privk.PublicKey().ID(),
+	return gkm.impl.List()
+}
+
+// gpgkeypairMgrBackend implements the extKeypairMgrBackend interface
+// as a thin wrapper around GPGKeypairManager,
+// allowing it to be used as the backend for an extKeypairMgrImpl.
+type gpgKeypairMgrBackend struct {
+	manager *GPGKeypairManager
+}
+
+// expected interface is implemented
+var _ extKeypairMgrBackend = (*gpgKeypairMgrBackend)(nil)
+
+func (s *gpgKeypairMgrBackend) CheckFeatures() (extKeypairMgrSigning, error) {
+	return extKeypairMgrSigningOpenPGP, nil
+}
+
+func (s *gpgKeypairMgrBackend) Visit(consider func(loaded *extKeypairMgrLoadedKey) error) error {
+	return s.manager.walkSecretKeys(func(fpr string, uid string) error {
+		loaded, err := s.manager.retrieveLoadedKey(fpr, uid)
+		if err != nil {
+			return err
 		}
-		res = append(res, key)
-		return nil
-	}
-	if err := gkm.Walk(collect); err != nil {
-		return nil, err
-	}
-	return res, nil
+		return consider(loaded)
+	})
+}
+
+func (s *gpgKeypairMgrBackend) RSAPKCSSign(keyHandle string, prepared []byte) ([]byte, error) {
+	return nil, fmt.Errorf("internal error: GPG keypair manager does not support RSA-PKCS signing")
+}
+
+func (s *gpgKeypairMgrBackend) Sign(keyHandle string, content []byte) ([]byte, error) {
+	return s.manager.sign(keyHandle, content)
 }

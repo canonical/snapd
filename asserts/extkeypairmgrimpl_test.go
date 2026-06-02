@@ -435,6 +435,42 @@ func (s *extKeypairMgrImplSuite) TestListPropagatesSameIDInconsistency(c *check.
 	c.Check(impl.nameToID, check.DeepEquals, map[string]string{"default": loaded.pubKey.ID()})
 }
 
+func (s *extKeypairMgrImplSuite) TestDropCachedKeyRemovesCachedAndNamedEntries(c *check.C) {
+	_, loaded := s.newLoadedKey(c, "default", "handle-default")
+	impl, err := newExtKeypairMgrImpl(&fakeExtKeypairMgrBackend{
+		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
+			signingMethod: extKeypairMgrSigningRSAPKCS,
+		},
+	}, fakeExtKeypairMgrConfig)
+	c.Assert(err, check.IsNil)
+
+	_, err = impl.cacheLoadedKey(loaded)
+	c.Assert(err, check.IsNil)
+
+	impl.dropCachedKey(loaded.pubKey.ID())
+
+	c.Check(impl.cache, check.DeepEquals, map[string]*extKeypairMgrCachedKey{})
+	c.Check(impl.nameToID, check.DeepEquals, map[string]string{})
+}
+
+func (s *extKeypairMgrImplSuite) TestDropCachedKeyMissingKeyLeavesCacheUntouched(c *check.C) {
+	_, loaded := s.newLoadedKey(c, "default", "handle-default")
+	impl, err := newExtKeypairMgrImpl(&fakeExtKeypairMgrBackend{
+		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
+			signingMethod: extKeypairMgrSigningRSAPKCS,
+		},
+	}, fakeExtKeypairMgrConfig)
+	c.Assert(err, check.IsNil)
+
+	entry, err := impl.cacheLoadedKey(loaded)
+	c.Assert(err, check.IsNil)
+
+	impl.dropCachedKey("missing-id")
+
+	c.Check(impl.cache, check.DeepEquals, map[string]*extKeypairMgrCachedKey{loaded.pubKey.ID(): entry})
+	c.Check(impl.nameToID, check.DeepEquals, map[string]string{"default": loaded.pubKey.ID()})
+}
+
 func (s *extKeypairMgrImplSuite) TestGetMissingUsesKeyStoreError(c *check.C) {
 	backend := &fakeExtKeypairMgrBackend{
 		fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
