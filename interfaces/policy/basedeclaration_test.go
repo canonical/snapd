@@ -46,7 +46,14 @@ var _ = Suite(&baseDeclSuite{})
 
 func (s *baseDeclSuite) SetUpSuite(c *C) {
 	s.restoreSanitize = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
-	s.baseDecl = asserts.BuiltinBaseDeclaration()
+
+	for _, as := range asserts.Builtin() {
+		var ok bool
+		s.baseDecl, ok = as.(*asserts.BaseDeclaration)
+		if ok {
+			break
+		}
+	}
 }
 
 func (s *baseDeclSuite) TearDownSuite(c *C) {
