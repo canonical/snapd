@@ -96,6 +96,8 @@ var osutilCheckFreeSpace = osutil.CheckFreeSpace
 // See LP:#1940553
 var TestingLeaveOutKernelUpdateGadgetAssets bool = false
 
+var gadgetSetFallbackDefaults = gadget.SetFallbackDefaults
+
 type minimalInstallInfo interface {
 	InstanceName() string
 	Type() snap.Type
@@ -4154,6 +4156,7 @@ func ConfigDefaults(st *state.State, deviceCtx DeviceContext, snapName string) (
 				logger.Noticef("core snap configuration defaults found under both 'system' key and core-snap-id, preferring 'system'")
 			}
 
+			gadgetSetFallbackDefaults(defaults)
 			return defaults, nil
 		}
 	}
