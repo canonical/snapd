@@ -226,11 +226,8 @@ def remove_inits(systems):
                 del results[file]
 
 
-def tests_for_changed_files(
-    system_data: dict, changed_files: list[tuple[str, str]], selected_systems: set[str]
-) -> set[str]:
-    selected: set[str] = set()
-
+def tests_for_changed_files(system_data: dict, changed_files: list[tuple[str, str]], selected_systems: set[str]):
+    selected = {}
     coverage_paths_by_dir: dict[str, list[str]] = {}
     for covered_path in system_data:
         covered_dir = immediate_directory(covered_path)
@@ -245,11 +242,9 @@ def tests_for_changed_files(
             candidate_paths = coverage_paths_by_dir.get(changed_dir, [])
 
         for candidate_path in candidate_paths:
+            selected[candidate_path] = set()
             for entry in system_data.get(candidate_path, []):
-                if isinstance(entry, dict):
-                    test_name = entry.get("test")
-                    if isinstance(test_name, str):
-                        selected |= expand_test_names(test_name, selected_systems)
+                selected[candidate_path] |= expand_test_names(entry["test"], selected_systems)
 
     return selected
 
@@ -434,6 +429,19 @@ def main():
     remove_inits(systems)
 
     selected_tests: set[str] = set()
+    
+    if changed_files:
+        from_changed = tests_for_changed_files(
+            systems[args.group], changed_files, selected_systems
+        )
+        if len(from_changed) == 0:
+            print("\n".join(spread_tests))
+            exit(0)
+        for name, tests in from_changed.items():
+            if len(tests) == 0 and name.endswith(".go") and not name.endswith("_test.go") and not "hookstate" in name:
+                print("\n".join(spread_tests))
+                exit(0)
+            selected_tests |= tests
 
     for system in selected_systems:
         core_tests = core_set.get(system, [])
@@ -441,11 +449,6 @@ def main():
             for test_name in core_tests:
                 if isinstance(test_name, str) and test_name:
                     selected_tests |= expand_test_names(test_name, {system})
-
-    if changed_files:
-        selected_tests |= tests_for_changed_files(
-            systems[args.group], changed_files, selected_systems
-        )
 
     for test_name in failed:
         if isinstance(test_name, str):
