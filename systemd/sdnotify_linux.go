@@ -42,6 +42,7 @@ func SdNotify(notifyState string) error {
 	if err != nil {
 		return err
 	}
+	// TODO: keep it open to avoid re-opening and make sure to have O_CLOEXEC
 	defer conn.Close()
 
 	_, err = conn.Write([]byte(notifyState))
@@ -67,6 +68,7 @@ func SdNotifyWithFds(notifyState string, files ...*os.File) error {
 	if err != nil {
 		return err
 	}
+	// TODO: keep it open to avoid re-opening and make sure to have O_CLOEXEC
 	defer conn.Close()
 
 	rawConn, err := conn.SyscallConn()

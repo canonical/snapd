@@ -24,9 +24,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/coreos/go-systemd/activation"
-
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd/fdstore"
 )
 
 // GetListener tries to get a listener for the given socket path from the
@@ -73,18 +72,16 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 
 // ActivationListeners builds a map of addresses to listeners that were passed
 // during systemd activation
-func ActivationListeners() (lns map[string]net.Listener, err error) {
-	// pass false to keep LISTEN_* environment variables passed by systemd
-	files := activation.Files(false)
-	lns = make(map[string]net.Listener, len(files))
-
-	for _, f := range files {
-		ln, err := net.FileListener(f)
-		if err != nil {
-			return nil, err
-		}
-		addr := ln.Addr().String()
-		lns[addr] = ln
+func ActivationListeners() (listenerByAddr map[string]net.Listener, err error) {
+	listeners, err := fdstore.ActivationListeners()
+	if err != nil {
+		return nil, err
 	}
-	return lns, nil
+
+	listenerByAddr = make(map[string]net.Listener, len(listeners))
+	for _, listener := range listeners {
+		addr := listener.Addr().String()
+		listenerByAddr[addr] = listener
+	}
+	return listenerByAddr, nil
 }
