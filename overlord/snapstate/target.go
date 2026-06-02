@@ -1637,8 +1637,12 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 		trackingChannel = snapst.TrackingChannel
 	}
 
+	// resolveChannel leaves an empty channel untouched for explicit revision
+	// updates, since store-backed by-revision refreshes should not require a
+	// channel. path installs still need to preserve the channel recorded in the
+	// snap state, so set that fallback before resolving.
 	if update.RevOpts.Channel == "" {
-		update.RevOpts.Channel = update.SideInfo.Channel
+		update.RevOpts.Channel = firstNonEmpty(update.SideInfo.Channel, trackingChannel)
 	}
 
 	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx); err != nil {
@@ -1655,6 +1659,10 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 			SnapPath:  update.Path,
 			Channel:   update.RevOpts.Channel,
 			CohortKey: update.RevOpts.CohortKey,
+
+			// mirror store-backed by-revision refresh: an explicit revision should
+			// run the full update path even if the revision is already current.
+			AlwaysUpdate: !update.RevOpts.Revision.Unset(),
 		},
 		info:       info,
 		snapst:     snapst,

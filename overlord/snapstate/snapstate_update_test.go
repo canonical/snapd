@@ -21092,6 +21092,22 @@ func setupSeedRefreshRevertSnapOfType(c *C, st *state.State, spec seedRefreshSna
 	return oldSideInfo, newSideInfo
 }
 
+func makeSeedRefreshLocalSnapPath(c *C, spec seedRefreshSnap, rev snap.Revision) (*snap.SideInfo, string) {
+	sideInfo := &snap.SideInfo{RealName: spec.name, SnapID: spec.snapID, Revision: rev}
+
+	var snapYaml strings.Builder
+	fmt.Fprintf(&snapYaml, "name: %s\nversion: %s\nepoch: 1*\n", spec.name, rev)
+	if spec.snapType != "" {
+		fmt.Fprintf(&snapYaml, "type: %s\n", spec.snapType)
+	}
+	if spec.base != "" {
+		fmt.Fprintf(&snapYaml, "base: %s\n", spec.base)
+	}
+
+	path, _ := snaptest.MakeTestSnapInfoWithFiles(c, snapYaml.String(), nil, sideInfo)
+	return sideInfo, path
+}
+
 func (s *snapmgrTestSuite) testRevertSeedRefreshRunThrough(c *C, spec seedRefreshSnap, model map[string]any) {
 	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, model, []string{spec.name})
 	defer restore()
@@ -21295,6 +21311,159 @@ func (s *snapmgrTestSuite) TestRevertSeedRefreshNoopWhenSnapNotSelected(c *C) {
 	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1, ReplaceLatest: true}})
 	c.Check(countTasksOfKind(ts.Tasks(), "create-recovery-system"), Equals, 0)
 	c.Check(countTasksOfKind(ts.Tasks(), "finalize-recovery-system"), Equals, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathSeedRefreshRunThrough(c *C) {
+	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	}, []string{"kernel"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+	)
+
+	newSideInfo, path := makeSeedRefreshLocalSnapPath(c, seedRefreshSnap{
+		name:     "kernel",
+		snapID:   "kernel-id",
+		snapType: "kernel",
+	}, snap.R(11))
+
+	ts, err := snapstate.InstallPath(s.state, newSideInfo, path, "kernel", "", snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
+
+	chg := s.state.NewChange("install", "install snap from path")
+	chg.AddAll(ts)
+	c.Assert(chg.CheckTaskDependencies(), IsNil)
+
+	setupTask, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(setupTask)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.InstanceName(), Equals, "kernel")
+	c.Check(snapsup.Revision(), Equals, newSideInfo.Revision)
+	c.Check(snapsup.SnapPath, Equals, path)
+
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
+		InstanceName:     "kernel",
+		SnapSetupTaskIDs: []string{setupTask.ID()},
+	}})
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
+
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, ts)
+	lastBeforeLocal, err := ts.Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedCreate, lastBeforeLocal), Equals, true)
+
+	endTask, err := ts.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	c.Check(waitsOnTransitively(seedFinalize, endTask), Equals, true)
+
+	linkTask, err := ts.Edge(snapstate.MaybeRebootEdge)
+	c.Assert(err, IsNil)
+	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
+	c.Check(hasDoRestartBoundary(linkTask), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathSeedRefreshNoopWhenSnapNotSelected(c *C) {
+	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	}, nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+	)
+
+	newSideInfo, path := makeSeedRefreshLocalSnapPath(c, seedRefreshSnap{
+		name:     "kernel",
+		snapID:   "kernel-id",
+		snapType: "kernel",
+	}, snap.R(11))
+
+	ts, err := snapstate.InstallPath(s.state, newSideInfo, path, "kernel", "", snapstate.Flags{}, nil)
+	c.Assert(err, IsNil)
+
+	setupTask, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	c.Assert(observed.initial, HasLen, 1)
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
+		InstanceName:     "kernel",
+		SnapSetupTaskIDs: []string{setupTask.ID()},
+	}})
+	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
+	c.Check(countTasksOfKind(ts.Tasks(), "create-recovery-system"), Equals, 0)
+	c.Check(countTasksOfKind(ts.Tasks(), "finalize-recovery-system"), Equals, 0)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathSeedRefreshBlockedByOtherChanges(c *C) {
+	_, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel": "kernel",
+		"base":   "core18",
+	}, []string{"kernel"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+	)
+
+	newSideInfo, path := makeSeedRefreshLocalSnapPath(c, seedRefreshSnap{
+		name:     "kernel",
+		snapID:   "kernel-id",
+		snapType: "kernel",
+	}, snap.R(11))
+
+	chg := s.state.NewChange("unrelated", "...")
+	chg.AddTask(s.state.NewTask("task", "..."))
+
+	_, err := snapstate.InstallPath(s.state, newSideInfo, path, "kernel", "", snapstate.Flags{}, nil)
+	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "unrelated"\), change "seed refresh" not allowed until they are done`)
+}
+
+func (s *snapmgrTestSuite) TestTryPathSkipsSeedRefresh(c *C) {
+	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": []any{"some-app"},
+	}, []string{"some-app"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+	)
+
+	tryDir := c.MkDir()
+	c.Assert(os.Chmod(tryDir, 0755), IsNil)
+	snapYaml := filepath.Join(tryDir, "meta", "snap.yaml")
+	c.Assert(os.MkdirAll(filepath.Dir(snapYaml), 0755), IsNil)
+	c.Assert(os.WriteFile(snapYaml, []byte("name: some-app\nversion: 1.0\nbase: core18\n"), 0644), IsNil)
+
+	ts, err := snapstate.TryPath(s.state, "some-app", tryDir, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(countTasksOfKind(ts.Tasks(), "create-recovery-system"), Equals, 0)
+	c.Check(countTasksOfKind(ts.Tasks(), "finalize-recovery-system"), Equals, 0)
+	c.Check(observed.initial, HasLen, 0)
+	c.Check(observed.evictions, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAdditionalComponents(c *C) {

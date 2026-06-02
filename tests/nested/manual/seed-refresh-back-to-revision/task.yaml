@@ -2,8 +2,8 @@ summary: refresh seed when a model snap moves back to an existing revision
 
 details: |
   Verify that moving a model snap back to an existing revision triggers a
-  seed-refresh on Ubuntu Core. Covers snap refresh --revision and revert
-  for kernel, gadget, base, and app snaps.
+  seed-refresh on Ubuntu Core. Covers snap refresh --revision, snap install from
+  a local path, and revert for kernel, gadget, base, and app snaps.
 
 systems:
   - -ubuntu-1*
@@ -41,6 +41,9 @@ environment:
   SNAP_UNDER_TEST/refresh_app: app
   BACK_TO_REVISION_METHOD/revert_app: revert
   SNAP_UNDER_TEST/revert_app: app
+
+  BACK_TO_REVISION_METHOD/install_path_kernel: install-path
+  SNAP_UNDER_TEST/install_path_kernel: kernel
 
 skip:
   - reason: This test needs test keys to be trusted
@@ -199,6 +202,7 @@ execute: |
   run_seed_refresh_change() {
     local command="$1"
     local local_revision="${2:-}"
+    local source_kind="${3:-store-or-existing}"
     local change_id boot_id
 
     boot_id="$(tests.nested boot-id)"
@@ -209,8 +213,12 @@ execute: |
     remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Done"
     remote.exec "sudo snap tasks ${change_id}" | MATCH 'Create recovery system with label'
     if [ -n "${local_revision}" ]; then
-      remote.exec "sudo snap tasks ${change_id}" | MATCH "Prepare snap .*/${snap_name}_${local_revision}.snap"
       remote.exec "sudo snap tasks ${change_id}" | NOMATCH "Download snap \"${snap_name}\""
+      if [ "${source_kind}" = install-path ]; then
+        remote.exec "sudo snap tasks ${change_id}" | MATCH "Prepare snap .+ \(${local_revision}\)"
+      else
+        remote.exec "sudo snap tasks ${change_id}" | MATCH "Prepare snap .*/${snap_name}_${local_revision}.snap"
+      fi
     fi
   }
 
@@ -271,6 +279,11 @@ execute: |
     refresh)
       assert_snap_revision_in_sequence "${snap_name}" 2
       run_seed_refresh_change "sudo snap refresh --revision=2 --no-wait ${snap_name}" 2
+      ;;
+    install-path)
+      assert_snap_revision_in_sequence "${snap_name}" 2
+      remote.push "./${snap_name}-rev2.snap"
+      run_seed_refresh_change "sudo snap install --no-wait ./${snap_name}-rev2.snap" 2 install-path
       ;;
     *)
       echo "unexpected BACK_TO_REVISION_METHOD: ${BACK_TO_REVISION_METHOD}"

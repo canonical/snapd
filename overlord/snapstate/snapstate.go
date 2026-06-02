@@ -659,31 +659,43 @@ type PrereqTracker interface {
 	MissingProviderContentTags(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
 }
 
-// InstallPath returns a set of tasks for installing a snap from a file path
-// and the snap.Info for the given snap.
+// InstallPath returns a set of tasks for installing a snap from a file path.
 //
-// Note that the state must be locked by the caller.
-// The provided SideInfo can contain just a name which results in a
-// local revision and sideloading, or full metadata in which case it
-// the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-	target := PathInstallGoal(PathSnap{
+// The state must be locked by the caller. The provided SideInfo can
+// contain just a name which results in a local revision and sideloading, or
+// full metadata in which case it the snap will appear as installed from the
+// store.
+//
+// Note that this function results in task construction that more closely
+// matches a refresh, rather than simple snap installation. This means that this
+// function can trigger a seed refresh. Pure installation should consider using
+// InstallPath with a PathInstallGoal.
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, error) {
+	target := PathUpdateGoal(PathSnap{
 		InstanceName: instanceName,
 		Path:         path,
 		SideInfo:     si,
-		RevOpts:      RevisionOptions{Channel: channel},
+		RevOpts: RevisionOptions{
+			Channel: channel,
+
+			// setting the revision here makes this single-snap path install an
+			// explicit revision update. InstallPathMany intentionally does not
+			// do this, so same-revision local snaps can be handled differently
+			// by the two API entrypoints
+			Revision: si.Revision,
+		},
 	})
+
+	// since this is implemented in terms of a refresh, we always need to
+	// disable re-refresh
+	flags.NoReRefresh = true
 
 	// TODO have caller pass a context
-	info, ts, err := InstallOne(context.Background(), st, target, Options{
+	return UpdateOne(context.Background(), st, target, nil, Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
+		ExpectOneSnap: true,
 	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ts, info, nil
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -691,7 +703,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags.TryMode = true
 
-	ts, _, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags, nil)
+	ts, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags, nil)
 	return ts, err
 }
 
@@ -1631,6 +1643,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			ConflictOptions:     opts.ConflictOptions,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
+			SkipConfigure:       opts.Flags.SkipConfigure,
 		})
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && sts.ts != nil {
