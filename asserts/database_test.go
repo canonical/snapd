@@ -1189,6 +1189,35 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithPred
 	c.Check(err, ErrorMatches, `cannot add "account" assertion with primary key clashing with a predefined assertion: .*`)
 }
 
+func (safs *signAddFindSuite) TestDontLetAddBaseDeclarationClashingWithPredefinedOnes(c *C) {
+	trustedKey := testPrivKey0
+	baseDeclHeaders := map[string]any{
+		"type":         "base-declaration",
+		"authority-id": "canonical",
+		"series":       "16",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	predefBaseDecl, err := safs.signingDB.Sign(asserts.BaseDeclarationType, baseDeclHeaders, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted: []asserts.Assertion{
+			asserts.BootstrapAccountForTest("canonical"),
+			asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey()),
+		},
+		OtherPredefined: []asserts.Assertion{predefBaseDecl},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	baseDecl, err := safs.signingDB.Sign(asserts.BaseDeclarationType, baseDeclHeaders, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = db.Add(baseDecl)
+	c.Check(err, ErrorMatches, `cannot add "base-declaration" assertion with primary key clashing with a predefined assertion: .*`)
+}
+
 func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {
 	headers := map[string]any{
 		"authority-id": "canonical",
