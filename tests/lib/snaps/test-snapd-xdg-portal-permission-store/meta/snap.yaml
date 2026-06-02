@@ -1,0 +1,9 @@
+name: test-snapd-xdg-portal-permission-store
+version: 1.0
+summary: test client for xdg-portal-permission-store
+description: ...
+apps:
+  client:
+    command: bin/client.sh
+    plugs:
+      - xdg-portal-permission-store

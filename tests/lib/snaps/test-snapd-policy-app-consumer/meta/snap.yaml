@@ -302,6 +302,9 @@ apps:
   x11:
     command: bin/run
     plugs: [ x11 ]
+  xdg-portal-permission-store:
+    command: bin/run
+    plugs: [ xdg-portal-permission-store ]
   xilinx-dma:
     command: bin/run
     plugs: [ xilinx-dma ]
