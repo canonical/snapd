@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snapd
 
 import (
 	"context"
@@ -55,7 +55,7 @@ func init() {
 	logger.SimpleSetup(nil)
 }
 
-func main() {
+func Main() {
 	// When preseeding re-exec is not used
 	if snapdenv.Preseeding() {
 		logger.Noticef("running for preseeding")

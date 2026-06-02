@@ -475,7 +475,14 @@ func main() {
 		return
 	}
 
-	// 2. symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
+	// 2. symlink from snapd -> snap
+	maybeSnapd := filepath.Base(os.Args[0])
+	if maybeSnapd == "snapd" {
+		snapdMain()
+		// noreturn
+	}
+
+	// 3. symlink from /snap/bin/$foo to /usr/bin/snap: run snapApp
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
 		var err error
