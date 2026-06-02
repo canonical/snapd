@@ -927,7 +927,7 @@ func (s *apparmorSuite) TestUpdateHomedirsTunableWriteFail(c *C) {
 	})
 	defer restore()
 
-	restore = apparmor.MockAtomicWrite(func(string, io.Reader, os.FileMode, osutil.AtomicWriteFlags) error {
+	restore = apparmor.MockAtomicWrite(func(string, io.Reader, os.FileMode) error {
 		return errors.New("write failure")
 	})
 	defer restore()

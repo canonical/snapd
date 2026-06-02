@@ -1005,7 +1005,7 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedContainer(cpi snap.Container
 	}
 	defer srcFile.Close()
 
-	destFile, err := osutil.NewAtomicFile(targetPath, 0644, 0, osutil.NoChown, osutil.NoChown)
+	destFile, err := osutil.NewAtomicFile(targetPath, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return "", "", 0, fmt.Errorf("cannot create atomic file: %v", err)
 	}

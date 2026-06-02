@@ -153,7 +153,7 @@ var writeModelToUbuntuBoot = writeModelToUbuntuBootImpl
 
 func writeModelToUbuntuBootImpl(model *asserts.Model) error {
 	modelPath := filepath.Join(InitramfsUbuntuBootDir, "device/model")
-	f, err := osutil.NewAtomicFile(modelPath, 0644, 0, osutil.NoChown, osutil.NoChown)
+	f, err := osutil.NewAtomicFile(modelPath, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}

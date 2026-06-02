@@ -128,7 +128,7 @@ func handleMotdConfiguration(dev sysconfig.Device, tr ConfGetter, opts *fsOnlyCo
 		return fmt.Errorf("cannot set message of the day: %v", err)
 	}
 	motdBytes := []byte(motd + "\n")
-	if err := osutil.AtomicWriteFile(motdFilePath, motdBytes, 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(motdFilePath, motdBytes, 0644); err != nil {
 		return fmt.Errorf("cannot set message of the day: %v", err)
 	}
 	return nil

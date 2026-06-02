@@ -1032,7 +1032,7 @@ func UpdateHomedirsTunable(homedirs []string) error {
 		}
 		contents.Write([]byte("\n"))
 	}
-	return osutilAtomicWrite(tunableFilePath, contents, 0644, 0)
+	return osutilAtomicWrite(tunableFilePath, contents, 0644)
 }
 
 // mocking

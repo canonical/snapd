@@ -89,7 +89,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 	defer inf.Close()
 	// temporary output
 	tempPath := c.pathInCache(c.tempAssetRelPath(blName, assetName))
-	outf, err := osutil.NewAtomicFile(tempPath, 0644, 0, osutil.NoChown, osutil.NoChown)
+	outf, err := osutil.NewAtomicFile(tempPath, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary cache file: %v", err)
 	}

@@ -222,7 +222,7 @@ func saveListenerID(id uint64) error {
 		return err
 	}
 	logger.Debugf("saving listener ID to disk: %d", id)
-	return osutil.AtomicWriteFile(listenerIDFilepath(), buf[:], 0o600, 0)
+	return osutil.AtomicWriteFile(listenerIDFilepath(), buf[:], 0o600)
 }
 
 // removeSavedListenerID removes the file which stores the listener ID on disk.

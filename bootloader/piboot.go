@@ -275,7 +275,7 @@ func (p *piboot) writeRPiCfgWithOsPrefix(prefix, inFile, outFile string) error {
 	}
 
 	output := strings.Join(lines, "\n")
-	return osutil.AtomicWriteFile(outFile, []byte(output), 0644, 0)
+	return osutil.AtomicWriteFile(outFile, []byte(output), 0644)
 }
 
 func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) error {
@@ -301,7 +301,7 @@ func (p *piboot) writeCmdline(env *ubootenv.Env, defaultsFile, outFile string) e
 
 	logger.Debugf("writing kernel command line to %s", outFile)
 
-	return osutil.AtomicWriteFile(outFile, []byte(cmdline), 0644, 0)
+	return osutil.AtomicWriteFile(outFile, []byte(cmdline), 0644)
 }
 
 // Configure pi bootloader with a given os_prefix. cfgDir contains the

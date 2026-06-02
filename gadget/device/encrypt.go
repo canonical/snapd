@@ -59,11 +59,11 @@ func ReadEncryptionMarkers(dataFDEDir, saveFDEDir string) ([]byte, []byte, error
 // WriteEncryptionMarkers writes the encryption marker files at the appropriate
 // locations.
 func WriteEncryptionMarkers(dataFDEDir, saveFDEDir string, markerSecret []byte) error {
-	err := osutil.AtomicWriteFile(encryptionMarkerUnder(dataFDEDir), markerSecret, 0600, 0)
+	err := osutil.AtomicWriteFile(encryptionMarkerUnder(dataFDEDir), markerSecret, 0600)
 	if err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(encryptionMarkerUnder(saveFDEDir), markerSecret, 0600, 0)
+	return osutil.AtomicWriteFile(encryptionMarkerUnder(saveFDEDir), markerSecret, 0600)
 }
 
 // DataSealedKeyUnder returns the path of the sealed key for ubuntu-data.
@@ -126,7 +126,7 @@ func StampSealedKeys(rootdir string, content SealingMethod) error {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
 
-	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644); err != nil {
 		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
 	}
 	return nil

@@ -41,7 +41,7 @@ func (b *checkpointOnlyBackend) Checkpoint(data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(b.path), 0755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(b.path, data, 0600, 0)
+	return osutil.AtomicWriteFile(b.path, data, 0600)
 }
 
 func (b *checkpointOnlyBackend) EnsureBefore(d time.Duration) {

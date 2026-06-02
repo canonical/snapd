@@ -341,7 +341,7 @@ func WriteBootChains(pbc PredictableBootChains, path string, resealCount int) er
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
-	outf, err := osutil.NewAtomicFile(path, 0600, 0, osutil.NoChown, osutil.NoChown)
+	outf, err := osutil.NewAtomicFile(path, 0600, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot create a temporary boot chains file: %v", err)
 	}

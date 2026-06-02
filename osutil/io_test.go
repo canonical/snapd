@@ -44,7 +44,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFile(c *C) {
 	tmpdir := c.MkDir()
 
 	p := filepath.Join(tmpdir, "foo")
-	err := osutil.AtomicWriteFile(p, []byte("canary"), 0644, 0)
+	err := osutil.AtomicWriteFile(p, []byte("canary"), 0644)
 	c.Assert(err, IsNil)
 
 	c.Check(p, testutil.FileEquals, "canary")
@@ -59,7 +59,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFilePermissions(c *C) {
 	tmpdir := c.MkDir()
 
 	p := filepath.Join(tmpdir, "foo")
-	err := osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
+	err := osutil.AtomicWriteFile(p, []byte(""), 0600)
 	c.Assert(err, IsNil)
 
 	st, err := os.Stat(p)
@@ -71,7 +71,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileOverwrite(c *C) {
 	tmpdir := c.MkDir()
 	p := filepath.Join(tmpdir, "foo")
 	c.Assert(os.WriteFile(p, []byte("hello"), 0644), IsNil)
-	c.Assert(osutil.AtomicWriteFile(p, []byte("hi"), 0600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(p, []byte("hi"), 0600), IsNil)
 
 	c.Assert(p, testutil.FileEquals, "hi")
 }
@@ -86,7 +86,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
 	c.Assert(os.Chmod(rodir, 0500), IsNil)
 	defer os.Chmod(rodir, 0700)
 
-	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600, 0)
+	err := osutil.AtomicWriteFile(p, []byte("hi"), 0600)
 	c.Assert(err, NotNil)
 }
 
@@ -102,7 +102,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileNoOverwriteTmpExisting(c *C) 
 	err := os.WriteFile(p+"."+expectedRandomness, []byte(""), 0644)
 	c.Assert(err, IsNil)
 
-	err = osutil.AtomicWriteFile(p, []byte(""), 0600, 0)
+	err = osutil.AtomicWriteFile(p, []byte(""), 0600)
 	c.Assert(err, ErrorMatches, "open .*: file exists")
 }
 
@@ -119,7 +119,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
 
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, eUid, eGid)
+	aw, err := osutil.NewAtomicFile(p, 0644, eUid, eGid)
 	c.Assert(err, IsNil)
 	defer aw.Cancel()
 
@@ -132,7 +132,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileChownError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(p, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 
 	c.Assert(aw.File.Close(), IsNil)
@@ -143,7 +143,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancelError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(p, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	defer aw.Close()
 
@@ -155,7 +155,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancelBadError(c *C) {
 func (ts *AtomicWriteTestSuite) TestAtomicFileCancelNoClose(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(p, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	c.Assert(aw.Close(), IsNil)
 
@@ -166,7 +166,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCancel(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
 
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(p, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	fn := aw.File.Name()
 	c.Check(osutil.FileExists(fn), Equals, true)
@@ -178,7 +178,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileModTime(c *C) {
 	d := c.MkDir()
 	p := filepath.Join(d, "foo")
 
-	aw, err := osutil.NewAtomicFile(p, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(p, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	t := time.Date(2010, time.January, 1, 13, 0, 0, 0, time.UTC)
 	aw.SetModTime(t)
@@ -194,7 +194,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {
 	initialTarget := filepath.Join(d, "foo")
 	actualTarget := filepath.Join(d, "bar")
 
-	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(initialTarget, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	defer aw.Cancel()
 	fn := aw.File.Name()
@@ -211,7 +211,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {
 
 	// not confused when CommitAs uses the same name as initially
 	sameNameTarget := filepath.Join(d, "baz")
-	aw, err = osutil.NewAtomicFile(sameNameTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err = osutil.NewAtomicFile(sameNameTarget, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	defer aw.Cancel()
 	_, err = aw.WriteString("this is baz")
@@ -224,7 +224,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAs(c *C) {
 	overwrittenTarget := filepath.Join(d, "will-overwrite")
 	err = os.WriteFile(overwrittenTarget, []byte("overwritten"), 0644)
 	c.Assert(err, IsNil)
-	aw, err = osutil.NewAtomicFile(filepath.Join(d, "temp-name"), 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err = osutil.NewAtomicFile(filepath.Join(d, "temp-name"), 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	defer aw.Cancel()
 	_, err = aw.WriteString("this will overwrite existing file")
@@ -239,7 +239,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicFileCommitAsDifferentDirErr(c *C) {
 	initialTarget := filepath.Join(d, "foo")
 	differentDirTarget := filepath.Join(c.MkDir(), "bar")
 
-	aw, err := osutil.NewAtomicFile(initialTarget, 0644, 0, osutil.NoChown, osutil.NoChown)
+	aw, err := osutil.NewAtomicFile(initialTarget, 0644, osutil.NoChown, osutil.NoChown)
 	c.Assert(err, IsNil)
 	_, err = aw.WriteString("this is test data")
 	c.Assert(err, IsNil)
@@ -531,7 +531,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicRenameDir(c *C) {
 	// put a file in the source directory
 	srcFile := filepath.Join(src, "file")
 	contents := []byte("contents")
-	err = osutil.AtomicWriteFile(srcFile, contents, 0644, 0)
+	err = osutil.AtomicWriteFile(srcFile, contents, 0644)
 	c.Assert(err, IsNil)
 
 	// the parent dir of the destination

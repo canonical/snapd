@@ -158,7 +158,7 @@ func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 	lr := io.LimitReader(disk, int64(pc.Size))
 
 	// backup the original content
-	backup, err := osutil.NewAtomicFile(backupName, 0644, 0, osutil.NoChown, osutil.NoChown)
+	backup, err := osutil.NewAtomicFile(backupName, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot create backup file: %v", err)
 	}
@@ -186,7 +186,7 @@ func (r *rawStructureUpdater) backupOrCheckpointContent(disk io.ReadSeeker, pc *
 
 	if bytes.Equal(origDigest, updateDigest) {
 		// files are identical, no update needed
-		if err := osutil.AtomicWriteFile(sameName, nil, 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(sameName, nil, 0644); err != nil {
 			return fmt.Errorf("cannot create a checkpoint file: %v", err)
 		}
 

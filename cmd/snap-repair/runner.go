@@ -118,7 +118,7 @@ func (r *Repair) Run() error {
 
 	baseName := fmt.Sprintf("r%d", r.Revision())
 	script := filepath.Join(rundir, baseName+".script")
-	err = osutil.AtomicWriteFile(script, r.Body(), 0700, 0)
+	err = osutil.AtomicWriteFile(script, r.Body(), 0700)
 	if err != nil {
 		return err
 	}
@@ -848,7 +848,7 @@ func (run *Runner) SaveState() error {
 	if err != nil {
 		return fmt.Errorf("cannot marshal repair state: %v", err)
 	}
-	err = osutil.AtomicWriteFile(dirs.SnapRepairStateFile, m, 0600, 0)
+	err = osutil.AtomicWriteFile(dirs.SnapRepairStateFile, m, 0600)
 	if err != nil {
 		return fmt.Errorf("cannot save repair state: %v", err)
 	}
@@ -993,7 +993,7 @@ func (run *Runner) saveStream(brandID string, repairID int, repair *asserts.Repa
 		}
 	}
 	p := filepath.Join(d, fmt.Sprintf("r%d.repair", r[0].Revision()))
-	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600, 0)
+	return osutil.AtomicWriteFile(p, buf.Bytes(), 0600)
 }
 
 func (run *Runner) readSavedStream(brandID string, repairID, revision int) (repair *asserts.Repair, aux []asserts.Assertion, err error) {

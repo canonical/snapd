@@ -341,7 +341,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		marshalModeenvEntryTo(buf, k, m.extrakeys[k])
 	}
 
-	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644); err != nil {
 		return err
 	}
 	return nil

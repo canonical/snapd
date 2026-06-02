@@ -173,7 +173,7 @@ func writeWarningTimestamp(t time.Time) error {
 		return err
 	}
 
-	aw, err := osutil.NewAtomicFile(filename, 0600, 0, uid, gid)
+	aw, err := osutil.NewAtomicFile(filename, 0600, uid, gid)
 	if err != nil {
 		return err
 	}

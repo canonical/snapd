@@ -94,7 +94,7 @@ func handleHostnameConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 		if err := os.MkdirAll(filepath.Dir(hostnamePath), 0755); err != nil {
 			return err
 		}
-		if err := osutil.AtomicWriteFile(hostnamePath, []byte(hostname+"\n"), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(hostnamePath, []byte(hostname+"\n"), 0644); err != nil {
 			return fmt.Errorf("cannot write hostname: %v", err)
 		}
 	}

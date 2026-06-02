@@ -549,7 +549,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 				if err = os.MkdirAll(dir, 0755); err != nil {
 					return fmt.Errorf("test error: MockSecbootSaveCheckResult failed to create dir %s", dir)
 				}
-				if err = osutil.AtomicWriteFile(filename, []byte{}, 0600, 0); err != nil {
+				if err = osutil.AtomicWriteFile(filename, []byte{}, 0600); err != nil {
 					return fmt.Errorf("test error: MockSecbootSaveCheckResult failed to create file %s", filename)
 				}
 				return nil

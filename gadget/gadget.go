@@ -830,7 +830,7 @@ func SaveDiskVolumesDeviceTraits(dir string, mapping map[string]DiskVolumeDevice
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(filename, b, 0644, 0)
+	return osutil.AtomicWriteFile(filename, b, 0644)
 }
 
 // LoadDiskVolumesDeviceTraits loads the mapping of volumes to disk traits if

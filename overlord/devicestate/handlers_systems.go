@@ -87,7 +87,7 @@ func logNewSystemSnapFile(logfile, fileName string) error {
 	}
 	modifiedLog := bytes.NewBuffer(currentLog)
 	fmt.Fprintln(modifiedLog, fileName)
-	return osutil.AtomicWriteFile(logfile, modifiedLog.Bytes(), 0644, 0)
+	return osutil.AtomicWriteFile(logfile, modifiedLog.Bytes(), 0644)
 }
 
 func purgeNewSystemSnapFiles(logfile string) error {

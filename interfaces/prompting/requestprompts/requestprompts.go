@@ -662,7 +662,7 @@ func (pdb *PromptDB) saveRequestMap() error {
 		logger.Noticef("cannot marshal mapping from request key to prompt ID: %v", err)
 		return fmt.Errorf("cannot marshal mapping from request key to prompt ID: %w", err)
 	}
-	if err := osutil.AtomicWriteFile(pdb.requestMapFilepath, b, 0o600, 0); err != nil {
+	if err := osutil.AtomicWriteFile(pdb.requestMapFilepath, b, 0o600); err != nil {
 		return fmt.Errorf("cannot save mapping from request key to prompt ID: %w", err)
 	}
 	return nil

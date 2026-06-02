@@ -175,11 +175,11 @@ func refreshCatalogs(st *state.State, theStore StoreService) error {
 		return err
 	}
 	sort.Strings(sections)
-	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(dirs.SnapSectionsFile, []byte(strings.Join(sections, "\n")), 0644); err != nil {
 		return err
 	}
 
-	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, 0, osutil.NoChown, osutil.NoChown)
+	namesFile, err := osutil.NewAtomicFile(dirs.SnapNamesFile, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}

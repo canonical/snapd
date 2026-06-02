@@ -592,7 +592,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 	}
 
 	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
-		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
+		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600); err != nil {
 			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
@@ -1036,7 +1036,7 @@ func tpmProvision(tpm *sb_tpm2.Connection, mode TPMProvisionMode, lockoutAuthFil
 	if err != nil {
 		return fmt.Errorf("cannot create lockout authorization: %v", err)
 	}
-	if err := osutil.AtomicWriteFile(lockoutAuthFile, lockoutAuth, 0600, 0); err != nil {
+	if err := osutil.AtomicWriteFile(lockoutAuthFile, lockoutAuth, 0600); err != nil {
 		return fmt.Errorf("cannot write the lockout authorization file: %v", err)
 	}
 

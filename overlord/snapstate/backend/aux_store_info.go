@@ -87,7 +87,7 @@ func keepAuxStoreInfo(snapID string, aux AuxStoreInfo) error {
 		return fmt.Errorf("cannot create directory for auxiliary store info: %w", err)
 	}
 
-	af, err := osutil.NewAtomicFile(AuxStoreInfoFilename(snapID), 0644, 0, osutil.NoChown, osutil.NoChown)
+	af, err := osutil.NewAtomicFile(AuxStoreInfoFilename(snapID), 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return fmt.Errorf("cannot create file for auxiliary store info: %w", err)
 	}

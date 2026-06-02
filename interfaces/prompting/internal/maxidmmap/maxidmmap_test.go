@@ -67,7 +67,7 @@ func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDCloseInvalid(c *C) {
 		[]byte("1234567"),
 		[]byte("123456789"),
 	} {
-		osutil.AtomicWriteFile(s.maxIDPath, initial, 0600, 0)
+		osutil.AtomicWriteFile(s.maxIDPath, initial, 0600)
 		maxIDMmap, err = maxidmmap.OpenMaxIDMmap(s.maxIDPath)
 		c.Check(err, IsNil)
 		c.Check(maxIDMmap, NotNil)
@@ -108,7 +108,7 @@ func (s *maxidmmapSuite) TestMaxIDMmapOpenNextIDCloseValid(c *C) {
 	} {
 		var initialData [8]byte
 		*(*uint64)(unsafe.Pointer(&initialData[0])) = testCase.initial
-		osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0600, 0)
+		osutil.AtomicWriteFile(s.maxIDPath, initialData[:], 0600)
 		func() {
 			maxIDMmap, err := maxidmmap.OpenMaxIDMmap(s.maxIDPath)
 			c.Check(err, IsNil)

@@ -340,7 +340,7 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOutOrNoAccess(c *C) {
 
 		// Write listener ID to disk
 		c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
-		c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
+		c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600), IsNil)
 
 		receivedVersion, pendingCount, err := notify.RegisterFileDescriptor(fakeFD)
 		c.Check(err, IsNil)
@@ -373,7 +373,7 @@ func (s *notifySuite) TestRegisterFileDescriptorTimedOutOrNoAccessThenRemoveFail
 
 	// Write listener ID to disk
 	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o755), IsNil)
-	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(filepath.Join(dirs.SnapInterfacesRequestsRunDir, "listener-id"), initialIDBytes[:], 0o600), IsNil)
 
 	for _, errorCode := range []error{unix.ENOENT, unix.EACCES} {
 		ioctlCalls := 0

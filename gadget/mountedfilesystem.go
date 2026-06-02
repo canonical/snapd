@@ -239,7 +239,7 @@ func writeFileOrSymlink(src, dst string, preserveInDst []string) error {
 
 		// do not follow sylimks, dst is a reflection of the src which
 		// is a file
-		if err := osutil.AtomicWriteFileCopy(dst, src, 0); err != nil {
+		if err := osutil.AtomicWriteFileCopy(dst, src); err != nil {
 			return fmt.Errorf("cannot copy %s: %v", src, err)
 		}
 	}
@@ -270,7 +270,7 @@ func newStampFile(stamp string) (*osutil.AtomicFile, error) {
 	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
 		return nil, fmt.Errorf("cannot create stamp file prefix: %v", err)
 	}
-	return osutil.NewAtomicFile(stamp, 0644, 0, osutil.NoChown, osutil.NoChown)
+	return osutil.NewAtomicFile(stamp, 0644, osutil.NoChown, osutil.NoChown)
 }
 
 func makeStamp(stamp string) error {
