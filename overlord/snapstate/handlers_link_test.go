@@ -1958,7 +1958,7 @@ func (s *linkSnapSuite) TestDoLinkSnapdRemovesAppArmorProfilesOnSnapdDowngrade(c
 
 	// pretend we have an installed snapd with a vendored apparmor that has
 	// a version greater than the one we are going to downgrade to
-	restore = snapdtool.MockVersion("2.58")
+	restore = snapdtool.MockVersion("2.58", "")
 	defer restore()
 	restore = apparmor.MockFeatures([]string{}, nil, []string{"snapd-internal"}, nil)
 	defer restore()

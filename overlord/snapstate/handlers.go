@@ -2954,7 +2954,7 @@ func (m *SnapManager) maybeRemoveAppArmorProfilesOnSnapdDowngrade(st *state.Stat
 	// that it is using - either because it also has a vendored AppArmor
 	// parser, or because it doesn't in which case it will be using the
 	// host's AppArmor parser)
-	if compare, err := strutil.VersionCompare(snapInfo.Version, snapdtool.Version); err == nil && compare < 0 {
+	if compare, err := strutil.VersionCompare(snapInfo.Version, snapdtool.FullVersion()); err == nil && compare < 0 {
 		logger.Noticef("Downgrading snapd to version %q, discarding all existing snap AppArmor profiles", snapInfo.Version)
 		if err = m.backend.RemoveAllSnapAppArmorProfiles(); err != nil {
 			// We don't propagate the error as we don't want to block the
