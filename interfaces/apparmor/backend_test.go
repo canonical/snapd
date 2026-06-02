@@ -2737,7 +2737,7 @@ apps:
 
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "some-snap_instance", trivialSnapYaml, 1)
 	profileUpdateNS := filepath.Join(dirs.SnapAppArmorDir, "snap-update-ns.some-snap_instance")
-	c.Check(profileUpdateNS, testutil.FileContains, `profile snap-update-ns.some-snap_instance (`)
+	c.Check(profileUpdateNS, testutil.FileContains, `profile snap-update-ns.some-snap_instance flags=(`)
 	c.Check(profileUpdateNS, testutil.FileContains, `
   # Allow parallel instance snap mount namespace adjustments
   mount options=(rw rbind) /snap/some-snap_instance/ -> /snap/some-snap/,
