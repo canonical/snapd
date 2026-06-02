@@ -64,7 +64,7 @@ type AtomicFile struct {
 //	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
-// the real file.
+// the real file. Also, umask is ignored when setting the file's permissions.
 //
 // It is the caller's responsibility to clean up on error, by calling Cancel().
 //
@@ -98,7 +98,7 @@ func NewAtomicFile(filename string, perm os.FileMode, _ AtomicWriteFlags, uid sy
 		}
 	}()
 
-	// XXX: this ignores umask
+	// Chmod ignores umask
 	if err = fChmod(fd, perm); err != nil {
 		return nil, err
 	}
