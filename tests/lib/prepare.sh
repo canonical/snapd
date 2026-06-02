@@ -1922,6 +1922,11 @@ EOF
             fi
 
         done < <(find data/systemd data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
+        systemctl daemon-reload
+        systemctl restart snapd
+        if systemctl --user is-active --quiet snapd.session-agent.socket; then
+            systemctl --user restart snapd.session-agent.socket
+        fi
     fi
         # Generate the config file when it does not exist and when the threshold has changed different
 #         if ! [ -f "$CONF_FILE" ]; then

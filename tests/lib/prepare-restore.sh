@@ -679,7 +679,8 @@ prepare_suite() {
     . "$TESTSLIB"/prepare.sh
 
     if ! tests.nested is-nested && [[ "$GENERATE_COVERAGE" = true ]]; then
-        mkdir -p "$TESTSTMP"/coverage
+        mkdir -p "$GOCOVERDIR"
+        chmod 666 "$GOCOVERDIR"
     fi
 
     # os.query cannot be used because first time the suite is prepared, the current system
@@ -780,9 +781,18 @@ prepare_suite_each() {
 
     if [[ "$GENERATE_COVERAGE" = true ]]; then
         mkdir -p "$GOCOVERDIR"
+        chmod 666 "$GOCOVERDIR"
         systemctl stop snapd
+        restart_user=false
+        if systemctl --user is-active --quiet snapd.session-agent.socket; then
+            systemctl --user stop snapd.session-agent.socket
+            restart_user=true
+        fi
         rm -f "$GOCOVERDIR/*"
         systemctl start snapd
+        if [[ "$restart_user" = "true" ]]; then
+            systemctl --user start snapd.session-agent.socket
+        fi
     fi
 }
 
