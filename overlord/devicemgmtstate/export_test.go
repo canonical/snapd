@@ -43,10 +43,6 @@ func MockMaxBlockedMessagesPerSequence(n int) func() {
 	return testutil.Mock(&maxBlockedMessagesPerSequence, n)
 }
 
-type MessageResult = messageResult
-type MessageHandler = messageHandler
-type RequestMessage = requestMessage
-
 type SequenceState = sequenceState
 type DeviceMgmtState = deviceMgmtState
 
@@ -59,10 +55,6 @@ func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
 
 func (m *DeviceMgmtManager) SetState(ms *DeviceMgmtState) {
 	m.setState(ms)
-}
-
-func (m *DeviceMgmtManager) MockHandler(kind string, handler messageHandler) {
-	m.handlers[kind] = handler
 }
 
 func (m *DeviceMgmtManager) MockSigner(signer responseMessageSigner) {
@@ -93,7 +85,7 @@ func (m *DeviceMgmtManager) DoQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 	return m.doQueueResponse(t, tomb)
 }
 
-func ParseRequestMessage(msg store.Message) (*requestMessage, error) {
+func ParseRequestMessage(msg store.Message) (*RequestMessage, error) {
 	return parseRequestMessage(msg)
 }
 

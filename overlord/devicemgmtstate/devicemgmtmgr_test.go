@@ -61,20 +61,20 @@ func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExch
 }
 
 type mockMessageHandler struct {
-	validate         func(st *state.State, msg *devicemgmtstate.RequestMessage) *devicemgmtstate.MessageResult
-	apply            func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, *devicemgmtstate.MessageResult)
-	resultFromChange func(chg *state.Change) *devicemgmtstate.MessageResult
+	validate         func(st *state.State, msg *devicemgmtstate.RequestMessage) error
+	apply            func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error)
+	resultFromChange func(chg *state.Change) (map[string]any, error)
 }
 
-func (h *mockMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) *devicemgmtstate.MessageResult {
+func (h *mockMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) error {
 	return h.validate(st, msg)
 }
 
-func (h *mockMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, *devicemgmtstate.MessageResult) {
+func (h *mockMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 	return h.apply(st, msg)
 }
 
-func (h *mockMessageHandler) ResultFromChange(chg *state.Change) *devicemgmtstate.MessageResult {
+func (h *mockMessageHandler) ResultFromChange(chg *state.Change) (map[string]any, error) {
 	return h.resultFromChange(chg)
 }
 
@@ -133,16 +133,16 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 
 	setRemoteMgmtFeatureFlag(c, s.st, true)
 
-	s.mgr.MockHandler("test-kind", &mockMessageHandler{
-		validate: func(*state.State, *devicemgmtstate.RequestMessage) *devicemgmtstate.MessageResult {
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(*state.State, *devicemgmtstate.RequestMessage) error {
 			return nil
 		},
-		apply: func(st *state.State, _ *devicemgmtstate.RequestMessage) (string, *devicemgmtstate.MessageResult) {
+		apply: func(st *state.State, _ *devicemgmtstate.RequestMessage) (string, error) {
 			chg := st.NewChange("subsystem", "apply payload")
 			return chg.ID(), nil
 		},
-		resultFromChange: func(*state.Change) *devicemgmtstate.MessageResult {
-			return &devicemgmtstate.MessageResult{Status: asserts.MessageStatusSuccess, Body: map[string]any{"key": "value"}}
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			return map[string]any{"key": "value"}, nil
 		},
 	})
 }
@@ -738,7 +738,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			pendingRequests: []*devicemgmtstate.RequestMessage{
 				func() *devicemgmtstate.RequestMessage {
 					msg := makeRequestMessage("seqA-1", "test-kind", false)
-					msg.Result = &devicemgmtstate.MessageResult{Status: asserts.MessageStatusRejected}
+					msg.ResponseStatus = asserts.MessageStatusRejected
 					return msg
 				}(),
 				makeRequestMessage("seqA-2", "test-kind", false),
@@ -880,9 +880,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	// seqA evicted (oldest in LRU).
 	seqA := ms.Sequences["seqA"]
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("the 2nd message in seqA should have been deleted"))
-	c.Assert(seqA.Messages[0].Result, NotNil)
-	c.Check(seqA.Messages[0].Result.Status, Equals, asserts.MessageStatusRejected)
-	c.Check(seqA.Messages[0].Result.Body["message"], Equals, "cannot process message: sequence evicted due to capacity limits")
+	c.Check(seqA.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(seqA.Messages[0].ResponseBody["message"], Equals, "cannot process message: sequence evicted due to capacity limits")
 
 	ti := buildTaskIndex(changes[0])
 	c.Check(ti.validate["seqA-1"], IsNil)
@@ -892,8 +891,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	// seqB also evicted.
 	seqB := ms.Sequences["seqB"]
 	c.Assert(seqB.Messages, HasLen, 1, Commentf("the 2nd message in seqB should have been deleted"))
-	c.Assert(seqB.Messages[0].Result, NotNil)
-	c.Check(seqB.Messages[0].Result.Status, Equals, asserts.MessageStatusRejected)
+	c.Check(seqB.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 
 	c.Check(ms.SequenceLRU, DeepEquals, []string{"seqC", "seqD", "seqE", "seqF"})
 }
@@ -923,9 +921,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 
 	seqA := ms.Sequences["seqA"]
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("remaining messages should have been deleted"))
-	c.Assert(seqA.Messages[0].Result, NotNil)
-	c.Check(seqA.Messages[0].Result.Status, Equals, asserts.MessageStatusRejected)
-	c.Check(seqA.Messages[0].Result.Body["message"], Equals, "cannot process message: too many messages waiting on missing predecessors in sequence")
+	c.Check(seqA.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(seqA.Messages[0].ResponseBody["message"], Equals, "cannot process message: too many messages waiting on missing predecessors in sequence")
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
@@ -1044,11 +1041,9 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 		ms, err := s.mgr.GetState()
 		c.Assert(err, IsNil)
 
-		ms.Sequences[messageID].Messages[0].Result = &devicemgmtstate.MessageResult{
-			Status: asserts.MessageStatusRejected,
-			Body: map[string]any{
-				"message": "cannot process message: device not in target list",
-			},
+		ms.Sequences[messageID].Messages[0].ResponseStatus = asserts.MessageStatusRejected
+		ms.Sequences[messageID].Messages[0].ResponseBody = map[string]any{
+			"message": "cannot process message: device not in target list",
 		}
 
 		s.mgr.SetState(ms)
@@ -1056,8 +1051,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 		return nil
 	}, nil)
 
-	s.mgr.MockHandler("test-kind", &mockMessageHandler{
-		apply: func(*state.State, *devicemgmtstate.RequestMessage) (string, *devicemgmtstate.MessageResult) {
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(*state.State, *devicemgmtstate.RequestMessage) (string, error) {
 			c.Fatal("apply call not expected for already-failed message")
 
 			return "", nil
@@ -1071,8 +1066,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Equals, "")
-	c.Assert(msg.Result, NotNil)
-	c.Check(msg.Result.Status, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageNoHandlerForMessageKind(c *C) {
@@ -1094,9 +1088,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageNoHandlerForMessageKind(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Equals, "")
-	c.Assert(msg.Result, NotNil)
-	c.Check(msg.Result.Status, Equals, asserts.MessageStatusError)
-	c.Check(msg.Result.Body["message"], Equals, `cannot find handler for message kind "unknown-kind"`)
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
+	c.Check(msg.ResponseBody["message"], Equals, `cannot find handler for message kind "unknown-kind"`)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
@@ -1111,12 +1104,9 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 		}, nil
 	})
 
-	s.mgr.MockHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, *devicemgmtstate.MessageResult) {
-			return "", &devicemgmtstate.MessageResult{
-				Status: asserts.MessageStatusError,
-				Body:   map[string]any{"message": "system in inconsistent state"},
-			}
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			return "", fmt.Errorf("system in inconsistent state")
 		},
 	})
 
@@ -1127,9 +1117,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Equals, "")
-	c.Assert(msg.Result, NotNil)
-	c.Check(msg.Result.Status, Equals, asserts.MessageStatusError)
-	c.Check(msg.Result.Body["message"], Equals, "system in inconsistent state")
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
+	c.Check(msg.ResponseBody["message"], Equals, "system in inconsistent state")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
@@ -1141,8 +1130,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
 	})
 
 	applyCalls := 0
-	s.mgr.MockHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, _ *devicemgmtstate.RequestMessage) (string, *devicemgmtstate.MessageResult) {
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(st *state.State, _ *devicemgmtstate.RequestMessage) (string, error) {
 			applyCalls++
 			chg := st.NewChange("subsystem", "apply payload")
 			return chg.ID(), nil
