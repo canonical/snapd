@@ -356,8 +356,6 @@ override_dh_install: debian/snapd.install
 	mv $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine $(CURDIR)/debian/tmp/etc/apparmor.d/usr.lib.snapd.snap-confine.real
 
 	dh_install
-	# TODO: temporary hack
-	rm $(CURDIR)/debian/snapd/usr/lib/snapd/snapd
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
