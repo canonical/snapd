@@ -37,6 +37,7 @@
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/utils.h"
+#include "mount-support-hybris.h"
 #include "udev-support.h"
 
 /* Allow access to common devices. */
@@ -123,31 +124,11 @@ static void sc_udev_allow_hybris(sc_device_cgroup *cgroup)
      * which causes them to communicate over a potentially unmediated IPC interface.
      * So only proceed if this has been identified as a Halium distribution.
      */
-    static const char *halium_paths[] = {"/android", "/system", "/vendor", "/odm", "/system/build.prop"};
-    static const char *binder_paths[] = {"/dev/binderfs/binder", "/dev/binderfs/hwbinder", "/dev/binder", "/dev/hwbinder"};
-
-    // First check if this is running on a system with binder devices, which all Halium systems do.
-    bool has_binder = false;
-    for (long unsigned int i = 0; i < sizeof(binder_paths)/sizeof(binder_paths[0]); i++) {
-        struct stat binderbuf;
-        if (stat(binder_paths[i], &binderbuf) == 0) {
-            has_binder = true;
-            break;
-        }
-    }
-
-    if (!has_binder) {
+    if (!sc_mount_is_halium_system()) {
         return;
     }
 
-    // Next check for commonly required host-side directories and symlinks
-    for (long unsigned int i = 0; i < sizeof(halium_paths)/sizeof(halium_paths[0]); i++) {
-        struct stat haliumbuf;
-        // The host-side symlinks might exist but Halium-side mountpoints might not, hence check with lstat().
-        if (lstat(halium_paths[i], &haliumbuf) != 0) {
-            return;
-        }
-    }
+    static const char *binder_paths[] = {"/dev/binderfs/binder", "/dev/binderfs/hwbinder", "/dev/binder", "/dev/hwbinder"};
 
     // If everything looks alright, allow access to binder IPC via the device cgroup
     for (long unsigned int i = 0; i < sizeof(binder_paths)/sizeof(binder_paths[0]); i++) {

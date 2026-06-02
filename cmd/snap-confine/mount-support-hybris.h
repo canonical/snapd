@@ -19,6 +19,17 @@
 #define SNAP_CONFINE_MOUNT_SUPPORT_HYBRIS_H
 
 /**
+ * Check whether the running system looks like a regular Halium distribution
+ *
+ * Distributions using Halium have an Android Generic System Image mounted at /android,
+ * with symlinks pointing to various Android-typical directories, like /system & /vendor,
+ * and they make extensive use of Binder IPC.
+ *
+ * Verify this system's environment matches expectations of a Halium system and return.
+ **/
+int sc_mount_is_halium_system(void);
+
+/**
  * Make the libhybris drivers from the classic distribution available in the snap
  * execution environment.
  *
