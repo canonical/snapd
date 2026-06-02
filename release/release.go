@@ -205,6 +205,11 @@ var OnClassic bool
 // OnCoreDesktop states whether the process is running inside a Core Desktop image.
 var OnCoreDesktop bool
 
+// OnTouch states whether the process is running inside a Touch image
+// with a classic (but mostly read-only) filesystem layout.
+// It is a narrowed down variant of OnClassic
+var OnTouch bool
+
 // OnWSL states whether the process is running inside the Windows
 // Subsystem for Linux
 var OnWSL bool
@@ -222,6 +227,8 @@ func init() {
 	OnClassic = (ReleaseInfo.ID != "ubuntu-core")
 
 	OnCoreDesktop = (ReleaseInfo.ID == "ubuntu-core" && ReleaseInfo.VariantID == "desktop")
+
+	OnTouch = (OnClassic && ReleaseInfo.VariantID == "touch")
 
 	WSLVersion = getWSLVersion()
 	OnWSL = WSLVersion != 0
