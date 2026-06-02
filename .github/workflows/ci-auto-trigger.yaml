@@ -28,7 +28,7 @@ jobs:
 
           source .github/scripts/rerun-common.sh
 
-          prs=$(gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,latestReviews,baseRefName)
+          prs=$(gh_out_with_retry gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,latestReviews,baseRefName)
           echo "Inspecting $(echo "$prs" | jq 'length') open PRs for rerun..."
 
           echo "$prs" | jq -c '.[]' | while read -r pr; do
@@ -47,11 +47,18 @@ jobs:
               continue
             fi
 
-            last_run_json=$(gh run list \
+            GH_RETRY_CONTEXT="PR #$pr_number run listing for head SHA $head_sha"
+            if ! run_list_json=$(gh_out_with_retry gh run list \
               --workflow .github/workflows/ci-test.yaml \
               --limit 100 \
-              --json databaseId,attempt,status,conclusion,headSha \
-              | jq -c --arg head_sha "$head_sha" 'map(select(.headSha == $head_sha)) | first // empty')
+              --json databaseId,attempt,status,conclusion,headSha); then
+              echo "Skipping PR #$pr_number: could not fetch workflow runs for head SHA $head_sha after retries"
+              GH_RETRY_CONTEXT=""
+              continue
+            fi
+            GH_RETRY_CONTEXT=""
+
+            last_run_json=$(echo "$run_list_json" | jq -c --arg head_sha "$head_sha" 'map(select(.headSha == $head_sha)) | first // empty')
 
             if [[ -z "$last_run_json" || "$last_run_json" == "null" ]]; then
               echo "Skipping PR #$pr_number: no pull_request run found for head SHA $head_sha"
@@ -76,7 +83,14 @@ jobs:
               continue
             fi
 
-            run_jobs=$(gh run view "$last_run" --json jobs --jq '.jobs')
+            GH_RETRY_CONTEXT="PR #$pr_number job listing for run_id=$last_run"
+            if ! run_jobs=$(gh_out_with_retry gh run view "$last_run" --json jobs --jq '.jobs'); then
+              echo "Skipping PR #$pr_number: could not fetch jobs for run_id=$last_run after retries"
+              GH_RETRY_CONTEXT=""
+              continue
+            fi
+            GH_RETRY_CONTEXT=""
+
             spread_jobs_ran=$(echo "$run_jobs" | jq '[.[] | select(.name | test("^spread ")) | select(.status == "completed")] | length')
             if [[ "$spread_jobs_ran" -lt 1 ]]; then
               echo "Skipping PR #$pr_number: no completed spread jobs found in run_id=$last_run"

@@ -5,6 +5,35 @@ SKIP_SPREAD_LABEL="Skip spread"
 RUN_ONLY_ONE_SYSTEM_LABEL="Run only one system"
 export NOT_RERUN_REASON=""
 
+: "${GH_API_RETRIES:=3}"
+: "${GH_API_RETRY_DELAY_SECONDS:=2}"
+
+gh_out_with_retry() {
+    local attempt=1
+    local delay="$GH_API_RETRY_DELAY_SECONDS"
+    local output
+
+    while (( attempt <= GH_API_RETRIES )); do
+        if output="$($@ 2>&1)"; then
+            printf '%s\n' "$output"
+            return 0
+        fi
+
+        if (( attempt == GH_API_RETRIES )); then
+            echo "Command failed after $GH_API_RETRIES attempts: $*" >&2
+            echo "$output" >&2
+            return 1
+        fi
+
+        echo "Transient failure on attempt $attempt/$GH_API_RETRIES for: $*" >&2
+        echo "$output" >&2
+
+        sleep "$delay"
+        delay=$((delay * 2))
+        attempt=$((attempt + 1))
+    done
+}
+
 pr_has_label() {
     local pr_json="$1"
     local label="$2"
