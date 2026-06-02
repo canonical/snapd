@@ -2515,7 +2515,12 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
-	c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42) from channel "%s"`, snapName, setupChannel))
+	if requestedChannel == "" && defaultTrack == "" {
+		// When only a revision is specified, the store does not report a channel.
+		c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42)`, snapName))
+	} else {
+		c.Check(task.Summary(), Equals, fmt.Sprintf(`Download snap "%s" (42) from channel "%s"`, snapName, setupChannel))
+	}
 
 	// check link/start snap summary
 	linkTask := findLastTaskInTasks(ta, "link-snap")

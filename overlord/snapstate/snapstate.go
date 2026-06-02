@@ -922,7 +922,15 @@ func downloadTasks(
 
 		revisionStr := fmt.Sprintf(" (%s)", snapsup.Revision())
 
-		download := st.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel))
+		var downloadSummary string
+		if snapsup.SideInfo != nil && snapsup.SideInfo.Channel != "" {
+			downloadSummary = fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), snapsup.InstanceName(), revisionStr, snapsup.Channel)
+		} else {
+			// When a specific revision is requested, the store returns no channel.
+			downloadSummary = fmt.Sprintf(i18n.G("Download snap %q%s"), snapsup.InstanceName(), revisionStr)
+		}
+
+		download := st.NewTask("download-snap", downloadSummary)
 		addTask(download)
 
 		validate := st.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), snapsup.InstanceName(), revisionStr))
