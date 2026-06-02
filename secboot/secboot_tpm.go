@@ -680,6 +680,8 @@ type resealKeysWithTPMParams struct {
 	Keys []KeyDataLocation
 	// The primary key
 	PrimaryKey []byte
+	// DryRun validates resealing without persisting updated key material.
+	DryRun bool
 }
 
 // resealKeysWithTPMImpl updates the PCR protection policy for the sealed encryption keys
@@ -739,6 +741,9 @@ func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion 
 		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, params.PrimaryKey, &pcrProfile); err != nil {
 			return nil, fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
 		}
+		if params.DryRun {
+			return nil, nil
+		}
 
 		// write key files
 		for i, sko := range sealedKeyObjects {
@@ -760,6 +765,9 @@ func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion 
 
 		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, params.PrimaryKey, &pcrProfile, policyVersion, keyDatas...); err != nil {
 			return nil, fmt.Errorf("cannot update PCR protection policy: %w", err)
+		}
+		if params.DryRun {
+			return nil, nil
 		}
 
 		for i, key := range params.Keys {

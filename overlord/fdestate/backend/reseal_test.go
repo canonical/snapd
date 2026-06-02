@@ -196,6 +196,7 @@ type fakeSealedKey struct {
 
 type tpmResealHappyCase struct {
 	revokeOldKeys             bool
+	dryRun                    bool
 	missingRunParams          bool
 	missingRecoverParams      bool
 	onClassic                 bool
@@ -453,6 +454,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 			filepath.Join(dirs.SnapSaveDir, "device/fde", "aux-key"),
 			filepath.Join(dirs.SnapSaveDir, "device/fde", "tpm-policy-auth-key"),
 		})
+		c.Check(params.DryRun, Equals, tc.dryRun)
 
 		c.Logf("key: %v", key)
 
@@ -570,7 +572,7 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 	loggerBuf, restore := logger.MockLogger()
 	defer restore()
 
-	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true, RevokeOldKeys: tc.revokeOldKeys}
+	opts := boot.ResealKeyToModeenvOptions{ExpectReseal: true, RevokeOldKeys: tc.revokeOldKeys, DryRun: tc.dryRun}
 	err := backend.ResealKeyForBootChains(myState, device.SealingMethodTPM, s.rootdir, &boot.ResealKeyForBootChainsParams{BootChains: bootChains, Options: opts})
 	if tc.noPrimaryKey && tc.revokeOldKeys {
 		c.Assert(err, ErrorMatches, `Missing primary key`)
@@ -699,6 +701,21 @@ func (s *resealTestSuite) TestTPMResealHappyMultiplePolicyCounters(c *C) {
 	tc := tpmResealHappyCase{
 		onClassic:                 true,
 		multipleRevocationCounter: true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyDryRun(c *C) {
+	tc := tpmResealHappyCase{
+		onClassic: true,
+		dryRun:    true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyCoreDryRun(c *C) {
+	tc := tpmResealHappyCase{
+		dryRun: true,
 	}
 	s.testTPMResealHappy(c, tc)
 }
