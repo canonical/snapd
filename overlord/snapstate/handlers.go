@@ -4043,6 +4043,20 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// Remove mount-control mounts just before removing the data they may be
+	// mounted over. When this is the last revision, remove all mount-control
+	// units for the snap (nil mountBaseDirs = no path filter); otherwise restrict
+	// to the revision-specific data directory only, leaving common data
+	// (shared with remaining revisions) untouched.
+	var mountBaseDirs []string
+	if len(snapst.Sequence.Revisions) > 1 {
+		mountBaseDirs = []string{snap.DataDir(snapsup.InstanceName(), snapsup.Revision())}
+	}
+	const origin = "mount-control"
+	if err := m.backend.RemoveContainerMountUnits(info, nil, origin, mountBaseDirs); err != nil {
+		return err
+	}
+
 	dirOpts := opts.getSnapDirOpts()
 	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err
@@ -4137,7 +4151,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if len(snapst.Sequence.Revisions) == 0 {
-		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil); err != nil {
+		origin := ""               // "": remove all mount units regardless of origin
+		var mountBaseDirs []string // nil: no path filter
+		if err = m.backend.RemoveContainerMountUnits(snapsup.containerInfo(), nil, origin, mountBaseDirs); err != nil {
 			return err
 		}
 

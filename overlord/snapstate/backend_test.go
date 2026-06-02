@@ -95,6 +95,8 @@ type fakeOp struct {
 	requireSnapdTooling bool
 
 	dirOpts  *dirs.SnapDirOptions
+	dirs     []string
+	origin   string
 	undoInfo *backend.UndoInfo
 
 	currentComps []*snap.ComponentSideInfo
@@ -139,6 +141,16 @@ func (ops fakeOps) Count(op string) int {
 		}
 	}
 	return n
+}
+
+func (ops fakeOps) Filter(op string) fakeOps {
+	var filtered fakeOps
+	for i := range ops {
+		if ops[i].op == op {
+			filtered = append(filtered, ops[i])
+		}
+	}
+	return filtered
 }
 
 func (ops fakeOps) First(op string) *fakeOp {
@@ -1714,10 +1726,12 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
 	f.appendOp(&fakeOp{
-		op:   "remove-snap-mount-units",
-		name: s.ContainerName(),
+		op:     "remove-snap-mount-units",
+		name:   s.ContainerName(),
+		origin: origin,
+		dirs:   baseDirs,
 	})
 	return f.maybeErrForLastOp()
 }

@@ -163,6 +163,15 @@ func (h *errorAwareHandler) WithGroup(name string) slog.Handler {
 	return &errorAwareHandler{inner: h.inner.WithGroup(name)}
 }
 
+// LogValue implements [slog.LogValuer], allowing Reason to be
+// used directly as a structured log attribute value.
+func (r Reason) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("code", r.Code),
+		slog.String("message", r.Message),
+	)
+}
+
 // LogValue implements [slog.LogValuer], allowing SnapdUser to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
