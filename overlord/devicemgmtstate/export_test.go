@@ -44,8 +44,9 @@ func MockMaxBlockedMessagesPerSequence(n int) func() {
 }
 
 type SequenceState = sequenceState
-
 type DeviceMgmtState = deviceMgmtState
+
+type ResponseMessageSigner = responseMessageSigner
 
 func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
 	ms, err := m.getState()
@@ -56,11 +57,7 @@ func (m *DeviceMgmtManager) SetState(ms *DeviceMgmtState) {
 	m.setState(ms)
 }
 
-func (m *DeviceMgmtManager) MockHandler(kind string, handler MessageHandler) {
-	m.handlers[kind] = handler
-}
-
-func (m *DeviceMgmtManager) MockSigner(signer ResponseMessageSigner) {
+func (m *DeviceMgmtManager) MockSigner(signer responseMessageSigner) {
 	m.signer = signer
 }
 
