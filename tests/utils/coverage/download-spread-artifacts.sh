@@ -6,34 +6,29 @@ shopt -s nullglob
 usage() {
     cat <<'EOF'
 Usage:
-  download-spread-artifacts.sh --run-id <id> [--out-dir <dir>] [--download-dir <dir>] [--repo <owner/repo>]
+    download-spread-artifacts.sh --run-id <id> [--out-dir <dir>] [--download-dir <dir>] [--repo <owner/repo>]
 
 Description:
-  Downloads all artifacts from a GitHub Actions run that start with:
+    Downloads all artifacts from a GitHub Actions run that start with:
     - spread-artifacts-
     - spread-results-
 
-  Then matches each spread-artifacts entry with its corresponding spread-results
-  entry using:
-    - run id
-    - attempt
-    - system name
+    Then creates a coverage directory structure like:
+        <out-dir>/spread-artifacts-*.tar.gz
+        <out-dir>/spread-results-*/results.json
 
-  For each match, creates:
-    <out-dir>/<system>-<run-id>-<attempt>/
-
-  and copies extracted files from both artifacts into that directory.
+    This layout is used by tests/utils/coverage/write-conclusions.sh.
 
 Options:
   --run-id <id>        GitHub Actions run id (required)
-  --out-dir <dir>      Output directory (default: ./spread-joined)
-  --download-dir <dir> Where to download artifacts (default: temporary directory)
+    --out-dir <dir>      Output directory (default: ./coverage)
+    --download-dir <dir> Temporary download directory (default: temporary directory)
   --repo <owner/repo>  Repository for gh run download (default: current gh repo)
   -h, --help           Show this help
 
 Examples:
     ./tests/utils/coverage/download-spread-artifacts.sh --run-id 26581205754
-    ./tests/utils/coverage/download-spread-artifacts.sh --run-id 26581205754 --out-dir /tmp/spread-joined
+    ./tests/utils/coverage/download-spread-artifacts.sh --run-id 26581205754 --out-dir /tmp/coverage
 EOF
 }
 
@@ -44,12 +39,8 @@ require_cmd() {
     fi
 }
 
-escape_regex() {
-    sed 's/[][(){}.^$+*?|\\-]/\\&/g' <<<"$1"
-}
-
 run_id=""
-out_dir="spread-joined"
+out_dir="coverage"
 download_dir=""
 repo=""
 
@@ -90,10 +81,9 @@ if [[ -z "$run_id" ]]; then
 fi
 
 require_cmd gh
-require_cmd sed
 require_cmd cp
 require_cmd mktemp
-require_cmd tar
+require_cmd find
 
 if [[ -z "$repo" ]]; then
     repo="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
@@ -119,120 +109,41 @@ gh run download "$run_id" --repo "$repo" --pattern 'spread-artifacts-*' --dir "$
 echo "Downloading spread-results for run $run_id from $repo"
 gh run download "$run_id" --repo "$repo" --pattern 'spread-results-*' --dir "$download_dir"
 
-declare -A results_dir_by_key
-declare -A systems_by_run_attempt
-declare -A artifact_dir_by_name
+artifacts_count=0
+results_count=0
 
-for path in "$download_dir"/spread-results-*; do
-    [[ -d "$path" ]] || continue
-    base="$(basename "$path")"
-    if [[ "$base" =~ ^spread-results-([0-9]+)-([0-9]+)-(.+)$ ]]; then
-        res_run_id="${BASH_REMATCH[1]}"
-        attempt="${BASH_REMATCH[2]}"
-        system="${BASH_REMATCH[3]}"
-        key="$res_run_id|$attempt|$system"
-        run_attempt_key="$res_run_id|$attempt"
-        results_dir_by_key["$key"]="$path"
-        if [[ -z "${systems_by_run_attempt[$run_attempt_key]:-}" ]]; then
-            systems_by_run_attempt["$run_attempt_key"]="$system"
-        else
-            systems_by_run_attempt["$run_attempt_key"]+=$'\n'"$system"
-        fi
-    else
-        echo "Skipping unrecognized spread-results artifact name: $base" >&2
-    fi
-done
-
-for path in "$download_dir"/spread-artifacts-*; do
-    [[ -d "$path" ]] || continue
-    base="$(basename "$path")"
-    artifact_dir_by_name["$base"]="$path"
-done
-
-if [[ "${#artifact_dir_by_name[@]}" -eq 0 ]]; then
-    echo "No spread-artifacts-* artifacts found for run $run_id" >&2
-    exit 1
-fi
-
-if [[ "${#results_dir_by_key[@]}" -eq 0 ]]; then
-    echo "No spread-results-* artifacts found for run $run_id" >&2
-    exit 1
-fi
-
-matched=0
-
-for artifact_name in "${!artifact_dir_by_name[@]}"; do
-    artifact_path="${artifact_dir_by_name[$artifact_name]}"
-    if [[ ! "$artifact_name" =~ ^spread-artifacts-(.+)_([0-9]+)_([0-9]+)$ ]]; then
-        echo "Skipping unrecognized spread-artifacts artifact name: $artifact_name" >&2
-        continue
-    fi
-
-    descriptor="${BASH_REMATCH[1]}"
-    art_run_id="${BASH_REMATCH[2]}"
-    art_attempt="${BASH_REMATCH[3]}"
-    run_attempt_key="$art_run_id|$art_attempt"
-
-    systems_block="${systems_by_run_attempt[$run_attempt_key]:-}"
-    if [[ -z "$systems_block" ]]; then
-        echo "No spread-results candidate found for $artifact_name (run=$art_run_id attempt=$art_attempt)" >&2
-        continue
-    fi
-
-    best_system=""
-    best_len=0
-
-    while IFS= read -r system; do
-        [[ -n "$system" ]] || continue
-        system_re="$(escape_regex "$system")"
-        if [[ "$descriptor" =~ (^|-)${system_re}(-|$) ]]; then
-            system_len=${#system}
-            if (( system_len > best_len )); then
-                best_system="$system"
-                best_len=$system_len
-            fi
-        fi
-    done <<<"$systems_block"
-
-    if [[ -z "$best_system" ]]; then
-        echo "Could not infer system name for $artifact_name from spread-results candidates" >&2
-        continue
-    fi
-
-    key="$art_run_id|$art_attempt|$best_system"
-    result_path="${results_dir_by_key[$key]:-}"
-    if [[ -z "$result_path" ]]; then
-        echo "No exact spread-results match for $artifact_name and system=$best_system" >&2
-        continue
-    fi
-
-    target_dir="$out_dir/$best_system-$art_run_id-$art_attempt"
-    mkdir -p "$target_dir"
-
-    cp -a "$artifact_path"/. "$target_dir"/
-    cp -a "$result_path"/. "$target_dir"/
-
-    # spread-artifacts downloads contain tar payloads; extract them in place.
+# Flatten spread-artifacts payloads (tar files) to <out-dir>/
+for artifact_dir in "$download_dir"/spread-artifacts-*; do
+    [[ -d "$artifact_dir" ]] || continue
     tar_found=0
-    for tar_file in "$artifact_path"/*.tar "$artifact_path"/*.tar.gz "$artifact_path"/*.tgz "$artifact_path"/*.tar.xz "$artifact_path"/*.tar.bz2; do
-        [[ -f "$tar_file" ]] || continue
+    while IFS= read -r -d '' tar_file; do
         tar_found=1
-        tar_base="$(basename "$tar_file")"
-        echo "Extracting $tar_base into $target_dir"
-        tar -xf "$tar_file" -C "$target_dir"
-        rm -f "$target_dir/$tar_base"
-    done
-    if [[ "$tar_found" -eq 0 ]]; then
-        echo "Warning: no tar payload found in $artifact_name" >&2
-    fi
+        cp -f "$tar_file" "$out_dir/"
+        artifacts_count=$((artifacts_count + 1))
+    done < <(find "$artifact_dir" -maxdepth 1 -type f \( -name '*.tar' -o -name '*.tar.gz' -o -name '*.tgz' -o -name '*.tar.xz' -o -name '*.tar.bz2' \) -print0)
 
-    echo "Matched: $artifact_name <-> $(basename "$result_path") -> $target_dir"
-    matched=$((matched + 1))
+    if [[ "$tar_found" -eq 0 ]]; then
+        echo "Warning: no tar payload found in $(basename "$artifact_dir")" >&2
+    fi
 done
 
-if [[ "$matched" -eq 0 ]]; then
-    echo "No matching spread-artifacts/spread-results pairs were found" >&2
+# Copy spread-results-* directories to <out-dir>/
+for result_dir in "$download_dir"/spread-results-*; do
+    [[ -d "$result_dir" ]] || continue
+    base="$(basename "$result_dir")"
+    rm -rf "$out_dir/$base"
+    cp -a "$result_dir" "$out_dir/"
+    results_count=$((results_count + 1))
+done
+
+if [[ "$artifacts_count" -eq 0 ]]; then
+    echo "No spread-artifacts tarballs were downloaded for run $run_id" >&2
     exit 1
 fi
 
-echo "Done. Created $matched merged system directories in $out_dir"
+if [[ "$results_count" -eq 0 ]]; then
+    echo "No spread-results-* artifacts were downloaded for run $run_id" >&2
+    exit 1
+fi
+
+echo "Done. Wrote $artifacts_count tarballs and $results_count spread-results directories into $out_dir"
