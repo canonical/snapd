@@ -209,7 +209,7 @@ install:: $(addprefix $(builddir)/,snapctl snap-exec snap-update-ns snap-seccomp
 
 # Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
 install:: | $(DESTDIR)$(bindir)
-	ln -v -s -r $(libexecdir)/snapd/snapctl $|/snapctl
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapctl $|/snapctl
 
 # Ensure $(libexecdir)/snapd/snapd is a symlink to /usr/bin/snap
 install:: | $(DESTDIR)$(libexecdir)/snapd
