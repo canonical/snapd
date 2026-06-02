@@ -13746,9 +13746,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 	effectsTasks := tsks[len(tsks)-4:]
 
 	c.Check(effectsTasks[0].Kind(), Equals, "process-delayed-security-backend-effects")
-	logs := strings.Join(effectsTasks[0].Log(), "\n")
-	c.Check(logs, testutil.Contains, `skipping effects triggered by failed snap "producer2"`)
-	c.Check(logs, testutil.Contains, `scheduling delayed effects for snap "consumer1"`)
+	c.Check(effectsTasks[0].Log(), HasLen, 0)
 
 	// setup-profiles will be automatically injected by auto-connect
 	// before apply-delayed-snap-security-backend-effects for both the
