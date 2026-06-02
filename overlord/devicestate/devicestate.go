@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -299,6 +300,7 @@ func delayedCrossMgrInit() {
 	snapstate.RemodelingChange = RemodelingChange
 	snapstate.SeedRefreshTasks = SeedRefreshTasks
 	snapstate.UpdateSeedRefreshChange = UpdateSeedRefreshChange
+	snapstate.CheckSeedRefreshRemove = CheckSeedRefreshRemove
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -1770,10 +1772,16 @@ func removeRecoverySystemTask(st *state.State, label string) *state.Task {
 // that, after finalize records the new system, the two most recently created
 // seed-refresh systems remain tracked.
 func SeedRefreshTasks(st *state.State, dctx snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	triggers := seedRefreshTriggers(st, dctx)
+
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
-		if !seedRefreshIncludesSnap(dctx, candidate.InstanceName) {
+		ok, err := triggers(candidate.InstanceName)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !ok {
 			continue
 		}
 		added[candidate.InstanceName] = true
@@ -1838,7 +1846,13 @@ func SeedRefreshTasks(st *state.State, dctx snapstate.DeviceContext, candidates 
 // snap isn't part of the seed refresh, otherwise returns the seed refresh task
 // set.
 func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
-	if !seedRefreshIncludesSnap(dctx, candidate.InstanceName) {
+	triggers := seedRefreshTriggers(chg.State(), dctx)
+
+	ok, err := triggers(candidate.InstanceName)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, nil
 	}
 
@@ -1866,20 +1880,87 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTas
 	return setTaskRecoverySystemSetup(create, setup)
 }
 
-func seedRefreshIncludesSnap(dctx snapstate.DeviceContext, instanceName string) bool {
-	// TODO:SEEDREFRESH: consider the intersections of snaps in the model and
-	// snaps currently present in the seed, not all snaps in the model.
-	if instanceName == "snapd" {
-		return true
+// CheckSeedRefreshRemove prevents removing optional snaps that are still
+// present in the current seed while seed-refresh is enabled.
+//
+// TODO:SEEDREFRESH: remove this once we support seed-refresh seeds
+// gaining/losing snaps
+func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
+	triggers := seedRefreshTriggers(st, dctx)
+	ok, err := triggers(si.SnapName())
+	if err != nil {
+		return err
 	}
 
+	if ok {
+		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
+	}
+	return nil
+}
+
+// seedRefreshTriggers returns a closure that reports whether the given snap
+// should trigger a seed refresh. The seed is lazily loaded, and only opened
+// when required.
+func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(string) (bool, error) {
+	required := make(map[string]bool)
+	optional := make(map[string]bool)
 	for _, sn := range dctx.Model().AllSnaps() {
-		if sn.SnapName() == instanceName {
-			return true
+		if sn.Presence == "required" {
+			required[sn.SnapName()] = true
+		} else {
+			optional[sn.SnapName()] = true
 		}
 	}
 
-	return false
+	// snapd should always be considered a part of the model. this is really a
+	// compatibility thing, and maybe should not be here since seed-refresh
+	// isn't gonna work on old models anyways.
+	required["snapd"] = true
+
+	var optionalInSeed map[string]bool
+
+	return func(instanceName string) (bool, error) {
+		if required[instanceName] {
+			return true, nil
+		}
+
+		if !optional[instanceName] {
+			return false, nil
+		}
+
+		if optionalInSeed == nil {
+			currentSystem, err := currentSeededSystem(st)
+			if err != nil {
+				return false, err
+			}
+
+			current, err := seedOpen(dirs.SnapSeedDir, currentSystem.System)
+			if err != nil {
+				return false, err
+			}
+			if err := current.LoadAssertions(nil, nil); err != nil {
+				return false, err
+			}
+
+			copier, ok := current.(seed.Copier)
+			if !ok {
+				// this would only happen if the seed is pre-core20
+				return false, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
+			}
+
+			oc, err := copier.OptionalContainers()
+			if err != nil {
+				return false, err
+			}
+
+			optionalInSeed = make(map[string]bool, len(oc.Snaps))
+			for _, sn := range oc.Snaps {
+				optionalInSeed[sn] = true
+			}
+		}
+
+		return optionalInSeed[instanceName], nil
+	}
 }
 
 func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, error) {

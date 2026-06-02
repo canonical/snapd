@@ -301,6 +301,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
+	s.AddCleanup(snapstate.MockCheckSeedRefreshRemove(func(*state.State, *snap.Info, snapstate.DeviceContext) error { return nil }))
 	_, restore := mockSeedRefreshHooks(nil)
 	s.AddCleanup(restore)
 
@@ -6112,6 +6113,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
+			op:     "remove-snap-mount-units",
+			name:   "ubuntu-core",
+			origin: "mount-control",
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
@@ -6215,6 +6221,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			op:    "remove-profiles:Doing",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
+		},
+		{
+			op:     "remove-snap-mount-units",
+			name:   "ubuntu-core",
+			origin: "mount-control",
 		},
 		{
 			op:   "remove-snap-data",

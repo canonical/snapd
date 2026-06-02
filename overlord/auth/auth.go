@@ -32,6 +32,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 )
 
 // AuthState represents current authenticated users as tracked in state
@@ -54,7 +55,10 @@ type DeviceState struct {
 	SessionMacaroon string `json:"session-macaroon,omitempty"`
 }
 
-// UserState represents an authenticated user
+// UserState represents an authenticated user.
+//
+// NOTE: When adding or removing fields, also update changedFields
+// in this file to keep security audit logging of user updates accurate.
 type UserState struct {
 	ID              int       `json:"id"`
 	Username        string    `json:"username,omitempty"`
@@ -64,6 +68,77 @@ type UserState struct {
 	StoreMacaroon   string    `json:"store-macaroon,omitempty"`
 	StoreDischarges []string  `json:"store-discharges,omitempty"`
 	Expiration      time.Time `json:"expiration,omitzero"`
+}
+
+// changedFields returns a sorted list of spec-defined field names
+// whose values differ between u and other. The field names are the
+// canonical audit specification identifiers (not Go struct field names).
+// time.Time fields are compared by instant in UTC, ignoring location
+// and any monotonic clock reading. String slice fields are compared
+// order-independently.
+func (u *UserState) changedFields(other *UserState) []string {
+	var changed []string
+	if u.ID != other.ID {
+		changed = append(changed, "snapd-user-id")
+	}
+	if u.Username != other.Username {
+		changed = append(changed, "store-user-name")
+	}
+	if u.Email != other.Email {
+		changed = append(changed, "store-user-email")
+	}
+	if !u.Expiration.UTC().Equal(other.Expiration.UTC()) {
+		changed = append(changed, "expiration")
+	}
+	if u.Macaroon != other.Macaroon {
+		changed = append(changed, "local-macaroon")
+	}
+	if !stringMultisetsEqual(u.Discharges, other.Discharges) {
+		changed = append(changed, "local-discharges")
+	}
+	if u.StoreMacaroon != other.StoreMacaroon {
+		changed = append(changed, "store-macaroon")
+	}
+	if !stringMultisetsEqual(u.StoreDischarges, other.StoreDischarges) {
+		changed = append(changed, "store-discharges")
+	}
+	sort.Strings(changed)
+	return changed
+}
+
+// stringMultisetsEqual reports whether two string slices contain the same
+// elements regardless of order. Both nil and empty slices are treated
+// as equal.
+func stringMultisetsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	if len(a) == 0 {
+		return true
+	}
+	ac := make([]string, len(a))
+	bc := make([]string, len(b))
+	copy(ac, a)
+	copy(bc, b)
+	sort.Strings(ac)
+	sort.Strings(bc)
+	for i := range ac {
+		if ac[i] != bc[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// snapdUser returns a seclog.SnapdUser populated with the identity
+// fields of u for use in security audit log events.
+func (u *UserState) snapdUser() seclog.SnapdUser {
+	return seclog.SnapdUser{
+		ID:             int64(u.ID),
+		StoreUserName:  u.Username,
+		StoreUserEmail: u.Email,
+		Expiration:     u.Expiration,
+	}
 }
 
 // identificationOnly returns a *UserState with only the
@@ -162,6 +237,7 @@ type NewUserParams struct {
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
+// Note that this logs a security event via the security logger.
 func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	var authStateData AuthState
 
@@ -186,7 +262,6 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 		return nil, err
 	}
 
-	sort.Strings(userParams.Discharges)
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
 		Username:        userParams.Username,
@@ -201,17 +276,21 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 
 	st.Set("auth", authStateData)
 
+	seclog.LogUserCreated(authenticatedUser.snapdUser())
+
 	return &authenticatedUser, nil
 }
 
 var ErrInvalidUser = errors.New("invalid user")
 
 // RemoveUser removes a user from the state given its ID.
+// Note that this logs a security event via the security logger.
 func RemoveUser(st *state.State, userID int) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
 }
 
 // RemoveUserByUsername removes a user from the state given its username. Returns a *UserState with the identification information for them.
+// Note that this logs a security event via the security logger.
 func RemoveUserByUsername(st *state.State, username string) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.Username == username })
 }
@@ -231,6 +310,7 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	for i := range authStateData.Users {
 		u := &authStateData.Users[i]
 		if p(u) {
+			su := u.snapdUser()
 			removed := u.identificationOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
@@ -238,6 +318,9 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 			authStateData.Users[n] = UserState{}
 			authStateData.Users = authStateData.Users[:n]
 			st.Set("auth", authStateData)
+
+			seclog.LogUserRemoved(su)
+
 			return removed, nil
 		}
 	}
@@ -295,6 +378,7 @@ func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 }
 
 // UpdateUser updates user in state
+// Note that this logs a security event via the security logger.
 func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
@@ -308,8 +392,15 @@ func UpdateUser(st *state.State, user *UserState) error {
 
 	for i := range authStateData.Users {
 		if authStateData.Users[i].ID == user.ID {
+			prev := authStateData.Users[i]
 			authStateData.Users[i] = *user
 			st.Set("auth", authStateData)
+
+			changed := prev.changedFields(user)
+			if len(changed) > 0 {
+				seclog.LogUserUpdated(user.snapdUser(), changed)
+			}
+
 			return nil
 		}
 	}

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // SeedRefreshTaskSet carries the tasks needed to perform a seed refresh.
@@ -59,6 +60,15 @@ var SeedRefreshTasks = func(st *state.State, dctx DeviceContext, candidates []Se
 // devicestate.UpdateSeedRefreshChange.
 var UpdateSeedRefreshChange = func(chg *state.Change, dctx DeviceContext, candidate SeedRefreshCandidate) (*SeedRefreshTaskSet, error) {
 	panic("internal error: snapstate.UpdateSeedRefreshChange is unset")
+}
+
+// CheckSeedRefreshRemove is set by devicestate to prevent removal of snaps that
+// must remain present for seed-refresh.
+//
+// TODO:SEEDREFRESH: remove this hook once seed-refresh supports seeds
+// gaining/losing snaps
+var CheckSeedRefreshRemove = func(st *state.State, si *snap.Info, dctx DeviceContext) error {
+	panic("internal error: snapstate.CheckSeedRefreshRemove is unset")
 }
 
 func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, error) {

@@ -24,6 +24,11 @@ artifacts:
     - snapd-versions
 
 prepare: |
+    current=$(ubuntu-distro-info --supported --release | awk '{print $1}' | head -1)
+    if ! os.query is-ubuntu "$current"; then
+        echo "This test should be run on the lowest supported version of ubuntu for a given release, which is currently $current"
+        exit 1
+    fi
     snap install go-example-webserver
     snap install test-snapd-sh
     snap install test-snapd-auto-aliases
@@ -53,11 +58,6 @@ restore: |
     sed -i 's/Prompt=normal/Prompt=never/' /etc/update-manager/release-upgrades
 
 execute: |
-    current=$(ubuntu-distro-info --supported --release | awk '{print $1}' | head -1)
-    if ! os.query is-ubuntu "$current"; then
-        echo "This test should be run on the lowest supported version of ubuntu for a given release, which is currently $current"
-        exit 1
-    fi
     # Grab all supported distros except for the first one, which we're running on
     mapfile -t upgrades < <(ubuntu-distro-info --supported --release | awk '{print $1}' | sed 1d)
 
