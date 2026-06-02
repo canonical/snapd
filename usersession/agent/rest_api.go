@@ -236,6 +236,88 @@ func serviceStop(inst *client.ServiceInstruction, sysd systemd.Systemd) Response
 	return SyncResponse(nil)
 }
 
+func serviceEnable(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
+	// Refuse to enable non-snap services
+	for _, service := range inst.Services {
+		if !strings.HasPrefix(service, "snap.") {
+			return InternalError("cannot enable non-snap service %v", service)
+		}
+	}
+
+	enableErrors := make(map[string]string)
+	anySuccess := false
+	for _, service := range inst.Services {
+		if err := sysd.EnableNoReload([]string{service}); err != nil {
+			enableErrors[service] = err.Error()
+			continue
+		}
+		anySuccess = true
+	}
+
+	if anySuccess {
+		if err := sysd.DaemonReload(); err != nil {
+			return InternalError("cannot reload systemd: %v", err)
+		}
+	}
+
+	if len(enableErrors) != 0 {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "some user services failed to enable",
+				Kind:    errorKindServiceControl,
+				Value: map[string]any{
+					"enable-errors": enableErrors,
+				},
+			},
+		})
+	}
+
+	return SyncResponse(nil)
+}
+
+func serviceDisable(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
+	// Refuse to disable non-snap services
+	for _, service := range inst.Services {
+		if !strings.HasPrefix(service, "snap.") {
+			return InternalError("cannot disable non-snap service %v", service)
+		}
+	}
+
+	disableErrors := make(map[string]string)
+	anySuccess := false
+	for _, service := range inst.Services {
+		if err := sysd.DisableNoReload([]string{service}); err != nil {
+			disableErrors[service] = err.Error()
+			continue
+		}
+		anySuccess = true
+	}
+
+	if anySuccess {
+		if err := sysd.DaemonReload(); err != nil {
+			return InternalError("cannot reload systemd: %v", err)
+		}
+	}
+
+	if len(disableErrors) != 0 {
+		return SyncResponse(&resp{
+			Type:   ResponseTypeError,
+			Status: 500,
+			Result: &errorResult{
+				Message: "some user services failed to disable",
+				Kind:    errorKindServiceControl,
+				Value: map[string]any{
+					"disable-errors": disableErrors,
+				},
+			},
+		})
+	}
+
+	return SyncResponse(nil)
+}
+
 func serviceDaemonReload(inst *client.ServiceInstruction, sysd systemd.Systemd) Response {
 	if len(inst.Services) != 0 {
 		return InternalError("daemon-reload should not be called with any services")
@@ -249,6 +331,8 @@ func serviceDaemonReload(inst *client.ServiceInstruction, sysd systemd.Systemd) 
 var serviceInstructionDispTable = map[string]func(*client.ServiceInstruction, systemd.Systemd) Response{
 	"start":         serviceStart,
 	"stop":          serviceStop,
+	"enable":        serviceEnable,
+	"disable":       serviceDisable,
 	"restart":       serviceRestart,
 	"daemon-reload": serviceDaemonReload,
 }

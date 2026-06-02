@@ -212,6 +212,10 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 			if inst.Disable {
 				cmd.ActionModifier = "disable"
 			}
+		case inst.Action == "enable":
+			cmd.Action = "enable"
+		case inst.Action == "disable":
+			cmd.Action = "disable"
 		case inst.Action == "restart":
 			cmd.RestartEnabledNonActive = true
 			if inst.Reload {
@@ -283,6 +287,10 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, cu *u
 				ctlcmds = []string{"disable"}
 			}
 			ctlcmds = append(ctlcmds, "stop")
+		case inst.Action == "enable":
+			ctlcmds = []string{"enable"}
+		case inst.Action == "disable":
+			ctlcmds = []string{"disable"}
 		case inst.Action == "restart":
 			if inst.Reload {
 				ctlcmds = []string{"reload-or-restart"}
