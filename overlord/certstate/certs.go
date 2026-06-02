@@ -19,13 +19,16 @@
 package certstate
 
 import (
+	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/pem"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -40,19 +43,36 @@ const (
 	CertificateStateBlocked  = "blocked"
 )
 
+// CertificateData holds the parsed certificate and derived digests for a
+// certificate payload.
 type CertificateData struct {
-	Raw    *x509.Certificate
-	Digest string
+	// Sha256 is the content fingerprint tracked for the certificate payload.
+	Sha256 string
+	// SubjectNameSha1 is the OpenSSL subject-name hash used for lookup links.
+	SubjectNameSha1 string
 }
 
 type certificate struct {
-	Name     string
-	Path     string
-	RealPath string
-	Digest   string
+	Name            string
+	Path            string
+	RealPath        string
+	Sha256          string
+	SubjectNameSha1 string
 }
 
-func digestHexForChain(chainDER [][]byte) string {
+// TODO: .crl not supported for now, and there is none of this type carried
+// in the bases
+var allowedSuffixes = []string{"pem", "crt", "cer"}
+
+// certificatePEMBlockTypePattern matches the PEM labels accepted when scanning
+// certificate files or bundles.
+var certificatePEMBlockTypePattern = regexp.MustCompile(`^(X509 |TRUSTED |)?CERTIFICATE$`)
+
+// sha256HexForChain returns the content fingerprint for a certificate payload.
+// For PEM bundles, every certificate DER block contributes to the digest in
+// file order so two files that share a leaf certificate but differ elsewhere do
+// not collapse to the same value.
+func sha256HexForChain(chainDER [][]byte) string {
 	h := sha256.New224()
 	for _, der := range chainDER {
 		// Hash the DER bytes as-is (in file order).
@@ -61,42 +81,88 @@ func digestHexForChain(chainDER [][]byte) string {
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-// ParseCertificateData parses certificate data and returns the first certificate,
-// plus the full chain DER blobs (all CERTIFICATE PEM blocks, in order).
+// sha1HexForCertSubjectName reproduces the OpenSSL subject-name hash used by
+// c_rehash-style lookup links.
+// OBS: This is not great, because generating SHA1 hashes is not allowed
+// under the go FIPS toolchain. In the future this needs to somewhere else, and
+// not stay here. The use-case here is covered by the 140-3 FIPS, as we don't use
+// SHA1 for digital signage. But the problem is the go FIPS toolchain will throw
+// a runtime error in all cases.
+func sha1HexForCertSubjectName(cert *x509.Certificate) (string, error) {
+	canonicalSubject, err := canonicalSubjectNameDER(cert.RawSubject)
+	if err != nil {
+		return "", err
+	}
+
+	// OpenSSL's X509_NAME_hash_ex uses SHA-1 over the canonicalized subject DN
+	// and returns the first 4 bytes in little-endian order.
+	digest := sha1.Sum(canonicalSubject)
+	return fmt.Sprintf("%08x", binary.LittleEndian.Uint32(digest[:4])), nil
+}
+
+// decodePemBlocks extracts certificate PEM blocks from data, returning their
+// DER payloads in file order together with the first parsed certificate.
+// We only return the 'raw' certificate data for the first PEM block, which is used
+// for the subject name hash, and only used when there are not multiple certificates in the file.
+func decodePemBlocks(data []byte) (blocks [][]byte, raw *x509.Certificate, err error) {
+	rest := data
+	for {
+		block, next := pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		rest = next
+		if !certificatePEMBlockTypePattern.MatchString(block.Type) {
+			logger.Debugf("encountered unsupported pem-block type: %s", block.Type)
+			continue
+		}
+
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot parse certificate PEM block: %v", err)
+		}
+		if raw == nil {
+			raw = cert
+		}
+		blocks = append(blocks, cert.Raw)
+	}
+	return blocks, raw, nil
+}
+
+// ParseCertificateData parses a PEM or DER certificate payload and returns the
+// first certificate together with the digests snapd tracks for it.
 //
-// For DER input, it returns a single-certificate chain.
+// For PEM bundles, the content digest covers every certificate block in file
+// order. The subject-name hash is set only for single-certificate inputs,
+// matching the hash-link behavior of c_rehash and openssl x509 -subject_hash.
 func ParseCertificateData(certData []byte) (*CertificateData, error) {
-	// Many distro-provided *.crt files are PEM-encoded, while x509.ParseCertificate
+	// Many distro-provided cert files are PEM-encoded, while x509.ParseCertificate
 	// expects DER.
 	if block, _ := pem.Decode(certData); block != nil {
-		rest := certData
-		var chainDER [][]byte
-		var first *x509.Certificate
-		for {
-			block, next := pem.Decode(rest)
-			if block == nil {
-				break
-			}
-			rest = next
-			if block.Type != "CERTIFICATE" {
-				continue
-			}
-
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse certificate PEM block: %v", err)
-			}
-			if first == nil {
-				first = cert
-			}
-			chainDER = append(chainDER, cert.Raw)
+		// We only use the 'raw' certificate data when one PEM block is present
+		blocks, raw, err := decodePemBlocks(certData)
+		if err != nil {
+			return nil, err
 		}
-		if first == nil {
+
+		if len(blocks) == 0 {
 			return nil, fmt.Errorf("no certificate PEM block found")
 		}
+
+		// only calculate the subject name hash if we have a single certificate
+		// which is what openssl does.
+		var subjectNameSha1 string
+		if len(blocks) == 1 {
+			hash, err := sha1HexForCertSubjectName(raw)
+			if err != nil {
+				return nil, fmt.Errorf("cannot hash certificate subject name: %v", err)
+			}
+			subjectNameSha1 = hash
+		}
+
 		return &CertificateData{
-			Raw:    first,
-			Digest: digestHexForChain(chainDER),
+			Sha256:          sha256HexForChain(blocks),
+			SubjectNameSha1: subjectNameSha1,
 		}, nil
 	}
 
@@ -104,35 +170,48 @@ func ParseCertificateData(certData []byte) (*CertificateData, error) {
 	// We return a single-certificate chain in this case.
 	cert, err := x509.ParseCertificate(certData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse DER certificate: %v", err)
+		return nil, fmt.Errorf("cannot parse DER certificate: %v", err)
+	}
+
+	subjectNameSha1, err := sha1HexForCertSubjectName(cert)
+	if err != nil {
+		return nil, fmt.Errorf("cannot hash certificate subject name: %v", err)
 	}
 	return &CertificateData{
-		Raw:    cert,
-		Digest: digestHexForChain([][]byte{cert.Raw}),
+		Sha256:          sha256HexForChain([][]byte{cert.Raw}),
+		SubjectNameSha1: subjectNameSha1,
 	}, nil
 }
 
-func trimCrtExtension(name string) string {
-	if strings.HasSuffix(name, ".crt") {
-		return strings.TrimSuffix(name, ".crt")
+func isAllowedExtension(name string) bool {
+	ext := filepath.Ext(name)
+	return len(ext) != 0 && strutil.ListContains(allowedSuffixes, ext[1:])
+}
+
+// trimExtension strips one supported certificate-file extension from name.
+func trimExtension(name string) string {
+	extension := filepath.Ext(name)
+	if isAllowedExtension(name) {
+		return strings.TrimSuffix(name, extension)
 	}
 	return name
 }
 
 // isBlocked checks whether the given certificate is blocked
-// based on it's name (special names or its path not being a .crt), or
+// based on its name (special names or its path not being a supported extension), or
 // based on its digest being in the list of blocked digests.
 func isBlocked(cert certificate, blockedCertDigests []string) bool {
 	// Special case for ca-certificates.crt
-	if cert.Name == "ca-certificates.crt" {
+	if cert.Name == "ca-certificates" {
 		return true
 	}
 
-	// Check that the real underlying filepath to the certificate ends with .crt
-	if !strings.HasSuffix(cert.RealPath, ".crt") {
+	// Check that the real underlying filepath to the
+	// certificate ends with a supported extension
+	if !isAllowedExtension(cert.RealPath) {
 		return true
 	}
-	return strutil.ListContains(blockedCertDigests, cert.Digest)
+	return strutil.ListContains(blockedCertDigests, cert.Sha256)
 }
 
 // parseCertificates retrieves a list of files in the directory path and returns
@@ -149,7 +228,11 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 
 	var certsObjects []certificate
 	for _, caFile := range certFiles {
-		if caFile.IsDir() || !strings.HasSuffix(caFile.Name(), ".crt") {
+		if caFile.IsDir() {
+			continue
+		}
+
+		if !isAllowedExtension(caFile.Name()) {
 			continue
 		}
 
@@ -159,31 +242,32 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 		if caFile.Type()&os.ModeSymlink != 0 {
 			resolvedPath, err := filepath.EvalSymlinks(certRealPath)
 			if err != nil {
-				logger.Noticef("Failed to parse certificate %q: cannot resolve symbolic link: %v", certRealPath, err)
+				logger.Noticef("cannot parse certificate %q: cannot resolve symbolic link: %v", certRealPath, err)
 				continue
 			}
 			certRealPath = resolvedPath
 		}
 
-		// Load the crt file and calculate the digest of the certificate.
+		// Load the cert file and calculate the digest of the certificate.
 		certBytes, err := os.ReadFile(certRealPath)
 		if err != nil {
-			logger.Noticef("Failed to read certificate %q: %v", certRealPath, err)
+			logger.Noticef("cannot read certificate %q: %v", certRealPath, err)
 			continue
 		}
 
 		cert, err := ParseCertificateData(certBytes)
 		if err != nil {
-			logger.Noticef("Failed to parse certificate %q: %v", certRealPath, err)
+			logger.Noticef("cannot parse certificate %q: %v", certRealPath, err)
 			continue
 		}
 
 		// If the file is not a symbolic link then Path and RealPath will be identical.
 		certObject := certificate{
-			Name:     trimCrtExtension(caFile.Name()),
-			Path:     filepath.Join(certsPath, caFile.Name()),
-			RealPath: certRealPath,
-			Digest:   cert.Digest,
+			Name:            trimExtension(caFile.Name()),
+			Path:            filepath.Join(certsPath, caFile.Name()),
+			RealPath:        certRealPath,
+			Sha256:          cert.Sha256,
+			SubjectNameSha1: cert.SubjectNameSha1,
 		}
 		certsObjects = append(certsObjects, certObject)
 	}
@@ -191,7 +275,7 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 }
 
 // readDigests reads the names of all files in the given directory
-// and returns them as a list of strings (with any .crt extension trimmed).
+// and returns them as a list of strings (with any extension trimmed).
 // It expects that the files in the directory are named by their digest.
 func readDigests(dir string) ([]string, error) {
 	files, err := os.ReadDir(dir)
@@ -203,73 +287,127 @@ func readDigests(dir string) ([]string, error) {
 	}
 
 	// Certificates are expected to be named by their digest,
-	// and we trim any .crt extension prior to returning them.
+	// and we trim any extension prior to returning them.
 	var digests []string
 	for _, f := range files {
 		if f.IsDir() {
 			continue
 		}
-		name := trimCrtExtension(f.Name())
+		name := trimExtension(f.Name())
 		digests = append(digests, name)
 	}
 	return digests, nil
 }
 
-func writeUniqueCACertificates(certs *certificates, out io.Writer) error {
+// writeUniqueCACertificates writes the merged CA bundle and populates the
+// merged directory with one link per distinct certificate payload. For
+// single-certificate files it also creates the OpenSSL-style subject hash link.
+func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.Writer) error {
 	copyOne := func(from string) error {
-		inf, err := os.Open(from)
+		data, err := os.ReadFile(from)
 		if err != nil {
 			return err
 		}
-		defer inf.Close()
-		if _, err := io.Copy(out, inf); err != nil {
+
+		// Append it to the ca bundle
+		if _, err := io.Writer.Write(bundle, data); err != nil {
 			return err
 		}
-		return nil
+
+		// Create a copy of it into the merged directory, to preserve the
+		// structure of the system certificates.
+		to := filepath.Join(certsDir, filepath.Base(from))
+		return os.WriteFile(to, data, 0o644)
+	}
+
+	// Create the c_rehash-style subject hash link for single-certificate files.
+	maybeSha1Link := func(cert certificate) error {
+		if cert.SubjectNameSha1 == "" {
+			return nil
+		}
+
+		// Emulate https://docs.openssl.org/1.0.2/man1/c_rehash/ behaviour
+		// for creating a hash lookup. It must be in SHA-1.
+		hash := cert.SubjectNameSha1
+		if len(hash) > 8 {
+			hash = hash[:8]
+		}
+
+		for suffix := 0; ; suffix++ {
+			linkName := filepath.Join(certsDir, fmt.Sprintf("%s.%d", hash, suffix))
+			// The merged directory may be built in a staging location and then
+			// atomically swapped into place, so the hash link must stay relative
+			// to the certificate copy that lives alongside it.
+			from := filepath.Base(cert.RealPath)
+			if err := os.Symlink(from, linkName); err != nil {
+				if os.IsExist(err) {
+					continue
+				}
+				return err
+			}
+			return nil
+		}
 	}
 
 	// avoid adding digests twice
 	digests := make(map[string]bool)
 
 	for _, cert := range certs.SystemCertificates {
-		if digests[cert.Digest] || isBlocked(cert, certs.BlockedDigests) {
+		if digests[cert.Sha256] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy certificate %q: %v", cert.Name, err)
 		}
-		digests[cert.Digest] = true
+		if err := maybeSha1Link(cert); err != nil {
+			return fmt.Errorf("cannot create hash link for certificate %q: %v", cert.Name, err)
+		}
+		digests[cert.Sha256] = true
 	}
 
 	for _, cert := range certs.AddedCertificates {
-		if digests[cert.Digest] || isBlocked(cert, certs.BlockedDigests) {
+		if digests[cert.Sha256] || isBlocked(cert, certs.BlockedDigests) {
 			continue
 		}
 		if err := copyOne(cert.RealPath); err != nil {
 			return fmt.Errorf("cannot copy extra certificate %q: %v", cert.Name, err)
 		}
-		digests[cert.Digest] = true
+		if err := maybeSha1Link(cert); err != nil {
+			return fmt.Errorf("cannot create hash link for extra certificate %q: %v", cert.Name, err)
+		}
+		digests[cert.Sha256] = true
 	}
-	return nil
-}
 
-// generateCACertificates generates the ca-certificates.crt to the output path
-// The ca-certificates.crt is a concatenation of all the certs in the
-// output path.
-func generateCACertificates(certs *certificates, outputPath string) error {
-	certsPath := filepath.Join(outputPath, "ca-certificates.crt")
-	tmpFile, err := osutil.NewAtomicFile(certsPath, 0o644, 0, osutil.NoChown, osutil.NoChown)
+	// sync the directory to ensure file-writes are completed
+	dir, err := os.Open(certsDir)
 	if err != nil {
-		return fmt.Errorf("cannot create temporary ca-certificates.crt: %v", err)
-	}
-	defer tmpFile.Cancel()
-
-	if err := writeUniqueCACertificates(certs, tmpFile); err != nil {
 		return err
 	}
+	defer dir.Close()
+	return dir.Sync()
+}
 
-	if err := tmpFile.Commit(); err != nil {
-		return fmt.Errorf("cannot atomically replace ca-certificates.crt: %v", err)
+// generateCACertificates builds a merged certificate directory that mirrors
+// the system /etc/ssl/certs layout: individual certificate links plus a
+// combined ca-certificates.crt bundle.
+func generateCACertificates(certs *certificates, mergedPath string) error {
+	if err := os.MkdirAll(mergedPath, 0o755); err != nil {
+		return fmt.Errorf("cannot create merged certificates directory: %v", err)
+	}
+
+	bundlePath := filepath.Join(mergedPath, "ca-certificates.crt")
+	bundle, err := osutil.NewAtomicFile(bundlePath, 0644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return fmt.Errorf("cannot create ca-certificates.crt: %v", err)
+	}
+	defer bundle.Cancel()
+
+	// Fill the bundle and create cert links, all inside the merged directory.
+	if err := writeUniqueCACertificates(certs, mergedPath, bundle); err != nil {
+		return err
+	}
+	if err := bundle.Commit(); err != nil {
+		return fmt.Errorf("cannot commit ca-certificates.crt: %v", err)
 	}
 	return nil
 }
@@ -324,14 +462,15 @@ func loadCertificates() (*certificates, error) {
 // structure of pki/v1:
 // /var/lib/snapd/pki/v1/added/<digest>.crt (symlink)
 // /var/lib/snapd/pki/v1/blocked/<digest>.crt (symlink)
-// /var/lib/snapd/pki/v1/merged/*.crt (symlinks)
-// /var/lib/snapd/pki/v1/merged/ca-certificates.crt
+// /var/lib/snapd/pki/v1/published/<generation>/*.crt
+// /var/lib/snapd/pki/v1/published/<generation>/ca-certificates.crt
+// /var/lib/snapd/pki/v1/merged -> published/<generation>
 // /var/lib/snapd/pki/v1/<name>.crt
 func ensureDirectories() error {
 	dirsToEnsure := []string{
 		filepath.Join(dirs.SnapdPKIV1Dir, "added"),
 		filepath.Join(dirs.SnapdPKIV1Dir, "blocked"),
-		filepath.Join(dirs.SnapdPKIV1Dir, "merged"),
+		filepath.Join(dirs.SnapdPKIV1Dir, "published"),
 	}
 	for _, dir := range dirsToEnsure {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -341,67 +480,273 @@ func ensureDirectories() error {
 	return nil
 }
 
-var GenerateCertificateDatabase = GenerateCertificateDatabaseImpl
-
-// GenerateCertificateDatabase generates the ca-certificates.crt based on the following
-// folders:
-// - /etc/ssl/certs/ (base certificates from the system)
-// - /var/lib/snapd/pki/v1/added/ (user added certificates)
-// - /var/lib/snapd/pki/v1/blocked/ (user blocked certificates)
-//
-// Inside the added/ and blocked/ folders, the certificates are expected to be
-// named by their digest (sha256 hash of the certificate chain).
-// - /var/lib/snapd/pki/v1/added/<digest>.crt
-// - /var/lib/snapd/pki/v1/blocked/<digest>.crt
-//
-// The resulting ca-certificates.crt is written to
-// /var/lib/snapd/pki/v1/merged/ca-certificates.crt
-// If a previous version of the ca-certificates.crt exists, it is backed up to
-// /var/lib/snapd/pki/v1/merged/ca-certificates.crt.old
-func GenerateCertificateDatabaseImpl() error {
-	// we create the added/blocked/merged directories if they don't exist here.
+// GenerateCertificateDatabase generates a merged certificate directory at
+// the given directory that mirrors the system /etc/ssl/certs layout.
+// It combines:
+//   - /etc/ssl/certs/ (base certificates from the system)
+//   - /var/lib/snapd/pki/v1/added/ (user added certificates)
+//   - /var/lib/snapd/pki/v1/blocked/ (user blocked certificate digests)
+func GenerateCertificateDatabase(mergedPath string) error {
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
 
-	// create a copy of the current certificates in the snapd pki v1 dir
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	caCertificateDbPath := filepath.Join(mergedDir, "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".old"
-
-	if err := os.Rename(caCertificateDbPath, caCertificateDbBackupPath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("cannot backup existing ca-certificates.crt: %v", err)
-	}
-
-	// make sure we restore it on error
-	var err error
-	defer func() {
-		if err != nil {
-			if restoreErr := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); restoreErr != nil && !os.IsNotExist(restoreErr) {
-				logger.Noticef("cannot restore backup of ca-certificates: %v", restoreErr)
-			}
-		}
-	}()
-
-	// We will be using the certificates from the rootfs as a starting point,
-	// meaning we need to go into /etc/ssl/certs/ and read
-	// all the certificates from there.
 	certs, err := loadCertificates()
 	if err != nil {
 		return err
 	}
-
-	// make sure we catch any error here and restore the backup
-	err = generateCACertificates(certs, mergedDir)
-	return err
+	return generateCACertificates(certs, mergedPath)
 }
 
+// CurrentCertificateDir returns the compatibility path that consumers follow
+// for the active certificate view while snapd publishes immutable generations
+// alongside it.
+func CurrentCertificateDir() string {
+	return filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+}
+
+// PublishedCertificatesDir holds immutable certificate generations so updates
+// can move the active view forward without rewriting trees that may still be in
+// use elsewhere.
+func PublishedCertificatesDir() string {
+	return filepath.Join(dirs.SnapdPKIV1Dir, "published")
+}
+
+// mergedCertificatesGeneration returns the relative target used by the public
+// generation pointers so they keep working if the snapd state directory moves
+// under a different root.
+func mergedCertificatesGeneration(generation string) string {
+	return filepath.Join("published", generation)
+}
+
+// switchCertificatesLink atomically replaces one of the generation pointers so
+// readers never have to observe a half-updated or missing link.
+func switchCertificatesLink(linkPath, target string) error {
+	tmpLink := linkPath + ".new"
+	if err := os.Remove(tmpLink); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Symlink(target, tmpLink); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpLink, linkPath); err != nil {
+		_ = os.Remove(tmpLink)
+		return err
+	}
+	return nil
+}
+
+// switchCurrentMergedCertificates updates the current "merged" pointer that
+// consumers resolve, so publishing a new generation stays a metadata change.
+func switchCurrentMergedCertificates(target string) error {
+	return switchCertificatesLink(CurrentCertificateDir(), target)
+}
+
+// switchPreviousMergedCertificates records the rollback target explicitly so
+// undo and future cleanup decisions can reason about the last active
+// generation.
+func switchPreviousMergedCertificates(target string) error {
+	previousPath := filepath.Join(dirs.SnapdPKIV1Dir, "previous")
+	if target == "" {
+		if err := os.Remove(previousPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+	return switchCertificatesLink(previousPath, target)
+}
+
+// Sha224hashOfFile returns the content fingerprint snapd uses to name
+// published generations so identical certificate bundles naturally converge on
+// the same target.
+func Sha224hashOfFile(p string) (string, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return "", fmt.Errorf("cannot open file: %v", err)
+	}
+	defer f.Close()
+
+	h := sha256.New224()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("cannot hash file: %v", err)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// resolveCurrentCertificateTarget resolves the active published generation target,
+// and returns an empty string if the link is missing (e.g. first run or after cleanup).
+func resolveCurrentCertificateTarget() (string, error) {
+	mergedDir := CurrentCertificateDir()
+	info, err := os.Lstat(mergedDir)
+	if err != nil {
+		// no merged directory?
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	if info.Mode()&os.ModeSymlink == 0 {
+		return "", fmt.Errorf("merged certificates path is not a symlink")
+	}
+
+	target, err := os.Readlink(mergedDir)
+	if err != nil {
+		return "", err
+	}
+	return target, nil
+}
+
+// certificateGenerations returns the immutable published generation names.
+// Garbage collection only reasons about these directories; the public symlinks
+// and other metadata are handled separately.
+func certificateGenerations() ([]string, error) {
+	entries, err := os.ReadDir(PublishedCertificatesDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("cannot read published certificates directory: %v", err)
+	}
+
+	var generations []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			generations = append(generations, entry.Name())
+		}
+	}
+	return generations, nil
+}
+
+// garbageCollectCertificateGenerations uses a two-boot cleanup policy for
+// non-current generations. The first pass only marks an inactive generation;
+// a later boot removes it if nothing has made it current again in the
+// meantime. This keeps cleanup away from the publication path and gives other
+// parts of the system time to stop referencing an older tree.
+func garbageCollectCertificateGenerations(bootID string) error {
+	currentTarget, err := resolveCurrentCertificateTarget()
+	if err != nil {
+		return err
+	}
+
+	generations, err := certificateGenerations()
+	if err != nil {
+		return err
+	}
+
+	for _, generation := range generations {
+		target := mergedCertificatesGeneration(generation)
+		genPath := filepath.Join(PublishedCertificatesDir(), generation)
+		inactiveFile := filepath.Join(genPath, ".snapd-inactive")
+
+		if target == currentTarget {
+			// If a generation became current again, clear any stale inactivity mark
+			// so the next boot does not treat the live tree as pending deletion.
+			if osutil.FileExists(inactiveFile) {
+				if err := os.Remove(inactiveFile); err != nil {
+					return fmt.Errorf("cannot remove %q: %v", inactiveFile, err)
+				}
+			}
+			continue
+		}
+
+		if osutil.FileExists(inactiveFile) {
+			data, err := os.ReadFile(inactiveFile)
+			if err != nil {
+				return fmt.Errorf("cannot read %q: %v", inactiveFile, err)
+			}
+			if string(data) != bootID {
+				logger.Debugf("garbage collecting certificate generation %s", generation)
+				if err := os.RemoveAll(genPath); err != nil {
+					return fmt.Errorf("cannot remove old generation at %q: %v", genPath, err)
+				}
+			}
+		} else {
+			// Mark the generation first and only delete it on a later boot so GC
+			// does not race the publication step or long-lived readers of the old tree.
+			if err := os.WriteFile(inactiveFile, []byte(bootID), 0o644); err != nil {
+				return fmt.Errorf("cannot write %q: %v", inactiveFile, err)
+			}
+		}
+	}
+	return nil
+}
+
+// RefreshCertificateDatabase does a best-effort of performing an
+// atomic update of the existing cert database. Expects state to be
+// locked when calling this function, to avoid concurrent updates to the database.
+var RefreshCertificateDatabase = refreshCertificateDatabaseImpl
+
+func refreshCertificateDatabaseImpl() error {
+	if err := ensureDirectories(); err != nil {
+		return err
+	}
+
+	publishedDir := PublishedCertificatesDir()
+	currentTarget, err := resolveCurrentCertificateTarget()
+	if err != nil {
+		return err
+	}
+
+	// Build the next certificate view off to the side so the active generation
+	// stays unchanged until publication is reduced to metadata updates.
+	stagedDir, err := os.MkdirTemp(publishedDir, ".generation-")
+	if err != nil {
+		return fmt.Errorf("cannot create staging directory for published certificates: %v", err)
+	}
+	defer os.RemoveAll(stagedDir)
+
+	if err := GenerateCertificateDatabase(stagedDir); err != nil {
+		return err
+	}
+
+	hash, err := Sha224hashOfFile(filepath.Join(stagedDir, "ca-certificates.crt"))
+	if err != nil {
+		return fmt.Errorf("cannot generate hash of new certificate bundle: %v", err)
+	}
+
+	// Name published generations by bundle contents so equivalent certificate
+	// states naturally converge on the same immutable target.
+	nextTarget := mergedCertificatesGeneration(hash)
+	nextPath := filepath.Join(dirs.SnapdPKIV1Dir, nextTarget)
+	if exists, isDir, err := osutil.DirExists(nextPath); err != nil {
+		return err
+	} else if !exists {
+		if err := os.Rename(stagedDir, nextPath); err != nil {
+			return fmt.Errorf("cannot publish certificates generation %q: %v", hash, err)
+		}
+	} else if !isDir {
+		return fmt.Errorf("published certificates generation %q is not a directory", hash)
+	}
+
+	// If the current pointer already resolves to this generation, keep the
+	// existing rollback metadata intact rather than churning links for no change.
+	if currentTarget == nextTarget {
+		return nil
+	}
+
+	// Publish by moving the public pointers, not by mutating generation
+	// contents. The active view moves first; the previous pointer then records
+	// the generation we just displaced for undo and later cleanup decisions.
+	if err := switchCurrentMergedCertificates(nextTarget); err != nil {
+		return err
+	}
+	if err := switchPreviousMergedCertificates(currentTarget); err != nil {
+		return fmt.Errorf("cannot update previous merged certificates metadata: %v", err)
+	}
+	return nil
+}
+
+// certificatePathWithExtension returns a path under dir for a certificate name
+// stored with the on-disk .crt suffix.
 func certificatePathWithExtension(dir, name string) string {
 	return filepath.Join(dir, name+".crt")
 }
 
 // CertificatePath returns a path to the certificate file itself,
 // given the name of the certificate (without .crt extension).
+// Custom certificates are expected to be with .crt extension, while
+// system certificates may vary.
 func CertificatePath(name string) string {
 	return certificatePathWithExtension(dirs.SnapdPKIV1Dir, name)
 }
@@ -440,10 +785,9 @@ func WriteCertificate(name, content string) error {
 	return nil
 }
 
-// SetCertificateState sets the state of the certificate with the given name and digest.
-// The state can be either "accepted", "blocked" or "unset". This is done by creating a symlink
-// to the certificate file in the corresponding directory (added/blocked), or removing any existing
-// symlink if the state is set to "unset".
+// SetCertificateState records the requested state for a custom certificate by
+// creating the corresponding symlink in added or blocked. Callers that need to
+// clear or replace an existing state must remove old symlinks separately.
 func SetCertificateState(name, digest, state string) error {
 	customPath := certificatePathWithExtension("..", name)
 
@@ -464,6 +808,8 @@ func SetCertificateState(name, digest, state string) error {
 	return nil
 }
 
+// CertificateInfo describes a custom certificate together with its configured
+// state and original file contents.
 type CertificateInfo struct {
 	Name        string `json:"name"`
 	Fingerprint string `json:"fingerprint"`
@@ -471,6 +817,8 @@ type CertificateInfo struct {
 	Content     string `json:"content,omitempty"`
 }
 
+// certificateDigestAndContent reads a custom certificate file and returns its
+// content fingerprint plus the original file contents.
 func certificateDigestAndContent(name, baseDir string) (digest string, content string, err error) {
 	certPath := certificatePathWithExtension(baseDir, name)
 	certBytes, err := os.ReadFile(certPath)
@@ -482,9 +830,11 @@ func certificateDigestAndContent(name, baseDir string) (digest string, content s
 	if err != nil {
 		return "", "", fmt.Errorf("cannot parse certificate %q: %w", name, err)
 	}
-	return cdata.Digest, string(certBytes), nil
+	return cdata.Sha256, string(certBytes), nil
 }
 
+// certificateInfo resolves the fingerprint, content, and current state for a
+// certificate stored under baseDir.
 func certificateInfo(name, baseDir, addedDir, blockedDir string) (*CertificateInfo, error) {
 	digest, content, err := certificateDigestAndContent(name, baseDir)
 	if err != nil {
@@ -534,13 +884,13 @@ func CustomCertificates() ([]*CertificateInfo, error) {
 		if f.IsDir() || !strings.HasSuffix(f.Name(), ".crt") {
 			continue
 		}
-		name := trimCrtExtension(f.Name())
+		name := trimExtension(f.Name())
 		info, err := certificateInfo(name, dirs.SnapdPKIV1Dir, addedDir, blockedDir)
 		if err != nil {
 			// Let us be resilient to errors here, and just skip the certificate if we
 			// cannot read it or parse it, as we don't want one broken certificate to
 			// cause the whole API to be unavailable.
-			logger.Noticef("Failed to read custom certificate %q: %v", name, err)
+			logger.Noticef("cannot read custom certificate %q: %v", name, err)
 			continue
 		}
 		if info != nil {
