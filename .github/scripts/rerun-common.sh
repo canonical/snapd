@@ -46,17 +46,17 @@ pr_is_rerun_eligible() {
         return 1
     fi
 
-    if [[ "$require_auto_rerun_label" == "true" ]] && ! pr_has_label "$pr_json" "$AUTO_RERUN_LABEL"; then
+    if [ "$require_auto_rerun_label" = "true" ] && ! pr_has_label "$pr_json" "$AUTO_RERUN_LABEL"; then
         NOT_RERUN_REASON="PR is missing the $AUTO_RERUN_LABEL label"
         return 1
     fi
 
-    if [[ "$(pr_review_count "$pr_json" "CHANGES_REQUESTED")" -gt 0 ]]; then
+    if [ "$(pr_review_count "$pr_json" "CHANGES_REQUESTED")" -gt 0 ]; then
         NOT_RERUN_REASON="PR has requested changes"
         return 1
     fi
 
-    if [[ "$(pr_review_count "$pr_json" "APPROVED")" -lt "$min_approvals" ]]; then
+    if [ "$(pr_review_count "$pr_json" "APPROVED")" -lt "$min_approvals" ]; then
         NOT_RERUN_REASON="PR has fewer than $min_approvals approvals"
         return 1
     fi
@@ -73,12 +73,12 @@ run_is_completed() {
     run_status=$(jq -r '.status // empty' <<<"$run_json")
     run_conclusion=$(jq -r '.conclusion // empty' <<<"$run_json")
 
-    if [[ "$run_status" != "completed" ]]; then
+    if [ "$run_status" != "completed" ]; then
         NOT_RERUN_REASON="latest run_id=$run_id status=$run_status"
         return 1
     fi
 
-    if [[ "$run_conclusion" == "success" ]]; then
+    if [ "$run_conclusion" = "success" ]; then
         NOT_RERUN_REASON="latest run_id=$run_id completed successfully"
         return 1
     fi
@@ -108,7 +108,7 @@ required_spread_failure_threshold_allows_rerun() {
         return 1
     fi
 
-    if [[ -z "$required_spread_checks" ]]; then
+    if [ -z "$required_spread_checks" ]; then
         echo "No required checks detected for branch $pr_base; skipping required spread target filtering"
         return 0
     fi
@@ -122,7 +122,7 @@ required_spread_failure_threshold_allows_rerun() {
     for failed in $failed_required_system_targets; do
         num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1 || true)
 
-        if [[ -n "$num_failed" && "$num_failed" -ge "$max_failed_tasks" ]]; then
+        if [ -n "$num_failed" ] && [ "$num_failed" -ge "$max_failed_tasks" ]; then
             NOT_RERUN_REASON="there were $max_failed_tasks or more failures on a required system target"
             return 1
         fi
