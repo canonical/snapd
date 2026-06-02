@@ -225,3 +225,15 @@ func (f *fakeActivateContext) State() *ActivateState {
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	return &fakeActivateContext{}, nil
 }
+
+func GetPCRHandleFromToken(node, keySlot string) (uint32, error) {
+	return 0, errBuildWithoutSecboot
+}
+
+func ReleasePCRResourceHandle(handle uint32) error {
+	return errBuildWithoutSecboot
+}
+
+func TestProtectorKey(ctx context.Context, devicePath, slotName string, protectorKey []byte) (bool, error) {
+	return false, errBuildWithoutSecboot
+}

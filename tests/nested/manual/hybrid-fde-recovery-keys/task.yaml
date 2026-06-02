@@ -251,5 +251,24 @@ execute: |
 
   api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "recovery"
 
-  # TODO:FDEM: Grow test to check that we can reprovision and reseal
-  # then reboot without recovery keys
+  remote.exec "sudo snap debug api /v2/systems?current=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+  # TODO:FDEM: We should have a way to check fix-encryption-support, for example by not allowing VMs by default.
+  # echo '{"action": "fix-encryption-support", "fix-action": "proceed"}' | sudo remote.exec "snap debug api -X POST -H 'Content-Type: application/json' /v2/systems"
+
+  echo '{"action":"generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision.resp
+  gojq --raw-output '.result."recovery-key"' < rkey-reprovision.resp > rkey-reprovision.out
+
+  echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems"
+
+  # We should be able to boot without recovery key now
+  tests.nested vm set-recovery-key ""
+  tests.nested vm stop
+  tests.nested vm start
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
+
+  # Let's test the recovery key for reprovision
+  tests.nested vm set-recovery-key "$(cat rkey-reprovision.out)"
+  clear_tpm_and_reboot
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "recovery"

@@ -619,6 +619,52 @@ func DeleteContainerKey(devicePath, slotName string) error {
 	return sbDeleteLUKS2ContainerKey(devicePath, slotName)
 }
 
+func TestProtectorKey(ctx context.Context, devicePath, slotName string, protectorKey []byte) (bool, error) {
+	container, err := sbFindStorageContainer(ctx, devicePath)
+	if err != nil {
+		return false, err
+	}
+
+	containerReader, err := container.OpenRead(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	known, err := containerReader.ListKeyslotNames(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	slot, err := containerReader.ReadKeyslot(ctx, slotName)
+	if err != nil {
+		for _, k := range known {
+			if slotName == k {
+				return false, err
+			}
+		}
+		// Key was not here
+		return false, nil
+	}
+
+	if slot.Type() != sb.KeyslotTypePlatform {
+		return false, fmt.Errorf("unexpected key slot type")
+	}
+
+	kd, err := sb.ReadKeyData(slot.Data())
+	if err != nil {
+		return false, err
+	}
+
+	err = func() error {
+		sbSetProtectorKeys(protectorKey)
+		defer sbSetProtectorKeys()
+		_, _, err := kd.RecoverKeys()
+		return err
+	}()
+
+	return err == nil, nil
+}
+
 func findPrimaryKey(devicePath string) ([]byte, error) {
 	const remove = false
 	p, err := sbGetPrimaryKeyFromKernel(keyringPrefix, devicePath, remove)

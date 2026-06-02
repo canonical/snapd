@@ -252,7 +252,7 @@ func sealKeyForBootChainsBackend(
 	// we are preparing a new system, hence the TPM needs to be provisioned
 	lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
 	tpmProvisionMode := secboot.TPMProvisionFull
-	if params.FactoryReset {
+	if params.FactoryReset || params.Reprovision {
 		tpmProvisionMode = secboot.TPMPartialReprovision
 	}
 	if err := secbootProvisionTPM(tpmProvisionMode, lockoutAuthFile); err != nil {

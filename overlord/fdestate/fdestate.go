@@ -189,7 +189,7 @@ func initializeState(st *state.State) error {
 		return err
 	}
 
-	disks, err := getEncryptedContainers(st)
+	disks, err := GetEncryptedContainers(st)
 	if err != nil {
 		return fmt.Errorf("cannot get encrypted disks: %w", err)
 	}
@@ -933,4 +933,8 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 	ts.AddTask(renameTemporaryKeys)
 
 	return ts, nil
+}
+
+func ResetState(st *state.State) {
+	st.Set(fdeStateKey, nil)
 }

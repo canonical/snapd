@@ -517,7 +517,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20MultipleRecoverySystemsErro
 func (s *makeBootable20Suite) TestMakeSystemRunnable16Fails(c *C) {
 	model := boottest.MakeMockModel()
 
-	err := boot.MakeRunnableSystem(model, nil, nil)
+	err := boot.MakeRunnableSystem(model, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `internal error: cannot make pre-UC20 system runnable`)
 }
 
@@ -560,7 +560,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 	})
 	defer restore()
 
-	err := boot.MakeRunnableSystem(model, bootWith, &observer)
+	err := boot.MakeRunnableSystem(model, bootWith, observer.GetBootAssets(), observer.GetEncryptionParams())
 	c.Assert(err, IsNil)
 
 	c.Assert(gotFlags.HookKeyProtectorFactory, NotNil)
@@ -570,7 +570,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, &observer)
+	err = boot.MakeRunnableSystem(model, bootWith, observer.GetBootAssets(), observer.GetEncryptionParams())
 	c.Assert(err, IsNil)
 
 	// now, we don't have the key protector
@@ -861,15 +861,15 @@ version: 5.0
 
 	switch {
 	case opts.standalone && opts.fromInitrd:
-		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs)
+		err = boot.MakeRunnableStandaloneSystemFromInitrd(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
 	case opts.standalone && !opts.fromInitrd:
 		u := mockUnlocker{}
-		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs, u.unlocker)
+		err = boot.MakeRunnableStandaloneSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams(), u.unlocker)
 		c.Check(u.unlocked, Equals, 1)
 	case opts.factoryReset && !opts.fromInitrd:
-		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs)
+		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
 	default:
-		err = boot.MakeRunnableSystem(model, bootWith, obs)
+		err = boot.MakeRunnableSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
 	}
 	c.Assert(err, IsNil)
 
@@ -1162,7 +1162,7 @@ version: 5.0
 	}
 
 	// no grub marker in gadget directory raises an error
-	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil, nil)
 	c.Assert(err, ErrorMatches, "internal error: cannot identify run system bootloader: cannot determine bootloader")
 
 	// set up grub.cfg in gadget
@@ -1173,7 +1173,7 @@ version: 5.0
 	// no write access to destination directory
 	restore := assets.MockInternal("grub.cfg", nil)
 	defer restore()
-	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot install managed bootloader assets: internal error: no boot asset for "grub.cfg"`)
 }
 
@@ -1354,7 +1354,7 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, obs)
+	err = boot.MakeRunnableSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
 	c.Assert(err, ErrorMatches, "seal error")
 	// the TPM was provisioned
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
@@ -1549,7 +1549,7 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, obs)
+	err = boot.MakeRunnableSystem(model, bootWith, obs.GetBootAssets(), obs.GetEncryptionParams())
 	if errMsg != "" {
 		c.Assert(err, ErrorMatches, errMsg)
 		return
@@ -1743,7 +1743,7 @@ version: 5.0
 	})
 	defer restore()
 
-	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot record "20191216" as a recovery capable system: open .*/run/mnt/ubuntu-seed/EFI/ubuntu/grubenv: no such file or directory`)
 
 }
@@ -2004,7 +2004,7 @@ version: 5.0
 		Recovery:            false,
 		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
-	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil, nil)
 	c.Assert(err, IsNil)
 
 	// also do the logical next thing which is to ensure that the system
@@ -2299,7 +2299,7 @@ version: 5.0
 		UnpackedGadgetDir: unpackedGadgetDir,
 	}
 
-	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil, nil)
 	c.Assert(err, IsNil)
 
 	// ensure that there are no good recovery systems as RecoverySystemLabel was empty
@@ -2386,7 +2386,7 @@ version: 3.0
 		UnpackedGadgetDir:   unpackedGadgetDir,
 	}
 
-	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	err = boot.MakeRunnableSystem(model, bootWith, nil, nil)
 	c.Assert(err, IsNil)
 
 	installHostWritableDir := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")
