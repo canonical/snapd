@@ -146,3 +146,15 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 	builtinAssertions = append(builtinAssertions, a)
 	return nil
 }
+
+// BaseDeclaration returns a *BaseDeclaration from the Builtin list or nil if
+// none can be found.
+func BuiltinBaseDeclaration() *BaseDeclaration {
+	for _, a := range Builtin() {
+		if decl, ok := a.(*BaseDeclaration); ok {
+			return decl
+		}
+	}
+
+	return nil
+}

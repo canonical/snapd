@@ -244,14 +244,7 @@ slots:
 	err := asserts.InitBuiltinBaseDeclaration([]byte(headers))
 	c.Assert(err, IsNil)
 
-	var baseDecl *asserts.BaseDeclaration
-	for _, as := range asserts.Builtin() {
-		var ok bool
-		baseDecl, ok = as.(*asserts.BaseDeclaration)
-		if ok {
-			break
-		}
-	}
+	baseDecl := asserts.BuiltinBaseDeclaration()
 	c.Assert(baseDecl, NotNil)
 
 	cont, _ := baseDecl.Signature()

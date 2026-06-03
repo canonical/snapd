@@ -429,13 +429,10 @@ func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
 
 // MockBuiltinBaseDeclaration mocks the builtin base-declaration exposed by asserts.BuiltinBaseDeclaration.
 func MockBuiltinBaseDeclaration(headers []byte) (restore func()) {
+	decl := asserts.BuiltinBaseDeclaration()
 	var prevHeaders []byte
-	for _, as := range asserts.Builtin() {
-		decl, ok := as.(*asserts.BaseDeclaration)
-		if ok {
-			prevHeaders, _ = decl.Signature()
-			break
-		}
+	if decl != nil {
+		prevHeaders, _ = decl.Signature()
 	}
 
 	err := asserts.InitBuiltinBaseDeclaration(headers)
