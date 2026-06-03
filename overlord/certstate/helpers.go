@@ -28,6 +28,7 @@ import (
 	"unicode/utf8"
 )
 
+// These are hardcoded as they are not available in the standard asn1 package.
 const (
 	asn1TagVisibleString   = 26
 	asn1TagUniversalString = 28
