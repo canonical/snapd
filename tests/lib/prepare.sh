@@ -1901,27 +1901,19 @@ EOF
 
 prepare_generate_coverage() {
     CONF_FILE="99-generate-coverage.conf"
-    RESTART=false
 
     if [ -n "$GENERATE_COVERAGE" ]; then
         # dirs=$(find data/systemd data/systemd-user -type f -name '*.service.in' -exec basename {} \; | sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|')
         while IFS= read -r line; do
             dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
             mkdir -p "$dir"
-            RESTART=false
             if ! [ -f "$dir/$CONF_FILE" ]; then
-                cat <<EOF > "$CONF_FILE"
+                cat <<EOF > "$dir/$CONF_FILE"
 [Service]
 Environment=GOCOVERDIR=$GOCOVERDIR
 EOF
-                RESTART=true
             fi
-            if [ "$RESTART" = "true" ]; then
-                systemctl daemon-reload
-                systemctl restart "$(sed -E 's|^(.*)\.in$|1|' <<<"$line")"
-            fi
-
-        done < <(find data/systemd data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
+        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
         systemctl daemon-reload
         systemctl restart snapd
         if systemctl --user is-active --quiet snapd.session-agent.socket; then

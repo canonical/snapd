@@ -49,7 +49,7 @@ coverage_after_non_nested_task() {
         popd
         if ! [ -s "$task_dir"/coverage.json ]; then
             cp "$GOCOVERDIR"/* "$task_dir" || true
-            chmod 666 "$task_dir"/* || true
+            chmod 777 "$task_dir"/* || true
             rm -f "$task_dir"/coverage.json
         fi
         systemctl start snapd || true
@@ -73,7 +73,7 @@ coverage_after_nested_task() {
         find "$task_dir" -not -name coverage.json -type f -exec rm {} \;
     else
         rm "$task_dir"/coverage.json
-        chmod 666 "$task_dir"/* || true
+        chmod 777 "$task_dir"/* || true
     fi
 }
 

@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build coverage_generation
+//go:build coveragegeneration
 
 /*
  * Copyright (C) 2026 Canonical Ltd
@@ -24,6 +24,7 @@ var coverageGenerationTemplateSnippet = `
 
   # coverage-generation builds allow snaps to write Go coverage files to
   # a dedicated spread coverage location in /var/tmp.
+  /var/tmp/ r,
   /var/tmp/snapd-tools/ r,
   /var/tmp/snapd-tools/coverage/ rw,
   /var/tmp/snapd-tools/coverage/** rwk,
