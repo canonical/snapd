@@ -54,6 +54,10 @@ func newDeviceIDFromString(rawID string) (DeviceID, error) {
 		return DeviceID{}, fmt.Errorf("invalid device id format: expected 3 parts separated by '.', got %d: %s", len(parts), rawID)
 	}
 
+	if !validSerialStrict.MatchString(parts[0]) {
+		return DeviceID{}, fmt.Errorf("invalid serial %q in device id %q", parts[0], rawID)
+	}
+
 	if !validModel.MatchString(parts[1]) {
 		return DeviceID{}, fmt.Errorf("invalid model %q in device id %q", parts[1], rawID)
 	}
