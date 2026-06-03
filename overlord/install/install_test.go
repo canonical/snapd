@@ -1873,7 +1873,7 @@ func (s *installSuite) testPrepareEncryptedSystemData(c *C, useTokens, hasCheckR
 			c.Assert(filename, Matches, ".*/run/mnt/ubuntu-save/device/fde/preinstall")
 			err := os.MkdirAll(filepath.Dir(filename), 0755)
 			c.Assert(err, IsNil)
-			err = osutil.AtomicWriteFile(filename, []byte("some content"), 0600, 0)
+			err = osutil.AtomicWriteFile(filename, []byte("some content"), 0600)
 			c.Assert(err, IsNil)
 			return nil
 		} else {

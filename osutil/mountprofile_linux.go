@@ -73,7 +73,7 @@ func SaveMountProfile(p *MountProfile, fname string, uid sys.UserID, gid sys.Gro
 	if _, err := p.WriteTo(&buf); err != nil {
 		return err
 	}
-	return AtomicWriteFileChown(fname, buf.Bytes(), 0644, AtomicWriteFlags(0), uid, gid)
+	return AtomicWriteFileChown(fname, buf.Bytes(), 0644, uid, gid)
 }
 
 // ReadMountProfile reads and parses a mount profile.

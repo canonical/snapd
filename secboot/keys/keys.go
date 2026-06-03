@@ -62,7 +62,7 @@ func (key EncryptionKey) Save(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
+	return osutil.AtomicWriteFile(filename, key[:], 0600)
 }
 
 // RecoveryKey is a key used to unlock the encrypted partition when
@@ -82,7 +82,7 @@ func (key RecoveryKey) Save(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
+	return osutil.AtomicWriteFile(filename, key[:], 0600)
 }
 
 func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {

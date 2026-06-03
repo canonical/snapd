@@ -327,7 +327,7 @@ func setupLocalUser(state *state.State, username, email string, expiration time.
 	if err != nil {
 		return fmt.Errorf("cannot marshal auth data: %s", err)
 	}
-	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
+	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, uid, gid); err != nil {
 		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
 	}
 

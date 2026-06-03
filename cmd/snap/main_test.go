@@ -144,7 +144,7 @@ func (s *BaseSnapSuite) RedirectClientToTestServer(handler func(http.ResponseWri
 }
 
 func (s *BaseSnapSuite) Login(c *C) {
-	err := osutil.AtomicWriteFile(s.AuthFile, []byte(TestAuthFileContents), 0600, 0)
+	err := osutil.AtomicWriteFile(s.AuthFile, []byte(TestAuthFileContents), 0600)
 	c.Assert(err, IsNil)
 }
 

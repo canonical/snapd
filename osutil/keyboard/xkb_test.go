@@ -246,7 +246,7 @@ func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("3"), 0644), IsNil)
 	<-cbChan
 	// Simulate replacement i.e. rename
-	c.Assert(osutil.AtomicWriteFile(vconsoleConfPath, []byte("4"), 0644, 0), IsNil)
+	c.Assert(osutil.AtomicWriteFile(vconsoleConfPath, []byte("4"), 0644), IsNil)
 	<-cbChan
 	c.Assert(os.WriteFile(vconsoleConfPath, []byte("5"), 0644), IsNil)
 	<-cbChan

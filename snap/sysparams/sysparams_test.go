@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/sysparams"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -79,7 +78,7 @@ func (s *sysParamsTestSuite) TestWriteFailure(c *C) {
 	c.Assert(ssp, NotNil)
 	c.Check(dirs.SnapSystemParamsUnder(dirs.GlobalRootDir), testutil.FileAbsent)
 
-	r := sysparams.MockOsutilAtomicWriteFile(func(filename string, data []byte, perm os.FileMode, flags osutil.AtomicWriteFlags) error {
+	r := sysparams.MockOsutilAtomicWriteFile(func(filename string, data []byte, perm os.FileMode) error {
 		return errors.New("some write error")
 	})
 	defer r()

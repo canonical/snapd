@@ -94,7 +94,7 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnly
 			return err
 		}
 		timezonePath := filepath.Join(opts.RootDir, "/etc/writable/timezone")
-		if err := osutil.AtomicWriteFile(timezonePath, []byte(timezone+"\n"), 0644, 0); err != nil {
+		if err := osutil.AtomicWriteFile(timezonePath, []byte(timezone+"\n"), 0644); err != nil {
 			return fmt.Errorf("cannot write timezone: %v", err)
 		}
 	}

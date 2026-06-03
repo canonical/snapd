@@ -86,5 +86,5 @@ func (a *Env) Save() error {
 		}
 	}
 
-	return osutil.AtomicWriteFile(a.path, w.Bytes(), 0644, 0)
+	return osutil.AtomicWriteFile(a.path, w.Bytes(), 0644)
 }

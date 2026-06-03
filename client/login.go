@@ -140,7 +140,7 @@ func writeAuthData(user User) error {
 			return err
 		}
 
-		return osutil.AtomicWriteFile(targetFile, out, 0600, 0)
+		return osutil.AtomicWriteFile(targetFile, out, 0600)
 	})
 }
 

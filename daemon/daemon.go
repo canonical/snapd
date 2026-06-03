@@ -495,7 +495,7 @@ func (d *Daemon) updateMaintenanceFile(rst restart.RestartType) error {
 		return err
 	}
 
-	return osutil.AtomicWrite(dirs.SnapdMaintenanceFile, bytes.NewBuffer(b), 0644, 0)
+	return osutil.AtomicWrite(dirs.SnapdMaintenanceFile, bytes.NewBuffer(b), 0644)
 }
 
 // Stop shuts down the Daemon

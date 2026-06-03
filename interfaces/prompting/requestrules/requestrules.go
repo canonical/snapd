@@ -356,7 +356,7 @@ func (rdb *RuleDB) save() error {
 		logger.Noticef("cannot marshal rule DB: %v", err)
 		return fmt.Errorf("cannot marshal rule DB: %w", err)
 	}
-	return osutil.AtomicWriteFile(rdb.dbPath, b, 0o600, 0)
+	return osutil.AtomicWriteFile(rdb.dbPath, b, 0o600)
 }
 
 // lookupRuleByPathPattern checks whether there is an existing rule for the

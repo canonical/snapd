@@ -253,7 +253,7 @@ func ensureRegularFileState(filePath string, state FileState) error {
 	if err != nil {
 		return err
 	}
-	return AtomicWrite(filePath, reader, mode, 0)
+	return AtomicWrite(filePath, reader, mode)
 }
 
 // symlinkFileStateEqualTo returns whether the symlink exists in the expected state.

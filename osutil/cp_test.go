@@ -298,7 +298,7 @@ func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
 }
 
 func (s *cpSuite) TestAtomicWriteFileCopySimple(c *C) {
-	err := osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
+	err := osutil.AtomicWriteFileCopy(s.f2, s.f1)
 	c.Assert(err, IsNil)
 	c.Assert(s.f2, testutil.FileEquals, s.data)
 
@@ -308,7 +308,7 @@ func (s *cpSuite) TestAtomicWriteFileCopyPreservesModTime(c *C) {
 	t := time.Date(2010, time.January, 1, 13, 0, 0, 0, time.UTC)
 	c.Assert(os.Chtimes(s.f1, t, t), IsNil)
 
-	err := osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
+	err := osutil.AtomicWriteFileCopy(s.f2, s.f1)
 	c.Assert(err, IsNil)
 	c.Assert(s.f2, testutil.FileEquals, s.data)
 
@@ -325,7 +325,7 @@ func (s *cpSuite) TestAtomicWriteFileCopyOverwrites(c *C) {
 	err := os.WriteFile(s.f2, []byte("this is f2 content"), 0644)
 	c.Assert(err, IsNil)
 
-	err = osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(s.f2, s.f1)
 	c.Assert(err, IsNil)
 	c.Assert(s.f2, testutil.FileEquals, s.data)
 }
@@ -336,24 +336,24 @@ func (s *cpSuite) TestAtomicWriteFileCopySymlinks(c *C) {
 	c.Assert(err, IsNil)
 
 	// copy overwrites the symlink
-	err = osutil.AtomicWriteFileCopy(f2SymlinkNoFollow, s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(f2SymlinkNoFollow, s.f1)
 	c.Assert(err, IsNil)
 	c.Check(osutil.IsSymlink(f2SymlinkNoFollow), Equals, false, Commentf("%q is not a file", f2SymlinkNoFollow))
 	c.Check(f2SymlinkNoFollow, testutil.FileEquals, s.data)
 }
 
 func (s *cpSuite) TestAtomicWriteFileCopyErrReal(c *C) {
-	err := osutil.AtomicWriteFileCopy(s.f2, filepath.Join(s.dir, "random-file"), 0)
+	err := osutil.AtomicWriteFileCopy(s.f2, filepath.Join(s.dir, "random-file"))
 	c.Assert(err, ErrorMatches, "unable to open source file .*/random-file: open .* no such file or directory")
 
 	dir := c.MkDir()
 
-	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "random-dir", "f3"), s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "random-dir", "f3"), s.f1)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/random-dir/f3\.[a-zA-Z0-9]+~: no such file or directory`)
 
 	err = os.MkdirAll(filepath.Join(dir, "read-only"), 0000)
 	c.Assert(err, IsNil)
-	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "read-only", "f3"), s.f1, 0)
+	err = osutil.AtomicWriteFileCopy(filepath.Join(dir, "read-only", "f3"), s.f1)
 	c.Assert(err, ErrorMatches, `cannot create atomic file: open .*/read-only/f3\.[a-zA-Z0-9]+~: permission denied`)
 }
 
@@ -365,7 +365,7 @@ func (s *cpSuite) TestAtomicWriteFileCopyErrMockedCopy(c *C) {
 		errors.New("copy fail"),
 	}
 
-	err := osutil.AtomicWriteFileCopy(s.f2, s.f1, 0)
+	err := osutil.AtomicWriteFileCopy(s.f2, s.f1)
 	c.Assert(err, ErrorMatches, `unable to copy .*/f1 to .*/f2\.[a-zA-Z0-9]+~: copy fail`)
 	entries, err := filepath.Glob(filepath.Join(s.dir, "*"))
 	c.Assert(err, IsNil)

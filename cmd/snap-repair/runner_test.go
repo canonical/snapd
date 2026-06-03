@@ -2354,7 +2354,7 @@ func (s *runnerSuite) TestStoreOffline(c *C) {
 	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644)
 	c.Assert(err, IsNil)
 
 	_, _, err = runner.Fetch("canonical", 2, -1)
@@ -2397,7 +2397,7 @@ func (s *runnerSuite) TestStoreOnlineIfFileBroken(c *C) {
 	c.Assert(err, IsNil)
 
 	// file is invalid json
-	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, []byte("}{"), 0644, 0)
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, []byte("}{"), 0644)
 	c.Assert(err, IsNil)
 
 	_, _, err = runner.Fetch("canonical", 2, -1)

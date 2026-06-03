@@ -307,7 +307,7 @@ func genericSetBootConfigFromAsset(systemFile, assetName string) error {
 	if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(systemFile, bootConfig, 0644, 0)
+	return osutil.AtomicWriteFile(systemFile, bootConfig, 0644)
 }
 
 func genericUpdateBootConfigFromAssets(systemFile string, assetName string) (updated bool, err error) {
@@ -331,7 +331,7 @@ func genericUpdateBootConfigFromAssets(systemFile string, assetName string) (upd
 		// to one currently installed
 		return false, nil
 	}
-	if err := osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(systemFile, bc.Raw(), 0644); err != nil {
 		return false, err
 	}
 	return true, nil

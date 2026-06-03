@@ -212,7 +212,7 @@ func (cr *PreinstallCheckResult) save(filename string) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(filename, bytes, 0600, 0)
+	return osutil.AtomicWriteFile(filename, bytes, 0600)
 }
 
 // MarshalJSON implements the json.Marshaler interface for

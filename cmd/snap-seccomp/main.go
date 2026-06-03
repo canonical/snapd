@@ -870,7 +870,7 @@ func writeUnrestrictedFilter(outFile string) error {
 		// tell snap-confine
 		Unrestricted: 0x1,
 	}
-	fout, err := osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown)
+	fout, err := osutil.NewAtomicFile(outFile, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}
@@ -883,7 +883,7 @@ func writeUnrestrictedFilter(outFile string) error {
 }
 
 func writeSeccompFilter(outFile string, filterAllow, filterDeny *seccomp.ScmpFilter) error {
-	fout, err := osutil.NewAtomicFile(outFile, 0644, 0, osutil.NoChown, osutil.NoChown)
+	fout, err := osutil.NewAtomicFile(outFile, 0644, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return err
 	}

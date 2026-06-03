@@ -261,7 +261,7 @@ volumes:
 	gadgetDir := filepath.Join(boot.InitramfsRunMntDir, "gadget", "meta")
 	err = os.MkdirAll(gadgetDir, 0755)
 	c.Assert(err, IsNil)
-	err = osutil.AtomicWriteFile(filepath.Join(gadgetDir, "gadget.yaml"), []byte(gadgetYaml), 0644, 0)
+	err = osutil.AtomicWriteFile(filepath.Join(gadgetDir, "gadget.yaml"), []byte(gadgetYaml), 0644)
 	c.Assert(err, IsNil)
 }
 

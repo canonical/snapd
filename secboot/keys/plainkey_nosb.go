@@ -48,7 +48,7 @@ func (key ProtectorKey) SaveToFile(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return err
 	}
-	return osutil.AtomicWriteFile(path, key[:], 0600, 0)
+	return osutil.AtomicWriteFile(path, key[:], 0600)
 }
 
 func (key ProtectorKey) CreateProtectedKey(primaryKey []byte) (*PlainKey, []byte, []byte, error) {

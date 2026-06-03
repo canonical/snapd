@@ -1687,7 +1687,7 @@ func writeSeqFile(name string, snapst *SnapState) error {
 		return err
 	}
 
-	return osutil.AtomicWriteFile(p, b, 0644, 0)
+	return osutil.AtomicWriteFile(p, b, 0644)
 }
 
 type disabledServices struct {

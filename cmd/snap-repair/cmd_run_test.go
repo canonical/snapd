@@ -63,7 +63,7 @@ func (r *repairSuite) TestOffline(c *C) {
 	err = os.MkdirAll(filepath.Dir(dirs.SnapRepairConfigFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644, 0)
+	err = osutil.AtomicWriteFile(dirs.SnapRepairConfigFile, data, 0644)
 	c.Assert(err, IsNil)
 
 	origArgs := os.Args

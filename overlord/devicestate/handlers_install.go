@@ -826,7 +826,7 @@ func writeFactoryResetMarker(marker string, hasEncryption bool) error {
 	} else {
 		logger.Noticef("writing factory-reset marker at %v", marker)
 	}
-	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644, 0)
+	return osutil.AtomicWriteFile(marker, buf.Bytes(), 0644)
 }
 
 func verifyFactoryResetMarkerInRun(marker string, hasEncryption bool) error {

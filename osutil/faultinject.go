@@ -56,7 +56,7 @@ func injectFault(tagKind string) (injected bool) {
 		return false
 	}
 	makeStamp := func() bool {
-		if err := AtomicWriteFile(stampFile, nil, 0644, 0); err != nil {
+		if err := AtomicWriteFile(stampFile, nil, 0644); err != nil {
 			fmt.Fprintf(stderr, "cannot create stamp file for tag %q\n", tagKind)
 			return false
 		}

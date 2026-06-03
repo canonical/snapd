@@ -22,11 +22,10 @@ package sysparams
 import (
 	"os"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
-func MockOsutilAtomicWriteFile(f func(filename string, data []byte, perm os.FileMode, flags osutil.AtomicWriteFlags) error) func() {
+func MockOsutilAtomicWriteFile(f func(filename string, data []byte, perm os.FileMode) error) func() {
 	r := testutil.Backup(&osutilAtomicWriteFile)
 	osutilAtomicWriteFile = f
 	return r
