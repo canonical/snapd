@@ -485,6 +485,8 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookErrorAndIgnoresIt(c *C) {
 func (s *hookManagerSuite) TestHookTaskShutDownWithoutRestart(c *C) {
 	restore := hookstate.MockDefaultHookTimeout(100 * time.Millisecond)
 	defer restore()
+	logbuf, restoreLog := logger.MockLogger()
+	defer restoreLog()
 	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 	defer cmd.Restore()
 
@@ -514,6 +516,8 @@ func (s *hookManagerSuite) TestHookTaskShutDownWithoutRestart(c *C) {
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
 	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+	c.Check(logbuf.String(), Not(testutil.Contains), "gracefully waiting for running hooks")
+	c.Check(logbuf.String(), Not(testutil.Contains), "done waiting for running hooks")
 }
 
 func (s *hookManagerSuite) TestHookTaskShutDownWithRestart(c *C) {
