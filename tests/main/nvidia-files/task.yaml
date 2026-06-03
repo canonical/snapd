@@ -75,6 +75,7 @@ prepare: |
     skip["ubuntu-20.04-64/560"]="no-driver"
 
     skip["ubuntu-22.04-64/390"]="broken-driver"
+    skip["ubuntu-22.04-64/470"]="transitional-driver"
     skip["ubuntu-22.04-64/510"]="transitional-driver"
     skip["ubuntu-22.04-64/515"]="transitional-driver"
     skip["ubuntu-22.04-64/515-server"]="transitional-driver"
