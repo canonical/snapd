@@ -82,7 +82,7 @@ jobs:
           source .github/scripts/rerun-common.sh
 
           pr_number=$(cat pr_number)
-          pr_json=$(gh pr view "$pr_number" --json number,isDraft,labels,latestReviews,baseRefName)
+          pr_json=$(gh pr view "$pr_number" --json number,isDraft,labels,reviews,baseRefName)
 
           if ! pr_is_rerun_eligible "$pr_json" 1 true; then
             echo "setting auto rerun to false because $NOT_RERUN_REASON"

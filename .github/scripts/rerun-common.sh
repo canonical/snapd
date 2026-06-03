@@ -51,13 +51,6 @@ pr_has_label() {
     jq -e --arg label "$label" '[.labels[]?.name] | index($label) != null' <<<"$pr_json" >/dev/null
 }
 
-pr_review_count() {
-    local pr_json="$1"
-    local review_state="$2"
-
-    jq -r --arg review_state "$review_state" '[.latestReviews[]? | select(.state == $review_state) | .author.login] | unique | length' <<<"$pr_json"
-}
-
 ensure_auto_rerun_label() {
     local pr_number="$1"
     local pr_json="$2"
@@ -70,10 +63,68 @@ ensure_auto_rerun_label() {
     gh pr edit "$pr_number" --add-label "$AUTO_RERUN_LABEL"
 }
 
+# Returns a JSON object mapping each reviewer's login to their effective review
+# state, determined by scanning the review history from newest to oldest and
+# skipping COMMENTED reviews.  The first non-comment review found (i.e. the
+# most recent actionable one) is the effective state:
+#   APPROVED           -> "APPROVED"
+#   CHANGES_REQUESTED  -> "CHANGES_REQUESTED"
+#   DISMISSED          -> "CHANGES_REQUESTED"
+pr_reviewer_effective_states() {
+    local pr_json="$1"
+    jq -r '
+            [
+                ((.reviews // .latestReviews // [])[]? | select(type == "object"))
+                | {
+                    login: (.author.login // ""),
+                    submittedAt: (.submittedAt // ""),
+                    state: (.state // "")
+                  }
+            ]
+            | sort_by(.submittedAt)
+            | reverse
+            | reduce .[] as $r ({};
+                if $r.login == "" or has($r.login) or $r.state == "COMMENTED" then
+                    .
+                else
+                    .[$r.login] = (if $r.state == "APPROVED" then "APPROVED" else "CHANGES_REQUESTED" end)
+                end
+            )
+    ' <<<"$pr_json" 2>/dev/null || echo '{}'
+}
+
+pr_with_reviews_history() {
+    local pr_json="$1"
+    local pr_number
+    local reviews_json
+
+    if [ "$(jq -r '(.reviews | type) == "array"' <<<"$pr_json" 2>/dev/null || echo false)" = "true" ]; then
+        echo "$pr_json"
+        return
+    fi
+
+    pr_number=$(jq -r '.number // empty' <<<"$pr_json")
+    if [ -z "$pr_number" ]; then
+        echo "$pr_json"
+        return
+    fi
+
+    GH_RETRY_CONTEXT="PR #$pr_number review history lookup"
+    if reviews_json=$(gh_out_with_retry gh pr view "$pr_number" --json reviews --jq '.reviews'); then
+        pr_json=$(jq -c --argjson reviews "$reviews_json" '. + {reviews: $reviews}' <<<"$pr_json")
+    fi
+    GH_RETRY_CONTEXT=""
+
+    echo "$pr_json"
+}
+
 pr_is_rerun_eligible() {
     local pr_json="$1"
     local min_approvals="$2"
     local require_auto_rerun_label="$3"
+    local effective_states
+    local changes_requested_count
+    local approved_count
 
     if [ "$(jq -r '.isDraft' <<<"$pr_json")" = "true" ]; then
         NOT_RERUN_REASON="PR is a draft"
@@ -90,12 +141,28 @@ pr_is_rerun_eligible() {
         return 1
     fi
 
-    if [ "$(pr_review_count "$pr_json" "CHANGES_REQUESTED")" -gt 0 ]; then
+    # gh pr list may omit full review history in some environments; fetch it on-demand.
+    pr_json=$(pr_with_reviews_history "$pr_json")
+
+    # Check if the PR has any reviews that would block a rerun
+    effective_states=$(pr_reviewer_effective_states "$pr_json")
+    if [ -z "$effective_states" ]; then
+        effective_states='{}'
+    fi
+    if ! jq -e . >/dev/null 2>&1 <<<"$effective_states"; then
+        effective_states='{}'
+    fi
+    echo "Effective reviewer states: $effective_states"
+
+    changes_requested_count=$(jq -r '[.[] | select(. == "CHANGES_REQUESTED")] | length' <<<"$effective_states")
+    approved_count=$(jq -r '[.[] | select(. == "APPROVED")] | length' <<<"$effective_states")
+
+    if [ "$changes_requested_count" -gt 0 ]; then
         NOT_RERUN_REASON="PR has requested changes"
         return 1
     fi
 
-    if [ "$(pr_review_count "$pr_json" "APPROVED")" -lt "$min_approvals" ]; then
+    if [ "$approved_count" -lt "$min_approvals" ]; then
         NOT_RERUN_REASON="PR has fewer than $min_approvals approvals"
         return 1
     fi
