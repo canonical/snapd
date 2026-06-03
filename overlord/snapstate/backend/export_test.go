@@ -31,6 +31,8 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
+type IsUnderAnyDirOptions = isUnderAnyDirOptions
+
 var (
 	AddMountUnit       = addMountUnit
 	RemoveMountUnit    = removeMountUnit

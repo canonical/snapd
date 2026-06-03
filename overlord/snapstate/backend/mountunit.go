@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
@@ -77,7 +78,8 @@ func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter prog
 		return err
 	}
 	for _, mountPoint := range mountPoints {
-		if len(baseDirs) > 0 && !isUnderAnyDir(mountPoint, baseDirs) {
+		opts := isUnderAnyDirOptions{AllowExactMatch: false}
+		if len(baseDirs) > 0 && !isUnderAnyDir(mountPoint, baseDirs, opts) {
 			continue
 		}
 		if err := sysd.RemoveMountUnitFile(mountPoint); err != nil {
@@ -87,20 +89,84 @@ func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter prog
 	return nil
 }
 
-// isUnderAnyDir reports whether path is a strict subdirectory of any of the
-// provided candidate directories (the path itself being equal to a candidate
-// does not count).
-func isUnderAnyDir(path string, candidates []string) bool {
-	for _, c := range candidates {
-		rel, err := filepath.Rel(c, path)
+// isUnderAnyDirOptions configures the behavior of isUnderAnyDir.
+type isUnderAnyDirOptions struct {
+	// AllowExactMatch controls whether path == dir counts as a match.
+	AllowExactMatch bool
+}
+
+// isUnderAnyDir reports whether path is a subdirectory of any of the provided
+// directories. If opts.AllowExactMatch is true, an exact match (path == dir)
+// also counts.
+func isUnderAnyDir(path string, dirs []string, opts isUnderAnyDirOptions) bool {
+	for _, d := range dirs {
+		rel, err := filepath.Rel(d, path)
 		if err != nil {
 			continue
 		}
-		// rel is "." when path == c
-		// rel starts with ".." when path is outside c
-		if rel != "." && !strings.HasPrefix(rel, "..") {
-			return true
+		// rel starts with ".." when path is outside d
+		if strings.HasPrefix(rel, "..") {
+			continue
 		}
+		// rel is "." when path == d
+		if rel == "." && !opts.AllowExactMatch {
+			continue
+		}
+		return true
 	}
 	return false
+}
+
+// ListNonMountControlMountsInSnapRevDataDirs returns the active mount points
+// that are at or under the snap's revision-specific data directories and are
+// not of the mount-control origin.
+func (b Backend) ListNonMountControlMountsInSnapRevDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	revDirs, err := snapDataDirs(info, opts)
+	if err != nil {
+		return nil, err
+	}
+	return listNonMountControlMounts(info, revDirs)
+}
+
+// ListNonMountControlMountsInSnapAllDataDirs returns the active mount points
+// that are at or under any of the snap's base data directories and are not of
+// the mount-control origin.
+func (b Backend) ListNonMountControlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	baseDirs, err := snapBaseDataDirs(info.InstanceName(), opts)
+	if err != nil {
+		return nil, err
+	}
+	return listNonMountControlMounts(info, baseDirs)
+}
+
+func listNonMountControlMounts(info *snap.Info, baseDirs []string) ([]string, error) {
+	sysd := systemd.New(systemd.SystemMode, nil)
+	mcMountPoints, err := sysd.ListMountUnits(info.ContainerName(), "mount-control")
+	if err != nil {
+		return nil, err
+	}
+	mcMounts := make(map[string]bool, len(mcMountPoints))
+	for _, mp := range mcMountPoints {
+		mcMounts[mp] = true
+	}
+
+	mountInfo, err := osutil.LoadMountInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	var nonmcMountPoints []string
+	for _, entry := range mountInfo {
+		mp := entry.MountDir
+		// also include mounts over the base dirs themselves
+		opts := isUnderAnyDirOptions{AllowExactMatch: true}
+		if !isUnderAnyDir(mp, baseDirs, opts) {
+			continue
+		}
+		if mcMounts[mp] {
+			continue
+		}
+		nonmcMountPoints = append(nonmcMountPoints, mp)
+	}
+	return nonmcMountPoints, nil
 }
