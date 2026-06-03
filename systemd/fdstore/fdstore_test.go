@@ -249,9 +249,12 @@ func (s *fdstoreTestSuite) TestAddSdNotifyError(c *C) {
 	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
+	c.Check(s.closeFds, DeepEquals, []int(nil))
 	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: boom!`)
 	// duplicated (as 2027) before sd-notify error
 	c.Check(s.duplicatedFds, DeepEquals, []int{7})
+	// duplicated fd should be closed on error
+	c.Check(s.closeFds, DeepEquals, []int{2027})
 
 	_, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)

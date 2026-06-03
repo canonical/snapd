@@ -67,7 +67,7 @@ var (
 )
 
 // Note: os.File is used to wrap raw fds so that the
-// underlying fds are impicitly closed by finalizer
+// underlying fds are implicitly closed by finalizer
 // for os.File, so no need for extra tracking.
 var fdstore map[FdName][]*os.File
 var mu sync.RWMutex
@@ -187,12 +187,13 @@ func Remove(name FdName) error {
 		return fmt.Errorf("cannot remove file descriptor from fdstore: sockets cannot be removed")
 	}
 
+	mu.Lock()
+	defer mu.Unlock()
+
 	if fdstore[name] == nil {
 		return fmt.Errorf("cannot remove file descriptor from fdstore: %w", ErrNotFound)
 	}
 
-	mu.Lock()
-	defer mu.Unlock()
 	return remove(name)
 }
 
@@ -298,7 +299,7 @@ func Add(name FdName, f *os.File) error {
 
 	state := fmt.Sprintf("FDSTORE=1\nFDNAME=%s", name)
 	if err := sdNotifyWithFds(state, duplicatedFile); err != nil {
-		duplicatedFile.Close() // clean up the duplicated fd
+		osFileClose(duplicatedFile) // clean up the duplicated fd
 		return fmt.Errorf("cannot add file descriptor to fdstore: %v", err)
 	}
 
@@ -311,11 +312,21 @@ func Add(name FdName, f *os.File) error {
 // returned. Order of returned listeners is not deterministic.
 //
 // It is the caller's responsibility to close returned listeners when finished.
-func ActivationListeners() (listeners []net.Listener, err error) {
+func ActivationListeners() (listeners []net.Listener, retErr error) {
 	initFdstore()
 
 	mu.RLock()
 	defer mu.RUnlock()
+
+	defer func() {
+		// Clean up collected listeners on error since net.FileListener
+		// duplicates the underlying fd.
+		if retErr != nil && len(listeners) > 0 {
+			for _, l := range listeners {
+				l.Close()
+			}
+		}
+	}()
 
 	// The file descriptor name defaults to the name of the socket
 	// unit (including its .socket suffix), unless it was explicitly
