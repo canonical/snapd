@@ -1,0 +1,106 @@
+summary: |
+  Ensure asynchronous operation between client <-> daemon <-> o/h/snapctl.
+
+details: |
+  Ensures that new versions of snap properly handle feature negotiation
+  with the daemon.
+  - If the daemon and client support async operations, but --no-wait is
+  not passed, then the client will immediately receive a change ID and 
+  will poll for completion.
+  - If the client does not support async operations, then the daemon will
+  fall back to synchronous behavior, blocking until the operation completes
+  before returning to the client.
+  - If both support async operations and --no-wait is passed, then the client
+  will return the change ID immedately without blocking, and the caller can
+  choose when to poll for completion.
+
+prepare: |
+  snap pack test-async-snap
+  snap pack test-snapctl-async+comp
+  snap install --dangerous test-async-snap_1.0_all.snap
+  snap install --dangerous test-async-snap+comp_1.0.comp
+
+  snap install --devmode --edge test-snapd-curl
+
+restore: |
+  snap remove --purge test-async-snap || true
+  rm -f /tmp/comp-removed
+  rm -f /usr/local/bin/snapctl-no-async
+
+execute: |
+  # First test case: explicit --no-wait
+  echo "Verify component is installed before removal"
+  snap components test-async-snap | MATCH 'test-async-snap\+comp\s+installed'
+
+  echo "Remove component via snapctl --no-wait, capturing change ID from stdout"
+  CHANGE_ID=$(snap run --shell test-async-snap.app -c 'snapctl remove +comp --no-wait')
+  test -n "$CHANGE_ID"
+  echo "Received async change ID: $CHANGE_ID"
+
+  echo "Verify change is immediately in-progress: is-ready must return exit code 1"
+  exit_code=0
+  snap run --shell test-async-snap.app -c "snapctl is-ready $CHANGE_ID" || exit_code=$?
+  test "$exit_code" -eq 1
+
+  echo "Unblock the component remove hook"
+  touch /tmp/comp-removed
+
+  echo "Poll is-ready until the change completes"
+  retry=0
+  while true; do
+    exit_code=0
+    snap run --shell test-async-snap.app -c "snapctl is-ready $CHANGE_ID" || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+      echo "Change $CHANGE_ID completed successfully"
+      break
+    elif [ "$exit_code" -eq 1 ]; then
+      echo "Change $CHANGE_ID still in progress..."
+    else
+      echo "Change $CHANGE_ID ended with unexpected exit code $exit_code"
+      exit 1
+    fi
+    retry=$((retry + 1))
+    if [ "$retry" -ge 30 ]; then
+      echo "Timed out waiting for change to complete"
+      exit 1
+    fi
+    sleep 1
+  done
+
+  echo "Verify component has been removed successfully"
+  snap components test-async-snap | NOMATCH 'test-async-snap\+comp\s+installed'
+
+  # Second test case: client-side internal polling
+  echo "Re-install the component for the implicit async client-polling test"
+  rm -f /tmp/comp-removed
+  snap install --dangerous test-async-snap+comp_1.0.comp
+
+  echo "Verify component is re-installed"
+  snap components test-async-snap | MATCH 'test-async-snap\+comp\s+installed'
+
+  echo "Pre-unblock the hook so the internal client-side poll loop completes"
+  touch /tmp/comp-removed
+
+  echo "Remove component via snapctl without --no-wait (should block/poll internally)"
+  snap run --shell test-async-snap.app -c 'snapctl remove +comp'
+
+  echo "Verify component has been removed successfully"
+  snap components test-async-snap | NOMATCH 'test-async-snap\+comp\s+installed'
+
+  # Third test case: legacy behavior
+  echo "Re-install the component for the legacy backward-compatibility test"
+  rm -f /tmp/comp-removed
+  snap install --dangerous test-async-snap+comp_1.0.comp
+
+  echo "Verify component is re-installed"
+  snap components test-async-snap | MATCH 'test-async-snap\+comp\s+installed'
+
+  echo "Ensure hook completes immediately to unblock the synchronous path"
+  touch /tmp/comp-removed
+
+  echo "Send direct socket POST request without async flags to mimic old synchronous snapctl"
+  RESPONSE=$(snap run --shell test-async-snap.app -c 'test-snapd-curl.curl -sS -X POST --unix-socket /run/snapd-snap.socket http://localhost/v2/snapctl -H "Content-Type: application/json" -d "{\"context-id\": \"$SNAP_COOKIE\", \"args\": [\"remove\", \"+comp\"]}"')
+  echo "Raw daemon response payload: $RESPONSE"
+
+  echo "Verify component has been removed synchronously"
+  snap components test-async-snap | NOMATCH 'test-async-snap\+comp\s+installed'
