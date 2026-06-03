@@ -87,7 +87,7 @@ prepare: |
     skip["ubuntu-24.04-64/390"]="no-driver"
     skip["ubuntu-24.04-64/418-server"]="no-driver"
     skip["ubuntu-24.04-64/450-server"]="no-driver"
-    skip["ubuntu-24.04-64/470"]="broken-driver"
+    skip["ubuntu-24.04-64/470"]="transitional-driver"
     skip["ubuntu-24.04-64/470-server"]="broken-driver"
     skip["ubuntu-24.04-64/510"]="transitional-driver"
     skip["ubuntu-24.04-64/515"]="transitional-driver"
@@ -128,16 +128,6 @@ prepare: |
         # ...
         # /var/lib/snapd/lib/gl/libnvidia-tls.so.390.157
         # *** stack smashing detected ***: terminated
-        echo "Broken driver is in use, expecting: skip[\"$combi_key\"]=\"broken-driver\""
-        test "${skip[$combi_key]}" = "broken-driver"
-        exit 0
-        ;;
-    ubuntu-24.04-64/470*)
-        # This fails with:
-        # + exec /snap/test-snapd-nvidia/2/bin/dlopen-tool.64
-        # /var/lib/snapd/lib/gl/libEGL_nvidia.so.0
-        # ...
-        # /var/lib/snapd/lib/gl/libnvidia-vulkan-producer.so: undefined symbol: wlEglInitializeSurfaceExport: No such file or directory
         echo "Broken driver is in use, expecting: skip[\"$combi_key\"]=\"broken-driver\""
         test "${skip[$combi_key]}" = "broken-driver"
         exit 0
