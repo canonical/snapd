@@ -132,6 +132,16 @@ prepare: |
         test "${skip[$combi_key]}" = "broken-driver"
         exit 0
         ;;
+    ubuntu-24.04-64/470*)
+        # This fails with:
+        # + exec /snap/test-snapd-nvidia/2/bin/dlopen-tool.64
+        # /var/lib/snapd/lib/gl/libEGL_nvidia.so.0
+        # ...
+        # /var/lib/snapd/lib/gl/libnvidia-vulkan-producer.so: undefined symbol: wlEglInitializeSurfaceExport: No such file or directory
+        echo "Broken driver is in use, expecting: skip[\"$combi_key\"]=\"broken-driver\""
+        test "${skip[$combi_key]}" = "broken-driver"
+        exit 0
+        ;;
     esac
 
     # We will need to install i386 libraries. This is specifically done on an
