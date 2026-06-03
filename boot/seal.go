@@ -455,7 +455,8 @@ func CheckResealKeyToModeenv(rootdir string, unlocker Unlocker) error {
 		return err
 	}
 
-	return resealKeyToModeenv(rootdir, modeenv, ResealKeyToModeenvOptions{DryRun: true}, unlocker)
+	opts := ResealKeyToModeenvOptions{DryRun: true, Force: true}
+	return resealKeyToModeenv(rootdir, modeenv, opts, unlocker)
 }
 
 func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams) error {

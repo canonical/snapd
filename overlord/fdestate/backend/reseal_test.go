@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -536,7 +537,9 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 		},
 	}
 
+	revokeOldKeysCalled := 0
 	defer backend.MockSecbootRevokeOldKeys(func(uk *secboot.UpdatedKeys, primaryKey []byte) error {
+		revokeOldKeysCalled = 1
 		if !tc.revokeOldKeys {
 			c.Errorf("unexpected call")
 			return fmt.Errorf("unexpected call")
@@ -601,18 +604,35 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 	c.Check(resealCalls, Equals, 3)
 	c.Check(loadCheckResultCalls, Equals, 1)
 
-	pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
-	c.Assert(err, IsNil)
-	if !tc.missingRunParams {
-		c.Assert(cnt, Equals, 1)
-		c.Check(pbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(append(bootChains.RunModeBootChains, bootChains.RecoveryBootChainsForRunKey...))))
+	if tc.dryRun {
+		// DryRun must not write boot chains files
+		c.Check(osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "boot-chains")), Equals, false)
+		c.Check(osutil.FileExists(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains")), Equals, false)
+		// DryRun must not update the FDE state
+		c.Check(myState.state, IsNil)
+	} else {
+		pbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "boot-chains"))
+		c.Assert(err, IsNil)
+		if !tc.missingRunParams {
+			c.Assert(cnt, Equals, 1)
+			c.Check(pbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(append(bootChains.RunModeBootChains, bootChains.RecoveryBootChainsForRunKey...))))
+		}
+
+		recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
+		c.Assert(err, IsNil)
+		if !tc.missingRecoverParams {
+			c.Check(recoveryPbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(bootChains.RecoveryBootChains)))
+			c.Assert(cnt, Equals, 1)
+		}
 	}
 
-	recoveryPbc, cnt, err := boot.ReadBootChains(filepath.Join(dirs.SnapFDEDir, "recovery-boot-chains"))
-	c.Assert(err, IsNil)
-	if !tc.missingRecoverParams {
-		c.Check(recoveryPbc, DeepEquals, boot.ToPredictableBootChains(removeKernelBootFiles(bootChains.RecoveryBootChains)))
-		c.Assert(cnt, Equals, 1)
+	if tc.revokeOldKeys && tc.dryRun {
+		// DryRun must not revoke old keys
+		c.Assert(revokeOldKeysCalled, Equals, 0)
+	} else if tc.revokeOldKeys && !tc.missingRunParams && !tc.missingRecoverParams {
+		c.Assert(revokeOldKeysCalled, Equals, 1)
+	} else {
+		c.Assert(revokeOldKeysCalled, Equals, 0)
 	}
 }
 
@@ -716,6 +736,15 @@ func (s *resealTestSuite) TestTPMResealHappyDryRun(c *C) {
 func (s *resealTestSuite) TestTPMResealHappyCoreDryRun(c *C) {
 	tc := tpmResealHappyCase{
 		dryRun: true,
+	}
+	s.testTPMResealHappy(c, tc)
+}
+
+func (s *resealTestSuite) TestTPMResealHappyDryRunWithRevoke(c *C) {
+	tc := tpmResealHappyCase{
+		onClassic:     true,
+		dryRun:        true,
+		revokeOldKeys: true,
 	}
 	s.testTPMResealHappy(c, tc)
 }

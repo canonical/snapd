@@ -3907,7 +3907,6 @@ func (s *secbootSuite) testResealKeysWithFDESetupHookV2(c *C, dryRun bool) {
 	c.Assert(err, IsNil)
 	if dryRun {
 		c.Check(afterAuthorized, Equals, false)
-
 	} else {
 		c.Check(afterAuthorized, Equals, true)
 	}
