@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -3448,6 +3449,28 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	dirOpts := opts.getSnapDirOpts()
+
+	// Detect any non-"mount-control" mounts that would prevent data removal.
+	// This must run before deleting any data, so that if any such mounts
+	// exist, the returned error can still appropriately undo the change.
+	// Such mounts could be created, for example, manually by a user.
+	// When this is the last revision, check the entire snap data tree
+	// otherwise only check the revision-specific directories.
+	var unknownMounts []string
+	if len(snapst.Sequence.Revisions) > 1 {
+		unknownMounts, err = m.backend.ListNonMountControlMountsInSnapRevDataDirs(info, dirOpts)
+	} else {
+		unknownMounts, err = m.backend.ListNonMountControlMountsInSnapAllDataDirs(info, dirOpts)
+	}
+	if err != nil {
+		logger.Noticef("cannot list mounts other than mount-control mounts: %v", err)
+	}
+	if len(unknownMounts) > 0 {
+		mountList := "- " + strings.Join(unknownMounts, "\n- ")
+		return fmt.Errorf("cannot clear snap data due to unknown active mounts at:\n%s\nunmount them and try again", mountList)
+	}
+
 	// Remove mount-control mounts just before removing the data they may be
 	// mounted over. When this is the last revision, remove all mount-control
 	// units for the snap (nil mountBaseDirs = no path filter); otherwise restrict
@@ -3462,7 +3485,6 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	dirOpts := opts.getSnapDirOpts()
 	if err = m.backend.RemoveSnapData(info, dirOpts); err != nil {
 		return err
 	}

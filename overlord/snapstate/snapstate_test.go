@@ -6115,6 +6115,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
+			op:    "list-non-mount-control-mounts-all",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
 			op:     "remove-snap-mount-units",
 			name:   "ubuntu-core",
 			origin: "mount-control",
@@ -6221,6 +6226,11 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 		},
 		{
 			op:    "remove-profiles:Doing",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
+			op:    "list-non-mount-control-mounts-all",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
 		},
