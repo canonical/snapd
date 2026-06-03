@@ -32,6 +32,9 @@ skip:
 prepare: |
     set -- --edge
     if os.query is-core18; then
+        # Install version 1.0 of test-snapd-kernel-module-consumer snap
+        # Version 2.0.1 uses core26 base which causes a failure since
+        # the cgroup cannot be created in a user session.
         if os.query is-armhf; then
             set -- --revision 1
         elif os.query is-pc-amd64; then
