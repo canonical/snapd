@@ -7,25 +7,35 @@ export NOT_RERUN_REASON=""
 
 : "${GH_API_RETRIES:=3}"
 : "${GH_API_RETRY_DELAY_SECONDS:=2}"
+: "${GH_RETRY_CONTEXT:=}"
 
 gh_out_with_retry() {
     local attempt=1
     local delay="$GH_API_RETRY_DELAY_SECONDS"
     local output
+    local context="${GH_RETRY_CONTEXT:-}"
 
     while (( attempt <= GH_API_RETRIES )); do
-        if output="$($@ 2>&1)"; then
+        if output="$("$@" 2>&1)"; then
             printf '%s\n' "$output"
             return 0
         fi
 
         if (( attempt == GH_API_RETRIES )); then
-            echo "Command failed after $GH_API_RETRIES attempts: $*" >&2
+            if [[ -n "$context" ]]; then
+                echo "Command failed after $GH_API_RETRIES attempts for $context: $*" >&2
+            else
+                echo "Command failed after $GH_API_RETRIES attempts: $*" >&2
+            fi
             echo "$output" >&2
             return 1
         fi
 
-        echo "Transient failure on attempt $attempt/$GH_API_RETRIES for: $*" >&2
+        if [[ -n "$context" ]]; then
+            echo "Transient failure on attempt $attempt/$GH_API_RETRIES for $context: $*" >&2
+        else
+            echo "Transient failure on attempt $attempt/$GH_API_RETRIES for: $*" >&2
+        fi
         echo "$output" >&2
 
         sleep "$delay"
