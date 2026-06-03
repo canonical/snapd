@@ -30,8 +30,26 @@ skip:
         ! [ -f "/lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko" ]
 
 prepare: |
+    set -- --edge
+    if os.query is-core18; then
+        # Install version 1.0 of test-snapd-kernel-module-consumer snap
+        # Version 2.0.1 uses core26 base which causes a failure since
+        # the cgroup cannot be created in a user session.
+        if os.query is-armhf; then
+            set -- --revision 1
+        elif os.query is-pc-amd64; then
+            set -- --revision 2
+        elif os.query is-arm64; then
+            set -- --revision 3
+        elif os.query is-pc-i386; then
+            set -- --revision 4
+        else
+            echo "Unsupported architecture for test-snapd-kernel-module-consumer on core18"
+            exit 1
+        fi
+    fi
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"
-    snap install --edge test-snapd-kernel-module-consumer
+    snap install "$@" test-snapd-kernel-module-consumer
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
     install_generic_consumer kernel-module-control
