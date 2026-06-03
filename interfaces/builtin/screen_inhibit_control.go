@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/release"
 )
 
 const screenInhibitControlSummary = `allows inhibiting the screen saver`
@@ -185,7 +186,7 @@ type screenInhibitControlInterface struct {
 func (iface *screenInhibitControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
-	if implicitSystemConnectedSlot(slot) {
+	if implicitSystemConnectedSlot(slot) || release.OnTouch {
 		// we are running on a system that has the screen-inhibit-control slot
 		// provided by the OS snap and so will run unconfined
 		new = "unconfined"

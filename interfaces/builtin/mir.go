@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -36,6 +37,7 @@ const mirBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
+        - core
     deny-connection: true
 `
 
@@ -99,22 +101,22 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 /{dev,run}/shm/\#[0-9]* mrw,
 `
 
-type mirInterface struct{}
+type mirInterface struct{
+	commonInterface
+}
 
 func (iface *mirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *mirInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              mirSummary,
-		BaseDeclarationSlots: mirBaseDeclarationSlots,
-	}
-}
-
 func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
+
+	if release.OnTouch {
+		new = "unconfined"
+	}
+
 	snippet := strings.Replace(mirConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -149,9 +151,14 @@ func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 }
 
 func (iface *mirInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	return true
+	return release.OnTouch
 }
 
 func init() {
-	registerIface(&mirInterface{})
+	registerIface(&mirInterface{commonInterface{
+		name:			"mir",
+		summary:		mirSummary,
+		implicitOnClassic:	true,
+		baseDeclarationSlots:	mirBaseDeclarationSlots,
+	}})
 }

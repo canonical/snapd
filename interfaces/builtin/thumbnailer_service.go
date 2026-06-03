@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -34,6 +35,7 @@ const thumbnailerServiceBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
+        - core
     deny-auto-connection: true
     deny-connection: true
 `
@@ -59,7 +61,7 @@ dbus (send)
 
 dbus (bind)
     bus=session
-    name=com.canonical.Thumbnailer,
+    name=com.lomiri.Thumbnailer,
 `
 
 const thumbnailerServiceConnectedSlotAppArmor = `
@@ -72,8 +74,8 @@ owner @{HOME}/snap/###PLUG_SNAP_NAME###/** r,
 # Description: allow client snaps to access the thumbnailer service.
 dbus (receive, send)
     bus=session
-    interface=com.canonical.Thumbnailer
-    path=/com/canonical/Thumbnailer
+    interface=com.lomiri.Thumbnailer
+    path=/com/lomiri/Thumbnailer
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
 
@@ -84,36 +86,37 @@ const thumbnailerServiceConnectedPlugAppArmor = `
 
 dbus (receive, send)
     bus=session
-    interface=com.canonical.Thumbnailer
-    path=/com/canonical/Thumbnailer
+    interface=com.lomiri.Thumbnailer
+    path=/com/lomiri/Thumbnailer
     peer=(label=###SLOT_SECURITY_TAGS###),
 
 # Allow clients to introspect the service
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path=/com/canonical/Thumbnailer
+    path=/com/lomiri/Thumbnailer
     member=Introspect
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
 
-type thumbnailerServiceInterface struct{}
+type thumbnailerServiceInterface struct{
+	commonInterface
+}
 
 func (iface *thumbnailerServiceInterface) Name() string {
 	return "thumbnailer-service"
-}
-
-func (iface *thumbnailerServiceInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              thumbnailerServiceSummary,
-		BaseDeclarationSlots: thumbnailerServiceBaseDeclarationSlots,
-	}
 }
 
 func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	snippet := thumbnailerServiceConnectedPlugAppArmor
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
+
+	// Ubuntu Touch's host thumbnailer service runs unconfined
+	if release.OnTouch {
+		new = "unconfined"
+	}
+
 	snippet = strings.Replace(snippet, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -144,5 +147,10 @@ func (iface *thumbnailerServiceInterface) AutoConnect(plug *snap.PlugInfo, slot 
 }
 
 func init() {
-	registerIface(&thumbnailerServiceInterface{})
+	registerIface(&thumbnailerServiceInterface{commonInterface{
+		name:			"thumbnailer-service",
+		summary:		thumbnailerServiceSummary,
+		implicitOnClassic:	true,
+		baseDeclarationSlots:	thumbnailerServiceBaseDeclarationSlots,
+	}})
 }
