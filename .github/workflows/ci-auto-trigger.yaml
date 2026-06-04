@@ -32,16 +32,16 @@ jobs:
           if ! checkpoint_runs=$(gh_retry run list \
             --workflow .github/workflows/ci-auto-trigger.yaml \
             --status completed \
-            --limit 2 \
-            --json createdAt \
-            --jq '.'); then
+            --limit 20 \
+            --json createdAt,conclusion \
+            --jq '[.[] | select(.conclusion == "success")][0:2]'); then
             echo "Warning: failed to fetch checkpoint after retries; processing all open PRs"
             checkpoint_runs='[]'
           fi
           GH_RETRY_CONTEXT=""
 
-          # Use the checkpoint from the most recent completed ci-auto-trigger run,
-          # or if there is only one completed run, use its checkpoint. This creates
+          # Use the checkpoint from the most recent successful ci-auto-trigger run,
+          # or if there is only one successful run, use its checkpoint. This creates
           # a rolling window of PR updates to consider for rerunning, while allowing
           # for some flexibility in timing and avoiding reliance on a single run's completion
           # time as the cutoff. 
@@ -55,12 +55,12 @@ jobs:
 
           if [[ -n "$checkpoint_time" ]]; then
             if [[ -n "$previous_checkpoint" ]]; then
-              echo "Using checkpoint from previous completed ci-auto-trigger run (2-run window): $checkpoint_time"
+              echo "Using checkpoint from previous successful ci-auto-trigger run (2-run window): $checkpoint_time"
             else
-              echo "Only one completed ci-auto-trigger run found; using its checkpoint: $checkpoint_time"
+              echo "Only one successful ci-auto-trigger run found; using its checkpoint: $checkpoint_time"
             fi
           else
-            echo "No previous completed ci-auto-trigger run found; processing all open PRs"
+            echo "No previous successful ci-auto-trigger run found; processing all open PRs"
           fi
 
           # Fetch all open PRs and inspect them for rerun eligibility
