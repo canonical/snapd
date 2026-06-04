@@ -8,12 +8,12 @@ import os
 import tempfile
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional, Dict, List
 
 
 def show_help():
-    help_text = """Usage: github-kpis.py (--start YYYY-MM-DD [--end YYYY-MM-DD] | --input-json PATH) [--attempts] [--forced] [--skipped] [--runtime] [--test-totals] [--author-times] [--all]
+    help_text = """Usage: github-kpis.py (--start YYYY-MM-DD [--end YYYY-MM-DD] | --input-json PATH) [--attempts] [--forced] [--skipped] [--runtime] [--test-totals] [--author-times] [--all] [--pretty]
 
 If the script errors at any point, it will output the JSON collected before that stage.
 To resume from that JSON, save it to a file and use --input-json with the path to that file. 
@@ -39,6 +39,7 @@ Options:
   --test-totals   Add total number of spread tests run on the last PR update before merging.
   --author-times  Add author classification and times PR spent in non-approved and approved states before merging.
   --all           Add all of the above fields.
+    --pretty        Pretty-print the final JSON output.
   -h, --help      Show this help.
 
 
@@ -178,7 +179,7 @@ def get_author_and_times(prs_json: List[Dict]) -> List[Dict]:
         number = pr.get("number")
         pr_meta = json.loads(gh_request("api", f"/repos/canonical/snapd/pulls/{number}"))
 
-        login = (pr_meta.get("user") or {}).get("login")
+        login = pr.get("_author_login") or (pr_meta.get("user") or {}).get("login")
         association = pr_meta.get("author_association")
 
         if not login:
@@ -190,8 +191,8 @@ def get_author_and_times(prs_json: List[Dict]) -> List[Dict]:
         pr["author-type"] = classification_cache[login]
 
         try:
-            created_at_s = pr_meta.get("created_at")
-            merged_at_s = pr_meta.get("merged_at")
+            created_at_s = pr.get("createdAt") or pr_meta.get("created_at")
+            merged_at_s = pr.get("mergedAt") or pr_meta.get("merged_at")
 
             if not created_at_s or not merged_at_s:
                 pr["time-to-approved-hours"] = None
@@ -203,14 +204,16 @@ def get_author_and_times(prs_json: List[Dict]) -> List[Dict]:
             created_at = datetime.fromisoformat(created_at_s.replace("Z", "+00:00"))
             merged_at = datetime.fromisoformat(merged_at_s.replace("Z", "+00:00"))
 
-            reviews = json.loads(gh_request("api", f"/repos/canonical/snapd/pulls/{number}/reviews?per_page=100"))
+            reviews = pr.get("_reviews")
+            if reviews is None:
+                reviews = json.loads(gh_request("api", f"/repos/canonical/snapd/pulls/{number}/reviews?per_page=100"))
 
             # Collect approval events in chronological order, tracking the
             # latest state per reviewer so dismissed approvals don't count.
             review_timeline = []
             for rv in reviews:
-                rv_time = rv.get("submitted_at")
-                reviewer = (rv.get("user") or {}).get("login")
+                rv_time = rv.get("submitted_at") or rv.get("submittedAt")
+                reviewer = (rv.get("user") or rv.get("author") or {}).get("login")
                 state = (rv.get("state") or "").upper()
                 if not rv_time or not reviewer or state not in {"APPROVED", "CHANGES_REQUESTED", "DISMISSED"}:
                     continue
@@ -419,11 +422,19 @@ def get_skipped_tests(prs_json: List[Dict]) -> List[Dict]:
             number = pr.get("number")
             
             try:
-                output = gh_request("pr", "view", str(number), "--repo", "canonical/snapd",
-                                     "--json", "comments", "--jq",
-                                     '.comments.[] | select(.author.login == "github-actions") | .body')
-                
-                lines = output.split("\n")
+                comments = pr.get("_comments")
+                if comments is None:
+                    output = gh_request("pr", "view", str(number), "--repo", "canonical/snapd",
+                                         "--json", "comments", "--jq",
+                                         '.comments.[] | select(.author.login == "github-actions") | .body')
+                    lines = output.split("\n")
+                else:
+                    lines = []
+                    for comment in comments:
+                        author_login = ((comment.get("author") or {}).get("login"))
+                        if author_login == "github-actions":
+                            lines.extend((comment.get("body") or "").splitlines())
+
                 skipped_section = False
                 skipped_tests = set()
                 
@@ -499,14 +510,19 @@ def get_num_attempts(prs_json: List[Dict]) -> List[Dict]:
     return result
 
 
-def list_prs_in_range(start_epoch: int, end_epoch: int) -> List[Dict]:
-    """Recursively list PRs in a date range, handling pagination."""
-    start_iso = datetime.fromtimestamp(start_epoch, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    end_iso = datetime.fromtimestamp(end_epoch, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def list_prs_in_range(start_date: date, end_date_exclusive: date) -> List[Dict]:
+    """Recursively list PRs in a date range, handling pagination.
+
+    GitHub search qualifiers for merged dates are day-based, so paginate by
+    day ranges to avoid repeatedly hitting the same 1000-result window.
+    """
+    start_iso = start_date.isoformat()
+    end_iso = end_date_exclusive.isoformat()
+    end_inclusive = (end_date_exclusive - timedelta(days=1)).isoformat()
     
     output = gh_request("pr", "list", "--repo", "canonical/snapd", "--limit", "1000",
-                         "--search", f"merged:>={start_iso} merged:<{end_iso}",
-                         "--json", "number,mergedAt,headRefOid,labels")
+                         "--search", f"merged:{start_iso}..{end_inclusive}",
+                         "--json", "number,createdAt,mergedAt,headRefOid,labels,author,comments,reviews")
     
     prs = json.loads(output)
     count = len(prs)
@@ -519,32 +535,45 @@ def list_prs_in_range(start_epoch: int, end_epoch: int) -> List[Dict]:
             label_names = [l.get("name", "") for l in labels]
             pr["spread-skipped"] = "Skip spread" in label_names
             pr["nested"] = "Run nested" in label_names
+            pr["_author_login"] = (pr.get("author") or {}).get("login")
+            pr["_comments"] = pr.get("comments")
+            pr["_reviews"] = pr.get("reviews")
             del pr["labels"]
+            if "author" in pr:
+                del pr["author"]
+            if "comments" in pr:
+                del pr["comments"]
+            if "reviews" in pr:
+                del pr["reviews"]
             result.append(pr)
         return result
     
     # Too many results, need to paginate
-    if end_epoch - start_epoch <= 3600:
-        sys.stderr.write(f"cannot safely paginate: >1000 PRs in one hour between {start_iso} and {end_iso}\n")
+    total_days = (end_date_exclusive - start_date).days
+    if total_days <= 1:
+        sys.stderr.write(f"cannot safely paginate: >1000 PRs in one day between {start_iso} and {end_iso}\n")
         sys.exit(1)
-    
-    mid_epoch = (start_epoch + end_epoch) // 2
-    left = list_prs_in_range(start_epoch, mid_epoch)
-    right = list_prs_in_range(mid_epoch, end_epoch)
+
+    mid_date = start_date + timedelta(days=total_days // 2)
+    if mid_date <= start_date or mid_date >= end_date_exclusive:
+        sys.stderr.write(f"cannot safely paginate: invalid split between {start_iso} and {end_iso}\n")
+        sys.exit(1)
+
+    left = list_prs_in_range(start_date, mid_date)
+    right = list_prs_in_range(mid_date, end_date_exclusive)
     return left + right
 
 
 def fetch_prs(start_date: str, end_date: Optional[str]) -> List[Dict]:
     """Fetch PRs merged in the given date range."""
-    start_epoch = int(datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+    start_day = datetime.strptime(start_date, "%Y-%m-%d").date()
     
     if end_date:
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(days=1)
-        end_epoch = int(end_dt.timestamp())
+        end_day_exclusive = datetime.strptime(end_date, "%Y-%m-%d").date() + timedelta(days=1)
     else:
-        end_epoch = int((datetime.now(timezone.utc) + timedelta(days=1)).timestamp())
+        end_day_exclusive = datetime.now(timezone.utc).date() + timedelta(days=1)
     
-    return list_prs_in_range(start_epoch, end_epoch)
+    return list_prs_in_range(start_day, end_day_exclusive)
 
 
 def run_stage(stage_label: str, stage_func, current_json: List[Dict], pending_steps: List[str]) -> List[Dict]:
@@ -573,6 +602,7 @@ def main():
     parser.add_argument("--test-totals", action="store_true", help="Add test totals field")
     parser.add_argument("--author-times", action="store_true", help="Add author classification and PR time fields")
     parser.add_argument("--all", action="store_true", help="Add all fields")
+    parser.add_argument("--pretty", action="store_true", help="Pretty-print the final JSON output")
     parser.add_argument("-h", "--help", action="store_true", help="Show help")
     
     args = parser.parse_args()
@@ -612,7 +642,7 @@ def main():
         args.skipped = True
         args.runtime = True
         args.test_totals = True
-        args.author = True
+        args.author_times = True
     
     if args.attempts:
         stages.append(("attempts", get_num_attempts))
@@ -650,9 +680,18 @@ def main():
         
         result = run_stage(stage_name, stage_func, result, pending)
         sys.stderr.write("Done.\n")
+
+    # Remove internal fields used to avoid extra API calls.
+    for pr in result:
+        pr.pop("_author_login", None)
+        pr.pop("_comments", None)
+        pr.pop("_reviews", None)
     
     # Output result
-    print(json.dumps(result))
+    if args.pretty:
+        print(json.dumps(result, indent=2))
+    else:
+        print(json.dumps(result))
 
 
 if __name__ == "__main__":
