@@ -55,7 +55,8 @@ func (gkms *gpgKeypairMgrSuite) importKey(key string) {
 }
 
 func (gkms *gpgKeypairMgrSuite) addSigningSubkey(c *C, fingerprint string) {
-	path, err := exec.LookPath("gpg")
+	// needs gnupg 2.x
+	path, err := exec.LookPath("gpg2")
 	if err != nil {
 		c.Skip("gpg with --quick-add-key support not installed")
 	}
