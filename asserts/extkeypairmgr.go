@@ -83,21 +83,26 @@ func (em *ExternalKeypairManager) keyMgr(op string, args []string, in []byte, ou
 	return nil
 }
 
-func (em *ExternalKeypairManager) checkFeatures() error {
+func (em *ExternalKeypairManager) checkFeatures() (extKeypairMgrSigning, error) {
 	var feats struct {
 		Signing    []string `json:"signing"`
 		PublicKeys []string `json:"public-keys"`
 	}
 	if err := em.keyMgr("features", nil, nil, &feats); err != nil {
-		return err
+		return "", err
 	}
-	if !strutil.ListContains(feats.Signing, "RSA-PKCS") {
-		return fmt.Errorf("external keypair manager %q missing support for RSA-PKCS signing", em.keyMgrPath)
+	var signing extKeypairMgrSigning
+	if strutil.ListContains(feats.Signing, "RSA-PKCS") {
+		signing = extKeypairMgrSigningRSAPKCS
+	} else if strutil.ListContains(feats.Signing, "OPENPGP") {
+		signing = extKeypairMgrSigningOpenPGP
+	} else {
+		return "", fmt.Errorf("external keypair manager %q missing support for RSA-PKCS or OPENPGP signing", em.keyMgrPath)
 	}
 	if !strutil.ListContains(feats.PublicKeys, "DER") {
-		return fmt.Errorf("external keypair manager %q missing support for public key DER output format", em.keyMgrPath)
+		return "", fmt.Errorf("external keypair manager %q missing support for public key DER output format", em.keyMgrPath)
 	}
-	return nil
+	return signing, nil
 }
 
 func (em *ExternalKeypairManager) keyNames() ([]string, error) {
@@ -184,10 +189,7 @@ var (
 )
 
 func (s *externalKeypairMgrBackend) CheckFeatures() (extKeypairMgrSigning, error) {
-	if err := s.manager.checkFeatures(); err != nil {
-		return "", err
-	}
-	return extKeypairMgrSigningRSAPKCS, nil
+	return s.manager.checkFeatures()
 }
 
 func (s *externalKeypairMgrBackend) LoadByName(name string) (*extKeypairMgrLoadedKey, error) {
@@ -229,5 +231,10 @@ func (s *externalKeypairMgrBackend) RSAPKCSSign(keyHandle string, prepared []byt
 }
 
 func (s *externalKeypairMgrBackend) Sign(keyHandle string, content []byte) ([]byte, error) {
-	return nil, fmt.Errorf("internal error: external keypair manager does not support OpenPGP signing")
+	var signature []byte
+	err := s.manager.keyMgr("sign", []string{"-m", "OPENPGP", "-k", keyHandle}, content, &signature)
+	if err != nil {
+		return nil, err
+	}
+	return signature, nil
 }
