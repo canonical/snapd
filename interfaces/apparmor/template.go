@@ -394,7 +394,6 @@ var templateCommon = `
   # simply allow full access to /tmp.
   /tmp/   r,
   /tmp/** mrwlkix,
-` + coverageGenerationTemplateSnippet + `
 
   # App-specific access to files and directories in /dev/shm. We allow file
   # access in /dev/shm for shm_open() and files in subdirectories for open()

@@ -1600,16 +1600,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	// through /var/lib/snapd/hostfs. Snaps running under classic confinement
 	// can access /tmp without any additional help.
 	var krb5ccnamePath string
-	var goCoverDirPath string
 	if !needsClassic {
 		krb5ccnamePath, err = exposeKerberosTickets(info)
 		if err != nil {
 			logger.Noticef("WARNING: will not expose Kerberos tickets' path: %s", err)
-		}
-
-		goCoverDirPath, err = exposeGoCoverDir()
-		if err != nil {
-			logger.Noticef("WARNING: will not expose GOCOVERDIR path: %s", err)
 		}
 	}
 
@@ -1697,10 +1691,6 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	// We have a new location for the ticket, update the environment variable.
 	if len(krb5ccnamePath) > 0 {
 		env["KRB5CCNAME"] = krb5ccnamePath
-	}
-
-	if len(goCoverDirPath) > 0 {
-		env["GOCOVERDIR"] = goCoverDirPath
 	}
 
 	// Guarantee that XDG_RUNTIME_DIR does exist before launching the snap.
