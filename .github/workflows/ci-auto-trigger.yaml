@@ -165,9 +165,9 @@ jobs:
             fi
             GH_RETRY_CONTEXT=""
 
-            # If there are no completed spread jobs, it's possible the run failed before reaching the spread stage, so we should
-            # still allow a rerun to be triggered in that case. But if there are completed spread jobs, we want to check the
-            # failure count on those jobs to determine rerun eligibility.
+            # If there are no completed spread jobs, the run likely failed before reaching the spread stage.
+            # In that case, we skip auto-rerun here to avoid rerunning failures outside the spread stage.
+            # If this policy changes, update the checks below accordingly.
             spread_jobs_ran=$(echo "$run_jobs" | jq '[.[] | select(.name | test("^spread ")) | select(.status == "completed")] | length')
             if [[ "$spread_jobs_ran" -lt 1 ]]; then
               echo "PR #$pr_number | Skip: no completed spread jobs found in run_id=$last_run"
