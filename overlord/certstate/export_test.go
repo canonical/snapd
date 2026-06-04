@@ -31,7 +31,6 @@ const (
 	Asn1TagVisibleString      = asn1TagVisibleString
 	Asn1TagUniversalString    = asn1TagUniversalString
 	PreviousGenerationTaskKey = previousGenerationTaskKey
-	UndoFromGenerationTaskKey = undoFromGenerationTaskKey
 )
 
 var (
@@ -39,6 +38,7 @@ var (
 	ParseCertificates                    = parseCertificates
 	ReadDigests                          = readDigests
 	GarbageCollectCertificateGenerations = garbageCollectCertificateGenerations
+	LoadCertificates                     = loadCertificates
 
 	Asn1IsCanonicalizedStringType = asn1IsCanonicalizedStringType
 	Asn1IsASCII                   = asn1IsASCII

@@ -35,10 +35,7 @@ type CertManager struct {
 	oneTimeChecksRun bool
 }
 
-const (
-	previousGenerationTaskKey = "cert-db-prev-generation"
-	undoFromGenerationTaskKey = "cert-db-undo-from-generation"
-)
+const previousGenerationTaskKey = "cert-db-prev-generation"
 
 var osutilBootID = osutil.BootID
 
@@ -199,15 +196,6 @@ func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb)
 		return err
 	}
 
-	// recordCurrentCertificateGeneration takes the lock as it persists the key
-	// immediately in state
-	st.Unlock()
-	undoFromTarget, err := recordCurrentCertificateGeneration(t, undoFromGenerationTaskKey)
-	st.Lock()
-	if err != nil {
-		return err
-	}
-
 	if previousTarget == "" {
 		mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
 		// When there was no previously published generation, undo cannot point
@@ -215,8 +203,7 @@ func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb)
 		if err := os.RemoveAll(mergedDir); err != nil && !os.IsNotExist(err) {
 			return err
 		}
-		// cleanup the previous target
-		return switchPreviousMergedCertificates("")
+		return nil
 	}
 
 	currentTarget, err := resolveCurrentCertificateTarget()
@@ -224,14 +211,13 @@ func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb)
 		return err
 	}
 	if currentTarget != previousTarget {
-		// Ordinary undo just moves the public pointers back: merged returns to the
-		// generation captured before the do-path ran, and previous records the
-		// generation we displaced so repeated undo or later cleanup stays coherent.
+		// Ordinary undo just moves merged back to the generation captured before
+		// the do-path ran.
 		if err := switchCurrentMergedCertificates(previousTarget); err != nil {
 			return err
 		}
 	}
-	return switchPreviousMergedCertificates(undoFromTarget)
+	return nil
 }
 
 func hasSystemCertsDir() bool {

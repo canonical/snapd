@@ -7,6 +7,9 @@ details: |
     mark it inactive, and the second reboot should remove it while merged
     still points at the current generation.
 
+environment:
+    CERT_NAME: gccert
+
 restore: |
     snap unset system "pki.certs.custom.${CERT_NAME}" || true
 
@@ -128,7 +131,9 @@ execute: |
 
         snap set system "pki.certs.custom.${CERT_NAME}.content=$(cat "$CERT_PEM")"
 
-        retry -n 30 --wait 1 sh -c 'test -L '"$MERGED_DIR"' && [ "$(readlink '"$MERGED_DIR"')" != "$(cat old-target)" ]'
+        # retry executes an external command, so keep the predicate inline
+        # instead of relying on a shell function from this script.
+        retry -n 30 --wait 1 sh -c "test -L \"$MERGED_DIR\" && [ \"\$(readlink \"$MERGED_DIR\")\" != \"\$(cat old-target)\" ]"
 
         new_target="$(ensure_merged_target "")"
         printf '%s\n' "$new_target" > new-target
@@ -165,7 +170,7 @@ execute: |
         old_target="$(cat old-target)"
         new_target="$(cat new-target)"
 
-        retry -n 30 --wait 1 sh -c '[ "$(find '"$PUBLISHED_DIR"' -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d "[:space:]")" -eq 1 ]'
+        retry -n 30 --wait 1 sh -c "[ \"\$(find \"$PUBLISHED_DIR\" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d '[:space:]')\" -eq 1 ]"
 
         ensure_merged_target "$new_target" >/dev/null
         ensure_generation_count 1

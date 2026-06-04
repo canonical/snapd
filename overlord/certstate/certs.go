@@ -125,7 +125,8 @@ func sha256HexForChain(chainDER [][]byte) string {
 // under the go FIPS toolchain. In the future this needs to somewhere else, and
 // not stay here. The use-case here is covered by the 140-3 FIPS, as we don't use
 // SHA1 for digital signage. But the problem is the go FIPS toolchain will throw
-// a runtime error in all cases.
+// a runtime error in all cases. We have other places in Snapd that are affected by this
+// too, so this should be dealt with together.
 func sha1HexForCertSubjectName(cert *x509.Certificate) (string, error) {
 	canonicalSubject, err := canonicalSubjectNameDER(cert.RawSubject)
 	if err != nil {
@@ -450,14 +451,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		}
 		digests[cert.Sha256] = true
 	}
-
-	// sync the directory to ensure file-writes are completed
-	dir, err := os.Open(certsDir)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
+	return nil
 }
 
 // generateCACertificates builds a merged certificate directory that mirrors
@@ -485,6 +479,15 @@ func generateCACertificates(certs *certificates, mergedPath string) (*certificat
 	if err := bundle.Commit(); err != nil {
 		return nil, fmt.Errorf("cannot commit ca-certificates.crt: %v", err)
 	}
+	// sync the directory to ensure file-writes are completed
+	dir, err := os.Open(mergedPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open merged directory: %v", err)
+	}
+	defer dir.Close()
+	if err := dir.Sync(); err != nil {
+		return nil, fmt.Errorf("cannot sync merged directory: %v", err)
+	}
 	return manifest, nil
 }
 
@@ -509,7 +512,11 @@ func loadCertificates() (*certificates, error) {
 	certs.SystemCertificates = systemCerts
 
 	// If the added directory exists, parse it
-	if exists, isDir, err := osutil.DirExists(filepath.Join(dirs.SnapdPKIV1Dir, "added")); err == nil && exists && isDir {
+	if exists, isDir, err := osutil.DirExists(filepath.Join(dirs.SnapdPKIV1Dir, "added")); err != nil {
+		// Fail closed here: if we cannot inspect the added-certs directory we
+		// cannot safely compute the trust view.
+		return nil, err
+	} else if exists && isDir {
 		addedDir := filepath.Join(dirs.SnapdPKIV1Dir, "added")
 		a, err := parseCertificates(addedDir)
 		if err != nil {
@@ -520,7 +527,11 @@ func loadCertificates() (*certificates, error) {
 	}
 
 	// If the blocked directory exists, read the digests
-	if exists, isDir, err := osutil.DirExists(filepath.Join(dirs.SnapdPKIV1Dir, "blocked")); err == nil && exists && isDir {
+	if exists, isDir, err := osutil.DirExists(filepath.Join(dirs.SnapdPKIV1Dir, "blocked")); err != nil {
+		// Fail closed here too: ignoring blocked-digest lookup failures could
+		// accidentally re-enable certificates the administrator meant to suppress.
+		return nil, err
+	} else if exists && isDir {
 		blockedDir := filepath.Join(dirs.SnapdPKIV1Dir, "blocked")
 		b, err := readDigests(blockedDir)
 		if err != nil {
@@ -555,6 +566,14 @@ func ensureDirectories() error {
 	}
 	return nil
 }
+
+// Certificate publication uses the following structure:
+//   - published/<generation> holds immutable rendered certificate trees
+//   - merged points at the active generation consumers should resolve
+//
+// The helpers below maintain that contract by publishing via pointer swaps
+// instead of mutating an existing generation in place. Undo keeps its own
+// rollback target in persisted task state rather than in a separate symlink.
 
 // CurrentCertificateDir returns the compatibility path that consumers follow
 // for the active certificate view while snapd publishes immutable generations
@@ -598,20 +617,6 @@ func switchCertificatesLink(linkPath, target string) error {
 // consumers resolve, so publishing a new generation stays a metadata change.
 func switchCurrentMergedCertificates(target string) error {
 	return switchCertificatesLink(CurrentCertificateDir(), target)
-}
-
-// switchPreviousMergedCertificates records the rollback target explicitly so
-// undo and future cleanup decisions can reason about the last active
-// generation.
-func switchPreviousMergedCertificates(target string) error {
-	previousPath := filepath.Join(dirs.SnapdPKIV1Dir, "previous")
-	if target == "" {
-		if err := os.Remove(previousPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-	}
-	return switchCertificatesLink(previousPath, target)
 }
 
 // resolveCurrentCertificateTarget resolves the active published generation target,
@@ -719,6 +724,9 @@ func garbageCollectCertificateGenerations(bootID string) error {
 var RefreshCertificateDatabase = refreshCertificateDatabaseImpl
 
 func refreshCertificateDatabaseImpl() error {
+	// Re-entry is safe here because publication is one-way and content-aware:
+	// we build the next tree in a temporary directory, publish it under its
+	// deterministic generation name, and only then flip merged.
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
@@ -763,22 +771,20 @@ func refreshCertificateDatabaseImpl() error {
 		return fmt.Errorf("published certificates generation %q is not a directory", hash)
 	}
 
-	// If the current pointer already resolves to this generation, keep the
-	// existing rollback metadata intact rather than churning links for no change.
+	// If the current pointer already resolves to this generation, there is no
+	// visible state change to publish.
 	if currentTarget == nextTarget {
 		return nil
 	}
 
-	// Publish by moving the public pointers, not by mutating generation
-	// contents. The active view moves first; the previous pointer then records
-	// the generation we just displaced for undo and later cleanup decisions.
-	if err := switchCurrentMergedCertificates(nextTarget); err != nil {
-		return err
-	}
-	if err := switchPreviousMergedCertificates(currentTarget); err != nil {
-		return fmt.Errorf("cannot update previous merged certificates metadata: %v", err)
-	}
-	return nil
+	// Publish by moving the public pointer, not by mutating generation
+	// contents. A failure before the final pointer swap leaves the active
+	// generation unchanged; a failure after publishing the immutable
+	// generation but before switching merged lets a later retry reuse that
+	// published tree and retry only the metadata update. Callers that need
+	// rollback across reboot must still persist the previous
+	// merged target themselves before calling into this helper.
+	return switchCurrentMergedCertificates(nextTarget)
 }
 
 // certificatePathWithExtension returns a path under dir for a certificate name
@@ -823,7 +829,7 @@ func RemoveCertificate(name string) error {
 // set the state of the certificate (i.e. does not create symlinks in the added/blocked directories).
 func WriteCertificate(name, content string) error {
 	certPath := certificatePathWithExtension(dirs.SnapdPKIV1Dir, name)
-	if err := os.WriteFile(certPath, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(certPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("cannot write custom certificate %q: %v", name, err)
 	}
 	return nil
@@ -849,6 +855,9 @@ func SetCertificateState(name, digest, state string) error {
 			return err
 		}
 	}
+	// We don't handle Unset currently because for the case of unsetting it actually
+	// means removing the certificate currently (in the config api), which means RemoveCertificateSymlinks
+	// is being called instead for the case of Unset.
 	return nil
 }
 

@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -144,6 +145,11 @@ func removeAcceptedCustomCertificate(c *C, name, digest string) {
 	c.Assert(certstate.RemoveCertificate(name), IsNil)
 }
 
+func makeSymlinkLoop(c *C, path string) {
+	c.Assert(os.MkdirAll(filepath.Dir(path), 0o755), IsNil)
+	c.Assert(os.Symlink(path, path), IsNil)
+}
+
 func (s *certsTestSuite) TestIsBlockedReturnsBlocked(c *C) {
 	c.Check(certstate.IsBlocked(certstate.Certificate{
 		Sha256:   "digest-123",
@@ -213,6 +219,24 @@ func (s *certsTestSuite) TestParseCertificateDataSubjectHashMatchesOpenSSL(c *C)
 	parsed, err := certstate.ParseCertificateData(certPEM)
 	c.Assert(err, IsNil)
 	c.Check(parsed.SubjectNameSha1, Equals, opensslSubjectHash(c, certPEM))
+}
+
+func (s *certsTestSuite) TestLoadCertificatesPropagatesAddedDirLookupError(c *C) {
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	makeSymlinkLoop(c, filepath.Join(dirs.SnapdPKIV1Dir, "added"))
+
+	_, err := certstate.LoadCertificates()
+	c.Assert(err, NotNil)
+	c.Check(errors.Is(err, syscall.ELOOP), Equals, true)
+}
+
+func (s *certsTestSuite) TestLoadCertificatesPropagatesBlockedDirLookupError(c *C) {
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	makeSymlinkLoop(c, filepath.Join(dirs.SnapdPKIV1Dir, "blocked"))
+
+	_, err := certstate.LoadCertificates()
+	c.Assert(err, NotNil)
+	c.Check(errors.Is(err, syscall.ELOOP), Equals, true)
 }
 
 func (s *certsTestSuite) TestParseCertificateDataMultipleCertificatesSkipsSubjectHash(c *C) {
@@ -796,11 +820,8 @@ func (s *certsTestSuite) TestRefreshCertificateDatabasePublishesImmutableGenerat
 	c.Assert(err, IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	previousPath := filepath.Join(dirs.SnapdPKIV1Dir, "previous")
 	firstTarget, err := os.Readlink(mergedDir)
 	c.Assert(err, IsNil)
-	_, err = os.Lstat(previousPath)
-	c.Check(os.IsNotExist(err), Equals, true)
 
 	firstBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, firstTarget, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
@@ -816,9 +837,6 @@ func (s *certsTestSuite) TestRefreshCertificateDatabasePublishesImmutableGenerat
 	secondTarget, err := os.Readlink(mergedDir)
 	c.Assert(err, IsNil)
 	c.Check(secondTarget, Not(Equals), firstTarget)
-	previousTarget, err := os.Readlink(previousPath)
-	c.Assert(err, IsNil)
-	c.Check(previousTarget, Equals, firstTarget)
 
 	secondBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, secondTarget, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
@@ -828,10 +846,6 @@ func (s *certsTestSuite) TestRefreshCertificateDatabasePublishesImmutableGenerat
 	firstBundleAfterRefresh, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, firstTarget, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
 	c.Check(firstBundleAfterRefresh, DeepEquals, firstBundle)
-
-	previousBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, previousTarget, "ca-certificates.crt"))
-	c.Assert(err, IsNil)
-	c.Check(previousBundle, DeepEquals, firstBundle)
 
 	mergedBundle, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
@@ -848,7 +862,6 @@ func (s *certsTestSuite) TestRefreshCertificateDatabaseRenamedAcceptedCertificat
 	c.Assert(err, IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	previousPath := filepath.Join(dirs.SnapdPKIV1Dir, "previous")
 	firstTarget, err := os.Readlink(mergedDir)
 	c.Assert(err, IsNil)
 	firstBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, firstTarget, "ca-certificates.crt"))
@@ -866,9 +879,6 @@ func (s *certsTestSuite) TestRefreshCertificateDatabaseRenamedAcceptedCertificat
 	secondTarget, err := os.Readlink(mergedDir)
 	c.Assert(err, IsNil)
 	c.Check(secondTarget, Not(Equals), firstTarget)
-	previousTarget, err := os.Readlink(previousPath)
-	c.Assert(err, IsNil)
-	c.Check(previousTarget, Equals, firstTarget)
 
 	secondBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, secondTarget, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
@@ -895,7 +905,6 @@ func (s *certsTestSuite) TestRefreshCertificateDatabaseCollisionRenameGetsNewGen
 	c.Assert(err, IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	previousPath := filepath.Join(dirs.SnapdPKIV1Dir, "previous")
 	firstTarget, err := os.Readlink(mergedDir)
 	c.Assert(err, IsNil)
 	firstBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, firstTarget, "ca-certificates.crt"))
@@ -913,9 +922,6 @@ func (s *certsTestSuite) TestRefreshCertificateDatabaseCollisionRenameGetsNewGen
 	secondTarget, err := os.Readlink(mergedDir)
 	c.Assert(err, IsNil)
 	c.Check(secondTarget, Not(Equals), firstTarget)
-	previousTarget, err := os.Readlink(previousPath)
-	c.Assert(err, IsNil)
-	c.Check(previousTarget, Equals, firstTarget)
 
 	secondBundle, err := os.ReadFile(filepath.Join(dirs.SnapdPKIV1Dir, secondTarget, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
