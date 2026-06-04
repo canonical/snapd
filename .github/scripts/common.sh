@@ -60,7 +60,10 @@ ensure_auto_rerun_label() {
     fi
 
     echo "Adding $AUTO_RERUN_LABEL label to PR #$pr_number"
-    gh pr edit "$pr_number" --add-label "$AUTO_RERUN_LABEL"
+    if ! gh_retry pr edit "$pr_number" --add-label "$AUTO_RERUN_LABEL"; then
+        NOT_RERUN_REASON="failed to add label '$AUTO_RERUN_LABEL' to PR #$pr_number"
+        return 1
+    fi
 }
 
 # Returns a JSON object mapping each reviewer's login to their effective review

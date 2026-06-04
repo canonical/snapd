@@ -96,7 +96,11 @@ jobs:
             # Ensure the PR has the auto rerun label, to provide visibility and allow
             # manual exclusion from future runs if needed
             echo "PR #$pr_number | Step: ensure auto-rerun label"
-            ensure_auto_rerun_label "$pr_number" "$pr"
+            if ! ensure_auto_rerun_label "$pr_number" "$pr"; then
+               echo "PR #$pr_number | Skip: $NOT_RERUN_REASON"
+               echo "----- End PR #$pr_number -----"
+               continue
+             fi
 
             # Find the most recent workflow run for this PR's head SHA, and check if
             # it's eligible for rerunning (completed, not successful, not already rerun
