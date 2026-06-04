@@ -170,23 +170,12 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, user
 		}
 	}
 
-	// On classic systems that are already seeded, automatically
-	// install snapd snap (covers LP: 1819318). Not allowed for
-	// Ubuntu Core systems - requires remodeling.
 	var tsSnapd *state.TaskSet
-	snapdSnapInstalled, err := isInstalled(st, "snapd")
+	installSnapd, err := considerSnapdAsPrereq(st)
 	if err != nil {
 		return err
 	}
-
-	// consider the state of seeding to avoid seed conflict error
-	var seeded bool
-	err = st.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
-	if release.OnClassic && seeded && !snapdSnapInstalled {
+	if installSnapd {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
 			noTypeBaseCheck := false
 			tsSnapd, err = installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{
@@ -225,6 +214,24 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, user
 	t.SetStatus(state.DoneStatus)
 
 	return nil
+}
+
+// considerSnapdAsPrereq returns true if we should install snapd as a
+// prerequisite. Returns true on classic systems that are already seeded. Not
+// allowed on Ubuntu Core systems, this requires remodeling.
+func considerSnapdAsPrereq(st *state.State) (bool, error) {
+	installed, err := isInstalled(st, "snapd")
+	if err != nil {
+		return false, err
+	}
+
+	// consider the state of seeding to avoid seed conflict error
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
+	}
+
+	return release.OnClassic && seeded && !installed, nil
 }
 
 func installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []string, requireTypeBase bool, channel string, onInFlight error, userID int, flags Flags) (*state.TaskSet, error) {
