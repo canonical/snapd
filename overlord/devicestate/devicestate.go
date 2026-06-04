@@ -1776,6 +1776,12 @@ func SeedRefreshTasks(
 	candidates []snapstate.SeedRefreshCandidate,
 	eviction snapstate.SeedRefreshEvictionPolicy,
 ) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	// remodel creates its own seed creation tasks explicitly, seed-refresh
+	// should never create them.
+	if dctx.ForRemodeling() {
+		return nil, nil, nil
+	}
+
 	triggers := seedRefreshTriggers(st, dctx)
 
 	var snapsups, compsups []string
@@ -1850,6 +1856,12 @@ func SeedRefreshTasks(
 // snap isn't part of the seed refresh, otherwise returns the seed refresh task
 // set.
 func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
+	// remodel creates its own seed creation tasks explicitly, seed-refresh
+	// should never create them.
+	if dctx.ForRemodeling() {
+		return nil, nil
+	}
+
 	triggers := seedRefreshTriggers(chg.State(), dctx)
 
 	ok, err := triggers(candidate.InstanceName)
