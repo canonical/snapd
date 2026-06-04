@@ -179,7 +179,6 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
-	var chgID string
 	for name, cmdInfo := range commands {
 		cmd := cmdInfo.generator()
 		cmd.setName(name)
@@ -201,10 +200,10 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 
 	if parser.Active != nil {
 		if activeCmd, ok := instantiatedCommands[parser.Active.Name]; ok {
-			chgID = activeCmd.ChangeID()
+			changeID = activeCmd.ChangeID()
 		}
 	}
-	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), chgID, err
+	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), changeID, err
 }
 
 // isAllowedToRun returns true if the user with the given UID can run the given snapctl command vector.
