@@ -72,8 +72,8 @@ jobs:
       backend: ${{ matrix.backend }}
       alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
-      # tasks: ${{ matrix.tasks }}
-      tasks: tests/main/alias
+      tasks: ${{ matrix.tasks }}
+      # tasks: tests/main/alias
       rules: ${{ matrix.rules }}
       upload-artifacts: true
       spread-env: "SPREAD_GENERATE_COVERAGE=true"
@@ -127,6 +127,7 @@ jobs:
             else
               output_name="${BASH_REMATCH[1]}".json
             fi
+            output_name="failed-$output_name"
             jq -r '.items.[] | select(.success == false) | select(.verb != "checking") | select(.level == "task") | select(.skipped == false) | .backend + ":" + .system + ":" + .name' "$results_json" > results/"$output_name"
           done < <(find spread-results -name results.json)
 
