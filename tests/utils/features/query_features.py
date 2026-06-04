@@ -655,7 +655,10 @@ def task_list(retriever: Retriever, timestamp: str) -> set[TaskIdVariant]:
     return tasks
 
 
-def clean_dictionary(features: SystemFeatures, remove_snap_types: bool) -> None:
+def filter_snap_types(snap_types):
+    return [t for t in snap_types if t.startswith('NOT_FOUND')]
+
+def clean_dictionary(features: SystemFeatures, remove_snap_types: bool, remove_cmds: bool, remove_interfaces: bool) -> None:
     '''
     Removes snap types from the features dictionary.
     '''
@@ -664,19 +667,34 @@ def clean_dictionary(features: SystemFeatures, remove_snap_types: bool) -> None:
             for task in test['tasks']:
                 if remove_snap_types and 'snap_types' in task:
                     del task['snap_types']
+                elif 'snap_types' in task:
+                    task['snap_types'] = filter_snap_types(task['snap_types'])
                 if 'last_status' in task and task['last_status'] != 'Done' and task['last_status'] != 'Undone' and task['last_status'] != 'Error':
                     del task['last_status']
         if remove_snap_types and 'changes' in test:
             for change in test['changes']:
                 if 'snap_types' in change:
                     del change['snap_types']
-        if remove_snap_types and 'interfaces' in test:
+        elif 'changes'in test:
+            for change in test['changes']:
+                if 'snap_types' in change:
+                    change['snap_types'] = filter_snap_types(change['snap_types'])
+        if remove_cmds and 'cmds' in test:
+            del test['cmds']
+        if remove_interfaces and 'interfaces' in test:
             del test['interfaces']
-            # for interface in test['interfaces']:                            
-            #     if 'plug_snap_type' in interface:
-            #         del interface['plug_snap_type']
-            #     if 'slot_snap_type' in interface:
-            #         del interface['slot_snap_type']
+        if remove_snap_types and 'interfaces' in test:
+            for interface in test['interfaces']:                            
+                if 'plug_snap_type' in interface:
+                    del interface['plug_snap_type']
+                if 'slot_snap_type' in interface:
+                    del interface['slot_snap_type']
+        elif 'interfaces' in test:
+            for interface in test['interfaces']:                            
+                if 'plug_snap_type' in interface:
+                    interface['plug_snap_type'] = filter_snap_types(interface['plug_snap_type'])
+                if 'slot_snap_type' in interface:
+                    interface['slot_snap_type'] = filter_snap_types(interface['slot_snap_type'])
 
 
 def find_tasks_with_isolated_features(system_json: SystemFeatures) -> set[TaskIdVariant]:
@@ -708,7 +726,7 @@ def minimal_coverage(retriever: Retriever, timestamp: str, system: str, match_sn
         sys_jsons = retriever.get_systems(timestamp)
     coverage = {}
     for sys_json in sys_jsons:
-        clean_dictionary(sys_json, not match_snap_types)
+        clean_dictionary(sys_json, not match_snap_types, remove_cmds=True, remove_interfaces=True)
         tasks = sys_json['tests']
         covered_features = {}
         minimal_tasks = find_tasks_with_isolated_features(sys_json)
