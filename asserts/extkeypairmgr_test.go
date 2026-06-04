@@ -132,7 +132,7 @@ func (s *extKeypairMgrSuite) TearDownSuite(c *C) {
 	s.pgm.Restore()
 }
 
-func (s *extKeypairMgrSuite) TestFeaturesErrors(c *C) {
+func (s *extKeypairMgrSuite) TestFeatures(c *C) {
 	pgm := testutil.MockCommand(c, "keymgr", `
 if [ "$1" != "features" ]; then
   exit 2
