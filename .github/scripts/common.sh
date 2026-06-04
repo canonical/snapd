@@ -16,7 +16,7 @@ gh_retry() {
     local context="${GH_RETRY_CONTEXT:-}"
 
     while (( attempt <= GH_API_RETRIES )); do
-        if output="$(gh "$@" 2>&1)"; then
+        if output="$(gh "$@")"; then
             printf '%s\n' "$output"
             return 0
         fi
@@ -208,7 +208,7 @@ required_spread_failure_threshold_allows_rerun() {
     # Encode the branch name for use in the API URL
     encoded_base=$(jq -Rr @uri <<< "$pr_base")
 
-    if ! required_spread_checks=$(gh api \
+    if ! required_spread_checks=$(gh_retry api \
         -X GET \
         -H "Accept: application/vnd.github+json" \
         "repos/$repo/rules/branches/$encoded_base" \
@@ -226,10 +226,10 @@ required_spread_failure_threshold_allows_rerun() {
         if grep -Fxq "$failed_name" <<<"$required_spread_checks"; then
             failed_required_system_targets+="$failed_id "$'\n'
         fi
-    done < <(gh run view "$run_id" --json jobs --jq '.jobs[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
+    done < <(gh_retry run view "$run_id" --json jobs --jq '.jobs[] | select(.name | test("^spread ")) | select(.conclusion == "failure") | [.databaseId, .name] | @tsv')
 
     for failed in $failed_required_system_targets; do
-        num_failed=$(gh run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1 || true)
+        num_failed=$(gh_retry run view --log-failed --job "$failed" | grep -oP '(?:\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Failed tasks: \K\d+$' | head -1 || true)
 
         if [ -n "$num_failed" ] && [ "$num_failed" -ge "$max_failed_tasks" ]; then
             NOT_RERUN_REASON="there were $max_failed_tasks or more failures on a required system target"
