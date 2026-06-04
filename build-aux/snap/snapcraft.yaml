@@ -405,10 +405,10 @@ parts:
           1337.*)
             case "${cmd}" in
               bin/snap)
-                TAGS+=(withtestkeys faultinject statelocktrace structuredlogging coveragegeneration)
+                TAGS+=(withtestkeys faultinject statelocktrace structuredlogging)
                 ;;
               *)
-                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace structuredlogging coveragegeneration)
+                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace structuredlogging)
                 ;;
             esac
             ;;
