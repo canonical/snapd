@@ -170,6 +170,8 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 		},
 		Base:               "none",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}},
+		// set devmode to prove that prerequisites don't inherit these flags
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
@@ -190,6 +192,8 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 		if t.Kind() == "link-snap" {
 			snapsup, err := snapstate.TaskSnapSetup(t)
 			c.Assert(err, IsNil)
+			// prerequisites are installed with sanitized flags
+			c.Check(snapsup.DevMode, Equals, false)
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		} else if t.Kind() == "prerequisites" {
 			c.Assert(t.Lanes(), DeepEquals, []int{lane})
