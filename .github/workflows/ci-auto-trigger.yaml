@@ -26,15 +26,18 @@ jobs:
         run: |
           set -euo pipefail
 
-          source .github/scripts/rerun-common.sh
+          source .github/scripts/common.sh
 
           GH_RETRY_CONTEXT="ci-auto-trigger checkpoint lookup"
-          checkpoint_runs=$(gh_out_with_retry gh run list \
+          if ! checkpoint_runs=$(gh_retry run list \
             --workflow .github/workflows/ci-auto-trigger.yaml \
             --status completed \
             --limit 2 \
             --json createdAt \
-            --jq '.')
+            --jq '.'); then
+            echo "Warning: failed to fetch checkpoint after retries; processing all open PRs"
+            checkpoint_runs='[]'
+          fi
           GH_RETRY_CONTEXT=""
 
           # Use the checkpoint from the most recent completed ci-auto-trigger run,
@@ -61,7 +64,7 @@ jobs:
           fi
 
           # Fetch all open PRs and inspect them for rerun eligibility
-          prs=$(gh_out_with_retry gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,reviews,baseRefName,updatedAt)
+          prs=$(gh_retry pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,reviews,baseRefName,updatedAt)
           echo "Inspecting $(echo "$prs" | jq 'length') open PRs for rerun..."
 
           echo "$prs" | jq -c '.[]' | while read -r pr; do
@@ -109,7 +112,7 @@ jobs:
             # calls, while still reliably determining whether the latest run for this
             # PR is eligible for rerunning.
             GH_RETRY_CONTEXT="PR #$pr_number run listing for head SHA $head_sha"
-            if ! run_list_json=$(gh_out_with_retry gh run list \
+            if ! run_list_json=$(gh_retry run list \
               --workflow .github/workflows/ci-test.yaml \
               --limit 100 \
               --json databaseId,attempt,status,conclusion,headSha); then
@@ -157,7 +160,7 @@ jobs:
             # and if so, whether the number of failed tasks on any required spread job exceeds our
             # threshold for rerunning
             GH_RETRY_CONTEXT="PR #$pr_number job listing for run_id=$last_run"
-            if ! run_jobs=$(gh_out_with_retry gh run view "$last_run" --json jobs --jq '.jobs'); then
+            if ! run_jobs=$(gh_retry run view "$last_run" --json jobs --jq '.jobs'); then
               echo "PR #$pr_number | Skip: could not fetch jobs for run_id=$last_run after retries"
               GH_RETRY_CONTEXT=""
               echo "----- End PR #$pr_number -----"
@@ -185,6 +188,13 @@ jobs:
             fi
 
             echo "PR #$pr_number | Action: triggering rerun workflow using run_id=$last_run (attempt $run_attempt)"
-            gh workflow run rerun.yaml -f run_id="$last_run"
+            GH_RETRY_CONTEXT="PR #$pr_number trigger rerun workflow for run_id=$last_run"
+            if ! gh_retry workflow run rerun.yaml -f run_id="$last_run"; then
+              echo "PR #$pr_number | Skip: failed to trigger rerun workflow after retries"
+              GH_RETRY_CONTEXT=""
+              echo "----- End PR #$pr_number -----"
+              continue
+            fi
+            GH_RETRY_CONTEXT=""
             echo "----- End PR #$pr_number -----"
           done

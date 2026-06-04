@@ -9,14 +9,14 @@ export NOT_RERUN_REASON=""
 : "${GH_API_RETRY_DELAY_SECONDS:=2}"
 : "${GH_RETRY_CONTEXT:=}"
 
-gh_out_with_retry() {
+gh_retry() {
     local attempt=1
     local delay="$GH_API_RETRY_DELAY_SECONDS"
     local output
     local context="${GH_RETRY_CONTEXT:-}"
 
     while (( attempt <= GH_API_RETRIES )); do
-        if output="$("$@" 2>&1)"; then
+        if output="$(gh "$@" 2>&1)"; then
             printf '%s\n' "$output"
             return 0
         fi
@@ -110,7 +110,7 @@ pr_with_reviews_history() {
     fi
 
     GH_RETRY_CONTEXT="PR #$pr_number review history lookup"
-    if reviews_json=$(gh_out_with_retry gh pr view "$pr_number" --json reviews --jq '.reviews'); then
+    if reviews_json=$(gh_retry pr view "$pr_number" --json reviews --jq '.reviews'); then
         pr_json=$(jq -c --argjson reviews "$reviews_json" '. + {reviews: $reviews}' <<<"$pr_json")
     fi
     GH_RETRY_CONTEXT=""

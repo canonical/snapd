@@ -79,10 +79,18 @@ jobs:
       - name: Check for rerun eligibility
         id: eligibility
         run: |
-          source .github/scripts/rerun-common.sh
+          source .github/scripts/common.sh
 
           pr_number=$(cat pr_number)
-          pr_json=$(gh pr view "$pr_number" --json number,isDraft,labels,reviews,baseRefName)
+
+          GH_RETRY_CONTEXT="PR #$pr_number view lookup"
+          if ! pr_json=$(gh_retry pr view "$pr_number" --json number,isDraft,labels,reviews,baseRefName); then
+            echo "Failed to fetch PR details after retries"
+            echo "auto_rerun=false" >> "$GITHUB_OUTPUT"
+            GH_RETRY_CONTEXT=""
+            exit 0
+          fi
+          GH_RETRY_CONTEXT=""
 
           if ! pr_is_rerun_eligible "$pr_json" 1 true; then
             echo "setting auto rerun to false because $NOT_RERUN_REASON"
@@ -104,7 +112,7 @@ jobs:
         id: threshold
         if: steps.eligibility.outputs.auto_rerun == 'true'
         run: |
-          source .github/scripts/rerun-common.sh
+          source .github/scripts/common.sh
 
           if ! required_spread_failure_threshold_allows_rerun "$RUN_ID" "$PR_BASE" "$GH_REPO" "$MAX_FAILED_TASKS"; then
             echo "Setting rerun to false because $NOT_RERUN_REASON"
@@ -115,4 +123,12 @@ jobs:
       
       - name: Rerun workflow
         if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true'
-        run: gh run rerun "$RUN_ID" --failed
+        run: |
+          source .github/scripts/common.sh
+
+          GH_RETRY_CONTEXT="rerun workflow for run_id=$RUN_ID"
+          if ! gh_retry run rerun "$RUN_ID" --failed; then
+            GH_RETRY_CONTEXT=""
+            exit 1
+          fi
+          GH_RETRY_CONTEXT=""
