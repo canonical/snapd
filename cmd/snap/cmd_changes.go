@@ -25,7 +25,6 @@ import (
 	"sort"
 
 	"github.com/jessevdk/go-flags"
-
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 )
@@ -51,6 +50,7 @@ type cmdChanges struct {
 type cmdTasks struct {
 	timeMixin
 	changeIDMixin
+	formatMixin
 }
 
 func init() {
@@ -58,7 +58,7 @@ func init() {
 		func() flags.Commander { return &cmdChanges{} }, timeDescs, nil)
 	addCommand("tasks", shortTasksHelp, longTasksHelp,
 		func() flags.Commander { return &cmdTasks{} },
-		changeIDMixinOptDesc.also(timeDescs),
+		changeIDMixinOptDesc.also(timeDescs).also(formatArgsHelp),
 		changeIDMixinArgDesc).alias = "change"
 }
 
@@ -157,6 +157,11 @@ func queryChange(cli *client.Client, chid string) (*client.Change, error) {
 func (c *cmdTasks) showChange(chid string) error {
 	chg, err := queryChange(c.client, chid)
 	if err != nil {
+		return err
+	}
+
+	if c.Format != "text" && c.Format != "" {
+		err = c.formatNonText(chg)
 		return err
 	}
 

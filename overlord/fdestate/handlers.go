@@ -57,6 +57,11 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		return err
 	}
 
+	var removeAllOnError bool
+	if err := t.Get("remove-all-on-error", &removeAllOnError); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	// XXX: unlock state and let conflict detection handle the rest?
 
 	containers, err := m.GetEncryptedContainers()
@@ -76,10 +81,11 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		if err == nil {
 			return
 		}
-		// TODO:FDEM: a dedicated clean up for stray tmp key slots (recovery or not)
-		// is needed to account for left-over tmp key slot from a failed re-run for
-		// example.
-		for _, keyslotRef := range addedKeyslots {
+		target := addedKeyslots
+		if removeAllOnError {
+			target = keyslotRefs
+		}
+		for _, keyslotRef := range target {
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
@@ -291,6 +297,11 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		return fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
 	}
 
+	var removeAllOnError bool
+	if err := t.Get("remove-all-on-error", &removeAllOnError); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
 	var keyslotRoles map[string][]string
 	if err := t.Get("roles", &keyslotRoles); err != nil {
 		return err
@@ -330,7 +341,11 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		if err == nil {
 			return
 		}
-		for _, keyslotRef := range addedKeyslots {
+		target := addedKeyslots
+		if removeAllOnError {
+			target = keyslotRefs
+		}
+		for _, keyslotRef := range target {
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
@@ -440,14 +455,6 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 	opts, ok := cached.(*changeAuthOptions)
 	if !ok {
 		return fmt.Errorf("internal error: wrong data type under changeAuthOptionsKey: %T", cached)
-	}
-
-	if opts.old == opts.new {
-		// optimally, this check should be done in ChangeAuth before the change
-		// is created but it is done here to avoid breaking the API, as on success
-		// it expects an async response with a change ID, and if we have an empty
-		// change, it stays at "Hold" status forever, so it is more for convenience.
-		return nil
 	}
 
 	changeOneKeyslot := func(keyslot Keyslot, old, new string) error {

@@ -2760,7 +2760,7 @@ func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRes
 		{
 			InstanceName: s.model.Kernel(),
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(added, DeepEquals, map[string]bool{s.model.Kernel(): true})
 	c.Assert(seedTS, NotNil)
@@ -3445,9 +3445,9 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		s.DeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
 	}
 
-	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		callCnt.checkCnt++
-		c.Assert(bootImagePaths, HasLen, 3)
+		c.Assert(bootImageFiles, HasLen, 3)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		if hasTPM {
 			return preinstallCheckContext, nil, nil

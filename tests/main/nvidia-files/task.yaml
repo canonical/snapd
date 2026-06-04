@@ -75,6 +75,7 @@ prepare: |
     skip["ubuntu-20.04-64/560"]="no-driver"
 
     skip["ubuntu-22.04-64/390"]="broken-driver"
+    skip["ubuntu-22.04-64/470"]="transitional-driver"
     skip["ubuntu-22.04-64/510"]="transitional-driver"
     skip["ubuntu-22.04-64/515"]="transitional-driver"
     skip["ubuntu-22.04-64/515-server"]="transitional-driver"
@@ -87,7 +88,7 @@ prepare: |
     skip["ubuntu-24.04-64/390"]="no-driver"
     skip["ubuntu-24.04-64/418-server"]="no-driver"
     skip["ubuntu-24.04-64/450-server"]="no-driver"
-    skip["ubuntu-24.04-64/470"]="broken-driver"
+    skip["ubuntu-24.04-64/470"]="transitional-driver"
     skip["ubuntu-24.04-64/470-server"]="broken-driver"
     skip["ubuntu-24.04-64/510"]="transitional-driver"
     skip["ubuntu-24.04-64/515"]="transitional-driver"

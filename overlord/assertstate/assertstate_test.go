@@ -2383,11 +2383,18 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 }
 
 func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
+	setupDB := func() {
+		db, err := sysdb.Open()
+		c.Assert(err, IsNil)
+		assertstate.ReplaceDB(s.state, db)
+	}
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	r1 := assertstest.MockBuiltinBaseDeclaration(nil)
 	defer r1()
+	setupDB()
 
 	baseDecl, err := assertstate.BaseDeclaration(s.state)
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
@@ -2395,12 +2402,14 @@ func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
 
 	r2 := assertstest.MockBuiltinBaseDeclaration([]byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 plugs:
   iface: true
 `))
 	defer r2()
+	setupDB()
 
 	baseDecl, err = assertstate.BaseDeclaration(s.state)
 	c.Assert(err, IsNil)

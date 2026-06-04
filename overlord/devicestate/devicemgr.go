@@ -1266,6 +1266,20 @@ func (m *DeviceManager) ensureFDE() error {
 
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFDE")
 
+	model, err := m.Model()
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			logger.Debugf("no model is available, skipping ensureFDE")
+			return nil
+		}
+		return err
+	}
+
+	runPostInstallChecks, err := install.CheckHybridQuestingRelease(model)
+	if err != nil {
+		return err
+	}
+
 	// FIXME: we should rename to something like "reset lockout"
 	lockoutResetErr := secbootMarkSuccessful()
 
@@ -1276,7 +1290,7 @@ func (m *DeviceManager) ensureFDE() error {
 	// FIXME: we need to check that a try kernel was attempted here and not attempt
 	// repair in that case.
 
-	if err := fdestateAttemptAutoRepairIfNeeded(m.state, lockoutResetErr); err != nil {
+	if err := fdestateAttemptAutoRepairIfNeeded(m.state, lockoutResetErr, runPostInstallChecks); err != nil {
 		return err
 	}
 

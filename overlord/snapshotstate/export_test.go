@@ -216,11 +216,3 @@ func MockGetSnapDirOptions(f func(*state.State, string) (*dirs.SnapDirOptions, e
 		getSnapDirOpts = old
 	}
 }
-
-func MockListMountControlMountPoints(f func(string) ([]string, error)) (restore func()) {
-	old := listMountControlMountPoints
-	listMountControlMountPoints = f
-	return func() {
-		listMountControlMountPoints = old
-	}
-}

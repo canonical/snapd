@@ -20,12 +20,14 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -230,6 +232,36 @@ func (s *SnapSuite) TestChangeProgress(c *check.C) {
 Doing +2016-04-21T01:02:03Z +2016-04-21T01:02:04Z +some summary \(50.00%\)
 `)
 	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestTasksJSON(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "GET")
+		c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+		fmt.Fprintln(w, mockChangeJSON)
+	})
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--format=json", "42"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+
+	var chg client.Change
+	c.Assert(json.Unmarshal([]byte(s.Stdout()), &chg), check.IsNil)
+	c.Check(chg.ID, check.Equals, "uno")
+	c.Check(chg.Kind, check.Equals, "foo")
+	c.Check(chg.Summary, check.Equals, "...")
+	c.Check(chg.Status, check.Equals, "Do")
+	c.Check(chg.Ready, check.Equals, false)
+	c.Assert(chg.Tasks, check.HasLen, 1)
+	c.Check(chg.Tasks[0].Kind, check.Equals, "bar")
+	c.Check(chg.Tasks[0].Summary, check.Equals, "some summary")
+	c.Check(chg.Tasks[0].Status, check.Equals, "Do")
+
+	// If format (which has defined values) gets passed an invalid value, the parser wraps it in `'.
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--format=", "42"})
+	c.Assert(err, check.ErrorMatches, ".*Invalid value `' for option `--format'. Allowed values are: .* or json")
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"tasks", "--format=random", "42"})
+	c.Assert(err, check.ErrorMatches, ".*Invalid value `random' for option `--format'. Allowed values are: .* or json")
 }
 
 func (s *SnapSuite) TestNoChanges(c *check.C) {
