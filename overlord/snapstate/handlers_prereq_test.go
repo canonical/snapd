@@ -1167,6 +1167,58 @@ func (s *prereqSuite) TestPreReqContentAttrsNotSatisfied(c *C) {
 	}
 }
 
+func (s *prereqSuite) TestPreReqContentAttrsRefreshKeepsTrackedChannel(c *C) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	s.AddCleanup(func() { snapstate.AutoAliases = nil })
+
+	st := s.state
+	st.Lock()
+
+	mockInstalledSnap(c, st, `name: some-snap`, false)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst), IsNil)
+	snapst.TrackingChannel = "latest/edge"
+	snapstate.Set(st, "some-snap", &snapst)
+
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	t := st.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base:               "none",
+		PrereqContentAttrs: map[string][]string{"some-snap": {"this-does-not-match"}},
+	})
+	chg := st.NewChange("sample", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(s.fakeBackend.ops.Count("storesvc-snap-action:action"), Equals, 1)
+	op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
+	c.Check(op.action.InstanceName, Equals, "some-snap")
+	c.Check(op.action.Action, Equals, "refresh")
+	c.Check(op.action.Channel, Equals, "latest/edge")
+}
+
 func (s *prereqSuite) TestPreReqContentAttrsNotSatisfiedSeeding(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil

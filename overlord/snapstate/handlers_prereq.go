@@ -164,10 +164,15 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 	// installed together we add the tasks to the change.
 	var tss []*state.TaskSet
 	for prereqName, contentAttrs := range prereq {
-		var err error
 		var ts *state.TaskSet
+		var err error
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
-			ts, err = installOneBaseOrRequired(t, prereqName, contentAttrs, defaultPrereqSnapsChannel(), opts)
+			ts, err = ensurePrerequisite(t, contentAttrs, StoreSnap{
+				InstanceName: prereqName,
+				RevOpts: RevisionOptions{
+					Channel: defaultPrereqSnapsChannel(),
+				},
+			}, opts)
 		})
 		if err != nil {
 			return prereqError("prerequisite", prereqName, err)
@@ -179,8 +184,8 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 	}
 
 	var baseTS *state.TaskSet
-	var err error
 	if base != "none" {
+		var err error
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
 			// base prerequisites are installed with the same options as other
 			// prerequisites, except that they must be verified to have type
@@ -188,7 +193,12 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 			opts := opts
 			opts.Flags.RequireTypeBase = true
 
-			baseTS, err = installOneBaseOrRequired(t, base, nil, defaultBaseSnapsChannel(), opts)
+			baseTS, err = ensurePrerequisite(t, nil, StoreSnap{
+				InstanceName: base,
+				RevOpts: RevisionOptions{
+					Channel: defaultBaseSnapsChannel(),
+				},
+			}, opts)
 		})
 		if err != nil {
 			return prereqError("snap base", base, err)
@@ -203,7 +213,12 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 	var snapdTS *state.TaskSet
 	if installSnapd {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
-			snapdTS, err = installOneBaseOrRequired(t, "snapd", nil, defaultSnapdSnapsChannel(), opts)
+			snapdTS, err = ensurePrerequisite(t, nil, StoreSnap{
+				InstanceName: "snapd",
+				RevOpts: RevisionOptions{
+					Channel: defaultSnapdSnapsChannel(),
+				},
+			}, opts)
 		})
 		if err != nil {
 			return prereqError("system snap", "snapd", err)
@@ -320,26 +335,26 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 	return prereqRetry, nil
 }
 
-func installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []string, channel string, opts Options) (*state.TaskSet, error) {
+func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
 	st := t.State()
 
-	// The core snap provides everything we need for core16.
-	coreInstalled, err := isInstalled(st, "core")
-	if err != nil {
-		return nil, err
-	}
-	if snapName == "core16" && coreInstalled {
-		return nil, nil
-	}
+	// as a special case, we allow the core snap to satisfy a core16 requirement
+	if sn.InstanceName == "core16" {
+		installed, err := isInstalled(st, "core")
+		if err != nil {
+			return nil, err
+		}
 
-	// installed already?
-	isInstalled, err := isInstalled(st, snapName)
-	if err != nil {
-		return nil, err
+		// this is safe since bases are not content-providers. thus, they will
+		// never need an update. note that this also skips any retry behavior,
+		// but is consistent with the current implementation.
+		if installed {
+			return nil, nil
+		}
 	}
 
 	// check for an existing link-snap task before creating prerequisite tasks.
-	action, err := checkForInFlightPrereqTasks(t, snapName, opts.Flags.RequireTypeBase)
+	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
 	if err != nil {
 		return nil, err
 	}
@@ -350,69 +365,58 @@ func installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []str
 		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 
-	if isInstalled {
-		if len(contentAttrs) > 0 {
-			// the default provider is already installed, update it if it's missing content attributes the snap needs
-			return updatePrereqIfOutdated(t, snapName, contentAttrs, opts)
-		}
-
-		return nil, nil
-	}
-
-	// not installed, nor queued for install -> install it
-	_, ts, err := InstallOne(context.TODO(), st, StoreInstallGoal(StoreSnap{
-		InstanceName: snapName,
-		RevOpts: RevisionOptions{
-			Channel: channel,
-		},
-	}), opts)
-
-	// something might have triggered an explicit install while
-	// the state was unlocked -> deal with that here by simply
-	// retrying the operation.
-	var conflErr *ChangeConflictError
-	if errors.As(err, &conflErr) {
-		// conflicted with an install in the same change, just skip
-		if conflErr.ChangeID == t.Change().ID() {
-			return nil, nil
-		}
-
-		return nil, &state.Retry{After: prerequisitesRetryTimeout}
-	}
-	return ts, err
-}
-
-// updates a prerequisite, if it's not providing a content interface that a plug expects it to
-func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []string, opts Options) (*state.TaskSet, error) {
-	st := t.State()
-
-	// check if the default provider has all expected content tags
-	if ok, err := hasAllContentAttrs(st, snapName, contentAttrs); err != nil {
-		return nil, err
-	} else if ok {
-		return nil, nil
-	}
-
-	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := UpdateOne(context.Background(), st, StoreUpdateGoal(StoreUpdate{
-		InstanceName: snapName,
-	}), nil, opts)
+	installed, err := isInstalled(st, sn.InstanceName)
 	if err != nil {
-		if conflErr, ok := err.(*ChangeConflictError); ok {
-			// If we aren't seeded, then it's too early to do any updates and we cannot
-			// handle this during seeding, so expect the ChangeConflictError in this scenario.
-			if conflErr.ChangeKind == "seed" {
-				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), conflErr)
-				return nil, nil
-			}
+		return nil, err
+	}
 
-			// there's already an update for the same snap in this change,
-			// just skip this one
-			if conflErr.ChangeID == t.Change().ID() {
+	var ts *state.TaskSet
+	if !installed {
+		_, ts, err = InstallOne(context.TODO(), st, StoreInstallGoal(sn), opts)
+	} else {
+		ts, err = maybeUpdateContentProvider(t, sn.InstanceName, contentAttrs, opts)
+	}
+	if err != nil {
+		var cerr *ChangeConflictError
+		if errors.As(err, &cerr) {
+			// conflicted with an install in the same change, just skip
+			if cerr.ChangeID == t.Change().ID() {
 				return nil, nil
 			}
 
 			return nil, &state.Retry{After: prerequisitesRetryTimeout}
+		}
+		return nil, err
+	}
+
+	return ts, nil
+}
+
+func maybeUpdateContentProvider(t *state.Task, snapName string, contentAttrs []string, opts Options) (*state.TaskSet, error) {
+	st := t.State()
+	provided, err := hasAllContentAttrs(st, snapName, contentAttrs)
+	if err != nil {
+		return nil, err
+	}
+	if provided {
+		return nil, nil
+	}
+
+	ts, err := UpdateOne(context.TODO(), st, StoreUpdateGoal(StoreUpdate{
+		InstanceName: snapName,
+	}), nil, opts)
+	if err != nil {
+		var cerr *ChangeConflictError
+		if errors.As(err, &cerr) {
+			// if we aren't seeded, then it's too early to do any updates and we
+			// cannot handle this during seeding, so expect the
+			// ChangeConflictError in this scenario.
+			if cerr.ChangeKind == "seed" {
+				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), cerr)
+				return nil, nil
+			}
+
+			return nil, err
 		}
 
 		// don't propagate error to avoid failing the main install since the
@@ -424,7 +428,6 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 	if err := maybeMergeLateSeedRefreshPrereq(t.Change(), opts.DeviceCtx, ts); err != nil {
 		return nil, err
 	}
-
 	return ts, nil
 }
 
