@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-//go:build !coveragegeneration
+//go:build !testingcoveragegeneration
 
 /*
  * Copyright (C) 2026 Canonical Ltd
