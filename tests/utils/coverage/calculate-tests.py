@@ -11,12 +11,11 @@ def parse_args() -> argparse.Namespace:
         description=(
             "Calculate tests to execute for selected systems according to the criteria (only for non-test golang files):"
             "1. A core set of tests that completely cover features independently of the change"
-            "2. Any file change inside of overlord/hookstate will execute all tests with the run-hook feature in addition to whatever coverage is present" # look at this again
-            "3. Any tests without feature coverage data will always be executed"
-            "4. Any tests that failed during coverage data collection will always be executed"
-            "5. If a single file change does not identify any tests to execute, all tests will be executed (excluding case #2)"
-            "6. If a file is added/deleted (rather than modified), then all the tests from coverage data for each file contained in that dir will be executed"
-            "7. If a change is inside certain key areas (cmd/snap/cmd_run.go), then all tests will run"
+            "2. Any tests without feature coverage data will always be executed"
+            "3. Any tests that failed during coverage data collection will always be executed"
+            "4. If a single file change does not identify any tests to execute, all tests will be executed (excluding case #2)"
+            "5. If a file is added/deleted (rather than modified), then all the tests from coverage data for each file contained in that dir will be executed"
+            "6. If a change is inside certain key areas (cmd/snap/cmd_run.go), then all tests will run"
         )
     )
     parser.add_argument(
@@ -56,14 +55,6 @@ def parse_args() -> argparse.Namespace:
         "--failure-file",
         default="/home/katie.may@canonical.com/Desktop/coverage/2026-05-31/failed.json",
         help="Path to failed-tests JSON file",
-    )
-    parser.add_argument(
-        "--hook-feature",
-        default="/home/katie.may@canonical.com/Desktop/coverage/2026-05-31/tmp/run-hook",
-        help=(
-            "Path to hook-feature JSON mapping with keys as <backend>:<system> and "
-            "values as test name lists"
-        ),
     )
     parser.add_argument(
         "--fundamental-data",
@@ -115,13 +106,6 @@ def read_files_input(files_list: str) -> list[tuple[str, str]]:
 
 def immediate_directory(file_path: str) -> str:
     return str(PurePosixPath(file_path).parent)
-
-
-def changed_files_touch_hookstate(changed_files: list[tuple[str, str]]) -> bool:
-    for file_path, _ in changed_files:
-        if "hookstate" in PurePosixPath(file_path).parts:
-            return True
-    return False
 
 
 def load_json_file(path: str) -> dict | list:
@@ -266,25 +250,6 @@ def coverage_tests(system_data: dict, selected_systems: set[str]) -> set[str]:
     return selected
 
 
-def hook_feature_tests(hook_feature_file: str, selected_systems: set[str]) -> set[str]:
-    data = load_json_file(hook_feature_file)
-    if not isinstance(data, dict):
-        raise RuntimeError("unexpected hook-feature shape; expected JSON object")
-
-    selected: set[str] = set()
-    for system in selected_systems:
-        tests = data.get(system, [])
-        if not isinstance(tests, list):
-            raise RuntimeError(
-                f"unexpected hook-feature tests shape for {system}; expected JSON array"
-            )
-        for test_name in tests:
-            if isinstance(test_name, str) and test_name:
-                selected |= expand_test_names(test_name, {system})
-
-    return selected
-
-
 def tests_missing_from_coverage(
     spread_tests: list[str], system_data: dict, selected_systems: set[str]
 ) -> set[str]:
@@ -295,91 +260,6 @@ def tests_missing_from_coverage(
         if test_name not in represented_in_coverage:
             missing.add(test_name)
 
-    skipped = [
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-flag-restart",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:audio_record_single",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:audio_record_timespan_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:audio_record_timespan_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_multiple_actioned_by_other_pid_always_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_multiple_actioned_by_other_pid_always_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_multiple_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_multiple_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_multiple_not_actioned_by_other_pid_single_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_multiple_not_actioned_by_other_pid_single_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_write_chmod_same_fd_single_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_write_chmod_same_path_single_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:create_write_write_same_path_single_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:download_file_conflict",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:download_file_defaults",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:download_file_safer",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:read_single_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:read_single_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:special_characters",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:timespan_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:timespan_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:write_read_multiple_actioned_by_other_pid_allow_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:write_read_multiple_actioned_by_other_pid_deny_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:write_single_allow",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-integration-tests:write_single_deny",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-prompt-restoration",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_allow_forever",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_allow_session",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_allow_single",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_allow_timespan",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_deny_forever",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_deny_session",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_deny_single",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:audiorecord_deny_timespan",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_allow_forever",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_allow_session",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_allow_single",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_allow_timespan",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_deny_forever",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_deny_session",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_deny_single",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:camera_deny_timespan",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_allow_forever",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_allow_session",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_allow_single",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_allow_timespan",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_deny_forever",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_deny_session",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_deny_single",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-smoke:home_deny_timespan",
-"openstack:ubuntu-20.04-64:tests/main/apparmor-prompting-snapd-startup",
-"openstack:ubuntu-20.04-64:tests/main/auto-refresh-private",
-"openstack:ubuntu-20.04-64:tests/main/auto-refresh-retry",
-"openstack:ubuntu-20.04-64:tests/main/classic-custom-device-reg",
-"openstack:ubuntu-20.04-64:tests/main/classic-firstboot -",
-"openstack:ubuntu-20.04-64:tests/main/classic-prepare-image",
-"openstack:ubuntu-20.04-64:tests/main/classic-prepare-image-no-core",
-"openstack:ubuntu-20.04-64:tests/main/classic-snapd-firstboot",
-"openstack:ubuntu-20.04-64:tests/main/command-chain:reexec0",
-"openstack:ubuntu-20.04-64:tests/main/debug-execution",
-"openstack:ubuntu-20.04-64:tests/main/download-private",
-"openstack:ubuntu-20.04-64:tests/main/download-timeout",
-"openstack:ubuntu-20.04-64:tests/main/install-errors:noreexec",
-"openstack:ubuntu-20.04-64:tests/main/install-refresh-private",
-"openstack:ubuntu-20.04-64:tests/main/install-sideload-epochs:reexec0",
-"openstack:ubuntu-20.04-64:tests/main/install-sideload:reexec0",
-"openstack:ubuntu-20.04-64:tests/main/interfaces-kernel-module-control",
-"openstack:ubuntu-20.04-64:tests/main/interfaces-requests-activates-handlers",
-"openstack:ubuntu-20.04-64:tests/main/interfaces-snap-interfaces-requests-control",
-"openstack:ubuntu-20.04-64:tests/main/mount-dir-detect-check",
-"openstack:ubuntu-20.04-64:tests/main/network-retry",
-"openstack:ubuntu-20.04-64:tests/main/postrm-purge",
-"openstack:ubuntu-20.04-64:tests/main/proxy",
-"openstack:ubuntu-20.04-64:tests/main/security-group-policy:no_reexec",
-"openstack:ubuntu-20.04-64:tests/main/snap-run-hook:reexec0",
-"openstack:ubuntu-20.04-64:tests/main/snapd-homedirs-vendored",
-"openstack:ubuntu-20.04-64:tests/main/snapd-snap:destructive",
-"openstack:ubuntu-20.04-64:tests/main/snapd-snap:lxd",
-"openstack:ubuntu-20.04-64:tests/main/writable-areas:reexec0", 
-]
-    new_missing = set(missing)
-    for m in new_missing:
-        if m in skipped:
-            missing.discard(m)
     return missing
 
 
@@ -457,7 +337,7 @@ def main():
             print("\n".join(spread_tests))
             exit(0)
         for name, tests in from_changed.items():
-            if len(tests) == 0 and name.endswith(".go") and not name.endswith("_test.go") and not "hookstate" in name:
+            if len(tests) == 0 and name.endswith(".go") and not name.endswith("_test.go"):
                 print("\n".join(spread_tests))
                 exit(0)
             selected_tests |= tests
@@ -472,9 +352,6 @@ def main():
     for test_name in failed:
         if isinstance(test_name, str):
             selected_tests |= expand_test_names(test_name, selected_systems)
-
-    if changed_files_touch_hookstate(changed_files):
-        selected_tests |= hook_feature_tests(args.hook_feature, selected_systems)
 
     selected_tests |= tests_missing_from_coverage(
         spread_tests, systems[args.group], selected_systems

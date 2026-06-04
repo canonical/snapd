@@ -101,7 +101,7 @@ jobs:
       - name: Download spread results artifacts
         uses: actions/download-artifact@v8
         with:
-          path: coverage
+          path: spread-results
           pattern: spread-results-*
 
       # - name: Calculate feature-based coverage over last two schedule runs
@@ -115,13 +115,23 @@ jobs:
       - name: Calculate coverage
         run: |
           sudo snap install go --classic 
-          tests/utils/coverage/write-conclusions.sh --coverage-dir coverage
-          mkdir results
-          while IFS= read -r -d '' execution_file; do
-            result_name="$(basename "$(dirname "$execution_file")")"
-            mv "$execution_file" "results/${result_name}.json"
-          done < <(find coverage -type f -name execution.json -print0)
-          tar -czvf coverage-results.tar.gz results/
+          tests/utils/coverage/write-conclusions.sh --coverage-dir coverage --output-dir results
+
+      - name: Create failed lists
+        run: |
+          while IFS= read -r results_json; do
+            group=$(basename $(dirname "$results_json"))
+            output_name=
+            if [[ ! "$group" =~ ^spread-results-[0-9]+-[0-9]+-(.*)$ ]]; then
+              output_name="$group".json
+            else
+              output_name="${BASH_REMATCH[1]}".json
+            fi
+            jq -r '.items.[] | select(.success == false) | select(.verb != "checking") | select(.level == "task") | select(.skipped == false) | .backend + ":" + .system + ":" + .name' "$results_json" > results/"$output_name"
+          done < <(find spread-results -name results.json)
+
+      - name: Tar results
+        run: tar -czvf coverage-results.tar.gz results/
 
       - name: Upload coverage results
         uses: actions/upload-artifact@v7

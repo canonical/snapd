@@ -6,13 +6,12 @@ shopt -s nullglob
 usage() {
     cat <<'EOF'
 Usage:
-  write-conclusions.sh [--coverage-dir <dir>]
+  write-conclusions.sh [--coverage-dir <dir> --output-dir <dir>]
 
 Description:
   Processes all spread-artifacts tarballs in a coverage directory.
   For each tarball, extracts it and runs process-coverage.py with:
     --coverage-dir <extracted>/spread-artifacts/coverage-results
-    --results-path <matching spread-results-*/results.json>
     --output-dir <matching spread-results-* directory>
 
 Default coverage directory: ./coverage
@@ -31,11 +30,16 @@ escape_regex() {
 }
 
 coverage_dir="coverage"
+output_dir="results"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
     --coverage-dir)
         coverage_dir="${2:-}"
+        shift 2
+        ;;
+    --output-dir)
+        output_dir="${2:-}"
         shift 2
         ;;
     -h|--help)
@@ -60,6 +64,13 @@ if [[ ! -d "$coverage_dir" ]]; then
     exit 1
 fi
 
+if [[ -z "$output_dir" ]]; then
+    echo "cannot continue: provide a non-empty output directory" >&2
+    exit 1
+fi
+
+mkdir -p "$output_dir"
+
 require_cmd tar
 require_cmd sed
 require_cmd python3
@@ -69,32 +80,6 @@ processor="$script_dir/process-coverage.py"
 
 if [[ ! -f "$processor" ]]; then
     echo "cannot continue: process-coverage.py not found: $processor" >&2
-    exit 1
-fi
-
-declare -A results_dir_by_key
-declare -A systems_by_run_attempt
-
-for path in "$coverage_dir"/spread-results-*; do
-    [[ -d "$path" ]] || continue
-    base="$(basename "$path")"
-    if [[ "$base" =~ ^spread-results-([0-9]+)-([0-9]+)-(.+)$ ]]; then
-        run_id="${BASH_REMATCH[1]}"
-        attempt="${BASH_REMATCH[2]}"
-        system="${BASH_REMATCH[3]}"
-        key="$run_id|$attempt|$system"
-        run_attempt_key="$run_id|$attempt"
-        results_dir_by_key["$key"]="$path"
-        if [[ -z "${systems_by_run_attempt[$run_attempt_key]:-}" ]]; then
-            systems_by_run_attempt["$run_attempt_key"]="$system"
-        else
-            systems_by_run_attempt["$run_attempt_key"]+=$'\n'"$system"
-        fi
-    fi
-done
-
-if [[ "${#results_dir_by_key[@]}" -eq 0 ]]; then
-    echo "cannot continue: no spread-results-* directories found in $coverage_dir" >&2
     exit 1
 fi
 
@@ -126,41 +111,6 @@ for tar_file in "$coverage_dir"/*.tar "$coverage_dir"/*.tar.gz "$coverage_dir"/*
     attempt="${BASH_REMATCH[3]}"
     run_attempt_key="$run_id|$attempt"
 
-    systems_block="${systems_by_run_attempt[$run_attempt_key]:-}"
-    if [[ -z "$systems_block" ]]; then
-        echo "Skipping $tar_base: no spread-results candidates for run=$run_id attempt=$attempt" >&2
-        skipped=$((skipped + 1))
-        continue
-    fi
-
-    best_system=""
-    best_len=0
-    while IFS= read -r system; do
-        [[ -n "$system" ]] || continue
-        system_re="$(escape_regex "$system")"
-        if [[ "$descriptor" =~ (^|-)${system_re}(-|$) ]]; then
-            system_len=${#system}
-            if (( system_len > best_len )); then
-                best_system="$system"
-                best_len=$system_len
-            fi
-        fi
-    done <<<"$systems_block"
-
-    if [[ -z "$best_system" ]]; then
-        echo "Skipping $tar_base: could not infer matching spread-results system" >&2
-        skipped=$((skipped + 1))
-        continue
-    fi
-
-    results_key="$run_id|$attempt|$best_system"
-    results_dir="${results_dir_by_key[$results_key]:-}"
-    if [[ -z "$results_dir" || ! -f "$results_dir/results.json" ]]; then
-        echo "Skipping $tar_base: missing results.json for key $results_key" >&2
-        skipped=$((skipped + 1))
-        continue
-    fi
-
     extract_dir="$tmp_root/$name"
     mkdir -p "$extract_dir"
     tar -xf "$tar_file" -C "$extract_dir"
@@ -175,11 +125,9 @@ for tar_file in "$coverage_dir"/*.tar "$coverage_dir"/*.tar.gz "$coverage_dir"/*
         continue
     fi
 
-    echo "Processing $tar_base with results $(basename "$results_dir")"
+    echo "Processing $tar_base with results"
     python3 "$processor" \
-        --coverage-dir "$cov_dir" \
-        --results-path "$results_dir/results.json" \
-        --output-dir "$results_dir"
+        --coverage-dir "$cov_dir" > "$output_dir"/"$descriptor".json
 
     processed=$((processed + 1))
 done
