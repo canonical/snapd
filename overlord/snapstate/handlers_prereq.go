@@ -118,6 +118,13 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// remodeling requires that all snaps are accounted for in the initial
+	// operation. thus, none of the snaps will have prerequisites that must be
+	// pulled in by this task.
+	if dctx.ForRemodeling() {
+		return nil
+	}
+
 	if err := installPrereqs(t, base, snapsup.PrereqContentAttrs, tm, Options{
 		Flags:     flags,
 		UserID:    snapsup.UserID,
@@ -315,15 +322,6 @@ func installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []str
 
 		// snap is being installed, retry later
 		return true, nil
-	}
-
-	// if we are remodeling, then we should return early due to the way that
-	// tasks are ordered by the remodeling code. specifically, all snap
-	// downloads during a remodel happen prior to snap installation. thus,
-	// we cannot wait for snaps to be installed here. see remodelTasks for
-	// more information on how the tasks are ordered.
-	if opts.DeviceCtx.ForRemodeling() {
-		return nil, nil
 	}
 
 	if isInstalled {
