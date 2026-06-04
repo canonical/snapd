@@ -120,3 +120,10 @@ execute: |
     # Scenario: When naming a task folder, any change to a task in a different folder will not cause it to run
     spread-filter -r rules.yaml -p google:ubuntu -c tests/nested/test1/task.yaml -t tests/nested/core/ > res
     test "$(wc -w < res)" -eq 0
+
+    # Scenario: When only a golang test is changed, then the unit testing suites should run
+    spread-filter -r rules.yaml -p google:ubuntu -c asserts/sample_test.go -t tests/ > res
+    test "$(wc -w < res)" -eq 3
+    MATCH "google:ubuntu:tests/unit/c-unit-tests-clang" < res
+    MATCH "google:ubuntu:tests/unit/c-unit-tests-gcc" < res
+    MATCH "google:ubuntu:tests/unit/go" < res

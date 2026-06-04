@@ -185,6 +185,8 @@ class ExecutionManager:
                         for task in tasks:
                             if task.startswith(dir):
                                 all_executions.append(task)
+                            elif dir.startswith(task):
+                                all_executions.append(dir)
                     else:
                         all_executions.append(dir)
 
