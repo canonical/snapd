@@ -467,6 +467,59 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 }
 
+func (s *prereqSuite) TestDoPrereqRetryWhenPrereqInstallInAnotherChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// keep the other change's link-snap pending
+	blocker := s.state.NewTask("blocker", "block prereq1 link task")
+	link := s.state.NewTask("link-snap", "pretend prereq1 gets installed")
+	link.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "prereq1",
+			Revision: snap.R(11),
+		},
+	})
+	link.WaitFor(blocker)
+
+	// install snapd so that prerequisites handler won't try to install it
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		}),
+		Current: snap.R(1),
+	})
+
+	prereq := s.state.NewTask("prerequisites", "foo")
+	prereq.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+		Base:               "none",
+		PrereqContentAttrs: map[string][]string{"prereq1": nil},
+	})
+
+	linkChg := s.state.NewChange("install", "install prereq1")
+	linkChg.AddTask(blocker)
+	linkChg.AddTask(link)
+
+	prereqChg := s.state.NewChange("install", "install foo")
+	prereqChg.AddTask(prereq)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// doing + scheduled at-time means the handler returned state.Retry
+	c.Check(prereq.Status(), Equals, state.DoingStatus)
+	c.Check(prereq.AtTime().IsZero(), Equals, false)
+}
+
 func (s *prereqSuite) TestDoPrereqRetryWhenDifferentLaneWaitsOnBaseInFlight(c *C) {
 	restore := snapstate.MockPrerequisitesRetryTimeout(1 * time.Millisecond)
 	defer restore()
