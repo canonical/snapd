@@ -1222,13 +1222,20 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 
 		minLen := int(math.Min(float64(len(xPath)), float64(len(yPath))))
 		for i := 0; i < minLen; i++ {
-			partAcc := xPath[i].Access()
-			otherPart := yPath[i].Access()
-			if partAcc == otherPart {
+			xAcc := xPath[i]
+			yAcc := yPath[i]
+			if xAcc.Access() == yAcc.Access() {
 				continue
 			}
 
-			return partAcc < otherPart
+			// sort placeholders before literals so the latter override the former
+			xPlaceholder := xAcc.Type() == KeyPlaceholderType || xAcc.Type() == IndexPlaceholderType
+			yPlaceholder := yAcc.Type() == KeyPlaceholderType || yAcc.Type() == IndexPlaceholderType
+			if xPlaceholder != yPlaceholder {
+				return xPlaceholder
+			}
+
+			return xAcc.Access() < yAcc.Access()
 		}
 
 		return len(xPath) < len(yPath)
