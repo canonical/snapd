@@ -788,6 +788,11 @@ prepare_suite_each() {
             systemctl --user stop snapd.session-agent.socket
             restart_user=true
         fi
+        if ! [ -f "$TESTSTMP"/initial-coverage-collected ]; then
+            mkdir -p "${SPREAD_PATH}/coverage-results/${SPREAD_SUITE}"
+            cp "$GOCOVERDIR"/* "${SPREAD_PATH}/coverage-results/${SPREAD_SUITE}"
+            touch "$TESTSTMP"/initial-coverage-collected
+        fi
         rm -f "$GOCOVERDIR/*"
         systemctl start snapd
         if [[ "$restart_user" = "true" ]]; then

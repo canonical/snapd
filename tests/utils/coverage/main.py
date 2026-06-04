@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+snapd.spread-tests-install-mode-tweaks#!/usr/bin/env python3
 
 import argparse
 import json
@@ -52,13 +52,70 @@ def run_covdata_textfmt(covdata_dir: Path) -> Path:
 
     cmd = ["go", "tool", "covdata", "textfmt", "-i", str(covdata_dir), "-o", str(out_path)]
     proc = subprocess.run(cmd, check=False, capture_output=True, text=True)
-    if proc.returncode != 0:
+    if proc.returncode == 0:
+        return out_path
+
+    # Fall back to converting each pod separately and merge successful outputs.
+    pod_dirs = sorted(path for path in covdata_dir.iterdir() if path.is_dir())
+    if not pod_dirs:
         try:
             out_path.unlink()
         except OSError:
             pass
         details = (proc.stdout + "\n" + proc.stderr).strip()
         raise RuntimeError(f"cannot convert raw coverage: exit code {proc.returncode} ({details})")
+
+    mode_line = None
+    merged_lines: list[str] = []
+    pod_errors: list[str] = []
+
+    for pod_dir in pod_dirs:
+        pod_fd, pod_tmp_path = tempfile.mkstemp(prefix="snapd-cov-profile-pod-", suffix=".out")
+        os.close(pod_fd)
+        pod_out_path = Path(pod_tmp_path)
+
+        pod_cmd = ["go", "tool", "covdata", "textfmt", "-i", str(pod_dir), "-o", str(pod_out_path)]
+        pod_proc = subprocess.run(pod_cmd, check=False, capture_output=True, text=True)
+        if pod_proc.returncode != 0:
+            details = (pod_proc.stdout + "\n" + pod_proc.stderr).strip()
+            pod_errors.append(f"{pod_dir.name}: exit code {pod_proc.returncode} ({details})")
+            try:
+                pod_out_path.unlink()
+            except OSError:
+                pass
+            continue
+
+        try:
+            with pod_out_path.open(encoding="utf-8") as f:
+                for raw_line in f:
+                    line = raw_line.rstrip("\n")
+                    if not line:
+                        continue
+                    if line.startswith("mode:"):
+                        if mode_line is None:
+                            mode_line = line
+                        continue
+                    merged_lines.append(line)
+        finally:
+            try:
+                pod_out_path.unlink()
+            except OSError:
+                pass
+
+    if not merged_lines:
+        try:
+            out_path.unlink()
+        except OSError:
+            pass
+
+        details = (proc.stdout + "\n" + proc.stderr).strip()
+        if pod_errors:
+            details = f"{details}; per-pod fallback also failed: {'; '.join(pod_errors)}"
+        raise RuntimeError(f"cannot convert raw coverage: exit code {proc.returncode} ({details})")
+
+    with out_path.open("w", encoding="utf-8") as out_file:
+        out_file.write((mode_line or "mode: set") + "\n")
+        out_file.write("\n".join(merged_lines) + "\n")
 
     return out_path
 

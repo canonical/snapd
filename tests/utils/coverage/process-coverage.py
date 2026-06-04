@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 
 def test_passed(results_json: dict, backend: str, system: str, test_name: str) -> bool:
@@ -25,16 +26,23 @@ def main():
         file = os.path.join(args.coverage_dir, dir, "coverage.json")
         if not os.path.isfile(file):
             coverage_data_dir = os.path.join(args.coverage_dir, dir)
-            result = subprocess.run(
-                ["./tests/utils/coverage/main.py", "-results-dir", coverage_data_dir, "-output", "functions"],
-                stdout=open(file, 'w'),
-                stderr=subprocess.PIPE,
-                text=True
-            )
+            fd, tmp_file = tempfile.mkstemp(prefix="coverage-", suffix=".json", dir=coverage_data_dir)
+            os.close(fd)
+            with open(tmp_file, 'w', encoding='utf-8') as out_f:
+                result = subprocess.run(
+                    ["./tests/utils/coverage/main.py", "-results-dir", coverage_data_dir, "-output", "functions"],
+                    stdout=out_f,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
             if result.returncode != 0:
                 print(f"ERROR: could not generate {file}, skipping due to {result.stderr}", file=sys.stderr)
+                try:
+                    os.unlink(tmp_file)
+                except OSError:
+                    pass
                 continue
-        split = dir.split(":")
+            os.replace(tmp_file, file)
         with open(file) as f:
             try:
                 data = json.load(f)

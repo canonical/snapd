@@ -721,6 +721,49 @@ slots:
 EOF
 }
 
+_add_install_mode_tweaks() {
+    if [[ "$GENERATE_COVERAGE" = "false" ]]; then
+        return
+    fi
+    local UNPACK_DIR
+    UNPACK_DIR="${1}"
+
+    # now install a unit that sets up enough so that we can connect
+    cat > "${UNPACK_DIR}"/lib/systemd/system/snapd.spread-tests-install-mode-tweaks.service <<'EOF'
+[Unit]
+Description=Tweaks to install mode for spread tests
+Before=snapd.service
+Documentation=man:snap(1)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/snapd/snapd.spread-tests-install-mode-tweaks.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
+    cat > "${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-install-mode-tweaks.sh <<EOF
+#!/bin/sh
+set -ex
+if [ -e /root/spread-install-setup-done ]; then
+    exit 0
+fi
+
+mkdir -p "$GOCOVERDIR"
+chmod 777 "$GOCOVERDIR"
+
+cat <<EOF2 >/etc/systemd/system/snapd.service.d/43-generate-coverage.conf
+[Service]
+Environment=GOCOVERDIR=$GOCOVERDIR
+EOF2
+
+touch /root/spread-install-setup-done
+EOF
+    chmod 0755 "${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-install-mode-tweaks.sh
+}
+
 _add_run_mode_tweaks() {
     local UNPACK_DIR
     UNPACK_DIR="${1}"
@@ -852,6 +895,7 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
 
     # add tweaks to run mode for spread tests
     _add_run_mode_tweaks "${SNAP_CACHE}/unpack"
+    _add_install_mode_tweaks "${SNAP_CACHE}/unpack"
 
     # add gpio and iio slots required for the tests
     _add_gpio_iio_slots "${SNAP_CACHE}/unpack"

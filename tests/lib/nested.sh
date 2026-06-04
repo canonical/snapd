@@ -683,6 +683,44 @@ nested_ensure_ubuntu_save() {
     fi
 }
 
+_build_snapd_snap_with_firstboot_tweaks_nested() {
+    local SNAP_CACHE
+    local TARGET
+    TARGET="${1}"
+
+
+    if [[ "$GENERATE_COVERAGE" = "false" ]]; then
+        build_snapd_snap "$TARGET"
+        return
+    fi
+
+    SNAP_CACHE="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
+
+    mkdir -p "${SNAP_CACHE}"
+    for snap in "${SNAP_CACHE}"/snapd_*.snap; do
+        if [ -f "${snap}" ]; then
+            cp "${snap}" "${TARGET}/"
+            return
+        fi
+    done
+
+    build_snapd_snap "${SNAP_CACHE}/downloads"
+
+    if [ -f "${SNAP_CACHE}"/downloads/snapd_from_snapcraft.snap ] && ! [ -f "${SNAP_CACHE}"/downloads/snapd_from_ci.snap ]; then
+        mv "${SNAP_CACHE}"/downloads/snapd_from_snapcraft.snap "${SNAP_CACHE}"/downloads/snapd_from_ci.snap
+    fi
+
+    mkdir -p "${SNAP_CACHE}/unpack"
+    unsquashfs -no-progress -f -d "${SNAP_CACHE}/unpack" "${SNAP_CACHE}"/downloads/snapd_from_ci.snap
+
+    . "$TESTSLIB"/prepare.sh
+    _add_install_mode_tweaks "${SNAP_CACHE}/unpack"
+
+    snap pack "${SNAP_CACHE}/unpack" "${SNAP_CACHE}/"
+    rm -rf "${SNAP_CACHE}/unpack"
+    cp "${SNAP_CACHE}"/snapd_*.snap "${TARGET}/"
+}
+
 nested_prepare_snapd() {
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         echo "Repacking snapd snap"
@@ -704,7 +742,7 @@ nested_prepare_snapd() {
             if [ ! -f "${NESTED_ASSETS_DIR}/${snap_name}" ]; then
                 # shellcheck source=tests/lib/prepare.sh
                 . "$TESTSLIB"/prepare.sh
-                build_snapd_snap "$NESTED_ASSETS_DIR"
+                _build_snapd_snap_with_firstboot_tweaks_nested "$NESTED_ASSETS_DIR"
                 for f in "${NESTED_ASSETS_DIR}"/snapd_*.snap; do
                     snap_name="$(basename "${f}")"
                     break
