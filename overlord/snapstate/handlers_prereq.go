@@ -53,22 +53,23 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// os/base/kernel/gadget cannot have prerequisites other
-	// than the models default base (or core) which is installed anyway
+	// snapd/os/base/kernel/gadget cannot have prerequisites other than the
+	// models default base (or core) which is installed anyway
 	switch snapsup.Type {
-	case snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
-		return nil
-	}
-	// snapd is special and has no prereqs
-	if snapsup.Type == snap.TypeSnapd {
+	case snap.TypeSnapd, snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
 		return nil
 	}
 
-	// we need to make sure we install all prereqs together in one
-	// operation
-	base := defaultCoreSnapName
-	if snapsup.Base != "" {
-		base = snapsup.Base
+	dctx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	// remodeling requires that all snaps are accounted for in the initial
+	// operation. thus, none of the snaps will have prerequisites that must be
+	// pulled in by this task.
+	if dctx.ForRemodeling() {
+		return nil
 	}
 
 	// if a previous version of snapd persisted Prereq only, fill the contentAttrs.
@@ -113,19 +114,12 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		flags.Transaction = client.TransactionPerSnap
 	}
 
-	dctx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return err
+	base := defaultCoreSnapName
+	if snapsup.Base != "" {
+		base = snapsup.Base
 	}
 
-	// remodeling requires that all snaps are accounted for in the initial
-	// operation. thus, none of the snaps will have prerequisites that must be
-	// pulled in by this task.
-	if dctx.ForRemodeling() {
-		return nil
-	}
-
-	if err := installPrereqs(t, base, snapsup.PrereqContentAttrs, tm, Options{
+	return installPrereqs(t, base, snapsup.PrereqContentAttrs, tm, Options{
 		Flags:     flags,
 		UserID:    snapsup.UserID,
 		DeviceCtx: dctx,
@@ -135,11 +129,7 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 			// though we're passing in the change ID
 			DoNotIgnoreFromChangeInTaskConflictCheck: true,
 		},
-	}); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 func defaultBaseSnapsChannel() string {
@@ -170,8 +160,8 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 	st := t.State()
 
 	// We try to install all wanted snaps. If one snap cannot be installed
-	// because of change conflicts or similar we retry. Only if all snaps
-	// can be installed together we add the tasks to the change.
+	// because of change conflicts or similar we retry. Only if all snaps can be
+	// installed together we add the tasks to the change.
 	var tss []*state.TaskSet
 	for prereqName, contentAttrs := range prereq {
 		var err error
@@ -188,7 +178,7 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 		tss = append(tss, ts)
 	}
 
-	var tsBase *state.TaskSet
+	var baseTS *state.TaskSet
 	var err error
 	if base != "none" {
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
@@ -198,21 +188,22 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 			opts := opts
 			opts.Flags.RequireTypeBase = true
 
-			tsBase, err = installOneBaseOrRequired(t, base, nil, defaultBaseSnapsChannel(), opts)
+			baseTS, err = installOneBaseOrRequired(t, base, nil, defaultBaseSnapsChannel(), opts)
 		})
 		if err != nil {
 			return prereqError("snap base", base, err)
 		}
 	}
 
-	var tsSnapd *state.TaskSet
 	installSnapd, err := considerSnapdAsPrereq(st)
 	if err != nil {
 		return err
 	}
+
+	var snapdTS *state.TaskSet
 	if installSnapd {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
-			tsSnapd, err = installOneBaseOrRequired(t, "snapd", nil, defaultSnapdSnapsChannel(), opts)
+			snapdTS, err = installOneBaseOrRequired(t, "snapd", nil, defaultSnapdSnapsChannel(), opts)
 		})
 		if err != nil {
 			return prereqError("system snap", "snapd", err)
@@ -226,18 +217,18 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 		chg.AddAll(ts)
 	}
 	// add the base if needed, prereqs else must wait on this
-	if tsBase != nil {
+	if baseTS != nil {
 		for _, t := range chg.Tasks() {
-			t.WaitAll(tsBase)
+			t.WaitAll(baseTS)
 		}
-		chg.AddAll(tsBase)
+		chg.AddAll(baseTS)
 	}
 	// add snapd if needed, everything must wait on this
-	if tsSnapd != nil {
+	if snapdTS != nil {
 		for _, t := range chg.Tasks() {
-			t.WaitAll(tsSnapd)
+			t.WaitAll(snapdTS)
 		}
-		chg.AddAll(tsSnapd)
+		chg.AddAll(snapdTS)
 	}
 
 	// make sure that the new change is committed to the state
