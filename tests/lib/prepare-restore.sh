@@ -751,6 +751,14 @@ prepare_suite_each() {
 
     # In case of nested tests the next checks and changes are not needed
     if tests.nested is-nested; then
+        if [[ "$GENERATE_COVERAGE" = true ]]; then
+            if ! [ -f "$TESTSTMP"/initial-coverage-collected ]; then
+                mkdir -p "${SPREAD_PATH}/coverage-results/${SPREAD_SUITE}"
+                remote.pull "$GOCOVERDIR"/* "${SPREAD_PATH}/coverage-results/${SPREAD_SUITE}"
+                touch "$TESTSTMP"/initial-coverage-collected
+            fi
+            rm -f "$GOCOVERDIR/*"
+        fi
         return 0
     fi
 

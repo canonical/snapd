@@ -69,12 +69,12 @@ coverage_after_nested_task() {
     pushd "$SPREAD_PATH"
     "$SPREAD_PATH"/tests/utils/coverage/main.py -results-dir "$task_dir" -output functions > "$task_dir"/coverage.json
     popd
-    if [ -s "$task_dir"/coverage.json ]; then
-        find "$task_dir" -not -name coverage.json -type f -exec rm {} \;
-    else
-        rm "$task_dir"/coverage.json
+    # if [ -s "$task_dir"/coverage.json ]; then
+    #     find "$task_dir" -not -name coverage.json -type f -exec rm {} \;
+    # else
+    #     rm "$task_dir"/coverage.json
         chmod 777 "$task_dir"/* || true
-    fi
+    # fi
 }
 
 if [ "$#" == 0 ]; then
