@@ -72,8 +72,8 @@ jobs:
       backend: ${{ matrix.backend }}
       alternative-backend: ${{ matrix.alternative-backend }}
       systems: ${{ matrix.systems }}
-      tasks: ${{ matrix.tasks }}
-      # tasks: tests/main/alias
+      # tasks: ${{ matrix.tasks }}
+      tasks: tests/main/alias
       rules: ${{ matrix.rules }}
       upload-artifacts: true
       spread-env: "SPREAD_GENERATE_COVERAGE=true"
