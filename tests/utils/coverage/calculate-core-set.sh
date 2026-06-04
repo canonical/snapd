@@ -27,10 +27,14 @@ if [[ -z "$second_timestamp" || "$second_timestamp" == "null" ]]; then
     exit 1
 fi
 
-latest=$(tests/utils/features/query_features.py feat cover -f "$tmpdir"/creds.json -t "$latest_timestamp")
-second=$(tests/utils/features/query_features.py feat cover -f "$tmpdir"/creds.json -t "$second_timestamp")
+latest_file="$tmpdir/latest.json"
+second_file="$tmpdir/second.json"
+tests/utils/features/query_features.py feat cover -f "$tmpdir"/creds.json -t "$latest_timestamp" > "$latest_file"
+tests/utils/features/query_features.py feat cover -f "$tmpdir"/creds.json -t "$second_timestamp" > "$second_file"
 
-overview=$(jq -n --argjson latest "$latest" --argjson second "$second" '
+overview=$(jq -s '
+    .[0] as $latest |
+    .[1] as $second |
     ($latest | keys | sort) as $latest_keys |
     ($second | keys | sort) as $second_keys |
     [ $latest_keys[] | select($second_keys | index(.)) ] as $common |
@@ -54,19 +58,21 @@ overview=$(jq -n --argjson latest "$latest" --argjson second "$second" '
         identical_system_count: ([ $rows[] | select(.identical) ] | length),
         per_system_length_diff: ([ $rows[] | select(.delta != 0) ] | sort_by(.delta, .system))
     }
-')
+' "$latest_file" "$second_file")
 
 echo "overview between latest and second" >&2
 printf '%s\n' "$overview" >&2
 
-combined=$(jq -n --argjson latest "$latest" --argjson second "$second" '
+combined=$(jq -s '
+    .[0] as $latest |
+    .[1] as $second |
     reduce (($latest | keys_unsorted)[]) as $system (
         {};
         . + {
             ($system): (((($latest[$system] // []) + ($second[$system] // [])) | unique) | sort)
         }
     )
-')
+' "$latest_file" "$second_file")
 
 printf '%s\n' "$combined"
 

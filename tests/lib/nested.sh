@@ -1885,9 +1885,18 @@ nested_prepare_tools() {
 
     if [ -n "$GENERATE_COVERAGE" ] && ! remote.exec "grep -q '^GOCOVERDIR' /etc/environment"; then
         remote.exec "sudo mkdir -p $GOCOVERDIR"
+        remote.exec "sudo chmod 777 $GOCOVERDIR"
         remote.exec "echo GOCOVERDIR=$GOCOVERDIR | sudo tee -a /etc/environment"
-        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
-        remote.exec "printf '[Service]\nEnvironment=GOCOVERDIR=$GOCOVERDIR\n' | sudo tee /etc/systemd/system/snapd.service.d/99-coverage-generation.conf"
+        CONF_FILE="99-generate-coverage.conf"
+        while IFS= read -r line; do
+            echo "$line"
+            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
+            remote.exec "sudo mkdir -p $dir" </dev/null
+            if ! remote.exec "[ -f $dir/$CONF_FILE ]" </dev/null; then
+                remote.exec "echo '[Service]' | sudo tee $dir/$CONF_FILE" </dev/null
+                remote.exec "echo \"Environment=GOCOVERDIR=$GOCOVERDIR\" | sudo tee -a $dir/$CONF_FILE" </dev/null
+            fi
+        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
         # We changed the service configuration so we need to reload and restart
         # the units to get them applied
         remote.exec "sudo systemctl daemon-reload"
@@ -1895,6 +1904,9 @@ nested_prepare_tools() {
         remote.exec "sudo systemctl stop snapd.socket"
         # start the service (it pulls up the socket)
         remote.exec "sudo systemctl start snapd.service"
+        if remote.exec "systemctl --user is-active --quiet snapd.session-agent.socket"; then
+            remote.exec "systemctl --user restart snapd.session-agent.socket"
+        fi
     fi
 }
 

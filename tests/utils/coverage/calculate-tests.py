@@ -10,12 +10,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Calculate tests to execute for selected systems according to the criteria (only for non-test golang files):"
-            "1. A core set of tests that completely cover features independently of the change"
+            # find set of tests that cover the features, snap types are relevant (testing kernel updates is different) - must be included
+            # consider how long tests tests when choosing (sort by runtime and then pick a feature from the faster ones)
+            # one approach is to set a time budget and pick the set ensuring that they are under that runtime (better than going just by count)
+            # start from refresh/auto-refresh and then grow the set from there and then install after on top and obvs booting needs to work
+
+            "1. A core set of tests that \"completely\" cover features independently of the change" # create an interface package; if someone changes the interface package, then we need to run all of them; same thing with cmds; refresh/install/auto-refresh - these are super important to include if they break we will cry;
             "2. Any tests without feature coverage data will always be executed"
             "3. Any tests that failed during coverage data collection will always be executed"
-            "4. If a single file change does not identify any tests to execute, all tests will be executed (excluding case #2)"
+            "4. If a single golang file change does not identify any tests to execute, all tests will be executed" # should this do something like 5? Try to collect the early data (snap-bootstrap and others) - meet with core to see what needs to be run if snap-bootstrap changes. Classic does a subset of what we do for core. Start with core like core20-basic
             "5. If a file is added/deleted (rather than modified), then all the tests from coverage data for each file contained in that dir will be executed"
-            "6. If a change is inside certain key areas (cmd/snap/cmd_run.go), then all tests will run"
+            # maybe don't even compile snapctl with coverage and forget punching the hole
+            # for snapctl, if someone changes cmd/snapctl then run the tests that hit the snapctl endpoint (use features) - see about running feature data at the same time
+
+            # we need early data and should see things from devicestate. That's interesting
         )
     )
     parser.add_argument(
