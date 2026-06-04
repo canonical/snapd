@@ -235,6 +235,7 @@ func arrangeRebootAndUpdateSeed(
 	st *state.State,
 	stss []snapInstallTaskSet,
 	earlyDownloads map[string]bool,
+	eviction SeedRefreshEvictionPolicy,
 	opts Options,
 ) (seedRefreshTS *state.TaskSet, err error) {
 	for _, sts := range stss {
@@ -251,7 +252,7 @@ func arrangeRebootAndUpdateSeed(
 	// note that seedSnapTaskSets will contain all snaps being refreshed that
 	// will go into the seed, and it might contain a combination of essential
 	// and non-essential snaps.
-	seedTS, seedSnapTaskSets, err := seedRefreshAndSeedSnapTaskSets(st, stss, opts)
+	seedTS, seedSnapTaskSets, err := seedRefreshAndSeedSnapTaskSets(st, stss, eviction, opts)
 	if err != nil {
 		return nil, err
 	}
