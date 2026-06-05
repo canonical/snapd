@@ -94,7 +94,7 @@ execute: |
   snap run --shell test-async-snap.app -c "touch /tmp/comp-removed"
 
   echo "Send direct socket POST request without async flags to mimic old synchronous snapctl"
-  cookie=$(snap run --shell test-async-snap.app -c 'echo $SNAP_COOKIE')
+  cookie=$(snap run --shell test-async-snap.app -c "echo $SNAP_COOKIE")
   response=$(snap run test-snapd-curl.curl -sS -X POST --unix-socket /run/snapd-snap.socket http://localhost/v2/snapctl -H "Content-Type: application/json" -d "{\"context-id\": \"$cookie\", \"args\": [\"remove\", \"+comp\"]}")
   echo "Raw daemon response payload: $response"
 
