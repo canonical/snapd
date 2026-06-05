@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -159,7 +160,13 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+	rspe, checks, level := access.CheckAccess(c.d, r, ucred, user)
+	admin := isAdministrativeAccess(level, checks)
+
+	if rspe != nil {
+		if admin {
+			logUnauthorizedAccess(c, r, ucred, user, access, level, rspe, checks)
+		}
 		rspe.ServeHTTP(w, r)
 		return
 	}
@@ -184,31 +191,141 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rsp.ServeHTTP(w, r)
+
+	// Log after the handler runs: authz_admin means the access gate passed,
+	// not that the API operation succeeded.
+	if admin {
+		logAdminActivity(c, r, ucred, user, access, level, checks)
+	}
+}
+
+func accessCheckerName(ac accessChecker) string {
+	switch ac.(type) {
+	case openAccess:
+		return "open"
+	case authenticatedAccess:
+		return "authenticated"
+	case rootAccess:
+		return "root"
+	case snapAccess:
+		return "snap"
+	case interfaceOpenAccess:
+		return "interface-open"
+	case interfaceAuthenticatedAccess:
+		return "interface-authenticated"
+	case interfaceProviderRootAccess:
+		return "interface-provider-root"
+	case interfaceRootAccess:
+		return "interface-root"
+	case byActionAccess:
+		return "by-action"
+	default:
+		return "unknown"
+	}
+}
+
+func snapdUser(user *auth.UserState) seclog.SnapdUser {
+	if user == nil {
+		return seclog.SnapdUser{}
+	}
+	return seclog.SnapdUser{
+		ID:             int64(user.ID),
+		StoreUserName:  user.Username,
+		StoreUserEmail: user.Email,
+	}
+}
+
+// peerFromUcred converts the daemon-internal ucrednet view of a peer
+// into the seclog.Peer used by security audit events. A nil ucred is
+// represented using seclog's "unknown" sentinels.
+func peerFromUcred(ucred *ucrednet) seclog.Peer {
+	if ucred == nil {
+		return seclog.Peer{
+			UID: ^uint32(0),
+			PID: 0,
+		}
+	}
+	return seclog.Peer{
+		Socket: ucred.Socket,
+		UID:    ucred.Uid,
+		PID:    ucred.Pid,
+	}
+}
+
+const maxJSONActionBodySize = 4 * 1024 * 1024 // matches byActionAccess maxBodySize
+
+func jsonContentType(r *http.Request) bool {
+	ct := r.Header.Get("Content-Type")
+	return ct == "" || ct == "application/json"
+}
+
+// readBodyAndParseAction reads up to limit bytes from r.Body, restores r.Body,
+// and returns the top-level JSON "action" field.
+func readBodyAndParseAction(r *http.Request, limit int64) (string, error) {
+	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, limit))
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return "", err
+	}
+
+	var data struct {
+		Action string `json:"action"`
+	}
+	if err := json.Unmarshal(bodyBytes, &data); err != nil {
+		return "", nil
+	}
+	return data.Action, nil
+}
+
+// requestAction extracts the top-level JSON "action" field from POST/PUT bodies.
+// The request body is restored so handlers can read it afterward.
+func requestAction(r *http.Request) string {
+	if r.Method != "POST" && r.Method != "PUT" {
+		return ""
+	}
+	if !jsonContentType(r) || r.Body == nil {
+		return ""
+	}
+
+	action, _ := readBodyAndParseAction(r, maxJSONActionBodySize)
+	return action
+}
+
+func endpointFromRequest(c *Command, r *http.Request, ac accessChecker, level accessLevel, action string) seclog.Endpoint {
+	return seclog.Endpoint{
+		Method:        r.Method,
+		Path:          c.Path,
+		Action:        action,
+		AccessChecker: accessCheckerName(ac),
+		AccessLevel:   string(level),
+	}
+}
+
+func logAdminActivity(c *Command, r *http.Request, ucred *ucrednet, user *auth.UserState, ac accessChecker, level accessLevel, checks seclog.AuthzChecks) {
+	seclog.LogAdminActivity(snapdUser(user), peerFromUcred(ucred), endpointFromRequest(c, r, ac, level, requestAction(r)), checks)
+}
+
+func logUnauthorizedAccess(c *Command, r *http.Request, ucred *ucrednet, user *auth.UserState, ac accessChecker, level accessLevel, rspe *apiError, checks seclog.AuthzChecks) {
+	seclog.LogUnauthorizedAccess(snapdUser(user), peerFromUcred(ucred), endpointFromRequest(c, r, ac, level, requestAction(r)), checks, rspe.reason())
 }
 
 func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		loggedWithAction := false
-		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
-			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err != nil {
-				logger.Trace("endpoint-error", "body-read", err)
-			}
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
-				}
-			}
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	if !osutil.GetenvBool("SNAPD_TRACE") {
+		return
+	}
+
+	loggedWithAction := false
+	if r.Method == "POST" && jsonContentType(r) && r.Body != nil {
+		action, err := readBodyAndParseAction(r, maxJSONActionBodySize)
+		if err != nil {
+			logger.Trace("endpoint-error", "body-read", err)
+		} else if action != "" {
+			loggedWithAction = true
+			logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
 		}
-		if !loggedWithAction {
-			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
-		}
+	}
+	if !loggedWithAction {
+		logger.Trace("endpoint", "method", r.Method, "path", c.Path)
 	}
 }
 

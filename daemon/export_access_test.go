@@ -28,6 +28,8 @@ import (
 type (
 	AccessChecker = accessChecker
 
+	AccessLevel = accessLevel
+
 	AccessOptions = accessOptions
 
 	OpenAccess                   = openAccess
@@ -43,8 +45,19 @@ type (
 	InterfaceAccessReqs = interfaceAccessReqs
 )
 
+const (
+	AccessLevelOpen          = accessLevelOpen
+	AccessLevelAuthenticated = accessLevelAuthenticated
+	AccessLevelRoot          = accessLevelRoot
+	AccessLevelNotEvaluated  = accessLevelNotEvaluated
+)
+
 var (
 	CheckAccess                   = checkAccess
+	CheckPrerequisites            = checkPrerequisites
+	CheckAccessLevelAuthorization = checkAccessLevelAuthorization
+	IsAdministrativeAccess        = isAdministrativeAccess
+	AccessCheckerName             = accessCheckerName
 	CheckPolkitActionImpl         = checkPolkitActionImpl
 	RequireInterfaceApiAccessImpl = requireInterfaceApiAccessImpl
 )

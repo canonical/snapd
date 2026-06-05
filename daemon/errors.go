@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -44,6 +45,14 @@ type apiError struct {
 	// Kind is the error kind. See client/errors.go
 	Kind  client.ErrorKind
 	Value errorValue
+}
+
+func (ae *apiError) reason() seclog.Reason {
+	return seclog.Reason{
+		Code:    ae.Status,
+		Kind:    string(ae.Kind),
+		Message: ae.Message,
+	}
 }
 
 func (ae *apiError) Error() string {
