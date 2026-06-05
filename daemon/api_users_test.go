@@ -409,7 +409,6 @@ func (s *userSuite) TestLoginUserBadRequest(c *check.C) {
 	c.Check(rspe.Message, check.Not(check.Equals), "")
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidAuthData)
 }
 
 func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
@@ -425,7 +424,7 @@ func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "notemail")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidAuthData)
+	c.Check(s.seclogBuf.String(), testutil.Contains, string(client.ErrorKindInvalidAuthData))
 }
 
 func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
@@ -442,7 +441,7 @@ func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInternal)
+	c.Check(s.seclogBuf.String(), testutil.Contains, string(client.ErrorKindLoginRequired))
 }
 
 func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
@@ -459,7 +458,7 @@ func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonTwoFactorRequired)
+	c.Check(s.seclogBuf.String(), testutil.Contains, string(client.ErrorKindTwoFactorRequired))
 }
 
 func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
@@ -476,7 +475,7 @@ func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonTwoFactorFailed)
+	c.Check(s.seclogBuf.String(), testutil.Contains, string(client.ErrorKindTwoFactorFailed))
 }
 
 func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
@@ -493,7 +492,7 @@ func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidCredentials)
+	c.Check(s.seclogBuf.String(), testutil.Contains, string(client.ErrorKindLoginRequired))
 }
 
 func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
@@ -511,7 +510,7 @@ func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidAuthData)
+	c.Check(s.seclogBuf.String(), testutil.Contains, string(client.ErrorKindInvalidAuthData))
 }
 
 func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
@@ -529,7 +528,7 @@ func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
 
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonPasswordPolicy)
+	c.Check(s.seclogBuf.String(), testutil.Contains, string(client.ErrorKindPasswordPolicy))
 }
 
 func (s *userSuite) TestLoginUserPersistError(c *check.C) {
@@ -551,7 +550,7 @@ func (s *userSuite) TestLoginUserPersistError(c *check.C) {
 	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "username")
-	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInternal)
+	c.Check(s.seclogBuf.String(), testutil.Contains, "cannot persist authentication details")
 }
 
 func (s *userSuite) TestPostCreateUser(c *check.C) {

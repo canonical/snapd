@@ -163,16 +163,17 @@ func (h *errorAwareHandler) WithGroup(name string) slog.Handler {
 	return &errorAwareHandler{inner: h.inner.WithGroup(name)}
 }
 
-// LogValue implements [slog.LogValuer], allowing Reason to be
+// LogValue implements [slog.LogValuer], allowing [Reason] to be
 // used directly as a structured log attribute value.
 func (r Reason) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("code", r.Code),
+		slog.Int("code", r.Code),
+		slog.String("kind", r.Kind),
 		slog.String("message", r.Message),
 	)
 }
 
-// LogValue implements [slog.LogValuer], allowing SnapdUser to be
+// LogValue implements [slog.LogValuer], allowing [SnapdUser] to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {
 	expiration := "never"
@@ -180,9 +181,46 @@ func (u SnapdUser) LogValue() slog.Value {
 		expiration = u.Expiration.UTC().Format(time.RFC3339Nano)
 	}
 	return slog.GroupValue(
-		slog.Int64("snapd-user-id", u.ID),
-		slog.String("store-user-name", u.StoreUserName),
-		slog.String("store-user-email", u.StoreUserEmail),
+		slog.Int64("snapd_user_id", u.ID),
+		slog.String("store_user_name", u.StoreUserName),
+		slog.String("store_user_email", u.StoreUserEmail),
 		slog.String("expiration", expiration),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing [Endpoint] to be
+// used directly as a structured log attribute value.
+func (e Endpoint) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("method", e.Method),
+		slog.String("path", e.Path),
+		slog.String("action", e.Action),
+		slog.String("access_checker", e.AccessChecker),
+		slog.String("access_level", e.AccessLevel),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing [Peer] to be used
+// directly as a structured log attribute value.
+func (p Peer) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("socket", p.Socket),
+		slog.Int64("uid", int64(p.UID)),
+		slog.Int64("pid", int64(p.PID)),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing [AuthzChecks] to be
+// used directly as a structured log attribute value.
+func (a AuthzChecks) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("access_options", string(a.AccessOptions)),
+		slog.String("peer_credentials", string(a.PeerCreds)),
+		slog.String("socket", string(a.Socket)),
+		slog.String("interface_requirements", string(a.Interface)),
+		slog.String("open_access", string(a.OpenAccess)),
+		slog.String("user_authentication", string(a.UserAuth)),
+		slog.String("root", string(a.Root)),
+		slog.String("polkit", string(a.Polkit)),
 	)
 }

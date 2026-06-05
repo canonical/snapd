@@ -189,3 +189,40 @@ func LogUserRemoved(user SnapdUser) {
 		Attr{Key: "user", Value: user},
 	)
 }
+
+// LogAdminActivity logs an administrative API access event using the
+// global security logger. It is emitted when authorization succeeds (the
+// access gate passed), not when the API operation or handler succeeds.
+func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHZ", Name: "authz_admin", Level: LevelInfo},
+		fmt.Sprintf("User %s from %s accessed %s", user.String(), peer.String(), endpoint.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "peer", Value: peer},
+		Attr{Key: "endpoint", Value: endpoint},
+		Attr{Key: "authz_checks", Value: checks},
+	)
+}
+
+// LogUnauthorizedAccess logs an unauthorized access attempt using the
+// global security logger. It is emitted when authorization fails (the
+// access gate denied the request), not when the API operation or handler
+// fails after access was granted.
+func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks, reason Reason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHZ", Name: "authz_fail", Level: LevelCritical},
+		fmt.Sprintf("User %s from %s attempted to access %s without authorization: %s",
+			user.String(), peer.String(), endpoint.String(), reason.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "peer", Value: peer},
+		Attr{Key: "endpoint", Value: endpoint},
+		Attr{Key: "authz_checks", Value: checks},
+		Attr{Key: "error", Value: reason},
+	)
+}
