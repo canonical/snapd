@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -29,6 +30,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -51,6 +53,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -370,10 +374,125 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel)
 
-func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel) {
 	return f(d, r, ucred, user)
+}
+
+func (s *daemonSuite) TestAdminActivitySecurityLogging(c *check.C) {
+	seclogBuf := bytes.NewBuffer(nil)
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	s.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
+
+	d := s.newTestDaemon(c)
+
+	cmd := &Command{
+		d:    d,
+		Path: "/v2/system-info",
+	}
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil)
+	}
+	cmd.ReadAccess = openAccess{}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "authz_admin")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "authz_fail")
+
+	seclogBuf.Reset()
+
+	cmd = &Command{
+		d:    d,
+		Path: "/v2/snaps",
+	}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = authenticatedAccess{}
+
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install","snaps":["test-snapd-sh"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(seclogBuf.String(), testutil.Contains, "authz_admin")
+	c.Check(seclogBuf.String(), testutil.Contains, "POST:/v2/snaps:install")
+	c.Check(seclogBuf.String(), testutil.Contains, `Action:"install"`)
+	c.Check(seclogBuf.String(), testutil.Contains, `AccessChecker:"authenticated"`)
+	c.Check(seclogBuf.String(), testutil.Contains, `AccessLevel:"authenticated"`)
+
+	seclogBuf.Reset()
+
+	cmd.WriteAccess = authenticatedAccess{}
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install","snaps":["test-snapd-sh"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 401)
+	c.Check(seclogBuf.String(), testutil.Contains, "authz_fail")
+	c.Check(seclogBuf.String(), testutil.Contains, "POST:/v2/snaps:install")
+	c.Check(seclogBuf.String(), testutil.Contains, `Action:"install"`)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "authz_admin")
+
+	seclogBuf.Reset()
+
+	cmd = &Command{
+		d:    d,
+		Path: "/v2/interfaces/requests",
+	}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = byActionAccess{
+		ByAction: map[string]accessChecker{
+			"ask": openAccess{},
+		},
+		Default: rootAccess{},
+	}
+
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"ask"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "authz_admin")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "authz_fail")
+
+	seclogBuf.Reset()
+
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`not json`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "authz_fail")
+	c.Check(seclogBuf.String(), check.Not(testutil.Contains), "authz_admin")
+}
+
+func (s *daemonSuite) TestRequestAction(c *check.C) {
+	req := httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install","snaps":["x"]}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(requestAction(req), check.Equals, "install")
+
+	req = httptest.NewRequest("PUT", "/", strings.NewReader(`{"action":"refresh"}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(requestAction(req), check.Equals, "refresh")
+
+	req = httptest.NewRequest("GET", "/", nil)
+	c.Check(requestAction(req), check.Equals, "")
+
+	req = httptest.NewRequest("POST", "/", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(requestAction(req), check.Equals, "")
 }
 
 func (s *daemonSuite) TestReadAccess(c *check.C) {
@@ -382,7 +501,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel) {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -391,11 +510,11 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return nil
+		return nil, seclog.NewAuthzChecks(), accessLevelOpen
 	})
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel) {
 		c.Fail()
-		return Forbidden("")
+		return Forbidden(""), seclog.NewAuthzChecks(), accessLevelOpen
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -414,12 +533,12 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel) {
 		c.Fail()
-		return Forbidden("")
+		return Forbidden(""), seclog.NewAuthzChecks(), accessLevelOpen
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel) {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -428,7 +547,7 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return nil
+		return nil, seclog.NewAuthzChecks(), accessLevelOpen
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
@@ -467,12 +586,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel) {
 		c.Fail()
-		return Forbidden("")
+		return Forbidden(""), seclog.NewAuthzChecks(), accessLevelOpen
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) (*apiError, seclog.AuthzChecks, accessLevel) {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -481,7 +600,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.DeepEquals, authUser)
-		return nil
+		return nil, seclog.NewAuthzChecks(), accessLevelOpen
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)

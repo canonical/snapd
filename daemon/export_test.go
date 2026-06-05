@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -368,6 +369,10 @@ type (
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
+
+func APIErrorReason(e *APIError) seclog.Reason {
+	return e.reason()
+}
 
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
