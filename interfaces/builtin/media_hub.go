@@ -240,14 +240,14 @@ func (iface *mediaHubInterface) SecCompPermanentSlot(spec *seccomp.Specification
 
 func (iface *mediaHubInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
-	return release.OnTouch
+	return true
 }
 
 func init() {
 	registerIface(&mediaHubInterface{commonInterface{
 		name:			"media-hub",
 		summary:		mediaHubSummary,
-		implicitOnClassic:	true,
+		implicitOnClassic:	release.OnTouch,
 		baseDeclarationSlots:	mediaHubBaseDeclarationSlots,
 	}})
 }

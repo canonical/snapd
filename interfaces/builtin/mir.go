@@ -151,14 +151,14 @@ func (iface *mirInterface) UDevPermanentSlot(spec *udev.Specification, slot *sna
 }
 
 func (iface *mirInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	return release.OnTouch
+	return true
 }
 
 func init() {
 	registerIface(&mirInterface{commonInterface{
 		name:			"mir",
 		summary:		mirSummary,
-		implicitOnClassic:	true,
+		implicitOnClassic:	release.OnTouch,
 		baseDeclarationSlots:	mirBaseDeclarationSlots,
 	}})
 }

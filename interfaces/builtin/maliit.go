@@ -169,14 +169,14 @@ func (iface *maliitInterface) AppArmorConnectedSlot(spec *apparmor.Specification
 
 func (iface *maliitInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	// allow what declarations allowed
-	return release.OnTouch
+	return true
 }
 
 func init() {
 	registerIface(&maliitInterface{commonInterface{
 		name:                  "maliit",
 		summary:               maliitSummary,
-		implicitOnClassic:     true,
+		implicitOnClassic:     release.OnTouch,
 		baseDeclarationSlots:  maliitBaseDeclarationSlots,
         }})
 }

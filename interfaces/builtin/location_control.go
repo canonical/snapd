@@ -257,6 +257,7 @@ func init() {
 	registerIface(&locationControlInterface{commonInterface{
 		name:			"location-control",
 		summary:		locationControlSummary,
+		implicitOnClassic:	true,
 		baseDeclarationSlots:	locationControlBaseDeclarationSlots,
 	}})
 }

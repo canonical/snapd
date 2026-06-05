@@ -312,6 +312,7 @@ func init() {
 	registerIface(&locationObserveInterface{commonInterface{
 		name:			"location-observe",
 		summary:		locationObserveSummary,
+		implicitOnClassic:	true,
 		baseDeclarationSlots:	locationObserveBaseDeclarationSlots,
 	}})
 }
