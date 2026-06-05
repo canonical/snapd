@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -139,7 +140,7 @@ func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	new := slot.LabelExpression()
 
 	// Allow access to host-side maliit on Ubuntu Touch
-	if implicitSystemConnectedSlot(slot) {
+	if implicitSystemConnectedSlot(slot) || release.OnTouch {
 		new = "unconfined"
 	}
 
