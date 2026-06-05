@@ -22,6 +22,7 @@ package confdb_test
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strings"
 	"testing"
@@ -1938,26 +1939,41 @@ func (s *viewSuite) TestRuleOrderingBySpecificityAndNestedness(c *C) {
 	// ones. We're building a virtual document from locations in the storage that
 	// may evolve over time so this allows us to replace "old" paths.
 	databag := confdb.NewJSONDatabag()
+	rules := []any{
+		map[string]any{"request": "{foo}", "storage": "generic.{foo}"},
+		map[string]any{"request": "foo", "storage": "specific"},
+		map[string]any{"request": "foo.bar", "storage": "nested"},
+	}
+
+	// test that the sorting works regardless of how the rules are passed in
+	rand.Shuffle(len(rules), func(i, j int) {
+		rules[i], rules[j] = rules[j], rules[i]
+	})
+
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "{foo}", "storage": "generic.{foo}"},
-				map[string]any{"request": "foo", "storage": "specific"},
-				map[string]any{"request": "foo.bar", "storage": "nested"},
-			},
+			"rules": rules,
 		},
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
 	view := schema.View("foo")
 	c.Assert(view, NotNil)
 
-	err = databag.Set(parsePath(c, "generic"), map[string]any{"bar": "first"})
+	// only the generic path has data, so that's what we get
+	err = databag.Set(parsePath(c, "generic.foo"), map[string]any{"bar": "first"})
 	c.Assert(err, IsNil)
+
+	value, err := view.Get(databag, "foo", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"bar": "first",
+	})
+
+	// a literal path is sorted after a placeholder one so it replaces that data
 	err = databag.Set(parsePath(c, "specific"), map[string]any{"bar": "second"})
 	c.Assert(err, IsNil)
 
-	// a literal path is sorted after a placeholder one
-	value, err := view.Get(databag, "foo", nil, confdb.AdminAccess)
+	value, err = view.Get(databag, "foo", nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
 	c.Assert(value, DeepEquals, map[string]any{
 		"bar": "second",

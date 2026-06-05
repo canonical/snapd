@@ -2165,6 +2165,7 @@ type requestMatch struct {
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NoMatchError is returned.
 func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, err error) {
+	requestToAccs := make(map[string][]Accessor)
 	for _, rule := range v.rules {
 		placeholders, unmatchedSuffix, ok := rule.match(accessors)
 		if !ok {
@@ -2174,13 +2175,18 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		if !rule.isReadable() {
 			continue
 		}
-
 		m := requestMatch{
 			storagePath:     rule.storagePath(placeholders),
 			unmatchedSuffix: unmatchedSuffix,
 			request:         rule.originalRequest,
 		}
 		matches = append(matches, m)
+
+		reqAccs := make([]Accessor, len(rule.request))
+		for i, acc := range rule.request {
+			reqAccs[i] = acc.(Accessor)
+		}
+		requestToAccs[rule.originalRequest] = reqAccs
 	}
 
 	if len(matches) == 0 {
@@ -2188,9 +2194,8 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		return nil, NewNoMatchError(v, "get", []string{request})
 	}
 
-	// sort matches by namespace (unmatched suffix) to ensure that nested matches
-	// are read after
-	getAccs := func(i int) []Accessor { return matches[i].unmatchedSuffix }
+	// sort matches by request to ensure that more specific and nested matches are read after
+	getAccs := func(i int) []Accessor { return requestToAccs[matches[i].request] }
 	sort.Slice(matches, byAccessor(getAccs))
 
 	return matches, nil
