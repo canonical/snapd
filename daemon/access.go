@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -74,24 +75,59 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 
 // accessChecker checks whether a particular request is allowed.
 //
-// An access checker will either allow a request, deny it, or return
-// accessUnknown, which indicates the decision should be delegated to
-// the next access checker.
+// CheckAccess always produces an accessDecision carrying the verdict to apply,
+// the per-stage authorization audit data, the access level at which the request
+// was evaluated, and the audit name of the checker that actually evaluated
+// the request.
 type accessChecker interface {
-	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision
 }
 
-// requireSockets ensures the request was received via one of the specified sockets.
-func requireSockets(ucred *ucrednet, sockets []string) *apiError {
-	if ucred == nil {
-		return Forbidden("access denied")
-	}
+// accessCheckerName identifies a concrete accessChecker in audit events.
+// Values must remain stable.
+type accessCheckerName string
 
-	if !strutil.ListContains(sockets, ucred.Socket) {
-		return Forbidden("access denied")
-	}
+const (
+	accessCheckerOpen                   accessCheckerName = "open"
+	accessCheckerAuthenticated          accessCheckerName = "authenticated"
+	accessCheckerRoot                   accessCheckerName = "root"
+	accessCheckerSnap                   accessCheckerName = "snap"
+	accessCheckerInterfaceOpen          accessCheckerName = "interface-open"
+	accessCheckerInterfaceAuthenticated accessCheckerName = "interface-authenticated"
+	accessCheckerInterfaceProviderRoot  accessCheckerName = "interface-provider-root"
+	accessCheckerInterfaceRoot          accessCheckerName = "interface-root"
+)
 
-	return nil
+// accessDecision is the structured result of an authorization check.
+//
+// Verdict carries the HTTP response to serve when the request is denied
+// (nil when access is granted). Checks records what each
+// authorization stage evaluated to, and Level is the access level the
+// request was evaluated at, or accessLevelNotEvaluated when no
+// authorization stage ran (e.g. on dispatch errors in byActionAccess).
+// CheckerName is the audit name of the checker that produced this
+// decision. For a multiplexer like byActionAccess it is the delegate's
+// name, not the multiplexer's; it is empty for dispatch-error decisions.
+type accessDecision struct {
+	Verdict     *apiError
+	Checks      seclog.AuthzChecks
+	Level       accessLevel
+	CheckerName accessCheckerName
+}
+
+// Denied reports whether the request was rejected by the access checker.
+func (d accessDecision) Denied() bool { return d.Verdict != nil }
+
+// notEvaluated builds a decision for dispatch-only failures where no
+// authorization stage ran. The returned decision has no per-stage check
+// data, an empty checker name, and a level of accessLevelNotEvaluated;
+// audit emission is suppressed for such decisions (see isAdministrativeAccess).
+func notEvaluated(rspe *apiError) accessDecision {
+	return accessDecision{
+		Verdict: rspe,
+		Checks:  seclog.NewAuthzChecks(),
+		Level:   accessLevelNotEvaluated,
+	}
 }
 
 type accessLevel string
@@ -100,6 +136,9 @@ const (
 	accessLevelRoot          accessLevel = "root"
 	accessLevelAuthenticated accessLevel = "authenticated"
 	accessLevelOpen          accessLevel = "open"
+	// accessLevelNotEvaluated is returned when byActionAccess fails before
+	// delegation; no authorization checks ran so the level is unknown.
+	accessLevelNotEvaluated accessLevel = "not-evaluated"
 )
 
 type accessOptions struct {
@@ -130,61 +169,168 @@ func (o accessOptions) validate() error {
 	return nil
 }
 
-func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, opts accessOptions) *apiError {
-	if err := opts.validate(); err != nil {
-		return InternalError(err.Error())
+// checkPrerequisites runs prerequisite authorization checks that must all pass
+// before access level checks are evaluated. These include peer credentials,
+// socket restrictions, and interface requirements.
+func checkPrerequisites(d *Daemon, r *http.Request, ucred *ucrednet, checks *seclog.AuthzChecks, opts accessOptions) *apiError {
+	// Mark applicable checks as AuthzNotReached (will become Pass/Fail during evaluation).
+	// AccessOptions is intentionally not reset here: it is set by the caller after
+	// opts.validate() has run.
+	checks.PeerCreds = seclog.AuthzNotReached
+	if len(opts.Sockets) != 0 {
+		checks.Socket = seclog.AuthzNotReached
 	}
-
-	if rspe := requireSockets(ucred, opts.Sockets); rspe != nil {
-		return rspe
-	}
-
 	if opts.InterfaceAccess != nil {
-		// No interface checks are made if request is coming from snapd.socket
-		// to account for the snapd-control interface.
+		checks.Interface = seclog.AuthzNotReached
+	}
+
+	// Peer credentials check
+	if ucred == nil {
+		checks.PeerCreds = seclog.AuthzFail
+		return Forbidden("access denied")
+	}
+	checks.PeerCreds = seclog.AuthzPass
+
+	// Socket check
+	if len(opts.Sockets) != 0 {
+		if !strutil.ListContains(opts.Sockets, ucred.Socket) {
+			checks.Socket = seclog.AuthzFail
+			return Forbidden("access denied")
+		}
+		checks.Socket = seclog.AuthzPass
+	}
+
+	// Interface check
+	if opts.InterfaceAccess != nil {
 		rspe := requireInterfaceApiAccess(d, r, ucred, *opts.InterfaceAccess)
 		if rspe != nil {
+			checks.Interface = seclog.AuthzFail
 			return rspe
+		}
+		checks.Interface = seclog.AuthzPass
+	}
+
+	return nil
+}
+
+// checkAccessLevelAuthorization determines if the user is authorized at the
+// required access level by evaluating multiple authorization methods. Any single
+// method can grant access: open access, user authentication, root UID, or polkit.
+func checkAccessLevelAuthorization(r *http.Request, ucred *ucrednet, user *auth.UserState, checks *seclog.AuthzChecks, opts accessOptions) *apiError {
+	// Mark applicable checks as AuthzNotReached (will become Pass/Fail during evaluation).
+	// Checks that do not apply to the current access level remain AuthzNotApplicable.
+	switch opts.AccessLevel {
+	case accessLevelOpen:
+		checks.OpenAccess = seclog.AuthzNotReached
+	case accessLevelAuthenticated:
+		checks.UserAuth = seclog.AuthzNotReached
+		checks.Root = seclog.AuthzNotReached
+		if opts.PolkitAction != "" {
+			checks.Polkit = seclog.AuthzNotReached
+		}
+	case accessLevelRoot:
+		checks.Root = seclog.AuthzNotReached
+		if opts.PolkitAction != "" {
+			checks.Polkit = seclog.AuthzNotReached
 		}
 	}
 
 	if opts.AccessLevel == accessLevelOpen {
+		checks.OpenAccess = seclog.AuthzPass
 		return nil
 	}
 
+	// Snapd local macaroon check - snapd user authentication
 	if opts.AccessLevel == accessLevelAuthenticated && user != nil {
-		// user != nil means we have an authenticated user
+		checks.UserAuth = seclog.AuthzPass
 		return nil
 	}
+	if opts.AccessLevel == accessLevelAuthenticated {
+		checks.UserAuth = seclog.AuthzFail
+		// Even though snapd user authentication failed,
+		// we still accept root or polkit authorization as
+		// permitted alternatives.
+	}
 
+	// System UID based root check for privileged actions.
 	if ucred.Uid == 0 {
+		checks.Root = seclog.AuthzPass
 		return nil
 	}
+	checks.Root = seclog.AuthzFail
 
-	// We check polkit last because it may result in the user
-	// being prompted for authorisation. This should be avoided if
-	// access is otherwise granted.
+	// Polkit check - system user authentication/authorization (policy dependant) for privileged actions; last because it may prompt the user.
 	if opts.PolkitAction != "" {
-		return checkPolkitAction(r, ucred, opts.PolkitAction)
+		rspe := checkPolkitAction(r, ucred, opts.PolkitAction)
+		if rspe == nil {
+			checks.Polkit = seclog.AuthzPass
+			return nil
+		}
+		checks.Polkit = seclog.AuthzFail
+		return rspe
 	}
 
-	// XXX: when to 403 vs 401?
+	// If we reach here, all access level checks failed
 	if opts.AccessLevel == accessLevelAuthenticated || opts.InterfaceAccess != nil {
+		// At this point, if authenticated access and/or interface access is required,
+		// it means that accessLevelRoot (root or polkit) was either implicitly or
+		// explicitly required and failed
 		return Unauthorized("access denied")
 	}
+	// Explicitly required accessLevelRoot, via system UID or polkit checks was not authorized.
 	return Forbidden("access denied")
+}
+
+func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, opts accessOptions, name accessCheckerName) accessDecision {
+	// Level starts at accessLevelNotEvaluated and is upgraded to the requested
+	// opts.AccessLevel only after opts.validate() succeeds, so dispatch-style
+	// failures (invalid AccessLevel/Sockets) yield a decision that is
+	// structurally identical to byActionAccess dispatch errors: no level, no
+	// audit emission.
+	dec := accessDecision{
+		Checks:      seclog.NewAuthzChecks(),
+		Level:       accessLevelNotEvaluated,
+		CheckerName: name,
+	}
+
+	if err := opts.validate(); err != nil {
+		dec.Checks.AccessOptions = seclog.AuthzFail
+		dec.Verdict = InternalError(err.Error())
+		return dec
+	}
+	dec.Checks.AccessOptions = seclog.AuthzPass
+	dec.Level = opts.AccessLevel
+
+	if err := checkPrerequisites(d, r, ucred, &dec.Checks, opts); err != nil {
+		dec.Verdict = err
+		return dec
+	}
+
+	if err := checkAccessLevelAuthorization(r, ucred, user, &dec.Checks, opts); err != nil {
+		dec.Verdict = err
+		return dec
+	}
+
+	return dec
+}
+
+// isAdministrativeAccess reports whether authz audit events should be emitted:
+// the intended access level is authenticated or root. Dispatch-only failures
+// return accessLevelNotEvaluated and are excluded.
+func isAdministrativeAccess(level accessLevel) bool {
+	return level == accessLevelAuthenticated || level == accessLevelRoot
 }
 
 // openAccess allows requests without authentication, provided they
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapdSocket},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerOpen)
 }
 
 // authenticatedAccess allows requests from authenticated users,
@@ -202,36 +348,36 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel:  accessLevelAuthenticated,
 		Sockets:      []string{dirs.SnapdSocket},
 		PolkitAction: ac.Polkit,
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerAuthenticated)
 }
 
 // rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerRoot)
 }
 
 // snapAccess allows requests from the snapd-snap.socket only.
 type snapAccess struct{}
 
-func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapSocket},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerSnap)
 }
 
 var (
@@ -323,7 +469,7 @@ type interfaceOpenAccess struct {
 	Interfaces []string
 }
 
-func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -332,7 +478,7 @@ func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 			Plug:       true,
 		},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerInterfaceOpen)
 }
 
 // interfaceAuthenticatedAccess behaves like authenticatedAccess, but also
@@ -348,7 +494,7 @@ type interfaceAuthenticatedAccess struct {
 	Polkit string
 }
 
-func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel: accessLevelAuthenticated,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -358,7 +504,7 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 		},
 		PolkitAction: ac.Polkit,
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerInterfaceAuthenticated)
 }
 
 // interfaceProviderRootAccess behaves like rootAccess, but also allows requests
@@ -368,7 +514,7 @@ type interfaceProviderRootAccess struct {
 	Interfaces []string
 }
 
-func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -377,7 +523,7 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 			Slot:       true,
 		},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerInterfaceProviderRoot)
 }
 
 // interfaceRootAccess behaves like rootAccess, but also allows requests
@@ -398,7 +544,7 @@ type interfaceRootAccess struct {
 	Polkit string
 }
 
-func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -408,7 +554,7 @@ func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 		},
 		PolkitAction: ac.Polkit,
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, accessCheckerInterfaceRoot)
 }
 
 type actionRequest struct {
@@ -432,7 +578,14 @@ type byActionAccess struct {
 
 const maxBodySize = 4 * 1024 * 1024 // 4MB
 
-func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+// CheckAccess routes by JSON "action" to a delegated checker and returns
+// the delegate's decision unchanged. The delegate sets CheckerName so audit
+// records the actual evaluator, not the multiplexer. Failures before
+// delegation are dispatch errors (BadRequest/InternalError), not
+// authorization; the returned decision has empty AuthzChecks,
+// accessLevelNotEvaluated, and no CheckerName, and is excluded from authz
+// audit emission.
+func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) accessDecision {
 	switch ac.Default.(type) {
 	// TODO: If less strict interfaces are needed as defaults then
 	// we might need to introduce access checker sorting so that the
@@ -440,11 +593,11 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 	// action access checker.
 	case rootAccess, interfaceRootAccess, interfaceProviderRootAccess:
 	default:
-		return InternalError("internal error: default access checker must have root-level access: got %T", ac.Default)
+		return notEvaluated(InternalError("internal error: default access checker must have root-level access: got %T", ac.Default))
 	}
 
 	if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
-		return BadRequest("unexpected content type: %q", contentType)
+		return notEvaluated(BadRequest("unexpected content type: %q", contentType))
 	}
 
 	req := actionRequest{}
@@ -461,13 +614,13 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 	err := decoder.Decode(&req)
 	if err != nil {
 		if (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) && lr.N <= 0 {
-			return BadRequest("body size limit exceeded")
+			return notEvaluated(BadRequest("body size limit exceeded"))
 		}
 		// Content type is JSON, but it's invalid
-		return BadRequest(err.Error())
+		return notEvaluated(BadRequest(err.Error()))
 	}
 	if decoder.More() {
-		return BadRequest("unexpected data after request body")
+		return notEvaluated(BadRequest("unexpected data after request body"))
 	}
 
 	r.Body.Close()

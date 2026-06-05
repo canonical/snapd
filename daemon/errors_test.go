@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -269,5 +270,14 @@ func (s *errorsSuite) TestForbidden(c *C) {
 		Status:  403,
 		Message: "denied",
 		Kind:    client.ErrorKindLoginRequired,
+	})
+}
+
+func (s *errorsSuite) TestAPIErrorReason(c *C) {
+	c.Check(daemon.APIErrorReason(daemon.Unauthorized("access denied")), DeepEquals, seclog.Reason{
+		Code: 401, Kind: string(client.ErrorKindLoginRequired), Message: "access denied",
+	})
+	c.Check(daemon.APIErrorReason(daemon.InternalError("broken")), DeepEquals, seclog.Reason{
+		Code: 500, Message: "broken",
 	})
 }

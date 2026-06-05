@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -159,12 +160,31 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
-		rspe.ServeHTTP(w, r)
+	dec := access.CheckAccess(c.d, r, ucred, user)
+	admin := isAdministrativeAccess(dec.Level)
+
+	var action string
+	if osutil.GetenvBool("SNAPD_TRACE") || admin {
+		action = tryExtractJSONAction(r)
+	}
+
+	if dec.Denied() {
+		if admin {
+			logUnauthorizedAccess(c, r, ucred, user, dec, action)
+		}
+		dec.Verdict.ServeHTTP(w, r)
 		return
 	}
 
-	traceSnapdAPI(c, w, r)
+	// Emit the authz_admin event before invoking the handler: it records
+	// that the authorization gate passed, not that the API operation
+	// succeeded, and must be persisted even if the handler panics, hangs,
+	// or the client disconnects mid-response.
+	if admin {
+		logAdminActivity(c, r, ucred, user, dec, action)
+	}
+
+	traceSnapdAPI(c, w, r, action)
 
 	rsp := rspf(c, r, user)
 
@@ -186,30 +206,85 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
-func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		loggedWithAction := false
-		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
-			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err != nil {
-				logger.Trace("endpoint-error", "body-read", err)
-			}
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
-				}
-			}
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		}
-		if !loggedWithAction {
-			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
+func snapdUser(user *auth.UserState) seclog.SnapdUser {
+	if user == nil {
+		return seclog.SnapdUser{}
+	}
+	return seclog.SnapdUser{
+		ID:             int64(user.ID),
+		StoreUserName:  user.Username,
+		StoreUserEmail: user.Email,
+	}
+}
+
+func peerFromUcred(ucred *ucrednet) seclog.Peer {
+	if ucred == nil {
+		return seclog.Peer{
+			UID: ucrednetNobody,
+			PID: ucrednetNoProcess,
 		}
 	}
+	return seclog.Peer{
+		Socket: ucred.Socket,
+		UID:    ucred.Uid,
+		PID:    ucred.Pid,
+	}
+}
+
+// tryExtractJSONAction reads the request body when safe and returns the
+// "action" field. The body is buffered back into r.Body for the handler.
+func tryExtractJSONAction(r *http.Request) string {
+	if (r.Method != "POST" && r.Method != "PUT") || r.Body == nil {
+		return ""
+	}
+	if r.Header.Get("Content-Type") != "application/json" {
+		return ""
+	}
+	if r.ContentLength < 0 || r.ContentLength >= maxBodySize {
+		return ""
+	}
+	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, r.ContentLength))
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return ""
+	}
+	var data struct {
+		Action string `json:"action"`
+	}
+	if json.Unmarshal(bodyBytes, &data) != nil {
+		return ""
+	}
+	return data.Action
+}
+
+func endpointFromRequest(c *Command, r *http.Request, dec accessDecision, action string) seclog.Endpoint {
+	return seclog.Endpoint{
+		Method:        r.Method,
+		Path:          c.Path,
+		Action:        action,
+		AccessChecker: string(dec.CheckerName),
+		AccessLevel:   string(dec.Level),
+	}
+}
+
+func logAdminActivity(c *Command, r *http.Request, ucred *ucrednet, user *auth.UserState, dec accessDecision, action string) {
+	seclog.LogAdminActivity(snapdUser(user), peerFromUcred(ucred), endpointFromRequest(c, r, dec, action), dec.Checks)
+}
+
+func logUnauthorizedAccess(c *Command, r *http.Request, ucred *ucrednet, user *auth.UserState, dec accessDecision, action string) {
+	seclog.LogUnauthorizedAccess(snapdUser(user), peerFromUcred(ucred), endpointFromRequest(c, r, dec, action), dec.Checks, dec.Verdict.seclogReason())
+}
+
+func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request, action string) {
+	if !osutil.GetenvBool("SNAPD_TRACE") {
+		return
+	}
+
+	if action != "" {
+		logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
+		return
+	}
+	logger.Trace("endpoint", "method", r.Method, "path", c.Path)
 }
 
 type wrappedWriter struct {
