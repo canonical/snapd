@@ -26,16 +26,16 @@ import (
 )
 
 func (s *SecLogSuite) TestReasonString(c *C) {
-	// Both fields set.
+	// Kind and message set.
 	c.Check(seclog.Reason{
-		Code: seclog.ReasonInvalidCredentials, Message: "bad password",
+		Code: 401, Kind: seclog.ReasonInvalidCredentials, Message: "bad password",
 	}.String(), Equals, "invalid-credentials:bad password")
 
-	// Both fields empty — all "<unknown>".
+	// All fields empty — all "<unknown>".
 	c.Check(seclog.Reason{}.String(), Equals, "<unknown>:<unknown>")
 
-	// Only code set.
-	c.Check(seclog.Reason{Code: seclog.ReasonInternal}.String(), Equals, "internal:<unknown>")
+	// Only kind set.
+	c.Check(seclog.Reason{Code: 500, Kind: seclog.ReasonInternal}.String(), Equals, "internal:<unknown>")
 
 	// Only message set.
 	c.Check(seclog.Reason{Message: "something broke"}.String(), Equals, "<unknown>:something broke")
@@ -58,4 +58,25 @@ func (s *SecLogSuite) TestSnapdUserString(c *C) {
 
 	// Only username set.
 	c.Check(seclog.SnapdUser{StoreUserName: "root"}.String(), Equals, "<unknown>:<unknown>:root")
+}
+
+func (s *SecLogSuite) TestPeerString(c *C) {
+	c.Check(seclog.Peer{
+		Socket: "/run/snapd.socket", UID: 0, PID: 4242,
+	}.String(), Equals, "/run/snapd.socket:0:4242")
+
+	// Zero UID is root; only the nobody sentinel is unknown.
+	c.Check(seclog.Peer{}.String(), Equals, "<unknown>:0:<unknown>")
+
+	c.Check(seclog.Peer{Socket: "/run/snapd.socket"}.String(), Equals, "/run/snapd.socket:0:<unknown>")
+
+	c.Check(seclog.Peer{UID: ^uint32(0)}.String(), Equals, "<unknown>:<unknown>:<unknown>")
+}
+
+func (s *SecLogSuite) TestAuthzChecksAnyPerformed(c *C) {
+	c.Check(seclog.NewAuthzChecks().AnyPerformed(), Equals, false)
+
+	checks := seclog.NewAuthzChecks()
+	checks.PeerCreds = seclog.AuthzPass
+	c.Check(checks.AnyPerformed(), Equals, true)
 }

@@ -45,7 +45,7 @@ import (
 // unknown is the placeholder for empty fields in descriptions.
 const unknown = "<unknown>"
 
-// Reason codes are stable identifiers for security audit events.
+// Reason kind values are stable identifiers for security audit events.
 const (
 	ReasonInvalidCredentials = "invalid-credentials"
 	ReasonTwoFactorRequired  = "two-factor-required"
@@ -58,17 +58,18 @@ const (
 // Reason describes why a security event happened. The JSON tags match
 // the security audit specification field names.
 type Reason struct {
-	Code    string `json:"code"`
+	Code    int    `json:"code"`
+	Kind    string `json:"kind,omitempty"`
 	Message string `json:"message"`
 }
 
 // String returns a colon-separated representation in the form
-// "<Code>:<Message>". Fields that are unset use "<unknown>" as a
+// "<Kind>:<Message>". Fields that are unset use "<unknown>" as a
 // placeholder.
 func (r Reason) String() string {
-	code := unknown
-	if r.Code != "" {
-		code = r.Code
+	kind := unknown
+	if r.Kind != "" {
+		kind = r.Kind
 	}
 
 	message := unknown
@@ -76,7 +77,7 @@ func (r Reason) String() string {
 		message = r.Message
 	}
 
-	return code + ":" + message
+	return kind + ":" + message
 }
 
 // SnapdUser represents the identity of a user for security log events.
@@ -85,6 +86,116 @@ type SnapdUser struct {
 	StoreUserName  string    `json:"store-user-name"`
 	StoreUserEmail string    `json:"store-user-email"`
 	Expiration     time.Time `json:"expiration"`
+}
+
+// Peer describes the Unix-domain peer of an API request (Socket, UID, PID).
+//
+// Callers may signal "unknown" by setting UID to ^uint32(0) (the daemon's
+// "nobody" sentinel) and/or PID to 0 (the daemon's "no process" sentinel).
+type Peer struct {
+	Socket string `json:"socket"`
+	UID    uint32 `json:"uid"`
+	PID    int32  `json:"pid"`
+}
+
+// peerNobody and peerNoProcess mirror the daemon's ucrednetNobody and
+// ucrednetNoProcess sentinels. They are duplicated here to keep seclog
+// free of snapd package imports.
+const (
+	peerNobody    = ^uint32(0)
+	peerNoProcess = int32(0)
+)
+
+// String returns a colon-separated representation in the form
+// "<Socket>:<UID>:<PID>". Fields that are unset, or set to a documented
+// "unknown" sentinel, use "<unknown>" as a placeholder.
+func (p Peer) String() string {
+	socket := unknown
+	if p.Socket != "" {
+		socket = p.Socket
+	}
+
+	uid := unknown
+	// 0 is a valid UID (root); only the "nobody" sentinel is unknown.
+	if p.UID != peerNobody {
+		uid = fmt.Sprintf("%d", p.UID)
+	}
+
+	pid := unknown
+	if p.PID != peerNoProcess {
+		pid = fmt.Sprintf("%d", p.PID)
+	}
+
+	return socket + ":" + uid + ":" + pid
+}
+
+// Endpoint describes an API endpoint involved in an authorization event.
+type Endpoint struct {
+	Method        string `json:"method"`
+	Path          string `json:"path"`
+	Action        string `json:"action"`
+	AccessChecker string `json:"access-checker"`
+	AccessLevel   string `json:"access-level"`
+}
+
+// String returns a colon-separated representation in the form
+// "<Method>:<Path>:<Action>".
+func (e Endpoint) String() string {
+	s := e.Method + ":" + e.Path
+	if e.Action != "" {
+		s += ":" + e.Action
+	}
+	return s
+}
+
+// AuthzCheck represents the outcome of a single authorization check.
+type AuthzCheck string
+
+const (
+	AuthzNotApplicable AuthzCheck = "not-applicable"
+	AuthzNotReached    AuthzCheck = "not-reached"
+	AuthzFail          AuthzCheck = "fail"
+	AuthzPass          AuthzCheck = "pass"
+)
+
+// AuthzChecks captures the outcome of each authorization stage evaluated
+// during an access check. Each field records whether that stage passed,
+// failed, or was not applicable to the request.
+type AuthzChecks struct {
+	AccessOptions AuthzCheck `json:"access-options"`
+	PeerCreds     AuthzCheck `json:"peer-credentials"`
+	Socket        AuthzCheck `json:"socket"`
+	Interface     AuthzCheck `json:"interface-requirements"`
+	OpenAccess    AuthzCheck `json:"open-access"`
+	UserAuth      AuthzCheck `json:"user-authentication"`
+	Root          AuthzCheck `json:"root"`
+	Polkit        AuthzCheck `json:"polkit"`
+}
+
+// AnyPerformed reports whether any authorization check was evaluated.
+func (a AuthzChecks) AnyPerformed() bool {
+	return a.AccessOptions != AuthzNotApplicable ||
+		a.PeerCreds != AuthzNotApplicable ||
+		a.Socket != AuthzNotApplicable ||
+		a.Interface != AuthzNotApplicable ||
+		a.OpenAccess != AuthzNotApplicable ||
+		a.UserAuth != AuthzNotApplicable ||
+		a.Root != AuthzNotApplicable ||
+		a.Polkit != AuthzNotApplicable
+}
+
+// NewAuthzChecks returns an AuthzChecks with all fields set to [AuthzNotApplicable].
+func NewAuthzChecks() AuthzChecks {
+	return AuthzChecks{
+		AccessOptions: AuthzNotApplicable,
+		PeerCreds:     AuthzNotApplicable,
+		Socket:        AuthzNotApplicable,
+		Interface:     AuthzNotApplicable,
+		OpenAccess:    AuthzNotApplicable,
+		UserAuth:      AuthzNotApplicable,
+		Root:          AuthzNotApplicable,
+		Polkit:        AuthzNotApplicable,
+	}
 }
 
 // String returns a colon-separated description of the user in the form

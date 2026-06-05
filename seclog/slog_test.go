@@ -73,6 +73,12 @@ type baseAttrs struct {
 	Category    string    `json:"category"`
 }
 
+// record is used for basic log event tests.
+type record struct {
+	baseAttrs
+	Event string `json:"event"`
+}
+
 // orderedKeys extracts the top-level JSON object keys in order.
 func orderedKeys(data []byte) ([]string, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -106,12 +112,6 @@ func orderedKeys(data []byte) ([]string, error) {
 
 func (s *SlogSuite) TestLogEvent(c *C) {
 	logger := seclog.NewSlogLogger(s.buf, s.appID, seclog.LevelInfo)
-	c.Assert(logger, NotNil)
-
-	type record struct {
-		baseAttrs
-		Event string `json:"event"`
-	}
 
 	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
@@ -152,7 +152,8 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 			Expiration     string `json:"expiration"`
 		} `json:"user"`
 		Error struct {
-			Code    string `json:"code"`
+			Code    int    `json:"code"`
+			Kind    string `json:"kind"`
 			Message string `json:"message"`
 		} `json:"error"`
 	}
@@ -162,7 +163,7 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 		StoreUserEmail: "user@gmail.com",
 		StoreUserName:  "jdoe",
 	}
-	reason := seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"}
+	reason := seclog.Reason{Code: 401, Kind: seclog.ReasonInvalidCredentials, Message: "invalid credentials"}
 	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelWarn},
 		fmt.Sprintf("User %s caused an issue: %s", user.String(), reason.String()),
@@ -187,7 +188,8 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 	c.Check(obtained.User.StoreUserName, Equals, "jdoe")
 	c.Check(obtained.User.Expiration, Equals, "never")
 	// Reason is a plain struct — verify JSON marshaling via slog.Any
-	c.Check(obtained.Error.Code, Equals, seclog.ReasonInvalidCredentials)
+	c.Check(obtained.Error.Code, Equals, 401)
+	c.Check(obtained.Error.Kind, Equals, seclog.ReasonInvalidCredentials)
 	c.Check(obtained.Error.Message, Equals, "invalid credentials")
 
 	// verify key order for human readability
