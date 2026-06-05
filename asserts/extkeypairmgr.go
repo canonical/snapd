@@ -43,10 +43,19 @@ type ExternalKeypairManager struct {
 
 // NewExternalKeypairManager creates a new ExternalKeypairManager using the program at keyMgrPath.
 func NewExternalKeypairManager(keyMgrPath string) (*ExternalKeypairManager, error) {
-	impl, err := newExtKeypairMgrImpl(&externalCmdKeypairMgrBackend{keyMgrPath: keyMgrPath}, extKeypairMgrConfig{
-		signingWith: fmt.Sprintf("external keypair manager %q", keyMgrPath),
-		keyStore:    "external keypair manager",
+	impl, err := newExtKeypairMgrImpl(&externalCmdKeypairMgrBackend{keyMgrPath: keyMgrPath}, ExtKeypairMgrConfig{
+		SigningWith: fmt.Sprintf("external keypair manager %q", keyMgrPath),
+		KeyStore:    "external keypair manager",
 	})
+	if err != nil {
+		return nil, err
+	}
+	return &ExternalKeypairManager{impl: impl}, nil
+}
+
+// NewExternalKeypairManagerWithBackend creates a new ExternalKeypairManager using backend.
+func NewExternalKeypairManagerWithBackend(backend ExtKeypairMgrBackend, config ExtKeypairMgrConfig) (*ExternalKeypairManager, error) {
+	impl, err := newExtKeypairMgrImpl(backend, config)
 	if err != nil {
 		return nil, err
 	}
@@ -104,8 +113,8 @@ type externalCmdKeypairMgrBackend struct {
 
 // expected interfaces are implemented
 var (
-	_ extKeypairMgrBackend             = (*externalCmdKeypairMgrBackend)(nil)
-	_ extKeypairMgrByNameLookupBackend = (*externalCmdKeypairMgrBackend)(nil)
+	_ ExtKeypairMgrBackend             = (*externalCmdKeypairMgrBackend)(nil)
+	_ ExtKeypairMgrByNameLookupBackend = (*externalCmdKeypairMgrBackend)(nil)
 )
 
 func (s *externalCmdKeypairMgrBackend) keyMgr(op string, args []string, in []byte, out any) error {
@@ -135,7 +144,7 @@ func (s *externalCmdKeypairMgrBackend) keyMgr(op string, args []string, in []byt
 	return nil
 }
 
-func (s *externalCmdKeypairMgrBackend) CheckFeatures() (extKeypairMgrSigning, error) {
+func (s *externalCmdKeypairMgrBackend) CheckFeatures() (ExtKeypairMgrSigning, error) {
 	var feats struct {
 		Signing    []string `json:"signing"`
 		PublicKeys []string `json:"public-keys"`
@@ -143,11 +152,11 @@ func (s *externalCmdKeypairMgrBackend) CheckFeatures() (extKeypairMgrSigning, er
 	if err := s.keyMgr("features", nil, nil, &feats); err != nil {
 		return "", err
 	}
-	var signing extKeypairMgrSigning
+	var signing ExtKeypairMgrSigning
 	if strutil.ListContains(feats.Signing, "RSA-PKCS") {
-		signing = extKeypairMgrSigningRSAPKCS
+		signing = ExtKeypairMgrSigningRSAPKCS
 	} else if strutil.ListContains(feats.Signing, "OPENPGP") {
-		signing = extKeypairMgrSigningOpenPGP
+		signing = ExtKeypairMgrSigningOpenPGP
 	} else {
 		return "", fmt.Errorf("external keypair manager %q missing support for RSA-PKCS or OPENPGP signing", s.keyMgrPath)
 	}
@@ -184,19 +193,19 @@ func (s *externalCmdKeypairMgrBackend) findByName(name string) (PublicKey, error
 	return RSAPublicKey(rsaPub), nil
 }
 
-func (s *externalCmdKeypairMgrBackend) LoadByName(name string) (*extKeypairMgrLoadedKey, error) {
+func (s *externalCmdKeypairMgrBackend) LoadByName(name string) (*ExtKeypairMgrLoadedKey, error) {
 	pubKey, err := s.findByName(name)
 	if err != nil {
 		return nil, err
 	}
-	return &extKeypairMgrLoadedKey{
-		name:      name,
-		keyHandle: name,
-		pubKey:    pubKey,
+	return &ExtKeypairMgrLoadedKey{
+		Name:      name,
+		KeyHandle: name,
+		PublicKey: pubKey,
 	}, nil
 }
 
-func (s *externalCmdKeypairMgrBackend) Visit(consider func(loaded *extKeypairMgrLoadedKey) error) error {
+func (s *externalCmdKeypairMgrBackend) Visit(consider func(loaded *ExtKeypairMgrLoadedKey) error) error {
 	names, err := s.keyNames()
 	if err != nil {
 		return err

@@ -136,9 +136,9 @@ func (gkm *GPGKeypairManager) gpg(input []byte, args ...string) ([]byte, error) 
 // Main purpose is allowing signing using keys from a GPG setup.
 func NewGPGKeypairManager() *GPGKeypairManager {
 	gkm := &GPGKeypairManager{}
-	impl, err := newExtKeypairMgrImpl(&gpgKeypairMgrBackend{manager: gkm}, extKeypairMgrConfig{
-		signingWith: "GPG",
-		keyStore:    "GPG keyring",
+	impl, err := newExtKeypairMgrImpl(&gpgKeypairMgrBackend{manager: gkm}, ExtKeypairMgrConfig{
+		SigningWith: "GPG",
+		KeyStore:    "GPG keyring",
 	})
 	if err != nil {
 		panic(fmt.Sprintf("internal error: cannot setup keypair manager: %v", err))
@@ -147,7 +147,7 @@ func NewGPGKeypairManager() *GPGKeypairManager {
 	return gkm
 }
 
-func (gkm *GPGKeypairManager) retrieveLoadedKey(fpr string, uid string) (*extKeypairMgrLoadedKey, error) {
+func (gkm *GPGKeypairManager) retrieveLoadedKey(fpr string, uid string) (*ExtKeypairMgrLoadedKey, error) {
 	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", "0x"+fpr)
 	if err != nil {
 		return nil, err
@@ -163,10 +163,10 @@ func (gkm *GPGKeypairManager) retrieveLoadedKey(fpr string, uid string) (*extKey
 	if gotFingerprint != fpr {
 		return nil, fmt.Errorf("got wrong public key from GPG, expected fingerprint %q: %s", fpr, gotFingerprint)
 	}
-	return &extKeypairMgrLoadedKey{
-		name:      uid,
-		keyHandle: fpr,
-		pubKey:    pubKey,
+	return &ExtKeypairMgrLoadedKey{
+		Name:      uid,
+		KeyHandle: fpr,
+		PublicKey: pubKey,
 	}, nil
 }
 
@@ -338,13 +338,13 @@ type gpgKeypairMgrBackend struct {
 }
 
 // expected interface is implemented
-var _ extKeypairMgrBackend = (*gpgKeypairMgrBackend)(nil)
+var _ ExtKeypairMgrBackend = (*gpgKeypairMgrBackend)(nil)
 
-func (s *gpgKeypairMgrBackend) CheckFeatures() (extKeypairMgrSigning, error) {
-	return extKeypairMgrSigningOpenPGP, nil
+func (s *gpgKeypairMgrBackend) CheckFeatures() (ExtKeypairMgrSigning, error) {
+	return ExtKeypairMgrSigningOpenPGP, nil
 }
 
-func (s *gpgKeypairMgrBackend) Visit(consider func(loaded *extKeypairMgrLoadedKey) error) error {
+func (s *gpgKeypairMgrBackend) Visit(consider func(loaded *ExtKeypairMgrLoadedKey) error) error {
 	return s.manager.walkSecretKeys(func(fpr string, uid string) error {
 		loaded, err := s.manager.retrieveLoadedKey(fpr, uid)
 		if err != nil {
