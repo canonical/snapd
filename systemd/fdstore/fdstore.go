@@ -312,12 +312,13 @@ func Add(name FdName, f *os.File) error {
 // returned. Order of returned listeners is not deterministic.
 //
 // It is the caller's responsibility to close returned listeners when finished.
-func ActivationListeners() (listeners []net.Listener, retErr error) {
+func ActivationListeners() (retListeners []net.Listener, retErr error) {
 	initFdstore()
 
 	mu.RLock()
 	defer mu.RUnlock()
 
+	var listeners []net.Listener
 	defer func() {
 		// Clean up collected listeners on error since net.FileListener
 		// duplicates the underlying fd.

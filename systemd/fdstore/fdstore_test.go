@@ -417,6 +417,46 @@ func (s *fdstoreTestSuite) TestActivationListenersMissingFdNamesEnv(c *C) {
 	c.Check(listeners[3].(*fakeListener).String(), Equals, "activation-fd-3.socket (6)")
 }
 
+type fakeClosableListener struct {
+	closed int
+}
+
+func (*fakeClosableListener) Accept() (net.Conn, error) { panic("unexpected") }
+func (l *fakeClosableListener) Close() error {
+	l.closed++
+	return nil
+}
+func (*fakeClosableListener) Addr() net.Addr { panic("unexpected") }
+
+func (s *fdstoreTestSuite) TestActivationListenersCleansUpCollectedListenersOnError(c *C) {
+	os.Setenv("LISTEN_FDS", "3")
+	os.Setenv("LISTEN_FDNAMES", "snapd.socket:memfd-secret-state:snapd.socket")
+
+	created := make([]*fakeClosableListener, 0, 1)
+	calls := 0
+	restore := fdstore.MockNetFileListener(func(f *os.File) (ln net.Listener, err error) {
+		if f.Name() != "snapd.socket" {
+			c.Fatalf("unexpected fd: %q", f.Name())
+		}
+
+		calls++
+		if calls == 1 {
+			l := &fakeClosableListener{}
+			created = append(created, l)
+			return l, nil
+		}
+
+		return nil, errors.New("boom")
+	})
+	defer restore()
+
+	listeners, err := fdstore.ActivationListeners()
+	c.Assert(err, ErrorMatches, "boom")
+	c.Check(listeners, IsNil)
+	c.Assert(created, HasLen, 1)
+	c.Check(created[0].closed, Equals, 1)
+}
+
 func (s *fdstoreTestSuite) TestKnownFdNames(c *C) {
 	c.Assert(fdstore.KnownFdNames(), DeepEquals, map[fdstore.FdName]bool{
 		fdstore.FdName("memfd-secret-state"): true,
