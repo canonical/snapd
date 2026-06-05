@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type gpgKeypairMgrSuite struct {
@@ -60,11 +62,27 @@ func (gkms *gpgKeypairMgrSuite) addSigningSubkey(c *C, fingerprint string) {
 	if err != nil {
 		c.Skip("gpg with --quick-add-key support not installed")
 	}
+	versionOut, err := exec.Command(path, "--version").Output()
+	if err != nil {
+		c.Skip("cannot determine gpg2 version")
+	}
+	versionLine := strings.SplitN(strings.TrimSpace(string(versionOut)), "\n", 2)[0]
+	versionFields := strings.Fields(versionLine)
+	if len(versionFields) == 0 {
+		c.Skip("cannot determine gpg2 version")
+	}
+	version := versionFields[len(versionFields)-1]
+	cmp, err := strutil.VersionCompare(version, "2.1.13")
+	if err != nil {
+		c.Skip(fmt.Sprintf("cannot determine whether gpg2 version %q supports --quick-add-key", version))
+	}
+	if cmp < 0 {
+		c.Skip(fmt.Sprintf("gpg2 version %q is too old, need at least 2.1.13 for --quick-add-key", version))
+	}
 	gpg := exec.Command(path,
 		"--homedir", gkms.homedir,
 		"-q",
 		"--batch",
-		"--pinentry-mode", "loopback",
 		"--passphrase", "",
 		"--quick-add-key", fingerprint,
 		"rsa4096",
