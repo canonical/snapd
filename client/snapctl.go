@@ -114,6 +114,10 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		Stdin: stdinData,
 	})
 
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var pollOutput snapctlOutput
 	if output.ChangeID != "" {
 		for {
