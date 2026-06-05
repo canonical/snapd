@@ -166,10 +166,14 @@ func (h *errorAwareHandler) WithGroup(name string) slog.Handler {
 // LogValue implements [slog.LogValuer], allowing Reason to be
 // used directly as a structured log attribute value.
 func (r Reason) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("code", r.Code),
-		slog.String("message", r.Message),
-	)
+	attrs := []slog.Attr{
+		slog.Int("code", r.Code),
+	}
+	if r.Kind != "" {
+		attrs = append(attrs, slog.String("kind", r.Kind))
+	}
+	attrs = append(attrs, slog.String("message", r.Message))
+	return slog.GroupValue(attrs...)
 }
 
 // LogValue implements [slog.LogValuer], allowing SnapdUser to be
@@ -184,5 +188,42 @@ func (u SnapdUser) LogValue() slog.Value {
 		slog.String("store-user-name", u.StoreUserName),
 		slog.String("store-user-email", u.StoreUserEmail),
 		slog.String("expiration", expiration),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing Endpoint to be
+// used directly as a structured log attribute value.
+func (e Endpoint) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("method", e.Method),
+		slog.String("path", e.Path),
+		slog.String("action", e.Action),
+		slog.String("access-checker", e.AccessChecker),
+		slog.String("access-level", e.AccessLevel),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing Peer to be used
+// directly as a structured log attribute value.
+func (p Peer) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("socket", p.Socket),
+		slog.Int64("uid", int64(p.UID)),
+		slog.Int64("pid", int64(p.PID)),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing AuthzChecks to be
+// used directly as a structured log attribute value.
+func (a AuthzChecks) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("access-options", string(a.AccessOptions)),
+		slog.String("peer-credentials", string(a.PeerCreds)),
+		slog.String("socket", string(a.Socket)),
+		slog.String("interface-requirements", string(a.Interface)),
+		slog.String("open-access", string(a.OpenAccess)),
+		slog.String("user-authentication", string(a.UserAuth)),
+		slog.String("root", string(a.Root)),
+		slog.String("polkit", string(a.Polkit)),
 	)
 }

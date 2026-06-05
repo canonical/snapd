@@ -73,6 +73,12 @@ type baseAttrs struct {
 	Category    string    `json:"category"`
 }
 
+// record is used for basic log event tests.
+type record struct {
+	baseAttrs
+	Event string `json:"event"`
+}
+
 // orderedKeys extracts the top-level JSON object keys in order.
 func orderedKeys(data []byte) ([]string, error) {
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -106,12 +112,6 @@ func orderedKeys(data []byte) ([]string, error) {
 
 func (s *SlogSuite) TestLogEvent(c *C) {
 	logger := seclog.NewSlogLogger(s.buf, s.appID, seclog.LevelInfo)
-	c.Assert(logger, NotNil)
-
-	type record struct {
-		baseAttrs
-		Event string `json:"event"`
-	}
 
 	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
@@ -152,7 +152,8 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 			Expiration     string `json:"expiration"`
 		} `json:"user"`
 		Error struct {
-			Code    string `json:"code"`
+			Code    int    `json:"code"`
+			Kind    string `json:"kind"`
 			Message string `json:"message"`
 		} `json:"error"`
 	}
@@ -162,7 +163,7 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 		StoreUserEmail: "user@gmail.com",
 		StoreUserName:  "jdoe",
 	}
-	reason := seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"}
+	reason := seclog.Reason{Code: 401, Kind: "invalid-credentials", Message: "invalid credentials"}
 	logger.LogEvent(
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelWarn},
 		fmt.Sprintf("User %s caused an issue: %s", user.String(), reason.String()),
@@ -176,7 +177,7 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 	c.Check(time.Since(obtained.Datetime) < time.Second, Equals, true)
 	c.Check(obtained.Level, Equals, "WARN")
 	c.Check(obtained.Description, Equals,
-		"User 42:user@gmail.com:jdoe caused an issue: invalid-credentials:invalid credentials")
+		"User 42:user@gmail.com:jdoe caused an issue: 401:invalid credentials")
 	c.Check(obtained.AppID, Equals, s.appID)
 	c.Check(obtained.Type, Equals, "security")
 	c.Check(obtained.Category, Equals, "TEST")
@@ -186,8 +187,9 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 	c.Check(obtained.User.StoreUserEmail, Equals, "user@gmail.com")
 	c.Check(obtained.User.StoreUserName, Equals, "jdoe")
 	c.Check(obtained.User.Expiration, Equals, "never")
-	// Reason is a plain struct — verify JSON marshaling via slog.Any
-	c.Check(obtained.Error.Code, Equals, seclog.ReasonInvalidCredentials)
+	// Reason is a LogValuer — verify structured output
+	c.Check(obtained.Error.Code, Equals, 401)
+	c.Check(obtained.Error.Kind, Equals, "invalid-credentials")
 	c.Check(obtained.Error.Message, Equals, "invalid credentials")
 
 	// verify key order for human readability
@@ -196,6 +198,84 @@ func (s *SlogSuite) TestLogEventWithAttrs(c *C) {
 	c.Check(keys, DeepEquals, []string{
 		"datetime", "level", "description",
 		"app_id", "type", "category", "event", "user", "error",
+	})
+}
+
+func (s *SlogSuite) TestLogEventWithAuthzAttrs(c *C) {
+	logger := seclog.NewSlogLogger(s.buf, s.appID, seclog.LevelInfo)
+
+	type record struct {
+		baseAttrs
+		Event string `json:"event"`
+		Peer  struct {
+			Socket string `json:"socket"`
+			UID    int64  `json:"uid"`
+			PID    int64  `json:"pid"`
+		} `json:"peer"`
+		Endpoint struct {
+			Method        string `json:"method"`
+			Path          string `json:"path"`
+			Action        string `json:"action"`
+			AccessChecker string `json:"access-checker"`
+			AccessLevel   string `json:"access-level"`
+		} `json:"endpoint"`
+		AuthzChecks struct {
+			AccessOptions string `json:"access-options"`
+			PeerCreds     string `json:"peer-credentials"`
+			Socket        string `json:"socket"`
+			Interface     string `json:"interface-requirements"`
+			OpenAccess    string `json:"open-access"`
+			UserAuth      string `json:"user-authentication"`
+			Root          string `json:"root"`
+			Polkit        string `json:"polkit"`
+		} `json:"authz_checks"`
+	}
+
+	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 0, PID: 4242}
+	endpoint := seclog.Endpoint{
+		Method:        "POST",
+		Path:          "/v2/snaps",
+		Action:        "install",
+		AccessChecker: "authenticated",
+		AccessLevel:   "authenticated",
+	}
+	checks := seclog.NewAuthzChecks()
+	checks.PeerCreds = seclog.AuthzPass
+
+	logger.LogEvent(
+		seclog.Event{Category: "AUTHZ", Name: "authz_admin", Level: seclog.LevelInfo},
+		"admin access",
+		seclog.Attr{Key: "peer", Value: peer},
+		seclog.Attr{Key: "endpoint", Value: endpoint},
+		seclog.Attr{Key: "authz_checks", Value: checks},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Event, Equals, "authz_admin")
+	c.Check(obtained.Peer.Socket, Equals, "/run/snapd.socket")
+	c.Check(obtained.Peer.UID, Equals, int64(0))
+	c.Check(obtained.Peer.PID, Equals, int64(4242))
+	c.Check(obtained.Endpoint.Method, Equals, "POST")
+	c.Check(obtained.Endpoint.Path, Equals, "/v2/snaps")
+	c.Check(obtained.Endpoint.Action, Equals, "install")
+	c.Check(obtained.Endpoint.AccessChecker, Equals, "authenticated")
+	c.Check(obtained.Endpoint.AccessLevel, Equals, "authenticated")
+	c.Check(obtained.AuthzChecks.AccessOptions, Equals, string(seclog.AuthzNotApplicable))
+	c.Check(obtained.AuthzChecks.PeerCreds, Equals, string(seclog.AuthzPass))
+	c.Check(obtained.AuthzChecks.Socket, Equals, string(seclog.AuthzNotApplicable))
+	c.Check(obtained.AuthzChecks.Interface, Equals, string(seclog.AuthzNotApplicable))
+	c.Check(obtained.AuthzChecks.OpenAccess, Equals, string(seclog.AuthzNotApplicable))
+	c.Check(obtained.AuthzChecks.UserAuth, Equals, string(seclog.AuthzNotApplicable))
+	c.Check(obtained.AuthzChecks.Root, Equals, string(seclog.AuthzNotApplicable))
+	c.Check(obtained.AuthzChecks.Polkit, Equals, string(seclog.AuthzNotApplicable))
+
+	keys, err := orderedKeys(s.buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(keys, DeepEquals, []string{
+		"datetime", "level", "description",
+		"app_id", "type", "category", "event", "peer", "endpoint", "authz_checks",
 	})
 }
 
