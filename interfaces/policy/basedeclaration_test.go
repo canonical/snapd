@@ -1189,7 +1189,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"location-control":          true,
 		"location-observe":          true,
 		"lxd":                       true,
-		"maliit":                    true,
 		"mediatek-accel":            true,
 		"microceph":                 true,
 		"microovn":                  true,
