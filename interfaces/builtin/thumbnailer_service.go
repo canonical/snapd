@@ -113,7 +113,7 @@ func (iface *thumbnailerServiceInterface) AppArmorConnectedPlug(spec *apparmor.S
 	new := slot.LabelExpression()
 
 	// Ubuntu Touch's host thumbnailer service runs unconfined
-	if release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	}
 

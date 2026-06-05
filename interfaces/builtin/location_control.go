@@ -216,7 +216,7 @@ func (iface *locationControlInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
 
-	if release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	}
 

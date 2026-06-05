@@ -140,7 +140,7 @@ func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification
 	new := slot.LabelExpression()
 
 	// Allow access to host-side maliit on Ubuntu Touch
-	if release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	}
 
@@ -176,7 +176,7 @@ func init() {
 	registerIface(&maliitInterface{commonInterface{
 		name:                  "maliit",
 		summary:               maliitSummary,
-		implicitOnClassic:     release.OnTouch,
+		implicitOnClassic:     true,
 		baseDeclarationSlots:  maliitBaseDeclarationSlots,
-        }})
+	}})
 }

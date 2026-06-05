@@ -186,7 +186,7 @@ type screenInhibitControlInterface struct {
 func (iface *screenInhibitControlInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	var new string
-	if implicitSystemConnectedSlot(slot) || release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		// we are running on a system that has the screen-inhibit-control slot
 		// provided by the OS snap and so will run unconfined
 		new = "unconfined"

@@ -281,7 +281,7 @@ func (iface *locationObserveInterface) AppArmorConnectedPlug(spec *apparmor.Spec
 	new := slot.LabelExpression()
 
 	// Ubuntu Touch hosts this service already
-	if release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	}
 

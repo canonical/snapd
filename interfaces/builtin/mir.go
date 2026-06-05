@@ -113,7 +113,7 @@ func (iface *mirInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
 
-	if release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		new = "unconfined"
 	}
 

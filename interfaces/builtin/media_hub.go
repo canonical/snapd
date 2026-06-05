@@ -203,7 +203,7 @@ func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	newMediaHub := slot.LabelExpression()
 
 	// Ubuntu Touch already provides an enforced media-hub in the host
-	if release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		newMediaHub = "\"/usr/bin/media-hub-server\""
 	}
 	rules := strings.Replace(mediaHubConnectedPlugAppArmor, oldMediaHub, newMediaHub, -1)
@@ -212,7 +212,7 @@ func (iface *mediaHubInterface) AppArmorConnectedPlug(spec *apparmor.Specificati
 	newMediaScanner := slot.LabelExpression()
 
 	// The host-side mediascanner also runs within it's own profile on Touch
-	if release.OnTouch {
+	if implicitSystemConnectedSlot(slot) {
 		newMediaScanner = "\"/usr/bin/mediascanner-service*\""
 	}
 	rules = strings.Replace(rules, oldMediaScanner, newMediaScanner, -1)
