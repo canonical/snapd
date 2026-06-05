@@ -45,11 +45,11 @@ func init() {
 	supportedConfigurations["core.system.ntp"] = true
 	supportedConfigurations["core.system.ntp.servers"] = true
 	supportedConfigurations["core.system.ntp.fallback-servers"] = true
-	supportedConfigurations["core.system.ntp.root-distance-max-sec"] = true
-	supportedConfigurations["core.system.ntp.poll-interval-min-sec"] = true
-	supportedConfigurations["core.system.ntp.poll-interval-max-sec"] = true
-	supportedConfigurations["core.system.ntp.connection-retry-sec"] = true
-	supportedConfigurations["core.system.ntp.save-interval-sec"] = true
+	supportedConfigurations["core.system.ntp.max-root-time-distance"] = true
+	supportedConfigurations["core.system.ntp.min-poll-interval"] = true
+	supportedConfigurations["core.system.ntp.max-poll-interval"] = true
+	supportedConfigurations["core.system.ntp.connection-retry-interval"] = true
+	supportedConfigurations["core.system.ntp.save-interval"] = true
 	// and register it as a external config
 	config.RegisterExternalConfig("core", "system.ntp", getNTPFromSystemHelper)
 }
@@ -64,21 +64,21 @@ var timespanUsRegexp = regexp.MustCompile(`(?:μs|us):\s*(\d+)`)
 var timesyncdToSnapKeyMapping = map[string]string{
 	"NTP":                "servers",
 	"FallbackNTP":        "fallback-servers",
-	"RootDistanceMaxSec": "root-distance-max-sec",
-	"PollIntervalMinSec": "poll-interval-min-sec",
-	"PollIntervalMaxSec": "poll-interval-max-sec",
-	"ConnectionRetrySec": "connection-retry-sec",
-	"SaveIntervalSec":    "save-interval-sec",
+	"RootDistanceMaxSec": "max-root-time-distance",
+	"PollIntervalMinSec": "min-poll-interval",
+	"PollIntervalMaxSec": "max-poll-interval",
+	"ConnectionRetrySec": "connection-retry-interval",
+	"SaveIntervalSec":    "save-interval",
 }
 
 var snapToTimesyncdKeyMapping = map[string]string{
-	"servers":               "NTP",
-	"fallback-servers":      "FallbackNTP",
-	"root-distance-max-sec": "RootDistanceMaxSec",
-	"poll-interval-min-sec": "PollIntervalMinSec",
-	"poll-interval-max-sec": "PollIntervalMaxSec",
-	"connection-retry-sec":  "ConnectionRetrySec",
-	"save-interval-sec":     "SaveIntervalSec",
+	"servers":                   "NTP",
+	"fallback-servers":          "FallbackNTP",
+	"max-root-time-distance":    "RootDistanceMaxSec",
+	"min-poll-interval":         "PollIntervalMinSec",
+	"max-poll-interval":         "PollIntervalMaxSec",
+	"connection-retry-interval": "ConnectionRetrySec",
+	"save-interval":             "SaveIntervalSec",
 }
 
 func validateNTPSettings(tr ConfGetter) error {
@@ -93,17 +93,17 @@ func validateNTPSettings(tr ConfGetter) error {
 		}
 	}
 
-	// Validate that poll-interval-min-sec < poll-interval-max-sec
+	// Validate that min-poll-interval < max-poll-interval
 	// Use the systemd defaults if they have not been overwritten by the user
 	pollIntervalMinSecString := "32s"
 	pollIntervalMaxSecString := "2048s"
 	customPollInterval := false
 	// Validation for user submitted values has already been done
-	if minSec, exists := ntpCfg["poll-interval-min-sec"]; exists {
+	if minSec, exists := ntpCfg["min-poll-interval"]; exists {
 		pollIntervalMinSecString, _ = mapOptionValueSnapToTimesyncd(minSec)
 		customPollInterval = true
 	}
-	if maxSec, exists := ntpCfg["poll-interval-max-sec"]; exists {
+	if maxSec, exists := ntpCfg["max-poll-interval"]; exists {
 		pollIntervalMaxSecString, _ = mapOptionValueSnapToTimesyncd(maxSec)
 		customPollInterval = true
 	}
@@ -113,7 +113,7 @@ func validateNTPSettings(tr ConfGetter) error {
 		pollIntervalMaxUSec, _ := convertSystemdTimespanToUs(pollIntervalMaxSecString)
 
 		if pollIntervalMinUSec > pollIntervalMaxUSec {
-			return fmt.Errorf("invalid NTP configuration: poll-interval-min-sec (%q) cannot be greater than poll-interval-max-sec (%q)", pollIntervalMinSecString, pollIntervalMaxSecString)
+			return fmt.Errorf("invalid NTP configuration: min-poll-interval (%q) cannot be greater than max-poll-interval (%q)", pollIntervalMinSecString, pollIntervalMaxSecString)
 		}
 	}
 
@@ -130,7 +130,7 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 
 		return validateNTPServers(servers)
 
-	case "root-distance-max-sec", "poll-interval-min-sec", "poll-interval-max-sec", "connection-retry-sec", "save-interval-sec":
+	case "max-root-time-distance", "min-poll-interval", "max-poll-interval", "connection-retry-interval", "save-interval":
 		span, err := mapOptionValueSnapToTimesyncd(value)
 		if err != nil {
 			return fmt.Errorf("%v: %v", key, err)
@@ -141,11 +141,11 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 			return fmt.Errorf("%v: %v", key, err)
 		}
 
-		if key == "poll-interval-min-sec" && timespanUs < 16000000 {
-			return fmt.Errorf("poll-interval-min-sec: cannot be smaller than 16s")
+		if key == "min-poll-interval" && timespanUs < 16000000 {
+			return fmt.Errorf("min-poll-interval: cannot be smaller than 16s")
 		}
-		if key == "connection-retry-sec" && timespanUs < 1000000 {
-			return fmt.Errorf("connection-retry-sec: cannot be smaller than 1s")
+		if key == "connection-retry-interval" && timespanUs < 1000000 {
+			return fmt.Errorf("connection-retry-interval: cannot be smaller than 1s")
 		}
 
 		return nil
@@ -368,11 +368,11 @@ func mapOptionValueSnapToTimesyncd(option any) (string, error) {
 		return strings.Join(builder, " "), nil
 
 	case string:
-		// Matches timespan fields that are set as a string (e.g. "poll-interval-min-sec": "32s")
+		// Matches timespan fields that are set as a string (e.g. "min-poll-interval": "32s")
 		return option, nil
 
 	case json.Number:
-		// Matches timespan fields that are set without a unit (e.g. "poll-interval-min-sec": 32)
+		// Matches timespan fields that are set without a unit (e.g. "min-poll-interval": 32)
 		return option.String() + "s", nil
 
 	default:

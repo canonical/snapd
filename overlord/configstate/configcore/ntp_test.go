@@ -110,11 +110,11 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 						"192.168.1.100",
 						"pool.ntp.org",
 					},
-					"root-distance-max-sec": json.Number(fmt.Sprint(5)),
-					"poll-interval-min-sec": "30s",
-					"poll-interval-max-sec": "40m",
-					"connection-retry-sec":  "5s",
-					"save-interval-sec":     "20",
+					"max-root-time-distance":    json.Number(fmt.Sprint(5)),
+					"min-poll-interval":         "30s",
+					"max-poll-interval":         "40m",
+					"connection-retry-interval": "5s",
+					"save-interval":             "20",
 				},
 			},
 			// Keep sorted in reverse order.
@@ -150,7 +150,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 					"servers": []any{
 						"ntp.ubuntu.com",
 					},
-					"root-distance-max-sec": "5s",
+					"max-root-time-distance": "5s",
 				},
 			},
 			expectServiceRestart: false,
@@ -215,38 +215,38 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 		{
 			newConfig: map[string]any{
 				"system.ntp": map[string]any{
-					"root-distance-max-sec": "not-a-timespan",
+					"max-root-time-distance": "not-a-timespan",
 				},
 			},
-			expectedError: "invalid NTP configuration: root-distance-max-sec: \"not-a-timespan\" is not a valid systemd.time timespan",
+			expectedError: "invalid NTP configuration: max-root-time-distance: \"not-a-timespan\" is not a valid systemd.time timespan",
 		},
-		// 9: poll-interval-min-sec greater than poll-interval-max-sec
+		// 9: min-poll-interval greater than max-poll-interval
 		{
 			newConfig: map[string]any{
 				"system.ntp": map[string]any{
-					"poll-interval-min-sec": "30m",
-					"poll-interval-max-sec": "1m",
+					"min-poll-interval": "30m",
+					"max-poll-interval": "1m",
 				},
 			},
-			expectedError: "invalid NTP configuration: poll-interval-min-sec \\(\"30m\"\\) cannot be greater than poll-interval-max-sec \\(\"1m\"\\)",
+			expectedError: "invalid NTP configuration: min-poll-interval \\(\"30m\"\\) cannot be greater than max-poll-interval \\(\"1m\"\\)",
 		},
-		// 10: poll-interval-min-sec lower than minimum 16s
+		// 10: min-poll-interval lower than minimum 16s
 		{
 			newConfig: map[string]any{
 				"system.ntp": map[string]any{
-					"poll-interval-min-sec": "5s",
+					"min-poll-interval": "5s",
 				},
 			},
-			expectedError: "invalid NTP configuration: poll-interval-min-sec: cannot be smaller than 16s",
+			expectedError: "invalid NTP configuration: min-poll-interval: cannot be smaller than 16s",
 		},
-		// 11: connection-retry-sec lower than minimum 1s
+		// 11: connection-retry-interval lower than minimum 1s
 		{
 			newConfig: map[string]any{
 				"system.ntp": map[string]any{
-					"connection-retry-sec": "100ms",
+					"connection-retry-interval": "100ms",
 				},
 			},
-			expectedError: "invalid NTP configuration: connection-retry-sec: cannot be smaller than 1s",
+			expectedError: "invalid NTP configuration: connection-retry-interval: cannot be smaller than 1s",
 		},
 		// 12: unsupported configuration option
 		{
@@ -261,10 +261,10 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 		{
 			newConfig: map[string]any{
 				"system.ntp": map[string]any{
-					"poll-interval-min-sec": 2.0,
+					"min-poll-interval": 2.0,
 				},
 			},
-			expectedError: "invalid NTP configuration: poll-interval-min-sec: invalid option type: float64",
+			expectedError: "invalid NTP configuration: min-poll-interval: invalid option type: float64",
 		},
 	}
 
@@ -314,12 +314,12 @@ func (s *ntpSuite) TestNTPSetSystemdAnalyzeError(c *C) {
 	// Apply the config
 	invalidReponseConfig := configcore.PlainCoreConfig(map[string]any{
 		"system.ntp": map[string]any{
-			"connection-retry-sec": "xxxx",
+			"connection-retry-interval": "xxxx",
 		}})
 	err := configcore.FilesystemOnlyRun(core24Dev, invalidReponseConfig)
 
 	// Verify correct error is returned
-	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-sec: \"xxxx\" is not a valid systemd.time timespan")
+	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-interval: \"xxxx\" is not a valid systemd.time timespan")
 	s.verifyConfigfileContent(c, startingFileContent, "")
 	c.Check(s.systemctlArgs, IsNil)
 
@@ -330,12 +330,12 @@ func (s *ntpSuite) TestNTPSetSystemdAnalyzeError(c *C) {
 	// Apply the config
 	invalidNumberConfig := configcore.PlainCoreConfig(map[string]any{
 		"system.ntp": map[string]any{
-			"connection-retry-sec": "9223372036854s",
+			"connection-retry-interval": "9223372036854s",
 		}})
 	err = configcore.FilesystemOnlyRun(core24Dev, invalidNumberConfig)
 
 	// Verify correct error is returned
-	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-sec: \"9223372036854s\" is not a valid systemd.time timespan")
+	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-interval: \"9223372036854s\" is not a valid systemd.time timespan")
 	s.verifyConfigfileContent(c, startingFileContent, "")
 	c.Check(s.systemctlArgs, IsNil)
 }
@@ -499,7 +499,7 @@ func (s *ntpSuite) TestNTPGetUnsupportedOption(c *C) {
 	err := tr.Get("core", "system.ntp", &ntpConfig)
 	c.Assert(err, IsNil)
 	c.Assert(ntpConfig, DeepEquals, map[string]any{
-		"save-interval-sec": "10s",
+		"save-interval": "10s",
 	})
 }
 
@@ -516,8 +516,8 @@ func (s *ntpSuite) TestNTPGetEmptyServerList(c *C) {
 	err := tr.Get("core", "system.ntp", &ntpConfig)
 	c.Assert(err, IsNil)
 	c.Assert(ntpConfig, DeepEquals, map[string]any{
-		"save-interval-sec": "10s",
-		"servers":           []any{},
+		"save-interval": "10s",
+		"servers":       []any{},
 	})
 }
 
@@ -528,14 +528,14 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 			"192.168.1.1",
 			"ntp.ubuntu.com",
 		},
-		"root-distance-max-sec": "5s",
+		"max-root-time-distance": "5s",
 	}
 	config2 := map[string]any{
 		"servers": []any{
 			"192.168.1.1",
 			"ntp.ubuntu.com",
 		},
-		"root-distance-max-sec": "5s",
+		"max-root-time-distance": "5s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config2), Equals, true)
 
@@ -545,7 +545,7 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 			"192.168.1.2",
 			"ntp.ubuntu.com",
 		},
-		"root-distance-max-sec": "5s",
+		"max-root-time-distance": "5s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config3), Equals, false)
 
@@ -555,7 +555,7 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 			"192.168.1.1",
 			"ntp.ubuntu.com",
 		},
-		"root-distance-max-sec": "10s",
+		"max-root-time-distance": "10s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config4), Equals, false)
 
@@ -569,8 +569,8 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 			"192.168.1.1",
 			"ntp.ubuntu.com",
 		},
-		"root-distance-max-sec": "5s",
-		"poll-interval-min-sec": "16s",
+		"max-root-time-distance": "5s",
+		"min-poll-interval":      "16s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config6), Equals, false)
 
@@ -582,7 +582,7 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 			"192.168.1.1",
 			"ntp.ubuntu.com",
 		},
-		"root-distance-max-sec": "5s",
+		"max-root-time-distance": "5s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config7), Equals, true)
 
@@ -603,7 +603,7 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 			"192.168.1.1",
 			"ntp.ubuntu.com",
 		},
-		"root-distance-min-sec": "5s",
+		"root-distance-min": "5s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config9), Equals, false)
 
@@ -615,7 +615,7 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 			"ntp.ubuntu.com",
 			12.5,
 		},
-		"root-distance-max-sec": "5s",
+		"max-root-time-distance": "5s",
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config10), Equals, false)
 	c.Check(configcore.NTPConfigurationDeepEqual(config10, config1), Equals, false)
