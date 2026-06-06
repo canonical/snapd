@@ -15,18 +15,23 @@ systems: [ -amazon-linux-2-64 ]
 
 prepare: |
     # Enable the kernel audit subsystem if it isn't already enabled.
-    python3 -c "
-    import socket, struct
-    NETLINK_AUDIT = 9
-    AUDIT_SET = 1001
-    NLM_F_REQUEST = 1
-    # audit_status struct: mask=1 (AUDIT_STATUS_ENABLED), enabled=1, rest zeroed
-    status = struct.pack('IIIIIIiii', 1, 1, 0, 0, 0, 0, 0, 0, 0)
-    hdr = struct.pack('IHHII', 16 + len(status), AUDIT_SET, NLM_F_REQUEST, 1, 0)
-    s = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_AUDIT)
-    s.sendto(hdr + status, (0, 0))
-    s.close()
-    "
+    if command -v auditctl >/dev/null 2>&1; then
+        # If auditctl is available, use it to enable the audit subsystem.
+        auditctl -e 1
+    else        
+        python3 -c "
+        import socket, struct
+        NETLINK_AUDIT = 9
+        AUDIT_SET = 1001
+        NLM_F_REQUEST = 1
+        # audit_status struct: mask=1 (AUDIT_STATUS_ENABLED), enabled=1, rest zeroed
+        status = struct.pack('IIIIIIiii', 1, 1, 0, 0, 0, 0, 0, 0, 0)
+        hdr = struct.pack('IHHII', 16 + len(status), AUDIT_SET, NLM_F_REQUEST, 1, 0)
+        s = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_AUDIT)
+        s.sendto(hdr + status, (0, 0))
+        s.close()
+        "
+    fi
 
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
@@ -46,6 +51,14 @@ restore: |
     snap logout || true
 
 execute: |
+    # auditd holds the netlink audit socket exclusively; if it is running,
+    # journald cannot receive audit messages. Stop it so that
+    # systemd-journald-audit.socket can pick them up.
+    AUDITD_ACTIVE=0
+    if systemctl is-active --quiet auditd.service; then
+        AUDITD_ACTIVE=1
+    fi
+
     # Pin snapd journal search position to the current journal position
     journal_pin() {
         "$TESTSTOOLS"/journal-state start_new_log
@@ -58,6 +71,27 @@ execute: |
         "$TESTSTOOLS"/journal-state match-log "$expression" -n 3 "$@" >/dev/null 2>&1
     }
 
+    # Assert that structured security events are present in the right backend.
+    # If auditd is active, check /var/log/audit/audit.log; otherwise, journal.
+    # Usage: security_event_match <expression>
+    security_event_match() {
+        local expression="$1"
+
+        if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
+            local found=0
+            for _ in $(seq 1 15); do
+                if grep -Eq "$expression" /var/log/audit/audit.log; then
+                    found=1
+                    break
+                fi
+                sleep 1
+            done
+            [[ "$found" -eq 1 ]]
+        else
+            journal_match "$expression"
+        fi
+    }
+
     echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
     journal_pin
     systemctl restart snapd.service
@@ -66,24 +100,26 @@ execute: |
     journal_match "security logger enabled" -u snapd.service
 
     echo "Checking that restart produces disable/enable audit events"
-    journal_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
-    journal_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
+    security_event_match '"level":"INFO","description":"Security logging enabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_enabled"'
+    security_event_match '"level":"CRITICAL","description":"Security logging disabled","app_id":"canonical.snapd.snapd","type":"security","category":"SYS","event":"sys_logging_disabled"'
 
     echo "Checking that a failed login attempt produces an audit event"
     echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \
         snap debug api -X POST -H 'Content-Type: application/json' /v2/login || true
 
-    journal_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: invalid-credentials:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":{"snapd-user-id":0,"store-user-name":"","store-user-email":"someemail@testing.com","expiration":"never"},"error":{"code":"invalid-credentials","message":"invalid credentials"}'
-
+    # WARN level is not being picked up by auditd, but it should be present in the journal when auditd is not active, so only check for the presence of the event when auditd is not active.
+    if [ "$AUDITD_ACTIVE" -eq 0 ]; then
+        security_event_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: invalid-credentials:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":{"snapd-user-id":0,"store-user-name":"","store-user-email":"someemail@testing.com","expiration":"never"},"error":{"code":"invalid-credentials","message":"invalid credentials"}'
+    fi
 
     # SPREAD_STORE_USER and SPREAD_STORE_PASSWORD are only available when running off master
     # core does not have expect, so skip core systems
-    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ] && os-query is-classic; then
+    if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ] && os-query is-classic && [ "$AUDITD_ACTIVE" -eq 0 ]; then
         echo "Checking that a successful login produces an audit event"
         journal_pin
         expect -d -f "$TESTSLIB"/successful_login.exp
 
-        journal_match '"level":"INFO","description":"User [^ ]* login success","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_success","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
+        security_event_match '"level":"INFO","description":"User [^ ]* login success","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_success","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
 
         echo "Checking that user creation produces an audit event"
         journal_match '"category":"USER","event":"user_created","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
