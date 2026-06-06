@@ -81,11 +81,3 @@ func (s *SecLogSuite) TestPeerString(c *C) {
 
 	c.Check(seclog.Peer{UID: ^uint32(0)}.String(), Equals, "<unknown>:<unknown>:<unknown>")
 }
-
-func (s *SecLogSuite) TestAuthzChecksAnyPerformed(c *C) {
-	c.Check(seclog.NewAuthzChecks().AnyPerformed(), Equals, false)
-
-	checks := seclog.NewAuthzChecks()
-	checks.PeerCreds = seclog.AuthzPass
-	c.Check(checks.AnyPerformed(), Equals, true)
-}

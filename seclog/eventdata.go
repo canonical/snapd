@@ -164,18 +164,6 @@ type AuthzChecks struct {
 	Polkit        AuthzCheck `json:"polkit"`
 }
 
-// AnyPerformed reports whether any authorization check was evaluated.
-func (a AuthzChecks) AnyPerformed() bool {
-	return a.AccessOptions != AuthzNotApplicable ||
-		a.PeerCreds != AuthzNotApplicable ||
-		a.Socket != AuthzNotApplicable ||
-		a.Interface != AuthzNotApplicable ||
-		a.OpenAccess != AuthzNotApplicable ||
-		a.UserAuth != AuthzNotApplicable ||
-		a.Root != AuthzNotApplicable ||
-		a.Polkit != AuthzNotApplicable
-}
-
 // NewAuthzChecks returns an AuthzChecks with all fields set to [AuthzNotApplicable].
 func NewAuthzChecks() AuthzChecks {
 	return AuthzChecks{
