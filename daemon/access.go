@@ -264,16 +264,10 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 }
 
 // isAdministrativeAccess reports whether authz audit events should be emitted:
-// the intended access level is authenticated or root and any authorization
-// checks were evaluated. Dispatch-only failures return accessLevelNotEvaluated
-// with empty checks and are excluded.
-func isAdministrativeAccess(level accessLevel, checks seclog.AuthzChecks) bool {
-	switch level {
-	case accessLevelAuthenticated, accessLevelRoot:
-		return checks.AnyPerformed()
-	default:
-		return false
-	}
+// the intended access level is authenticated or root. Dispatch-only failures
+// return accessLevelNotEvaluated and are excluded.
+func isAdministrativeAccess(level accessLevel) bool {
+	return level == accessLevelAuthenticated || level == accessLevelRoot
 }
 
 // openAccess allows requests without authentication, provided they

@@ -161,7 +161,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rspe, checks, level := access.CheckAccess(c.d, r, ucred, user)
-	admin := isAdministrativeAccess(level, checks)
+	admin := isAdministrativeAccess(level)
 
 	if rspe != nil {
 		if admin {

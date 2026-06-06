@@ -1423,17 +1423,8 @@ func (s *accessSuite) TestCheckAccessLevelAuthorization(c *C) {
 }
 
 func (s *accessSuite) TestIsAdministrativeAccess(c *C) {
-	empty := seclog.NewAuthzChecks()
-
-	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelOpen, empty), Equals, false)
-	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelNotEvaluated, empty), Equals, false)
-
-	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelAuthenticated, empty), Equals, false)
-	checks := seclog.NewAuthzChecks()
-	checks.PeerCreds = seclog.AuthzPass
-	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelAuthenticated, checks), Equals, true)
-
-	checks = seclog.NewAuthzChecks()
-	checks.Root = seclog.AuthzFail
-	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelRoot, checks), Equals, true)
+	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelOpen), Equals, false)
+	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelNotEvaluated), Equals, false)
+	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelAuthenticated), Equals, true)
+	c.Check(daemon.IsAdministrativeAccess(daemon.AccessLevelRoot), Equals, true)
 }
