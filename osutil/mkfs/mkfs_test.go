@@ -21,6 +21,7 @@ package mkfs_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -69,7 +70,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 	}
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent("ext4", "foo.img", "my-label", "contents", 0, 0)
+	err := mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: "contents"})
 	c.Assert(err, IsNil)
 	expectedCall := []string{
 		"mkfs.ext4",
@@ -85,7 +86,7 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 	cmd.ForgetCalls()
 
 	// empty label
-	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 0, 0)
+	err = mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{ContentRootDir: "contents"})
 	c.Assert(err, IsNil)
 	expectedCall = []string{
 		"mkfs.ext4",
@@ -100,11 +101,25 @@ func (m *mkfsSuite) TestMkfsExt4Happy(c *C) {
 	cmd.ForgetCalls()
 
 	// no content
-	err = mkfs.Make("ext4", "foo.img", "my-label", 0, 0)
+	err = mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{Label: "my-label"})
 	c.Assert(err, IsNil)
 	expectedCall = []string{
 		"mkfs.ext4",
 		"-L", "my-label",
+		"foo.img",
+	}
+	if useFakeroot {
+		expectedCall = append([]string{"fakeroot"}, expectedCall...)
+	}
+	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
+
+	cmd.ForgetCalls()
+
+	// nil options.
+	err = mkfs.Make(context.Background(), "ext4", "foo.img", nil)
+	c.Assert(err, IsNil)
+	expectedCall = []string{
+		"mkfs.ext4",
 		"foo.img",
 	}
 	if useFakeroot {
@@ -123,7 +138,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 	}
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent("ext4", "foo.img", "my-label", "contents", 250*1024*1024, 0)
+	err := mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: "contents", DeviceSize: 250 * 1024 * 1024})
 	c.Assert(err, IsNil)
 	expectedCall := []string{
 		"mkfs.ext4",
@@ -139,7 +154,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 	cmd.ForgetCalls()
 
 	// empty label
-	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 32*1024*1024, 0)
+	err = mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{ContentRootDir: "contents", DeviceSize: 32 * 1024 * 1024})
 	c.Assert(err, IsNil)
 	expectedCall = []string{
 		"mkfs.ext4",
@@ -155,7 +170,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 	cmd.ForgetCalls()
 
 	// with sector size of 512
-	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 32*1024*1024, 512)
+	err = mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{ContentRootDir: "contents", DeviceSize: 32 * 1024 * 1024, SectorSize: 512})
 	c.Assert(err, IsNil)
 	expectedCall = []string{
 		"mkfs.ext4",
@@ -171,7 +186,7 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 	cmd.ForgetCalls()
 
 	// with sector size of 4096
-	err = mkfs.MakeWithContent("ext4", "foo.img", "", "contents", 32*1024*1024, 4096)
+	err = mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{ContentRootDir: "contents", DeviceSize: 32 * 1024 * 1024, SectorSize: 4096})
 	c.Assert(err, IsNil)
 	expectedCall = []string{
 		"mkfs.ext4",
@@ -185,7 +200,6 @@ func (m *mkfsSuite) TestMkfsExt4WithSize(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{expectedCall})
 
 	cmd.ForgetCalls()
-
 }
 
 func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
@@ -198,8 +212,54 @@ func (m *mkfsSuite) TestMkfsExt4Error(c *C) {
 	}
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent("ext4", "foo.img", "my-label", "contents", 0, 0)
+	err := mkfs.Make(context.Background(), "ext4", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: "contents"})
 	c.Assert(err, ErrorMatches, "command failed")
+}
+
+func (m *mkfsSuite) TestMkfsExt4ContextPreCanceled(c *C) {
+	useFakeroot := os.Getuid() != 0
+	var cmd *testutil.MockCmd
+	if useFakeroot {
+		cmd = testutil.MockCommand(c, "fakeroot", "exit 0")
+	} else {
+		cmd = testutil.MockCommand(c, "mkfs.ext4", "exit 0")
+	}
+	defer cmd.Restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := mkfs.Make(ctx, "ext4", "foo.img", &mkfs.MakeOptions{Label: "my-label"})
+	c.Assert(err, testutil.ErrorIs, context.Canceled)
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+func (m *mkfsSuite) TestMkfsExt4ContextCanceledDuringExecution(c *C) {
+	useFakeroot := os.Getuid() != 0
+	var cmd *testutil.MockCmd
+	if useFakeroot {
+		cmd = testutil.MockCommand(c, "fakeroot", "sleep 10")
+	} else {
+		cmd = testutil.MockCommand(c, "mkfs.ext4", "sleep 10")
+	}
+	defer cmd.Restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel only once the command has been invoked, avoiding a race between
+	// process startup and the cancel call. The mock logs its call before
+	// running the script body, so Calls() is non-empty before sleep starts.
+	go func() {
+		for {
+			if len(cmd.Calls()) > 0 {
+				cancel()
+				return
+			}
+		}
+	}()
+
+	err := mkfs.Make(ctx, "ext4", "foo.img", &mkfs.MakeOptions{Label: "my-label"})
+	c.Assert(err, ErrorMatches, "signal: killed")
+	c.Assert(cmd.Calls(), HasLen, 1)
 }
 
 func (m *mkfsSuite) TestMkfsFat16HappySimple(c *C) {
@@ -218,7 +278,7 @@ func (m *mkfsSuite) testMkfsVfatHappySimple(c *C, fatType, fatBits string) {
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "")
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent(fatType, "foo.img", "my-label", d, 0, 0)
+	err := mkfs.Make(context.Background(), fatType, "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d})
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -234,7 +294,7 @@ func (m *mkfsSuite) testMkfsVfatHappySimple(c *C, fatType, fatBits string) {
 	cmd.ForgetCalls()
 
 	// empty label
-	err = mkfs.MakeWithContent(fatType, "foo.img", "", d, 0, 0)
+	err = mkfs.Make(context.Background(), fatType, "foo.img", &mkfs.MakeOptions{ContentRootDir: d})
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -249,7 +309,7 @@ func (m *mkfsSuite) testMkfsVfatHappySimple(c *C, fatType, fatBits string) {
 	cmd.ForgetCalls()
 
 	// no content
-	err = mkfs.Make(fatType, "foo.img", "my-label", 0, 0)
+	err = mkfs.Make(context.Background(), fatType, "foo.img", &mkfs.MakeOptions{Label: "my-label"})
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -261,6 +321,21 @@ func (m *mkfsSuite) testMkfsVfatHappySimple(c *C, fatType, fatBits string) {
 			"foo.img",
 		},
 	})
+
+	cmd.ForgetCalls()
+
+	// nil options.
+	err = mkfs.Make(context.Background(), fatType, "foo.img", nil)
+	c.Assert(err, IsNil)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"mkfs.vfat",
+			"-S", "512",
+			"-s", "1",
+			"-F", fatBits,
+			"foo.img",
+		},
+	})
 }
 
 func (m *mkfsSuite) TestMkfsVfatWithSize(c *C) {
@@ -269,7 +344,7 @@ func (m *mkfsSuite) TestMkfsVfatWithSize(c *C) {
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "")
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent("vfat", "foo.img", "my-label", d, 32*1024*1024, 0)
+	err := mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d, DeviceSize: 32 * 1024 * 1024})
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -285,7 +360,7 @@ func (m *mkfsSuite) TestMkfsVfatWithSize(c *C) {
 	cmd.ForgetCalls()
 
 	// with sector size of 512
-	err = mkfs.MakeWithContent("vfat", "foo.img", "my-label", d, 32*1024*1024, 512)
+	err = mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d, DeviceSize: 32 * 1024 * 1024, SectorSize: 512})
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -301,7 +376,7 @@ func (m *mkfsSuite) TestMkfsVfatWithSize(c *C) {
 	cmd.ForgetCalls()
 
 	// with sector size of 4096
-	err = mkfs.MakeWithContent("vfat", "foo.img", "my-label", d, 32*1024*1024, 4096)
+	err = mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d, DeviceSize: 32 * 1024 * 1024, SectorSize: 4096})
 	c.Assert(err, IsNil)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -313,7 +388,6 @@ func (m *mkfsSuite) TestMkfsVfatWithSize(c *C) {
 			"foo.img",
 		},
 	})
-
 }
 
 func (m *mkfsSuite) TestMkfsVfatHappyContents(c *C) {
@@ -327,7 +401,7 @@ func (m *mkfsSuite) TestMkfsVfatHappyContents(c *C) {
 	cmdMcopy := testutil.MockCommand(c, "mcopy", "")
 	defer cmdMcopy.Restore()
 
-	err := mkfs.MakeWithContent("vfat", "foo.img", "my-label", d, 0, 0)
+	err := mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d})
 	c.Assert(err, IsNil)
 	c.Assert(cmdMkfs.Calls(), HasLen, 1)
 
@@ -336,13 +410,76 @@ func (m *mkfsSuite) TestMkfsVfatHappyContents(c *C) {
 	})
 }
 
+func (m *mkfsSuite) TestMkfsVfatContextPreCanceled(c *C) {
+	cmd := testutil.MockCommand(c, "mkfs.vfat", "exit 0")
+	defer cmd.Restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := mkfs.Make(ctx, "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label"})
+	c.Assert(err, testutil.ErrorIs, context.Canceled)
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
+func (m *mkfsSuite) TestMkfsVfatContextCanceledDuringMkfsExecution(c *C) {
+	cmd := testutil.MockCommand(c, "mkfs.vfat", "sleep 10")
+	defer cmd.Restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel only once the command has been invoked, avoiding a race between
+	// process startup and the cancel call. The mock logs its call before
+	// running the script body, so Calls() is non-empty before sleep starts.
+	go func() {
+		for {
+			if len(cmd.Calls()) > 0 {
+				cancel()
+				return
+			}
+		}
+	}()
+
+	err := mkfs.Make(ctx, "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label"})
+	c.Assert(err, ErrorMatches, "signal: killed")
+	c.Assert(cmd.Calls(), HasLen, 1)
+}
+
+func (m *mkfsSuite) TestMkfsVfatContextCanceledDuringMcopyExecution(c *C) {
+	d := c.MkDir()
+	makeSizedFile(c, filepath.Join(d, "foo"), 128, []byte("foo foo foo"))
+
+	cmdMkfs := testutil.MockCommand(c, "mkfs.vfat", "exit 0")
+	defer cmdMkfs.Restore()
+
+	cmdMcopy := testutil.MockCommand(c, "mcopy", "sleep 10")
+	defer cmdMcopy.Restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Cancel only once the command has been invoked, avoiding a race between
+	// process startup and the cancel call. The mock logs its call before
+	// running the script body, so Calls() is non-empty before sleep starts.
+	go func() {
+		for {
+			if len(cmdMcopy.Calls()) > 0 {
+				cancel()
+				return
+			}
+		}
+	}()
+
+	err := mkfs.Make(ctx, "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d})
+	c.Assert(err, ErrorMatches, "cannot populate vfat filesystem with contents: signal: killed")
+	c.Assert(cmdMkfs.Calls(), HasLen, 1)
+	c.Assert(cmdMcopy.Calls(), HasLen, 1)
+}
+
 func (m *mkfsSuite) TestMkfsVfatErrorSimpleFail(c *C) {
 	d := c.MkDir()
 
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "echo 'failed'; false")
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent("vfat", "foo.img", "my-label", d, 0, 0)
+	err := mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d})
 	c.Assert(err, ErrorMatches, "failed")
 }
 
@@ -350,7 +487,7 @@ func (m *mkfsSuite) TestMkfsVfatErrorUnreadableDir(c *C) {
 	cmd := testutil.MockCommand(c, "mkfs.vfat", "")
 	defer cmd.Restore()
 
-	err := mkfs.MakeWithContent("vfat", "foo.img", "my-label", "dir-does-not-exist", 0, 0)
+	err := mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: "dir-does-not-exist"})
 	c.Assert(err, ErrorMatches, "cannot list directory contents: .* no such file or directory")
 	c.Assert(cmd.Calls(), HasLen, 1)
 }
@@ -365,7 +502,7 @@ func (m *mkfsSuite) TestMkfsVfatErrorInMcopy(c *C) {
 	cmdMcopy := testutil.MockCommand(c, "mcopy", "echo 'hard fail'; exit 1")
 	defer cmdMcopy.Restore()
 
-	err := mkfs.MakeWithContent("vfat", "foo.img", "my-label", d, 0, 0)
+	err := mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label", ContentRootDir: d})
 	c.Assert(err, ErrorMatches, "cannot populate vfat filesystem with contents: hard fail")
 	c.Assert(cmdMkfs.Calls(), HasLen, 1)
 	c.Assert(cmdMcopy.Calls(), HasLen, 1)
@@ -378,7 +515,7 @@ func (m *mkfsSuite) TestMkfsVfatHappyNoContents(c *C) {
 	cmdMcopy := testutil.MockCommand(c, "mcopy", "")
 	defer cmdMcopy.Restore()
 
-	err := mkfs.MakeWithContent("vfat", "foo.img", "my-label", "", 0, 0)
+	err := mkfs.Make(context.Background(), "vfat", "foo.img", &mkfs.MakeOptions{Label: "my-label"})
 	c.Assert(err, IsNil)
 	c.Assert(cmdMkfs.Calls(), HasLen, 1)
 	// mcopy was not called
@@ -386,10 +523,10 @@ func (m *mkfsSuite) TestMkfsVfatHappyNoContents(c *C) {
 }
 
 func (m *mkfsSuite) TestMkfsInvalidFs(c *C) {
-	err := mkfs.MakeWithContent("no-fs", "foo.img", "my-label", "", 0, 0)
+	err := mkfs.Make(context.Background(), "no-fs", "foo.img", &mkfs.MakeOptions{Label: "my-label"})
 	c.Assert(err, ErrorMatches, `cannot create unsupported filesystem "no-fs"`)
 
-	err = mkfs.Make("no-fs", "foo.img", "my-label", 0, 0)
+	err = mkfs.Make(context.Background(), "no-fs", "foo.img", nil)
 	c.Assert(err, ErrorMatches, `cannot create unsupported filesystem "no-fs"`)
 }
 
