@@ -20,12 +20,13 @@
 package install
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
+	"github.com/snapcore/snapd/osutil/mkfs"
 )
 
 type MkfsParams = mkfsParams
@@ -68,7 +69,7 @@ func MockEnsureNodesExist(f func(nodes []string, timeout time.Duration) error) (
 	}
 }
 
-func MockMkfsMake(f func(typ, img, label string, devSize, sectorSize quantity.Size) error) (restore func()) {
+func MockMkfsMake(f func(ctx context.Context, typ, img string, opts *mkfs.MakeOptions) error) (restore func()) {
 	old := mkfsImpl
 	mkfsImpl = f
 	return func() {

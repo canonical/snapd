@@ -20,6 +20,7 @@
 package mkfs
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,43 +31,50 @@ import (
 	"github.com/snapcore/snapd/strutil/shlex"
 )
 
-// MakeFunc defines a function signature that is used by all of the mkfs.<filesystem>
-// functions supported in this package. This is done to allow them to be defined
-// in the mkfsHandlers map
-type MakeFunc func(imgFile, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error
+type makeFunc func(ctx context.Context, imgFile, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error
 
-var (
-	mkfsHandlers = map[string]MakeFunc{
-		"vfat-16": mkfsVfat16,
-		"vfat":    mkfsVfat32,
-		"vfat-32": mkfsVfat32,
-		"ext4":    mkfsExt4,
-	}
-)
-
-// Make creates a filesystem of given type and provided label in the device or
-// file. The device size and sector size provides hints for additional tuning of
-// the created filesystem.
-func Make(typ, img, label string, deviceSize, sectorSize quantity.Size) error {
-	return MakeWithContent(typ, img, label, "", deviceSize, sectorSize)
+var mkfsHandlers = map[string]makeFunc{
+	"vfat-16": mkfsVfat16,
+	"vfat":    mkfsVfat32,
+	"vfat-32": mkfsVfat32,
+	"ext4":    mkfsExt4,
 }
 
-// MakeWithContent creates a filesystem of given type and provided label in the
-// device or file. The filesystem is populated with contents of contentRootDir.
-// The device size provides hints for additional tuning of the created
-// filesystem.
-func MakeWithContent(typ, img, label, contentRootDir string, deviceSize, sectorSize quantity.Size) error {
+// MakeOptions configures filesystem creation performed by Make.
+type MakeOptions struct {
+	// Label sets the filesystem label.
+	Label string
+	// DeviceSize provides a hint about the target device size so mkfs can tune
+	// filesystem parameters.
+	DeviceSize quantity.Size
+	// SectorSize provides a hint about the target device sector size so mkfs
+	// can choose compatible filesystem settings.
+	SectorSize quantity.Size
+	// ContentRootDir specifies a directory whose contents are used to populate
+	// the new filesystem.
+	ContentRootDir string
+}
+
+// Make creates a filesystem of the given type in the target image or device.
+//
+// ctx is used to cancel the mkfs subprocess. opts provides optional filesystem
+// settings.
+func Make(ctx context.Context, typ, img string, opts *MakeOptions) error {
+	if opts == nil {
+		opts = &MakeOptions{}
+	}
+
 	h, ok := mkfsHandlers[typ]
 	if !ok {
 		return fmt.Errorf("cannot create unsupported filesystem %q", typ)
 	}
-	return h(img, label, contentRootDir, deviceSize, sectorSize)
+	return h(ctx, img, opts.Label, opts.ContentRootDir, opts.DeviceSize, opts.SectorSize)
 }
 
 // mkfsExt4 creates an EXT4 filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
+func mkfsExt4(ctx context.Context, img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
 	// Originally taken from ubuntu-image
 	// Switched to use mkfs defaults for https://bugs.launchpad.net/snappy/+bug/1878374
 	// For caveats/requirements in case we need support for older systems:
@@ -121,10 +129,10 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 				mkfsArgs = append(fakerootArgs, mkfsArgs...)
 			}
 		}
-		cmd = exec.Command("fakeroot", mkfsArgs...)
+		cmd = exec.CommandContext(ctx, "fakeroot", mkfsArgs...)
 	} else {
 		// no need to fake it if we're already root
-		cmd = exec.Command(mkfsArgs[0], mkfsArgs[1:]...)
+		cmd = exec.CommandContext(ctx, mkfsArgs[0], mkfsArgs[1:]...)
 	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -133,18 +141,18 @@ func mkfsExt4(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	return nil
 }
 
-func mkfsVfat16(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
-	return mkfsVfat(img, label, contentsRootDir, deviceSize, sectorSize, "16")
+func mkfsVfat16(ctx context.Context, img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
+	return mkfsVfat(ctx, img, label, contentsRootDir, deviceSize, sectorSize, "16")
 }
 
-func mkfsVfat32(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
-	return mkfsVfat(img, label, contentsRootDir, deviceSize, sectorSize, "32")
+func mkfsVfat32(ctx context.Context, img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error {
+	return mkfsVfat(ctx, img, label, contentsRootDir, deviceSize, sectorSize, "32")
 }
 
 // mkfsVfat creates a VFAT filesystem in given image file, with an optional
 // filesystem label, and populates it with the contents of provided root
 // directory.
-func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size, fatBits string) error {
+func mkfsVfat(ctx context.Context, img, label, contentsRootDir string, deviceSize, sectorSize quantity.Size, fatBits string) error {
 	// 512B logical sector size by default, unless the specified sector size is
 	// larger than 512, in which case use the sector size
 	// mkfs.vfat will automatically increase the block size to the internal
@@ -170,7 +178,7 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 	}
 	mkfsArgs = append(mkfsArgs, img)
 
-	cmd := exec.Command("mkfs.vfat", mkfsArgs...)
+	cmd := exec.CommandContext(ctx, "mkfs.vfat", mkfsArgs...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return osutil.OutputErr(out, err)
@@ -206,7 +214,7 @@ func mkfsVfat(img, label, contentsRootDir string, deviceSize, sectorSize quantit
 		// place content at the / of the filesystem
 		"::")
 
-	cmd = exec.Command("mcopy", mcopyArgs...)
+	cmd = exec.CommandContext(ctx, "mcopy", mcopyArgs...)
 	cmd.Env = os.Environ()
 	// skip mtools checks to avoid unnecessary warnings
 	cmd.Env = append(cmd.Env, "MTOOLS_SKIP_CHECK=1")
