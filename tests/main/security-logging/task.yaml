@@ -76,7 +76,7 @@ execute: |
     echo '{"email":"someemail@testing.com","password":"wrong-password"}' | \
         snap debug api -X POST -H 'Content-Type: application/json' /v2/login || true
 
-    journal_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: invalid-credentials:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":{"snapd-user-id":0,"store-user-name":"","store-user-email":"someemail@testing.com","expiration":"never"},"error":{"code":401,"kind":"invalid-credentials","message":"invalid credentials"}'
+    journal_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: 401:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":{"snapd-user-id":0,"store-user-name":"","store-user-email":"someemail@testing.com","expiration":"never"},"error":{"code":401,"kind":"login-required","message":"invalid credentials"}'
 
     echo "Checking that an authorized admin API call produces an authz_admin event"
     journal_pin
@@ -87,7 +87,7 @@ execute: |
     echo '{"action":"install","snaps":["test-snapd-sh"]}' | \
         snap debug api -X POST -H 'Content-Type: application/json' /v2/snaps > /dev/null 2>&1 || true
 
-    journal_match '"level":"INFO","description":"User <unknown>:<unknown>:<unknown> \(peer /run/snapd\.socket:0:[0-9]+\) accessed POST:/v2/snaps:install","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHZ","event":"authz_admin","user":\{"snapd-user-id":0,"store-user-name":"","store-user-email":"","expiration":"never"\},"peer":\{"socket":"/run/snapd\.socket","uid":0,"pid":[0-9]+\},"endpoint":\{"method":"POST","path":"/v2/snaps","action":"install","access-checker":"authenticated","access-level":"authenticated"\},"authz_checks":\{"access-options":"pass","peer-credentials":"pass","socket":"pass","interface-requirements":"not-applicable","open-access":"not-applicable","user-authentication":"fail","root":"pass","polkit":"not-reached"\}'
+    journal_match '"level":"INFO","description":"User <unknown>:<unknown>:<unknown> from /run/snapd\.socket:0:[0-9]+ accessed POST:/v2/snaps:install","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHZ","event":"authz_admin","user":\{"snapd-user-id":0,"store-user-name":"","store-user-email":"","expiration":"never"\},"peer":\{"socket":"/run/snapd\.socket","uid":0,"pid":[0-9]+\},"endpoint":\{"method":"POST","path":"/v2/snaps","action":"install","access-checker":"authenticated","access-level":"authenticated"\},"authz_checks":\{"access-options":"pass","peer-credentials":"pass","socket":"pass","interface-requirements":"not-applicable","open-access":"not-applicable","user-authentication":"fail","root":"pass","polkit":"not-reached"\}'
 
     echo "Checking that an unauthorized admin API call produces an authz_fail event"
     journal_pin
@@ -98,7 +98,7 @@ execute: |
         -d '{"action":"install","snaps":["test-snapd-sh"]}' \
         http://localhost/v2/snaps > /dev/null || true
 
-    journal_match '"level":"CRITICAL","description":"Peer /run/snapd\.socket:[1-9][0-9]*:[0-9]+: user <unknown>:<unknown>:<unknown> attempted to access POST:/v2/snaps:install without entitlement: access denied","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHZ","event":"authz_fail","user":\{"snapd-user-id":0,"store-user-name":"","store-user-email":"","expiration":"never"\},"peer":\{"socket":"/run/snapd\.socket","uid":[1-9][0-9]*,"pid":[0-9]+\},"endpoint":\{"method":"POST","path":"/v2/snaps","action":"install","access-checker":"authenticated","access-level":"authenticated"\},"authz_checks":\{"access-options":"pass","peer-credentials":"pass","socket":"pass","interface-requirements":"not-applicable","open-access":"not-applicable","user-authentication":"fail","root":"fail","polkit":"not-applicable"\},"error":\{"code":401,"kind":"login-required","message":"access denied"\}'
+    journal_match '"level":"CRITICAL","description":"User <unknown>:<unknown>:<unknown> from /run/snapd\.socket:[1-9][0-9]*:[0-9]+ attempted to access POST:/v2/snaps:install without authorization: 401:access denied","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHZ","event":"authz_fail","user":\{"snapd-user-id":0,"store-user-name":"","store-user-email":"","expiration":"never"\},"peer":\{"socket":"/run/snapd\.socket","uid":[1-9][0-9]*,"pid":[0-9]+\},"endpoint":\{"method":"POST","path":"/v2/snaps","action":"install","access-checker":"authenticated","access-level":"authenticated"\},"authz_checks":\{"access-options":"pass","peer-credentials":"pass","socket":"pass","interface-requirements":"not-applicable","open-access":"not-applicable","user-authentication":"fail","root":"fail","polkit":"not-applicable"\},"error":\{"code":401,"kind":"login-required","message":"access denied"\}'
 
 
     # SPREAD_STORE_USER and SPREAD_STORE_PASSWORD are only available when running off master
