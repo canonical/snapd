@@ -15,23 +15,7 @@ systems: [ -amazon-linux-2-64 ]
 
 prepare: |
     # Enable the kernel audit subsystem if it isn't already enabled.
-    if command -v auditctl >/dev/null 2>&1; then
-        # If auditctl is available, use it to enable the audit subsystem.
-        auditctl -e 1
-    else        
-        python3 -c "
-        import socket, struct
-        NETLINK_AUDIT = 9
-        AUDIT_SET = 1001
-        NLM_F_REQUEST = 1
-        # audit_status struct: mask=1 (AUDIT_STATUS_ENABLED), enabled=1, rest zeroed
-        status = struct.pack('IIIIIIiii', 1, 1, 0, 0, 0, 0, 0, 0, 0)
-        hdr = struct.pack('IHHII', 16 + len(status), AUDIT_SET, NLM_F_REQUEST, 1, 0)
-        s = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_AUDIT)
-        s.sendto(hdr + status, (0, 0))
-        s.close()
-        "
-    fi
+    python3 "$PWD/enable-audit.py"
 
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
