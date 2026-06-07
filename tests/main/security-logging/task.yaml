@@ -15,7 +15,12 @@ systems: [ -amazon-linux-2-64 ]
 
 prepare: |
     # Enable the kernel audit subsystem if it isn't already enabled.
-    python3 "$PWD/enable-audit.py"
+    if command -v auditctl >/dev/null 2>&1; then
+        # If auditctl is available, use it to enable the audit subsystem.
+        auditctl -e 1
+    else
+        python3 "$PWD/enable-audit.py"
+    fi
 
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
