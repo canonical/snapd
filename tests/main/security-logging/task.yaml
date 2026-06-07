@@ -79,6 +79,7 @@ execute: |
         local expression="$1"
 
         if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
+            # shellcheck disable=SC2016
             retry --wait 1 -n 15 --env expression="$expression" sh -c 'grep -Eq "$expression" /var/log/audit/audit.log'
         else
             journal_match "$expression"
