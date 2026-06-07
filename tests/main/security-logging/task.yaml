@@ -14,13 +14,7 @@ details: |
 systems: [ -amazon-linux-2-64 ]
 
 prepare: |
-    # Enable the kernel audit subsystem if it isn't already enabled.
-    if command -v auditctl >/dev/null 2>&1; then
-        # If auditctl is available, use it to enable the audit subsystem.
-        auditctl -e 1
-    else
-        python3 "$PWD/enable-audit.py"
-    fi
+    python3 "$PWD/enable-audit.py"
 
     if ! systemctl is-active systemd-journald-audit.socket; then
         touch audit-socket-was-inactive
@@ -45,13 +39,19 @@ execute: |
     AUDITD_ACTIVE=0
     if systemctl is-active --quiet auditd.service; then
         AUDITD_ACTIVE=1
-        # Avoid matching stale entries from previous runs.
-        truncate -s 0 /var/log/audit/audit.log
+        # If auditctl is available, use it to enable the audit subsystem.
+        auditctl -e 1
     fi
+    AUDIT_LOG_POS=0
 
     # Pin snapd journal search position to the current journal position
     journal_pin() {
         "$TESTSTOOLS"/journal-state start_new_log
+    }
+
+    # Pin the audit log position to the current end of /var/log/audit/audit.log
+    audit_pin() {
+        AUDIT_LOG_POS=$(wc -c < /var/log/audit/audit.log)
     }
 
     # Assert that journal logs since the pinned position match expression
@@ -68,15 +68,21 @@ execute: |
         local expression="$1"
 
         if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
-            # shellcheck disable=SC2016
-            retry --wait 1 -n 15 --env expression="$expression" sh -c 'grep -Eq "$expression" /var/log/audit/audit.log'
+            tail -c +$((AUDIT_LOG_POS+1)) /var/log/audit/audit.log | grep -Eq "$expression"
         else
             journal_match "$expression"
         fi
     }
 
     echo "Checking that the security logger is disabled in snapd stop and enabled on snapd start"
-    journal_pin
+    if [[ "$AUDITD_ACTIVE" -eq 1 ]]; then
+        echo "auditd is active; security events will be checked in /var/log/audit/audit.log"
+        audit_pin
+    else
+        echo "auditd is not active; security events will be checked in the journal"
+        journal_pin
+    fi
+    
     systemctl restart snapd.service
     snap wait system seed.loaded
     journal_match "security logger disabled" -u snapd.service
