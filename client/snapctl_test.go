@@ -196,12 +196,12 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 	var payload1 map[string]any
 	err = json.NewDecoder(cs.reqs[1].Body).Decode(&payload1)
 	c.Check(err, check.IsNil)
-	c.Check(payload1["args"], check.DeepEquals, []any{"--is-ready"})
+	c.Check(payload1["args"], check.DeepEquals, []any{"is-ready", "123"})
 
 	var payload2 map[string]any
 	err = json.NewDecoder(cs.reqs[2].Body).Decode(&payload2)
 	c.Check(err, check.IsNil)
-	c.Check(payload2["args"], check.DeepEquals, []any{"--is-ready"})
+	c.Check(payload2["args"], check.DeepEquals, []any{"is-ready", "123"})
 }
 
 func (cs *clientSuite) TestClientRunSnapctlAsyncFatalError(c *check.C) {
@@ -248,5 +248,5 @@ func (cs *clientSuite) TestClientRunSnapctlAsyncFatalError(c *check.C) {
 	var payload1 map[string]any
 	err = json.NewDecoder(cs.reqs[1].Body).Decode(&payload1)
 	c.Check(err, check.IsNil)
-	c.Check(payload1["args"], check.DeepEquals, []any{"--is-ready"})
+	c.Check(payload1["args"], check.DeepEquals, []any{"is-ready", "123"})
 }
