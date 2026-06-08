@@ -59,6 +59,19 @@ func MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(f func(
 	return testutil.Mock(&deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo, f)
 }
 
+func MockDeviceManagerRunningSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+	return testutil.Mock(&deviceManagerRunningSystemAndGadgetAndEncryptionInfo, f)
+}
+
+func MockDeviceManagerApplyActionOnRunningSystemAndGadgetAndEncryptionInfo(f func(
+	*devicestate.DeviceManager,
+	*secboot.PreinstallAction,
+) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error)) (restore func()) {
+	return testutil.Mock(&deviceManagerApplyActionOnRunningSystemAndGadgetAndEncryptionInfo, f)
+}
+
 func MockDevicestateInstallFinish(f func(*state.State, string, map[string]*gadget.Volume, *devicestate.OptionalContainers) (*state.Change, error)) (restore func()) {
 	return testutil.Mock(&devicestateInstallFinish, f)
 }

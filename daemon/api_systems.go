@@ -54,7 +54,7 @@ var systemsCmd = &Command{
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
 	POST:        postSystemsAction,
-	Actions:     []string{"reboot", "create", "install"},
+	Actions:     []string{"reboot", "create", "install", "fix-encryption-support"},
 	WriteAccess: rootAccess{},
 }
 
@@ -78,7 +78,24 @@ type systemsResponse struct {
 	Systems []client.System `json:"systems,omitempty"`
 }
 
+func getRunningSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
+	deviceMgr := c.d.overlord.DeviceManager()
+
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerRunningSystemAndGadgetAndEncryptionInfo(deviceMgr)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
+	return SyncResponse(*details)
+}
+
 func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	if query.Get("running") == "true" {
+		return getRunningSystemDetails(c, r, user)
+	}
+
 	var rsp systemsResponse
 
 	seedSystems, err := c.d.overlord.DeviceManager().Systems()
@@ -134,6 +151,12 @@ var deviceManagerSystemAndGadgetAndEncryptionInfo func(
 	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
 ) = (*devicestate.DeviceManager).SystemAndGadgetAndEncryptionInfo
 
+var deviceManagerRunningSystemAndGadgetAndEncryptionInfo func(
+	dm *devicestate.DeviceManager,
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).RunningSystemAndGadgetAndEncryptionInfo
+
 // wrapped for unit tests
 var deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo func(
 	dm *devicestate.DeviceManager,
@@ -142,6 +165,13 @@ var deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo func(
 ) (
 	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
 ) = (*devicestate.DeviceManager).ApplyActionOnSystemAndGadgetAndEncryptionInfo
+
+var deviceManagerApplyActionOnRunningSystemAndGadgetAndEncryptionInfo func(
+	dm *devicestate.DeviceManager,
+	checkAction *secboot.PreinstallAction,
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).ApplyActionOnRunningSystemAndGadgetAndEncryptionInfo
 
 func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEncryption {
 	if encInfo.Disabled {
@@ -772,10 +802,6 @@ func postSystemActionCheckPINQuality(c *Command, systemLabel string, req *system
 }
 
 func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *systemActionRequest) Response {
-	if systemLabel == "" {
-		return BadRequest("system action requires the system label to be provided")
-	}
-
 	// FixAction set to "" is valid and maps to secboot constant ActionNone.
 	// Omission of FixAction is not allowed.
 	if req.FixAction == nil {
@@ -799,7 +825,15 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 
 	deviceMgr := c.d.overlord.DeviceManager()
 
-	sys, gadgetInfo, encryptionInfo, err := deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, checkAction)
+	var err error
+	var sys *devicestate.System
+	var gadgetInfo *gadget.Info
+	var encryptionInfo *install.EncryptionSupportInfo
+	if systemLabel == "" {
+		sys, gadgetInfo, encryptionInfo, err = deviceManagerApplyActionOnRunningSystemAndGadgetAndEncryptionInfo(deviceMgr, checkAction)
+	} else {
+		sys, gadgetInfo, encryptionInfo, err = deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, checkAction)
+	}
 	if err != nil {
 		return InternalError(err.Error())
 	}
