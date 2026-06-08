@@ -189,7 +189,7 @@ func initializeState(st *state.State) error {
 		return err
 	}
 
-	disks, err := getEncryptedContainers(st)
+	disks, err := GetEncryptedContainers(st)
 	if err != nil {
 		return fmt.Errorf("cannot get encrypted disks: %w", err)
 	}
@@ -579,7 +579,7 @@ func AddRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Keyslot
 	// targeted key slots do not exist while state is locked ensures that we don't
 	// suffer from TOCTOU.
 
-	if err := checkFDEChangeConflict(st); err != nil {
+	if err := CheckFDEChangeConflict(st); err != nil {
 		return nil, err
 	}
 
@@ -644,7 +644,7 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
 
-	if err := checkFDEChangeConflict(st); err != nil {
+	if err := CheckFDEChangeConflict(st); err != nil {
 		return nil, err
 	}
 
@@ -757,7 +757,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
 
-	if err := checkFDEChangeConflict(st); err != nil {
+	if err := CheckFDEChangeConflict(st); err != nil {
 		return nil, err
 	}
 
@@ -872,7 +872,7 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		return nil, err
 	}
 
-	if err := checkFDEChangeConflict(st); err != nil {
+	if err := CheckFDEChangeConflict(st); err != nil {
 		return nil, err
 	}
 

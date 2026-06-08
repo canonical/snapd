@@ -112,6 +112,7 @@ func init() {
 	snapstate.RegisterResealingTaskKind("create-recovery-system")
 	snapstate.RegisterResealingTaskKind("remove-recovery-system")
 	snapstate.RegisterResealingTaskKind("finalize-recovery-system")
+	snapstate.RegisterResealingTaskKind("fde-reprovision")
 	snapstate.RegisterResealingTaskKind("update-managed-boot-config")
 	snapstate.RegisterResealingTaskKind("update-gadget-cmdline")
 	snapstate.RegisterResealingTaskKind("update-gadget-assets")
@@ -303,6 +304,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 	runner.AddBlocked(removeRecoverySystemBlocked)
+
+	runner.AddHandler("fde-reprovision", m.doReprovision, nil)
 
 	// wire FDE kernel hook support into boot
 	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory

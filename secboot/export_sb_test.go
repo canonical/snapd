@@ -603,3 +603,7 @@ func MockTPMResetDictionaryAttackLockWithAuthValue(f func(tpm *sb_tpm2.Connectio
 func MockTPMResetDictionaryAttackLock(f func(tpm *sb_tpm2.Connection, lockoutAuthData []byte) error) (restore func()) {
 	return testutil.Mock(&sbTPMResetDictionaryAttackLock, f)
 }
+
+func MockSbKeyDataRecoverKeys(f func(d *sb.KeyData) (sb.DiskUnlockKey, sb.PrimaryKey, error)) (restore func()) {
+	return testutil.Mock(&sbKeyDataRecoverKeys, f)
+}
