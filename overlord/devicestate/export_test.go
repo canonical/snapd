@@ -768,3 +768,10 @@ func MockSecbootPreinstallCheckAction(f func(pcc *secboot.PreinstallCheckContext
 		secbootPreinstallCheckAction = old
 	}
 }
+
+type ReprovisionSetupDataKey = reprovisionSetupDataKey
+type ReprovisionSetupDataType = reprovisionSetupData
+
+func GetCachedReprovisionRecoveryKeyID(data *ReprovisionSetupDataType) string {
+	return data.recoveryKeyID
+}

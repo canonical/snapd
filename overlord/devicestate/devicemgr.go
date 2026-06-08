@@ -2782,10 +2782,38 @@ func (m *DeviceManager) systemAndGadgetAndEncryptionInfoWithAction(
 }
 
 type reprovisionSetupData struct {
-	checkContext *secboot.PreinstallCheckContext
+	recoveryKeyID string
+	checkContext  *secboot.PreinstallCheckContext
 }
 
 type reprovisionSetupDataKey struct {
+}
+
+// GenerateReprovisionRecoveryKey generates a recovery key that is
+// stored in the reprovision setup cache. It returns the generated
+// recovery key. Subsequent call to reprovision will use this key.
+func GenerateReprovisionRecoveryKey(st *state.State) (rkey keys.RecoveryKey, err error) {
+	rkey, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	var data *reprovisionSetupData
+	cached := st.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		data = &reprovisionSetupData{recoveryKeyID: keyID}
+	} else {
+		var ok bool
+		data, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+		data.recoveryKeyID = keyID
+	}
+
+	st.Cache(reprovisionSetupDataKey{}, data)
+
+	return rkey, err
 }
 
 func (m *DeviceManager) runningSystemAndGadgetAndEncryptionInfoWithAction(
