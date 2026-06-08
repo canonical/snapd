@@ -351,11 +351,13 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 }
 
 type makeRunnableOptions struct {
-	Standalone     bool
-	AfterDataReset bool
-	SeedDir        string
-	StateUnlocker  Unlocker
-	UseTokens      bool
+	Standalone    bool
+	SeedDir       string
+	StateUnlocker Unlocker
+
+	LegacyFactoryResetKeyPath bool
+	Reprovision               bool
+	UseTokens                 bool
 }
 
 func copyBootSnap(orig string, filename string, dstSnapBlobDir string) error {
@@ -674,11 +676,12 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 		}
 
 		flags := sealKeyToModeenvFlags{
-			HookKeyProtectorFactory: protector,
-			FactoryReset:            makeOpts.AfterDataReset,
-			SeedDir:                 makeOpts.SeedDir,
-			StateUnlocker:           makeOpts.StateUnlocker,
-			UseTokens:               tokens,
+			HookKeyProtectorFactory:   protector,
+			LegacyFactoryResetKeyPath: makeOpts.LegacyFactoryResetKeyPath,
+			Reprovision:               makeOpts.Reprovision,
+			SeedDir:                   makeOpts.SeedDir,
+			StateUnlocker:             makeOpts.StateUnlocker,
+			UseTokens:                 tokens,
 		}
 		if makeOpts.Standalone {
 			flags.SnapsDir = snapBlobDir
@@ -801,7 +804,18 @@ func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *Boot
 // back to the new run system.
 func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup) error {
 	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
-		AfterDataReset: true,
-		SeedDir:        dirs.SnapSeedDir,
+		LegacyFactoryResetKeyPath: true,
+		Reprovision:               true,
+		SeedDir:                   dirs.SnapSeedDir,
+	})
+}
+
+// MakeRunnableSystemReprovision make the systems currently running bootable again.
+// This is intended to repair the boot of a system that was booted for example
+// with a recovery key.
+func MakeRunnableSystemReprovision(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup) error {
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
+		Reprovision: true,
+		SeedDir:     dirs.SnapSeedDir,
 	})
 }

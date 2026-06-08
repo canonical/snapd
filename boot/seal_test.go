@@ -82,6 +82,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		sealErr       error
 		provisionErr  error
 		factoryReset  bool
+		reprovision   bool
 		shimId        string
 		grubId        string
 		runGrubId     string
@@ -101,6 +102,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			expSealCalls: 1,
 		}, {
 			factoryReset: true,
+			reprovision:  true,
+			expSealCalls: 1,
+		}, {
+			reprovision:  true,
 			expSealCalls: 1,
 		}, {
 			sealErr: errors.New("seal error"), expErr: `seal error`,
@@ -231,7 +236,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			c.Assert(recoveryGrub.Hashes, HasLen, 1)
 			c.Check(recoveryGrub.Hashes[0], Equals, "grub-hash-1")
 
-			c.Check(params.FactoryReset, Equals, tc.factoryReset)
+			c.Check(params.Reprovision, Equals, tc.reprovision)
+			c.Check(params.LegacyFactoryResetKeyPath, Equals, tc.factoryReset)
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 			c.Check(params.UseTokens, Equals, !tc.disableTokens)
 
@@ -241,9 +247,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 
 		u := mockUnlocker{}
 		err = boot.SealKeyToModeenv(myKey, myKey2, nil, myVolumesAuth, myCheckResult, model, modeenv, boot.MockSealKeyToModeenvFlags{
-			FactoryReset:  tc.factoryReset,
-			StateUnlocker: u.unlocker,
-			UseTokens:     !tc.disableTokens,
+			LegacyFactoryResetKeyPath: tc.factoryReset,
+			Reprovision:               tc.reprovision,
+			StateUnlocker:             u.unlocker,
+			UseTokens:                 !tc.disableTokens,
 		})
 		c.Check(u.unlocked, Equals, 1)
 		c.Check(sealKeyForBootChainsCalled, Equals, tc.expSealCalls)
@@ -1634,7 +1641,8 @@ func (s *sealSuite) TestSealToModeenvWithSecbootProtectorHappy(c *C) {
 		c.Check(recoveryBootChain.Model, Equals, model.Model())
 		c.Check(recoveryBootChain.AssetChain, HasLen, 0)
 
-		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.Reprovision, Equals, false)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, false)
 		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 		c.Check(params.UseTokens, Equals, true)
 
