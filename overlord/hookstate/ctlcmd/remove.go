@@ -56,9 +56,9 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	wait_async := c.NoWait || strings.Contains(strings.Join(c.clientFlags, ","), "async")
+	async := strings.Contains(strings.Join(c.clientFlags, ","), "async")
 
-	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: wait_async})
+	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: async, noWait: c.NoWait})
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func (c *removeCommand) Execute([]string) error {
 	// To allow --no-wait to automatically return, we can't send change ID back to client
 	if c.NoWait {
 		fmt.Fprintf(c.stdout, "%s\n", id)
-	} else if wait_async {
+	} else if async {
 		*c.changeID = id
 	}
 

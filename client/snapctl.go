@@ -111,7 +111,7 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		pollBody, err := json.Marshal(SnapCtlPostData{
 			SnapCtlOptions: SnapCtlOptions{
 				ContextID: options.ContextID,
-				Args:      []string{"--is-ready"},
+				Args:      []string{"is-ready", output.ChangeID},
 			},
 			Stdin: stdinData,
 		})
@@ -143,7 +143,7 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 			}
 
 			if pollOutput.Stderr != "" {
-				return []byte(pollOutput.Stdout), []byte(pollOutput.Stderr), fmt.Errorf("snapctl --is-ready finished with error: %s", pollOutput.Stderr)
+				return []byte(pollOutput.Stdout), []byte(pollOutput.Stderr), fmt.Errorf("snapctl is-ready finished with error: %s", pollOutput.Stderr)
 			}
 
 			// If it succeeds and has no error, the change is ready, update output and break out.

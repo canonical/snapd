@@ -541,6 +541,7 @@ type managementCommand struct {
 	operation  managementCommandOp
 	components []string
 	async      bool
+	noWait	 bool
 }
 
 func changeIDIfNotEphemeral(hctx *hookstate.Context) string {
@@ -618,7 +619,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	// If the context is non-ephemeral, we don't support async because we are just queuing a change in the first place.
 	// In the future this could be made non-queuing, but for now we just return the error.
 	// This prevents users from accidentally running async snap management commands from hooks where they aren't supported.
-	if cmd.async && !hctx.IsEphemeral() {
+	if cmd.noWait && !hctx.IsEphemeral() {
 		return "", nil, fmt.Errorf("internal error: cannot run snap management command asynchronously from a non-ephemeral context")
 	}
 
@@ -662,7 +663,7 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	st.Unlock()
 
 	// If async is requested or the client supports async, return immediately with the change ID.
-	if cmd.async {
+	if cmd.async || cmd.noWait {
 		return chg.ID(), affectedComponents, nil
 	} else {
 		// This case is still needed for backward compatibility with older versions of snapctl

@@ -58,9 +58,9 @@ func (c *installCommand) Execute([]string) error {
 		return err
 	}
 
-	wait_async := c.NoWait || strings.Contains(strings.Join(c.clientFlags, ","), "async")
+	async := strings.Contains(strings.Join(c.clientFlags, ","), "async")
 
-	id, affectedComponents, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: wait_async})
+	id, affectedComponents, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: async, noWait: c.NoWait})
 
 	if err != nil {
 		if _, ok := err.(*snap.AlreadyInstalledError); !ok {
@@ -80,7 +80,7 @@ func (c *installCommand) Execute([]string) error {
 	// To allow --no-wait to automatically return, we can't send change ID back to client
 	if c.NoWait {
 		fmt.Fprintf(c.stdout, "%s\n", id)
-	} else if wait_async {
+	} else if async {
 		*c.changeID = id
 	}
 
