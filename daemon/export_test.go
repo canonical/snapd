@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -451,4 +452,8 @@ func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, group
 
 func MockDevicestateInstallPreseed(f func(st *state.State, label string, chroot string) (*state.Change, error)) (restore func()) {
 	return testutil.Mock(&devicestateInstallPreseed, f)
+}
+
+func ResetVirtualizationDetection() {
+	systemdVirtOnce = sync.Once{}
 }

@@ -25,6 +25,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/arch"
@@ -101,9 +102,12 @@ var (
 
 var (
 	buildID             = "unknown"
-	systemdVirt         = ""
 	snapdtoolIsReexecd  = snapdtool.IsReexecd
 	fdestateSystemState = fdestate.SystemState
+
+	// TODO:GOVERSION: use sync.OnceValue
+	systemdVirt     string
+	systemdVirtOnce sync.Once
 )
 
 func init() {
@@ -112,6 +116,9 @@ func init() {
 	if bid, err := osutil.MyBuildID(); err == nil {
 		buildID = bid
 	}
+}
+
+var setSystemdDetectVirt = func() {
 	// cache systemd-detect-virt output as it's unlikely to change :-)
 	if buf, _, err := osutil.RunSplitOutput("systemd-detect-virt"); err == nil {
 		systemdVirt = string(bytes.TrimSpace(buf))
@@ -180,6 +187,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"features":       features.All(tr),
 		"snapd-bin-from": snapdFrom,
 	}
+
+	systemdVirtOnce.Do(setSystemdDetectVirt)
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
 	}
