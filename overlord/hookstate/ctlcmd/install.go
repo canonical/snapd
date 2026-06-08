@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
@@ -57,7 +58,9 @@ func (c *installCommand) Execute([]string) error {
 		return err
 	}
 
-	id, affectedComponents, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: c.NoWait})
+	wait_async := c.NoWait || strings.Contains(strings.Join(c.clientFlags, ","), "async")
+
+	id, affectedComponents, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: wait_async})
 
 	if err != nil {
 		if _, ok := err.(*snap.AlreadyInstalledError); !ok {
@@ -74,8 +77,11 @@ func (c *installCommand) Execute([]string) error {
 		}
 	}
 
+	// To allow --no-wait to automatically return, we can't send change ID back to client
 	if c.NoWait {
-		fmt.Fprintf(c.stdout, "%s", id)
+		fmt.Fprintf(c.stdout, "%s\n", id)
+	} else if wait_async {
+		*c.changeID = id
 	}
 
 	return nil

@@ -106,20 +106,21 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		return nil, nil, err
 	}
 
-	pollBody, err := json.Marshal(SnapCtlPostData{
-		SnapCtlOptions: SnapCtlOptions{
-			ContextID: options.ContextID,
-			Args:      []string{"--is-ready"},
-		},
-		Stdin: stdinData,
-	})
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var pollOutput snapctlOutput
+	//If a change ID is returned, poll until the change is ready.
 	if output.ChangeID != "" {
+		pollBody, err := json.Marshal(SnapCtlPostData{
+			SnapCtlOptions: SnapCtlOptions{
+				ContextID: options.ContextID,
+				Args:      []string{"--is-ready"},
+			},
+			Stdin: stdinData,
+		})
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		var pollOutput snapctlOutput
 		for {
 			// Clear pollOutput before each run to avoid inheriting previous stdout/stderr.
 			pollOutput = snapctlOutput{}

@@ -116,6 +116,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		"stderr": string(stderr),
 	}
 
+	// If a change ID is returned, include it in the response.
 	if changeID != "" {
 		result["change-id"] = changeID
 	}

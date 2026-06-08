@@ -661,21 +661,22 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (i
 	st.EnsureBefore(0)
 	st.Unlock()
 
+	// If async is requested or the client supports async, return immediately with the change ID.
 	if cmd.async {
 		return chg.ID(), affectedComponents, nil
-	}
-
-	// This case is still needed for backward compatibility with older versions of snapctl
-	select {
-	case <-chg.Ready():
-		st.Lock()
-		defer st.Unlock()
-		if err := chg.Err(); err != nil {
-			return "", nil, err
+	} else {
+		// This case is still needed for backward compatibility with older versions of snapctl
+		select {
+		case <-chg.Ready():
+			st.Lock()
+			defer st.Unlock()
+			if err := chg.Err(); err != nil {
+				return "", nil, err
+			}
+			return "", affectedComponents, nil
+		case <-time.After(10 * time.Minute):
+			return "", nil, fmt.Errorf("snapctl %s command is taking too long", cmdStr)
 		}
-		return "", affectedComponents, nil
-	case <-time.After(10 * time.Minute):
-		return "", nil, fmt.Errorf("snapctl %s command is taking too long", cmdStr)
 	}
 }
 

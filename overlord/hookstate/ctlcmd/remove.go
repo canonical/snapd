@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/i18n"
 )
@@ -55,13 +56,18 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: c.NoWait})
+	wait_async := c.NoWait || strings.Contains(strings.Join(c.clientFlags, ","), "async")
+
+	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: wait_async})
 	if err != nil {
 		return err
 	}
 
+	// To allow --no-wait to automatically return, we can't send change ID back to client
 	if c.NoWait {
-		fmt.Fprintf(c.stdout, "%s", id)
+		fmt.Fprintf(c.stdout, "%s\n", id)
+	} else if wait_async {
+		*c.changeID = id
 	}
 
 	return nil

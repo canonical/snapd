@@ -42,12 +42,13 @@ func (e *MissingContextError) Error() string {
 }
 
 type baseCommand struct {
-	stdout   io.Writer
-	stderr   io.Writer
-	c        *hookstate.Context
-	name     string
-	uid      string
-	changeID string
+	stdout      io.Writer
+	stderr      io.Writer
+	c           *hookstate.Context
+	name        string
+	uid         string
+	changeID    *string
+	clientFlags []string
 }
 
 func (c *baseCommand) setName(name string) {
@@ -60,6 +61,14 @@ func (c *baseCommand) setUid(uid uint32) {
 
 func (c *baseCommand) setStdout(w io.Writer) {
 	c.stdout = w
+}
+
+func (c *baseCommand) setChangeID(id *string) {
+	c.changeID = id
+}
+
+func (c *baseCommand) setClientFlags(flags []string) {
+	c.clientFlags = flags
 }
 
 func (c *baseCommand) printf(format string, a ...any) {
@@ -97,14 +106,6 @@ func (c *baseCommand) ensureContext() (context *hookstate.Context, err error) {
 	return c.c, err
 }
 
-func (c *baseCommand) ChangeID() string {
-	return c.changeID
-}
-
-func (c *baseCommand) setChangeID(id string) {
-	c.changeID = id
-}
-
 type command interface {
 	setName(name string)
 	setUid(uid uint32)
@@ -115,8 +116,8 @@ type command interface {
 	setContext(context *hookstate.Context)
 	context() *hookstate.Context
 
-	setChangeID(changeID string)
-	ChangeID() string
+	setChangeID(changeID *string)
+	setClientFlags(flags []string)
 
 	Execute(args []string) error
 }
@@ -174,8 +175,6 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 
 	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
 
-	instantiatedCommands := make(map[string]command)
-
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
@@ -186,8 +185,8 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
-
-		instantiatedCommands[name] = cmd
+		cmd.setChangeID(&changeID)
+		cmd.setClientFlags(features)
 
 		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		theCmd.Hidden = cmdInfo.hidden
@@ -198,11 +197,6 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 
 	_, err = parser.ParseArgs(args)
 
-	if parser.Active != nil {
-		if activeCmd, ok := instantiatedCommands[parser.Active.Name]; ok {
-			changeID = activeCmd.ChangeID()
-		}
-	}
 	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), changeID, err
 }
 

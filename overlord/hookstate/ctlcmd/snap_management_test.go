@@ -21,6 +21,7 @@ package ctlcmd_test
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -356,7 +357,7 @@ func (s *installSuite) TestNoWaitInstallAndRemoveCommands(c *C) {
 
 		stdout, _, _, err := ctlcmd.Run(s.mockContext, []string{cmd, "+comp1", "--no-wait"}, 0, nil)
 		c.Assert(err, IsNil)
-		changeID := string(stdout)
+		changeID := strings.ReplaceAll(string(stdout), "\n", "")
 		c.Assert(changeID, Not(Equals), "")
 
 		s.st.Lock()
