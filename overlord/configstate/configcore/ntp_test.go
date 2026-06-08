@@ -3,7 +3,6 @@
 package configcore_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -97,8 +96,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 		expectServiceRestart bool
 		expectedError        string
 	}{
-		// 0: Valid configuration with all keys, including json.Number, different units
-		// and missing units
+		// 0: Valid configuration with all keys and different Go duration units.
 		{
 			newConfig: map[string]any{
 				"system.ntp": map[string]any{
@@ -110,11 +108,11 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 						"192.168.1.100",
 						"pool.ntp.org",
 					},
-					"max-root-time-distance":    json.Number(fmt.Sprint(5)),
+					"max-root-time-distance":    "5s",
 					"min-poll-interval":         "30s",
-					"max-poll-interval":         "40m",
+					"max-poll-interval":         "40m0s",
 					"connection-retry-interval": "5s",
-					"save-interval":             "20",
+					"save-interval":             "20s",
 				},
 			},
 			// Keep sorted in reverse order.
@@ -123,10 +121,10 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 			// this look like a normal unit file
 			expectedFileContent: []string{
 				"[Time]",
-				"SaveIntervalSec=20",
+				"SaveIntervalSec=20s",
 				"RootDistanceMaxSec=5s",
 				"PollIntervalMinSec=30s",
-				"PollIntervalMaxSec=40m",
+				"PollIntervalMaxSec=40m0s",
 				"NTP=192.168.15.1 ntp.ubuntu.com",
 				"FallbackNTP=192.168.1.100 pool.ntp.org",
 				"ConnectionRetrySec=5s",
@@ -218,7 +216,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 					"max-root-time-distance": "not-a-timespan",
 				},
 			},
-			expectedError: "invalid NTP configuration: max-root-time-distance: \"not-a-timespan\" is not a valid systemd.time timespan",
+			expectedError: "invalid NTP configuration: max-root-time-distance: time: invalid duration \"not-a-timespan\"",
 		},
 		// 9: min-poll-interval greater than max-poll-interval
 		{
@@ -264,7 +262,25 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 					"min-poll-interval": 2.0,
 				},
 			},
-			expectedError: "invalid NTP configuration: min-poll-interval: invalid option type: float64",
+			expectedError: "invalid NTP configuration: min-poll-interval is not a string",
+		},
+		// 14: missing time unit for a timespan option
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"min-poll-interval": "2",
+				},
+			},
+			expectedError: "invalid NTP configuration: min-poll-interval: time: missing unit in duration \"2\"",
+		},
+		// 15: sub-microsecond duration (below systemd's resolution)
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"max-root-time-distance": "500ns",
+				},
+			},
+			expectedError: `invalid NTP configuration: max-root-time-distance: duration "500ns" is below systemd's minimum resolution of 1µs`,
 		},
 	}
 
@@ -302,42 +318,6 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 		}
 		s.systemctlArgs = nil
 	}
-}
-
-func (s *ntpSuite) TestNTPSetSystemdAnalyzeError(c *C) {
-	// Systemd-analyze returns the wrong format for the timespan value
-	// It will return non-zero exit code if the analysis fails, so we need to mock it here to check
-	// that we handle the format well and return the correct error message
-	sysdAnalyzeCmdInvalidResponse := testutil.MockCommand(c, "systemd-analyze", "echo 'μs: xxxx'")
-	defer sysdAnalyzeCmdInvalidResponse.Restore()
-
-	// Apply the config
-	invalidReponseConfig := configcore.PlainCoreConfig(map[string]any{
-		"system.ntp": map[string]any{
-			"connection-retry-interval": "xxxx",
-		}})
-	err := configcore.FilesystemOnlyRun(core24Dev, invalidReponseConfig)
-
-	// Verify correct error is returned
-	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-interval: \"xxxx\" is not a valid systemd.time timespan")
-	s.verifyConfigfileContent(c, startingFileContent, "")
-	c.Check(s.systemctlArgs, IsNil)
-
-	// Return value that it too big for Int64 (9223372036854775807 + 1)
-	sysdAnalyzeCmdBigNumber := testutil.MockCommand(c, "systemd-analyze", "echo 'μs: 9223372036854775808'")
-	defer sysdAnalyzeCmdBigNumber.Restore()
-
-	// Apply the config
-	invalidNumberConfig := configcore.PlainCoreConfig(map[string]any{
-		"system.ntp": map[string]any{
-			"connection-retry-interval": "9223372036854s",
-		}})
-	err = configcore.FilesystemOnlyRun(core24Dev, invalidNumberConfig)
-
-	// Verify correct error is returned
-	c.Check(err, ErrorMatches, "invalid NTP configuration: connection-retry-interval: \"9223372036854s\" is not a valid systemd.time timespan")
-	s.verifyConfigfileContent(c, startingFileContent, "")
-	c.Check(s.systemctlArgs, IsNil)
 }
 
 // Test that setting a valid configuration fails when the systemd folder cannot be accessed due to
@@ -503,6 +483,90 @@ func (s *ntpSuite) TestNTPGetUnsupportedOption(c *C) {
 	})
 }
 
+func (s *ntpSuite) TestNTPGetSystemdDurationsAsGoDurations(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\nRootDistanceMaxSec=1.5h\nSaveIntervalSec=40min"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, IsNil)
+	c.Assert(ntpConfig, DeepEquals, map[string]any{
+		"max-root-time-distance": "1h30m0s",
+		"save-interval":          "40m0s",
+	})
+}
+
+func (s *ntpSuite) TestNTPGetInvalidSystemdDuration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\nRootDistanceMaxSec=not-a-timespan"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, ErrorMatches, "cannot parse NTP option: max-root-time-distance: \"not-a-timespan\" is not a valid systemd.time timespan")
+}
+
+func (s *ntpSuite) TestNTPGetSystemdAnalyzeNoTimespanLine(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// systemd-analyze exits successfully but its output does not contain a
+	// "µs:"/"us:" line, so no timespan can be extracted.
+	sysdAnalyzeCmd := testutil.MockCommand(c, "systemd-analyze", "echo 'no timespan here'")
+	defer sysdAnalyzeCmd.Restore()
+
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\nRootDistanceMaxSec=5s"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, ErrorMatches, "cannot parse NTP option: max-root-time-distance: \"5s\" is not a valid systemd.time timespan")
+}
+
+func (s *ntpSuite) TestNTPGetSystemdAnalyzeTimespanOverflowsInt64(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// The captured µs value does not fit into an int64 (math.MaxInt64 + 1),
+	// so strconv.ParseInt fails.
+	sysdAnalyzeCmd := testutil.MockCommand(c, "systemd-analyze", "echo 'μs: 9223372036854775808'")
+	defer sysdAnalyzeCmd.Restore()
+
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\nRootDistanceMaxSec=5s"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, ErrorMatches, "cannot parse NTP option: max-root-time-distance: \"5s\" is not a valid systemd.time timespan")
+}
+
+func (s *ntpSuite) TestNTPGetSystemdAnalyzeTimespanTooLargeForGoDuration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// The captured µs value fits into an int64 but exceeds the maximum number of
+	// microseconds representable by a time.Duration (math.MaxInt64 microseconds).
+	sysdAnalyzeCmd := testutil.MockCommand(c, "systemd-analyze", "echo 'μs: 9223372036854775807'")
+	defer sysdAnalyzeCmd.Restore()
+
+	c.Assert(os.WriteFile(s.timesyncdConfigFile, []byte("[Time]\nRootDistanceMaxSec=5s"), 0644), IsNil)
+	defer os.WriteFile(s.timesyncdConfigFile, []byte(strings.Join(startingFileContent, "\n")), 0644)
+	tr := config.NewTransaction(s.state)
+
+	var ntpConfig map[string]any
+	err := tr.Get("core", "system.ntp", &ntpConfig)
+	c.Assert(err, ErrorMatches, "cannot parse NTP option: max-root-time-distance: \"5s\" is too large for a Go duration")
+}
+
 func (s *ntpSuite) TestNTPGetEmptyServerList(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -619,4 +683,17 @@ func (s *ntpSuite) TestNTPConfigurationDeepEqual(c *C) {
 	}
 	c.Check(configcore.NTPConfigurationDeepEqual(config1, config10), Equals, false)
 	c.Check(configcore.NTPConfigurationDeepEqual(config10, config1), Equals, false)
+
+	// Test that equivalent duration representations are considered equal.
+	// The read path normalises disk values (e.g. "40min" → "40m0s"), while the
+	// user may provide the same duration as "40m". Both should be equal to avoid
+	// an unnecessary timesyncd restart.
+	config11 := map[string]any{
+		"max-root-time-distance": "40m0s", // normalised form, as read from disk
+	}
+	config12 := map[string]any{
+		"max-root-time-distance": "40m", // user-supplied shorthand
+	}
+	c.Check(configcore.NTPConfigurationDeepEqual(config11, config12), Equals, true)
+	c.Check(configcore.NTPConfigurationDeepEqual(config12, config11), Equals, true)
 }
