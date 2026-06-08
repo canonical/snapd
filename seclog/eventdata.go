@@ -51,8 +51,14 @@ const none = "<none>"
 // Reason describes why a security event happened. The JSON tags match
 // the security audit specification field names.
 type Reason struct {
-	Code    int    `json:"code"`
-	Kind    string `json:"kind"`
+	// Code is a numeric error code defined by its originating domain:
+	// an HTTP response code (e.g. 401, 500), a standard-library code,
+	// or a custom code. Zero means unset.
+	Code int `json:"code"`
+	// Kind is an existing error-kind identifier from that domain (e.g.
+	// "invalid-credentials"), for programmatic matching, not display.
+	Kind string `json:"kind"`
+	// Message is the human-readable explanation, suitable for logs.
 	Message string `json:"message"`
 }
 
