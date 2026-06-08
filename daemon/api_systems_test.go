@@ -3464,6 +3464,66 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineJustValidationSets(c *
 	c.Check(st.Change(res.Change), check.NotNil)
 }
 
+func (s *systemsSuite) TestSystemActionReprovision(c *check.C) {
+	s.mockSystemSeeds(c)
+	s.daemon(c)
+	s.expectRootAccess()
+
+	defer daemon.MockDevicestateReprovision(func(st *state.State) (*state.Change, error) {
+		return st.NewChange("reprovision", "..."), nil
+	})()
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
+	body := map[string]any{
+		"action": "reprovision",
+	}
+
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+
+	req, err := http.NewRequest("POST", "/v2/systems", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.asyncReq(c, req, nil, actionIsExpected)
+	c.Check(soon, check.Equals, 1)
+	c.Check(rsp.Status, check.Equals, 202)
+}
+
+func (s *systemsSuite) TestSystemActionReprovisionError(c *check.C) {
+	s.mockSystemSeeds(c)
+	s.daemon(c)
+	s.expectRootAccess()
+
+	defer daemon.MockDevicestateReprovision(func(st *state.State) (*state.Change, error) {
+		return nil, fmt.Errorf("foo")
+	})()
+	soon := 0
+	_, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
+		soon++
+	})
+	defer restore()
+
+	body := map[string]any{
+		"action": "reprovision",
+	}
+
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+
+	req, err := http.NewRequest("POST", "/v2/systems", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(soon, check.Equals, 0)
+	c.Check(rsp.Status, check.Equals, 400)
+}
+
 func (s *systemsSuite) TestSystemCurrentSystemGenerateRecoveryKey(c *check.C) {
 	if (keys.RecoveryKey{}).String() == "not-implemented" {
 		c.Skip("needs working secboot recovery key")

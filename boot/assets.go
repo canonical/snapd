@@ -329,6 +329,14 @@ func (b *bootAssetsImpl) UpdateBootEntry() error {
 	return doUpdateBootEntry(b.bootLoader, b.updatedAssets)
 }
 
+func GetTrustedAssetsFromModeenv(m *Modeenv) BootAssets {
+	return &bootAssetsImpl{
+		trackedAssets:         m.CurrentTrustedBootAssets,
+		trackedRecoveryAssets: m.CurrentTrustedRecoveryBootAssets,
+		// No update of boot entry for now
+	}
+}
+
 type trustedAssetsInstallObserverImpl struct {
 	model     *asserts.Model
 	gadgetDir string

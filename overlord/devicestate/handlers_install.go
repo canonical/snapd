@@ -22,6 +22,7 @@ package devicestate
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto"
 	"encoding/hex"
 	"encoding/json"
@@ -48,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -68,6 +70,7 @@ var (
 	bootMakeRunnable                     = boot.MakeRunnableSystem
 	bootMakeRunnableStandalone           = boot.MakeRunnableStandaloneSystem
 	bootMakeRunnableAfterDataReset       = boot.MakeRunnableSystemAfterDataReset
+	bootMakeRunnableReprovision          = boot.MakeRunnableSystemReprovision
 	bootEnsureNextBootToRunMode          = boot.EnsureNextBootToRunMode
 	bootMakeRecoverySystemBootable       = boot.MakeRecoverySystemBootable
 	disksDMCryptUUIDFromMountPoint       = disks.DMCryptUUIDFromMountPoint
@@ -86,6 +89,22 @@ var (
 	fdestateGenerateRecoveryKey          = fdestate.GenerateRecoveryKey
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
+
+	secbootListContainerUnlockKeyNames   = secboot.ListContainerUnlockKeyNames
+	secbootListContainerRecoveryKeyNames = secboot.ListContainerRecoveryKeyNames
+	secbootTestProtectorKey              = secboot.TestProtectorKey
+	secbootRenameContainerKey            = secboot.RenameContainerKey
+	secbootGetPCRHandleFromToken         = secboot.GetPCRHandleFromToken
+	secbootReleasePCRResourceHandle      = secboot.ReleasePCRResourceHandle
+	secbootDeleteContainerKey            = secboot.DeleteContainerKey
+	secbootSaveCheckResult               = (*secboot.PreinstallCheckContext).SaveCheckResult
+	secbootCheckResult                   = (*secboot.PreinstallCheckContext).CheckResult
+
+	keysNewProtectorKey    = keys.NewProtectorKey
+	keysCreateProtectedKey = (keys.ProtectorKey).CreateProtectedKey
+	keysPlainKeyWrite      = (*keys.PlainKey).Write
+
+	snapstateKernelInfo = snapstate.KernelInfo
 )
 
 func writeLogs(rootdir string, fromMode string) error {
@@ -1497,6 +1516,7 @@ var (
 	secbootCreateBootstrappedContainer   = secboot.CreateBootstrappedContainer
 	secbootDeleteKeys                    = secboot.DeleteKeys
 	secbootDeleteOldKeys                 = secboot.DeleteOldKeys
+	fdestateGetEncryptedContainers       = fdestate.GetEncryptedContainers
 )
 
 func createSaveBootstrappedContainer(saveNode string) (secboot.BootstrappedContainer, error) {
@@ -1660,4 +1680,341 @@ func GeneratePreInstallRecoveryKey(st *state.State, label string) (rkey keys.Rec
 	st.Cache(encryptionSetupDataKey{label}, encryptSetupData)
 
 	return rkey, err
+}
+
+func convertToBootstrappedContainer(devicePath string) (secboot.BootstrappedContainer, error) {
+	bootstrapKey, err := keys.NewEncryptionKey()
+	if err != nil {
+		return nil, fmt.Errorf("cannot create encryption key: %v", err)
+	}
+
+	if err := secbootDeleteContainerKey(devicePath, "bootstrap-key"); err != nil {
+		logger.Debugf("could not delete bootstrap-key on %s", devicePath)
+	}
+
+	if err := secbootAddBootstrapKeyOnExistingDisk(devicePath, bootstrapKey); err != nil {
+		return nil, err
+	}
+
+	return secbootCreateBootstrappedContainer(secboot.DiskUnlockKey(bootstrapKey), devicePath), nil
+}
+
+func hookKeyProtectorFactoryImpl(m *DeviceManager, kernelInfo *snap.Info) (secboot.KeyProtectorFactory, error) {
+	return m.hookKeyProtectorFactory(kernelInfo)
+}
+
+var hookKeyProtectorFactory = hookKeyProtectorFactoryImpl
+
+func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
+	renames := []struct {
+		from string
+		to   string
+	}{
+		{"default", "snapd-reprovision-default"},
+		{"default-fallback", "snapd-reprovision-default-fallback"},
+		{"default-recovery", "snapd-reprovision-default-recovery"},
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	disks, err := fdestateGetEncryptedContainers(st)
+	if err != nil {
+		return err
+	}
+
+	var dataDisk fdeBackend.EncryptedContainer
+	var saveDisk fdeBackend.EncryptedContainer
+	for _, disk := range disks {
+		switch disk.ContainerRole() {
+		case "system-data":
+			if dataDisk != nil {
+				return fmt.Errorf("multiple containers found with role system-data")
+			}
+			dataDisk = disk
+		case "system-save":
+			if saveDisk != nil {
+				return fmt.Errorf("multiple containers found with role system-save")
+			}
+			saveDisk = disk
+		}
+	}
+	if saveDisk == nil {
+		return fmt.Errorf("no save container found")
+	}
+	if dataDisk == nil {
+		return fmt.Errorf("no data container found")
+	}
+
+	deviceCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	saveKeyPath := device.SaveKeyUnder(dirs.SnapFDEDir)
+	oldSaveKey, err := os.ReadFile(saveKeyPath)
+	if err != nil {
+		return err
+	}
+
+	cleanup := func() error {
+		removedNvIndices := map[uint32]bool{}
+
+		// We have to clean up all keys, because this could have been a 2nd call after
+		// snapd crashing.
+		for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
+			platformKeyslots, err := secbootListContainerUnlockKeyNames(disk)
+			if err != nil {
+				logger.Debugf("could not list keyslots on %s", disk)
+			}
+			hasPlatformKeyslot := map[string]bool{}
+			for _, k := range platformKeyslots {
+				hasPlatformKeyslot[k] = true
+			}
+			for _, rename := range renames {
+				if hasPlatformKeyslot[rename.to] && hasPlatformKeyslot[rename.from] {
+					nv, err := secbootGetPCRHandleFromToken(disk, rename.from)
+					if err != nil {
+						logger.Debugf("could not read nv index for %s on %s", rename.from, disk)
+					} else if (nv != 0) && !removedNvIndices[nv] {
+						if err := secbootReleasePCRResourceHandle(nv); err != nil {
+							logger.Debugf("could not release nv index for %s on %s", rename.from, disk)
+						} else {
+							removedNvIndices[nv] = true
+						}
+					}
+				}
+				// This one always need to be the last one in case we crash
+				if rename.from == "default" && disk == saveDisk.DevPath() {
+					continue
+				}
+				if err := secbootRenameContainerKey(disk, rename.to, rename.from); err != nil {
+					logger.Debugf("could not rename %s to %s on %s", rename.to, rename.from, disk)
+				}
+			}
+		}
+		if err := secbootDeleteContainerKey(dataDisk.DevPath(), "bootstrap-key"); err != nil {
+			logger.Debugf("could not delete bootstrap-key on %s", dataDisk.DevPath())
+		}
+		if err := secbootDeleteContainerKey(saveDisk.DevPath(), "bootstrap-key"); err != nil {
+			logger.Debugf("could not delete bootstrap-key on %s", saveDisk.DevPath())
+		}
+
+		// The last clean up
+		if err := secbootRenameContainerKey(saveDisk.DevPath(), "snapd-reprovision-default", "default"); err != nil {
+			logger.Debugf("could not rename to default on %s", saveDisk.DevPath())
+		}
+
+		return nil
+	}
+
+	platformKeyNames, err := secbootListContainerUnlockKeyNames(saveDisk.DevPath())
+	if err != nil {
+		return err
+	}
+
+	for _, key := range platformKeyNames {
+		if key == "snapd-reprovision-default" {
+			oldKeyMatches, err := secbootTestProtectorKey(context.Background(), saveDisk.DevPath(), key, oldSaveKey)
+			if err != nil {
+				return err
+			}
+			if oldKeyMatches {
+				// We must have been restarted in the middle. The backed up key are the correct one.
+				if err := cleanup(); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	var setupData *reprovisionSetupData
+	cached := st.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		return fmt.Errorf("missing reprovision context")
+	} else {
+		var ok bool
+		setupData, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+	}
+
+	if setupData.checkContext == nil {
+		return fmt.Errorf("missing post install check context")
+	}
+	if setupData.recoveryKey == nil {
+		return fmt.Errorf("missing recovery key")
+	}
+
+	cleanupOnError := true
+	defer func() {
+		if !cleanupOnError {
+			return
+		}
+		if err := cleanup(); err != nil {
+			logger.Noticef("an error happened while cleaning up reprovision: %v", err)
+		}
+	}()
+
+	for _, rename := range renames {
+		for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
+			if err := secbootRenameContainerKey(disk, rename.from, rename.to); err != nil {
+				logger.Noticef("WARNING: could not rename %s to %s on %s", rename.from, rename.to, disk)
+			}
+		}
+	}
+
+	dataContainer, err := convertToBootstrappedContainer(dataDisk.DevPath())
+	if err != nil {
+		return err
+	}
+
+	saveContainer, err := convertToBootstrappedContainer(saveDisk.DevPath())
+	if err != nil {
+		return err
+	}
+
+	dataContainer.AddRecoveryKey("default-recovery", *setupData.recoveryKey)
+	if err != nil {
+		return err
+	}
+	saveContainer.AddRecoveryKey("default-recovery", *setupData.recoveryKey)
+	if err != nil {
+		return err
+	}
+
+	protectorKey, err := keysNewProtectorKey()
+	if err != nil {
+		return err
+	}
+
+	plainKey, primaryKey, unlockPlainKey, err := keysCreateProtectedKey(protectorKey, nil)
+	if err != nil {
+		return err
+	}
+
+	saveContainer.AddKey("default", unlockPlainKey)
+	if err != nil {
+		return err
+	}
+	tokenWriter, err := saveContainer.GetTokenWriter("default")
+	if err != nil {
+		return err
+	}
+	if err := keysPlainKeyWrite(plainKey, tokenWriter); err != nil {
+		return err
+	}
+
+	kernelInfo, err := snapstateKernelInfo(st, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot get kernel info: %v", err)
+	}
+
+	keyProtector, err := hookKeyProtectorFactory(m, kernelInfo)
+	if err != nil && !errors.Is(err, secboot.ErrNoKeyProtector) {
+		return err
+	}
+
+	// No volumes option, we reprovision without PIN or passphrase
+	var volumesAuth *device.VolumesAuthOptions = nil
+
+	errorDetails, err := secbootPreinstallCheckAction(setupData.checkContext, context.Background(), &secboot.PreinstallAction{Action: secboot.ActionNone})
+	if err != nil {
+		return err
+	}
+
+	if len(errorDetails) != 0 {
+		// This should happen only if the client is trying
+		// reprovision without fully fixing the postinstall
+		// checks issues. Which is an error from the client.
+		return fmt.Errorf("postinstall check found some issues")
+	}
+
+	checkResult, err := secbootCheckResult(setupData.checkContext)
+	if err != nil {
+		return err
+	}
+
+	if err := secbootSaveCheckResult(setupData.checkContext, device.PreinstallCheckResultUnder(dirs.SnapSaveDir)); err != nil {
+		return err
+	}
+
+	encryptionParams := boot.NewEncryptionSetup(dataContainer, saveContainer,
+		primaryKey,
+		volumesAuth,
+		checkResult)
+
+	err = bootMakeRunnableReprovision(
+		deviceCtx.Model(),
+		keyProtector,
+		encryptionParams,
+	)
+
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
+	}
+
+	// TODO update state
+	st.Set("fde", nil)
+
+	if err := protectorKey.SaveToFile(saveKeyPath); err != nil {
+		return fmt.Errorf("cannot save the system-save key: %v", err)
+	}
+	// swapping the protector key is the sign we have finished
+	cleanupOnError = false
+
+	removedNvIndices := map[uint32]bool{}
+
+	for _, disk := range []string{dataDisk.DevPath(), saveDisk.DevPath()} {
+		recoveryKeyNames, err := secbootListContainerRecoveryKeyNames(disk)
+		if err != nil {
+			return err
+		}
+		for _, key := range recoveryKeyNames {
+			if key == "default-recovery" {
+				continue
+			}
+			if err := secbootDeleteContainerKey(disk, key); err != nil {
+				return err
+			}
+		}
+		platformKeyNames, err := secbootListContainerUnlockKeyNames(disk)
+		if err != nil {
+			return err
+		}
+
+		for _, key := range platformKeyNames {
+			if key == "default" || key == "default-fallback" {
+				continue
+			}
+
+			nv, err := secbootGetPCRHandleFromToken(disk, key)
+			if err != nil {
+				return err
+			} else if (nv != 0) && !removedNvIndices[nv] {
+				if err := secbootReleasePCRResourceHandle(nv); err != nil {
+					return err
+				} else {
+					removedNvIndices[nv] = true
+				}
+			}
+
+			if key == "snapd-reprovision-default" && disk == saveDisk.DevPath() {
+				// always the last one to remove
+				continue
+			}
+
+			if err := secbootDeleteContainerKey(disk, key); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := secbootDeleteContainerKey(saveDisk.DevPath(), "snapd-reprovision-default"); err != nil {
+		return err
+	}
+
+	return nil
 }

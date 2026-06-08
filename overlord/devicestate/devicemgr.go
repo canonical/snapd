@@ -304,6 +304,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddBlocked(gadgetUpdateBlocked)
 	runner.AddBlocked(removeRecoverySystemBlocked)
 
+	runner.AddHandler("reprovision", m.doReprovision, nil)
+
 	// wire FDE kernel hook support into boot
 	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)

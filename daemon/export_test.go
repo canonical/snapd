@@ -463,3 +463,7 @@ func ResetBuildIDDetection() {
 	buildIDOnce = sync.Once{}
 	buildID = "unknown"
 }
+
+func MockDevicestateReprovision(f func(st *state.State) (*state.Change, error)) (restore func()) {
+	return testutil.Mock(&devicestateReprovision, f)
+}
