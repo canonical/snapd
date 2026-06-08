@@ -498,12 +498,14 @@ func (s *mountunitSuite) TestListNonMountControlMountsAllAtBaseDir(c *C) {
 }
 
 func (s *mountunitSuite) testListNonMountControlMountsInRootUserDir(c *C, variant scope) {
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+
 	var mountPath string
 	switch variant {
 	case scopeRev:
-		mountPath = fmt.Sprintf("%s/root/snap/foo/3/data", dirs.GlobalRootDir)
+		mountPath = fmt.Sprintf("%s/root/.snap/data/foo/3/data", dirs.GlobalRootDir)
 	case scopeAll:
-		mountPath = fmt.Sprintf("%s/root/snap/foo/data", dirs.GlobalRootDir)
+		mountPath = fmt.Sprintf("%s/root/.snap/data/foo/data", dirs.GlobalRootDir)
 	}
 
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
@@ -517,7 +519,7 @@ func (s *mountunitSuite) testListNonMountControlMountsInRootUserDir(c *C, varian
 
 	info := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(3)}}
 	fn := variant.fn()
-	mounts, err := fn(info, nil)
+	mounts, err := fn(info, opts)
 	c.Assert(err, IsNil)
 	c.Check(mounts, DeepEquals, []string{mountPath})
 }
