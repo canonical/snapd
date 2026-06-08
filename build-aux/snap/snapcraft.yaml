@@ -160,8 +160,8 @@ parts:
       - g++
       - pkg-config
       - wget
-    source: https://gitlab.com/apparmor/apparmor/-/archive/v5.0.0-rc4/apparmor-v5.0.0-rc4.tar.gz
-    source-checksum: sha256/67f94b7911ea76624ba868620d260f4ce8529d117324526901a3417d8a9cd256
+    source: https://gitlab.com/apparmor/apparmor/-/archive/v5.0.1-rc1/apparmor-v5.0.1-rc1.tar.gz
+    source-checksum: sha256/b674d7507f9b1f0006654e574ffe425c96a26ac52ba320fec4661e789978809d
     override-build: |
       # For some reason, some snapcraft version remove the "build-aux" folder
       # and move the contents up when the data is uploaded; this conditional
@@ -189,7 +189,6 @@ parts:
       make -j"${CRAFT_PARALLEL_BUILD_COUNT}"
       mkdir -p "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
       cp -a apparmor.d/abi "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
-      cp -a "${LOCAL_APPARMOR_DIR}"/abi/* "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d/abi"
       cp -a apparmor.d/abstractions "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
       cp -a apparmor.d/tunables "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor.d"
     prime:
