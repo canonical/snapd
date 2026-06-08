@@ -28,9 +28,16 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 )
 
+// `snap routine file-access` is called whenever a snap uses the portal API to
+// open a path, so that the document portal knows whether the snap has direct
+// access to the file, or whether the portal needs to proxy access to it.
+//
+// Concretely, the command is called here:
+// https://github.com/flatpak/xdg-desktop-portal/blob/c6f217875485e28799a524b643c34474a289ba4f/document-portal/document-portal.c#L747-L788
 type cmdRoutineFileAccess struct {
 	clientMixin
 	FileAccessOptions struct {
@@ -105,7 +112,21 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 		}
 	}
 
-	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, path)
+	var promptingRunning bool
+	// Avoid checking prompting unless it is relevant, i.e. has an interface
+	// which is mediated by prompting.
+	if hasHome {
+		// XXX: should features.AppArmorPrompting.IsEnabled() be used instead of
+		// querying the API for /v2/system-info?
+		sysInfo, err := x.client.SysInfo()
+		if err != nil {
+			return err
+		}
+		promptingFeatureInfo, ok := sysInfo.Features[features.AppArmorPrompting.String()]
+		promptingRunning = ok && promptingFeatureInfo.Supported && promptingFeatureInfo.Enabled
+	}
+
+	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, promptingRunning, path)
 	if err != nil {
 		return err
 	}
@@ -113,11 +134,20 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 	return nil
 }
 
+// FileAccess corresponds to the XDG desktop portal's concept of file access
+// modes.
 type FileAccess string
 
 const (
-	FileAccessHidden    FileAccess = "hidden"
-	FileAccessReadOnly  FileAccess = "read-only"
+	// FileAccessHidden means that the XDG desktop portal needs to proxy access
+	// to the file.
+	FileAccessHidden FileAccess = "hidden"
+	// FileAccessReadOnly means that applications may read the file directly
+	// without the XDG desktop portal needing to proxy access to it.
+	FileAccessReadOnly FileAccess = "read-only"
+	// FileAccessReadWrite means that applications may read or write to the
+	// file directly without the XDG desktop portal needing to proxy access to
+	// it.
 	FileAccessReadWrite FileAccess = "read-write"
 )
 
@@ -143,7 +173,7 @@ func pathHasPrefix(path, prefix []string) bool {
 	return true
 }
 
-func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia bool, path string) (FileAccess, error) {
+func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, promptingRunning bool, path string) (FileAccess, error) {
 	// Classic confinement snaps run in the host system namespace,
 	// so can see everything.
 	if snap.Confinement == client.ClassicConfinement {
@@ -204,8 +234,10 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 		}
 		// If the home interface is connected, the snap has
 		// access to other files in home, except top-level dot
-		// files.
-		if hasHome {
+		// files. If prompting is running, then the file access
+		// should be proxied, so we don't get a prompt to use a
+		// file which has been chosen via a portal.
+		if hasHome && !promptingRunning {
 			if len(pathInHome) == 0 || !strings.HasPrefix(pathInHome[0], ".") {
 				return FileAccessReadWrite, nil
 			}
