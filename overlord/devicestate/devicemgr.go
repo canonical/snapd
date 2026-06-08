@@ -2782,10 +2782,40 @@ func (m *DeviceManager) systemAndGadgetAndEncryptionInfoWithAction(
 }
 
 type reprovisionSetupData struct {
+	recoveryKey  *keys.RecoveryKey
 	checkContext *secboot.PreinstallCheckContext
 }
 
 type reprovisionSetupDataKey struct {
+}
+
+func GenerateReprovisionRecoveryKey(st *state.State) (rkey keys.RecoveryKey, err error) {
+	_, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	rkey, err = fdestateGetRecoveryKey(st, keyID)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	var data *reprovisionSetupData
+	cached := st.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		data = &reprovisionSetupData{recoveryKey: &rkey}
+	} else {
+		var ok bool
+		data, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+		data.recoveryKey = &rkey
+	}
+
+	st.Cache(reprovisionSetupDataKey{}, data)
+
+	return rkey, err
 }
 
 func (m *DeviceManager) runningSystemAndGadgetAndEncryptionInfoWithAction(

@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -550,4 +551,104 @@ func (s *runningSystemInfoSuite) TestApplyActionOnRunningSystemAndGadgetAndEncry
 
 	c.Check(encInfo.Available, Equals, false)
 	c.Check(encInfo.UnavailableErr, ErrorMatches, `action failed`)
+}
+
+func (s *runningSystemInfoSuite) TestGenerateReprovisionRecoveryKeyHappy(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	rkeyVal := keys.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	defer devicestate.MockFdestateGenerateRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
+		return rkeyVal, "test-key-id", nil
+	})()
+
+	defer devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+		c.Check(keyID, Equals, "test-key-id")
+		return rkeyVal, nil
+	})()
+
+	rkey, err := devicestate.GenerateReprovisionRecoveryKey(st)
+	c.Assert(err, IsNil)
+	c.Check(rkey, DeepEquals, rkeyVal)
+
+	cached := st.Cached(devicestate.ReprovisionSetupDataKey{})
+	c.Assert(cached, NotNil)
+	data, ok := cached.(*devicestate.ReprovisionSetupDataType)
+	c.Assert(ok, Equals, true)
+
+	cachedKey := devicestate.GetCachedReprovisionRecoveryKey(data)
+	c.Assert(cachedKey, NotNil)
+	c.Check(*cachedKey, DeepEquals, rkeyVal)
+}
+
+func (s *runningSystemInfoSuite) TestGenerateReprovisionRecoveryKeyUpdatesCache(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	rkey1 := keys.RecoveryKey{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	defer devicestate.MockFdestateGenerateRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
+		return rkey1, "key-1", nil
+	})()
+
+	defer devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+		return rkey1, nil
+	})()
+
+	rkey, err := devicestate.GenerateReprovisionRecoveryKey(st)
+	c.Assert(err, IsNil)
+	c.Check(rkey, DeepEquals, rkey1)
+
+	// Call again with a different key to test the update path
+	rkey2 := keys.RecoveryKey{16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1}
+	defer devicestate.MockFdestateGenerateRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
+		return rkey2, "key-2", nil
+	})()
+
+	defer devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+		return rkey2, nil
+	})()
+
+	rkeyNew, err := devicestate.GenerateReprovisionRecoveryKey(st)
+	c.Assert(err, IsNil)
+	c.Assert(rkeyNew, DeepEquals, rkey2)
+
+	cached := st.Cached(devicestate.ReprovisionSetupDataKey{})
+	c.Assert(cached, NotNil)
+	data, ok := cached.(*devicestate.ReprovisionSetupDataType)
+	c.Assert(ok, Equals, true)
+	cachedKey := devicestate.GetCachedReprovisionRecoveryKey(data)
+	c.Assert(cachedKey, NotNil)
+	c.Check(*cachedKey, DeepEquals, rkey2)
+}
+
+func (s *runningSystemInfoSuite) TestGenerateReprovisionRecoveryKeyGenerationError(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	defer devicestate.MockFdestateGenerateRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
+		return keys.RecoveryKey{}, "", fmt.Errorf("generation failed")
+	})()
+
+	_, err := devicestate.GenerateReprovisionRecoveryKey(st)
+	c.Assert(err, ErrorMatches, `generation failed`)
+}
+
+func (s *runningSystemInfoSuite) TestGenerateReprovisionRecoveryKeyGetError(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	defer devicestate.MockFdestateGenerateRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
+		return keys.RecoveryKey{}, "valid-key-id", nil
+	})()
+
+	defer devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
+		return keys.RecoveryKey{}, fmt.Errorf("get failed")
+	})()
+
+	_, err := devicestate.GenerateReprovisionRecoveryKey(st)
+	c.Assert(err, ErrorMatches, `get failed`)
 }

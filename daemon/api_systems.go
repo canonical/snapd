@@ -54,7 +54,7 @@ var systemsCmd = &Command{
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
 	POST:        postSystemsAction,
-	Actions:     []string{"reboot", "create", "install", "fix-encryption-support"},
+	Actions:     []string{"reboot", "create", "install", "fix-encryption-support", "generate-recovery-key"},
 	WriteAccess: rootAccess{},
 }
 
@@ -210,12 +210,13 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 }
 
 var (
-	devicestateInstallFinish                 = devicestate.InstallFinish
-	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
-	devicestateInstallPreseed                = devicestate.InstallPreseed
-	devicestateCreateRecoverySystem          = devicestate.CreateRecoverySystem
-	devicestateRemoveRecoverySystem          = devicestate.RemoveRecoverySystem
-	devicestateGeneratePreInstallRecoveryKey = devicestate.GeneratePreInstallRecoveryKey
+	devicestateInstallFinish                  = devicestate.InstallFinish
+	devicestateInstallSetupStorageEncryption  = devicestate.InstallSetupStorageEncryption
+	devicestateInstallPreseed                 = devicestate.InstallPreseed
+	devicestateCreateRecoverySystem           = devicestate.CreateRecoverySystem
+	devicestateRemoveRecoverySystem           = devicestate.RemoveRecoverySystem
+	devicestateGeneratePreInstallRecoveryKey  = devicestate.GeneratePreInstallRecoveryKey
+	devicestateGenerateReprovisionRecoveryKey = devicestate.GenerateReprovisionRecoveryKey
 )
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -351,6 +352,12 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCheckPINQuality(c, systemLabel, &req)
 	case "fix-encryption-support":
 		return postSystemActionFixEncryptionSupport(c, systemLabel, &req)
+	case "generate-recovery-key":
+		if systemLabel != "" {
+			// SD201 says that generate-recovery-key should be an action for installation... but it is a step
+			return BadRequest("label should not be provided for generate-recovery-key action")
+		}
+		return postSystemActionGenerateRecoveryKey(c, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -840,4 +847,18 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 
 	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
 	return SyncResponse(*details)
+}
+
+func postSystemActionGenerateRecoveryKey(c *Command, req *systemActionRequest) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	rkey, err := devicestateGenerateReprovisionRecoveryKey(st)
+	if err != nil {
+		return BadRequest("cannot generate recovery key: %v", err)
+	}
+	return SyncResponse(map[string]string{
+		"recovery-key": rkey.String(),
+	})
 }
