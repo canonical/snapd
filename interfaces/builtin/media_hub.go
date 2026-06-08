@@ -25,7 +25,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -247,7 +246,7 @@ func init() {
 	registerIface(&mediaHubInterface{commonInterface{
 		name:			"media-hub",
 		summary:		mediaHubSummary,
-		implicitOnClassic:	release.OnTouch,
+		implicitOnClassic:	true,
 		baseDeclarationSlots:	mediaHubBaseDeclarationSlots,
 	}})
 }

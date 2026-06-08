@@ -36,8 +36,10 @@ const locationObserveBaseDeclarationSlots = `
       slot-snap-type:
         - app
         - core
-    deny-connection: true
-    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
+    deny-auto-connection:
+      on-classic: false
 `
 
 const locationObservePermanentSlotAppArmor = `

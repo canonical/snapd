@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -158,7 +157,7 @@ func init() {
 	registerIface(&mirInterface{commonInterface{
 		name:			"mir",
 		summary:		mirSummary,
-		implicitOnClassic:	release.OnTouch,
+		implicitOnClassic:	true,
 		baseDeclarationSlots:	mirBaseDeclarationSlots,
 	}})
 }

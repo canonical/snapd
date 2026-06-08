@@ -35,7 +35,9 @@ const onlineAccountsServiceBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-connection: true
+        - core
+    deny-connection:
+      on-classic: false
 `
 
 const onlineAccountsServicePermanentSlotAppArmor = `
@@ -120,22 +122,20 @@ bind
 listen
 `
 
-type onlineAccountsServiceInterface struct{}
+type onlineAccountsServiceInterface struct{
+	commonInterface
+}
 
 func (iface *onlineAccountsServiceInterface) Name() string {
 	return "online-accounts-service"
 }
 
-func (iface *onlineAccountsServiceInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              onlineAccountsServiceSummary,
-		BaseDeclarationSlots: onlineAccountsServiceBaseDeclarationSlots,
-	}
-}
-
 func (iface *onlineAccountsServiceInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
+	if implicitSystemConnectedSlot(slot) {
+		new = "unconfined"
+	}
 	spec.AddSnippet(strings.Replace(onlineAccountsServiceConnectedPlugAppArmor, old, new, -1))
 	return nil
 }
@@ -162,5 +162,10 @@ func (iface *onlineAccountsServiceInterface) AutoConnect(plug *snap.PlugInfo, sl
 }
 
 func init() {
-	registerIface(&onlineAccountsServiceInterface{})
+	registerIface(&onlineAccountsServiceInterface{commonInterface{
+		name:				"online-accounts-service",
+		summary:			onlineAccountsServiceSummary,
+		implicitOnClassic:		true,
+		baseDeclarationSlots:		onlineAccountsServiceBaseDeclarationSlots,
+	}})
 }
