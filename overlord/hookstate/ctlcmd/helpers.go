@@ -541,7 +541,7 @@ type managementCommand struct {
 	operation  managementCommandOp
 	components []string
 	async      bool
-	noWait	 bool
+	noWait     bool
 }
 
 func changeIDIfNotEphemeral(hctx *hookstate.Context) string {
