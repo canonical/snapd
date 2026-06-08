@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
@@ -753,4 +754,24 @@ func MockOsutilBootID(bootID string) (restore func()) {
 
 func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error, runPostInstallChecks bool) error) (restore func()) {
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
+}
+
+func MockSecbootPostinstallCheck(f func(ctx context.Context, bootChain []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+	old := secbootPostinstallCheck
+	secbootPostinstallCheck = f
+	return func() { secbootPostinstallCheck = old }
+}
+
+func MockFdestateGetRunBootChain(f func() ([]bootloader.BootFile, error)) (restore func()) {
+	old := fdestateGetRunBootChain
+	fdestateGetRunBootChain = f
+	return func() { fdestateGetRunBootChain = old }
+}
+
+func MockSecbootPreinstallCheckAction(f func(pcc *secboot.PreinstallCheckContext, ctx context.Context, action *secboot.PreinstallAction) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
+	old := secbootPreinstallCheckAction
+	secbootPreinstallCheckAction = f
+	return func() {
+		secbootPreinstallCheckAction = old
+	}
 }
