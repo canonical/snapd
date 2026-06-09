@@ -91,7 +91,7 @@ func backupMockables(mockablesByPtr []any) (backup []*reflect.Value) {
 	for i, ptr := range mockablesByPtr {
 		mockedPtr := reflect.ValueOf(ptr)
 
-		if mockedPtr.Type().Kind() != reflect.Ptr {
+		if mockedPtr.Type().Kind() != reflect.Pointer {
 			panic("Backup: each mockable must be passed by pointer!")
 		}
 

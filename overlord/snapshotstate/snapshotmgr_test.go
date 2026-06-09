@@ -39,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -279,6 +281,9 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 		buf := json.RawMessage(`{"hello": "there"}`)
 		return &buf, nil
 	})()
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &systemdtest.FakeSystemd{}
+	})()
 
 	expectedOptions := &snap.SnapshotOptions{}
 	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string,
@@ -319,6 +324,234 @@ func (snapshotSuite) TestDoSave(c *check.C) {
 	}
 }
 
+func (snapshotSuite) TestMapMountPointsInGlobalDataDirsToExcludes(c *check.C) {
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(3),
+		},
+	}
+	snapDataDir := snapInfo.DataDir()
+	snapCommonDir := snapInfo.CommonDataDir()
+
+	tests := []struct {
+		mountPoints []string
+		expected    []string
+	}{
+		{nil, nil},
+		{[]string{}, nil},
+		// Path under SNAP_DATA
+		{[]string{snapDataDir + "/mymount"}, []string{"$SNAP_DATA/mymount"}},
+		// Path under SNAP_COMMON
+		{[]string{snapCommonDir + "/media"}, []string{"$SNAP_COMMON/media"}},
+		// Mixed
+		{
+			[]string{snapDataDir + "/data", snapCommonDir + "/shared"},
+			[]string{"$SNAP_DATA/data", "$SNAP_COMMON/shared"},
+		},
+		// Absolute path outside snap dirs: skipped
+		{[]string{"/media/external"}, nil},
+		// Path equal to snapDataDir itself (no trailing subpath): skipped
+		{[]string{snapDataDir}, nil},
+		// Path equal to snapCommonDir itself (no trailing subpath): skipped
+		{[]string{snapCommonDir}, nil},
+		// Path equal to snapDataDir with trailing slash: skipped
+		{[]string{snapDataDir + "/"}, nil},
+		// Path equal to snapCommonDir with trailing slash: skipped
+		{[]string{snapCommonDir + "/"}, nil},
+	}
+
+	for _, t := range tests {
+		result := snapshotstate.MapMountPointsInGlobalDataDirsToExcludes(&snapInfo, t.mountPoints)
+		c.Check(result, check.DeepEquals, t.expected, check.Commentf("mountPoints: %v", t.mountPoints))
+	}
+}
+
+func (snapshotSuite) TestDoSaveMountControlExcludes(c *check.C) {
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(3),
+		},
+	}
+	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
+		c.Check(snapname, check.Equals, "a-snap")
+		return &snapInfo, nil
+	})()
+	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
+		return nil, nil
+	})()
+
+	snapDataDir := snapInfo.DataDir()
+	snapCommonDir := snapInfo.CommonDataDir()
+	var sysd systemdtest.FakeSystemd
+	sysd.ListMountUnitsResult.MountPoints = []string{snapDataDir + "/mymount", "/outside/snap/dirs", snapCommonDir + "/media"}
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &sysd
+	})()
+
+	var gotOptions *snap.SnapshotOptions
+	defer snapshotstate.MockBackendSave(func(_ context.Context, _ uint64, _ *snap.Info, _ map[string]any, _ []string,
+		opts *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		gotOptions = opts
+		return nil, nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	task := st.NewTask("save-snapshot", "...")
+	task.Set("snapshot-setup", map[string]any{
+		"set-id": 1,
+		"snap":   "a-snap",
+	})
+	st.Unlock()
+
+	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	c.Assert(err, check.IsNil)
+	c.Assert(gotOptions, check.NotNil)
+	c.Check(gotOptions.Exclude, check.DeepEquals, []string{"$SNAP_DATA/mymount", "$SNAP_COMMON/media"})
+	c.Check(sysd.ListMountUnitsCalls, check.DeepEquals, []systemdtest.ParamsForListMountUnits{{SnapName: "a-snap", Origin: "mount-control"}})
+}
+
+func (snapshotSuite) TestDoSaveMountControlExcludesPreservesSetupOptions(c *check.C) {
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(3),
+		},
+	}
+	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
+		c.Check(snapname, check.Equals, "a-snap")
+		return &snapInfo, nil
+	})()
+	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
+		return nil, nil
+	})()
+
+	snapCommonDir := snapInfo.CommonDataDir()
+	var sysd systemdtest.FakeSystemd
+	sysd.ListMountUnitsResult.MountPoints = []string{snapCommonDir + "/media"}
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &sysd
+	})()
+
+	var gotOptions *snap.SnapshotOptions
+	defer snapshotstate.MockBackendSave(func(_ context.Context, _ uint64, _ *snap.Info, _ map[string]any, _ []string,
+		opts *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		gotOptions = opts
+		return nil, nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	task := st.NewTask("save-snapshot", "...")
+	task.Set("snapshot-setup", map[string]any{
+		"set-id":  1,
+		"snap":    "a-snap",
+		"options": &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/logs"}},
+	})
+	st.Unlock()
+
+	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	c.Assert(err, check.IsNil)
+	c.Assert(gotOptions, check.NotNil)
+	// Both setup-specified and mount-control excludes are present
+	c.Check(gotOptions.Exclude, check.DeepEquals, []string{"$SNAP_DATA/logs", "$SNAP_COMMON/media"})
+}
+
+func (snapshotSuite) TestDoSaveMountControlExcludesListMountsError(c *check.C) {
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(3),
+		},
+	}
+	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
+		c.Check(snapname, check.Equals, "a-snap")
+		return &snapInfo, nil
+	})()
+	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
+		return nil, nil
+	})()
+	var sysd systemdtest.FakeSystemd
+	sysd.ListMountUnitsResult.Err = errors.New("mock ListMountUnits error")
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &sysd
+	})()
+
+	setupOptions := &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/logs"}}
+	var gotOptions *snap.SnapshotOptions
+	defer snapshotstate.MockBackendSave(func(_ context.Context, _ uint64, _ *snap.Info, _ map[string]any, _ []string,
+		opts *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		gotOptions = opts
+		return nil, nil
+	})()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	task := st.NewTask("save-snapshot", "...")
+	task.Set("snapshot-setup", map[string]any{
+		"set-id":  1,
+		"snap":    "a-snap",
+		"options": setupOptions,
+	})
+	st.Unlock()
+
+	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	c.Assert(err, check.IsNil)
+	// Original setup options passed through unchanged despite list error
+	c.Check(gotOptions, check.DeepEquals, setupOptions)
+	// Verify error was logged
+	c.Check(logbuf.String(), check.Matches, "(?s).*cannot exclude mount-control mount points.* mock ListMountUnits error.*")
+}
+
+func (snapshotSuite) TestDoSaveNoMountControlMounts(c *check.C) {
+	snapInfo := snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "a-snap",
+			Revision: snap.R(3),
+		},
+	}
+	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
+		c.Check(snapname, check.Equals, "a-snap")
+		return &snapInfo, nil
+	})()
+	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) {
+		return nil, nil
+	})()
+	var sysd systemdtest.FakeSystemd
+	sysd.ListMountUnitsResult.MountPoints = []string{}
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &sysd
+	})()
+
+	setupOptions := &snap.SnapshotOptions{Exclude: []string{"$SNAP_DATA/cache"}}
+	var gotOptions *snap.SnapshotOptions
+	defer snapshotstate.MockBackendSave(func(_ context.Context, _ uint64, _ *snap.Info, _ map[string]any, _ []string,
+		opts *snap.SnapshotOptions, _ *dirs.SnapDirOptions) (*client.Snapshot, error) {
+		gotOptions = opts
+		return nil, nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	task := st.NewTask("save-snapshot", "...")
+	task.Set("snapshot-setup", map[string]any{
+		"set-id":  1,
+		"snap":    "a-snap",
+		"options": setupOptions,
+	})
+	st.Unlock()
+
+	err := snapshotstate.DoSave(task, &tomb.Tomb{})
+	c.Assert(err, check.IsNil)
+	// Options unchanged when there are no mount-control mounts
+	c.Check(gotOptions, check.DeepEquals, setupOptions)
+}
+
 func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
 	restore := snapshotstate.MockGetSnapDirOptions(func(*state.State, string) (*dirs.SnapDirOptions, error) {
 		return &dirs.SnapDirOptions{HiddenSnapDataDir: true}, nil
@@ -335,6 +568,9 @@ func (snapshotSuite) TestDoSaveGetsSnapDirOpts(c *check.C) {
 	defer snapshotstate.MockSnapstateCurrentInfo(func(_ *state.State, snapname string) (*snap.Info, error) {
 		c.Check(snapname, check.Equals, "a-snap")
 		return &snapInfo, nil
+	})()
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &systemdtest.FakeSystemd{}
 	})()
 
 	var checkOpts bool
@@ -413,6 +649,9 @@ func (snapshotSuite) TestDoSaveFailsBackendError(c *check.C) {
 	}
 	defer snapshotstate.MockSnapstateCurrentInfo(func(*state.State, string) (*snap.Info, error) { return &snapInfo, nil })()
 	defer snapshotstate.MockConfigGetSnapConfig(func(*state.State, string) (*json.RawMessage, error) { return nil, nil })()
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &systemdtest.FakeSystemd{}
+	})()
 	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		return nil, errors.New("bzzt")
 	})()
@@ -505,6 +744,9 @@ func (snapshotSuite) TestDoSaveFailureRemovesStateEntry(c *check.C) {
 	})()
 	defer snapshotstate.MockConfigGetSnapConfig(func(_ *state.State, snapname string) (*json.RawMessage, error) {
 		return nil, nil
+	})()
+	defer systemd.MockNewSystemd(func(systemd.Backend, string, systemd.InstanceMode, systemd.Reporter) systemd.Systemd {
+		return &systemdtest.FakeSystemd{}
 	})()
 	defer snapshotstate.MockBackendSave(func(_ context.Context, id uint64, si *snap.Info, cfg map[string]any, usernames []string, _ *snap.SnapshotOptions, options *dirs.SnapDirOptions) (*client.Snapshot, error) {
 		var expirations map[uint64]any

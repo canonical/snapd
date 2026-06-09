@@ -1303,3 +1303,142 @@ func (s *storeTestSuite) TestSnapActionEndpointUnknownSnapAutoRefresh(c *C) {
 		},
 	})
 }
+
+func (s *storeTestSuite) TestDebugEndpointKillAfter(c *C) {
+	snapFn := s.makeTestSnap(c, "name: foo\nversion: 1")
+	snapInfo, err := os.Stat(snapFn)
+	c.Assert(err, IsNil)
+
+	downloadPath := "/download/foo_1_all.snap"
+	killAfter := int64(512)
+	c.Assert(snapInfo.Size() > killAfter, Equals, true,
+		Commentf("test snap must be larger than kill-after threshold"))
+
+	// Set a rule
+	resp, err := s.StorePostJSON("/debug", []byte(fmt.Sprintf(`{
+		"action": "kill-request",
+		"kill-path": "%s",
+		"kill-after": %d
+	}`, downloadPath, killAfter)))
+	c.Assert(err, IsNil)
+	resp.Body.Close()
+
+	resp, err = s.StoreGet("/debug")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var body debugResultJSON
+	c.Assert(json.NewDecoder(resp.Body).Decode(&body), IsNil)
+	c.Check(body.KillAfter, DeepEquals, map[string]int64{
+		downloadPath: killAfter,
+	})
+
+	// Download is interrupted, we get fewer bytes than the full snap
+	resp, err = s.StoreGet(downloadPath)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	got, _ := io.ReadAll(resp.Body)
+	// Connection forcefully closed mid-transfer, exactly killAfter bytes received
+	c.Check(int64(len(got)), Equals, killAfter)
+
+	// Retry the request, which should be killed after receiving 0 bytes because
+	// the killAfter effect is stateful.
+	resp, err = s.StoreGet(downloadPath)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	got, _ = io.ReadAll(resp.Body)
+	// Connection forcefully closed mid-transfer, exactly killAfter bytes received
+	c.Check(int64(len(got)), Equals, int64(0))
+
+	// Clear it by setting kill-after to 0
+	resp, err = s.StorePostJSON("/debug", []byte(fmt.Sprintf(`{
+		"action": "kill-request",
+		"kill-path": "%s",
+		"kill-after": 0
+	}`, downloadPath)))
+	c.Assert(err, IsNil)
+	resp.Body.Close()
+
+	resp, err = s.StoreGet("/debug")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	var bodyAfterClear debugResultJSON
+	c.Assert(json.NewDecoder(resp.Body).Decode(&bodyAfterClear), IsNil)
+	c.Check(bodyAfterClear.KillAfter, HasLen, 0)
+
+	// Download succeeds after clearing kill-after
+	resp, err = s.StoreGet(downloadPath)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	got, err = io.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(int64(len(got)), Equals, snapInfo.Size())
+}
+
+func (s *storeTestSuite) TestDebugEndpointUnknownAction(c *C) {
+	resp, err := s.StorePostJSON("/debug", []byte(`{
+		"action": "unknown-action"
+	}`))
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 400)
+	body, err := io.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, `unexpected debug action "unknown-action"`)
+}
+
+func (s *storeTestSuite) TestDebugEndpointMethodNotAllowed(c *C) {
+	req, err := http.NewRequest(http.MethodPut, s.store.URL()+"/debug", nil)
+	c.Assert(err, IsNil)
+	resp, err := s.client.Do(req)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 405)
+}
+
+func (s *storeTestSuite) TestDebugActionReset(c *C) {
+	// Set a rule for endpoint connection interrupt
+	resp, err := s.StorePostJSON("/debug", []byte(`{
+		"action": "kill-request",
+		"kill-path": "/foo/bar",
+		"kill-after": 123
+	}`))
+	c.Assert(err, IsNil)
+	resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, 200)
+
+	resp, err = s.StoreGet("/debug")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	var buf bytes.Buffer
+	c.Assert(resp.StatusCode, Equals, 200)
+	_, err = io.Copy(&buf, resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `{"kill-after":{"/foo/bar":123}}`)
+
+	// Clear it by setting kill-after to 0
+	resp, err = s.StorePostJSON("/debug", []byte(`{
+		"action": "reset"
+	}`))
+	c.Assert(err, IsNil)
+	resp.Body.Close()
+	c.Assert(resp.StatusCode, Equals, 200)
+
+	resp, err = s.StoreGet("/debug")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	buf.Reset()
+	_, err = io.Copy(&buf, resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(buf.String(), Equals, `{"kill-after":{}}`)
+}

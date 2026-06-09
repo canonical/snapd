@@ -200,6 +200,7 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 			updateObserver = observeTrustedBootAssets
 			defer observeTrustedBootAssets.Done()
 		}
+
 		// do not release the state lock, the update observer may
 		// attempt to modify modeenv inside, which implicitly is
 		// guarded by the state lock; on top of that we do not expect
@@ -207,6 +208,15 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		if err := gadgetUpdate(model, *currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver); err != nil {
 			return err
 		}
+
+		// After a gadget update, some recovery bootloaders may need to
+		// regenerate their config from the persisted boot variables.
+		if updated, err := boot.ReconfigureRecoveryBootConfig(groundDeviceCtx); err != nil {
+			return fmt.Errorf("cannot reconfigure recovery boot config: %v", err)
+		} else if updated {
+			t.Logf("reconfigured recovery boot config")
+		}
+
 		if updateObserver == nil {
 			return nil
 		}

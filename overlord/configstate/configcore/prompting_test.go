@@ -70,8 +70,6 @@ func (s *promptingSuite) SetUpTest(c *C) {
 	))
 	// mock the presence of the notification socket
 	os.MkdirAll(apparmor.NotifySocketPath, 0o755)
-	// mock the presence of permstable32_version with supported version
-	s.AddCleanup(apparmor.MockFsRootPath(dirs.GlobalRootDir))
 	os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "sys/kernel/security/apparmor/features/policy"), 0o755)
 	os.WriteFile(filepath.Join(dirs.GlobalRootDir, "sys/kernel/security/apparmor/features/policy/permstable32_version"), []byte("0x000002"), 0o644)
 
@@ -377,7 +375,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersNone(c
 	defer restore()
 
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature no interfaces requests handler services are installed")
+		"cannot enable prompting feature: no interfaces requests handler services are installed, consider installing the 'prompting-client' snap")
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersManyButNoHandlerApp(c *C) {
@@ -394,7 +392,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersManyBu
 	defer restore()
 
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature no interfaces requests handler services are installed")
+		"cannot enable prompting feature: no interfaces requests handler services are installed, consider installing the 'prompting-client' snap")
 }
 
 func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersDisconnected(c *C) {
@@ -423,7 +421,7 @@ func (s *promptingSuite) TestDoExperimentalApparmorPromptingChecksHandlersDiscon
 	s.state.Unlock()
 
 	s.testDoExperimentalApparmorPromptingUnsupported(c,
-		"cannot enable prompting feature no interfaces requests handler services are installed")
+		"cannot enable prompting feature: no interfaces requests handler services are installed, consider installing the 'prompting-client' snap")
 }
 
 type promptEnableWithServicesTestCase struct {

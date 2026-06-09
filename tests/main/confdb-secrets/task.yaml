@@ -1,0 +1,65 @@
+summary: Check access to confdb secrets
+
+details: |
+  Verify permissions of getting and setting both secret and non-secret data in confdb is correct.
+
+# the test snaps have a core24 base
+systems: [ -ubuntu-16.04 ]
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+  snap set system experimental.confdb=true
+  tests.cleanup defer snap unset system experimental.confdb
+  tests.session -u test prepare
+  tests.cleanup defer tests.session -u test restore
+
+execute: |
+  snap ack "$TESTSLIB/assertions/developer1-secrets.confdb"
+  "$TESTSTOOLS"/snaps-state install-local test-custodian-snap
+  snap connect test-custodian-snap:manage-wifi
+
+  # The expected permissions for get/set of secrets and non-secrets:
+  #
+  # |              |snap running|snap running|API snap|API not   |
+  # |              |as root     |as non-root |admin   |snap admin|
+  # |--------------|------------|------------|--------|----------|
+  # |get non-secret|      Y     |     Y      |   Y    |    N     | 
+  # |set non-secret|      Y     |     N      |   Y    |    N     |
+  # |get secret    |      Y     |     N      |   Y    |    N     | 
+  # |set secret    |      Y     |     N      |   Y    |    N     | 
+
+  # In a snap running as root, root can get and set non-secrets
+  snap run --shell test-custodian-snap.sh -c 'snapctl set --view :manage-wifi ssid=canonical'
+  snap run --shell test-custodian-snap.sh -c 'snapctl get --view :manage-wifi ssid' | MATCH "canonical"
+
+  # In a snap running as root, root can get and set secrets
+  snap run --shell test-custodian-snap.sh -c 'snapctl set --view :manage-wifi password=secret-password'
+  snap run --shell test-custodian-snap.sh -c 'snapctl get --view :manage-wifi password' | MATCH "secret-password"
+
+  # In a snap running as non-root, non-root can get non-secrets, but cannot set them
+  tests.session -u test exec snap run --shell test-custodian-snap.sh -c 'snapctl get --view :manage-wifi ssid' | MATCH "canonical"
+  tests.session -u test exec snap run --shell test-custodian-snap.sh -c 'snapctl set --view :manage-wifi ssid=ubuntu' 2>&1 | MATCH 'cannot use "set".*try with sudo'
+
+  # In a snap running as non-root, non-root can neither get nor set secrets
+  tests.session -u test exec snap run --shell test-custodian-snap.sh -c 'snapctl get --view :manage-wifi password' 2>&1 | MATCH 'cannot get "password" through developer1/network/wifi-setup: unauthorized access'
+  tests.session -u test exec snap run --shell test-custodian-snap.sh -c 'snapctl set --view :manage-wifi password=ubuntu' 2>&1 | MATCH 'cannot use "set".*try with sudo'
+
+  # API snap admin can both get and set non-secrets
+  snap set developer1/network/wifi-setup ssid=ubuntu
+  snap get developer1/network/wifi-setup ssid | MATCH "ubuntu"
+
+  # API snap admin can both get and set secrets
+  snap set developer1/network/wifi-setup password=secret
+  snap get developer1/network/wifi-setup password | MATCH "secret"
+
+  # a non-admin can neither get nor set non-secrets
+  tests.session -u test exec snap set developer1/network/wifi-setup ssid=ubuntu 2>&1 | MATCH 'access denied \(try with sudo\)'
+  tests.session -u test exec snap get developer1/network/wifi-setup ssid 2>&1 | MATCH 'access denied \(try with sudo\)'
+
+  # a non-admin can neither get nor set secrets
+  tests.session -u test exec snap set developer1/network/wifi-setup password=ubuntu 2>&1 | MATCH 'access denied \(try with sudo\)'
+  tests.session -u test exec snap get developer1/network/wifi-setup password 2>&1 | MATCH 'access denied \(try with sudo\)'

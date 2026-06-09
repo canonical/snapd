@@ -3,8 +3,9 @@
 
 name: Prepare the REST OpenAPI Specification
 on:
-  workflow_dispatch:
   pull_request:
+  push:
+    branches: [ master ]
 
 jobs:
   check-api:
@@ -16,18 +17,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 2
       - name: Check if changes occurred in the API documentation
         id: changed-api
-        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47.0.0
+        uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
         with:
           files: docs/api/**
 
   process-specification:
     needs: check-api
     if: |
-      github.event_name == 'workflow_dispatch' ||
-      needs.check-api.outputs.api_changed == 'true'
+      github.ref == 'refs/heads/master' || needs.check-api.outputs.api_changed == 'true'
     runs-on: ubuntu-latest
     name: Bundle REST API documentation
     
@@ -35,7 +35,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Check Licensing/Copyright Compliance
+      - name: Check licensing/copyright compliance
         uses: docker://fsfe/reuse
         with:
           entrypoint: /bin/sh
@@ -52,7 +52,7 @@ jobs:
           args: bundle ./docs/api/openapi.yaml --output ./docs/api/openapi.json --ext json
 
       - name: Store generated JSON artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: openapi-spec
           path: docs/api/openapi.json

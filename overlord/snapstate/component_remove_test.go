@@ -52,14 +52,21 @@ func verifyComponentRemoveTasks(c *C, opts int, ts *state.TaskSet) {
 }
 
 func (s *snapmgrTestSuite) TestRemoveComponent(c *C) {
-	s.testRemoveComponent(c, snapstate.RemoveComponentsOpts{})
+	const classicSnap = false
+	s.testRemoveComponent(c, snapstate.RemoveComponentsOpts{}, classicSnap)
 }
 
 func (s *snapmgrTestSuite) TestRemoveComponentRefreshProf(c *C) {
-	s.testRemoveComponent(c, snapstate.RemoveComponentsOpts{RefreshProfile: true})
+	const classicSnap = false
+	s.testRemoveComponent(c, snapstate.RemoveComponentsOpts{RefreshProfile: true}, classicSnap)
 }
 
-func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveComponentsOpts) {
+func (s *snapmgrTestSuite) TestRemoveComponentClassicSnap(c *C) {
+	const classicSnap = true
+	s.testRemoveComponent(c, snapstate.RemoveComponentsOpts{RefreshProfile: true}, classicSnap)
+}
+
+func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveComponentsOpts, classicSnap bool) {
 	const snapName = "mysnap"
 	const compName = "mycomp"
 	snapRev := snap.R(1)
@@ -68,7 +75,21 @@ func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveCompon
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	setStateWithOneComponent(s.state, snapName, snapRev, compName, compRev)
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
+	ssi := &snap.SideInfo{RealName: snapName, Revision: snapRev,
+		SnapID: "some-snap-id"}
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(ssi, []*sequence.ComponentState{
+					sequence.NewComponentState(csi, snap.StandardComponent),
+				})}),
+		Current: snapRev,
+		Flags: snapstate.Flags{
+			Classic: classicSnap,
+		},
+	})
 
 	tss, err := snapstate.RemoveComponents(s.state, snapName, []string{compName}, opts)
 	c.Assert(err, IsNil)
@@ -102,6 +123,13 @@ func (s *snapmgrTestSuite) testRemoveComponent(c *C, opts snapstate.RemoveCompon
 	}
 
 	c.Assert(s.state.TaskCount(), Equals, totalTasks)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(s.state.Task(snapsupID).Get("snap-setup", &snapsup), IsNil)
+
+	// ensure that we didn't drop persistent classic flag when installing the
+	// component
+	c.Assert(snapsup.Classic, Equals, classicSnap)
 }
 
 func (s *snapmgrTestSuite) TestRemoveComponents(c *C) {
@@ -426,7 +454,7 @@ func (s *snapmgrTestSuite) TestRemoveComponentUpdateNoConflict(c *C) {
 
 	// No conflict as this remove would be part of the change
 	tss, err := snapstate.RemoveComponents(s.state, snapName, []string{compName},
-		snapstate.RemoveComponentsOpts{FromChange: chg.ID()})
+		snapstate.RemoveComponentsOpts{ConflictOptions: snapstate.ConflictOptions{FromChange: chg.ID()}})
 
 	c.Assert(err, IsNil)
 	c.Assert(len(tss), Equals, 1)

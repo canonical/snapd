@@ -263,15 +263,23 @@ func MockProcessAutoImportAssertion(f func(*state.State, seed.Seed, asserts.RODa
 	}
 }
 
+func EnsureFDE(m *DeviceManager) error {
+	return m.ensureFDE()
+}
+
 func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
 
-func SetBootOkRan(m *DeviceManager, b bool) (restore func()) {
+func SetBootOkRanForCurrentBootID(m *DeviceManager, b bool) (restore func()) {
 	f := func(st *state.State, currentBootID string) (bool, error) {
 		return b, nil
 	}
 	return testutil.Mock(&bootOkRanForBootID, f)
+}
+
+func SetEnsureBootOkRan(m *DeviceManager, b bool) {
+	m.ensureBootOkRan = b
 }
 
 func SetBootRevisionsUpdated(m *DeviceManager, b bool) {
@@ -341,8 +349,9 @@ var (
 	CleanupRemodelCtx = cleanupRemodelCtx
 	CachedRemodelCtx  = cachedRemodelCtx
 
-	GadgetUpdateBlocked = gadgetUpdateBlocked
-	PendingGadgetInfo   = pendingGadgetData
+	GadgetUpdateBlocked         = gadgetUpdateBlocked
+	RemoveRecoverySystemBlocked = removeRecoverySystemBlocked
+	PendingGadgetInfo           = pendingGadgetData
 
 	CriticalTaskEdges = criticalTaskEdges
 
@@ -382,13 +391,13 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
+func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error) (restore func()) {
 	restore = testutil.Backup(&bootMakeRunnable)
 	bootMakeRunnable = f
 	return restore
 }
 
-func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
+func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error) (restore func()) {
 	restore = testutil.Backup(&bootMakeRunnableAfterDataReset)
 	bootMakeRunnableAfterDataReset = f
 	return restore
@@ -740,4 +749,8 @@ func MockSnapstateGadgetInfo(f func(st *state.State, deviceCtx snapstate.DeviceC
 
 func MockOsutilBootID(bootID string) (restore func()) {
 	return testutil.Mock(&osutilBootID, func() (string, error) { return bootID, nil })
+}
+
+func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error, runPostInstallChecks bool) error) (restore func()) {
+	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
 }

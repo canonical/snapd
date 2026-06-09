@@ -43,7 +43,7 @@ DIRTY=false
 # tracked by git. The script can be invoked when building distro packages in
 # which case, the source tree could be a tarball, but the distro packaging files
 # can be in git, so try not to confuse the two.
-if command -v git >/dev/null && [ -d "$(dirname "$0")/.git" ] ; then
+if command -v git >/dev/null && [ -e "$(dirname "$0")/.git" ] ; then
     # don't include --dirty here as we independently track whether the tree is
     # dirty and append that last, including it here will make dirty trees 
     # directly on top of tags show up with version_from_git as 2.46-dirty which
@@ -65,12 +65,7 @@ fi
 # switch to the real source dir for the changelog parsing
 : "${DPKG_PARSECHANGELOG=$(command -v dpkg-parsechangelog)}"
 if [ -n "$DPKG_PARSECHANGELOG" ]; then
-
-    changelog=debian/changelog
-    if [ ! -e "$changelog" ]; then
-        changelog=packaging/ubuntu-16.04/changelog
-    fi
-    version_from_changelog="$(cd "$PKG_BUILDDIR" && "$DPKG_PARSECHANGELOG" --file "$changelog" --show-field Version)"
+    version_from_changelog="$(cd "$PKG_BUILDDIR"; "$DPKG_PARSECHANGELOG" --file packaging/ubuntu-16.04/changelog --show-field Version)";
 fi
 
 # select version based on priority

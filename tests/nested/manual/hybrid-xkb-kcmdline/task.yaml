@@ -7,7 +7,7 @@ details: |
   This kernel cmdline argument would then be consumed by
   plymouth-set-keymap.service very early in boot to construct
   a temporary XKB configuration that can be consumed by plymouth
-  before disks are unlocked so the the correct keyboard layout
+  before disks are unlocked so the correct keyboard layout
   can be detected when entring a recovery-key, passphrase or PIN
   in a FDE system.
 

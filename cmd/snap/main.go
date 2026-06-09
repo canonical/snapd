@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -213,6 +214,28 @@ type clientMixin struct {
 
 func (ch *clientMixin) setClient(cli *client.Client) {
 	ch.client = cli
+}
+
+type formatMixin struct {
+	//lint:ignore SA5008 "choice" tag is intentionally duplicated
+	Format string `long:"format" default:"text" choice:"text" choice:"json"`
+}
+
+var formatArgsHelp = map[string]string{
+	"format": i18n.G("Output format"),
+}
+
+func (mx formatMixin) formatNonText(result any) error {
+	switch mx.Format {
+	case "json":
+		data, err := json.Marshal(result)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(Stdout, string(data))
+		return nil
+	}
+	panic(fmt.Sprintf("internal error: invalid format option %q", mx.Format))
 }
 
 func firstNonOptionIsRun() bool {
@@ -451,10 +474,7 @@ func main() {
 	loggerWithJournalMaybe()
 	snapdtool.ExecInSnapdOrCoreSnap()
 
-	if err := snapdtool.MaybeSetupFIPS(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v\n", err)
-		os.Exit(1)
-	}
+	snapdtool.MaybeCompleteFIPSSetup()
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f

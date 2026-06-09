@@ -1222,13 +1222,20 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 
 		minLen := int(math.Min(float64(len(xPath)), float64(len(yPath))))
 		for i := 0; i < minLen; i++ {
-			partAcc := xPath[i].Access()
-			otherPart := yPath[i].Access()
-			if partAcc == otherPart {
+			xAcc := xPath[i]
+			yAcc := yPath[i]
+			if xAcc.Access() == yAcc.Access() {
 				continue
 			}
 
-			return partAcc < otherPart
+			// sort placeholders before literals so the latter override the former
+			xPlaceholder := xAcc.Type() == KeyPlaceholderType || xAcc.Type() == IndexPlaceholderType
+			yPlaceholder := yAcc.Type() == KeyPlaceholderType || yAcc.Type() == IndexPlaceholderType
+			if xPlaceholder != yPlaceholder {
+				return xPlaceholder
+			}
+
+			return xAcc.Access() < yAcc.Access()
 		}
 
 		return len(xPath) < len(yPath)
@@ -1844,21 +1851,28 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
-func getVisibilitiesToPrune(userID int) []Visibility {
-	if userID == 0 {
+func getVisibilitiesToPrune(userAccess Access) []Visibility {
+	if userAccess == AdminAccess {
 		return nil
 	}
 	return []Visibility{SecretVisibility}
 }
 
+type Access int
+
+const (
+	AdminAccess Access = iota
+	UnprivilegedAccess
+)
+
 // Get returns the view value identified by the request after the constraints
-// have been applied to any matching filter in the storage path. The userID
+// have been applied to any matching filter in the storage path. The userAccess
 // determines whether data with restrictive visibility levels are returned.
 // If the request cannot be matched against any rule, it returns a NoMatchError,
 // and if no data is stored for the request, a NoDataError is returned. If data
 // would have been returned but was removed due to the visibility level, then a
 // UnauthorizedAccessError is returned.
-func (v *View) Get(databag Databag, request string, constraints map[string]any, userID int) (any, error) {
+func (v *View) Get(databag Databag, request string, constraints map[string]any, userAccess Access) (any, error) {
 	var accessors []Accessor
 	if request != "" {
 		var err error
@@ -1878,7 +1892,7 @@ func (v *View) Get(databag Databag, request string, constraints map[string]any, 
 		return nil, err
 	}
 
-	visibilities := getVisibilitiesToPrune(userID)
+	visibilities := getVisibilitiesToPrune(userAccess)
 	allUnauthorized := len(visibilities) > 0
 	var merged any
 	for _, match := range matches {
@@ -2151,6 +2165,7 @@ type requestMatch struct {
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NoMatchError is returned.
 func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, err error) {
+	requestToAccs := make(map[string][]Accessor)
 	for _, rule := range v.rules {
 		placeholders, unmatchedSuffix, ok := rule.match(accessors)
 		if !ok {
@@ -2160,13 +2175,18 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		if !rule.isReadable() {
 			continue
 		}
-
 		m := requestMatch{
 			storagePath:     rule.storagePath(placeholders),
 			unmatchedSuffix: unmatchedSuffix,
 			request:         rule.originalRequest,
 		}
 		matches = append(matches, m)
+
+		reqAccs := make([]Accessor, len(rule.request))
+		for i, acc := range rule.request {
+			reqAccs[i] = acc.(Accessor)
+		}
+		requestToAccs[rule.originalRequest] = reqAccs
 	}
 
 	if len(matches) == 0 {
@@ -2174,9 +2194,8 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		return nil, NewNoMatchError(v, "get", []string{request})
 	}
 
-	// sort matches by namespace (unmatched suffix) to ensure that nested matches
-	// are read after
-	getAccs := func(i int) []Accessor { return matches[i].unmatchedSuffix }
+	// sort matches by request to ensure that more specific and nested matches are read after
+	getAccs := func(i int) []Accessor { return requestToAccs[matches[i].request] }
 	sort.Slice(matches, byAccessor(getAccs))
 
 	return matches, nil

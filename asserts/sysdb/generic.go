@@ -149,7 +149,8 @@ func init() {
 	genericClassicModel = a.(*asserts.Model)
 }
 
-// Generic returns a copy of the current set of predefined assertions for the 'generic' authority as used by Open.
+// Generic returns a copy of the current set of predefined assertions for the
+// 'generic' authority as used by Open.
 func Generic() []asserts.Assertion {
 	generic := []asserts.Assertion(nil)
 	if !snapdenv.UseStagingStore() {
@@ -174,7 +175,8 @@ func InjectGeneric(extra []asserts.Assertion) (restore func()) {
 	}
 }
 
-// GenericClassicModel returns the model assertion for the "generic"'s "generic-classic" fallback model.
+// GenericClassicModel returns the model assertion for the "generic"'s
+// "generic-classic" fallback model.
 func GenericClassicModel() *asserts.Model {
 	if genericClassicModelOverride != nil {
 		return genericClassicModelOverride
@@ -186,7 +188,8 @@ func GenericClassicModel() *asserts.Model {
 	}
 }
 
-// MockGenericClassicModel mocks the predefined generic-classic model returned by GenericClassicModel.
+// MockGenericClassicModel mocks the predefined generic-classic model returned
+// by GenericClassicModel.
 func MockGenericClassicModel(mod *asserts.Model) (restore func()) {
 	prevOverride := genericClassicModelOverride
 	genericClassicModelOverride = mod

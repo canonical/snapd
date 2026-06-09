@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -297,11 +298,12 @@ type argsList struct {
 }
 
 func buildYamlArgsList(list []string) string {
-	yaml := "args:\n"
+	var yaml strings.Builder
+	yaml.WriteString("args:\n")
 	for _, arg := range list {
-		yaml += fmt.Sprintf("  - %s\n", arg)
+		yaml.WriteString(fmt.Sprintf("  - %s\n", arg))
 	}
-	return yaml
+	return yaml.String()
 }
 
 func (s *kcmdlineTestSuite) TestUnmarshalKernelArgument(c *C) {

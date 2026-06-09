@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -116,24 +117,14 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	route := c.d.router.Get(c.Path)
-	if route == nil {
-		return InternalError("cannot find route for %q snap", name)
-	}
-
-	url, err := route.URL("name", name)
-	if err != nil {
-		return InternalError("cannot build URL for %q snap: %v", name, err)
-	}
-
 	sd := servicestate.NewStatusDecorator(progress.Null)
 
-	result := webify(mapLocal(about, sd), url.String())
+	result := injectSnapIconURL(mapLocal(about, sd))
 
 	return SyncResponse(result)
 }
 
-func webify(result *client.Snap, resource string) *client.Snap {
+func injectSnapIconURL(result *client.Snap) *client.Snap {
 	if result.Icon == "" || strings.HasPrefix(result.Icon, "http") {
 		return result
 	}
@@ -177,11 +168,6 @@ func changeKind(action string) (string, bool) {
 }
 
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(stateChangeCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for change")
-	}
-
 	decoder := json.NewDecoder(r.Body)
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
@@ -847,11 +833,6 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(stateChangeCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for change")
-	}
-
 	decoder := json.NewDecoder(r.Body)
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
@@ -967,8 +948,9 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		revOpts = *inst.revnoOpts()
 	}
 
-	installedSnaps := make([]string, 0)
+	installedSnaps := make([]string, 0, len(inst.Snaps))
 	installedComponents := make(map[string][]string)
+	alreadyInstalledComponents := make(map[string][]string)
 
 	var (
 		tss   []*state.TaskSet
@@ -981,35 +963,61 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 		}
 
 		comps := inst.CompsForSnaps[name]
-		installedComponents[name] = append(installedComponents[name], comps...)
 
-		if snapst.IsInstalled() && len(comps) > 0 {
+		if !snapst.IsInstalled() {
+			installedSnaps = append(installedSnaps, name)
+			snaps = append(snaps, snapstate.StoreSnap{
+				InstanceName: name,
+				Components:   comps,
+				RevOpts:      revOpts,
+			})
+			if len(comps) > 0 {
+				installedComponents[name] = comps
+			}
+		} else if len(comps) > 0 {
 			info, err := snapst.CurrentInfo()
 			if err != nil {
 				return nil, nil, nil, err
 			}
 
-			ts, err := snapstateInstallComponents(ctx, st, comps, info, nil, opts)
-			if err != nil {
-				return nil, nil, nil, err
+			var compsToInstall []string
+			var alreadyInstalled []string
+			for _, comp := range comps {
+				if snapst.CurrentComponentSideInfo(naming.NewComponentRef(name, comp)) == nil {
+					compsToInstall = append(compsToInstall, comp)
+				} else {
+					alreadyInstalled = append(alreadyInstalled, comp)
+				}
 			}
 
-			tss = append(tss, ts...)
+			if len(alreadyInstalled) > 0 {
+				alreadyInstalledComponents[name] = alreadyInstalled
+			}
 
-			continue
+			if len(compsToInstall) > 0 {
+				installedComponents[name] = compsToInstall
+				ts, err := snapstateInstallComponents(ctx, st, compsToInstall, info, nil, opts)
+
+				if err != nil {
+					return nil, nil, nil, err
+				}
+
+				tss = append(tss, ts...)
+			}
 		}
-
-		installedSnaps = append(installedSnaps, name)
-		snaps = append(snaps, snapstate.StoreSnap{
-			InstanceName: name,
-			Components:   comps,
-			RevOpts:      revOpts,
-		})
 	}
 
 	// this means that we're installing a set of components for one snap that is
 	// already installed
 	if len(snaps) == 0 {
+		if len(tss) == 0 {
+			return nil, nil, nil, snap.NewAlreadyInstalledError(inst.Snaps, alreadyInstalledComponents)
+		}
+		// we don't need to construct the AlreadyInstalledError when at
+		// at least one of the snaps/components are not already installed
+		// since we want them to get installed. In that case,
+		// we will figure out which snaps/components were already installed
+		// by comparing the requested and changed snaps/components later.
 		return installedSnaps, installedComponents, tss, nil
 	}
 
@@ -1080,7 +1088,8 @@ func snapUpdateMany(ctx context.Context, inst *snapInstruction, st *state.State)
 
 	goal := snapstateStoreUpdateGoal(updates...)
 	updated, uts, err := snapstateUpdateWithGoal(ctx, st, goal, nil, snapstate.Options{
-		Flags: flags,
+		Flags:  flags,
+		UserID: inst.userID,
 	})
 	if err != nil {
 		if opts.IsRefreshOfAllSnaps {
@@ -1263,15 +1272,9 @@ func snapRemoveMany(_ context.Context, inst *snapInstruction, st *state.State) (
 
 // query many snaps
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-
 	if shouldSearchStore(r) {
 		logger.Noticef("Jumping to \"find\" to better support legacy request %q", r.URL)
 		return searchStore(c, r, user)
-	}
-
-	route := c.d.router.Get(snapCmd.Path)
-	if route == nil {
-		return InternalError("cannot find route for snaps")
 	}
 
 	query := r.URL.Query()
@@ -1310,13 +1313,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		name := x.info.InstanceName()
 		rev := x.info.Revision
 
-		url, err := route.URL("name", name)
-		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", name, rev, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapLocal(x, sd), url.String()))
+		data, err := json.Marshal(injectSnapIconURL(mapLocal(x, sd)))
 		if err != nil {
 			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}

@@ -144,7 +144,12 @@ func validateInfoAndFlags(info *snap.Info, snapst *SnapState, flags Flags) error
 	// check assumes
 	err := naming.ValidateAssumes(info.Assumes, snapdtool.Version, featureSet, arch.DpkgArchitecture())
 	if err != nil {
-		return fmt.Errorf("snap %q assumes %w (try to refresh snapd)", info.InstanceName(), err)
+		askToRefreshSnapd := " (try to refresh snapd)"
+		isaErr := &naming.ISAError{}
+		if errors.As(err, &isaErr) {
+			askToRefreshSnapd = ""
+		}
+		return fmt.Errorf("snap %q assumes %w%s", info.InstanceName(), err, askToRefreshSnapd)
 	}
 
 	// check and create system-usernames

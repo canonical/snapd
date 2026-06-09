@@ -52,6 +52,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/naming"
@@ -298,6 +299,8 @@ func delayedCrossMgrInit() {
 	snapstate.DeviceCtx = DeviceCtx
 	snapstate.RemodelingChange = RemodelingChange
 	snapstate.SeedRefreshTasks = SeedRefreshTasks
+	snapstate.UpdateSeedRefreshChange = UpdateSeedRefreshChange
+	snapstate.CheckSeedRefreshRemove = CheckSeedRefreshRemove
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -533,10 +536,10 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 
 		_, ts, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
-			DeviceCtx:     r.deviceCtx,
-			FromChange:    r.fromChange,
-			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true, Required: true, NoDelayedSideEffects: true},
+			DeviceCtx:       r.deviceCtx,
+			ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+			PrereqTracker:   r.tracker,
+			Flags:           snapstate.Flags{NoReRefresh: true, Required: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
@@ -619,10 +622,10 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 
 		ts, err := snapstateUpdateOne(ctx, st, goal, nil, snapstate.Options{
-			DeviceCtx:     r.deviceCtx,
-			FromChange:    r.fromChange,
-			PrereqTracker: r.tracker,
-			Flags:         snapstate.Flags{NoReRefresh: true, NoDelayedSideEffects: true},
+			DeviceCtx:       r.deviceCtx,
+			ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+			PrereqTracker:   r.tracker,
+			Flags:           snapstate.Flags{NoReRefresh: true, NoDelayedSideEffects: true},
 		})
 		if err != nil {
 			return 0, nil, err
@@ -915,9 +918,9 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 			}
 
 			ts, err := snapstateInstallComponentPath(st, lc.SideInfo, info, lc.Path, snapstate.Options{
-				DeviceCtx:     r.deviceCtx,
-				FromChange:    r.fromChange,
-				PrereqTracker: r.tracker,
+				DeviceCtx:       r.deviceCtx,
+				ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+				PrereqTracker:   r.tracker,
 			})
 			if err != nil {
 				return nil, err
@@ -931,9 +934,9 @@ func (r *remodeler) installComponents(ctx context.Context, st *state.State, info
 	}
 
 	return snapstateInstallComponents(ctx, st, components, info, r.vsets, snapstate.Options{
-		DeviceCtx:     r.deviceCtx,
-		FromChange:    r.fromChange,
-		PrereqTracker: r.tracker,
+		DeviceCtx:       r.deviceCtx,
+		ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
+		PrereqTracker:   r.tracker,
 	})
 }
 
@@ -986,7 +989,7 @@ func remodelEssentialSnapTasks(
 		if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
 			return snapstate.SwitchToNewGadget(st, name, fromChange)
 		}
-		return snapstate.LinkNewBaseOrKernel(st, name, fromChange)
+		return snapstate.LinkNewBaseOrKernel(st, name, fromChange, rm.deviceCtx)
 	}
 
 	// as a bit of a special case, we support adding the needed tasks that make
@@ -1000,7 +1003,7 @@ func remodelEssentialSnapTasks(
 		if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "gadget" {
 			return snapstate.AddGadgetAssetsTasks(st, tss[0])
 		}
-		return snapstate.AddLinkNewBaseOrKernel(st, tss[0])
+		return snapstate.AddLinkNewBaseOrKernel(st, tss[0], rm.deviceCtx)
 	}
 
 	switch action {
@@ -1753,34 +1756,60 @@ type removeRecoverySystemSetup struct {
 	Label string `json:"label"`
 }
 
-func removeRecoverySystemTasks(st *state.State, label string) (*state.TaskSet, error) {
+func removeRecoverySystemTask(st *state.State, label string) *state.Task {
 	remove := st.NewTask("remove-recovery-system", fmt.Sprintf("Remove recovery system with label %q", label))
 	remove.Set("remove-recovery-system-setup", &removeRecoverySystemSetup{
 		Label: label,
 	})
-
-	return state.NewTaskSet(remove), nil
+	return remove
 }
 
 // SeedRefreshTasks returns a [snapstate.SeedRefreshTaskSet] that carries the
-// tasks needed to refresh the seed managed by seed-refresh mode. The caller
-// must provide the tasks IDs that can be used by the seed creation tasks to
-// find the new snaps to include in the seed. Otherwise, already installed snaps
-// will be used to create the seed.
-func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) (*snapstate.SeedRefreshTaskSet, error) {
+// tasks needed to refresh the seed managed by seed-refresh mode, plus the snap
+// names selected for that seed refresh. The selected setup task IDs are written
+// into the recovery-system setup payload so the new seed can consume the
+// refreshed snaps and components. Older seed-refresh systems are removed
+// according to the selected seed eviction policy.
+func SeedRefreshTasks(
+	st *state.State,
+	dctx snapstate.DeviceContext,
+	candidates []snapstate.SeedRefreshCandidate,
+	eviction snapstate.SeedRefreshEvictionPolicy,
+) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	triggers := seedRefreshTriggers(st, dctx)
+
+	var snapsups, compsups []string
+	added := make(map[string]bool, len(candidates))
+	for _, candidate := range candidates {
+		ok, err := triggers(candidate.InstanceName)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !ok {
+			continue
+		}
+		added[candidate.InstanceName] = true
+
+		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
+		compsups = append(compsups, candidate.ComponentSetupTaskIDs...)
+	}
+	if len(added) == 0 {
+		return nil, nil, nil
+	}
+
 	labelBase := timeNow().Format("20060102")
 	label, err := pickRecoverySystemLabel(labelBase)
 	if err != nil {
-		return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
+		return nil, nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
 	}
 
-	ts, err := createRecoverySystemTasks(st, label, snapSetupTasks, compSetupTasks, CreateRecoverySystemOptions{
+	ts, err := createRecoverySystemTasks(st, label, snapsups, compsups, CreateRecoverySystemOptions{
 		TestSystem:  true,
 		MarkDefault: true,
 		SeedRefresh: true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var create, finalize *state.Task
@@ -1794,13 +1823,248 @@ func SeedRefreshTasks(st *state.State, snapSetupTasks, compSetupTasks []string) 
 	}
 
 	if create == nil || finalize == nil {
-		return nil, errors.New("internal error: expected create and finalize recovery system tasks")
+		return nil, nil, errors.New("internal error: expected create and finalize recovery system tasks")
+	}
+
+	removeLabels, err := seedRefreshLabelsToRemove(st, eviction)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	removals := make([]*state.Task, 0, len(removeLabels))
+	for _, l := range removeLabels {
+		remove := removeRecoverySystemTask(st, l)
+		remove.WaitFor(finalize)
+		removals = append(removals, remove)
 	}
 
 	return &snapstate.SeedRefreshTaskSet{
 		Create:   create,
 		Finalize: finalize,
+		Remove:   removals,
+	}, added, nil
+}
+
+// UpdateSeedRefreshChange adds a late candidate to an existing seed-refresh
+// change when the snap should participate in the refreshed seed. Returns nil if
+// snap isn't part of the seed refresh, otherwise returns the seed refresh task
+// set.
+func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, error) {
+	triggers := seedRefreshTriggers(chg.State(), dctx)
+
+	ok, err := triggers(candidate.InstanceName)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+
+	seedTS, err := findSeedRefreshTasks(chg)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := appendSeedRefreshCandidate(seedTS.Create, candidate.SnapSetupTaskIDs, candidate.ComponentSetupTaskIDs); err != nil {
+		return nil, err
+	}
+
+	return seedTS, nil
+}
+
+func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTasks []string) error {
+	setup, err := taskRecoverySystemSetup(create)
+	if err != nil {
+		return err
+	}
+
+	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTasks...)
+	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTasks...)
+
+	return setTaskRecoverySystemSetup(create, setup)
+}
+
+// CheckSeedRefreshRemove prevents removing optional snaps that are still
+// present in the current seed while seed-refresh is enabled.
+//
+// TODO:SEEDREFRESH: remove this once we support seed-refresh seeds
+// gaining/losing snaps
+func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
+	triggers := seedRefreshTriggers(st, dctx)
+	ok, err := triggers(si.SnapName())
+	if err != nil {
+		return err
+	}
+
+	if ok {
+		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
+	}
+	return nil
+}
+
+// seedRefreshTriggers returns a closure that reports whether the given snap
+// should trigger a seed refresh. The seed is lazily loaded, and only opened
+// when required.
+func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(string) (bool, error) {
+	required := make(map[string]bool)
+	optional := make(map[string]bool)
+	for _, sn := range dctx.Model().AllSnaps() {
+		if sn.Presence == "required" {
+			required[sn.SnapName()] = true
+		} else {
+			optional[sn.SnapName()] = true
+		}
+	}
+
+	// snapd should always be considered a part of the model. this is really a
+	// compatibility thing, and maybe should not be here since seed-refresh
+	// isn't gonna work on old models anyways.
+	required["snapd"] = true
+
+	var optionalInSeed map[string]bool
+
+	return func(instanceName string) (bool, error) {
+		if required[instanceName] {
+			return true, nil
+		}
+
+		if !optional[instanceName] {
+			return false, nil
+		}
+
+		if optionalInSeed == nil {
+			currentSystem, err := currentSeededSystem(st)
+			if err != nil {
+				return false, err
+			}
+
+			current, err := seedOpen(dirs.SnapSeedDir, currentSystem.System)
+			if err != nil {
+				return false, err
+			}
+			if err := current.LoadAssertions(nil, nil); err != nil {
+				return false, err
+			}
+
+			copier, ok := current.(seed.Copier)
+			if !ok {
+				// this would only happen if the seed is pre-core20
+				return false, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
+			}
+
+			oc, err := copier.OptionalContainers()
+			if err != nil {
+				return false, err
+			}
+
+			optionalInSeed = make(map[string]bool, len(oc.Snaps))
+			for _, sn := range oc.Snaps {
+				optionalInSeed[sn] = true
+			}
+		}
+
+		return optionalInSeed[instanceName], nil
+	}
+}
+
+func findSeedRefreshTasks(chg *state.Change) (*snapstate.SeedRefreshTaskSet, error) {
+	var finalize *state.Task
+	var removals []*state.Task
+	for _, t := range chg.Tasks() {
+		switch t.Kind() {
+		case "finalize-recovery-system":
+			if t.Status().Ready() {
+				continue
+			}
+			if finalize != nil {
+				return nil, errors.New("internal error: found multiple pending seed finalization tasks in change")
+			}
+			finalize = t
+		case "remove-recovery-system":
+			if !t.Status().Ready() {
+				removals = append(removals, t)
+			}
+		}
+	}
+
+	if finalize == nil {
+		return nil, errors.New("internal error: seed-refresh change is missing pending finalize-recovery-system task")
+	}
+
+	var createID string
+	if err := finalize.Get("recovery-system-setup-task", &createID); err != nil {
+		return nil, err
+	}
+
+	create := chg.State().Task(createID)
+	if create == nil || create.Change().ID() != chg.ID() || create.Kind() != "create-recovery-system" {
+		return nil, errors.New("internal error: seed-refresh change is missing paired create-recovery-system task")
+	}
+
+	return &snapstate.SeedRefreshTaskSet{
+		Create:   create,
+		Finalize: finalize,
+		Remove:   removals,
 	}, nil
+}
+
+func appendUnique(slice []string, additions ...string) []string {
+	seen := make(map[string]bool, len(slice))
+	for _, id := range slice {
+		seen[id] = true
+	}
+
+	for _, id := range additions {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		slice = append(slice, id)
+		seen[id] = true
+	}
+
+	return slice
+}
+
+// seedRefreshLabelsToRemove returns the existing seed-refresh systems that
+// should be removed after the next seed-refresh finalize-recovery-system task
+// runs.
+func seedRefreshLabelsToRemove(st *state.State, eviction snapstate.SeedRefreshEvictionPolicy) ([]string, error) {
+	if eviction.SeedsToRetain < 1 {
+		return nil, fmt.Errorf("internal error: must retain at least 1 seed, got %d", eviction.SeedsToRetain)
+	}
+
+	var systems []seededSystem
+	if err := st.Get("seeded-systems", &systems); err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	seedRefreshLabels := make([]string, 0, len(systems))
+	for _, system := range systems {
+		if system.SeedRefresh {
+			seedRefreshLabels = append(seedRefreshLabels, system.System)
+		}
+	}
+
+	removals := make([]string, 0, len(systems))
+	remaining := seedRefreshLabels
+
+	// seeded-systems is stored newest-first. ReplaceLatest is the explicit
+	// exception to keeping newest seed-refresh systems first.
+	if eviction.ReplaceLatest && len(remaining) != 0 {
+		removals = append(removals, remaining[0])
+		remaining = remaining[1:]
+	}
+
+	for len(remaining) > eviction.SeedsToRetain {
+		oldest := remaining[len(remaining)-1]
+		removals = append(removals, oldest)
+		remaining = remaining[:len(remaining)-1]
+	}
+
+	return removals, nil
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, compSetupTasks []string, opts CreateRecoverySystemOptions) (*state.TaskSet, error) {
@@ -1920,12 +2184,8 @@ func RemoveRecoverySystem(st *state.State, label string) (*state.Change, error) 
 
 	chg := st.NewChange(removeRecoverySystemChangeKind, fmt.Sprintf("Remove recovery system with label %q", label))
 
-	removeTS, err := removeRecoverySystemTasks(st, label)
-	if err != nil {
-		return nil, err
-	}
-
-	chg.AddAll(removeTS)
+	remove := removeRecoverySystemTask(st, label)
+	chg.AddTask(remove)
 
 	return chg, nil
 }

@@ -28,6 +28,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -48,11 +49,17 @@ var (
 	snapstateRemoveComponents  = snapstate.RemoveComponents
 )
 
+var timeAfter = time.After
+
 var (
 	serviceControlChangeKind = swfeats.RegisterChangeKind("service-control")
 	snapctlInstallChangeKind = swfeats.RegisterChangeKind("snapctl-install")
 	snapctlRemoveChangeKind  = swfeats.RegisterChangeKind("snapctl-remove")
 )
+
+func changeNotFoundError(changeID string) error {
+	return fmt.Errorf("change %q not found", changeID)
+}
 
 func init() {
 	finalTasks = make(map[string]bool, len(snapstate.FinalTasks))
@@ -61,11 +68,167 @@ func init() {
 	}
 }
 
+const snapctlDebounceWindow = 100 * time.Millisecond
+
 // finalSeedTask is the last task that should run during seeding. This is used
 // in the special handling of the "seed" change, which requires that we
 // introspect the change for this specific task. Finding this task allows us to
 // properly organize the hook tasks in the chain of tasks in the change.
 const finalSeedTask = "mark-seeded"
+
+// ChangeInfo represents the information about a change that is needed for JSON marshaling.
+type ChangeInfo struct {
+	ID      string     `json:"id"`
+	Kind    string     `json:"kind"`
+	Summary string     `json:"summary"`
+	Status  string     `json:"status"`
+	Tasks   []TaskInfo `json:"tasks,omitempty"`
+	Ready   bool       `json:"ready"`
+	Err     string     `json:"err,omitempty"`
+
+	SpawnTime time.Time  `json:"spawn-time,omitzero"`
+	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	Data map[string]*json.RawMessage `json:"data,omitempty"`
+}
+
+// TaskInfo represents the information about a task that is needed for JSON marshaling
+// for `snap tasks` output.
+type TaskInfo struct {
+	ID       string              `json:"id"`
+	Kind     string              `json:"kind"`
+	Summary  string              `json:"summary"`
+	Status   string              `json:"status"`
+	Log      []string            `json:"log,omitempty"`
+	Progress client.TaskProgress `json:"progress"`
+
+	SpawnTime time.Time  `json:"spawn-time,omitzero"`
+	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	Data map[string]*json.RawMessage `json:"data,omitempty"`
+}
+
+// StateChangeToChangeInfo converts a state.Change to a ChangeInfo struct which has all
+// the exported fields needed for JSON marshaling for `snap tasks` output. It also extracts
+// the "api-data" from the change and includes it in the ChangeInfo.Data field.
+func StateChangeToChangeInfo(chg *state.Change) *ChangeInfo {
+	status := chg.Status()
+	chgInfo := &ChangeInfo{
+		ID:      chg.ID(),
+		Kind:    chg.Kind(),
+		Summary: chg.Summary(),
+		Status:  status.String(),
+		Ready:   status.Ready(),
+
+		SpawnTime: chg.SpawnTime(),
+	}
+	readyTime := chg.ReadyTime()
+	if !readyTime.IsZero() {
+		chgInfo.ReadyTime = &readyTime
+	}
+	if err := chg.Err(); err != nil {
+		chgInfo.Err = err.Error()
+	}
+
+	tasks := chg.Tasks()
+	taskInfos := make([]TaskInfo, len(tasks))
+	for j, t := range tasks {
+		label, done, total := t.Progress()
+
+		taskInfo := TaskInfo{
+			ID:      t.ID(),
+			Kind:    t.Kind(),
+			Summary: t.Summary(),
+			Status:  t.Status().String(),
+			Log:     t.Log(),
+			Progress: client.TaskProgress{
+				Label: label,
+				Done:  done,
+				Total: total,
+			},
+			SpawnTime: t.SpawnTime(),
+		}
+		readyTime := t.ReadyTime()
+		if !readyTime.IsZero() {
+			taskInfo.ReadyTime = &readyTime
+		}
+		if data, err := taskApiData(t); err == nil {
+			taskInfo.Data = data
+		}
+		taskInfos[j] = taskInfo
+	}
+	chgInfo.Tasks = taskInfos
+
+	var data map[string]*json.RawMessage
+	if chg.Get("api-data", &data) == nil {
+		chgInfo.Data = data
+	}
+
+	return chgInfo
+}
+
+// changeInfoToClientChange converts a ChangeInfo struct to a client.Change struct
+// which is used for JSON marshaling. This function discards the data tagged to the change.
+func changeInfoToClientChange(chgInfo *ChangeInfo) *client.Change {
+	derefTimePtr := func(t *time.Time) time.Time {
+		if t == nil {
+			return time.Time{}
+		}
+		return *t
+	}
+
+	chg := client.Change{
+		ID:        chgInfo.ID,
+		Kind:      chgInfo.Kind,
+		Summary:   chgInfo.Summary,
+		Status:    chgInfo.Status,
+		Ready:     chgInfo.Ready,
+		Tasks:     make([]*client.Task, len(chgInfo.Tasks)),
+		SpawnTime: chgInfo.SpawnTime,
+		ReadyTime: derefTimePtr(chgInfo.ReadyTime),
+		Err:       chgInfo.Err,
+	}
+
+	for i, t := range chgInfo.Tasks {
+		chg.Tasks[i] = &client.Task{
+			ID:        t.ID,
+			Kind:      t.Kind,
+			Summary:   t.Summary,
+			Status:    t.Status,
+			Log:       t.Log,
+			Progress:  t.Progress,
+			SpawnTime: t.SpawnTime,
+			ReadyTime: derefTimePtr(t.ReadyTime),
+		}
+	}
+
+	return &chg
+}
+
+// taskApiData returns a map similar to change data which is currently
+// only filled with affected snap names.
+// Example: {"snap-names": ["snap-1", "snap-2"]}
+//
+// Note: This helper could be extended if needed to allow per-task custom
+// data similar to change "api-data".
+func taskApiData(t *state.Task) (map[string]*json.RawMessage, error) {
+	affectedSnaps, err := snapstate.SnapsAffectedByTask(t)
+	if err != nil {
+		return nil, err
+	}
+	if len(affectedSnaps) == 0 {
+		return nil, nil
+	}
+	raw, err := json.Marshal(affectedSnaps)
+	if err != nil {
+		return nil, err
+	}
+	var affected json.RawMessage = raw
+	data := map[string]*json.RawMessage{
+		"affected-snaps": &affected,
+	}
+	return data, nil
+}
 
 func currentSnapInfo(st *state.State, snapInstance string) (*snap.Info, error) {
 	var snapst snapstate.SnapState
@@ -377,6 +540,7 @@ const (
 type managementCommand struct {
 	operation  managementCommandOp
 	components []string
+	async      bool
 }
 
 func changeIDIfNotEphemeral(hctx *hookstate.Context) string {
@@ -386,7 +550,7 @@ func changeIDIfNotEphemeral(hctx *hookstate.Context) string {
 	return ""
 }
 
-func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (tss []*state.TaskSet, err error) {
+func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (affectedComponents []string, tss []*state.TaskSet, err error) {
 	st := hctx.State()
 	st.Lock()
 	defer st.Unlock()
@@ -395,15 +559,45 @@ func createSnapctlInstallTasks(hctx *hookstate.Context, cmd managementCommand) (
 	// by the current change
 	vsets, err := hctx.PendingValidationSets()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	info, err := currentSnapInfo(st, hctx.InstanceName())
-	if err != nil {
-		return nil, err
+	instanceName := hctx.InstanceName()
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, instanceName, &snapst); err != nil {
+		return nil, nil, err
 	}
-	return snapstateInstallComponents(context.TODO(), st, cmd.components, info, vsets,
-		snapstate.Options{ExpectOneSnap: true, FromChange: changeIDIfNotEphemeral(hctx)})
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	snapName := snap.InstanceSnap(instanceName)
+	if vsets != nil {
+		// When validation sets are provided, we install all components
+		// regardless of their current installation state. thus, all components
+		// will be affected.
+		affectedComponents = cmd.components
+	} else {
+		for _, comp := range cmd.components {
+			if snapst.CurrentComponentSideInfo(naming.NewComponentRef(snapName, comp)) == nil {
+				affectedComponents = append(affectedComponents, comp)
+			}
+		}
+	}
+
+	if len(affectedComponents) == 0 {
+		return nil, nil, snap.NewAlreadyInstalledComponentsError(instanceName, cmd.components)
+	}
+
+	tss, err = snapstateInstallComponents(context.TODO(), st, affectedComponents, info, vsets,
+		snapstate.Options{ExpectOneSnap: true, ConflictOptions: snapstate.ConflictOptions{FromChange: changeIDIfNotEphemeral(hctx)}})
+
+	if err != nil {
+		return nil, nil, err
+	}
+	return affectedComponents, tss, nil
 }
 
 func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (tss []*state.TaskSet, err error) {
@@ -413,19 +607,23 @@ func createSnapctlRemoveTasks(hctx *hookstate.Context, cmd managementCommand) (t
 
 	return snapstateRemoveComponents(st, hctx.InstanceName(), cmd.components,
 		snapstate.RemoveComponentsOpts{RefreshProfile: true,
-			FromChange: changeIDIfNotEphemeral(hctx)})
+			ConflictOptions: snapstate.ConflictOptions{FromChange: changeIDIfNotEphemeral(hctx)}})
 }
 
-func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) error {
-	st := hctx.State()
+func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) (id string, affectedComponents []string, err error) {
 	var tss []*state.TaskSet
-	var err error
 	var cmdStr, cmdVerb string
-
 	var changeKind string
+
+	// If the context is non-ephemeral, we don't support async because we are just queuing a change in the first place.
+	// In the future this could be made non-queuing, but for now we just return the error.
+	if cmd.async && !hctx.IsEphemeral() {
+		return "", nil, fmt.Errorf("internal error: cannot run snap management command asynchronously from a non-ephemeral context")
+	}
+
 	switch cmd.operation {
 	case installManagementCommand:
-		tss, err = createSnapctlInstallTasks(hctx, cmd)
+		affectedComponents, tss, err = createSnapctlInstallTasks(hctx, cmd)
 		cmdStr = "install"
 		cmdVerb = "Installing"
 		changeKind = snapctlInstallChangeKind
@@ -438,32 +636,44 @@ func runSnapManagementCommand(hctx *hookstate.Context, cmd managementCommand) er
 		err = fmt.Errorf("internal error: %q is not a valid snap management command", cmd.operation)
 	}
 	if err != nil {
-		return err
+		return "", nil, err
 	}
 
 	if !hctx.IsEphemeral() {
 		// Differently to service control commands, we always queue the
 		// management tasks if run from a hook.
-		return queueCommand(hctx, tss)
+		if err := queueCommand(hctx, tss); err != nil {
+			return "", nil, err
+		}
+		return "", affectedComponents, nil
 	}
 
+	st := hctx.State()
 	st.Lock()
 	chg := st.NewChange(changeKind,
 		fmt.Sprintf("%s components %v for snap %s",
 			cmdVerb, cmd.components, hctx.InstanceName()))
+	chg.Set("initiated-by-snap", hctx.InstanceName())
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
 	st.EnsureBefore(0)
 	st.Unlock()
 
+	if cmd.async {
+		return chg.ID(), affectedComponents, nil
+	}
+
 	select {
 	case <-chg.Ready():
 		st.Lock()
 		defer st.Unlock()
-		return chg.Err()
+		if err := chg.Err(); err != nil {
+			return "", nil, err
+		}
+		return "", affectedComponents, nil
 	case <-time.After(10 * time.Minute):
-		return fmt.Errorf("snapctl %s command is taking too long", cmdStr)
+		return "", nil, fmt.Errorf("snapctl %s command is taking too long", cmdStr)
 	}
 }
 
@@ -489,6 +699,175 @@ func jsonRaw(v any) *json.RawMessage {
 	}
 	raw := json.RawMessage(data)
 	return &raw
+}
+
+type changeRateLimitKey struct {
+	ChangeID string
+}
+
+// isReady checks if the change is ready, if it is, it returns the status, otherwise state.DoingStatus.
+func isReady(hctx *hookstate.Context, changeID string) (state.Status, error) {
+	callerSnapName := hctx.InstanceName()
+
+	st := hctx.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.Change(changeID)
+
+	if chg == nil {
+		return state.DefaultStatus, changeNotFoundError(changeID)
+	}
+
+	var initiatorSnapName string
+	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	if err != nil {
+		return state.DefaultStatus, changeNotFoundError(changeID)
+	}
+
+	if initiatorSnapName != callerSnapName {
+		return state.DefaultStatus, changeNotFoundError(changeID)
+	}
+
+	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
+	if err != nil {
+		return state.DefaultStatus, err
+	}
+
+	return unlockAndWaitForStatus(st, chg, wait), nil
+}
+
+// unlockAndWaitForStatus unlocks the state and waits for the change to be ready.
+// The lock must be held prior to calling, and will be re-acquired before returning.
+// Returns doingStatus if the change is still in progress, otherwise returns the final
+// status of the change.
+func unlockAndWaitForStatus(st *state.State, chg *state.Change, wait time.Duration) state.Status {
+	st.Unlock()
+	// note: we cannot defer the re-lock, since we must re-lock prior to
+	// calculating the return value in some branches.
+
+	ready := chg.Ready()
+
+	// The check ensures that both select cases aren't true immediately.
+	if wait <= 0 {
+		select {
+		// use default so the channel is prioritized.
+		case <-ready:
+			st.Lock()
+			return chg.Status()
+		default:
+			st.Lock()
+			return state.DoingStatus
+		}
+	}
+
+	// Because the wait could've been > 0, the last select between a closed ready channel
+	// and a timer.After channel would've be racy.
+	select {
+	case <-ready:
+	case <-timeAfter(wait):
+		st.Lock()
+		return state.DoingStatus
+	}
+
+	st.Lock()
+	return chg.Status()
+}
+
+// rateLimit returns the amount of time that should be waited before accessing
+// this change via snapctl. Internally, data associated with the change is
+// cached so that all access to the change shares the same rate limit.
+// The lock must be acquired before calling, as it modifies the state object.
+func rateLimit(st *state.State, changeID string, rate time.Duration) (wait time.Duration, err error) {
+	now := time.Now()
+
+	accessed, err := changeAccessedAt(st, changeID)
+	if err != nil {
+		return 0, err
+	}
+
+	// first time through, we just set the change access to now. next request
+	// must wait at least "rate" duration before access.
+	if accessed.IsZero() {
+		setChangeAccessedAt(st, now, changeID)
+		return 0, nil
+	}
+
+	durationSinceLastAccess := now.Sub(accessed)
+
+	// user waited on their own, no waiting needed. next access will require
+	// waiting at least "rate" duration.
+	if durationSinceLastAccess >= rate {
+		setChangeAccessedAt(st, now, changeID)
+		return 0, nil
+	}
+
+	// user needs to wait a bit still. note that durationSinceLastAccess might
+	// be negative, since "accessed" could be in the future. this can happen
+	// when there are multiple requests in parallel, within a duration less than
+	// "rate".
+	wait = rate - durationSinceLastAccess
+
+	// current request must wait. next request must wait this amount of time,
+	// plus at least "rate" duration.
+	setChangeAccessedAt(st, now.Add(wait), changeID)
+
+	return wait, nil
+}
+
+func changeAccessedAt(st *state.State, changeID string) (time.Time, error) {
+	key := changeRateLimitKey{ChangeID: changeID}
+	accessedAt := st.Cached(key)
+	if accessedAt == nil {
+		return time.Time{}, nil
+	}
+
+	accessedNano, ok := accessedAt.(int64)
+	if !ok {
+		return time.Time{}, fmt.Errorf("error: invalid type (%T) for access time", accessedAt)
+	}
+
+	return time.Unix(0, accessedNano), nil
+}
+
+func setChangeAccessedAt(st *state.State, accessed time.Time, changeID string) {
+	key := changeRateLimitKey{ChangeID: changeID}
+	st.Cache(key, accessed.UnixNano())
+}
+
+// getAssociatedChange returns a change associated with the snapctl context and passed change ID,
+// otherwise nil with error. This function expects the lock to be held by the caller during operation.
+func getAssociatedChange(hctx *hookstate.Context, changeID string) (*state.Change, error) {
+	callerSnapName := hctx.InstanceName()
+
+	st := hctx.State()
+
+	chg := st.Change(changeID)
+
+	if chg == nil {
+		return nil, changeNotFoundError(changeID)
+	}
+
+	var initiatorSnapName string
+	err := chg.Get("initiated-by-snap", &initiatorSnapName)
+	if err != nil {
+		return nil, changeNotFoundError(changeID)
+	}
+
+	if initiatorSnapName != callerSnapName {
+		return nil, changeNotFoundError(changeID)
+	}
+
+	wait, err := rateLimit(st, changeID, snapctlDebounceWindow)
+	if err != nil {
+		return nil, err
+	}
+
+	st.Unlock()
+	<-timeAfter(wait)
+	st.Lock()
+
+	return chg, nil
 }
 
 // getAttribute unmarshals into result the value of the provided key from attributes map.

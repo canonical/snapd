@@ -2125,6 +2125,59 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 }
 
+func (s *linkSnapSuite) TestDoLinkSnapSequenceHadCandidateRetainsComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si1 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(2),
+	}
+
+	compSI := &snap.ComponentSideInfo{
+		Component: naming.NewComponentRef("foo", "comp"),
+		Revision:  snap.R(11),
+	}
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos([]*sequence.RevisionSideState{
+			sequence.NewRevisionSideState(si1, []*sequence.ComponentState{
+				sequence.NewComponentState(compSI, snap.StandardComponent),
+			}),
+			sequence.NewRevisionSideState(si2, nil),
+		}),
+		Current: si2.Revision,
+	})
+
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si1,
+		Channel:  "beta",
+	})
+	s.state.NewChange("sample", "...").AddTask(t)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	comps := snapst.Sequence.ComponentsForRevision(si1.Revision)
+	c.Assert(comps, HasLen, 1)
+	c.Check(comps[0].SideInfo.Component, Equals, compSI.Component)
+	c.Check(comps[0].SideInfo.Revision, Equals, compSI.Revision)
+	c.Check(comps[0].CompType, Equals, snap.StandardComponent)
+
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
 func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -3128,6 +3181,48 @@ func (s *linkSnapSuite) TestDoKillSnapApps(c *C) {
 func (s *linkSnapSuite) TestDoKillSnapAppsWithServices(c *C) {
 	const svc = true
 	s.testDoKillSnapApps(c, svc)
+}
+
+func (s *linkSnapSuite) TestDoKillSnapAppsErrorsIfHintNotUpdatedBasedOnReason(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{si}),
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	restore := snapstate.MockSnapReadInfo(func(name string, si *snap.SideInfo) (*snap.Info, error) {
+		c.Assert(name, Equals, "some-snap")
+		info := &snap.Info{SuggestedName: name, SideInfo: *si, SnapType: snap.TypeApp}
+		return info, nil
+	})
+	defer restore()
+
+	task := s.state.NewTask("kill-snap-apps", "")
+	task.Set("kill-reason", snap.AppKillReason("something-else"))
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: si})
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// task should error and there should be no run inhibition
+	c.Assert(task.Status(), Equals, state.ErrorStatus)
+	c.Check(task.Log(), HasLen, 1)
+	c.Check(task.Log()[0], Matches, `.*ERROR internal error: unexpected kill-reason`)
+	hint, info, err := runinhibit.IsLocked("some-snap", nil)
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+	c.Check(info, Equals, runinhibit.InhibitInfo{})
 }
 
 func (s *linkSnapSuite) TestDoKillSnapAppsUnlocksOnError(c *C) {

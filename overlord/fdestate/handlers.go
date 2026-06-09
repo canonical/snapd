@@ -36,6 +36,7 @@ var (
 	secbootAddContainerTPMProtectedKey = secboot.AddContainerTPMProtectedKey
 	secbootDeleteContainerKey          = secboot.DeleteContainerKey
 	secbootRenameContainerKey          = secboot.RenameContainerKey
+	secbootGetPrimaryKey               = secboot.GetPrimaryKey
 )
 
 func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err error) {
@@ -53,6 +54,11 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 
 	var recoveryKeyID string
 	if err := t.Get("recovery-key-id", &recoveryKeyID); err != nil {
+		return err
+	}
+
+	var removeAllOnError bool
+	if err := t.Get("remove-all-on-error", &removeAllOnError); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 
@@ -75,10 +81,11 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		if err == nil {
 			return
 		}
-		// TODO:FDEM: a dedicated clean up for stray tmp key slots (recovery or not)
-		// is needed to account for left-over tmp key slot from a failed re-run for
-		// example.
-		for _, keyslotRef := range addedKeyslots {
+		target := addedKeyslots
+		if removeAllOnError {
+			target = keyslotRefs
+		}
+		for _, keyslotRef := range target {
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
@@ -224,6 +231,49 @@ func (m *FDEManager) doRenameKeys(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+type primaryKeyCache struct {
+	mainKey []byte
+	keys    map[int][]byte
+}
+
+func (cache *primaryKeyCache) findPrimaryKey(fdemgr *FDEManager, keyslotRole string) ([]byte, error) {
+	roleInfo, err := fdemgr.GetRoleInfo(keyslotRole)
+	if err != nil {
+		return nil, err
+	}
+	primaryKeyCached, hasPrimaryKeyCached := cache.keys[roleInfo.PrimaryKeyID]
+	if hasPrimaryKeyCached {
+		return primaryKeyCached, nil
+	}
+
+	containers, err := fdemgr.GetEncryptedContainers()
+	if err != nil {
+		return nil, err
+	}
+
+	if cache.mainKey == nil {
+		var devices []string
+
+		for _, container := range containers {
+			devices = append(devices, container.DevPath())
+		}
+
+		primaryKey, err := secbootGetPrimaryKey(devices, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		cache.mainKey = primaryKey
+	}
+
+	if !fdemgr.VerifyPrimaryKeyAgainstState(roleInfo.PrimaryKeyID, cache.mainKey) {
+		return nil, fmt.Errorf("no primary key found for role %q", keyslotRole)
+	}
+
+	cache.keys[roleInfo.PrimaryKeyID] = cache.mainKey
+	return cache.mainKey, nil
+}
+
 func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -245,6 +295,11 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 	case device.AuthModeNone, device.AuthModePassphrase, device.AuthModePIN:
 	default:
 		return fmt.Errorf("internal error: unexpected authentication mode %q", authMode)
+	}
+
+	var removeAllOnError bool
+	if err := t.Get("remove-all-on-error", &removeAllOnError); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
 	}
 
 	var keyslotRoles map[string][]string
@@ -272,17 +327,6 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 
 	// XXX: unlock state and let conflict detection handle the rest?
 
-	activateState, err := SystemState(m.state)
-	if err != nil {
-		return err
-	}
-	if !RunningWithPlatformKeys(activateState.Status) {
-		// primary key might be missing from kernel keyring if disk was
-		// unlocked with recovery key during boot.
-		// We need to allow degraded state, as this function might be part of fixing
-		return fmt.Errorf("cannot add platform keys if FDE is not active (current state: %v)", activateState.Status)
-	}
-
 	containers, err := m.GetEncryptedContainers()
 	if err != nil {
 		return err
@@ -297,7 +341,11 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		if err == nil {
 			return
 		}
-		for _, keyslotRef := range addedKeyslots {
+		target := addedKeyslots
+		if removeAllOnError {
+			target = keyslotRefs
+		}
+		for _, keyslotRef := range target {
 			devicePath := containerDevicePath[keyslotRef.ContainerRole]
 			if err := secbootDeleteContainerKey(devicePath, keyslotRef.Name); err != nil {
 				// best effort deletion, log errors only
@@ -325,6 +373,8 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		return err
 	}
 
+	primaryKeys := &primaryKeyCache{keys: make(map[int][]byte)}
+
 	// we only care about missing key slots because this might be
 	// a re-run due a force reboot or abrupt shutdown, so we want
 	// to continue adding the remaining key slots.
@@ -337,6 +387,11 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 			return fmt.Errorf("internal error: expected one key role, found %v", roles)
 		}
 		role := roles[0]
+
+		primaryKey, err := primaryKeys.findPrimaryKey(m, role)
+		if err != nil {
+			return err
+		}
 
 		// NOTE: this is safe to call here even though internally the state is unlocked
 		// because there is conflict detection enforced to prevent other tasks that might
@@ -358,6 +413,7 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 			PCRPolicyCounterHandle: fdeKeyslotRoles[role].TPM2PCRPolicyRevocationCounter,
 			KeyRole:                role,
 			VolumesAuth:            volumesAuth,
+			PrimaryKey:             primaryKey,
 		}
 		// TODO:FDEM: support FDE hook setup
 		if err := secbootAddContainerTPMProtectedKey(devicePath, ref.Name, &params); err != nil {
@@ -399,14 +455,6 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 	opts, ok := cached.(*changeAuthOptions)
 	if !ok {
 		return fmt.Errorf("internal error: wrong data type under changeAuthOptionsKey: %T", cached)
-	}
-
-	if opts.old == opts.new {
-		// optimally, this check should be done in ChangeAuth before the change
-		// is created but it is done here to avoid breaking the API, as on success
-		// it expects an async response with a change ID, and if we have an empty
-		// change, it stays at "Hold" status forever, so it is more for convenience.
-		return nil
 	}
 
 	changeOneKeyslot := func(keyslot Keyslot, old, new string) error {

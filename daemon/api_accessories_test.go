@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 )
 
 var _ = Suite(&accessoriesSuite{})
@@ -53,7 +54,7 @@ func (s *accessoriesSuite) TestChangeInfo(c *C) {
 	rsp := s.syncReq(c, req, nil, actionIsUnexpected)
 	c.Check(rsp.Type, Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, Equals, 200)
-	info, ok := rsp.Result.(*daemon.ChangeInfo)
+	info, ok := rsp.Result.(*ctlcmd.ChangeInfo)
 	c.Assert(ok, Equals, true)
 	c.Check(info.ID, Equals, chg1.ID())
 	c.Check(info.Kind, Equals, "install-themes")

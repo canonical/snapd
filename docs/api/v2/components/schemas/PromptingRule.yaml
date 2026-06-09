@@ -28,9 +28,11 @@ properties:
     type: string
     description: The interface for which the rule applies.
     enum:
+      - audio-record
       - camera
       - home
   constraints:
     oneOf:
+      - $ref: './PromptingRuleConstraintsAudioRecord.yaml'
       - $ref: './PromptingRuleConstraintsCamera.yaml'
       - $ref: './PromptingRuleConstraintsHome.yaml'

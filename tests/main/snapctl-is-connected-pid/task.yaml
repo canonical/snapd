@@ -15,16 +15,12 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snap1
     "$TESTSTOOLS"/snaps-state install-local test-snap2
 
-    case "$SPREAD_SYSTEM" in
-        fedora-*|arch-*|centos-*)
-            # although classic snaps do not work out of the box on fedora,
-            # we still want to verify if the basics do work if the user
-            # symlinks /snap to $SNAP_MOUNT_DIR themselves
-            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-            ln -sf "$SNAP_MOUNT_DIR" /snap
-            tests.cleanup defer rm -f /snap
-        ;;
-    esac
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
+        ln -s "$SNAP_MOUNT_DIR" /snap
+        # remove it when we are done
+        tests.cleanup defer rm -rf /snap
+    fi
 
 execute: |
     echo "The test-snap1 service is running"

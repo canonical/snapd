@@ -97,7 +97,6 @@ func (s *GreengrassSupportInterfaceSuite) SetUpTest(c *C) {
 	s.processModePlug, s.processModePlugInfo = MockConnectedPlug(c, ggProcessModeMockPlugSnapInfoYaml, nil, "greengrass-support-no-container")
 
 	s.containerModePlug, s.containerModePlugInfo = MockConnectedPlug(c, ggMockPlugSnapInfoYaml, nil, "greengrass-support-legacy-container")
-
 }
 
 func (s *GreengrassSupportInterfaceSuite) TestName(c *C) {
@@ -274,4 +273,29 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentPlugServiceSnippets(c *C)
 		c.Assert(err, IsNil)
 		c.Check(snips, DeepEquals, t.exp)
 	}
+}
+
+func (s *GreengrassSupportInterfaceSuite) TestPrioritizedSnippetMountInfo(c *C) {
+	spec := apparmor.NewSpecification(s.plug.AppSet())
+	spec.AddBasePrioritizedSnippet(`
+deny @{PROC}/self/mountinfo r,
+deny @{PROC}/@{pid}/mountinfo r,
+`, apparmor.MountInfoKey)
+
+	snippet := spec.SnippetForTag("snap.other.app2")
+	// contains the denials but not the allows
+	c.Assert(snippet, testutil.Contains, "deny @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, testutil.Contains, "deny @{PROC}/self/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "owner @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "owner @{PROC}/self/mountinfo r,")
+
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+
+	snippet = spec.SnippetForTag("snap.other.app2")
+	// contains the allows but not the denials
+	c.Assert(snippet, testutil.Contains, `owner @{PROC}/@{pid}/mountinfo r,`)
+	c.Assert(snippet, testutil.Contains, `owner @{PROC}/self/mountinfo r,`)
+	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/self/mountinfo r,")
 }

@@ -395,8 +395,9 @@ func (s *storeAssertsSuite) TestDownloadAssertionsBrokenStream(c *C) {
 
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 
-		breakAt := bytes.Index(stream1, []byte("account-id"))
-		w.Write(stream1[:breakAt])
+		before, _, ok := bytes.Cut(stream1, []byte("account-id"))
+		c.Assert(ok, Equals, true)
+		w.Write(before)
 	}))
 
 	c.Assert(mockServer, NotNil)

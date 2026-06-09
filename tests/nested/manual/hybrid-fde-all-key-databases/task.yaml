@@ -127,7 +127,7 @@ prepare: |
   esac
 
   remote.push update.auth
-  remote.exec sudo apt install efitools -y
+  remote.exec sudo apt install -y efitools
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"

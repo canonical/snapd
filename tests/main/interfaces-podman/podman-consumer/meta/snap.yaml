@@ -1,0 +1,21 @@
+name: podman-consumer
+version: 1.0
+summary: Basic podman consumer snap
+description: A test snap declaring a plug on podman
+base: core24
+
+apps:
+  podman-api:
+    command: bin/podman-api
+    plugs: [podman]
+  root-daemon:
+    command: bin/root-daemon
+    daemon: oneshot
+    install-mode: disable
+    plugs: [podman]
+  user-daemon:
+    command: bin/user-daemon
+    daemon: oneshot
+    daemon-scope: user
+    install-mode: disable
+    plugs: [podman]

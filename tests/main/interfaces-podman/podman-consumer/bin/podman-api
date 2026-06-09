@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""Minimal podman API client over Unix socket for spread testing."""
+import http.client
+import json
+import socket
+import sys
+
+
+class UnixHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, socket_path):
+        super().__init__("localhost")
+        self.socket_path = socket_path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.connect(self.socket_path)
+
+
+def api(socket_path, method, path, body=None):
+    conn = UnixHTTPConnection(socket_path)
+    headers = {}
+    if body is not None:
+        body = json.dumps(body)
+        headers["Content-Type"] = "application/json"
+    conn.request(method, path, body=body, headers=headers)
+    resp = conn.getresponse()
+    data = resp.read()
+    try:
+        return resp.status, json.loads(data)
+    except (json.JSONDecodeError, ValueError):
+        return resp.status, data.decode("utf-8", errors="replace")
+
+
+def cmd_info(sock):
+    status, data = api(sock, "GET", "/v4.0.0/libpod/info")
+    if status != 200:
+        print("ERROR: info returned {}".format(status), file=sys.stderr)
+        sys.exit(1)
+    print("hostname={}".format(data["host"]["hostname"]))
+    print("os={}".format(data["host"]["os"]))
+
+
+def cmd_run(sock, image, command):
+    # Create container
+    status, ctr = api(sock, "POST", "/v4.0.0/libpod/containers/create", {
+        "image": image,
+        "command": command,
+    })
+    if status != 201:
+        print("ERROR: create returned {}: {}".format(status, ctr), file=sys.stderr)
+        sys.exit(1)
+    ctr_id = ctr["Id"]
+    print("created={}".format(ctr_id[:12]))
+
+    # Start container
+    status, _ = api(sock, "POST", "/v4.0.0/libpod/containers/{}/start".format(ctr_id))
+    if status not in (200, 204):
+        print("ERROR: start returned {}".format(status), file=sys.stderr)
+        sys.exit(1)
+    print("started=true")
+
+    # Wait for container to finish
+    status, wait_data = api(sock, "POST", "/v4.0.0/libpod/containers/{}/wait".format(ctr_id))
+    if status != 200:
+        print("ERROR: wait returned {}".format(status), file=sys.stderr)
+        sys.exit(1)
+    exit_code = wait_data if isinstance(wait_data, int) else wait_data.get("StatusCode", -1)
+    print("exit_code={}".format(exit_code))
+
+    # Remove container
+    status, _ = api(sock, "DELETE", "/v4.0.0/libpod/containers/{}?force=true".format(ctr_id))
+    print("removed={}".format(status in (200, 204)))
+
+    if exit_code != 0:
+        sys.exit(1)
+
+
+def main():
+    sock = sys.argv[1]
+    action = sys.argv[2]
+
+    if action == "info":
+        cmd_info(sock)
+    elif action == "run":
+        image = sys.argv[3]
+        command = sys.argv[4:] if len(sys.argv) > 4 else ["echo", "hello-from-podman"]
+        cmd_run(sock, image, command)
+    else:
+        print("Unknown action: {}".format(action), file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

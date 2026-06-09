@@ -62,8 +62,9 @@ prepare: |
     --store-dir "${STORE_DIR}" \
     --gadget pc.snap \
     --gadget-assertion pc.assert \
-     --kernel pc-kernel-repacked.snap \
-     --kernel-assertion pc-kernel-from-store.assert
+    --kernel pc-kernel-repacked.snap \
+    --kernel-assertion pc-kernel-from-store.assert \
+    --recovery-key-out "$(pwd)"/recovery-key
 
 restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
@@ -101,16 +102,18 @@ execute: |
   # system-data is encrypted but not protected by a passphrase or PIN yet
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # system-save is also encrypted not protected by a passphrase or PIN yet
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^none$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # shellcheck source=tests/lib/prepare.sh
   . "$TESTSLIB/prepare.sh"
@@ -145,16 +148,18 @@ execute: |
   # system-data is encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^passphrase$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # system-save is also encrypted and protected by a passphrase
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^passphrase$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # Test changing passphrases
   remote_action_request '{"action": "change-passphrase", "old-passphrase": "ubuntu-1", "new-passphrase": "ubuntu-2"}'
@@ -261,16 +266,18 @@ execute: |
   # system-data is encrypted and protected by a PIN
   gojq '.result."by-container-role"."system-data"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^pin$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^pin$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # system-save is also encrypted and protected by a PIN
   gojq '.result."by-container-role"."system-save"' < containers.out > container.out
   gojq '.encrypted' < container.out | MATCH "^true$"
-  gojq '.keyslots | length' < container.out | MATCH "^2$"
+  gojq '.keyslots | length' < container.out | MATCH "^3$"
   gojq --raw-output '.keyslots.default."auth-mode"' < container.out | MATCH "^none$"
   gojq --raw-output '.keyslots."default-fallback"."auth-mode"' < container.out | MATCH "^pin$"
+  gojq --raw-output '.keyslots."default-recovery".type' < container.out | MATCH "^recovery$"
 
   # Let's switch to a passphrase one more time for good measure
   remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-4"}'
@@ -278,3 +285,12 @@ execute: |
   remote.exec sudo snap watch "$change_id"
 
   reboot_with_passphrase "ubuntu-4"
+
+  # Now let's see if we can remove the passphrase when booted with a recovery key
+  reboot_with_passphrase "$(cat recovery-key)"
+
+  remote_action_request '{"action": "replace-platform-key", "auth-mode": "none"}'
+  change_id="$(gojq --raw-output .change < resp)"
+  remote.exec sudo snap watch "$change_id"
+
+  reboot_with_passphrase ""

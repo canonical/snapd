@@ -20,6 +20,7 @@
 package requestrules_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,6 +65,7 @@ type requestrulesSuite struct {
 	defaultNotifyRule func(userID uint32, ruleID prompting.IDType, data map[string]string) error
 	defaultUser       uint32
 	ruleNotices       []*noticeInfo
+	currSession       prompting.IDType
 }
 
 var _ = Suite(&requestrulesSuite{})
@@ -83,6 +85,12 @@ func (s *requestrulesSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 	c.Assert(os.MkdirAll(dirs.SnapdStateDir(dirs.GlobalRootDir), 0o755), IsNil)
+
+	s.currSession = prompting.IDType(0x12345)
+	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
+		return s.currSession, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func mustParsePathPattern(c *C, patternStr string) *patterns.PathPattern {
@@ -237,12 +245,22 @@ func (s *requestrulesSuite) testLoadError(c *C, expectedErr string, rules []*req
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
-	logErr := fmt.Errorf("%s", strings.TrimSpace(logbuf.String()))
-	c.Check(logErr, ErrorMatches, fmt.Sprintf(".*cannot load rule database: %s; using new empty rule database", expectedErr))
+	filtered := filterOutDebugLogs(logbuf)
+	c.Check(filtered, Matches, fmt.Sprintf(".*cannot load rule database: %s; using new empty rule database.*", expectedErr))
 	if checkWritten {
 		s.checkWrittenRuleDB(c, nil)
 	}
 	s.checkNewNoticesSimple(c, map[string]string{"removed": "dropped"}, rules...)
+}
+
+func filterOutDebugLogs(logbuf *bytes.Buffer) string {
+	var filteredLines []string
+	for _, logline := range strings.Split(logbuf.String(), "\n") {
+		if !strings.Contains(logline, "DEBUG") {
+			filteredLines = append(filteredLines, logline)
+		}
+	}
+	return strings.TrimSpace(strings.Join(filteredLines, "\n"))
 }
 
 func (s *requestrulesSuite) checkWrittenRuleDB(c *C, expectedRules []*requestrules.Rule) {
@@ -320,24 +338,7 @@ func (s *requestrulesSuite) TestLoadErrorUnmarshal(c *C) {
 	// unmarshal should catch invalid rule and exit before attempting to add.
 	rules := []*requestrules.Rule{good1, bad, good2}
 	s.writeRules(c, dbPath, rules)
-	s.testLoadError(c, `invalid interface: "foo".*`, nil, checkWritten)
-}
-
-func (s *requestrulesSuite) TestLoadErrorValidate(c *C) {
-	dbPath := s.prepDBPath(c)
-	good1 := s.ruleTemplateWithRead(c, prompting.IDType(1))
-	bad := s.ruleTemplateWithRead(c, prompting.IDType(2))
-	bad.Constraints.Permissions["read"].Expiration = time.Now() // will cause validate() to fail with invalid constraints
-	good2 := s.ruleTemplateWithRead(c, prompting.IDType(3))
-	good2.Constraints.Permissions["read"].Outcome = prompting.OutcomeDeny
-	// Doesn't matter that rules have conflicting patterns/permissions,
-	// validate() should catch invalid rule and exit before attempting to add.
-
-	rules := []*requestrules.Rule{good1, bad, good2}
-	s.writeRules(c, dbPath, rules)
-
-	checkWritten := true
-	s.testLoadError(c, `invalid expiration: cannot have specified expiration when lifespan is "forever": .*`, rules, checkWritten)
+	s.testLoadError(c, `invalid interface: "foo"`, nil, checkWritten)
 }
 
 const ruleTemplatePathPattern = "/home/test/foo"
@@ -413,7 +414,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingID(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", prompting_errors.ErrRuleIDConflict), rules, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v", prompting_errors.ErrRuleIDConflict), rules, checkWritten)
 }
 
 func setPermissionsOutcomeLifespanExpirationSession(c *C, rule *requestrules.Rule, permissions []string, outcome prompting.OutcomeType, lifespan prompting.LifespanType, expiration time.Time, userSessionID prompting.IDType) {
@@ -444,7 +445,7 @@ func (s *requestrulesSuite) TestLoadErrorConflictingPattern(c *C) {
 	s.writeRules(c, dbPath, rules)
 
 	checkWritten := true
-	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v.*", prompting_errors.ErrRuleConflict), rules, checkWritten)
+	s.testLoadError(c, fmt.Sprintf("cannot add rule: %v", prompting_errors.ErrRuleConflict), rules, checkWritten)
 }
 
 func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
@@ -458,7 +459,7 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 	// but we don't want to test this as part of our contract
 
 	expired1 := s.ruleTemplateWithPathPattern(c, prompting.IDType(2), "/home/test/other")
-	setPermissionsOutcomeLifespanExpirationSession(c, expired1, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanSession, timeZero, prompting.IDType(0x12345))
+	setPermissionsOutcomeLifespanExpirationSession(c, expired1, []string{"read"}, prompting.OutcomeAllow, prompting.LifespanSession, timeZero, prompting.IDType(0xabcd))
 
 	// Rules with overlapping pattern but non-conflicting permissions do not conflict
 	good2 := s.ruleTemplateWithPathPattern(c, prompting.IDType(3), "/home/test/{bar,foo}")
@@ -479,7 +480,7 @@ func (s *requestrulesSuite) TestLoadExpiredRules(c *C) {
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
-	c.Check(logbuf.String(), HasLen, 0)
+	c.Check(filterOutDebugLogs(logbuf), HasLen, 0)
 
 	expectedWrittenRules := []*requestrules.Rule{good1, good2, good3}
 	s.checkWrittenRuleDB(c, expectedWrittenRules)
@@ -688,7 +689,7 @@ func (s *requestrulesSuite) TestLoadMergedRules(c *C) {
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
-	c.Check(logbuf.String(), HasLen, 0)
+	c.Check(filterOutDebugLogs(logbuf), HasLen, 0)
 
 	expectedWrittenRules := []*requestrules.Rule{expected1, expected2, expected3, expected4}
 	s.checkWrittenRuleDB(c, expectedWrittenRules)
@@ -769,7 +770,7 @@ func (s *requestrulesSuite) TestLoadHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(rdb, NotNil)
 	// Check that no error was logged
-	c.Check(logbuf.String(), HasLen, 0)
+	c.Check(filterOutDebugLogs(logbuf), HasLen, 0)
 
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNotices(c, nil)
@@ -1047,12 +1048,6 @@ type addRuleContents struct {
 }
 
 func (s *requestrulesSuite) TestAddRuleHappy(c *C) {
-	currSession := prompting.IDType(0x12345)
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -1235,38 +1230,6 @@ func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 		contents *addRuleContents
 		errStr   string
 	}{
-		{ // Non-empty duration with lifespan Forever
-			&addRuleContents{Duration: "10m"},
-			"invalid duration: cannot have specified duration.*",
-		},
-		{ // Empty duration with lifespan Timespan
-			&addRuleContents{Lifespan: prompting.LifespanTimespan},
-			"invalid duration: cannot have unspecified duration.*",
-		},
-		{ // Invalid duration
-			&addRuleContents{Lifespan: prompting.LifespanTimespan, Duration: "invalid"},
-			"invalid duration: cannot parse duration:.*",
-		},
-		{ // Negative duration
-			&addRuleContents{Lifespan: prompting.LifespanTimespan, Duration: "-10s"},
-			"invalid duration: cannot have zero or negative duration:.*",
-		},
-		{ // Invalid lifespan "session" when no active user session
-			&addRuleContents{Lifespan: prompting.LifespanSession},
-			prompting_errors.ErrNewSessionRuleNoSession.Error(),
-		},
-		{ // Invalid lifespan
-			&addRuleContents{Lifespan: prompting.LifespanType("invalid")},
-			`invalid lifespan: "invalid"`,
-		},
-		{ // Invalid outcome
-			&addRuleContents{Outcome: prompting.OutcomeType("invalid")},
-			`invalid outcome: "invalid"`,
-		},
-		{ // Invalid lifespan (for rules)
-			&addRuleContents{Lifespan: prompting.LifespanSingle},
-			prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error(),
-		},
 		{ // Conflicting rule with overlapping pattern variants
 			&addRuleContents{
 				PathPattern: "/home/test/Pictures/**/*.{svg,jpg}",
@@ -1399,15 +1362,9 @@ outer:
 }
 
 func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
-	currSession := prompting.IDType(0x12345)
 	// Session will be found for all test cases, so rules with LifespanSession
 	// will never be expired. It would be nice to test expired "session" rules
 	// here too, but we can do this in other easier to implement tests.
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	for _, testCase := range []struct {
 		input  []prompting.PermissionMap
 		output []prompting.PermissionMap
@@ -1675,8 +1632,7 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 				Time:      rule.Timestamp,
 				SessionID: prompting.IDType(0x12345),
 			}
-			ruleConstraints, err := constraints.ToRuleConstraints(iface, at)
-			c.Assert(err, IsNil)
+			ruleConstraints := constraints.ToRuleConstraints(at)
 			expectedPerms := ruleConstraints.Permissions
 			// Check that the permissions match what is expected.
 			// Other parameters should be trivially identical.
@@ -1709,12 +1665,6 @@ func (s *requestrulesSuite) TestAddRuleMerges(c *C) {
 }
 
 func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
-	var currSession prompting.IDType
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -1738,7 +1688,6 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	s.checkNewNoticesSimple(c, nil, good)
 
 	// First add deny rule with lifespan "session"
-	currSession = prompting.IDType(0x12345)
 	initialSessionDeny, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{
 		Outcome: prompting.OutcomeDeny,
 		// Make path pattern conflict but not be identical
@@ -1752,7 +1701,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	s.checkNewNoticesSimple(c, nil, initialSessionDeny)
 
 	// Next add conflicting allow rule with lifespan "session"
-	currSession = prompting.IDType(0xabcdef)
+	s.currSession = prompting.IDType(0xabcdef)
 	initialSessionAllow, err := addRuleFromTemplate(c, rdb, template, &addRuleContents{
 		Outcome: prompting.OutcomeAllow,
 		// Make path pattern conflict but not be identical
@@ -1777,7 +1726,7 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 	s.checkNewNotices(c, expectedNoticeInfo)
 	// Change user session to 0 (as if session ended) so future timespan rule
 	// will conflict and expire this rule.
-	currSession = prompting.IDType(0)
+	s.currSession = prompting.IDType(0)
 
 	// Add initial LifespanTimespan rule which will conflict with
 	// initialSessionAllow and then expire quickly
@@ -1859,12 +1808,6 @@ func (s *requestrulesSuite) TestAddRuleExpired(c *C) {
 }
 
 func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
-	var currSession prompting.IDType
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -1872,7 +1815,6 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	snap := "firefox"
 	iface := "home"
 
-	currSession = prompting.IDType(0x12345)
 	constraints1 := &prompting.Constraints{
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 			Pattern: mustParsePathPattern(c, "/path/to/{foo,bar}"),
@@ -1900,7 +1842,7 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	s.checkNewNoticesSimple(c, nil, rule1)
 	// Now that the rule has been added, change the user session ID so the
 	// execute permission is treated as expired
-	currSession = prompting.IDType(0xf00)
+	s.currSession = prompting.IDType(0xf00)
 
 	constraints2 := &prompting.Constraints{
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
@@ -1923,7 +1865,7 @@ func (s *requestrulesSuite) TestAddRulePartiallyExpired(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rule2, NotNil)
 	s.checkWrittenRuleDB(c, []*requestrules.Rule{rule1, rule2})
-	s.checkNewNoticesSimple(c, nil, rule2)
+	s.checkNewNoticesSimple(c, nil, rule1, rule1, rule2)
 
 	// Check that "read" and "execute" were removed from rule1
 	_, exists := rule1.Constraints.Permissions["read"]
@@ -2086,12 +2028,6 @@ func (s *requestrulesSuite) TestIsRequestAllowed(c *C) {
 }
 
 func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
-	currSession := prompting.IDType(0x12345)
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
@@ -2186,7 +2122,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSimple(c *C) {
 
 		at := prompting.At{
 			Time:      time.Now(),
-			SessionID: currSession,
+			SessionID: s.currSession,
 		}
 		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
 		c.Check(err, Equals, testCase.err)
@@ -2262,7 +2198,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedPrecedence(c *C) {
 		// The point in time doesn't matter for this test
 		at := prompting.At{
 			Time:      time.Now(),
-			SessionID: prompting.IDType(0x12345),
+			SessionID: s.currSession,
 		}
 
 		allowed, err := rdb.IsPathPermAllowed(user, snap, iface, path, permission, at)
@@ -2335,7 +2271,7 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 	// have expired.
 	at := prompting.At{
 		Time:      time.Now(),
-		SessionID: prompting.IDType(0x12345), // doesn't matter for this test
+		SessionID: s.currSession, // doesn't matter for this test
 	}
 
 	for i := len(addedRules) - 1; i >= 0; i-- {
@@ -2357,12 +2293,6 @@ func (s *requestrulesSuite) TestIsPathPermAllowedExpiration(c *C) {
 }
 
 func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
-	var currSession prompting.IDType
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	// Target
 	user := s.defaultUser
 	snap := "firefox"
@@ -2385,14 +2315,12 @@ func (s *requestrulesSuite) TestIsPathPermAllowedSession(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
 
-	// Add all rules initially with session ID 0x12345
-	currSession = prompting.IDType(0x12345)
 	// Define another session ID which rules will change to later to emulate expiration
 	otherSession := prompting.IDType(0xabcd)
 	var addedRules []*requestrules.Rule
 	at := prompting.At{
 		Time:      time.Now(), // doesn't matter for this test
-		SessionID: currSession,
+		SessionID: s.currSession,
 	}
 
 	// Add these rules, where each has higher precedence than prior rules.
@@ -2557,12 +2485,6 @@ func (s *requestrulesSuite) prepRuleDBForRulesForSnapInterface(c *C, rdb *reques
 }
 
 func (s *requestrulesSuite) TestRulesExpired(c *C) {
-	currSession := prompting.IDType(0x12345)
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 	c.Assert(rdb, NotNil)
@@ -2576,9 +2498,9 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 	rules[0].Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
 	rules[0].Constraints.Permissions["read"].Expiration = time.Now()
 	rules[1].Constraints.Permissions["write"].Lifespan = prompting.LifespanSession
-	rules[1].Constraints.Permissions["write"].SessionID = currSession // not expired
+	rules[1].Constraints.Permissions["write"].SessionID = s.currSession // not expired
 	rules[2].Constraints.Permissions["read"].Lifespan = prompting.LifespanSession
-	rules[2].Constraints.Permissions["read"].SessionID = currSession + 1 // expired
+	rules[2].Constraints.Permissions["read"].SessionID = s.currSession + 1 // expired
 	rules[4].Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
 	rules[4].Constraints.Permissions["read"].Expiration = time.Now()
 
@@ -2587,7 +2509,7 @@ func (s *requestrulesSuite) TestRulesExpired(c *C) {
 
 	// If we set the current session to 0, all LifespanSession rules should be
 	// treated as expired.
-	currSession = 0
+	s.currSession = 0
 	c.Check(rdb.Rules(s.defaultUser), DeepEquals, []*requestrules.Rule{rules[3]})
 
 	// Getting rules should cause no notices
@@ -2906,13 +2828,38 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	s.checkNewNoticesSimple(c, nil)
 }
 
-func (s *requestrulesSuite) TestPatchRule(c *C) {
-	currSession := prompting.IDType(0x12345)
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
+func (s *requestrulesSuite) TestLoadEmptyPermissionMap(c *C) {
+	// This should never happen as the rules that are marshalled to disk are
+	// validated prior to marshalling.
+	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	dbPath := s.prepDBPath(c)
+	rules := []*requestrules.Rule{
+		{
+			ID:        prompting.IDType(1),
+			Timestamp: time.Now(),
+			User:      s.defaultUser,
+			Snap:      "firefox",
+			Interface: "home",
+			Constraints: &prompting.RuleConstraints{
+				InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
+					Pattern: mustParsePathPattern(c, "/home/test/foo"),
+				},
+				Permissions: prompting.RulePermissionMap{
+					"read": nil,
+				},
+			},
+		},
+	}
+	s.writeRules(c, dbPath, rules)
+
+	requestrules.New(s.defaultNotifyRule)
+	logErr := fmt.Errorf("%s", strings.TrimSpace(logbuf.String()))
+	c.Check(logErr, ErrorMatches, ".*cannot load rule database: invalid permissions for home interface: permissions empty; using new empty rule database")
+}
+
+func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -2963,7 +2910,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 			Pattern: rule.Constraints.PathPattern(),
 		},
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"read": &prompting.PermissionEntry{
 				Outcome:  rule.Constraints.Permissions["read"].Outcome,
 				Lifespan: rule.Constraints.Permissions["read"].Lifespan,
@@ -2983,7 +2930,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rule = patched
 
 	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"execute": &prompting.PermissionEntry{
 				Outcome:  rule.Constraints.Permissions["read"].Outcome,
 				Lifespan: rule.Constraints.Permissions["read"].Lifespan,
@@ -3018,7 +2965,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rule = patched
 
 	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanForever,
@@ -3044,7 +2991,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rule = patched
 
 	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanTimespan,
@@ -3067,13 +3014,13 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 	rule.Constraints.Permissions["read"].Lifespan = prompting.LifespanTimespan
 	rule.Constraints.Permissions["read"].Expiration = patched.Constraints.Permissions["read"].Expiration
 	rule.Constraints.Permissions["execute"].Lifespan = prompting.LifespanSession
-	rule.Constraints.Permissions["execute"].SessionID = currSession
+	rule.Constraints.Permissions["execute"].SessionID = s.currSession
 	c.Check(patched, DeepEquals, rule)
 
 	rule = patched
 
 	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"read": &prompting.PermissionEntry{
 				Outcome:  origRule.Constraints.Permissions["read"].Outcome,
 				Lifespan: origRule.Constraints.Permissions["read"].Lifespan,
@@ -3157,27 +3104,12 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	s.checkWrittenRuleDB(c, rules)
 	s.checkNewNoticesSimple(c, nil)
 
-	// Invalid lifespan
-	badPatch := &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
-			"read": &prompting.PermissionEntry{
-				Outcome:  prompting.OutcomeAllow,
-				Lifespan: prompting.LifespanSingle,
-			},
-		},
-	}
-	result, err = rdb.PatchRule(rule.User, rule.ID, badPatch)
-	c.Check(err, ErrorMatches, prompting_errors.NewRuleLifespanSingleError(prompting.SupportedRuleLifespans).Error())
-	c.Check(result, IsNil)
-	s.checkWrittenRuleDB(c, rules)
-	s.checkNewNoticesSimple(c, nil)
-
 	// Conflicting with other rule
 	conflictingPatch := &prompting.RuleConstraintsPatch{
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 			Pattern: mustParsePathPattern(c, "/home/test/{foo,{Downloads,Documents}/**/*.{ical,mail,txt,gpg}}"),
 		},
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanForever,
@@ -3219,12 +3151,6 @@ func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 }
 
 func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
-	currSession := prompting.IDType(0x12345)
-	restore := requestrules.MockReadOrAssignUserSessionID(func(rdb *requestrules.RuleDB, user uint32) (prompting.IDType, error) {
-		return currSession, nil
-	})
-	defer restore()
-
 	rdb, err := requestrules.New(s.defaultNotifyRule)
 	c.Assert(err, IsNil)
 
@@ -3255,7 +3181,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 
 	// Expire first two rules by advancing time and changing current session ID
 	time.Sleep(time.Millisecond)
-	currSession += 1
+	s.currSession += 1
 
 	// Patching doesn't conflict with already-expired rules
 	rule := rules[2]
@@ -3263,7 +3189,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 		InterfaceSpecific: &prompting.InterfaceSpecificConstraintsHome{
 			Pattern: mustParsePathPattern(c, "/{foo,bar}"),
 		},
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"read": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
 				Lifespan: prompting.LifespanSession,
@@ -3311,7 +3237,7 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 			"read": &prompting.RulePermissionEntry{
 				Outcome:   prompting.OutcomeDeny,
 				Lifespan:  prompting.LifespanSession,
-				SessionID: currSession,
+				SessionID: s.currSession,
 			},
 			"write": &prompting.RulePermissionEntry{
 				Outcome:  prompting.OutcomeDeny,
@@ -3326,9 +3252,9 @@ func (s *requestrulesSuite) TestPatchRuleExpired(c *C) {
 	c.Check(patched, DeepEquals, rule)
 
 	// If the user session ends, any entries with LifespanSession expire
-	currSession = 0
+	s.currSession = 0
 	constraintsPatch = &prompting.RuleConstraintsPatch{
-		Permissions: prompting.PermissionMap{
+		Permissions: prompting.RulePermissionMapPatch{
 			"execute": &prompting.PermissionEntry{
 				Outcome:  prompting.OutcomeAllow,
 				Lifespan: prompting.LifespanForever,

@@ -68,10 +68,15 @@ func InstallComponents(
 		// we only check for already installed components when no validation
 		// sets are provided, since this will allow us to refresh and install
 		// new components at the same time when resolving validation sets
+		var alreadyInstalled []string
 		for _, comp := range names {
 			if snapst.CurrentComponentSideInfo(naming.NewComponentRef(info.SnapName(), comp)) != nil {
-				return nil, snap.AlreadyInstalledComponentError{Component: comp}
+				alreadyInstalled = append(alreadyInstalled, comp)
 			}
+		}
+
+		if len(alreadyInstalled) > 0 {
+			return nil, snap.NewAlreadyInstalledComponentsError(info.SnapName(), alreadyInstalled)
 		}
 	}
 
@@ -104,6 +109,16 @@ func InstallComponents(
 		return nil, err
 	}
 
+	snapUserID, err := userIDForSnap(st, &snapst, opts.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: assess if there are other flags we need to copy from the current
+	// snap's set of flags. we know that just adding components should not
+	// impact confinement of the snap itself.
+	copyConfinementFlagsFromSnapState(&opts.Flags, &snapst)
+
 	snapsup := SnapSetup{
 		Base:                        info.Base,
 		SideInfo:                    &info.SideInfo,
@@ -113,6 +128,7 @@ func InstallComponents(
 		Version:                     info.Version,
 		PlugsOnly:                   len(info.Slots) == 0,
 		InstanceKey:                 info.InstanceKey,
+		UserID:                      snapUserID,
 		ComponentExclusiveOperation: true,
 	}
 
@@ -141,7 +157,7 @@ func InstallComponents(
 		// the component task chains. this results in multiple parallel tasks
 		// (one per component) that have synchronization points at the
 		// setupSecurity and kmodSetup tasks.
-		cts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.FromChange)
+		cts, err := doInstallComponent(st, &snapst, compsup, &snapsup, setupSecurity, setupSecurity, kmodSetup, opts.ConflictOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -167,6 +183,16 @@ func InstallComponents(
 	return append(tss, ts), nil
 }
 
+// copyConfinementFlagsFromSnapState ensures that the flag set used for a
+// component installation carries the flags that define the snap's current
+// confinement. This ensures that task handlers that consume the flags (example,
+// setup-profiles) see the proper set of flags.
+func copyConfinementFlagsFromSnapState(flags *Flags, snapst *SnapState) {
+	flags.Classic = snapst.Classic
+	flags.DevMode = snapst.DevMode
+	flags.JailMode = snapst.JailMode
+}
+
 func componentSetupsForInstall(ctx context.Context, st *state.State, names []string, snapst SnapState, revOpts RevisionOptions, opts Options) ([]ComponentSetup, error) {
 	if len(names) == 0 {
 		return nil, nil
@@ -177,8 +203,11 @@ func componentSetupsForInstall(ctx context.Context, st *state.State, names []str
 		return nil, err
 	}
 
-	// TODO:COMPS: figure out which user to use here
-	user, err := userFromUserID(st, opts.UserID)
+	userID, err := userIDForSnap(st, &snapst, opts.UserID)
+	if err != nil {
+		return nil, err
+	}
+	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -277,6 +306,11 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
+	// TODO: assess if there are other flags we need to copy from the current
+	// snap's set of flags. we know that just adding components should not
+	// impact confinement of the snap itself.
+	copyConfinementFlagsFromSnapState(&opts.Flags, &snapst)
+
 	snapsup := SnapSetup{
 		Base:                        info.Base,
 		SideInfo:                    &info.SideInfo,
@@ -298,7 +332,7 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		},
 	}
 
-	cts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, "")
+	cts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, ConflictOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +400,7 @@ func newComponentInstallChoreographer(
 	snapsup *SnapSetup,
 	snapst *SnapState,
 	compsup *ComponentSetup,
-	fromChange string,
+	copts ConflictOptions,
 	snapsupTask, setupSecurityTask, kmodSetupTask *state.Task,
 ) (*componentInstallChoreographer, error) {
 	if compsup.SkipAssertionsDownload {
@@ -395,7 +429,7 @@ func newComponentInstallChoreographer(
 	}
 
 	// we consider the same conflicts as if the component was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, copts); err != nil {
 		return nil, err
 	}
 
@@ -445,6 +479,43 @@ func (cc *componentInstallChoreographer) canDiscardOldRevision() bool {
 
 	return !changingSnapRev && changingComponentRev &&
 		!cc.snapst.IsCurrentComponentRevInAnyNonCurrentSeq(csi.Component)
+}
+
+// targetSnapAlreadyHasComponentRevision reports whether a non-current target
+// snap revision already contains the desired component revision. In that case,
+// we must skip creating link-component entirely. Otherwise, the undo path
+// would end up unlinking a component that should remain linked for that
+// snap revision.
+func (cc *componentInstallChoreographer) targetSnapAlreadyHasComponentRevision() bool {
+	if !cc.snapst.IsInstalled() {
+		return false
+	}
+
+	targetSnapRevision := cc.snapsup.Revision()
+	targetCompSideInfo := cc.compsup.CompSideInfo
+
+	// only consider non-current revisions when checking for the component.
+	if cc.snapst.Current == targetSnapRevision {
+		// when operating on the current snap revision, we're either going to:
+		// * install a new component, for which we'll always need a
+		//   link-component task.
+		// * change revisions of an already present component. in that case, we
+		//   create unlink-current-component and then a later link-component.
+		return false
+	}
+
+	idx := cc.snapst.LastIndex(targetSnapRevision)
+	if idx < 0 {
+		return false
+	}
+	// the target snap revision is already present at idx
+
+	cs := cc.snapst.Sequence.ComponentStateForRev(idx, targetCompSideInfo.Component)
+	if cs == nil {
+		return false
+	}
+
+	return cs.SideInfo.Equal(targetCompSideInfo)
 }
 
 func (cc *componentInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan) ([]*state.Task, error) {
@@ -599,9 +670,9 @@ func (cc *componentInstallChoreographer) choreograph(st *state.State) (component
 	// add the link-component task to the chain. note, this isn't part of one of
 	// the spans, since callers want to be able to reference it individually
 	var maybeLink *state.Task
-	if !cc.snapsup.Revert {
-		// finalize (sets SnapState). if we're reverting, there isn't anything to
-		// change in SnapState regarding the component
+	if !cc.targetSnapAlreadyHasComponentRevision() {
+		// finalize (sets SnapState). when the target revision already contain
+		// the desired component state, there is nothing to do.
 		maybeLink = st.NewTask(
 			"link-component", fmt.Sprintf(
 				i18n.G("Make component %q (%s) available to the system"), csi.Component, csi.Revision,
@@ -650,10 +721,10 @@ func doInstallComponent(
 	snapsup *SnapSetup,
 	snapsupTask *state.Task,
 	setupSecurity, kmodSetup *state.Task,
-	fromChange string,
+	copts ConflictOptions,
 ) (componentInstallTaskSet, error) {
 	cc, err := newComponentInstallChoreographer(
-		st, snapsup, snapst, &compsup, fromChange,
+		st, snapsup, snapst, &compsup, copts,
 		snapsupTask, setupSecurity, kmodSetup,
 	)
 	if err != nil {
@@ -670,7 +741,7 @@ func doInstallComponent(
 
 type RemoveComponentsOpts struct {
 	RefreshProfile bool
-	FromChange     string
+	ConflictOptions
 }
 
 // RemoveComponents returns a taskset that removes the components in compName
@@ -711,7 +782,7 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 				CompRev:   snap.R(0),
 			}
 		}
-		ts, err := removeComponentTasks(st, &snapst, compst, info, setupSecurity, opts.FromChange)
+		ts, err := removeComponentTasks(st, &snapst, compst, info, setupSecurity, opts.ConflictOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -725,12 +796,12 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 	return tss, nil
 }
 
-func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task, fromChange string) (*state.TaskSet, error) {
+func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task, copts ConflictOptions) (*state.TaskSet, error) {
 	instName := info.InstanceName()
 
 	// For the moment we consider the same conflicts as if the component
 	// was actually the snap.
-	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, fromChange); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, copts); err != nil {
 		return nil, err
 	}
 
@@ -761,6 +832,11 @@ func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.C
 		CompSideInfo: compst.SideInfo,
 		CompType:     compst.CompType,
 	}
+
+	// TODO: assess if there are other flags we need to copy from the current
+	// snap's set of flags. we know that just removing components should not
+	// impact confinement of the snap itself.
+	copyConfinementFlagsFromSnapState(&snapSup.Flags, snapst)
 
 	removeHook := SetupRemoveComponentHook(st, instName, compst.SideInfo.Component.ComponentName)
 	removeHook.Set("component-setup", compSetup)

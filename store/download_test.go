@@ -39,9 +39,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -382,46 +380,6 @@ func (s *downloadSuite) TestActualDownloadServerNoResumeHandeled(c *C) {
 	c.Check(err, IsNil)
 	c.Check(buf.String(), Equals, "some data")
 	c.Check(n, Equals, 1)
-}
-
-func (s *downloadSuite) TestUseDeltas(c *C) {
-	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
-	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	scenarios := []struct {
-		env       string
-		classic   bool
-		wantDelta bool
-	}{
-		{env: "", classic: false, wantDelta: true},
-		{env: "", classic: true, wantDelta: true},
-
-		{env: "0", classic: false, wantDelta: false},
-		{env: "0", classic: true, wantDelta: false},
-
-		{env: "1", classic: false, wantDelta: true},
-		{env: "1", classic: true, wantDelta: true},
-	}
-
-	for _, scenario := range scenarios {
-		comment := Commentf("%#v", scenario)
-
-		// setup the env var for the scenario
-		os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", scenario.env)
-		release.MockOnClassic(scenario.classic)
-
-		// run the check for delta usage
-		c.Check(len(squashfs.SupportedDeltaFormats(
-			squashfs.DeltaFormatOpts{WithSnapDeltaFormat: true})) > 0, Equals, scenario.wantDelta, comment)
-
-		if !scenario.wantDelta {
-			// if we didn't want deltas, the scenario should have
-			// disabled via an env var
-			c.Assert(scenario.env == "0", Equals, true)
-		}
-	}
 }
 
 type downloadBehaviour []struct {

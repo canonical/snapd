@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -510,4 +511,52 @@ func (s *certsTestSuite) TestCustomCertificatesMissingDirReturnsNil(c *C) {
 	infos, err := certstate.CustomCertificates()
 	c.Assert(err, IsNil)
 	c.Check(infos, IsNil)
+}
+
+func (s *certsTestSuite) TestCustomCertificateInfoAccepted(c *C) {
+	certPEM, _, err := makeTestCertPEM("custom-info-accepted")
+	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapdPKIV1Dir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapdPKIV1Dir, "added"), 0o755), IsNil)
+
+	err = certstate.WriteCertificate("cert-info", string(certPEM))
+	c.Assert(err, IsNil)
+	digest := digestForPEM(c, certPEM)
+	err = certstate.SetCertificateState("cert-info", digest, certstate.CertificateStateAccepted)
+	c.Assert(err, IsNil)
+
+	info, err := certstate.CustomCertificateInfo("cert-info")
+	c.Assert(err, IsNil)
+	c.Assert(info, NotNil)
+	c.Check(info.Name, Equals, "cert-info")
+	c.Check(info.Fingerprint, Equals, digest)
+	c.Check(info.State, Equals, certstate.CertificateStateAccepted)
+	c.Check(info.Content, Equals, string(certPEM))
+}
+
+func (s *certsTestSuite) TestCustomCertificateInfoUnsetWhenNoSymlink(c *C) {
+	certPEM, _, err := makeTestCertPEM("custom-info-unset")
+	c.Assert(err, IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapdPKIV1Dir, 0o755), IsNil)
+
+	err = certstate.WriteCertificate("cert-info-unset", string(certPEM))
+	c.Assert(err, IsNil)
+	digest := digestForPEM(c, certPEM)
+
+	info, err := certstate.CustomCertificateInfo("cert-info-unset")
+	c.Assert(err, IsNil)
+	c.Assert(info, NotNil)
+	c.Check(info.Name, Equals, "cert-info-unset")
+	c.Check(info.Fingerprint, Equals, digest)
+	c.Check(info.State, Equals, certstate.CertificateStateUnset)
+	c.Check(info.Content, Equals, string(certPEM))
+}
+
+func (s *certsTestSuite) TestCustomCertificateInfoMissingCertificate(c *C) {
+	c.Assert(os.MkdirAll(dirs.SnapdPKIV1Dir, 0o755), IsNil)
+
+	_, err := certstate.CustomCertificateInfo("does-not-exist")
+	c.Assert(err, NotNil)
+	c.Check(errors.Is(err, os.ErrNotExist), Equals, true)
+	c.Check(err, ErrorMatches, `cannot read certificate "does-not-exist": .*`)
 }

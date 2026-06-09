@@ -19,6 +19,15 @@
 
 package builtin
 
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+)
+
+type mountObserveInterface struct {
+	commonInterface
+}
+
 const mountObserveSummary = `allows reading mount table and quota information`
 
 const mountObserveBaseDeclarationSlots = `
@@ -44,7 +53,6 @@ const mountObserveConnectedPlugAppArmor = `
 @{PROC}/1/mounts r,
 
 owner @{PROC}/@{pid}/mounts r,
-owner @{PROC}/@{pid}/mountinfo r,
 owner @{PROC}/@{pid}/mountstats r,
 
 # some processes might read mount* from /proc/thread-self/ instead
@@ -67,6 +75,15 @@ owner @{PROC}/@{pid}/task/@{tid}/mountinfo r,
 /run/mount/utab r,
 `
 
+// this snippet replaces a base prioritized snipet which denies these rules
+// by default. See basePrioritizedSnippets in interfaces/apparmor/template.go
+// for an explanation. Any priority is enough to replace a base snippet.
+const mountInfoPriority = uint(1)
+const mountInfoSnippet = `
+owner @{PROC}/@{pid}/mountinfo r,
+owner @{PROC}/self/mountinfo r,
+`
+
 const mountObserveConnectedPlugSecComp = `
 # Description: Can query system mount and disk quota information. This is
 # restricted because it gives privileged read access to mount arguments and
@@ -83,13 +100,22 @@ statmount
 `
 
 func init() {
-	registerIface(&commonInterface{
-		name:                  "mount-observe",
-		summary:               mountObserveSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  mountObserveBaseDeclarationSlots,
-		connectedPlugAppArmor: mountObserveConnectedPlugAppArmor,
-		connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
+	registerIface(&mountObserveInterface{
+		commonInterface: commonInterface{
+			name:                 "mount-observe",
+			summary:              mountObserveSummary,
+			implicitOnCore:       true,
+			implicitOnClassic:    true,
+			baseDeclarationSlots: mountObserveBaseDeclarationSlots,
+			// handled by AppArmorConnectedPlug
+			connectedPlugAppArmor: "",
+			connectedPlugSecComp:  mountObserveConnectedPlugSecComp,
+		},
 	})
+}
+
+func (iface *mountObserveInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(mountObserveConnectedPlugAppArmor)
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
+	return nil
 }

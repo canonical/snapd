@@ -2719,6 +2719,63 @@ plugs:
 	}
 }
 
+func (s *infoSuite) TestDesktopFileIDsMergedFromAllDesktopPlugs(c *C) {
+	const desktopAppYaml = `
+name: foo
+version: 1.0
+plugs:
+  desktop:
+  desktop-extra:
+    interface: desktop
+    desktop-file-ids: [org.example.Foo, org.example.Bar]
+  desktop-file:
+    interface: desktop
+    desktop-file-ids: [org.example.desktop, org.example.Foo.desktop]
+`
+
+	info, err := snap.InfoFromSnapYaml([]byte(desktopAppYaml))
+	c.Assert(err, IsNil)
+
+	desktopFileIDs, err := info.DesktopPlugFileIDs()
+	c.Assert(err, IsNil)
+	c.Assert(desktopFileIDs, DeepEquals, []string{"org.example.Foo.desktop", "org.example.Bar.desktop", "org.example.desktop"})
+}
+
+func (s *infoSuite) TestAppDesktopFileUsesDesktopFileIDsAcrossDesktopPlugs(c *C) {
+	const desktopAppYaml = `
+name: sample
+version: 1
+apps:
+ app:
+   command: foo
+   common-id: org.example.CommonID.Foo
+plugs:
+  desktop:
+  desktop-file:
+    interface: desktop
+    desktop-file-ids:
+      - org.example.CommonID.Foo
+`
+
+	snaptest.MockSnap(c, desktopAppYaml, &snap.SideInfo{})
+	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
+	c.Assert(err, IsNil)
+	c.Assert(snapInfo.Plugs["desktop"], NotNil)
+	c.Assert(snapInfo.Plugs["desktop-file"], NotNil)
+
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	const desktopFileName = "org.example.CommonID.Foo.desktop"
+	const mockDesktopFile = `[Desktop Entry]
+X-SnapInstanceName=sample
+Name=foo
+X-SnapAppName=app
+Exec=sample.app
+`
+	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, desktopFileName), []byte(mockDesktopFile), 0644), IsNil)
+
+	c.Check(snapInfo.Apps["app"].DesktopFile(), Matches, `.*/var/lib/snapd/desktop/applications/org.example.CommonID.Foo.desktop`)
+}
+
 func (s *infoSuite) TestMangleDesktopFileName(c *C) {
 	const desktopAppYaml = `
 name: foo
@@ -2856,7 +2913,8 @@ apps:
 		},
 	}
 
-	expected_hash_file := integrity.DmVerityHashFileName(info.MountFile(), "aaa")
+	expected_hash_file, err := info.IntegrityData.IntegrityFile(info.MountFile())
+	c.Assert(err, IsNil)
 
 	digest, err := info.DmVerityDigest()
 	c.Check(err, IsNil)

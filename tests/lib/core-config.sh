@@ -98,6 +98,10 @@ get_test_snap_suffix(){
         echo "-core20"
     elif os.query is-core22; then
         echo "-core22"
+    elif os.query is-core24; then
+        echo "-core24"
+    elif os.query is-core26; then
+        echo "-core26"
     fi
 }
 

@@ -684,6 +684,15 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	addTemporaryRecoveryKeys := st.NewTask("fde-add-recovery-keys", "Add temporary recovery key slots")
 	addTemporaryRecoveryKeys.Set("recovery-key-id", recoveryKeyID)
 	addTemporaryRecoveryKeys.Set("keyslots", tmpKeyslotRefs)
+	// Force remove all tmp keyslots during cleanup in case of erroring
+	// after a re-run (e.g. after system or snapd restart) where we might
+	// have lost the credentials (e.g. passphrase) stored in-memory after
+	// system reboot.
+	//
+	// Note that it is fine to remove all added keys because the original
+	// keyslots being replaced are only removed after the tmp keys have
+	// been successfully added.
+	addTemporaryRecoveryKeys.Set("remove-all-on-error", true)
 	ts.AddTask(addTemporaryRecoveryKeys)
 
 	removeOldRecoveryKeys := st.NewTask("fde-remove-keys", "Remove old recovery key slots")
@@ -855,17 +864,6 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		}
 	}
 
-	activateState, err := SystemState(st)
-	if err != nil {
-		return nil, err
-	}
-	if !RunningWithPlatformKeys(activateState.Status) {
-		// Primary key might be missing from kernel keyring if disk was
-		// unlocked with recovery key during boot.
-		// We need to allow degraded state, as this function might be part of fixing.
-		return nil, fmt.Errorf("cannot replace platform keys if FDE is not active (current state: %v)", activateState.Status)
-	}
-
 	// Note: Checking that there are no ongoing conflicting changes and that the
 	// targeted key slots exist while state is locked ensures that we don't suffer
 	// from TOCTOU.
@@ -930,6 +928,15 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 	addTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
 	addTemporaryKeys.Set("auth-mode", authMode)
 	addTemporaryKeys.Set("roles", tmpKeyslotRoles)
+	// Force remove all tmp keyslots during cleanup in case of erroring
+	// after a re-run (e.g. after system or snapd restart) where we might
+	// have lost the credentials (e.g. passphrase) stored in-memory after
+	// system reboot.
+	//
+	// Note that it is fine to remove all added keys because the original
+	// keyslots being replaced are only removed after the tmp keys have
+	// been successfully added.
+	addTemporaryKeys.Set("remove-all-on-error", true)
 	ts.AddTask(addTemporaryKeys)
 
 	removeOldKeys := st.NewTask("fde-remove-keys", fmt.Sprintf("Remove old %s key slots", keyType))

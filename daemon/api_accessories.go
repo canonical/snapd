@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 )
 
 var (
@@ -50,5 +51,5 @@ func getAccessoriesChange(c *Command, r *http.Request, user *auth.UserState) Res
 		return NotFound("cannot find change with id %q", chID)
 	}
 
-	return SyncResponse(change2changeInfo(chg))
+	return SyncResponse(ctlcmd.StateChangeToChangeInfo(chg))
 }

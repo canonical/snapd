@@ -37,6 +37,13 @@ const mediatekAccelBaseDeclarationSlots = `
         - core
     deny-auto-connection: true
 `
+const mediatekAccelBaseDeclarationPlugs = `
+  mediatek-accel:
+    allow-connection:
+      plug-attributes:
+        units: [apu, vcu]
+    deny-auto-connection: true
+`
 
 type mediatekAccelRule struct {
 	AppArmor string
@@ -147,5 +154,6 @@ func init() {
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
 		baseDeclarationSlots: mediatekAccelBaseDeclarationSlots,
+		baseDeclarationPlugs: mediatekAccelBaseDeclarationPlugs,
 	}})
 }

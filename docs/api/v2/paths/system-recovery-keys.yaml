@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
     - System
   summary: Get system recovery key
@@ -31,7 +31,7 @@ get:
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
     - System
   summary: Manage system recovery keys

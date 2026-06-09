@@ -285,6 +285,8 @@ type ProtectKeyParams struct {
 	KeyRole string
 	// Optional volume authentication options
 	VolumesAuth *device.VolumesAuthOptions
+	// Primary key
+	PrimaryKey []byte
 }
 
 // EncryptedPartitionName returns the name/label used by an encrypted partition

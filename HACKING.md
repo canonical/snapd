@@ -1,7 +1,7 @@
 # Hacking on snapd
 
 Hacking on `snapd` is fun and straightforward. The code is extensively unit
-tested and we use the [spread](https://github.com/snapcore/spread)
+tested and we use the [spread](https://github.com/canonical/spread-plus)
 integration test framework for the integration/system level tests.
 
 For non-technical details on contributing to the project, including how to
@@ -45,9 +45,11 @@ the `snapd` project, please see [Contributing to snapd](./CONTRIBUTING.md).
 
 Build dependencies can automatically be resolved using `build-dep` on Ubuntu:
 
+<!-- test:ubuntu-deps -->
+
     cd ~/snapd
     ln -sfn packaging/ubuntu-16.04 debian
-    sudo apt build-dep .
+    sudo apt build-dep -y .
 
 > [!NOTE]
 > The `debian` symbolic link is intentionally not part of the tree, and is explicitly listed in the .gitignore file.
@@ -55,10 +57,12 @@ Build dependencies can automatically be resolved using `build-dep` on Ubuntu:
 Package build dependencies for other distributions can be found under the
 [./packaging/](./packaging/) directory. Eg. for Fedora use:
 
+<!-- test:fedora-deps -->
+
     cd packaging/fedora
     sudo dnf install -y rpmdevtools
     sudo dnf install -y $(rpmspec -q --buildrequires snapd.spec)
-    sudo dnf install glibc-static.i686 glibc-devel.i686
+    sudo dnf install -y glibc-static.i686 glibc-devel.i686
 
 Source dependencies are automatically retrieved at build time.
 Sometimes, it might be useful to pull them without building:
@@ -185,6 +189,7 @@ to identify which snap file is which.
 
 To build the `snap` command line client:
 
+<!-- test:build-snap -->
 ```
 cd ~/snapd
 mkdir -p /tmp/build
@@ -193,6 +198,7 @@ go build -o /tmp/build/snap ./cmd/snap
 
 To build the `snapd` REST API daemon:
 
+<!-- test:build-snapd -->
 ```
 cd ~/snapd
 mkdir -p /tmp/build
@@ -201,6 +207,7 @@ go build -o /tmp/build/snapd ./cmd/snapd
 
 To build all the `snapd` Go components:
 
+<!-- test:build-go -->
 ```
 cd ~/snapd
 mkdir -p /tmp/build
@@ -329,9 +336,9 @@ There is more to read about the testing framework on the [website](https://labix
 #### Downloading spread framework
 
 To run the integration tests locally via QEMU, you need the latest version of
-the [spread](https://github.com/snapcore/spread) framework. For local testing
+the [spread](https://github.com/canonical/spread-plus) framework. For local testing
 you can install the `image-garden` snap that comes with pre-built releases of
-upstream spread, qemu and all the support tools. Alternatively you may install
+spread-plus, qemu and all the support tools. Alternatively you may install
 [image-garden](https://gitlab.com/zygoon/image-garden) from source or from a
 distribution package.
 
@@ -339,6 +346,8 @@ To install `image-garden` as a snap run `sudo snap install image-garden`. To
 use the bundled copy of spread from image-garden separately run `sudo snap
 alias image-garden.spread spread`. As running spread tests in snapd requires
 spread-plus, additionally set `snap set image-garden spread-variant=plus`.
+Up-to-date versions of image-garden snap automatically detect the right version
+of spread to use, so this may not be necessary.
 
 #### Running spread
 
@@ -478,24 +487,29 @@ Hey, welcome to the nice, low-level world of snap-confine
 
 To get started from a pristine tree you want to do this:
 
-```
-./mkversion.sh
+<!-- test:build-c -->
+```bash
+cd ~/snapd
+# overriding the version to 1337, or leave empty to let the script figure
+# the version out automatically (on Ubuntu/Debian)
+./mkversion.sh 1337
 cd cmd/
-autoreconf -i -f
-./configure --prefix=/usr --libexecdir=/usr/lib/snapd --enable-nvidia-multiarch --with-host-arch-triplet="$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
+./autogen.sh
+make
 ```
 
 This will drop makefiles and let you build stuff. You may find the `make hack`
 target, available in [./cmd/](./cmd/) handy `(cd cmd; make hack)`. It installs the locally built
 version on your system and reloads the [AppArmor](https://apparmor.net/) profile.
 
->The above configure options assume you are on Ubuntu and are generally
-necessary to run/test graphical applications with your local version of
-snap-confine. The `--with-host-arch-triplet` option sets your specific 
-architecture and `--enable-nvidia-multiarch` allows the host's graphics drivers
-and libraries to be shared with snaps. If you are on a distro other than
-Ubuntu, try `--enable-nvidia-biarch` (though you'll likely need to add further
-system-specific options too).
+>The `autogen.sh` script automatically detects your distribution (from `/etc/os-release`)
+and applies the appropriate configure options. On Ubuntu it uses `--enable-nvidia-multiarch`
+with the host architecture triplet, while on Fedora it uses `--enable-nvidia-biarch` with
+SELinux support. The script also handles running `autoreconf -i -f` and calling `mkversion.sh`
+if needed.
+>
+>If you need manual control over configure options, you can run `autoreconf -i -f` followed
+by `./configure` with your desired flags. See `./configure --help` for available options.
 
 ## Testing your changes locally 
 

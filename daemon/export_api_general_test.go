@@ -22,6 +22,7 @@ package daemon
 import (
 	"time"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -55,23 +56,11 @@ func MockWarningsAccessors(okay func(*state.State, time.Time) int, all func(*sta
 	}
 }
 
-type (
-	ChangeInfo = changeInfo
-)
-
-func MockSnapstateSnapsAffectedByTask(f func(t *state.Task) ([]string, error)) (restore func()) {
-	old := snapstateSnapsAffectedByTask
-	snapstateSnapsAffectedByTask = f
-	return func() {
-		snapstateSnapsAffectedByTask = old
-	}
-}
-
 func MockSnapdtoolsIsReexecd(f func() (bool, error)) (restore func()) {
 	return testutil.Mock(&snapdtoolIsReexecd, f)
 }
 
-func MockFdestateSystemState(f func(*state.State) (*fdestate.FDESystemState, error)) (restore func()) {
+func MockFdestateSystemState(f func(*state.State, *asserts.Model) (*fdestate.FDESystemState, error)) (restore func()) {
 	old := fdestateSystemState
 	fdestateSystemState = f
 	return func() { fdestateSystemState = old }

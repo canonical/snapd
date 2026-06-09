@@ -21,7 +21,6 @@ package boot
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -43,7 +42,7 @@ func newBootState20(typ snap.Type, dev snap.Device) bootState {
 			dev: dev,
 		}
 	case snap.TypeGadget:
-		return &bootState20Gadget{}
+		return &bootState20Gadget{dev: dev}
 	default:
 		panic(fmt.Sprintf("cannot make a bootState20 for snap type %q", typ))
 	}
@@ -189,7 +188,7 @@ func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
 }
 
 // commit will write out boot state persistently to disk.
-func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
+func (u20 *bootStateUpdate20) commit() error {
 	if !isModeenvLocked() {
 		return fmt.Errorf("internal error: cannot commit modeenv without the lock")
 	}
@@ -223,18 +222,6 @@ func (u20 *bootStateUpdate20) commit(markedSuccessful bool) error {
 			return err
 		}
 		resealOpts.ExpectReseal = resealExpectedByModeenvChange(u20.writeModeenv, u20.modeenv)
-	}
-
-	if markedSuccessful {
-		autoRepair, err := isUnlockedWithRecoveryKey()
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-		} else if autoRepair {
-			resealOpts.Force = true
-			resealOpts.EnsureProvisioned = true
-		}
 	}
 
 	// next reseal using the modeenv values, we do this before any
@@ -484,7 +471,7 @@ func (ks20 *bootState20Kernel) selectAndCommitSnapInitramfsMount(modeenv *Modeen
 // snaps on UC20+. It is used for both setNext() and markSuccessful(),
 // with both of those methods returning bootStateUpdate20 to be used
 // with bootStateUpdate.
-type bootState20Gadget struct{}
+type bootState20Gadget struct{ dev snap.Device }
 
 func (bs20 *bootState20Gadget) revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error) {
 	return nil, nil, "", fmt.Errorf("internal error, revisions not implemented for gadget")
@@ -494,6 +481,13 @@ func (bs20 *bootState20Gadget) setNext(next snap.PlaceInfo, bootCtx NextBootCont
 	u20, err := newBootStateUpdate20(nil)
 	if err != nil {
 		return RebootInfo{RebootRequired: false}, nil, err
+	}
+
+	if u20.modeenv.Gadget != next.Filename() {
+		u20.postModeenv(func() error {
+			_, err := ReconfigureRecoveryBootConfig(bs20.dev)
+			return err
+		})
 	}
 
 	u20.writeModeenv.Gadget = next.Filename()

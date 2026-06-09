@@ -11,7 +11,7 @@ content:
       properties:
         status-code:
           type: integer
-          enum: 
+          enum:
             - 400
         status:
           type: string
@@ -28,3 +28,5 @@ content:
             - $ref: '../errors/NoSSHKeysError.yaml'
             - $ref: '../errors/UserNotFoundError.yaml'
             - $ref: '../errors/SnapNotInstalledError.yaml'
+            - $ref: '../errors/PromptingInvalidFieldsError.yaml'
+            - $ref: '../errors/PromptingReplyNotMatchRequestError.yaml'

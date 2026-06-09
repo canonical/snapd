@@ -63,7 +63,7 @@ execute: |
 
     remote.push pc-new.snap
     boot_id="$(tests.nested boot-id)"
-    remote.exec "sudo snap install --dangerous pc-new.snap"
+    remote.exec "sudo snap install --no-wait --dangerous pc-new.snap"
     remote.wait-for reboot "${boot_id}"
     remote.wait-for snap-command
 

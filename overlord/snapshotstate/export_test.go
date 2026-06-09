@@ -51,7 +51,8 @@ var (
 
 	SetSnapshotOpInProgress = setSnapshotOpInProgress
 
-	DefaultAutomaticSnapshotExpiration = defaultAutomaticSnapshotExpiration
+	DefaultAutomaticSnapshotExpiration       = defaultAutomaticSnapshotExpiration
+	MapMountPointsInGlobalDataDirsToExcludes = mapMountPointsInGlobalDataDirsToExcludes
 )
 
 func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {

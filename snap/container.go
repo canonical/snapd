@@ -26,6 +26,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/snap/integrity"
 )
 
 // Container is the interface to interact with the low-level snap files.
@@ -76,6 +78,9 @@ type InstallOptions struct {
 	// an installation on ubuntu-data that does not depend or reference
 	// ubuntu-seed at all.
 	MustNotCrossDevices bool
+	// IntegrityDataParams contains optional integrity data that also need to be
+	// linked/copied over to the install location if set.
+	IntegrityDataParams *integrity.IntegrityDataParams
 }
 
 var (
@@ -447,8 +452,8 @@ func normPath(path string) string {
 		// not something inside the snap
 		return ""
 	}
-	if idx := strings.IndexByte(path, ' '); idx > -1 {
-		return path[:idx]
+	if before, _, ok := strings.Cut(path, " "); ok {
+		return before
 	}
 
 	return path

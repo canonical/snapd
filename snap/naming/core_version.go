@@ -29,10 +29,9 @@ var (
 	coreNameFormat = regexp.MustCompile("^core(?P<version>[0-9]*)(?:-.*)?$")
 )
 
-// CoreVersion extract the version component of the core snap name
+// CoreVersion extract the version component of the core snap name.
 // Most core snap names are of the form coreXX where XX is a number.
-// CoreVersion returns that number. In case of "core", it returns
-// 16.
+// CoreVersion returns that number. In case of "core", it returns 16.
 func CoreVersion(base string) (int, error) {
 	foundCore := coreNameFormat.FindStringSubmatch(base)
 

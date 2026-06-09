@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket activation")
@@ -399,9 +400,13 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 	d.overlord.Loop()
 
 	d.tomb.Go(func() error {
+		// Serve might return either net.ErrClosed (net.Listener is
+		// closed) or http.ErrServerClosed (Shutdown() called) - see
+		// Daemon.Stop() as this is racy.
 		if d.snapListener != nil {
 			d.tomb.Go(func() error {
-				if err := d.serve.Serve(d.snapListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+				if err := d.serve.Serve(d.snapListener); !errors.Is(err, http.ErrServerClosed) &&
+					!errors.Is(err, net.ErrClosed) && d.tomb.Err() == tomb.ErrStillAlive {
 					return err
 				}
 
@@ -409,7 +414,8 @@ func (d *Daemon) Start(ctx context.Context) (err error) {
 			})
 		}
 
-		if err := d.serve.Serve(d.snapdListener); err != http.ErrServerClosed && d.tomb.Err() == tomb.ErrStillAlive {
+		if err := d.serve.Serve(d.snapdListener); !errors.Is(err, http.ErrServerClosed) &&
+			!errors.Is(err, net.ErrClosed) && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -539,6 +545,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		logger.Noticef("error writing maintenance file: %v", err)
 	}
 
+	// Close now the sockets. This must happen before the call to wrappers.RestartSnapd to
+	// ensure we do not have two snapd instances running at the same and trying to use the same
+	// sockets simultaneously.
+	// TODO maybe we should not close them, at least if the connections come from systemd, so
+	// it can pass the fds to the new process without ever having rejected incoming
+	// connections.
+
 	// take a timestamp before shutting down the snap listener, and
 	// use the time we may spend on waiting for hooks against the shutdown
 	// delay.
@@ -606,7 +619,11 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			// the process is shutting down anyway, so we may just
 			// as well close the active connections right now
 			d.serve.Close()
-		} else {
+		} else if !errors.Is(err, net.ErrClosed) {
+			// serve.Shutdown could have returned net.ErrClosed as
+			// we are closing the listeners before the server -
+			// ignore that error.
+
 			// do not stop the shutdown even if the tomb errors
 			// because we already scheduled a slow shutdown and
 			// exiting here will just restart snapd (via systemd)
@@ -625,6 +642,18 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 
 	if d.restartSocket {
 		return ErrRestartSocket
+	}
+
+	if d.requestedRestart == restart.RestartDaemon {
+		logger.Noticef("restarting daemon after update")
+		// This has effect only if snapd was not started by snapd.service, which is the
+		// case on seeding boot in UC (see run-snapd-from-snap script in core* bases).
+		// Otherwise we are simply restarted by systemd after exiting. For the former case,
+		// there will be two running instances of snapd for a brief amount of time, so we
+		// must ensure that any global resource is freed before this call.
+		if err := wrappers.RestartSnapd(); err != nil {
+			logger.Noticef("while restarting snapd: %v", err)
+		}
 	}
 
 	return nil

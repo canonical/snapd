@@ -1,0 +1,72 @@
+
+summary: Ensure that the content sharing interface works after a snapd downgrade
+
+details: |
+    Verify backward compatibility of task execution across a snapd downgrade
+    without resetting state.
+
+    The change is created by the currently running snapd and includes installing
+    two snaps at once: an older snapd from stable and test-snapd-content-plug.
+    This means the first part of the change downgrades snapd while the rest of
+    the same change (including tasks for the content-sharing snap) must continue
+    and complete correctly under the downgraded snapd.
+
+# slow in autopkgtest (>4m)
+backends: [-autopkgtest]
+
+# Keep this excluded on core 16.
+systems: [-ubuntu-core-16-*]
+
+prepare: |
+    echo "Prepare a stable snapd artifact used to force a downgrade inside the same change"
+    snap download --basename=snapd-from-stable snapd --channel=latest/stable
+    snap ack snapd-from-stable.assert
+
+    echo "Prepare the content-plug snap from edge as a local artifact"
+    snap download --basename=test-snapd-content-plug-from-edge test-snapd-content-plug --channel=edge
+    snap ack test-snapd-content-plug-from-edge.assert
+
+restore: |
+    snap revert snapd
+
+execute: |
+    echo "When a stable snapd and content-sharing snap are installed in one command"
+    chg_id=$(snap install --no-wait ./snapd-from-stable.snap ./test-snapd-content-plug-from-edge.snap)
+    snap watch "$chg_id"
+
+    echo "Then a single change includes tasks for both snapd and the content snap"
+    snap tasks "$chg_id" | MATCH '"snapd"'
+    snap tasks "$chg_id" | MATCH '"test-snapd-content-plug"'
+
+    echo "Then this pulls in the default provider"
+    snap list | MATCH  test-snapd-content-slot 
+
+    echo "Then the installed snapd revision matches the one from latest/stable"
+    STABLE_REV="$(awk '/^snap-revision: / {print $2}' snapd-from-stable.assert)"
+    snap list snapd | MATCH "snapd .* ${STABLE_REV} "
+
+    echo "Then the snap is listed as connected"
+    snap interfaces -i content | grep -Pzq "test-snapd-content-slot:shared-content-slot +test-snapd-content-plug:shared-content-plug"
+
+    echo "And fstab files are created"
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
+
+    echo "And we can use the shared content"
+    test-snapd-content-plug.content-plug | grep "Some shared content"
+
+    echo "And the current mount profile is the same as the desired mount profile"
+    # Exclude the rootfs line, which is only in the /run/ fstab
+    grep -v "x-snapd.origin=rootfs" /run/snapd/ns/snap.test-snapd-content-plug.fstab \
+        | diff -u - /var/lib/snapd/mount/snap.test-snapd-content-plug.fstab
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+
+    echo "Then the fstab files are removed"
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -eq 0 ]
+
+    echo "When the plug is reconnected"
+    snap connect test-snapd-content-plug:shared-content-plug test-snapd-content-slot:shared-content-slot
+
+    echo "Then the fstab files are recreated"
+    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]

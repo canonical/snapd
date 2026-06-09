@@ -382,6 +382,34 @@ func (ovs *overlordSuite) TestTrivialRunAndStop(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (ovs *overlordSuite) TestNewAndStop(c *C) {
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	errCh := make(chan error)
+	go func() {
+		errCh <- o.Stop()
+	}()
+	c.Assert(<-errCh, IsNil)
+}
+
+func (ovs *overlordSuite) TestRacingLoopAndStop(c *C) {
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	markSeeded(o)
+	// make sure we don't try to talk to the store
+	snapstate.CanAutoRefresh = nil
+
+	go func() {
+		o.Loop()
+	}()
+	errCh := make(chan error)
+	go func() {
+		errCh <- o.Stop()
+	}()
+	c.Assert(<-errCh, IsNil)
+}
+
 func (ovs *overlordSuite) TestUnknownTasks(c *C) {
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)

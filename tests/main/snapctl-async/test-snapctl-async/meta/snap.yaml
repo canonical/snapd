@@ -1,0 +1,10 @@
+name: test-snapctl-async
+version: 1.0
+summary: Test snap for snapctl async functionality
+apps:
+  app:
+    command: bin/app
+base: core24
+components:
+  test-comp:
+    type: standard

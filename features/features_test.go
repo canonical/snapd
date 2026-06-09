@@ -48,7 +48,6 @@ func (*featureSuite) TestName(c *C) {
 	check(features.Layouts, "layouts")
 	check(features.ParallelInstances, "parallel-instances")
 	check(features.Hotplug, "hotplug")
-	check(features.PerUserMountNamespace, "per-user-mount-namespace")
 	check(features.RefreshAppAwareness, "refresh-app-awareness")
 	check(features.ClassicPreservesXdgRuntimeDir, "classic-preserves-xdg-runtime-dir")
 	check(features.UserDaemons, "user-daemons")
@@ -93,7 +92,6 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.Layouts, false)
 	check(features.Hotplug, false)
 	check(features.ParallelInstances, true)
-	check(features.PerUserMountNamespace, true)
 	check(features.RefreshAppAwareness, true)
 	check(features.ClassicPreservesXdgRuntimeDir, true)
 	check(features.UserDaemons, false)
@@ -199,7 +197,7 @@ func (*featureSuite) TestIsEnabled(c *C) {
 	defer dirs.SetRootDir("")
 
 	// If the feature file is absent then the feature is disabled.
-	f := features.PerUserMountNamespace
+	f := features.ParallelInstances
 	c.Check(f.IsEnabled(), Equals, false)
 
 	// If the feature file is a regular file then the feature is enabled.
@@ -223,7 +221,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.Layouts, true)
 	check(features.ParallelInstances, false)
 	check(features.Hotplug, false)
-	check(features.PerUserMountNamespace, false)
 	check(features.RefreshAppAwareness, true)
 	check(features.ClassicPreservesXdgRuntimeDir, true)
 	check(features.UserDaemons, false)
@@ -249,7 +246,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 }
 
 func (*featureSuite) TestControlFile(c *C) {
-	c.Check(features.PerUserMountNamespace.ControlFile(), Equals, "/var/lib/snapd/features/per-user-mount-namespace")
 	c.Check(features.RefreshAppAwareness.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness")
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")

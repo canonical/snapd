@@ -54,7 +54,7 @@ get:
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
     - Warnings
   summary: Respond to warnings

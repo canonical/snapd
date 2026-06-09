@@ -22,6 +22,11 @@
 # Test keys: used for internal testing in snapd.
 %bcond_with testkeys
 
+%if 0%{?suse_version} >= 1600
+# Workaround recursively defined sle_version, see sbc#1238724.
+%undefine sle_version
+%endif
+
 # Enable apparmor on Tumbleweed and Leap 15.3+
 %if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
 %bcond_without apparmor
@@ -46,6 +51,7 @@
 # adding global with_alt_snap_mount_dir 1 then.
 %global snap_mount_dir /snap
 %global alt_snap_mount_dir %{_localstatedir}/lib/snapd/snap
+%global with_alt_snap_mount_dir 1
 
 %global selinuxtype targeted
 
@@ -92,6 +98,14 @@
 %global with_multilib 1
 %endif
 
+%global with_go_unit_tests 1
+%ifnarch x86_64
+# disable Go unit tests on architectures other than x86_64. Those run on
+# virtualized systems with very little resources and often amplify races in
+# checks emplyed by unit tests themselves.
+%global with_go_unit_tests 0
+%endif
+
 %ifarch %arm
 # libsnap-confine-private/unit-tests fails on ARM under valgrind
 %bcond_with valgrind
@@ -101,7 +115,7 @@
 
 
 Name:           snapd
-Version:        2.75
+Version:        2.76
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -113,6 +127,7 @@ Source1:        snapd-rpmlintrc
 BuildRequires:  autoconf
 BuildRequires:  autoconf-archive
 BuildRequires:  automake
+BuildRequires:  m4
 BuildRequires:  distribution-release
 BuildRequires:  fakeroot
 BuildRequires:  glibc-devel-static
@@ -164,7 +179,7 @@ Requires:       (snapd-selinux = %{version} if selinux-policy-%{selinuxtype})
 %endif
 
 # Old versions of xdg-document-portal can expose data belonging to
-# other confied apps.  Older OpenSUSE releases are unlikely to change,
+# other confined apps.  Older OpenSUSE releases are unlikely to change,
 # so for now limit this to Tumbleweed.
 %if 0%{?suse_version} >= 1550 || 0%{?sle_version} >= 150300
 Conflicts:      xdg-desktop-portal < 0.11
@@ -255,12 +270,14 @@ localstatedir = %{_localstatedir}
 sharedstatedir = %{_sharedstatedir}
 unitdir = %{_unitdir}
 builddir = %{_builddir}
+sourcedir = %{indigo_srcdir}
 # Build configuration
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
 with_apparmor = %{with apparmor}
 with_testkeys = %{!?with_testkeys:0}%{?with_testkeys:1}
 with_static_pie = $build_with_static_pie
+with_vendor = 1
 EXTRA_GO_BUILD_FLAGS = -v -x
 # fix broken debuginfo bsc#1215402
 EXTRA_GO_LDFLAGS = -compressdwarf=false
@@ -273,7 +290,7 @@ popd
 
 # Sanity check, ensure that systemd system generator directory is in agreement between the build system and packaging.
 if [ "$(pkg-config --variable=systemdsystemgeneratordir systemd)" != "%{_systemdgeneratordir}" ]; then
-  echo "pkg-confing and rpm macros disagree about the location of systemd system generator directory"
+  echo "pkg-config and rpm macros disagree about the location of systemd system generator directory"
   exit 1
 fi
 
@@ -334,25 +351,8 @@ M4PARAM='-D distro_opensuse' %make_build -C %{indigo_srcdir}/data/selinux
 		USE_ALT_SNAP_MOUNT_DIR=true
 
 %check
-
-static_pie=
-if [ -e build-with-static-pie ]; then
-    static_pie=1
-fi
-
-# These binaries execute inside the mount namespace thus they must be built statically
-pushd %{buildroot}/%{_libexecdir}/snapd/
-for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
-    ldd $binary 2>&1 | grep 'statically linked\|not a dynamic executable'
-done
-
-if [ -n "$static_pie" ]; then
-    for binary in snap-exec snap-update-ns snapctl snap-gdbserver-shim; do
-        file $binary | grep -F pie
-    done
-fi
-
-popd
+# Verify that statically linked binaries are indeed static
+%make_build -f %{indigo_srcdir}/packaging/snapd.mk SNAPD_DEFINES_DIR=%{_builddir} check-static-binaries
 
 export CFLAGS="$RPM_OPT_FLAGS -fpie"
 export CXXFLAGS="$RPM_OPT_FLAGS -fpie"
@@ -363,11 +363,13 @@ export CGO_LDFLAGS="$LDFLAGS"
 
 %make_build -C %{indigo_srcdir}/cmd -k check
 %make_build -C %{indigo_srcdir}/data -k check
+%if %{with_go_unit_tests}
 # Use the common packaging helper for testing.
 export SNAPD_SKIP_SLOW_TESTS=1
 %make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             check
+%endif
 
 %install
 # Install all systemd and dbus units, and env files.
@@ -452,13 +454,12 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
 
-# TODO: starting with 2.74 default to %{alt_snap_mount_dir}
 if test ! -e %{snap_mount_dir} && test ! -e %{alt_snap_mount_dir} ; then
     # neither location exists, it's likely a new installation, but we
     # need one of the directories to exist for snapd and snap-confine
     # to be able to figure out the desired configuration at runtime
-    echo "Using %{snap_mount_dir} as snap mount directory"
-    mkdir -p -m 755 %{snap_mount_dir} || :
+    echo "Using %{alt_snap_mount_dir} as snap mount directory"
+    mkdir -p -m 755 %{alt_snap_mount_dir} || :
 fi
 
 %service_add_post %{systemd_services_list}
@@ -611,6 +612,7 @@ fi
 %{_datadir}/fish/vendor_conf.d/snapd.fish
 %{_datadir}/snapd/snapcraft-logo-bird.svg
 %{_environmentdir}/990-snapd.conf
+%dir %{_prefix}/lib/dracut/dracut.conf.d
 %{_prefix}/lib/dracut/dracut.conf.d/50-snapd.conf
 %{_libexecdir}/snapd/complete.sh
 %{_libexecdir}/snapd/etelpmoc.sh
@@ -647,7 +649,6 @@ fi
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
-%ghost /tmp/snap-private-tmp
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}

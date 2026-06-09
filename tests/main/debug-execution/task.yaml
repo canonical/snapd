@@ -164,19 +164,12 @@ execute: |
             # MATCH 'is-reexecd: false' < snap-yes-reexec.out
             # MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
             case "$SPREAD_SYSTEM" in
-                arch-linux-*|fedora-*|centos-*)
+                arch-linux-*|fedora-*|centos-*|opensuse-*)
                     # no /snap -> /var/lib/snapd/snap symlink by default
                     MATCH 'is-reexecd: false' < snap-yes-reexec.out
                     MATCH 'self-exe: /usr/bin/snap' < snap-yes-reexec.out
 
                     MATCH 'is-reexecd: false' < snap-force-reexec.out
-                    ;;
-                opensuse-*)
-                    # snap mount dir is /snap
-                    MATCH 'is-reexecd: true' < snap-yes-reexec.out
-                    MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
-
-                    MATCH 'is-reexecd: true' < snap-force-reexec.out
                     ;;
                 amazon-linux-*)
                     # has /snap -> /var/lib/snapd symlink
@@ -208,15 +201,9 @@ execute: |
                 *)
                     # arch and opensuse have AppArmor installed
                     MATCH 'apparmor-parser: (/usr)?/sbin/apparmor_parser' < snap-apparmor-default.out
-                    case "$SPREAD_SYSTEM" in
-                        opensuse-*)
-                            MATCH 'internal: true' < snap-apparmor-force-reexec.out
-                            ;;
-                        *)
-                            # arch has no /snap -> /var/lib/snapd/snap symlink
-                            MATCH 'internal: false' < snap-apparmor-force-reexec.out
-                            ;;
-                    esac
+                    # no /snap -> /var/lib/snapd/snap symlink on Arch or openSUSE
+                    MATCH 'internal: false' < snap-apparmor-force-reexec.out
+                    ;;
             esac
             MATCH 'internal: false' < snap-apparmor-default.out
 

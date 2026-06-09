@@ -150,7 +150,6 @@ func compareSubversion(va, vb string) int {
 //	 0 if a equals b
 //	+1 if a is bigger than b
 func VersionCompare(va, vb string) (res int, err error) {
-	// FIXME: return err here instead
 	if !versionIsValid(va) {
 		return 0, fmt.Errorf("invalid version %q", va)
 	}

@@ -23,9 +23,11 @@ properties:
     type: string
     description: The interface associated with the prompt.
     enum:
-      - home
+      - audio-record
       - camera
+      - home
   constraints:
     oneOf:    # TODO look into mapping interface name to oneOf instances
+      - $ref: ./PromptingPromptConstraintsAudioRecord.yaml
       - $ref: ./PromptingPromptConstraintsCamera.yaml
       - $ref: ./PromptingPromptConstraintsHome.yaml

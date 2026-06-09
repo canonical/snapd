@@ -20,7 +20,6 @@
 
 package snapdtool
 
-// MaybeSetupFIPS does nothing but also returns no error on unsupported systems.
-func MaybeSetupFIPS() error {
-	return nil
-}
+// MaybeCompleteFIPSSetup does nothing.
+
+func MaybeCompleteFIPSSetup() {}

@@ -1,0 +1,14 @@
+name: test-snapd-consumer
+summary: Content consumer snap for mimic missing target test
+version: 1.0
+base: core24
+apps:
+  app:
+    command: bin/sh
+plugs:
+  provider-1:
+    interface: content
+    target: $SNAP/provider-1
+  provider-2:
+    interface: content
+    target: $SNAP/provider-2

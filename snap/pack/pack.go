@@ -24,6 +24,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/kernel"
@@ -31,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
 	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // this could be shipped as a file like "info", and save on the memory and the
@@ -92,6 +95,122 @@ func debArchitecture(info *snap.Info) string {
 	}
 }
 
+// isDir checks whether relPath exists and is a directory inside the snap
+// container.
+func isDir(container snap.Container, relPath string) bool {
+	fi, err := container.Lstat(relPath)
+	return err == nil && fi.IsDir()
+}
+
+// isRegularFile checks whether relPath exists and is a regular file inside the
+// snap container.
+func isRegularFile(container snap.Container, relPath string) bool {
+	fi, err := container.Lstat(relPath)
+	return err == nil && fi.Mode().IsRegular()
+}
+
+// validateContentPlugTargets checks that content interface plug target
+// directories exist in the snap directory tree.
+func validateContentPlugTargets(container snap.Container, info *snap.Info) error {
+	for plugName, plug := range info.Plugs {
+		if plug.Interface != "content" {
+			continue
+		}
+		var target string
+		if err := plug.Attr("target", &target); err != nil || target == "" {
+			continue
+		}
+		// Only $SNAP paths (or paths with no variable prefix) can be checked at
+		// pack time; $SNAP_DATA and $SNAP_COMMON are read-write runtime
+		// directories and mount points can be created as needed.
+		if strings.HasPrefix(target, "$SNAP_DATA") || strings.HasPrefix(target, "$SNAP_COMMON") {
+			continue
+		}
+		// split cleanup in 2 steps so that we handle all possible weird cases:
+		// - $SNAP   # weird but accepted
+		// - $SNAP/  # same as above
+		// - path    # implicit $SNAP/
+		// - /path   # implicit $SNAP/
+		// - /       # implicit $SNAP/
+		relPath := strings.TrimPrefix(target, "$SNAP")
+		relPath = strings.TrimPrefix(relPath, "/")
+		if relPath == "" {
+			// only the $SNAP and/or / combination prefix was present
+			continue
+		}
+		if !isDir(container, relPath) {
+			return fmt.Errorf("content interface plug %q target %v must exist and must be a directory, ensure it is present in the snap or created before packing", plugName, target)
+		}
+	}
+	return nil
+}
+
+// validateLayoutPaths verifies that layout paths located under $SNAP, which are
+// used for bind, bind-file as well as a tmpfs target, are present in the snap's
+// directory tree.
+func validateLayoutPaths(container snap.Container, info *snap.Info) error {
+	// Sort layout paths for deterministic error reporting.
+	layoutPaths := make([]string, 0, len(info.Layout))
+	for p := range info.Layout {
+		layoutPaths = append(layoutPaths, p)
+	}
+	sort.Strings(layoutPaths)
+
+	for _, layoutPath := range layoutPaths {
+		layout := info.Layout[layoutPath]
+
+		if layout.Type == "tmpfs" {
+			// For tmpfs layouts under $SNAP, the mount target directory must
+			// exist in the snap directory tree to avoid needlessly creating a
+			// writable mimic at runtime.
+			if !strings.HasPrefix(layoutPath, "$SNAP") ||
+				strings.HasPrefix(layoutPath, "$SNAP_DATA") ||
+				strings.HasPrefix(layoutPath, "$SNAP_COMMON") {
+				continue
+			}
+			relPath := strings.TrimPrefix(layoutPath, "$SNAP")
+			relPath = strings.TrimPrefix(relPath, "/")
+			if relPath == "" {
+				continue
+			}
+			if !isDir(container, relPath) {
+				return fmt.Errorf("layout %q must exist as a directory in the snap, ensure it is present or created before packing", layoutPath)
+			}
+			continue
+		}
+
+		// TODO: validate symlink targets within $SNAP
+
+		// Determine the source path. Only check bind and bind-file. Entries of
+		// type "tmpfs" were already checked.
+		source := layout.Bind
+		if source == "" {
+			source = layout.BindFile
+		}
+		if source == "" {
+			continue
+		}
+
+		// Only $SNAP paths can be checked at pack time.
+		if strings.HasPrefix(source, "$SNAP_DATA") || strings.HasPrefix(source, "$SNAP_COMMON") {
+			continue
+		}
+		relPath := strings.TrimPrefix(source, "$SNAP")
+		relPath = strings.TrimPrefix(relPath, "/")
+		if relPath == "" {
+			continue
+		}
+
+		if layout.Bind != "" && !isDir(container, relPath) {
+			return fmt.Errorf("layout %q source %q must exist and be a directory, ensure it is present in the snap or created before packing", layoutPath, source)
+		}
+		if layout.BindFile != "" && !isRegularFile(container, relPath) {
+			return fmt.Errorf("layout %q source %q must exist and be a file, ensure it is present in the snap or created before packing", layoutPath, source)
+		}
+	}
+	return nil
+}
+
 // CheckSkeleton attempts to validate snap data in source directory
 func CheckSkeleton(w io.Writer, sourceDir string) error {
 	yaml, err := os.ReadFile(filepath.Join(sourceDir, "meta", "snap.yaml"))
@@ -106,6 +225,20 @@ func CheckSkeleton(w io.Writer, sourceDir string) error {
 		}
 	}
 	return err
+}
+
+func needsStrictLayoutOrContentValidation(info *snap.Info) bool {
+	// An empty base is equivalent to "core".
+	base := info.Base
+	if base == "" {
+		base = "core"
+	}
+	// Strict content plug target or layout paths validation does not apply to
+	// bases before core26, with the exception of the 'bare' base.
+	excluded := []string{
+		"core", "core18", "core20", "core22", "core24",
+	}
+	return !strutil.ListContains(excluded, base)
 }
 
 func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
@@ -124,6 +257,16 @@ func loadAndValidate(sourceDir string, yaml []byte) (*snap.Info, error) {
 	if err := snap.ValidateSnapContainer(container, info, logger.Noticef); err != nil {
 		return nil, err
 	}
+
+	if needsStrictLayoutOrContentValidation(info) {
+		if err := validateContentPlugTargets(container, info); err != nil {
+			return nil, err
+		}
+		if err := validateLayoutPaths(container, info); err != nil {
+			return nil, err
+		}
+	}
+
 	if _, err := snap.ReadSnapshotYamlFromSnapFile(container); err != nil {
 		return nil, err
 	}

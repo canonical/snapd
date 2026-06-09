@@ -7,12 +7,12 @@ details: |
 
 execute: |
     # When a feature that is exported is enabled, a file is created.
-    snap set core experimental.per-user-mount-namespace=true
-    test -f /var/lib/snapd/features/per-user-mount-namespace
+    snap set core experimental.parallel-instances=true
+    test -f /var/lib/snapd/features/parallel-instances
 
     # When a feature that is exported is disabled, a file is removed.
-    snap set core experimental.per-user-mount-namespace=false
-    test ! -f /var/lib/snapd/features/per-user-mount-namespace
+    snap set core experimental.parallel-instances=false
+    test ! -f /var/lib/snapd/features/parallel-instances
 
     # When a feature that is not exported is enabled, a file is not created.
     snap set core experimental.layouts=true

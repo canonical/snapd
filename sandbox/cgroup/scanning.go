@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -119,12 +120,12 @@ func InstancePathsOfSnap(snapInstanceName string, options InstancePathsOptions) 
 		// In v2 mode scan all of /sys/fs/cgroup as there is no specialization
 		// anymore (each directory represents a hierarchy with equal
 		// capabilities and old split into controllers is gone).
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint)
+		cgroupPathToScan = filepath.Join(dirs.GlobalRootDir, cgroupMountPoint)
 	} else {
 		// In v1 mode scan just /sys/fs/cgroup/systemd as that is sufficient
 		// for finding snap-specific cgroup names. Systemd uses this for
 		// tracking and scopes and services are represented there.
-		cgroupPathToScan = filepath.Join(rootPath, cgroupMountPoint, "systemd")
+		cgroupPathToScan = filepath.Join(dirs.GlobalRootDir, cgroupMountPoint, "systemd")
 	}
 
 	// Walk the cgroup tree and look for "cgroup.procs" files. Having found one

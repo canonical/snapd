@@ -11,7 +11,7 @@ parameters:
 
 get:
   tags:
-    - OpenAccess
+    - InterfaceOpenAccess
     - Synchronous
     - Snaps
   summary: Get a snap's icon

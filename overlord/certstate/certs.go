@@ -215,24 +215,14 @@ func readDigests(dir string) ([]string, error) {
 	return digests, nil
 }
 
-// generateCACertificates generates the ca-certificates.crt to the output path
-// The ca-certificates.crt is a concatenation of all the certs in the
-// output path.
-func generateCACertificates(certs *certificates, outputPath string) error {
-	certsPath := filepath.Join(outputPath, "ca-certificates.crt")
-	certsFile, err := os.Create(certsPath)
-	if err != nil {
-		return fmt.Errorf("cannot create ca-certificates.crt: %v", err)
-	}
-	defer certsFile.Close()
-
+func writeUniqueCACertificates(certs *certificates, out io.Writer) error {
 	copyOne := func(from string) error {
 		inf, err := os.Open(from)
 		if err != nil {
 			return err
 		}
 		defer inf.Close()
-		if _, err := io.Copy(certsFile, inf); err != nil {
+		if _, err := io.Copy(out, inf); err != nil {
 			return err
 		}
 		return nil
@@ -259,6 +249,27 @@ func generateCACertificates(certs *certificates, outputPath string) error {
 			return fmt.Errorf("cannot copy extra certificate %q: %v", cert.Name, err)
 		}
 		digests[cert.Digest] = true
+	}
+	return nil
+}
+
+// generateCACertificates generates the ca-certificates.crt to the output path
+// The ca-certificates.crt is a concatenation of all the certs in the
+// output path.
+func generateCACertificates(certs *certificates, outputPath string) error {
+	certsPath := filepath.Join(outputPath, "ca-certificates.crt")
+	tmpFile, err := osutil.NewAtomicFile(certsPath, 0o644, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return fmt.Errorf("cannot create temporary ca-certificates.crt: %v", err)
+	}
+	defer tmpFile.Cancel()
+
+	if err := writeUniqueCACertificates(certs, tmpFile); err != nil {
+		return err
+	}
+
+	if err := tmpFile.Commit(); err != nil {
+		return fmt.Errorf("cannot atomically replace ca-certificates.crt: %v", err)
 	}
 	return nil
 }
@@ -457,24 +468,25 @@ type CertificateInfo struct {
 	Name        string `json:"name"`
 	Fingerprint string `json:"fingerprint"`
 	State       string `json:"state"`
+	Content     string `json:"content,omitempty"`
 }
 
-func certificateDigest(name, baseDir string) (string, error) {
+func certificateDigestAndContent(name, baseDir string) (digest string, content string, err error) {
 	certPath := certificatePathWithExtension(baseDir, name)
 	certBytes, err := os.ReadFile(certPath)
 	if err != nil {
-		return "", fmt.Errorf("cannot read certificate %q: %v", name, err)
+		return "", "", fmt.Errorf("cannot read certificate %q: %w", name, err)
 	}
 
 	cdata, err := ParseCertificateData(certBytes)
 	if err != nil {
-		return "", fmt.Errorf("cannot parse certificate %q: %v", name, err)
+		return "", "", fmt.Errorf("cannot parse certificate %q: %w", name, err)
 	}
-	return cdata.Digest, nil
+	return cdata.Digest, string(certBytes), nil
 }
 
 func certificateInfo(name, baseDir, addedDir, blockedDir string) (*CertificateInfo, error) {
-	digest, err := certificateDigest(name, baseDir)
+	digest, content, err := certificateDigestAndContent(name, baseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -490,7 +502,17 @@ func certificateInfo(name, baseDir, addedDir, blockedDir string) (*CertificateIn
 		Name:        name,
 		Fingerprint: digest,
 		State:       state,
+		Content:     content,
 	}, nil
+}
+
+// CustomCertificateInfo returns the information about a custom certificate with
+// the given name, including its fingerprint, state and content.
+func CustomCertificateInfo(name string) (*CertificateInfo, error) {
+	baseDir := dirs.SnapdPKIV1Dir
+	addedDir := filepath.Join(baseDir, "added")
+	blockedDir := filepath.Join(baseDir, "blocked")
+	return certificateInfo(name, baseDir, addedDir, blockedDir)
 }
 
 // CustomCertificates returns the list of custom certificates with their name, fingerprint and state.

@@ -72,7 +72,7 @@ get:
 post:
   tags:
     - Assertions
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Synchronous
   summary: Attempt to add or replace an assertion
   description: |-

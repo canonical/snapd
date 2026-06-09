@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -75,6 +76,8 @@ var (
 	secbootMarkSuccessful = secboot.MarkSuccessful
 
 	osutilBootID = osutil.BootID
+
+	fdestateAttemptAutoRepairIfNeeded = fdestate.AttemptAutoRepairIfNeeded
 )
 
 var (
@@ -89,6 +92,7 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensureSeeded")
 	swfeats.RegisterEnsure("DeviceManager", "ensureAutoImportAssertions")
 	swfeats.RegisterEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureFDE")
 	swfeats.RegisterEnsure("DeviceManager", "ensureBootOk")
 	swfeats.RegisterEnsure("DeviceManager", "ensureCloudInitRestricted")
 	swfeats.RegisterEnsure("DeviceManager", "ensureInstalled")
@@ -159,6 +163,7 @@ type DeviceManager struct {
 	newStore func(storecontext.DeviceBackend) snapstate.StoreService
 
 	bootRevisionsUpdated bool
+	fdeRan               bool
 
 	seedTimings *timings.Timings
 	// this is used during early phases until seeding is under way
@@ -173,6 +178,7 @@ type DeviceManager struct {
 
 	ensureSeedInConfigRan bool
 
+	ensureBootOkRan           bool
 	ensureInstalledRan        bool
 	ensureFactoryResetRan     bool
 	ensurePostFactoryResetRan bool
@@ -293,6 +299,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("install-preseed", m.doInstallPreseed, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
+	runner.AddBlocked(removeRecoverySystemBlocked)
 
 	// wire FDE kernel hook support into boot
 	boot.HookKeyProtectorFactory = m.hookKeyProtectorFactory
@@ -567,6 +574,23 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 		if other.Kind() == "update-gadget-assets" {
 			// no other task can be started when
 			// update-gadget-assets is running
+			return true
+		}
+	}
+
+	return false
+}
+
+func removeRecoverySystemBlocked(cand *state.Task, running []*state.Task) bool {
+	// remove-recovery-system computes task-local cleanup state that depends on
+	// the current set of recovery systems before dropping the state lock, so
+	// always keep these tasks serialized
+	if cand.Kind() != "remove-recovery-system" {
+		return false
+	}
+
+	for _, other := range running {
+		if other.Kind() == "remove-recovery-system" {
 			return true
 		}
 	}
@@ -1225,6 +1249,54 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureFDE() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.SystemMode(SysAny) != "run" {
+		return nil
+	}
+
+	if m.fdeRan {
+		return nil
+	}
+
+	// Auto-repair should be attempted only once.
+	m.fdeRan = true
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFDE")
+
+	model, err := m.Model()
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			logger.Debugf("no model is available, skipping ensureFDE")
+			return nil
+		}
+		return err
+	}
+
+	runPostInstallChecks, err := install.CheckHybridQuestingRelease(model)
+	if err != nil {
+		return err
+	}
+
+	// FIXME: we should rename to something like "reset lockout"
+	lockoutResetErr := secbootMarkSuccessful()
+
+	// TODO:FDEM: with new APIs of lockout reset we will get so
+	// more statuses that we will need to react to and
+	// provide to the status API.
+
+	// FIXME: we need to check that a try kernel was attempted here and not attempt
+	// repair in that case.
+
+	if err := fdestateAttemptAutoRepairIfNeeded(m.state, lockoutResetErr, runPostInstallChecks); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 var bootOkRanForBootID = bootOkRanForBootIDImpl
 
 func bootOkRanForBootIDImpl(st *state.State, currentBootID string) (bool, error) {
@@ -1249,34 +1321,38 @@ func (m *DeviceManager) ensureBootOk() error {
 		return nil
 	}
 
-	currentBootID, err := osutilBootID()
-	if err != nil {
-		return err
-	}
-
-	bootOkRan, err := bootOkRanForBootID(m.state, currentBootID)
-	if err != nil {
-		return err
-	}
-
-	if !bootOkRan {
-		markBootOkRanForBootID(m.state, currentBootID)
-
-		deviceCtx, err := DeviceCtx(m.state, nil, nil)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
+	if !m.ensureBootOkRan {
+		currentBootID, err := osutilBootID()
+		if err != nil {
 			return err
 		}
-		if err == nil && deviceCtx.Model().KernelSnap() != nil {
-			if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
-				return err
-			}
-			if err := secbootMarkSuccessful(); err != nil {
-				return err
-			}
+
+		bootOkRanForCurrentBootID, err := bootOkRanForBootID(m.state, currentBootID)
+		if err != nil {
+			return err
 		}
-	} else {
-		// a reseal already ran, nothing to do
-		logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
+
+		if !bootOkRanForCurrentBootID {
+			markBootOkRanForBootID(m.state, currentBootID)
+
+			deviceCtx, err := DeviceCtx(m.state, nil, nil)
+			if err != nil && !errors.Is(err, state.ErrNoState) {
+				return err
+			}
+			if err == nil && deviceCtx.Model().KernelSnap() != nil {
+				// FIXME: we should check if recovery keys
+				// were used and in that case do not mark the
+				// boot successful.
+				if err := boot.MarkBootSuccessful(deviceCtx); err != nil {
+					return err
+				}
+			}
+		} else {
+			// a reseal already ran, nothing to do
+			logger.Noticef("skipping boot ok check since it already ran for boot-id %q", currentBootID)
+		}
+
+		m.ensureBootOkRan = true
 	}
 
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureBootOk")
@@ -2080,9 +2156,18 @@ func (m *DeviceManager) Ensure() error {
 			errs = append(errs, err)
 		}
 
-		// XXX: This might trigger a reseal but it should not affect
-		// resealing tasks since it is run at most once during startup
-		// before TaskRunner.Ensure() is called.
+		// XXX: This might trigger a reseal (auto-repair) but
+		// it should not affect resealing tasks since it is
+		// run at most once during startup before
+		// TaskRunner.Ensure() is called.
+		if err := m.ensureFDE(); err != nil {
+			errs = append(errs, err)
+		}
+
+		// XXX: This might trigger a reseal (removal of "try"
+		// entries in modeenv) but it should not affect
+		// resealing tasks since it is run at most once during
+		// startup before TaskRunner.Ensure() is called.
 		if err := m.ensureBootOk(); err != nil {
 			errs = append(errs, err)
 		}
@@ -2140,6 +2225,7 @@ func (m *DeviceManager) Ensure() error {
 func (m *DeviceManager) ResetToPostBootState() {
 	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
 	m.state.Set("ensure-boot-ok-boot-id", "")
+	m.ensureBootOkRan = false
 	m.bootRevisionsUpdated = false
 	m.ensureTriedRecoverySystemRan = false
 }

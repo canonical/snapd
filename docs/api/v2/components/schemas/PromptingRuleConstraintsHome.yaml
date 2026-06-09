@@ -13,6 +13,6 @@ properties:
   permissions:
     type: object
     description: |-
-      A map linking the permission name to it's respective information.
+      A map linking the permission name to its respective information.
     additionalProperties:
       $ref: './PromptingPermissionRuleEntry.yaml'

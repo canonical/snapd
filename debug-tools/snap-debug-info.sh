@@ -17,6 +17,7 @@ h1 "SNAP WHOAMI"; snap whoami
 h1 "SNAP MODEL"; snap model --verbose
 h1 "SNAP MODEL SERIAL"; snap model --serial --verbose
 h1 "SNAP LIST"; snap list --all
+h1 "SNAP COMPONENTS"; snap components
 h1 "SNAP SERVICES"; snap services
 h1 "SNAP CONNECTIONS"; snap connections
 

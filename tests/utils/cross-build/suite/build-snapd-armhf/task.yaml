@@ -27,7 +27,7 @@ environment:
 prepare: |
   # Install dependencies
   apt update
-  apt install -y qemu-kvm cloud-image-utils sshpass
+  apt install -y qemu-system cloud-image-utils sshpass
 
   tmpdir=$(mktemp -d)
 

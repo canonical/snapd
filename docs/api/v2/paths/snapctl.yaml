@@ -3,7 +3,7 @@
 
 post:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Snaps
     - Synchronous
   summary: Run snapctl command

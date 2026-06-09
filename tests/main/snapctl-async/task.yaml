@@ -1,0 +1,115 @@
+summary: Ensure snapctl tasks reports change status correctly
+
+details: |
+  Verifies that the snapctl async funcitonality works as expected, including:
+  - is-ready returns 0 for a change initiated by the snap once the change has completed
+  - is-ready returns 3 for a change initiated by the snap that has not yet completed
+  - is-ready returns 2 for a change initiated by the snap that did not complete successfully
+  - is-ready returns 1 for a change not initiated by the snap
+  - is-ready returns 1 when given a non-existent change ID
+  - is-ready returns 1 when given invalid arguments (none / too many)
+
+  - --no-wait causes a change ID to be returned
+  - --no-wait changes eventually complete successfully
+
+  - tasks returns expected output for an in-progress change
+  - tasks returns expected output for a completed change
+
+prepare: |
+  snap pack test-snapctl-async/
+  snap pack test-comp/
+  snap install --dangerous test-snapctl-async_1.0_all.snap
+  snap install --dangerous test-snapctl-async+test-comp_1.0.comp
+
+execute: |
+  # snapctl --no-wait and is-ready tests
+  echo "Verify component is installed before removal"
+  snap components test-snapctl-async | MATCH 'test-snapctl-async\+test-comp\s+installed'
+
+  echo "Remove comp via snapctl --no-wait, capturing change ID from stdout"
+  change_id=$(snap run --shell test-snapctl-async.app -c 'snapctl remove +test-comp --no-wait')
+  test -n "$change_id"
+
+  echo "is-ready returns 3 while the change is still in progress"
+  exit_code=0
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id" || exit_code=$?
+  test "$exit_code" -eq 3
+
+  echo "Query tasks while test-comp removal is in progress ($change_id)"
+  output=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $change_id")
+  echo "$output" | MATCH "Status"
+  echo "$output" | MATCH "Doing"
+
+  # file needs to be created to unblock the post-remove hook
+  snap run --shell test-snapctl-async.app -c "touch /tmp/comp-removed"
+
+  echo "Wait for change to complete"
+  while true; do
+    exit_code=0
+    snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id" || exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+      echo "Change $change_id is ready."
+      break
+    elif [ "$exit_code" -eq 3 ]; then
+      echo "Change $change_id is still in progress..."
+    else
+      echo "Change $change_id completed with error (exit $exit_code)"
+      exit 1
+    fi
+  done
+
+  echo "is-ready returns 0 for already-completed change"
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id"
+
+  echo "Query tasks for completed change ($change_id)"
+  output=$(snap run --shell test-snapctl-async.app -c "snapctl tasks $change_id")
+  echo "$output" | MATCH "Status"
+  echo "$output" | MATCH "Done"
+
+  echo "is-ready error cases"
+
+  echo "remove /tmp/comp-removed to prevent hook from completing prematurely"
+  change_id=$(snap run --shell test-snapctl-async.app -c 'rm -f /tmp/comp-removed')
+
+  echo "setup the removal of test-comp again, but without triggering completion"
+  snap install --dangerous test-snapctl-async+test-comp_1.0.comp
+  change_id=$(snap run --shell test-snapctl-async.app -c 'snapctl remove +test-comp --no-wait')
+
+  echo "abort the change to ensure it is in a failure state"
+  snap abort "$change_id"
+
+  echo "is-ready returns 2 for a change that did not complete successfully"
+  echo "wait for the change to be marked as failed"
+  while true; do
+    exit_code=0
+    snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id" || exit_code=$?
+    if [ "$exit_code" -eq 2 ]; then
+      echo "Change $change_id is marked as failed."
+      break
+    else
+      echo "Change $change_id is not yet marked as failed (exit $exit_code)..."
+      sleep 1
+    fi
+  done
+
+  exit_code=0
+  echo "is-ready returns 1 for a nonexistent change ID"
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready nonexistent-id" || exit_code=$?
+  test "$exit_code" -eq 1
+
+  exit_code=0
+  echo "is-ready returns 1 when no change ID is provided"
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready" || exit_code=$?
+  test "$exit_code" -eq 1
+  
+  exit_code=0
+  echo "is-ready returns 1 for extra arguments"
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready $change_id extra-arg" || exit_code=$?
+  test "$exit_code" -eq 1
+
+  INSTALL_change_id=$(snap install --no-wait test-snapd-tools)
+
+  exit_code=0
+  echo "is-ready returns 1 for a change not initiated by snapctl"
+  snap run --shell test-snapctl-async.app -c "snapctl is-ready $INSTALL_change_id" || exit_code=$?
+  test "$exit_code" -eq 1

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/syscheck"
@@ -41,6 +42,13 @@ import (
 
 var (
 	syscheckCheckSystem = syscheck.CheckSystem
+	openAuditWriter     = seclog.OpenAuditWriter
+	newSlogLogger       = seclog.NewSlogLogger
+)
+
+const (
+	secLogAppID                 = "canonical.snapd.snapd"
+	secLogMinLevel seclog.Level = seclog.LevelInfo
 )
 
 func init() {
@@ -55,17 +63,23 @@ func main() {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
+	// Set up security logging via the audit subsystem.
+	teardownSecurityLogging := setupSecurityLogging()
+
 	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
 
-	if err := snapdtool.MaybeSetupFIPS(); err != nil {
-		fmt.Fprintf(os.Stderr, "cannot check or enable FIPS mode: %v", err)
-		os.Exit(1)
-	}
+	snapdtool.MaybeCompleteFIPSSetup()
 
 	// TODO look into signal.NotifyContext
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-	if err := run(ch); err != nil {
+	err := run(ch)
+
+	// Tear down security logging explicitly so that the "disabled" log
+	// entry is written before any os.Exit call
+	teardownSecurityLogging()
+
+	if err != nil {
 		if errors.Is(err, daemon.ErrRestartSocket) {
 			// Note that we don't prepend: "error: " here because
 			// ErrRestartSocket is not an error as such.
@@ -83,6 +97,21 @@ func main() {
 		}
 		fmt.Fprintf(os.Stderr, "cannot run daemon: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func setupSecurityLogging() (teardown func()) {
+	auditWriter, err := openAuditWriter()
+	if err != nil {
+		logger.Noticef("cannot set up security logger: %v", err)
+		return func() {}
+	}
+	sl := newSlogLogger(auditWriter, secLogAppID, secLogMinLevel)
+	seclog.Setup(sl)
+	seclog.LogLoggerEnabled()
+	return func() {
+		seclog.LogLoggerDisabled()
+		auditWriter.Close()
 	}
 }
 

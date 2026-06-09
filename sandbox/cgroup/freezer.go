@@ -143,11 +143,11 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 		return fmt.Errorf("internal error: skip error is nil")
 	}
 	canary := fmt.Sprintf("snap.%s.", snapName)
-	cgroupRoot := filepath.Join(rootPath, cgroupMountPoint)
+	cgroupRoot := filepath.Join(dirs.GlobalRootDir, cgroupMountPoint)
 	if _, dir, _ := osutil.DirExists(cgroupRoot); !dir {
 		return nil
 	}
-	return filepath.Walk(filepath.Join(rootPath, cgroupMountPoint), func(name string, info os.FileInfo, err error) error {
+	return filepath.Walk(filepath.Join(dirs.GlobalRootDir, cgroupMountPoint), func(name string, info os.FileInfo, err error) error {
 		if err != nil {
 			if skipError(err) {
 				// we don't know whether it's a file or
@@ -248,7 +248,7 @@ func freezeSnapProcessesImplV2(ctx context.Context, snapName string) error {
 	if err != nil {
 		return err
 	}
-	ownGroupDir := filepath.Join(rootPath, cgroupMountPoint, ownGroup)
+	ownGroupDir := filepath.Join(dirs.GlobalRootDir, cgroupMountPoint, ownGroup)
 	freezeOne := func(dir string) error {
 		if dir == ownGroupDir {
 			// let's not freeze ourselves

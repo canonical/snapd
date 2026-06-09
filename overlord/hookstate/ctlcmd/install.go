@@ -20,7 +20,11 @@
 package ctlcmd
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -39,6 +43,7 @@ type installCommand struct {
 	Positional struct {
 		Names []string `positional-arg-name:"<snap|snap+comp|+comp>" required:"yes" description:"Components to be installed (snap must be the caller snap if specified)."`
 	} `positional-args:"yes"`
+	NoWait bool `long:"no-wait" description:"Run the command in asynchronous mode, returning a change id that can be used to determine if the change is ready using the is-ready command."`
 }
 
 func (c *installCommand) Execute([]string) error {
@@ -52,9 +57,25 @@ func (c *installCommand) Execute([]string) error {
 		return err
 	}
 
-	if err := runSnapManagementCommand(ctx, managementCommand{
-		operation: installManagementCommand, components: comps}); err != nil {
-		return err
+	id, affectedComponents, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: c.NoWait})
+
+	if err != nil {
+		if _, ok := err.(*snap.AlreadyInstalledError); !ok {
+			return err
+		}
+	}
+
+	if len(affectedComponents) < len(comps) {
+		for _, comp := range comps {
+			if !strutil.ListContains(affectedComponents, comp) {
+				msg := fmt.Sprintf(i18n.G(`snapctl: component %q is already installed`), comp)
+				fmt.Fprintln(c.stderr, msg)
+			}
+		}
+	}
+
+	if c.NoWait {
+		fmt.Fprintf(c.stdout, "%s", id)
 	}
 
 	return nil

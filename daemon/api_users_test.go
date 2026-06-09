@@ -39,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -53,6 +55,8 @@ type userSuite struct {
 
 	mockUserHome      string
 	trivialUserLookup func(username string) (*user.User, error)
+
+	seclogBuf *bytes.Buffer
 }
 
 func (s *userSuite) LoginUser(username, password, otp string) (string, string, error) {
@@ -93,6 +97,10 @@ func (s *userSuite) SetUpTest(c *check.C) {
 
 	s.loginUserStoreMacaroon = ""
 	s.loginUserDischarge = ""
+
+	s.seclogBuf = &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(s.seclogBuf))
+	s.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
 }
 
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
@@ -149,6 +157,10 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+
+	// security log was called with the right user details
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_success")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
 }
 
 func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
@@ -191,6 +203,11 @@ func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(snapdMacaroon.Id(), check.Equals, "1")
 	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+
+	// security log was called with the right user details
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_success")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "username")
 }
 
 func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
@@ -239,6 +256,11 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	c.Check(user.Discharges, check.IsNil)
 	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
 	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+
+	// security log was called with the right user details
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_success")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@test.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "username")
 }
 
 func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
@@ -287,6 +309,11 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	c.Check(user.Discharges, check.IsNil)
 	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
 	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+
+	// security log was called with the right user details
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_success")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@test.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "username")
 }
 
 func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
@@ -336,6 +363,11 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 	c.Check(user.Discharges, check.IsNil)
 	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
 	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+
+	// security log was called with the right user details
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_success")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "new.email@test.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "username")
 }
 
 func (s *userSuite) TestLogoutUser(c *check.C) {
@@ -375,6 +407,9 @@ func (s *userSuite) TestLoginUserBadRequest(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Not(check.Equals), "")
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidAuthData)
 }
 
 func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
@@ -387,6 +422,10 @@ func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, testutil.Contains, "please use a valid email address")
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "notemail")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidAuthData)
 }
 
 func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
@@ -400,6 +439,10 @@ func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Message, testutil.Contains, "error-from-login-user")
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInternal)
 }
 
 func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
@@ -413,6 +456,10 @@ func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorRequired)
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonTwoFactorRequired)
 }
 
 func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
@@ -426,6 +473,10 @@ func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorFailed)
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonTwoFactorFailed)
 }
 
 func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
@@ -439,6 +490,10 @@ func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Message, check.Equals, "invalid credentials")
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidCredentials)
 }
 
 func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
@@ -453,6 +508,10 @@ func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindInvalidAuthData)
 	c.Check(rspe.Value, check.DeepEquals, s.err)
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInvalidAuthData)
 }
 
 func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
@@ -467,6 +526,32 @@ func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
 	c.Check(rspe.Status, check.Equals, 401)
 	c.Check(rspe.Kind, check.Equals, client.ErrorKindPasswordPolicy)
 	c.Check(rspe.Value, check.DeepEquals, s.err)
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonPasswordPolicy)
+}
+
+func (s *userSuite) TestLoginUserPersistError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	// Pass a user whose ID does not exist in the auth state, so
+	// auth.UpdateUser returns ErrInvalidUser.
+	fakeUser := &auth.UserState{ID: 99999, Username: "username", Email: "email@.com"}
+	rspe := s.errorReq(c, req, fakeUser, actionIsExpected)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Matches, "cannot persist authentication details: .*")
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "authn_login_failure")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "email@.com")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "username")
+	c.Check(s.seclogBuf.String(), testutil.Contains, seclog.ReasonInternal)
 }
 
 func (s *userSuite) TestPostCreateUser(c *check.C) {

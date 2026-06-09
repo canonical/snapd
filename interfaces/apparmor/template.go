@@ -58,7 +58,7 @@ package apparmor
 // 'base: other').
 //
 // The preamble and default accesses common to all bases go in templateCommon.
-// These rules include the aformentioned host file rules as well as non-file
+// These rules include the aforementioned host file rules as well as non-file
 // rules (eg signal, dbus, unix, etc).
 var templateCommon = `
 # vim:syntax=apparmor
@@ -504,6 +504,11 @@ var templateCommon = `
   # Work around for https://gitlab.com/apparmor/apparmor/-/issues/571
   # which prevents access to mmap MAP_HUGETLB.
   allow file / rwm,
+
+  # Allow snaps to inherit sockets from other snaps. This prevents snaps
+  # invoked by classic snaps with output redirected to a socket pair from losing
+  # their stdio files.
+  unix (send, receive) addr=none peer=(addr=none, label="snap.*"),
   
   ###DEVMODE_SNAP_CONFINE###
 `
@@ -984,7 +989,7 @@ var updateNSTemplate = `
 
 ###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
-profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
+profile snap-update-ns.###SNAP_INSTANCE_NAME### flags=(attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,
@@ -1155,3 +1160,18 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 ###SNIPPETS###
 }
 `
+
+var MountInfoKey = RegisterSnippetKey("mount-info")
+
+// basePrioritizedSnippets holds snippets that are added to the base template
+// if no more specific snippet is added by an interface.
+var basePrioritizedSnippets = map[SnippetKey]string{
+	// Go (1.25+) reads /proc/self/mountinfo to implement container-aware
+	// GOMAXPROCS (see also: https://github.com/golang/go/issues/77911) which we
+	// can't blanket allow so deny to silence log. Specific interfaces can override
+	// using AddPrioritizedSnippet with any priority.
+	MountInfoKey: `
+deny @{PROC}/self/mountinfo r,
+deny @{PROC}/@{pid}/mountinfo r,
+`,
+}

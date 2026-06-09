@@ -53,6 +53,37 @@ prepare: |
   tests.nested create-vm core
 
 execute: |
+  compare_cert_sets_local() {
+    local generated_db="$1"
+    local expected_db="$2"
+
+    local tmp_generated
+    local tmp_expected
+    tmp_generated="$(mktemp -d)"
+    tmp_expected="$(mktemp -d)"
+
+    csplit -s -z -f "$tmp_generated/cert-" -b "%05d.pem" "$generated_db" '/-----BEGIN CERTIFICATE-----/' '{*}'
+    csplit -s -z -f "$tmp_expected/cert-" -b "%05d.pem" "$expected_db" '/-----BEGIN CERTIFICATE-----/' '{*}'
+
+    find "$tmp_generated" -type f -name "cert-*" -print0 | sort -z | xargs -0 sha256sum | awk '{print $1}' | sort > "$tmp_generated/hashes"
+    find "$tmp_expected" -type f -name "cert-*" -print0 | sort -z | xargs -0 sha256sum | awk '{print $1}' | sort > "$tmp_expected/hashes"
+
+    cmp -s "$tmp_generated/hashes" "$tmp_expected/hashes"
+  }
+
+  validate_cert_db_contents() {
+    local generated_remote="$1"
+    local expected_remote="$2"
+
+    local tmp_dir
+    tmp_dir="$(mktemp -d)"
+
+    remote.pull "$generated_remote" "$tmp_dir/generated-ca-certificates.crt"
+    remote.pull "$expected_remote" "$tmp_dir/expected-ca-certificates.crt"
+
+    compare_cert_sets_local "$tmp_dir/generated-ca-certificates.crt" "$tmp_dir/expected-ca-certificates.crt"
+  }
+
   boot_id="$(tests.nested boot-id)"
 
   # wait until device is initialized and has a serial
@@ -62,6 +93,11 @@ execute: |
   remote.exec "snap model --assertion" | MATCH "store: $SNAPD_STORE_FROM\$"
   remote.exec "snap model --assertion" | MATCH '^model: test-snapd-remodel-pc$'
   remote.exec "snap model --assertion --serial" | MATCH "serial: ${SERIAL}\$"
+
+  # certificate DB generated on first boot should match core20 payload
+  remote.exec "sudo test -s /var/lib/snapd/pki/v1/merged/ca-certificates.crt"
+  validate_cert_db_contents "/var/lib/snapd/pki/v1/merged/ca-certificates.crt" "/snap/core20/current/etc/ssl/certs/ca-certificates.crt"
+
   # check ubuntu-save partition size is as specified in gadget
   usaveSz=$(remote.exec "sudo blockdev --getsize64 /dev/disk/by-label/$SAVE_PART_LABEL")
   test "$usaveSz" -eq 16777216
@@ -80,6 +116,11 @@ execute: |
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${CHANGE_ID}\s+(Done|Undone|Error)'"
   # check that the change was successful
   remote.exec "sudo snap changes" | MATCH "^${CHANGE_ID}\s+Done"
+  remote.exec "sudo snap change ${CHANGE_ID}" | MATCH 'Update certificate database'
+
+  # certificate DB should be regenerated for the new base and match core22 payload
+  remote.exec "sudo test -s /var/lib/snapd/pki/v1/merged/ca-certificates.crt"
+  validate_cert_db_contents "/var/lib/snapd/pki/v1/merged/ca-certificates.crt" "/snap/core22/current/etc/ssl/certs/ca-certificates.crt"
 
   current_boot_id="$( tests.nested boot-id )"
   # we should have rebooted a couple of times (at least twice for the recovery

@@ -72,13 +72,7 @@ import (
 //
 // Reference for the squashfs superblock: https://dr-emann.github.io/squashfs
 
-type DeltaFormat int
-
 const (
-	// Identifiers for the formats in the API
-	Xdelta3Format DeltaFormat = iota
-	SnapXdelta3Format
-
 	// Identifiers for the store
 	xdelta3Format = "xdelta3"
 	// This follows compatibility labels conventions. First and second
@@ -257,16 +251,6 @@ func copyBuffer(dst io.Writer, src io.Reader) (int64, error) {
 	return io.CopyBuffer(dst, src, bufPtr)
 }
 
-func formatStoreString(id DeltaFormat) string {
-	switch id {
-	case Xdelta3Format:
-		return xdelta3Format
-	case SnapXdelta3Format:
-		return snapDeltaFormatXdelta3
-	}
-	return "unexpected"
-}
-
 type DeltaFormatOpts struct {
 	WithSnapDeltaFormat bool
 }
@@ -275,32 +259,40 @@ type DeltaFormatOpts struct {
 // with lower indexes being preferred. This might become eventually
 // compatibility labels if necessary.
 func SupportedDeltaFormats(opts DeltaFormatOpts) []string {
-	// check if deltas were disabled by the environment
-	if !osutil.GetenvBool("SNAPD_USE_DELTAS_EXPERIMENTAL", true) {
-		// then the env var is explicitly false, we can't use deltas
-		logger.Noticef("delta usage disabled by environment variable")
-		return nil
-	}
-
 	var formats []string
 	if opts.WithSnapDeltaFormat {
-		formats = append(formats, formatStoreString(SnapXdelta3Format))
+		formats = append(formats, snapDeltaFormatXdelta3)
 	}
-	formats = append(formats, formatStoreString(Xdelta3Format))
+	formats = append(formats, xdelta3Format)
 	return formats
+}
+
+// growSnapToMinSize pads a file to minSize with zero bytes if it is smaller.
+func growSnapToMinSize(path string, minSize int64) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("cannot get size of snap: %w", err)
+	}
+	if fi.Size() >= minSize {
+		return nil
+	}
+	if err := os.Truncate(path, minSize); err != nil {
+		return fmt.Errorf("cannot grow snap to minimum size: %w", err)
+	}
+	return nil
 }
 
 // GenerateDelta creates a delta file called delta from sourceSnap and
 // targetSnap, using deltaFormat.
-func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat DeltaFormat) error {
+func GenerateDelta(ctx context.Context, sourceSnap, targetSnap, delta string, deltaFormat string) error {
 	switch deltaFormat {
-	case Xdelta3Format:
+	case xdelta3Format:
 		// Plain xdelta3 on compressed files
 		return generatePlainXdelta3Delta(ctx, sourceSnap, targetSnap, delta)
-	case SnapXdelta3Format:
+	case snapDeltaFormatXdelta3:
 		return generateSnapDelta(ctx, sourceSnap, targetSnap, delta)
 	default:
-		return fmt.Errorf("unsupported delta format %d", deltaFormat)
+		return fmt.Errorf("unsupported delta format %q", deltaFormat)
 	}
 }
 
@@ -398,7 +390,15 @@ func applySnapDelta(ctx context.Context, sourceSnap, targetSnap string, deltaFil
 	mksqfsArgs = append(mksqfsArgs, "-mkfs-time", strconv.FormatUint(uint64(hdr.Timestamp), 10))
 
 	// run delta apply for given delta tool - DeltaToolXdelta3 is the only supported one atm
-	return applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, mksqfsArgs)
+	if err := applyXdelta3Delta(ctx, sourceSnap, targetSnap, deltaFile, mksqfsArgs); err != nil {
+		return err
+	}
+
+	// mksquashfs does not know about snap minimum size requirements, so
+	// we need to pad the reconstructed snap to MinimumSnapSize, same as
+	// snap pack does in Build(). Without this, small snaps would be
+	// shorter than the original target because snap pack pads them.
+	return growSnapToMinSize(targetSnap, MinimumSnapSize)
 }
 
 // generatePlainXdelta3Delta generates a delta between compressed snaps

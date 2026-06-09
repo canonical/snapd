@@ -487,10 +487,12 @@ func (s *assetsSuite) TestInstallObserverNonTrustedBootloader(c *C) {
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
-	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
-	c.Check(observerImpl.CurrentVolumesAuth(), Equals, volumesAuth)
-	c.Check(observerImpl.CurrentCheckResult(), Equals, checkResult)
+	encryptionParams := observerImpl.EncryptionSetup()
+	c.Assert(encryptionParams, NotNil)
+	c.Check(encryptionParams.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
+	c.Check(encryptionParams.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
+	c.Check(encryptionParams.CurrentVolumesAuth(), Equals, volumesAuth)
+	c.Check(encryptionParams.CurrentCheckResult(), Equals, checkResult)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
@@ -516,9 +518,11 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 	observerImpl, ok := obs.(*boot.TrustedAssetsInstallObserverImpl)
 	c.Assert(ok, Equals, true)
 
-	c.Check(observerImpl.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
-	c.Check(observerImpl.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
-	c.Check(observerImpl.CurrentCheckResult(), IsNil)
+	encryptionParams := observerImpl.EncryptionSetup()
+	c.Assert(encryptionParams, NotNil)
+	c.Check(encryptionParams.CurrentDataBootstrappedContainer(), DeepEquals, dataBootstrappedContainer)
+	c.Check(encryptionParams.CurrentSaveBootstrappedContainer(), DeepEquals, saveBootstrappedContainer)
+	c.Check(encryptionParams.CurrentCheckResult(), IsNil)
 }
 
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
@@ -3075,6 +3079,28 @@ func (s *assetsSuite) TestUpdateBootEntryOnUpdate(c *C) {
 	c.Check(foundOther, Equals, 0)
 }
 
+func (s *assetsSuite) TestReconfigureRecoveryBootConfigCallsBootloaderHook(c *C) {
+	coreDev := boottest.MockUC20Device("", nil)
+	bloader := bootloadertest.Mock("runtime-config", c.MkDir())
+	s.forceBootloader(bloader)
+
+	updated, err := boot.ReconfigureRecoveryBootConfig(coreDev)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, true)
+	c.Check(bloader.ReconfigureRecoveryBootConfigCalls, Equals, 1)
+}
+
+func (s *assetsSuite) TestReconfigureRecoveryBootConfigNoopOutsideRunMode(c *C) {
+	coreDevInstallMode := boottest.MockUC20Device("install", nil)
+	bloader := bootloadertest.Mock("runtime-config", c.MkDir())
+	s.forceBootloader(bloader)
+
+	updated, err := boot.ReconfigureRecoveryBootConfig(coreDevInstallMode)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(bloader.ReconfigureRecoveryBootConfigCalls, Equals, 0)
+}
+
 func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 	tab := bootloadertest.Mock("trusted", "").WithTrustedAssetsAndEfi()
 
@@ -3123,7 +3149,9 @@ func (s *assetsSuite) TestUpdateBootEntryOnInstall(c *C) {
 
 	obs.ObserveExistingTrustedRecoveryAssets(d)
 
-	err = obs.UpdateBootEntry()
+	bootAssets := obs.BootAssets()
+	c.Assert(bootAssets, NotNil)
+	err = bootAssets.UpdateBootEntry()
 	c.Assert(err, IsNil)
 
 	c.Check(efiVariablesSet, Equals, 1)

@@ -25,7 +25,9 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/features"
@@ -42,8 +44,8 @@ import (
 )
 
 var (
-	confdbstateGetView           = confdbstate.GetView
-	confdbstateTransactionForGet = confdbstate.GetTransactionForSnapctlGet
+	confdbstateGetView    = confdbstate.GetView
+	confdbstateReadConfdb = confdbstate.ReadConfdbFromSnap
 )
 
 type getCommand struct {
@@ -55,15 +57,16 @@ type getCommand struct {
 	View          bool     `long:"view" description:"return confdb values from the view declared in the plug"`
 	Previous      bool     `long:"previous" description:"return confdb values disregarding changes from the current transaction"`
 	With          []string `long:"with" value-name:"<param>=<constraint>" description:"parameter constraints for filtering confdb queries"`
+	Default       string   `long:"default" unquote:"false" description:"a default value to be used when no value is set"`
+	WaitFor       string   `long:"wait-for" description:"maximum duration to wait for confdb access (e.g. 10s)"`
 
 	Positional struct {
 		PlugOrSlotSpec string   `positional-args:"true" positional-arg-name:":<plug|slot>"`
 		Keys           []string `positional-arg-name:"<keys>" description:"option keys"`
 	} `positional-args:"yes"`
 
-	Document bool   `short:"d" description:"always return document, even with single key"`
-	Typed    bool   `short:"t" description:"strict typing with nulls and quoted strings"`
-	Default  string `long:"default" unquote:"false" description:"a default value to be used when no value is set"`
+	Document bool `short:"d" description:"always return document, even with single key"`
+	Typed    bool `short:"t" description:"strict typing with nulls and quoted strings"`
 }
 
 var shortGetHelp = i18n.G("Print either configuration options or interface connection settings")
@@ -442,13 +445,27 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 		return err
 	}
 
-	opts := clientutil.ConfdbOptions{Typed: c.Typed}
-	constraints, err := clientutil.ParseConfdbConstraints(c.With, opts)
+	parseOpts := clientutil.ConfdbOptions{Typed: c.Typed}
+	constraints, err := clientutil.ParseConfdbConstraints(c.With, parseOpts)
 	if err != nil {
 		return err
 	}
 
-	tx, err := confdbstateTransactionForGet(ctx, view, requests, constraints)
+	opts := &client.ConfdbOptions{}
+	if c.WaitFor != "" {
+		timeout, err := time.ParseDuration(c.WaitFor)
+		if err != nil {
+			return fmt.Errorf("cannot parse --wait-for value %s: %v", c.WaitFor, err)
+		}
+
+		if timeout < 0 {
+			return fmt.Errorf("--wait-for value must be non-negative")
+		}
+
+		opts.AccessTimeout = &timeout
+	}
+
+	tx, err := confdbstateReadConfdb(ctx, view, requests, constraints, opts)
 	if err != nil {
 		return err
 	}
@@ -462,8 +479,14 @@ func (c *getCommand) getConfdbValues(ctx *hookstate.Context, plugName string, re
 	if err != nil {
 		return err
 	}
+	var userAccess confdb.Access
+	if uid == 0 {
+		userAccess = confdb.AdminAccess
+	} else {
+		userAccess = confdb.UnprivilegedAccess
+	}
 
-	res, err := confdbstate.GetViaView(bag, view, requests, constraints, uid)
+	res, err := confdbstate.GetViaView(bag, view, requests, constraints, userAccess)
 	if err != nil {
 		if !errors.As(err, new(*confdb.NoDataError)) || c.Default == "" {
 			return err

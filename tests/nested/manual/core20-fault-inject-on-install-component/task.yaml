@@ -8,8 +8,6 @@ systems:
   - -ubuntu-1*
   - -ubuntu-20*
   - -ubuntu-22*
-  # FIXME
-  - -ubuntu-26*
 
 environment: 
     TAG/kernel_panic_prepare_kernel_components: prepare-kernel-components

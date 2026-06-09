@@ -115,6 +115,20 @@ type DownloadOptions struct {
 	LeavePartialOnError bool
 }
 
+// Detect most frequent symptoms of corruption (e.g. 0-byte files which may
+// appear on power loss). Does not check for silent bit rot, which may cause
+// bit/byte flips.
+func isDownloadLikelyNotCorrupted(targetPath string, downloadInfo *snap.DownloadInfo) bool {
+	if fi, err := os.Lstat(targetPath); err == nil {
+		// check the size if one was provided by the store, otherwise accept
+		// any non-0 size as correct
+		if fi.Size() > 0 && (fi.Size() == downloadInfo.Size || downloadInfo.Size == 0) {
+			return true
+		}
+	}
+	return false
+}
+
 // Download downloads the snap addressed by download info and returns its
 // filename.
 // The file is saved in temporary storage, and should be removed
@@ -131,9 +145,33 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		return err
 	}
 
+	// TODO: we trust the cache to contain valid/uncorrupted data, but we could
+	// Get() to a target path with the .partial suffix and run through the
+	// resumed download verification code path which would automatically
+	// redownload the file if it's found to be corrupted; however this comes
+	// with the cost of hashing the whole file again
 	if s.cacher.Get(downloadInfo.Sha3_384, targetPath) {
-		logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
-		return nil
+		// we either got the file entry from the cache, or it already existed at
+		// the target path. More sophisticated corruption cases are expected to
+		// be caught by the caller at some point, for which they can call
+		// CleanupDownloadArtifacts() to have the invalid snap blobs removed.
+		if isDownloadLikelyNotCorrupted(targetPath, downloadInfo) {
+			logger.Debugf("Cache hit for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+			return nil
+		}
+		// remove the target path and try to recover from the cache again,
+		// maybe only the preexisting target path is corrupted
+		_ = os.Remove(targetPath)
+
+		if s.cacher.Get(downloadInfo.Sha3_384, targetPath) && isDownloadLikelyNotCorrupted(targetPath, downloadInfo) {
+			logger.Debugf("Recovered snap file from cache for SHA3_384 …%.5s.", downloadInfo.Sha3_384)
+			return nil
+		}
+		// best effort attempt failed, the cache entry is likely bad as well, remove both
+		_ = os.Remove(targetPath)
+		_ = s.cacher.Drop(downloadInfo.Sha3_384)
+		// ... and re-download.
+		logger.Debugf("Cache entry for SHA3_384 …%.5s has unexpected size, re-downloading.", downloadInfo.Sha3_384)
 	}
 
 	if len(s.supportedDeltaFormats()) > 0 {
@@ -936,4 +974,58 @@ func (s *Store) SetCachePolicy(policy CachePolicy) {
 // Returns ErrCleanupBusy if the cache was locked for other operations.
 func (s *Store) CleanDownloadsCache() error {
 	return s.cacher.Cleanup()
+}
+
+// CleanupDownloadArtifacts attempts to clean up download artifacts associated
+// with a given snap. The downloaded blob file is always removed because it can
+// be re-linked from cache on the next download attempt. The cache entry is only
+// dropped if it appears corrupted (size or hash mismatch), so that a valid
+// cached copy can be reused.
+func (s *Store) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
+	var err error
+	// TODO:GOVERSION: use errors.Join
+	// Always remove the blob; it can be re-linked from cache if needed.
+	if rerr := os.Remove(targetFn); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
+		err = strutil.JoinErrors(err, fmt.Errorf("cannot remove downloaded file: %w", rerr))
+	}
+
+	if dl != nil {
+		maybeDropIfCorrupted := func() error {
+			f, sz, oerr := s.cacher.Open(dl.Sha3_384)
+			if oerr != nil {
+				if errors.Is(oerr, fs.ErrNotExist) {
+					return nil
+				}
+				return fmt.Errorf("cannot open: %w", oerr)
+			}
+			defer f.Close()
+
+			// If different size, we drop directly, otherwise we check also the hash
+			if sz == dl.Size {
+				h := crypto.SHA3_384.New()
+				if _, cerr := io.Copy(h, f); cerr != nil {
+					return fmt.Errorf("cannot read: %w", cerr)
+				}
+
+				actualSha3 := fmt.Sprintf("%x", h.Sum(nil))
+				if dl.Sha3_384 == actualSha3 {
+					// the cached entry appears to be correct, let's keep it
+					return nil
+				}
+			}
+
+			// takes a lock inside, could block, ignore ENOENT as the entry may have
+			// been dropped while we were processing it
+			if derr := s.cacher.Drop(dl.Sha3_384); derr != nil && !errors.Is(derr, fs.ErrNotExist) {
+				return fmt.Errorf("cannot drop: %w", derr)
+			}
+
+			return nil
+		}
+
+		if merr := maybeDropIfCorrupted(); merr != nil {
+			err = strutil.JoinErrors(err, fmt.Errorf("cannot drop cached download entry: %w", merr))
+		}
+	}
+	return err
 }

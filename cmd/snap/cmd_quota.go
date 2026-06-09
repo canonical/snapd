@@ -116,12 +116,12 @@ func init() {
 	addCommand("set-quota", shortSetQuotaHelp, longSetQuotaHelp,
 		func() flags.Commander { return &cmdSetQuota{} },
 		waitDescs.also(map[string]string{
-			"memory":             i18n.G("Memory quota"),
-			"cpu":                i18n.G("CPU quota"),
-			"cpu-set":            i18n.G("CPU set quota"),
-			"threads":            i18n.G("Threads quota"),
-			"journal-size":       i18n.G("Journal size quota"),
-			"journal-rate-limit": i18n.G("Journal rate limit as <message count>/<message period>"),
+			"memory":             i18n.G("Memory quota as <number><unit> (e.g. 64MB, 1GB)"),
+			"cpu":                i18n.G("CPU quota as <percentage>% or <count>x<percentage>% (e.g. 50%, 2x100%)"),
+			"cpu-set":            i18n.G("CPU set quota as comma-separated list of CPU core indices (e.g. 0,1,3)"),
+			"threads":            i18n.G("Threads quota as a positive integer (e.g. 512)"),
+			"journal-size":       i18n.G("Journal size quota as <number><unit> (e.g. 16MB)"),
+			"journal-rate-limit": i18n.G("Journal rate limit as <message count>/<message period> (e.g. 100/1s, 1000/1m)"),
 			"parent":             i18n.G("Parent quota group"),
 		}), nil)
 	addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)

@@ -1,0 +1,94 @@
+name: Auto Rerun Approved PRs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/20 * * * *'
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+jobs:
+  scan-open-prs:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      MAX_RUN_ATTEMPTS: 5
+      MAX_FAILED_TASKS: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Scan open PRs and trigger reruns
+        run: |
+          set -euo pipefail
+
+          source .github/scripts/rerun-common.sh
+
+          prs=$(gh pr list --state open --limit 200 --json number,isDraft,labels,headRefOid,latestReviews,baseRefName)
+          echo "Inspecting $(echo "$prs" | jq 'length') open PRs for rerun..."
+
+          echo "$prs" | jq -c '.[]' | while read -r pr; do
+            pr_number=$(echo "$pr" | jq -r '.number')
+            head_sha=$(echo "$pr" | jq -r '.headRefOid')
+
+            if ! pr_is_rerun_eligible "$pr" 2 false; then
+              echo "Skipping PR #$pr_number: $NOT_RERUN_REASON"
+              continue
+            fi
+
+            ensure_auto_rerun_label "$pr_number" "$pr"
+
+            if [[ -z "$head_sha" || "$head_sha" == "null" ]]; then
+              echo "Skipping PR #$pr_number: missing head SHA"
+              continue
+            fi
+
+            last_run_json=$(gh run list \
+              --workflow .github/workflows/ci-test.yaml \
+              --limit 100 \
+              --json databaseId,attempt,status,conclusion,headSha \
+              | jq -c --arg head_sha "$head_sha" 'map(select(.headSha == $head_sha)) | first // empty')
+
+            if [[ -z "$last_run_json" || "$last_run_json" == "null" ]]; then
+              echo "Skipping PR #$pr_number: no pull_request run found for head SHA $head_sha"
+              continue
+            fi
+
+            last_run=$(echo "$last_run_json" | jq -r '.databaseId // empty')
+            run_attempt=$(echo "$last_run_json" | jq -r '.attempt // 0')
+
+            if [[ -z "$last_run" ]]; then
+              echo "Skipping PR #$pr_number: no pull_request run found for head SHA $head_sha"
+              continue
+            fi
+
+            if ! run_is_completed "$last_run_json" "$last_run"; then
+              echo "Skipping PR #$pr_number: $NOT_RERUN_REASON"
+              continue
+            fi
+
+            if [[ "$run_attempt" -ge "$MAX_RUN_ATTEMPTS" ]]; then
+              echo "Skipping PR #$pr_number: run_id=$last_run already at attempt $run_attempt"
+              continue
+            fi
+
+            run_jobs=$(gh run view "$last_run" --json jobs --jq '.jobs')
+            spread_jobs_ran=$(echo "$run_jobs" | jq '[.[] | select(.name | test("^spread ")) | select(.status == "completed")] | length')
+            if [[ "$spread_jobs_ran" -lt 1 ]]; then
+              echo "Skipping PR #$pr_number: no completed spread jobs found in run_id=$last_run"
+              continue
+            fi
+
+            pr_base=$(echo "$pr" | jq -r '.baseRefName // empty')
+            if ! required_spread_failure_threshold_allows_rerun "$last_run" "$pr_base" "$GH_REPO" "$MAX_FAILED_TASKS"; then
+              echo "Skipping PR #$pr_number: $NOT_RERUN_REASON"
+              continue
+            fi
+
+            echo "Triggering rerun workflow for PR #$pr_number using run_id=$last_run (attempt $run_attempt)"
+            gh workflow run rerun.yaml -f run_id="$last_run"
+          done

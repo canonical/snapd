@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+properties:
+  message:
+    type: string
+    description: A human-readable error message explaining the error.
+    enum:
+      - AppArmor Prompting is not running
+  kind:
+    type: string
+    description: A machine-readable string identifying the error type.
+    enum:
+      - apparmor-prompting-not-running

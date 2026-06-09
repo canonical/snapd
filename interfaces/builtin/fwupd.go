@@ -96,7 +96,6 @@ const fwupdPermanentSlotAppArmor = `
   /run/udev/data/* r,
   /run/mount/utab r,
 
-  owner @{PROC}/@{pid}/mountinfo r,
   owner @{PROC}/@{pid}/mounts r,
 
   /dev/tpm* rw,
@@ -445,6 +444,7 @@ func (iface *fwupdInterface) AppArmorConnectedPlug(spec *apparmor.Specification,
 	}
 	snippet := strings.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
 	return nil
 }
 

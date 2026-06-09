@@ -49,6 +49,12 @@ func (s *transactionSuite) SetUpTest(c *C) {
 	s.transaction = config.NewTransaction(s.state)
 
 	config.ClearExternalConfigMap()
+
+	snapJSON := json.RawMessage(`{}`)
+	s.state.Set("snaps", map[string]*json.RawMessage{
+		"some-snap":  &snapJSON,
+		"other-snap": &snapJSON,
+	})
 }
 
 type setGetOp string
@@ -356,6 +362,13 @@ var setGetTests = [][]setGetOp{{
 	`set one.bad--bad.two=1 => invalid option name: "bad--bad"`,
 	`set one.-bad.two=1 => invalid option name: "-bad"`,
 	`set one.bad-.two=1 => invalid option name: "bad-"`,
+	// Invalid keys nested in JSON objects.
+	`set one={"Bad":1} => invalid option name: "Bad"`,
+	`set one={"bad_key":1} => invalid option name: "bad_key"`,
+	`set one={"good":{"Bad":1}} => invalid option name: "Bad"`,
+	`set one=[{"Bad":1}] => invalid option name: "Bad"`,
+	`set one=[{"good":{"Bad":1}}] => invalid option name: "Bad"`,
+	`set one=[1,[{"Bad":1}]] => invalid option name: "Bad"`,
 }}
 
 func (s *transactionSuite) TestSetGet(c *C) {
@@ -495,33 +508,33 @@ func (s *transactionSuite) TestCommitOverNilSnapConfig(c *C) {
 	defer s.state.Unlock()
 
 	// simulate invalid nil map created due to LP #1917870 by snap restore
-	s.state.Set("config", map[string]any{"test-snap": nil})
+	s.state.Set("config", map[string]any{"some-snap": nil})
 	t := config.NewTransaction(s.state)
 
-	c.Assert(t.Set("test-snap", "foo", "bar"), IsNil)
+	c.Assert(t.Set("some-snap", "foo", "bar"), IsNil)
 	t.Commit()
 	var v string
-	t.Get("test-snap", "foo", &v)
+	t.Get("some-snap", "foo", &v)
 	c.Assert(v, Equals, "bar")
 }
 
 func (s *transactionSuite) TestGetUnmarshalError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(s.transaction.Set("test-snap", "foo", "good"), IsNil)
+	c.Check(s.transaction.Set("some-snap", "foo", "good"), IsNil)
 	s.transaction.Commit()
 
 	tr := config.NewTransaction(s.state)
-	c.Check(tr.Set("test-snap", "foo", "break"), IsNil)
+	c.Check(tr.Set("some-snap", "foo", "break"), IsNil)
 
 	// Pristine state is good, value in the transaction breaks.
 	broken := brokenType{`"break"`}
-	err := tr.Get("test-snap", "foo", &broken)
+	err := tr.Get("some-snap", "foo", &broken)
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 
 	// Pristine state breaks, nothing in the transaction.
 	tr.Commit()
-	err = tr.Get("test-snap", "foo", &broken)
+	err = tr.Get("some-snap", "foo", &broken)
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 }
 
@@ -550,19 +563,19 @@ func (s *transactionSuite) TestPristineIsNotTainted(c *C) {
 	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
-	c.Check(tr.Set("test-snap", "foo.a.a", "a"), IsNil)
+	c.Check(tr.Set("some-snap", "foo.a.a", "a"), IsNil)
 	tr.Commit()
 
 	var data any
 	var result any
 	tr = config.NewTransaction(s.state)
-	c.Check(tr.Set("test-snap", "foo.b", "b"), IsNil)
-	c.Check(tr.Set("test-snap", "foo.a.a", "b"), IsNil)
-	c.Assert(tr.Get("test-snap", "foo", &result), IsNil)
+	c.Check(tr.Set("some-snap", "foo.b", "b"), IsNil)
+	c.Check(tr.Set("some-snap", "foo.a.a", "b"), IsNil)
+	c.Assert(tr.Get("some-snap", "foo", &result), IsNil)
 	c.Check(result, DeepEquals, map[string]any{"a": map[string]any{"a": "b"}, "b": "b"})
 
 	pristine := tr.PristineConfig()
-	c.Assert(json.Unmarshal([]byte(*pristine["test-snap"]["foo"]), &data), IsNil)
+	c.Assert(json.Unmarshal([]byte(*pristine["some-snap"]["foo"]), &data), IsNil)
 	c.Assert(data, DeepEquals, map[string]any{"a": map[string]any{"a": "a"}})
 }
 
@@ -903,4 +916,54 @@ func (s *transactionSuite) TestEmptyKeyValue(c *C) {
 
 	err = tr.Set("some-snap", "", nil)
 	c.Assert(err, ErrorMatches, "internal error: key cannot be an empty string")
+}
+
+func (s *transactionSuite) TestBadFieldErrorCore26AndSystemSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapState := json.RawMessage(`{"base": "core26"}`)
+	s.state.Set("snaps", map[string]*json.RawMessage{
+		"my-snap": &snapState,
+	})
+
+	tests := []struct {
+		snap string
+		key  string
+		val  any
+		err  string
+	}{
+		{snap: "system", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid option name: "Bad"`},
+		{snap: "system", key: "opts", val: map[string]any{"good": 1}},
+		{snap: "my-snap", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid option name: "Bad"`},
+		{snap: "my-snap", key: "opts", val: map[string]any{"good": 1}},
+	}
+
+	for _, t := range tests {
+		tr := config.NewTransaction(s.state)
+		err := tr.Set(t.snap, t.key, t.val)
+		if t.err != "" {
+			c.Check(err, ErrorMatches, t.err, Commentf("snap=%q key=%q val=%v", t.snap, t.key, t.val))
+		} else {
+			c.Check(err, IsNil, Commentf("snap=%q key=%q val=%v", t.snap, t.key, t.val))
+		}
+	}
+}
+
+func (s *transactionSuite) TestWarnBadFieldForNonCore26Snaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapState := json.RawMessage(`{"base": "core22"}`)
+	s.state.Set("snaps", map[string]*json.RawMessage{
+		"my-snap": &snapState,
+	})
+
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("my-snap", "opts", map[string]any{"Bad": 1})
+	c.Assert(err, IsNil)
+
+	ws := s.state.AllWarnings()
+	c.Assert(ws, HasLen, 1)
+	c.Check(ws[0].String(), Matches, `Option value has invalid field name "Bad". For core26\+ snaps, fields must be dash separated lowercase alphanumerics.`)
 }

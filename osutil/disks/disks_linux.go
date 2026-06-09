@@ -62,11 +62,11 @@ func MockUdevPropertiesForDevice(new func(string, string) (map[string]string, er
 			return []byte(err.Error()), []byte{}, err
 		}
 		// put it into udevadm format output, i.e. "KEY=VALUE\n"
-		output := ""
+		var output strings.Builder
 		for k, v := range props {
-			output += fmt.Sprintf("%s=%s\n", k, v)
+			output.WriteString(fmt.Sprintf("%s=%s\n", k, v))
 		}
-		return []byte(output), []byte{}, nil
+		return []byte(output.String()), []byte{}, nil
 	}
 	return func() {
 		udevadmProperties = old

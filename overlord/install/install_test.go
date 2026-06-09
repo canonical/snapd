@@ -329,14 +329,14 @@ func (s *installSuite) TestOrderedCurrentBootImagesHybrid(c *C) {
 	} {
 		s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.imageError, tc.errorBootImage)
 
-		bootImagePaths, err := install.OrderedCurrentBootImagesHybrid()
+		bootImageFiles, err := install.OrderedCurrentBootImagesHybrid()
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
 			c.Assert(err, IsNil)
 
-			for i, path := range bootImagePaths {
-				c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+			for i, path := range bootImageFiles {
+				c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 			}
 		}
 	}
@@ -385,15 +385,15 @@ func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
 		}
 		modelMock := s.mockModel(modelMods)
 
-		bootImagePaths, err := install.OrderedCurrentBootImages(modelMock)
+		bootImageFiles, err := install.OrderedCurrentBootImages(modelMock)
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
 			c.Assert(err, IsNil)
 		}
 
-		for i, path := range bootImagePaths {
-			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		for i, path := range bootImageFiles {
+			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 		}
 	}
 }
@@ -616,12 +616,12 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 	}
 
 	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
-	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		c.Assert(ctx, NotNil)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
-		c.Assert(bootImagePaths, HasLen, len(relBootImagePaths))
-		for i, path := range bootImagePaths {
-			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		c.Assert(bootImageFiles, HasLen, len(relBootImagePaths))
+		for i, path := range bootImageFiles {
+			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 		}
 
 		if checkFailErrors == ErrorSecbootPreinstall {
@@ -1557,7 +1557,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		if tc.detectedErrors != ErrorNone {
-			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: .+\n")
+			c.Check(logbuf.String(), Matches, "[\\s\\S]*: not encrypting device storage as checking TPM gave: .+\n")
 		}
 		logbuf.Reset()
 
@@ -1568,7 +1568,7 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		encryptionType, err = install.CheckEncryptionSupport(constraints, nil)
 		c.Assert(err, IsNil)
 		if tc.detectedErrors != ErrorNone {
-			c.Check(logbuf.String(), Matches, ".*: not encrypting device storage as checking TPM gave: .+\n")
+			c.Check(logbuf.String(), Matches, "[\\s\\S]*: not encrypting device storage as checking TPM gave: .+\n")
 		}
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 		logbuf.Reset()
@@ -1578,9 +1578,6 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 	kernelInfo := s.kernelSnap(c, "pc-kernel=20-fde-setup")
 	gadgetInfo, _ := s.mountedGadget(c)
-
-	logbuf, restore := logger.MockLogger()
-	defer restore()
 
 	for _, tc := range []struct {
 		fdeSetupHookFeatures string
@@ -1615,10 +1612,6 @@ func (s *installSuite) TestInstallCheckEncryptionSupportHook(c *C) {
 		encryptionType, err := install.CheckEncryptionSupport(constraints, runFDESetup)
 		c.Assert(err, IsNil)
 		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
-		if !tc.hasTPM {
-			c.Check(logbuf.String(), Equals, "")
-		}
-		logbuf.Reset()
 	}
 }
 

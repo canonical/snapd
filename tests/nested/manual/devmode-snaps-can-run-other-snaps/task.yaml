@@ -17,37 +17,11 @@ environment:
   BASE_CORE_STRICT_SNAP: test-snapd-sh
   BASE_NON_CORE_STRICT_SNAP: test-snapd-sh-core18
 
-  # build the snap with lxd
-  SNAPCRAFT_BUILD_ENVIRONMENT: lxd
-
 prepare: |
-  # load the fuse kernel module before installing lxd
-  modprobe fuse
-
-  # install lxd so we can build the snapd snap
-  "$TESTSTOOLS"/lxd-state prepare-snap
-  snap install snapcraft --channel="${SNAPCRAFT_SNAP_CHANNEL}" --classic
-
-  # TODO: do we need to address the spread system prepare shenanigans as 
-  # mentioned in tests/main/snapd-snap ?
-
-  # shellcheck disable=SC2164
-  pushd "$PROJECT_PATH"
-  echo "Build the snap"
-  snap run snapcraft snap --output snapd-from-branch.snap
-  popd
-
-  mv "$PROJECT_PATH/snapd-from-branch.snap" "$PWD/snapd-from-branch.snap"
-
-  # meh it doesn't work well to use quotas and "&&" in the arguments to sh -c
-  # with defer, so just put what we want to run in a script and execute that
-  cat >> snapcraft-cleanup.sh <<EOF
-  #!/bin/sh
-  cd $PROJECT_PATH
-  snap run snapcraft clean
-  EOF
-  chmod +x snapcraft-cleanup.sh
-  tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB"/prepare.sh
+  build_snapd_snap .
+  mv snapd_*.snap snapd-from-branch.snap
 
   snapdsnapdir=snapd-snap-from-branch
   unsquashfs -d "${snapdsnapdir}" "$PWD/snapd-from-branch.snap"

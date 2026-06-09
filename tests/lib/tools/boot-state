@@ -20,7 +20,7 @@ show_help() {
 get_grub_editenv() {
     if [ -e /boot/grub2/grubenv ]; then
         command -v grub2-editenv
-    elif [ -e /boot/grub/grubenv ]; then
+    else
         command -v grub-editenv
     fi
 }

@@ -31,6 +31,9 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
+
+	// this package's init() creates a builtin assertion so ensure it's called
+	_ "github.com/snapcore/snapd/interfaces/policy"
 )
 
 func TestSysDB(t *testing.T) { TestingT(t) }

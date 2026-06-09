@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+required:
+  - message
+  - kind
+properties:
+  message:
+    type: string
+    description: A human-readable error message explaining the error.
+    example: cannot find rule with the given ID
+  kind:
+    type: string
+    description: A machine-readable string identifying the error type.
+    enum:
+      - interfaces-requests-rule-not-found

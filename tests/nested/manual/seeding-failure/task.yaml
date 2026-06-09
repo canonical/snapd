@@ -14,8 +14,6 @@ systems:
   - -ubuntu-1*
   - -ubuntu-20*
   - -ubuntu-22*
-  # FIXME
-  - -ubuntu-26*
 
 environment:
   MODEL_JSON: $TESTSLIB/assertions/test-snapd-failed-seeding-pc-VERSION.json
@@ -104,7 +102,7 @@ execute: |
 
   # this waits for the next attempt at seeding to work
   tests.nested setup-vm
-  remote.wait-for device-initialized
+  remote.wait-for device-initialized --attempts 120
 
   remote.exec "snap list failing-service"
 

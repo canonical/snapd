@@ -5,7 +5,7 @@ details: |
     snapd uses a different exit code for retryable errors.
     
     This test forces an error installing 2 times the same snap and checks the
-    exit code for the the retryable error is 10.
+    exit code for the retryable error is 10.
 
 # autopkgtest is sometimes super slow and this test is timing dependent
 backends: [-autopkgtest]

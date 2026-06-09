@@ -3,7 +3,7 @@
 
 get:
   tags:
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Snaps
     - Synchronous
   summary: Get snap configuration
@@ -37,7 +37,7 @@ get:
 put:
   tags:
     - Asynchronous
-    - AuthenticationRequired
+    - AuthenticatedAccess
     - Snaps
   summary: Set snap configuration
   description: Set the configuration details for an installed snap. Use 'system' as the name to set system options.

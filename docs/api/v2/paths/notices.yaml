@@ -3,8 +3,8 @@
 
 get:
   tags:
+    - InterfaceOpenAccess
     - Notices
-    - OpenAccess
     - Synchronous
   summary: Retrieve system notices
   description: |-
@@ -128,7 +128,7 @@ post:
             action:
               type: string
               description: The action to perform.
-              enum: 
+              enum:
                 - add
             key:
               type: string
@@ -148,7 +148,7 @@ post:
             properties:
               status-code:
                 type: integer
-                enum: 
+                enum:
                   - 200
               status:
                 type: string

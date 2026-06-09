@@ -3,8 +3,8 @@
 
 get:
   tags:
-    - AuthenticationRequired
     - Changes
+    - InterfaceOpenAccess
     - Synchronous
   summary: Get all changes
   description: |-

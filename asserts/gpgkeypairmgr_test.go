@@ -26,6 +26,8 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
@@ -34,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type gpgKeypairMgrSuite struct {
@@ -51,6 +54,43 @@ func (gkms *gpgKeypairMgrSuite) SetUpSuite(c *C) {
 
 func (gkms *gpgKeypairMgrSuite) importKey(key string) {
 	assertstest.GPGImportKey(gkms.homedir, key)
+}
+
+func (gkms *gpgKeypairMgrSuite) addSigningSubkey(c *C, fingerprint string) {
+	// needs gnupg 2.x
+	path, err := exec.LookPath("gpg2")
+	if err != nil {
+		c.Skip("gpg with --quick-add-key support not installed")
+	}
+	versionOut, err := exec.Command(path, "--version").Output()
+	if err != nil {
+		c.Skip("cannot determine gpg2 version")
+	}
+	versionLine := strings.SplitN(strings.TrimSpace(string(versionOut)), "\n", 2)[0]
+	versionFields := strings.Fields(versionLine)
+	if len(versionFields) == 0 {
+		c.Skip("cannot determine gpg2 version")
+	}
+	version := versionFields[len(versionFields)-1]
+	cmp, err := strutil.VersionCompare(version, "2.1.13")
+	if err != nil {
+		c.Skip(fmt.Sprintf("cannot determine whether gpg2 version %q supports --quick-add-key", version))
+	}
+	if cmp < 0 {
+		c.Skip(fmt.Sprintf("gpg2 version %q is too old, need at least 2.1.13 for --quick-add-key", version))
+	}
+	gpg := exec.Command(path,
+		"--homedir", gkms.homedir,
+		"-q",
+		"--batch",
+		"--passphrase", "",
+		"--quick-add-key", fingerprint,
+		"rsa4096",
+		"sign",
+		"0",
+	)
+	out, err := gpg.CombinedOutput()
+	c.Assert(err, IsNil, Commentf("cannot add test subkey: %q", out))
 }
 
 func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
@@ -341,6 +381,17 @@ Preferences: SHA512
 func (gkms *gpgKeypairMgrSuite) TestList(c *C) {
 	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
 
+	keys, err := gpgKeypairMgr.List()
+	c.Assert(err, IsNil)
+	c.Check(keys, HasLen, 1)
+	c.Check(keys[0].ID, Equals, assertstest.DevKeyID)
+	c.Check(keys[0].Name, Not(Equals), "")
+}
+
+func (gkms *gpgKeypairMgrSuite) TestListWithSubkey(c *C) {
+	gkms.addSigningSubkey(c, assertstest.DevKeyPGPFingerprint)
+
+	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
 	keys, err := gpgKeypairMgr.List()
 	c.Assert(err, IsNil)
 	c.Check(keys, HasLen, 1)

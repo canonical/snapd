@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -233,6 +234,9 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	if err := snapshot.excludeMountControlMountPoints(cur); err != nil {
+		logger.Noticef("cannot exclude mount-control mount points: %v", err)
+	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
 	if err != nil {
 		st.Lock()
@@ -240,6 +244,48 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		removeSnapshotState(st, snapshot.SetID)
 	}
 	return err
+}
+
+// mapMountPointsInGlobalDataDirsToExcludes converts absolute mount-control
+// mount-point paths for a snap to $SNAP_DATA/... or $SNAP_COMMON/... patterns
+// suitable for SnapshotOptions.Exclude. Only mount points under the global
+// data directories are considered because mount-control only supports mounts
+// under these directories. Paths outside the snap's data directories are
+// skipped because they are not included in the snapshot.
+func mapMountPointsInGlobalDataDirsToExcludes(si *snap.Info, mountPoints []string) []string {
+	snapDataPrefix := si.DataDir() + "/"
+	snapCommonPrefix := si.CommonDataDir() + "/"
+	var excludes []string
+	for _, where := range mountPoints {
+		where = strings.TrimRight(where, "/")
+		switch {
+		case strings.HasPrefix(where, snapDataPrefix):
+			excludes = append(excludes, "$SNAP_DATA/"+where[len(snapDataPrefix):])
+		case strings.HasPrefix(where, snapCommonPrefix):
+			excludes = append(excludes, "$SNAP_COMMON/"+where[len(snapCommonPrefix):])
+		}
+	}
+	return excludes
+}
+
+// excludeMountControlMountPoints appends any currently-active mount-control
+// mount points under the snap's data directories to s.Options.
+func (s *snapshotSetup) excludeMountControlMountPoints(si *snap.Info) error {
+	mountPts, err := backend.ListMountControlMountPoints(si.InstanceName())
+	if err != nil {
+		return fmt.Errorf("cannot list mount-control units for %q: %v", si.InstanceName(), err)
+	}
+	excludes := mapMountPointsInGlobalDataDirsToExcludes(si, mountPts)
+	if len(excludes) == 0 {
+		return nil
+	}
+	if s.Options == nil {
+		s.Options = &snap.SnapshotOptions{}
+	}
+	if err := s.Options.MergeDynamicExcludes(excludes); err != nil {
+		return fmt.Errorf("internal error: cannot add mount-control excludes for %q: %v", si.InstanceName(), err)
+	}
+	return nil
 }
 
 // prepareRestore does the steps of doRestore that require the state lock

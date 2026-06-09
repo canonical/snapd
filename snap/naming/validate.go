@@ -62,14 +62,14 @@ func isValidName(name string) bool {
 func ValidateInstance(instanceName string) error {
 	// NOTE: This function should be synchronized with the two other
 	// implementations: sc_instance_name_validate and validate_instance_name .
-	pos := strings.IndexByte(instanceName, '_')
-	if pos == -1 {
+	before, after, ok := strings.Cut(instanceName, "_")
+	if !ok {
 		// just store name
 		return ValidateSnap(instanceName)
 	}
 
-	storeName := instanceName[:pos]
-	instanceKey := instanceName[pos+1:]
+	storeName := before
+	instanceKey := after
 	if err := ValidateSnap(storeName); err != nil {
 		return err
 	}
@@ -315,6 +315,18 @@ func validateAssumedSnapdVersion(assumedVersion, currentVersion string) (bool, e
 
 var archIsISASupportedByCPU = arch.IsISASupportedByCPU
 
+// ISAError is a wrapper for errors returned while validating ISA assumes flags.
+type ISAError struct {
+	// Flag is of the form isa-<arch>-<isa_val>.
+	Flag string
+	// Err is the wrapped error.
+	Err error
+}
+
+func (e *ISAError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Flag, e.Err)
+}
+
 // validateAssumedISAArch checks that, when a snap requires an ISA to be supported:
 //  1. compares the specified <arch> with the device's one. If they differ, it exits
 //     without error signaling that the flag is valid
@@ -338,7 +350,7 @@ func validateAssumedISAArch(flag string, currentArchitecture string) error {
 	}
 
 	if err := archIsISASupportedByCPU(tokens[2]); err != nil {
-		return fmt.Errorf("%s: %s", flag, err)
+		return &ISAError{Flag: flag, Err: err}
 	}
 
 	return nil

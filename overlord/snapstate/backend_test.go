@@ -95,6 +95,8 @@ type fakeOp struct {
 	requireSnapdTooling bool
 
 	dirOpts  *dirs.SnapDirOptions
+	dirs     []string
+	origin   string
 	undoInfo *backend.UndoInfo
 
 	currentComps []*snap.ComponentSideInfo
@@ -105,6 +107,8 @@ type fakeOp struct {
 
 	snapLocked bool
 	isUndo     bool
+
+	sha3 string
 }
 
 type fakeOps []fakeOp
@@ -137,6 +141,16 @@ func (ops fakeOps) Count(op string) int {
 		}
 	}
 	return n
+}
+
+func (ops fakeOps) Filter(op string) fakeOps {
+	var filtered fakeOps
+	for i := range ops {
+		if ops[i].op == op {
+			filtered = append(filtered, ops[i])
+		}
+	}
+	return filtered
 }
 
 func (ops fakeOps) First(op string) *fakeOp {
@@ -190,6 +204,9 @@ type fakeStore struct {
 
 	mu sync.Mutex
 
+	// download options are normalized to nil if they match the expected default value
+	expectedDefaultDownloadOpts *store.DownloadOptions
+
 	downloads           []fakeDownload
 	iconDownloads       []fakeIconDownload
 	refreshRevnos       map[string]snap.Revision
@@ -212,6 +229,8 @@ type fakeStore struct {
 	idsToNames         map[string]string
 
 	mutateSnapInfo func(*snap.Info) error
+
+	cleanupDownloadArtifactsError map[string]error
 }
 
 func (f *fakeStore) registerID(name, id string) {
@@ -642,6 +661,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Version: name + "Ver",
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Sha3_384:    "<some-hash>",
 		},
 		Confinement:   confinement,
 		Architectures: []string{"all"},
@@ -944,8 +964,12 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 	if user != nil {
 		macaroon = user.StoreMacaroon
 	}
-	// only add the options if they contain anything interesting
-	if dlOpts != nil && *dlOpts == (store.DownloadOptions{}) {
+	// only add the options if they differ from the defaults
+	dflt := f.expectedDefaultDownloadOpts
+	if dflt == nil {
+		dflt = &store.DownloadOptions{}
+	}
+	if dlOpts != nil && *dlOpts == *dflt {
 		dlOpts = nil
 	}
 	f.appendDownload(&fakeDownload{
@@ -1012,6 +1036,25 @@ func (f *fakeStore) Sections(ctx context.Context, _ *auth.UserState) ([]string, 
 }
 
 func (f *fakeStore) CleanDownloadsCache() error {
+	return nil
+}
+
+func (f *fakeStore) CleanupDownloadArtifacts(targetFn string, dl *snap.DownloadInfo) error {
+	f.pokeStateLock()
+
+	cksum := "<not-provided>"
+	if dl != nil {
+		cksum = dl.Sha3_384
+	}
+
+	f.fakeBackend.appendOp(&fakeOp{op: "storesvc-cleanup-download-artifacts",
+		sha3: cksum,
+		path: targetFn,
+	})
+
+	if f.cleanupDownloadArtifactsError != nil {
+		return f.cleanupDownloadArtifactsError[cksum]
+	}
 	return nil
 }
 
@@ -1245,8 +1288,12 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.SnapType = snap.TypeGadget
 	case "core":
 		info.SnapType = snap.TypeOS
+	case "core16":
+		info.SnapType = snap.TypeBase
 	case "snapd":
 		info.SnapType = snap.TypeSnapd
+	case "some-base":
+		info.SnapType = snap.TypeBase
 	case "app-snap-with-components":
 		info.Components = map[string]*snap.Component{
 			"standard-component": {
@@ -1453,13 +1500,17 @@ func svcSnapMountDir(svcs []*snap.AppInfo) string {
 }
 
 func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, meter progress.Meter, tm timings.Measurer) error {
-	services := make([]string, 0, len(svcs))
-	for _, svc := range svcs {
+	startupOrdered, err := snap.SortServices(svcs)
+	if err != nil {
+		return err
+	}
+	services := make([]string, 0, len(startupOrdered))
+	for _, svc := range startupOrdered {
 		services = append(services, svc.Name)
 	}
 	op := fakeOp{
 		op:       "start-snap-services",
-		path:     svcSnapMountDir(svcs),
+		path:     svcSnapMountDir(startupOrdered),
 		services: services,
 	}
 	// only add the services to the op if there's something to add
@@ -1475,7 +1526,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
+func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, reason snap.ServiceStopReason, undoer backend.Undoer, meter progress.Meter, tm timings.Measurer) error {
 	meter.Notify("stop-services")
 
 	var svcNames []string
@@ -1496,6 +1547,10 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string
 		}
 		sort.Strings(rmSvcNames)
 	}
+
+	undoer.AddUndo(func() error {
+		return f.StartServices(svcs, disabledSvcs, meter, tm)
+	})
 
 	f.appendOp(&fakeOp{
 		op:              fmt.Sprintf("stop-snap-services:%s", reason),
@@ -1671,10 +1726,12 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
 	f.appendOp(&fakeOp{
-		op:   "remove-snap-mount-units",
-		name: s.ContainerName(),
+		op:     "remove-snap-mount-units",
+		name:   s.ContainerName(),
+		origin: origin,
+		dirs:   baseDirs,
 	})
 	return f.maybeErrForLastOp()
 }

@@ -47,11 +47,12 @@ type UEvent struct {
 }
 
 func (e UEvent) String() string {
-	rv := fmt.Sprintf("%s@%s\000", e.Action.String(), e.KObj)
+	var rv strings.Builder
+	rv.WriteString(fmt.Sprintf("%s@%s\000", e.Action.String(), e.KObj))
 	for k, v := range e.Env {
-		rv += k + "=" + v + "\000"
+		rv.WriteString(k + "=" + v + "\000")
 	}
-	return rv
+	return rv.String()
 }
 
 func (e UEvent) Bytes() []byte {
@@ -112,7 +113,7 @@ func parseUdevEvent(raw []byte) (e *UEvent, err error) {
 
 	envdata := make(map[string]string, 0)
 	for _, envs := range fields[0 : len(fields)-1] {
-		env := bytes.Split(envs, []byte("="))
+		env := bytes.SplitN(envs, []byte("="), 2)
 		if len(env) != 2 {
 			err = fmt.Errorf("cannot parse libudev event: invalid env data")
 			return
@@ -167,7 +168,7 @@ func ParseUEvent(raw []byte) (e *UEvent, err error) {
 	}
 
 	for _, envs := range fields[1 : len(fields)-1] {
-		env := bytes.Split(envs, []byte("="))
+		env := bytes.SplitN(envs, []byte("="), 2)
 		if len(env) != 2 {
 			err = fmt.Errorf("Wrong uevent env")
 			return

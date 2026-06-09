@@ -1,0 +1,91 @@
+name: Release Testing
+on:
+  pull_request:
+    branches: [ "release/**" ]
+
+jobs:
+  run-gate:
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'Skip spread') }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running release testing."
+
+  snap-builds:
+    uses: ./.github/workflows/snap-builds.yaml
+    needs: run-gate
+    with:
+      runs-on: '["ubuntu-latest"]'
+      toolchain: default
+      variant: test
+
+  find-lowest-supported:
+    runs-on: ubuntu-latest
+    needs: run-gate
+    outputs:
+      system: ${{ steps.find-lowest-supported.outputs.system }}
+    steps:
+      - name: Find lowest supported Ubuntu version
+        id: find-lowest-supported
+        run: |
+          sudo apt update
+          version=$(ubuntu-distro-info --supported --release | head -1 | awk '{print $1}')
+          echo "Setting lowest supported system to ubuntu-$version-64"
+          echo "system=ubuntu-$version-64" >> $GITHUB_OUTPUT
+
+  test-snapd-deb:
+    needs: [snap-builds, find-lowest-supported]
+    uses: ./.github/workflows/spread-tests.yaml
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: deb-test
+      backend: openstack
+      systems: ${{ needs.find-lowest-supported.outputs.system }}
+      tasks: 'tests/release/distro-upgrade'
+      rules: ''
+      spread-env: "SPREAD_SNAPD_DEB_FROM_REPO=false SPREAD_SNAP_REEXEC=0"
+      upload-artifacts: true
+
+  test-snapd-snap:
+    needs: [snap-builds, find-lowest-supported]
+    uses: ./.github/workflows/spread-tests.yaml
+    with:
+      runs-on: '["self-hosted", "spread-enabled"]'
+      group: snap-test
+      backend: openstack
+      systems: ${{ needs.find-lowest-supported.outputs.system }}
+      tasks: 'tests/release/distro-upgrade'
+      rules: ''
+      upload-artifacts: true
+
+  report-results:
+    needs: [test-snapd-deb, test-snapd-snap]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download
+        uses: actions/download-artifact@v8
+        with:
+          pattern: spread-artifacts-*
+          merge-multiple: true
+
+      - name: Untar artifacts
+        run: |
+          find . -name "*.tar.gz" | while read filename; do 
+            dir="${filename%.tar.gz}"
+            mkdir -p "$dir"
+            tar -xzf "$filename" -C "$dir"
+            rm "$filename"
+          done
+          find . -name "*.txt" -type f -delete
+          echo "All files after delete"
+          find . -type f
+
+      - name: Report results
+        run: |
+          echo "--------------------------------------------"
+          echo "----------------Snap results----------------"
+          echo "--------------------------------------------"
+          find spread-artifacts-snap-test* -type f -exec sh -c 'echo $1; cat $1' _ {} \;
+          echo "-------------------------------------------"
+          echo "----------------Deb results----------------"
+          echo "-------------------------------------------"
+          find spread-artifacts-deb-test* -type f -exec sh -c 'echo $1; cat $1' _ {} \;

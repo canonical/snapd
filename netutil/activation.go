@@ -23,16 +23,16 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"runtime"
-	unix "syscall"
-
-	"github.com/coreos/go-systemd/activation"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/systemd/fdstore"
 )
 
-// GetListener tries to get a listener for the given socket path from
-// the listener map, and if it fails it tries to set it up directly.
+// GetListener tries to get a listener for the given socket path from the
+// listener map, and if it fails it tries to set it up directly. The socket, if
+// needed to be created, is owned by the current user and its mode is set to
+// 0666. Upon returning, the caller can change to mode using os.Chmod() if
+// required.
 func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Listener, error) {
 	if listener, ok := listenerMap[socketPath]; ok {
 		return listener, nil
@@ -52,12 +52,16 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 		return nil, err
 	}
 
-	runtime.LockOSThread()
-	oldmask := unix.Umask(0111)
 	listener, err := net.ListenUnix("unix", address)
-	unix.Umask(oldmask)
-	runtime.UnlockOSThread()
 	if err != nil {
+		return nil, err
+	}
+	// if we reached here, the socket was clearly not in the set passed as
+	// activation sockets. It is owned by current user, but its mode is 0777 &
+	// ~umask. Update the mode to same value as systemd's default (0666). The
+	// caller knows the path and can adjust the mode to their liking.
+	if err := os.Chmod(socketPath, 0666); err != nil {
+		listener.Close()
 		return nil, err
 	}
 
@@ -68,18 +72,16 @@ func GetListener(socketPath string, listenerMap map[string]net.Listener) (net.Li
 
 // ActivationListeners builds a map of addresses to listeners that were passed
 // during systemd activation
-func ActivationListeners() (lns map[string]net.Listener, err error) {
-	// pass false to keep LISTEN_* environment variables passed by systemd
-	files := activation.Files(false)
-	lns = make(map[string]net.Listener, len(files))
-
-	for _, f := range files {
-		ln, err := net.FileListener(f)
-		if err != nil {
-			return nil, err
-		}
-		addr := ln.Addr().String()
-		lns[addr] = ln
+func ActivationListeners() (listenerByAddr map[string]net.Listener, err error) {
+	listeners, err := fdstore.ActivationListeners()
+	if err != nil {
+		return nil, err
 	}
-	return lns, nil
+
+	listenerByAddr = make(map[string]net.Listener, len(listeners))
+	for _, listener := range listeners {
+		addr := listener.Addr().String()
+		listenerByAddr[addr] = listener
+	}
+	return listenerByAddr, nil
 }

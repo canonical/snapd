@@ -36,11 +36,6 @@ import (
 // AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
 type AtomicWriteFlags uint
 
-const (
-	// AtomicWriteFollow makes AtomicWriteFile follow symlinks
-	AtomicWriteFollow AtomicWriteFlags = 1 << iota
-)
-
 // Allow disabling sync for testing. This brings massive improvements on
 // certain filesystems (like btrfs) and very much noticeable improvements in
 // all unit tests in genreal.
@@ -69,7 +64,7 @@ type AtomicFile struct {
 //	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
-// the real file, unless the AtomicWriteFollow flag is specified.
+// the real file.
 //
 // It is the caller's responsibility to clean up on error, by calling Cancel().
 //
@@ -79,16 +74,7 @@ type AtomicFile struct {
 // Also note that there are a number of scenarios where Commit fails and then
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
-func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
-	if flags&AtomicWriteFollow != 0 {
-		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
-			if filepath.IsAbs(fn) {
-				filename = fn
-			} else {
-				filename = filepath.Join(filepath.Dir(filename), fn)
-			}
-		}
-	}
+func NewAtomicFile(filename string, perm os.FileMode, _ AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
 	// The tilde is appended so that programs that inspect all files in some
 	// directory are more likely to ignore this file as an editor backup file.
 	//
