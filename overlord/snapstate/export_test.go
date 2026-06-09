@@ -194,9 +194,8 @@ var (
 	NewRefreshHints               = newRefreshHints
 	CanRefreshOnMeteredConnection = canRefreshOnMeteredConnection
 
-	NewCatalogRefresh            = newCatalogRefresh
-	CatalogRefreshDelayBase      = catalogRefreshDelayBase
-	CatalogRefreshDelayWithDelta = catalogRefreshDelayWithDelta
+	NewCatalogRefresh       = newCatalogRefresh
+	CatalogRefreshDelayBase = catalogRefreshDelayBase
 
 	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
@@ -650,4 +649,8 @@ var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
 
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)
+}
+
+func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
+	return s.catalogRefreshDelayWithDelta
 }
