@@ -301,6 +301,9 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.KernelTrack(), Equals, "")
 	c.Check(model.Base(), Equals, "core18")
+	coreVersion, err := model.CoreVersion()
+	c.Assert(err, IsNil)
+	c.Check(coreVersion, Equals, 18)
 	c.Check(model.BaseSnap(), DeepEquals, &asserts.ModelSnap{
 		Name:     "core18",
 		SnapType: "base",

@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/ltschannel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2633,6 +2634,189 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		c.Assert(err, IsNil, Commentf("recovery system setup task ID missing in %s", tsk.Kind()))
 		c.Assert(otherTaskID, Equals, tCreateRecovery.ID())
 	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannel(c *C) {
+	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int][]string{20: {"20"}})
+	defer restoreTracks()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core20", nil, nil)
+	snapstatetest.InstallSnap(c, s.state, "name: snapd\nversion: 1\ntype: snapd\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("snapd"),
+		Revision: snap.R(1),
+		RealName: "snapd",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+
+	var testDeviceCtx snapstate.DeviceContext
+	var snapdChannel string
+
+	restore := devicestate.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		g := goal.(*storeUpdateGoalRecorder)
+		sn := g.snaps[0]
+		if sn.InstanceName == "snapd" {
+			snapdChannel = sn.RevOpts.Channel
+		}
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", sn.InstanceName, sn.RevOpts.Channel))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", sn.InstanceName))
+		tValidate.WaitFor(tDownload)
+		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s", sn.InstanceName))
+		tUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	uc20Snaps := []any{
+		map[string]any{
+			"name":            "snapd",
+			"id":              snaptest.AssertedSnapID("snapd"),
+			"type":            "snapd",
+			"default-channel": "latest",
+		},
+		map[string]any{
+			"name":            "pc-kernel",
+			"id":              snaptest.AssertedSnapID("pc-kernel"),
+			"type":            "kernel",
+			"default-channel": "20",
+		},
+		map[string]any{
+			"name":            "pc",
+			"id":              snaptest.AssertedSnapID("pc"),
+			"type":            "gadget",
+			"default-channel": "20",
+		},
+	}
+
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps":        uc20Snaps,
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	newSnaps := append([]any{}, uc20Snaps...)
+	newSnaps[0] = map[string]any{
+		"name":            "snapd",
+		"id":              snaptest.AssertedSnapID("snapd"),
+		"type":            "snapd",
+		"default-channel": "latest/edge",
+	}
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps":        newSnaps,
+	})
+
+	testDeviceCtx = &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
+
+	_, err = devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", devicestate.RemodelOptions{})
+	c.Assert(err, IsNil)
+	c.Check(snapdChannel, Equals, "20/edge")
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelUnknownTrackErrors(c *C) {
+	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int][]string{18: {"18"}})
+	defer restoreTracks()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	snapstatetest.InstallEssentialSnaps(c, s.state, "core18", nil, nil)
+	snapstatetest.InstallSnap(c, s.state, "name: snapd\nversion: 1\ntype: snapd\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("snapd"),
+		Revision: snap.R(1),
+		RealName: "snapd",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+
+	restore := devicestate.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
+		g := goal.(*storeUpdateGoalRecorder)
+		sn := g.snaps[0]
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", sn.InstanceName, sn.RevOpts.Channel))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", sn.InstanceName))
+		tValidate.WaitFor(tDownload)
+		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s", sn.InstanceName))
+		tUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"base":         "core18",
+		"grade":        "dangerous",
+		"snaps": []any{
+			map[string]any{
+				"name":            "snapd",
+				"id":              snaptest.AssertedSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "latest",
+			},
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "18",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "18",
+			},
+		},
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"base":         "core18",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []any{
+			map[string]any{
+				"name":            "snapd",
+				"id":              snaptest.AssertedSnapID("snapd"),
+				"type":            "snapd",
+				"default-channel": "20/stable",
+			},
+			map[string]any{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "18",
+			},
+			map[string]any{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "18",
+			},
+		},
+	})
+
+	testDeviceCtx := &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
+
+	_, err = devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", devicestate.RemodelOptions{})
+	c.Assert(err, ErrorMatches, `cannot resolve LTS channel for track "20"`)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C) {

@@ -180,7 +180,7 @@ func Prepare(opts *Options) error {
 			return fmt.Errorf("cannot preseed the image for a classic model")
 		}
 
-		coreVersion, err := naming.CoreVersion(model.Base())
+		coreVersion, err := model.CoreVersion()
 		if err != nil {
 			return fmt.Errorf("cannot preseed the image for %s: %v", model.Base(), err)
 		}

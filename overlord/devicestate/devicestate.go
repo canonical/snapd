@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/ltschannel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
@@ -1082,10 +1083,21 @@ func remodelSnapdSnapTasks(ctx context.Context, st *state.State, rm remodeler) (
 
 	// Implicit new channel if snapd is not explicitly in the model
 	newSnapdChannel := "latest/stable"
+	var snapdModelSnap *asserts.ModelSnap
 	essentialSnaps := rm.newModel.EssentialSnaps()
 	if essentialSnaps[0].SnapType == "snapd" {
 		// snapd can be specified explicitly in the model (UC20+)
-		newSnapdChannel = essentialSnaps[0].DefaultChannel
+		snapdModelSnap = essentialSnaps[0]
+		newSnapdChannel = snapdModelSnap.DefaultChannel
+	}
+
+	skipLockdown := snapdModelSnap != nil && snapdModelSnap.SnapID == ""
+	if !skipLockdown {
+		var err error
+		newSnapdChannel, err = ltschannel.SnapdLTSChannel(rm.newModel, newSnapdChannel)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	_, tss, err := rm.maybeInstallOrUpdate(ctx, st, remodelSnapTarget{
