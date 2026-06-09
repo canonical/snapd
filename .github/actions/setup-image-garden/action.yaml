@@ -79,7 +79,9 @@ runs:
         - name: Install image garden
           shell: bash
           run: |
-            git clone https://gitlab.com/zygoon/image-garden.git /tmp/image-garden --depth 1
+            git clone https://gitlab.com/zygoon/image-garden.git /tmp/image-garden
+            # checkout commit with Fedora 44 support
+            git -C /tmp/image-garden/ checkout 574774754aa389d528f96352ed5bdfe7b194b744
             sudo make install -C /tmp/image-garden
         - name: Install spread
           shell: bash
