@@ -74,6 +74,29 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+func lastSnapOrderingTask(c *C, sn string, ts *state.TaskSet) *state.Task {
+	if sn == "snapd" {
+		return snapdOrderingBarrierTask(c, ts)
+	}
+	t, err := ts.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	return t
+}
+
+// snapdOrderingBarrierTask is the task other snaps wait on when snapd is
+// refreshed in the same change. check-lts-channel is appended at the end of
+// snapd's refresh spine when present.
+func snapdOrderingBarrierTask(c *C, snapdTS *state.TaskSet) *state.Task {
+	for _, t := range snapdTS.Tasks() {
+		if t.Kind() == "check-lts-channel" {
+			return t
+		}
+	}
+	t, err := snapdTS.Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+	return t
+}
+
 func verifyUpdateTasks(c *C, typ snap.Type, opts, discards int, ts *state.TaskSet) {
 	verifyUpdateTasksWithComponents(c, typ, opts, 0, discards, nil, ts)
 }
@@ -9887,8 +9910,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelAndSnapdSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil)
 	acTaskOfKernel, err := kernelTs.Edge(snapstate.MaybeRebootWaitEdge)
 	c.Assert(err, IsNil)
-	snapdEndTask, err := snapdTs.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	snapdEndTask := snapdOrderingBarrierTask(c, snapdTs)
 
 	c.Check(beginTaskOfBase.WaitTasks(), testutil.Contains, snapdEndTask)
 	c.Check(beginTaskOfKernel.WaitTasks(), testutil.Contains, snapdEndTask)
@@ -11191,8 +11213,7 @@ func (s *snapmgrTestSuite) testUpdateEssentialSnapsOrder(c *C, order []string) {
 
 	var snapdEndTask *state.Task
 	if snapdTS := tsByName["snapd"]; snapdTS != nil {
-		snapdEndTask, err = snapdTS.Edge(snapstate.EndEdge)
-		c.Assert(err, IsNil)
+		snapdEndTask = snapdOrderingBarrierTask(c, snapdTS)
 	}
 
 	// Ensure that all reboot participants are correctly linked across both the
@@ -11281,6 +11302,7 @@ NextSnap2:
 	// Verify by using edges that other non-essential task-sets are correctly
 	// connected to the previous task-set.
 	var prevTs *state.TaskSet
+	var prevSn string
 NextSnap3:
 	for _, sn := range order {
 		currentTs := tsByName[sn]
@@ -11288,6 +11310,7 @@ NextSnap3:
 		switch sn {
 		case "snapd", "core18", "kernel", "gadget":
 			prevTs = currentTs
+			prevSn = sn
 			continue NextSnap3
 		default:
 			break IsEssential
@@ -11299,15 +11322,16 @@ NextSnap3:
 			c.Assert(err, IsNil)
 			c.Check(firstTaskOfCurrent.WaitTasks(), HasLen, 0)
 			prevTs = currentTs
+			prevSn = sn
 			continue
 		}
 
 		firstTaskOfCurrent, err := currentTs.Edge(snapstate.BeginEdge)
 		c.Assert(err, IsNil)
-		lastTaskOfPrev, err := prevTs.Edge(snapstate.EndEdge)
-		c.Assert(err, IsNil)
+		lastTaskOfPrev := lastSnapOrderingTask(c, prevSn, prevTs)
 		c.Check(firstTaskOfCurrent.WaitTasks(), testutil.Contains, lastTaskOfPrev)
 		prevTs = currentTs
+		prevSn = sn
 	}
 
 	// determine the number of reboots we expect
@@ -11450,8 +11474,7 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 	beginTaskOfBase, err := baseTs.Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
 	mountTaskOfBase := findMountSnap(c, baseTs)
-	lastTaskOfSnapd, err := snapdTs.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	lastTaskOfSnapd := snapdOrderingBarrierTask(c, snapdTs)
 	c.Check(beginTaskOfBase.WaitTasks(), testutil.Contains, lastTaskOfSnapd)
 	c.Check(waitsOnTransitively(mountTaskOfBase, lastTaskOfSnapd), Equals, true)
 
@@ -21123,16 +21146,21 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBeforeLocalModifications
 	c.Check(kernelLinkTask.HaltTasks(), testutil.Contains, seedCreate)
 
 	for _, ts := range []*state.TaskSet{snapdTS, baseTS, kernelTS, appTS} {
-		end, err := ts.Edge(snapstate.EndEdge)
-		c.Assert(err, IsNil)
+		var end *state.Task
+		if ts == snapdTS {
+			end = snapdOrderingBarrierTask(c, ts)
+		} else {
+			var err error
+			end, err = ts.Edge(snapstate.EndEdge)
+			c.Assert(err, IsNil)
+		}
 		c.Check(waitsOnTransitively(seedEnd, end), Equals, true)
 	}
 
 	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
 	c.Check(hasDoRestartBoundary(kernelLinkTask), Equals, false)
 
-	snapdEnd, err := snapdTS.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	snapdEnd := snapdOrderingBarrierTask(c, snapdTS)
 	baseBegin, err := baseTS.Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
 
