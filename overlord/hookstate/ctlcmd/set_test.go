@@ -58,6 +58,11 @@ func (s *setSuite) SetUpTest(c *C) {
 	state.Lock()
 	defer state.Unlock()
 
+	snapJSON := json.RawMessage(`{"base": "core26"}`)
+	state.Set("snaps", map[string]*json.RawMessage{
+		"test-snap": &snapJSON,
+	})
+
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
@@ -73,6 +78,11 @@ func (s *setSuite) TestInvalidArguments(c *C) {
 	c.Check(err, ErrorMatches, ".*invalid configuration.*want key=value.*")
 	_, _, err = ctlcmd.Run(s.mockContext, []string{"set", ":foo", "bar=baz"}, 0, nil)
 	c.Check(err, ErrorMatches, ".*interface attributes can only be set during the execution of prepare hooks.*")
+}
+
+func (s *setSuite) TestSetInvalidValueKey(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", `foo={"bad_key":1}`}, 0, nil)
+	c.Assert(err, ErrorMatches, `invalid option name: "bad_key"`)
 }
 
 func (s *setSuite) TestCommand(c *C) {

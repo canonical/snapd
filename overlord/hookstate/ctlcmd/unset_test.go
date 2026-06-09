@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"encoding/json"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -47,6 +48,11 @@ func (s *unsetSuite) SetUpTest(c *C) {
 	state := state.New(nil)
 	state.Lock()
 	defer state.Unlock()
+
+	snapJSON := json.RawMessage(`{}`)
+	state.Set("snaps", map[string]*json.RawMessage{
+		"test-snap": &snapJSON,
+	})
 
 	task := state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "hook"}
