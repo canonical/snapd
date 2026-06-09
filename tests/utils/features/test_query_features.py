@@ -798,6 +798,64 @@ class TestQueryFeatures:
         assert TaskIdVariant(suite='suite2',task_name='task1',variant='v1') in tasks
 
 
+    def test_minimal_coverage_force_matches(self):
+        data = {'timestamp1': {'system1': {'system': 'system1', 'tests': [
+            TaskFeatures(suite='suite1', task_name='task1', success=True, variant='', runtime=30,
+                         cmds=[Cmd(cmd='snap list')],
+                         endpoints=[Endpoint(method='GET', path='/v2/snaps')]),
+            TaskFeatures(suite='suite1', task_name='task2', success=True, variant='', runtime=20,
+                         cmds=[Cmd(cmd='snap info')],
+                         endpoints=[Endpoint(method='GET', path='/v2/snaps')]),
+            TaskFeatures(suite='suite2', task_name='task3', success=True, variant='v1', runtime=50,
+                         changes=[Change(kind='install-snap', snap_types=['app'])]),
+        ]}}}
+        retriever = DictRetriever(data)
+
+        coverage = query_features.minimal_coverage(
+            retriever,
+            timestamp='timestamp1',
+            system='system1',
+            max_minutes=1,
+            force_matches=['install'],
+            remove=[],
+            match_snap_types=True,
+        )
+
+        assert 'system1' in coverage
+        # force_matches includes install-snap even if it consumes most of max_minutes budget
+        expected = {TaskIdVariant(suite='suite2', task_name='task3', variant='v1')}
+        assert expected == set(coverage['system1'])
+
+
+    def test_minimal_coverage_force_matches(self):
+        data = {'timestamp1': {'system1': {'system': 'system1', 'tests': [
+            TaskFeatures(suite='suite1', task_name='task1', success=True, variant='', runtime=150,
+                         cmds=[Cmd(cmd='snap list')],
+                         endpoints=[Endpoint(method='GET', path='/v2/snaps')]),
+            TaskFeatures(suite='suite1', task_name='task2', success=True, variant='', runtime=120,
+                         cmds=[Cmd(cmd='snap info')],
+                         endpoints=[Endpoint(method='GET', path='/v2/snaps')]),
+            TaskFeatures(suite='suite2', task_name='task3', success=True, variant='v1', runtime=60,
+                         changes=[Change(kind='install-snap', snap_types=['app'])]),
+        ]}}}
+        retriever = DictRetriever(data)
+
+        coverage = query_features.minimal_coverage(
+            retriever,
+            timestamp='timestamp1',
+            system='system1',
+            max_minutes=4,
+            force_matches=['install'],
+            remove=[],
+            match_snap_types=True,
+        )
+
+        assert 'system1' in coverage and len(coverage['system1']) == 2
+        # force_matches includes install-snap even if it consumes most of max_minutes budget
+        assert TaskIdVariant(suite='suite2', task_name='task3', variant='v1') in coverage['system1']
+        assert TaskIdVariant(suite='suite1', task_name='task2', variant='') in coverage['system1']
+
+
     def test_sys_caching(self):
         data = {'timestamp1': {
                 'system1': {'system':'system1', 'tests': [
@@ -1028,8 +1086,8 @@ class TestQueryFeatures:
             query_features.main()
             actual = json.loads(mocker.get_stdout())
             assert 2 == len(actual)
-            assert 'suite2:task3' in actual
-            assert 'suite1:task4:v1' in actual
+            assert str(TaskIdVariant(suite='suite2', task_name='task3', variant='')) in actual
+            assert str(TaskIdVariant(suite='suite1', task_name='task4', variant='v1')) in actual
 
 
     @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
@@ -1208,3 +1266,38 @@ class TestQueryFeatures:
             expected = {'system1':[str(TaskIdVariant(suite='suite1',task_name='task2',variant=''))],
                         'system2':[str(TaskIdVariant(suite='suite1',task_name='task1',variant=''))]}
             assert expected == output
+
+
+    @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_retriever_feat_cover(self, parse_args_mock: Mock, mocker_class: str):
+        data = [
+            {'timestamp': '2025-05-04', 'system': 'system1', 'tests': [
+                TaskFeatures(success=True, task_name='task1', suite='suite1', variant='', runtime=180,
+                             cmds=[{'cmd': 'snap list'}], endpoints=[{'path': '/v2/validate', 'method': 'GET'}]),
+                TaskFeatures(success=True, task_name='task2', suite='suite1', variant='', runtime=120,
+                             cmds=[{'cmd': 'snap info'}], endpoints=[{'path': '/v2/snaps', 'method': 'GET'}]),
+                TaskFeatures(success=True, task_name='task3', suite='suite2', variant='v1', runtime=300,
+                             changes=[{'kind': 'install-snap', 'snap_types': ['app']}]),
+            ]},
+        ]
+        Mocker = globals()[mocker_class]
+        with Mocker(data, do_patch_stdout=True) as mocker:
+            parse_args_mock.return_value = argparse.Namespace(
+                command='feat',
+                features_cmd='cover',
+                file=StringIO('') if mocker_class == "MongoMocker" else None,
+                dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
+                timestamp='2025-05-04',
+                system='system1',
+                max_minutes=8,
+                force_matches=['install'],
+                remove=[],
+                match_snap_types=True,
+            )
+            query_features.main()
+
+            output = json.loads(mocker.get_stdout())
+            assert 'system1' in output and len(output['system1']) == 2
+            assert 'system1' in output and str(TaskIdVariant(suite='suite2', task_name='task3', variant='v1')) in output['system1']
+            assert 'system1' in output and str(TaskIdVariant(suite='suite1', task_name='task2', variant='')) in output['system1']
