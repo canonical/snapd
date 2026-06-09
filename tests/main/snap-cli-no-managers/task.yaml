@@ -1,22 +1,27 @@
-summary: Check that snap binary does not inadvertently import snapstate.
+summary: Check that snap-bootstrap binary does not inadvertently import snapstate.
 
 details: |
-  This test checks that snap binary does not import snapstate when built
+  This test checks that snapstate is not imported when binaries are built
   with -tags nomanagers.
 
 systems: [-ubuntu-core-*]
 
 execute: |
   check_imports() {
+    (
     local BINFILE="$1"
     if strings "$BINFILE" | MATCH "overlord/snapstate"; then
       echo "$BINFILE binary should not import overlord/snapstate"
       exit 1
     fi
+    )
   }
 
-  check_imports /usr/bin/snap
+  # just a formality, since merging snap and snapd, snap includes snapstate
+  # because it's the same binary
+  not check_imports /usr/bin/snap
 
+  # but snap-bootstrap does not
   # snap-bootstrap is shipped only on ubuntu (except for 14.04)
   if [[ "$SPREAD_SYSTEM" = ubuntu-2* ]] || os.query is-bionic || os.query is-xenial; then
     check_imports /usr/lib/snapd/snap-bootstrap
