@@ -275,9 +275,6 @@ check_snapd_version() {
 			# The snapd version will not be a testing version
 			return 0
 		fi
-		if tests.nested is-nested; then
-			return 0
-		fi
 		snap version | grep snapd | MATCH "1337" || {
 			echo "tests.invariant: snapd version mismatch, expected 1337 but got $(snap version | grep snapd | awk '{print $2}')" >&2
 			return 1
