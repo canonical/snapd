@@ -52,7 +52,7 @@
 #define SC_HYBRIS_LINKERCONFIG_SYMLINK_TARGET "/android/linkerconfig"
 
 static void sc_hybris_mount_android_rootfs(const char *rootfs_dir) {
-    // Bind mount a tmpfs on $rootfs_dir/$tgt_dir (i.e. /var/lib/snapd/lib/gl)
+    // Bind mount the Halium rootfs as set up by the host, in /android
     char path_buf[PATH_MAX] = {0};
     sc_must_snprintf(path_buf, sizeof(path_buf), "%s%s", rootfs_dir, SC_HYBRIS_ROOTFS);
     const char *android_rootfs_dir = path_buf;
@@ -226,18 +226,12 @@ int sc_mount_is_halium_system(void) {
 }
 
 void sc_mount_hybris_driver(const char *rootfs_dir, const char *base_snap_name) {
-    // Only proceed if this has been identified as a Halium system
+    // Only proceed if this has been identified as a Halium system, on Ubuntu Touch
+    // we require access to a lot of unvetted libraries and unmediated IPC, and
+    // misc required files. No executable bits allowed, this is the most fine-grained
+    // while future-resiliant as patched-in, shipped and used set of rules and requirements.
     if (!sc_mount_is_halium_system()) {
         return;
-    }
-
-    int res = sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755, 0, 0);
-    if (res != 0) {
-        die("cannot create " SC_EXTRA_LIB_DIR);
-    }
-    if (res == 0 && (chown(SC_EXTRA_LIB_DIR, 0, 0) < 0)) {
-        // Adjust the ownership only if we created the directory.
-        die("cannot change ownership of " SC_EXTRA_LIB_DIR);
     }
 
     sc_hybris_mount_android_rootfs(rootfs_dir);
