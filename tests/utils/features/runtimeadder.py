@@ -18,6 +18,7 @@ import json
 import os
 import re
 from datetime import datetime
+from typing import Optional
 
 
 def _parse_runtime_seconds(start: str, end: str) -> float:
@@ -33,7 +34,7 @@ def _parse_runtime_seconds(start: str, end: str) -> float:
     return (fmt_end - fmt_start).total_seconds()
 
 
-def _parse_attempt_from_dirname(dirname: str) -> int | None:
+def _parse_attempt_from_dirname(dirname: str) -> Optional[int]:
     '''
     Parse the attempt number from a directory name of the form:
       spread-results-<run_id>-<attempt>-<group>

@@ -827,7 +827,7 @@ class TestQueryFeatures:
         assert expected == set(coverage['system1'])
 
 
-    def test_minimal_coverage_force_matches(self):
+    def test_minimal_coverage_force_matches_and_one_task(self):
         data = {'timestamp1': {'system1': {'system': 'system1', 'tests': [
             TaskFeatures(suite='suite1', task_name='task1', success=True, variant='', runtime=150,
                          cmds=[Cmd(cmd='snap list')],
