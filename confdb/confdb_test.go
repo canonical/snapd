@@ -22,6 +22,7 @@ package confdb_test
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"strings"
 	"testing"
@@ -1932,41 +1933,60 @@ func (s *viewSuite) TestSetValueMissingNestedLevels(c *C) {
 	}
 }
 
-func (s *viewSuite) TestGetReadsStorageLessNestedNamespaceBefore(c *C) {
-	// Get reads by order of namespace (not path) nestedness. This test explicitly
-	// tests for this and showcases why it matters. In Get we care about building
-	// a virtual document from locations in the storage that may evolve over time.
-	// In this example, the storage evolve to have version data in a different place
+func (s *viewSuite) TestRuleOrderingBySpecificityAndNestedness(c *C) {
+	// Get reads by order of namespace (not path) nestedness and specificity.
+	// More specific and more nested paths are sorted after less nested placeholder
+	// ones. We're building a virtual document from locations in the storage that
+	// may evolve over time so this allows us to replace "old" paths.
 	databag := confdb.NewJSONDatabag()
+	rules := []any{
+		map[string]any{"request": "{foo}", "storage": "generic.{foo}"},
+		map[string]any{"request": "foo", "storage": "specific"},
+		map[string]any{"request": "foo.bar", "storage": "nested"},
+	}
+
+	// test that the sorting works regardless of how the rules are passed in
+	rand.Shuffle(len(rules), func(i, j int) {
+		rules[i], rules[j] = rules[j], rules[i]
+	})
+
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
-			"rules": []any{
-				map[string]any{"request": "snaps.snapd", "storage": "snaps.snapd"},
-				map[string]any{"request": "snaps.snapd.version", "storage": "anewversion"},
-			},
+			"rules": rules,
 		},
 	}, confdb.NewJSONSchema())
 	c.Assert(err, IsNil)
-
-	err = databag.Set(parsePath(c, "snaps"), map[string]any{
-		"snapd": map[string]any{
-			"version": 1,
-		},
-	})
-	c.Assert(err, IsNil)
-
-	err = databag.Set(parsePath(c, "anewversion"), 2)
-	c.Assert(err, IsNil)
-
 	view := schema.View("foo")
 	c.Assert(view, NotNil)
 
-	data, err := view.Get(databag, "snaps", nil, confdb.AdminAccess)
+	// only the generic path has data, so that's what we get
+	err = databag.Set(parsePath(c, "generic.foo"), map[string]any{"bar": "first"})
 	c.Assert(err, IsNil)
-	c.Assert(data, DeepEquals, map[string]any{
-		"snapd": map[string]any{
-			"version": float64(2),
-		},
+
+	value, err := view.Get(databag, "foo", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"bar": "first",
+	})
+
+	// a literal path is sorted after a placeholder one so it replaces that data
+	err = databag.Set(parsePath(c, "specific"), map[string]any{"bar": "second"})
+	c.Assert(err, IsNil)
+
+	value, err = view.Get(databag, "foo", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"bar": "second",
+	})
+
+	err = databag.Set(parsePath(c, "nested"), "third")
+	c.Assert(err, IsNil)
+
+	// a more specific path is sorted after a less nested one
+	value, err = view.Get(databag, "foo", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(value, DeepEquals, map[string]any{
+		"bar": "third",
 	})
 }
 
