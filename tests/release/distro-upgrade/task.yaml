@@ -101,6 +101,14 @@ execute: |
         snap version --verbose > snapd-versions/"$(lsb_release -c -s)"
 
         touch "$(grep -oP 'VERSION_ID="\K.*[^"]+' /etc/os-release)-done"
+
+        # If the last upgrade cannot be performed, break
+        if [[ ${#upgrades[@]} -ge 2 ]] && os.query is-ubuntu "${upgrades[${#upgrades[@]}-2]}" && ! grep -qF "${upgrades[${#upgrades[@]}-1]}" <<<"$(do-release-upgrade -d -c)"; then
+            last_upgrade_index=$((${#upgrades[@]} - 1))
+            unset "upgrades[$last_upgrade_index]"
+            break
+        fi
+
         SPREAD_REBOOT=0
     done
 
