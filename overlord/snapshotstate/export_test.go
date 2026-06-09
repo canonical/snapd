@@ -51,8 +51,8 @@ var (
 
 	SetSnapshotOpInProgress = setSnapshotOpInProgress
 
-	DefaultAutomaticSnapshotExpiration       = defaultAutomaticSnapshotExpiration
-	MapMountPointsInGlobalDataDirsToExcludes = mapMountPointsInGlobalDataDirsToExcludes
+	DefaultAutomaticSnapshotExpiration = defaultAutomaticSnapshotExpiration
+	MapMountPointsInDataDirsToExcludes = mapMountPointsInDataDirsToExcludes
 )
 
 func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {
@@ -214,5 +214,13 @@ func MockGetSnapDirOptions(f func(*state.State, string) (*dirs.SnapDirOptions, e
 	getSnapDirOpts = f
 	return func() {
 		getSnapDirOpts = old
+	}
+}
+
+func MockBackendMapSnapDataDirToSnapVar(f func(*snap.Info, *dirs.SnapDirOptions, []string) (map[string]string, error)) (restore func()) {
+	old := backendMapSnapDataDirToSnapVar
+	backendMapSnapDataDirToSnapVar = f
+	return func() {
+		backendMapSnapDataDirToSnapVar = old
 	}
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -57,6 +58,8 @@ var (
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 
 	getSnapDirOpts = snapstate.GetSnapDirOpts
+
+	backendMapSnapDataDirToSnapVar = backend.MapSnapDataDirToSnapVar
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -234,8 +237,8 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	if err := snapshot.excludeMountControlMountPoints(cur); err != nil {
-		logger.Noticef("cannot exclude mount-control mount points: %v", err)
+	if err := snapshot.excludeMountPoints(cur, opts); err != nil {
+		logger.Noticef("cannot exclude mount points: %v", err)
 	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
 	if err != nil {
@@ -246,36 +249,55 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	return err
 }
 
-// mapMountPointsInGlobalDataDirsToExcludes converts absolute mount-control
-// mount-point paths for a snap to $SNAP_DATA/... or $SNAP_COMMON/... patterns
-// suitable for SnapshotOptions.Exclude. Only mount points under the global
-// data directories are considered because mount-control only supports mounts
-// under these directories. Paths outside the snap's data directories are
-// skipped because they are not included in the snapshot.
-func mapMountPointsInGlobalDataDirsToExcludes(si *snap.Info, mountPoints []string) []string {
-	snapDataPrefix := si.DataDir() + "/"
-	snapCommonPrefix := si.CommonDataDir() + "/"
+// mapMountPointsInDataDirsToExcludes converts absolute mount point paths
+// for a snap to $SNAP_DATA, $SNAP_COMMON, $SNAP_USER_DATA or $SNAP_USER_COMMON
+// patterns suitable for SnapshotOptions.Exclude. If a non-empty users slice
+// is provided, only those users directories are considered, otherwise all users
+// are considered for an empty users slice. Paths outside the snap's data
+// directories are skipped because they are not included in the snapshot.
+func mapMountPointsInDataDirsToExcludes(si *snap.Info, opts *dirs.SnapDirOptions, users []string, mountPoints []string) ([]string, error) {
+	mappings, err := backendMapSnapDataDirToSnapVar(si, opts, users)
+	if err != nil {
+		return nil, err
+	}
+
 	var excludes []string
 	for _, where := range mountPoints {
 		where = strings.TrimRight(where, "/")
-		switch {
-		case strings.HasPrefix(where, snapDataPrefix):
-			excludes = append(excludes, "$SNAP_DATA/"+where[len(snapDataPrefix):])
-		case strings.HasPrefix(where, snapCommonPrefix):
-			excludes = append(excludes, "$SNAP_COMMON/"+where[len(snapCommonPrefix):])
+		// The map iteration order does not matter here:
+		// the snap data directories are mutually exclusive, so at most one
+		// entry can match given mount point. The order of the returned excludes
+		// follows the order of mountPoints.
+		for snapDataDir, snapVar := range mappings {
+			if where == snapDataDir {
+				// The mount point is exactly over a snap data directory, so
+				// the whole directory is excluded from the snapshot.
+				excludes = append(excludes, snapVar)
+				break
+			} else if strings.HasPrefix(where, snapDataDir+"/") {
+				excludes = append(excludes, snapVar+where[len(snapDataDir):])
+				break
+			}
 		}
 	}
-	return excludes
+	return excludes, nil
 }
 
-// excludeMountControlMountPoints appends any currently-active mount-control
-// mount points under the snap's data directories to s.Options.
-func (s *snapshotSetup) excludeMountControlMountPoints(si *snap.Info) error {
-	mountPts, err := backend.ListMountControlMountPoints(si.InstanceName())
+// excludeMountPoints appends any currently active mount points under the
+// snap's data directories to s.Options.
+func (s *snapshotSetup) excludeMountPoints(si *snap.Info, opts *dirs.SnapDirOptions) error {
+	entries, err := osutil.LoadMountInfo()
 	if err != nil {
-		return fmt.Errorf("cannot list mount-control units for %q: %v", si.InstanceName(), err)
+		return fmt.Errorf("cannot load mount info: %v", err)
 	}
-	excludes := mapMountPointsInGlobalDataDirsToExcludes(si, mountPts)
+	mountPts := make([]string, len(entries))
+	for i, e := range entries {
+		mountPts[i] = e.MountDir
+	}
+	excludes, err := mapMountPointsInDataDirsToExcludes(si, opts, s.Users, mountPts)
+	if err != nil {
+		return fmt.Errorf("cannot map mount points to excludes: %v", err)
+	}
 	if len(excludes) == 0 {
 		return nil
 	}
@@ -283,7 +305,7 @@ func (s *snapshotSetup) excludeMountControlMountPoints(si *snap.Info) error {
 		s.Options = &snap.SnapshotOptions{}
 	}
 	if err := s.Options.MergeDynamicExcludes(excludes); err != nil {
-		return fmt.Errorf("internal error: cannot add mount-control excludes for %q: %v", si.InstanceName(), err)
+		return fmt.Errorf("internal error: cannot add mount point excludes for %q: %v", si.InstanceName(), err)
 	}
 	return nil
 }
