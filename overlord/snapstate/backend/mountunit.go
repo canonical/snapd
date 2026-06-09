@@ -117,30 +117,31 @@ func isUnderAnyDir(path string, dirs []string, opts isUnderAnyDirOptions) bool {
 	return false
 }
 
-// ListNonMountControlMountsInSnapRevDataDirs returns the active mount points
+// ListNonSnapctlMountsInSnapRevDataDirs returns the active mount points
 // that are at or under the snap's revision-specific data directories and are
-// not of the mount-control origin.
-func (b Backend) ListNonMountControlMountsInSnapRevDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+// not created using snapctl.
+func (b Backend) ListNonSnapctlMountsInSnapRevDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	revDirs, err := snapDataDirs(info, opts)
 	if err != nil {
 		return nil, err
 	}
-	return listNonMountControlMounts(info, revDirs)
+	return listNonSnapctlMounts(info, revDirs)
 }
 
-// ListNonMountControlMountsInSnapAllDataDirs returns the active mount points
-// that are at or under any of the snap's base data directories and are not of
-// the mount-control origin.
-func (b Backend) ListNonMountControlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+// ListNonSnapctlMountsInSnapAllDataDirs returns the active mount points
+// that are at or under any of the snap's base data directories and are not
+// created using snapctl.
+func (b Backend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	baseDirs, err := snapBaseDataDirs(info.InstanceName(), opts)
 	if err != nil {
 		return nil, err
 	}
-	return listNonMountControlMounts(info, baseDirs)
+	return listNonSnapctlMounts(info, baseDirs)
 }
 
-func listNonMountControlMounts(info *snap.Info, baseDirs []string) ([]string, error) {
+func listNonSnapctlMounts(info *snap.Info, baseDirs []string) ([]string, error) {
 	sysd := systemd.New(systemd.SystemMode, nil)
+	// mounts created using snapctl have the "mount-control" origin
 	mcMountPoints, err := sysd.ListMountUnits(info.ContainerName(), "mount-control")
 	if err != nil {
 		return nil, err

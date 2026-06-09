@@ -293,27 +293,27 @@ func (s *mountunitSuite) TestIsUnderAnyDirAllowExactMatch(c *C) {
 	c.Check(backend.IsUnderAnyDir("/var/snap/other/1/bar", []string{"/var/snap/foo/1"}, allowExactMatch), Equals, false)
 }
 
-type listNonMountControlMountsFn func(*snap.Info, *dirs.SnapDirOptions) ([]string, error)
+type listNonSnapctlMountsFn func(*snap.Info, *dirs.SnapDirOptions) ([]string, error)
 
 type scope int
 
 const (
-	scopeRev scope = iota // tests ListNonMountControlMountsInSnapRevDataDirs
-	scopeAll              // tests ListNonMountControlMountsInSnapAllDataDirs
+	scopeRev scope = iota // tests ListNonSnapctlMountsInSnapRevDataDirs
+	scopeAll              // tests ListNonSnapctlMountsInSnapAllDataDirs
 )
 
-func (v scope) fn() listNonMountControlMountsFn {
+func (v scope) fn() listNonSnapctlMountsFn {
 	b := backend.Backend{}
 	switch v {
 	case scopeRev:
-		return b.ListNonMountControlMountsInSnapRevDataDirs
+		return b.ListNonSnapctlMountsInSnapRevDataDirs
 	case scopeAll:
-		return b.ListNonMountControlMountsInSnapAllDataDirs
+		return b.ListNonSnapctlMountsInSnapAllDataDirs
 	}
 	return nil
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsNoMounts(c *C, variant scope) {
+func (s *mountunitSuite) testListNonSnapctlMountsNoMounts(c *C, variant scope) {
 	var sysd *systemdtest.FakeSystemd
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
 		sysd = &systemdtest.FakeSystemd{}
@@ -335,16 +335,16 @@ func (s *mountunitSuite) testListNonMountControlMountsNoMounts(c *C, variant sco
 	})
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevNoMounts(c *C) {
-	s.testListNonMountControlMountsNoMounts(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevNoMounts(c *C) {
+	s.testListNonSnapctlMountsNoMounts(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllNoMounts(c *C) {
-	s.testListNonMountControlMountsNoMounts(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllNoMounts(c *C) {
+	s.testListNonSnapctlMountsNoMounts(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsAllMountControl(c *C, variant scope) {
-	// The mount-control mount is placed under current revision dir
+func (s *mountunitSuite) testListNonSnapctlMountsAllSnapctl(c *C, variant scope) {
+	// The snapctl mount is placed under current revision dir
 	// which lies within the scan scope of both the Rev and All variants.
 	snapRevDataDir := fmt.Sprintf("%s/var/snap/foo/3", dirs.GlobalRootDir)
 	mcMount := snapRevDataDir + "/mc-mount"
@@ -365,23 +365,23 @@ func (s *mountunitSuite) testListNonMountControlMountsAllMountControl(c *C, vari
 	fn := variant.fn()
 	mounts, err := fn(info, nil)
 	c.Assert(err, IsNil)
-	// All mounts are mount-control mounts, so nothing is returned.
+	// All mounts are snapctl mounts, so nothing is returned.
 	c.Check(mounts, HasLen, 0)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		{SnapName: "foo", Origin: "mount-control"},
 	})
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevAllMountControl(c *C) {
-	s.testListNonMountControlMountsAllMountControl(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevAllSnapctl(c *C) {
+	s.testListNonSnapctlMountsAllSnapctl(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllMountControl(c *C) {
-	s.testListNonMountControlMountsAllMountControl(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllSnapctl(c *C) {
+	s.testListNonSnapctlMountsAllSnapctl(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsReturnsNonMountControl(c *C, variant scope) {
-	// The mount-control and user mounts are placed under current revision dir
+func (s *mountunitSuite) testListNonSnapctlMountsReturnsNonSnapctl(c *C, variant scope) {
+	// The snapctl and user mounts are placed under current revision dir
 	// which lie within the scan scope of both the Rev and All variants.
 	snapRevDataDir := fmt.Sprintf("%s/var/snap/foo/3", dirs.GlobalRootDir)
 	mcMount := snapRevDataDir + "/mc-mount"
@@ -408,22 +408,22 @@ func (s *mountunitSuite) testListNonMountControlMountsReturnsNonMountControl(c *
 	fn := variant.fn()
 	mounts, err := fn(info, nil)
 	c.Assert(err, IsNil)
-	// Only the non-mount-control mount is returned.
+	// Only the non-snapctl mount is returned.
 	c.Check(mounts, DeepEquals, []string{userMount})
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		{SnapName: "foo", Origin: "mount-control"},
 	})
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevReturnsNonMountControl(c *C) {
-	s.testListNonMountControlMountsReturnsNonMountControl(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevReturnsNonSnapctl(c *C) {
+	s.testListNonSnapctlMountsReturnsNonSnapctl(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllReturnsNonMountControl(c *C) {
-	s.testListNonMountControlMountsReturnsNonMountControl(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllReturnsNonSnapctl(c *C) {
+	s.testListNonSnapctlMountsReturnsNonSnapctl(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsCrossRevision(c *C, variant scope) {
+func (s *mountunitSuite) testListNonSnapctlMountsCrossRevision(c *C, variant scope) {
 	otherRevMount := fmt.Sprintf("%s/var/snap/foo/1/data", dirs.GlobalRootDir)
 	currentRevMount := fmt.Sprintf("%s/var/snap/foo/3/data", dirs.GlobalRootDir)
 
@@ -456,15 +456,15 @@ func (s *mountunitSuite) testListNonMountControlMountsCrossRevision(c *C, varian
 	c.Check(mounts, DeepEquals, expectedMounts)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevIgnoresMountsInOtherRevisions(c *C) {
-	s.testListNonMountControlMountsCrossRevision(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevIgnoresMountsInOtherRevisions(c *C) {
+	s.testListNonSnapctlMountsCrossRevision(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllDetectsAllRevisionMounts(c *C) {
-	s.testListNonMountControlMountsCrossRevision(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllDetectsAllRevisionMounts(c *C) {
+	s.testListNonSnapctlMountsCrossRevision(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsAtExactDir(c *C, variant scope) {
+func (s *mountunitSuite) testListNonSnapctlMountsAtExactDir(c *C, variant scope) {
 	var mountPath string
 	switch variant {
 	case scopeRev:
@@ -489,15 +489,15 @@ func (s *mountunitSuite) testListNonMountControlMountsAtExactDir(c *C, variant s
 	c.Check(mounts, DeepEquals, []string{mountPath})
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevAtRevisionDir(c *C) {
-	s.testListNonMountControlMountsAtExactDir(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevAtRevisionDir(c *C) {
+	s.testListNonSnapctlMountsAtExactDir(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllAtBaseDir(c *C) {
-	s.testListNonMountControlMountsAtExactDir(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllAtBaseDir(c *C) {
+	s.testListNonSnapctlMountsAtExactDir(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsInRootUserDir(c *C, variant scope) {
+func (s *mountunitSuite) testListNonSnapctlMountsInRootUserDir(c *C, variant scope) {
 	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
 
 	var mountPath string
@@ -524,15 +524,15 @@ func (s *mountunitSuite) testListNonMountControlMountsInRootUserDir(c *C, varian
 	c.Check(mounts, DeepEquals, []string{mountPath})
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevInRootUserDir(c *C) {
-	s.testListNonMountControlMountsInRootUserDir(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevInRootUserDir(c *C) {
+	s.testListNonSnapctlMountsInRootUserDir(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllInRootUserDir(c *C) {
-	s.testListNonMountControlMountsInRootUserDir(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllInRootUserDir(c *C) {
+	s.testListNonSnapctlMountsInRootUserDir(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsInHomeUserDir(c *C, variant scope) {
+func (s *mountunitSuite) testListNonSnapctlMountsInHomeUserDir(c *C, variant scope) {
 	var userSnapDir, mountPath string
 	switch variant {
 	case scopeRev:
@@ -563,15 +563,15 @@ func (s *mountunitSuite) testListNonMountControlMountsInHomeUserDir(c *C, varian
 	c.Check(mounts, DeepEquals, []string{mountPath})
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevInHomeUserDir(c *C) {
-	s.testListNonMountControlMountsInHomeUserDir(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevInHomeUserDir(c *C) {
+	s.testListNonSnapctlMountsInHomeUserDir(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllInHomeUserDir(c *C) {
-	s.testListNonMountControlMountsInHomeUserDir(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllInHomeUserDir(c *C) {
+	s.testListNonSnapctlMountsInHomeUserDir(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsErrorOnListMountUnits(c *C, variant scope) {
+func (s *mountunitSuite) testListNonSnapctlMountsErrorOnListMountUnits(c *C, variant scope) {
 	expectedErr := errors.New("mock ListMountUnits error")
 
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
@@ -590,15 +590,15 @@ func (s *mountunitSuite) testListNonMountControlMountsErrorOnListMountUnits(c *C
 	c.Check(err, Equals, expectedErr)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevErrorOnListMountUnits(c *C) {
-	s.testListNonMountControlMountsErrorOnListMountUnits(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevErrorOnListMountUnits(c *C) {
+	s.testListNonSnapctlMountsErrorOnListMountUnits(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllErrorOnListMountUnits(c *C) {
-	s.testListNonMountControlMountsErrorOnListMountUnits(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllErrorOnListMountUnits(c *C) {
+	s.testListNonSnapctlMountsErrorOnListMountUnits(c, scopeAll)
 }
 
-func (s *mountunitSuite) testListNonMountControlMountsErrorOnLoadMountInfo(c *C, variant scope) {
+func (s *mountunitSuite) testListNonSnapctlMountsErrorOnLoadMountInfo(c *C, variant scope) {
 	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
 		return &systemdtest.FakeSystemd{}
 	})
@@ -614,10 +614,10 @@ func (s *mountunitSuite) testListNonMountControlMountsErrorOnLoadMountInfo(c *C,
 	c.Check(err, ErrorMatches, "incorrect number of fields, expected at least 10 but found 3")
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsRevErrorOnLoadMountInfo(c *C) {
-	s.testListNonMountControlMountsErrorOnLoadMountInfo(c, scopeRev)
+func (s *mountunitSuite) TestListNonSnapctlMountsRevErrorOnLoadMountInfo(c *C) {
+	s.testListNonSnapctlMountsErrorOnLoadMountInfo(c, scopeRev)
 }
 
-func (s *mountunitSuite) TestListNonMountControlMountsAllErrorOnLoadMountInfo(c *C) {
-	s.testListNonMountControlMountsErrorOnLoadMountInfo(c, scopeAll)
+func (s *mountunitSuite) TestListNonSnapctlMountsAllErrorOnLoadMountInfo(c *C) {
+	s.testListNonSnapctlMountsErrorOnLoadMountInfo(c, scopeAll)
 }
