@@ -65,13 +65,13 @@ execute: |
     su -c "bash -ex /tmp/deps.sh" test
 
     # Extract and prepare all build scripts (as root)
-    echo "Preparing snap build script"
-    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-snap > /tmp/build-snap.sh
-    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-snap.sh
-
     echo "Preparing snapd build script"
     python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-snapd > /tmp/build-snapd.sh
     sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-snapd.sh
+
+    echo "Preparing snap build script"
+    python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-snapd > /tmp/build-snap.sh
+    sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-snap.sh
 
     echo "Preparing all components build script"
     python3 tests/smoke/hacking-md/extract-snippets.py HACKING.md build-go > /tmp/build-go.sh
@@ -82,11 +82,12 @@ execute: |
     sed -i "s|~/snapd|$TESTDIR|g" /tmp/build-c.sh
 
     # Execute all builds as test user
-    echo "Building snap from HACKING.md instructions"
-    su -c "bash -ex /tmp/build-snap.sh" test
-
     echo "Building snapd from HACKING.md instructions"
     su -c "bash -ex /tmp/build-snapd.sh" test
+
+    # Needs to run after snapd
+    echo "Building snap from HACKING.md instructions"
+    su -c "bash -ex /tmp/build-snap.sh" test
 
     echo "Building all Go components from HACKING.md instructions"
     su -c "bash -ex /tmp/build-go.sh" test
