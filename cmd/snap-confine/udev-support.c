@@ -114,8 +114,7 @@ static void sc_udev_allow_nvidia(sc_device_cgroup *cgroup) {
  *
  * Note: Binder devices on newer Android kernels reside inside of their own binderfs mountpount.
  **/
-static void sc_udev_allow_hybris(sc_device_cgroup *cgroup)
-{
+static void sc_udev_allow_hybris(sc_device_cgroup *cgroup) {
     /* Only go on here if this has been identified as a Halium/libhybris system
      *
      * In case the host happens to have binder available, but isn't identified as
@@ -128,10 +127,11 @@ static void sc_udev_allow_hybris(sc_device_cgroup *cgroup)
         return;
     }
 
-    static const char *binder_paths[] = {"/dev/binderfs/binder", "/dev/binderfs/hwbinder", "/dev/binder", "/dev/hwbinder"};
+    static const char *binder_paths[] = {"/dev/binderfs/binder", "/dev/binderfs/hwbinder", "/dev/binder",
+                                         "/dev/hwbinder"};
 
     // If everything looks alright, allow access to binder IPC via the device cgroup
-    for (long unsigned int i = 0; i < sizeof(binder_paths)/sizeof(binder_paths[0]); i++) {
+    for (long unsigned int i = 0; i < sizeof(binder_paths) / sizeof(binder_paths[0]); i++) {
         struct stat sbuf;
         if (stat(binder_paths[i], &sbuf) == 0) {
             sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev), minor(sbuf.st_rdev));

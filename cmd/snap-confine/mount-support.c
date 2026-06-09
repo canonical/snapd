@@ -48,8 +48,8 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
-#include "mount-support-nvidia.h"
 #include "mount-support-hybris.h"
+#include "mount-support-nvidia.h"
 
 #define MAX_BUF 1000
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
