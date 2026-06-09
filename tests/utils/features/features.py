@@ -4,7 +4,7 @@ Dictionaries to specify structure of feature logs
 '''
 
 from enum import Enum
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class Cmd(TypedDict):
@@ -60,6 +60,7 @@ class TaskFeatures(TypedDict):
     tasks: list[Task]
     changes: list[Change]
     ensures: list[Ensure]
+    runtime: NotRequired[float | None]
 
 
 class SystemFeatures(TypedDict):

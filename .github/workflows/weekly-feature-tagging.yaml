@@ -203,6 +203,12 @@ jobs:
         with:
           name: all-features
 
+      - name: Get spread results
+        uses: actions/download-artifact@v8
+        with:
+          path: spread-results-artifacts
+          pattern: spread-results-*
+
       - name: Create feature tags
         run: |
           WORK_DIR=. ./tests/utils/features/process-features.sh
