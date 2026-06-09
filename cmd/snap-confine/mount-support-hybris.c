@@ -101,70 +101,6 @@ static void sc_hybris_mount_android_rootfs(const char *rootfs_dir) {
     }
 }
 
-static bool has_mounted_halium_path(const char *path) {
-    // Halium system image existance
-    FILE *mounts = NULL;
-    char *line = NULL;
-    int character = 0;
-    unsigned int i = 0;
-    unsigned int line_size = 0;
-    static const unsigned int line_increase = 64;
-    bool found = false;
-
-    // Check whether the Halium system image has been mounted.
-    mounts = fopen("/proc/mounts", "r");
-    if (!mounts) {
-        return false;
-    }
-
-    line = (char *)malloc(sizeof(char) * line_increase);
-    if (!line) {
-        fclose(mounts);
-        return false;
-    }
-
-    line_size = line_increase;
-    line[0] = '\0';
-
-    // Files in /proc don't expose their size, so read into a buffer character-by-character.
-    while ((character = fgetc(mounts)) != EOF) {
-        if (i >= line_size) {
-            line = (char *)realloc(line, sizeof(char) * (line_size + line_increase));
-            if (!line) {
-                fclose(mounts);
-                return false;
-            }
-
-            line_size += line_increase;
-            line[line_size - 1] = '\0';
-        }
-
-        line[i] = (char)character;
-
-        if (line[i] == '\n') line[i] = '\0';
-
-        // Judge the line we read now
-        if (line[i] == '\0') {
-            // These must exist on disk, not on some tmpfs,
-            // using filesystems prominently used on Android.
-            if ((strncmp(line, " ext4 ", 6) == 0 || strncmp(line, " f2fs ", 6) == 0) &&
-                strncmp(line, path, strlen(path)) == 0) {
-                found = true;
-                break;
-            }
-
-            line[0] = '\0';
-            i = 0;
-        } else {
-            ++i;
-        }
-    }
-
-    fclose(mounts);
-    free(line);
-    return found;
-}
-
 int sc_mount_is_halium_system(void) {
     // Halium-typical paths to check for
     // snapd's "opengl" interface takes care of exposing it all
@@ -177,11 +113,7 @@ int sc_mount_is_halium_system(void) {
         "/system/lib/libEGL.so"
 #endif
     };
-    static const char *halium_mountpoints[] = {
-        " /android/vendor ",
-        " /android/data ",
-        " /android/cache ",
-    };
+    static const char *halium_mountpoints[] = {"/android/vendor", "/android/data", "/android/cache"};
     static const char *halium_symlinks[] = {"/system", "/vendor", "/odm", "/data"};
     static const char *binder_paths[] = {"/dev/binderfs/binder", "/dev/binderfs/hwbinder", "/dev/binder",
                                          "/dev/hwbinder"};
@@ -201,7 +133,8 @@ int sc_mount_is_halium_system(void) {
 
     // These are required mountpoints which are used by our Halium LXC container
     for (long unsigned int i = 0; i < sizeof(halium_mountpoints) / sizeof(halium_mountpoints[0]); i++) {
-        if (!has_mounted_halium_path(halium_mountpoints[i])) {
+        struct stat info;
+        if (stat(halium_mountpoints[i], &info) != 0) {
             return 0;
         }
     }
@@ -229,7 +162,7 @@ void sc_mount_hybris_driver(const char *rootfs_dir, const char *base_snap_name) 
     // Only proceed if this has been identified as a Halium system, on Ubuntu Touch
     // we require access to a lot of unvetted libraries and unmediated IPC, and
     // misc required files. No executable bits allowed, this is the most fine-grained
-    // while future-resiliant as patched-in, shipped and used set of rules and requirements.
+    // while future-resiliant as patched-in, shipped and used by Ubuntu Touch users.
     if (!sc_mount_is_halium_system()) {
         return;
     }
