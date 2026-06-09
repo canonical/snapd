@@ -263,6 +263,9 @@ check_snap_mount_dir() {
 }
 
 check_snapd_version() {
+	if tests.nested is-nested; then
+		return 0
+	fi
 	if command -v snap && systemctl is-active snapd.socket && systemctl is-active snapd.service; then
 		if tests.info is-snapd-from-archive && not tests.info is-reexec-enabled; then
 			# re-exec may be explicitly disabled in the test variant, in which case the version will not match
