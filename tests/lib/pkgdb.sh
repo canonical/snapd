@@ -564,6 +564,7 @@ pkg_dependencies_ubuntu_nested(){
         xdelta3
         xz-utils
         qemu-system
+        initramfs-tools-bin
         "
 }
 

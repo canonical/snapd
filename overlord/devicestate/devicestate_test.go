@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"os"
@@ -54,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -2868,6 +2870,21 @@ func (s *deviceMgrSuite) TestVoidDirPermissionsGetFixed(c *C) {
 	c.Check(strings.Split(msgs, "\n"), HasLen, 1)
 }
 
+type fakeEncryptedContainer struct {
+}
+
+func (*fakeEncryptedContainer) ContainerRole() string {
+	return "foo"
+}
+
+func (*fakeEncryptedContainer) DevPath() string {
+	return "foo"
+}
+
+func (*fakeEncryptedContainer) LegacyKeys() map[string]string {
+	return nil
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) {
 	defer release.MockOnClassic(false)
 
@@ -2878,6 +2895,20 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	defer restore()
 	devicestate.SetSystemMode(s.mgr, "run")
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
+
+	defer devicestate.MockFdestateGetEncryptedContainers(func(st *state.State) ([]fdeBackend.EncryptedContainer, error) {
+		return []fdeBackend.EncryptedContainer{
+			&fakeEncryptedContainer{},
+		}, nil
+	})()
+
+	defer devicestate.MockSecbootVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+		c.Check(devicePath, Equals, "foo")
+		c.Check(salt, DeepEquals, []byte{0x65, 0xc4, 0x8e, 0xbc, 0x84, 0xfc, 0x40, 0x40, 0x6a, 0x18, 0x88, 0x68, 0x59, 0x50, 0x6c, 0x24, 0xd0, 0x41, 0x70, 0xc9, 0xd4, 0x84, 0x70, 0x79, 0xda, 0x95, 0x56, 0xc7, 0xfe, 0xbb, 0x40, 0xbb})
+		c.Check(digest, DeepEquals, []byte{0x2c, 0xb7, 0x85, 0x6e, 0xa3, 0x44, 0xef, 0xb4, 0xb1, 0xa0, 0x76, 0xc8, 0xde, 0xb, 0x81, 0xa1, 0xfe, 0x69, 0x9b, 0x97, 0xc6, 0xa8, 0x5c, 0x7e, 0x9d, 0xe1, 0x6e, 0x88, 0xe8, 0x26, 0xa5, 0xf5})
+
+		return true, nil
+	})()
 
 	// encrypted system
 	mockSnapFDEFile(c, "marker", nil)
@@ -2892,7 +2923,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 		[]byte("save"), 0644)
 	c.Assert(err, IsNil)
 	// matches the .factory key
-	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b"}
+	factoryResetMarkercontent := []byte(`{"primary-key-hash":"LLeFbqNE77SxoHbI3guBof5pm5fGqFx+neFuiOgmpfU=","salt":"ZcSOvIT8QEBqGIhoWVBsJNBBcMnUhHB52pVWx/67QLs="}
 `)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
 
@@ -3011,12 +3042,25 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 		[]byte("save"), 0644)
 	c.Check(err, IsNil)
 	// does not match the save key
-	factoryResetMarkercontent := []byte(`{"fallback-save-key-sha3-384":"uh-oh"}
-`)
+	factoryResetMarkercontent := []byte(`{"primary-key-hash":"LLeFbqNE77SxoHbI3guBof5pm5fGqFx+neFuiOgmpfU=","salt":"ZcSOvIT8QEBqGIhoWVBsJNBBcMnUhHB52pVWx/67QLs="}`)
 	c.Assert(os.WriteFile(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), factoryResetMarkercontent, 0644), IsNil)
 
+	defer devicestate.MockFdestateGetEncryptedContainers(func(st *state.State) ([]fdeBackend.EncryptedContainer, error) {
+		return []fdeBackend.EncryptedContainer{
+			&fakeEncryptedContainer{},
+		}, nil
+	})()
+
+	defer devicestate.MockSecbootVerifyPrimaryKeyDigest(func(devicePath string, alg crypto.Hash, salt []byte, digest []byte) (bool, error) {
+		c.Check(devicePath, Equals, "foo")
+		c.Check(salt, DeepEquals, []byte{0x65, 0xc4, 0x8e, 0xbc, 0x84, 0xfc, 0x40, 0x40, 0x6a, 0x18, 0x88, 0x68, 0x59, 0x50, 0x6c, 0x24, 0xd0, 0x41, 0x70, 0xc9, 0xd4, 0x84, 0x70, 0x79, 0xda, 0x95, 0x56, 0xc7, 0xfe, 0xbb, 0x40, 0xbb})
+		c.Check(digest, DeepEquals, []byte{0x2c, 0xb7, 0x85, 0x6e, 0xa3, 0x44, 0xef, 0xb4, 0xb1, 0xa0, 0x76, 0xc8, 0xde, 0xb, 0x81, 0xa1, 0xfe, 0x69, 0x9b, 0x97, 0xc6, 0xa8, 0x5c, 0x7e, 0x9d, 0xe1, 0x6e, 0x88, 0xe8, 0x26, 0xa5, 0xf5})
+
+		return false, nil
+	})()
+
 	err = s.mgr.Ensure()
-	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: no disk unlocked with expected primary key")
 
 	// factory reset marker is gone, the key was verified successfully
 	c.Check(filepath.Join(dirs.SnapDeviceDir, "factory-reset"), testutil.FilePresent)
@@ -3025,7 +3069,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	// try again, no marker, hit the same error
 	devicestate.SetPostFactoryResetRan(s.mgr, false)
 	err = s.mgr.Ensure()
-	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: fallback sealed key digest mismatch, got d192153f0a50e826c6eb400c8711750ed0466571df1d151aaecc8c73095da7ec104318e7bf74d5e5ae2940827bf8402b expected uh-oh")
+	c.Assert(err, ErrorMatches, "devicemgr: cannot verify factory reset marker: no disk unlocked with expected primary key")
 
 	// and again, but not resetting the 'ran' check, so nothing is checked or called
 	err = s.mgr.Ensure()

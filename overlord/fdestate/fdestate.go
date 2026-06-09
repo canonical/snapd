@@ -189,7 +189,7 @@ func initializeState(st *state.State) error {
 		return err
 	}
 
-	disks, err := getEncryptedContainers(st)
+	disks, err := GetEncryptedContainers(st)
 	if err != nil {
 		return fmt.Errorf("cannot get encrypted disks: %w", err)
 	}

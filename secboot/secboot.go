@@ -25,6 +25,9 @@ package secboot
 // Debian does run "go list" without any support for passing -tags.
 
 import (
+	"crypto"
+	"crypto/hmac"
+	"crypto/rand"
 	"errors"
 
 	"github.com/snapcore/snapd/asserts"
@@ -367,4 +370,16 @@ type Partition interface {
 type Disk interface {
 	PartitionWithFsLabel(string) (Partition, error)
 	DiskModel() string
+}
+
+// KeyDigest creates a hmac digest for key with a random salt
+func KeyDigest(key []byte, alg crypto.Hash) (salt []byte, digest []byte, err error) {
+	var saltArray [32]byte
+	if _, err := rand.Read(saltArray[:]); err != nil {
+		return nil, nil, err
+	}
+
+	h := hmac.New(alg.New, saltArray[:])
+	h.Write(key)
+	return saltArray[:], h.Sum(nil), nil
 }

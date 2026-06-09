@@ -68,6 +68,10 @@ func (m *MockObserver) Observe(op gadget.ContentOperation, partRole, root, relat
 	return m.ObserveFunc(op, partRole, root, relativeTarget, data)
 }
 
+func (m *MockObserver) PrimaryKey() []byte {
+	return nil
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallAndRunFdeSetupPresent(c *C) {
 	var efiArch string
 	switch runtime.GOARCH {

@@ -281,10 +281,13 @@ func (disk *encryptedContainer) DevPath() string {
 // the current device.
 // The list of encrypted disks has no specific order.
 func (m *FDEManager) GetEncryptedContainers() ([]backend.EncryptedContainer, error) {
-	return getEncryptedContainers(m.state)
+	return GetEncryptedContainers(m.state)
 }
 
-func getEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, error) {
+// GetEncryptedContainers returns the encrypted disks with their keys for
+// the current device.
+// The list of encrypted disks has no specific order.
+func GetEncryptedContainers(state *state.State) ([]backend.EncryptedContainer, error) {
 	var foundDisks []backend.EncryptedContainer
 
 	deviceCtx, err := snapstate.DeviceCtx(state, nil, nil)
