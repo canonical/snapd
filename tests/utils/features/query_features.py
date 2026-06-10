@@ -704,7 +704,7 @@ def clean_dictionary(features: SystemFeatures, remove_snap_types: bool, remove_c
 
 
 def get_force_matched_features(sorted_tasks: list[dict], force_matches: list[str]):
-    def contains_install_or_refresh(feature: dict[str, Any]) -> bool:
+    def contains_force_matches(feature: dict[str, Any]) -> bool:
         def has_terms(value: Any) -> bool:
             if isinstance(value, str):
                 return any(term in value for term in force_matches)
@@ -724,7 +724,7 @@ def get_force_matched_features(sorted_tasks: list[dict], force_matches: list[str
         for name, features in task_features.items():
             matching = [
                 feature for feature in features
-                if feature not in covered_features.get(name, []) and contains_install_or_refresh(feature)
+                if feature not in covered_features.get(name, []) and contains_force_matches(feature)
             ]
             if matching:
                 covered_features = union(covered_features, task_features)
