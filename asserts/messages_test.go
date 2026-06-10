@@ -41,7 +41,7 @@ message-kind: confdb
 devices:
   - 03961d5d-26e5.generic-classic.generic
   - 66:c5:d7:14:84:f8.rpi5.acme-corp
-  - some.legacy.serial.model.brand
+  - some-serial.model.brand
 assumes:
   - snapd2.70
 valid-since: 2025-01-08T13:31:20+00:00
@@ -80,7 +80,7 @@ func (s *requestMessageSuite) TestDecodeOK(c *C) {
 	expectedDevices := []asserts.DeviceID{
 		{"03961d5d-26e5", "generic-classic", "generic"},
 		{"66:c5:d7:14:84:f8", "rpi5", "acme-corp"},
-		{"some.legacy.serial", "model", "brand"},
+		{"some-serial", "model", "brand"},
 	}
 	c.Check(req.Devices(), DeepEquals, expectedDevices)
 
@@ -122,7 +122,7 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 	devices := `devices:
   - 03961d5d-26e5.generic-classic.generic
   - 66:c5:d7:14:84:f8.rpi5.acme-corp
-  - some.legacy.serial.model.brand
+  - some-serial.model.brand
 `
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
@@ -143,6 +143,8 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 		{devices, "devices:\n  - ab\n", `cannot parse device at position 1: invalid device id format: expected 3 parts separated by '.', got 1: ab`},
 		{devices, "devices:\n  - c.b.a#3\n", `cannot parse device at position 1: invalid brand-id "a#3" in device id "c.b.a#3"`},
 		{devices, "devices:\n  - y.x3#4.abc\n", `cannot parse device at position 1: invalid model "x3#4" in device id "y.x3#4.abc"`},
+		{devices, "devices:\n  - .model.brand\n", `cannot parse device at position 1: invalid serial "" in device id ".model.brand"`},
+		{devices, "devices:\n  - bad.serial.model.brand\n", `cannot parse device at position 1: invalid serial "bad.serial" in device id "bad.serial.model.brand"`},
 		{"assumes:\n  - snapd2.70\n", "assumes: \n", `"assumes" header must be a list of strings`},
 		{"assumes:\n  - snapd2.70\n", "assumes:\n  - x3#4\n", `assumes: invalid features: x3#4`},
 		{"valid-since: 2025-01-08T13:31:20+00:00\n", "", `"valid-since" header is mandatory`},
@@ -251,6 +253,8 @@ func (s *responseMessageSuite) TestDecodeInvalid(c *C) {
 		{device, "device: ab\n", `invalid device id format: expected 3 parts separated by '.', got 1: ab`},
 		{device, "device: c.b.a#3\n", `invalid brand-id "a#3" in device id "c.b.a#3"`},
 		{device, "device: y.x3#4.abc\n", `invalid model "x3#4" in device id "y.x3#4.abc"`},
+		{device, "device: .model.brand\n", `invalid serial "" in device id ".model.brand"`},
+		{device, "device: bad.serial.model.brand\n", `invalid serial "bad.serial" in device id "bad.serial.model.brand"`},
 		{"status: success\n", "", `expected "status" to be one of \[success, error, unauthorized, rejected\] but was ""`},
 		{"status: success\n", "status: \n", `expected "status" to be one of \[success, error, unauthorized, rejected\] but was ""`},
 		{"status: success\n", "status: invalid\n", `expected "status" to be one of \[success, error, unauthorized, rejected\] but was "invalid"`},
