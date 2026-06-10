@@ -2674,6 +2674,122 @@ func (s *snapsSuite) TestInstallManySomeSnapsAndComponentsAlreadyInstalled(c *ch
 
 }
 
+func (s *snapsSuite) TestInstallSameChannelAndRevision(c *check.C) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		return nil, nil, errors.New("should not be called")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action: "install",
+		Snaps:  []string{"some-snap"},
+	}
+	inst.Channel = "edge"
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "edge",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(si, nil)},
+		),
+		Current:         snap.R(1),
+		TrackingChannel: "edge",
+	})
+
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Check(err, testutil.ErrorIs, *snap.NewAlreadyInstalledSnapsError([]string{"some-snap"}))
+
+	inst.Channel = ""
+	inst.Revision = snap.R(1)
+
+	_, err = inst.Dispatch()(context.Background(), inst, st)
+	c.Check(err, testutil.ErrorIs, *snap.NewAlreadyInstalledSnapsError([]string{"some-snap"}))
+}
+
+func (s *snapsSuite) TestInstallDifferentChannel(c *check.C) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		return nil, nil, errors.New("should not be called")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action: "install",
+		Snaps:  []string{"some-snap"},
+	}
+	// install from a different channel
+	inst.Channel = "stable"
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "edge",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(si, nil)},
+		),
+		Current:         snap.R(1),
+		TrackingChannel: "edge",
+	})
+
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Check(err, testutil.ErrorIs, *snap.NewAlreadyInstalledSnapsError([]string{"some-snap"}))
+}
+
+func (s *snapsSuite) TestInstallDifferentRevision(c *check.C) {
+	defer daemon.MockSnapstateInstallWithGoal(func(ctx context.Context, st *state.State, g snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		return nil, nil, errors.New("should not be called")
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action: "install",
+		Snaps:  []string{"some-snap"},
+	}
+	// install a different revision
+	inst.Revision = snap.R(2)
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		Channel:  "edge",
+		Revision: snap.R(1),
+		SnapID:   "some-snap-id",
+	}
+
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{sequence.NewRevisionSideState(si, nil)},
+		),
+		Current:         snap.R(1),
+		TrackingChannel: "edge",
+	})
+
+	_, err := inst.Dispatch()(context.Background(), inst, st)
+	c.Check(err, testutil.ErrorIs, *snap.NewAlreadyInstalledSnapsError([]string{"some-snap"}))
+}
+
 func (s *snapsSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, false, snapstate.Flags{}, snap.R(0))
 }

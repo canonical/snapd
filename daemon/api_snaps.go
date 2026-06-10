@@ -926,6 +926,21 @@ func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	return op
 }
 
+func targetAlreadyInstalled(snapst *snapstate.SnapState, ropts *snapRevisionOptions) bool {
+	if !ropts.Revision.Unset() {
+		return snapst.Current == ropts.Revision
+	}
+
+	if ropts.Channel != "" {
+		// if the channel is provided, it is already validated
+		targetChannel, _ := channel.Parse(ropts.Channel, "")
+		curChannel, _ := channel.Parse(snapst.TrackingChannel, "")
+		return targetChannel == curChannel
+	}
+
+	return true
+}
+
 func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstruction) ([]string, map[string][]string, []*state.TaskSet, error) {
 	expectOneSnap := len(inst.Snaps) == 1
 	opts := snapstate.Options{
@@ -974,6 +989,8 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 			if len(comps) > 0 {
 				installedComponents[name] = comps
 			}
+		} else if !targetAlreadyInstalled(&snapst, &inst.snapRevisionOptions) && len(comps) == 0 {
+			continue
 		} else if len(comps) > 0 {
 			info, err := snapst.CurrentInfo()
 			if err != nil {
