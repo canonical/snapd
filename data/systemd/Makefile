@@ -51,3 +51,10 @@ clean:
 		sed s:@SNAPD_ENVIRONMENT_FILE@:$(SNAPD_ENVIRONMENT_FILE):g | \
 		sed s:@bindir@:$(BINDIR):g | \
 		cat > $@
+
+	if [ -n "$(SNAPD_SELINUX_CONTEXT)" ]; then \
+		sed -i -e 's/@SNAPD_SELINUX_CONTEXT@/$(SNAPD_SELINUX_CONTEXT)/g' "$@" ; \
+	else \
+		sed -i -e '/^.*=@SNAPD_SELINUX_CONTEXT@/d' "$@"; \
+	fi
+

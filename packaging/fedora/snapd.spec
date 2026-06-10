@@ -637,7 +637,8 @@ make BINDIR="%{_bindir}" LIBEXECDIR="%{_libexecdir}" DATADIR="%{_datadir}" \
      SYSTEMDSYSTEMUNITDIR="%{_unitdir}" \
      USE_CANONICAL_SNAP_MOUNT_DIR=false \
      USE_ALT_SNAP_MOUNT_DIR=true \
-     SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd"
+     SNAPD_ENVIRONMENT_FILE="%{_sysconfdir}/sysconfig/snapd" \
+     SNAPD_SELINUX_CONTEXT="system_u:system_r:snappy_t:s0"
 popd
 
 %install

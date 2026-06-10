@@ -17,6 +17,7 @@ OnFailure=snapd.failure.service
 OOMScoreAdjust=-900
 ExecStart=@libexecdir@/snapd/snapd
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
+SELinuxContext=@SNAPD_SELINUX_CONTEXT@
 EnvironmentFile=-/var/lib/snapd/environment/snapd.conf
 Restart=always
 # with systemd v254+, skip going through failed state during restart

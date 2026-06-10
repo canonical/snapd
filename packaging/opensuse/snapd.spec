@@ -380,7 +380,8 @@ export SNAPD_SKIP_SLOW_TESTS=1
 		SYSTEMDSYSTEMUNITDIR=%{_unitdir} \
 		TMPFILESDIR=%{_tmpfilesdir} \
 		USE_CANONICAL_SNAP_MOUNT_DIR=true \
-		USE_ALT_SNAP_MOUNT_DIR=true
+		USE_ALT_SNAP_MOUNT_DIR=true \
+        SNAPD_SELINUX_CONTEXT="system_u:system_r:snappy_t:s0"
 
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
