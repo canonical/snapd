@@ -29,8 +29,15 @@ attribute_role snappy_roles;
 # snapd
 type snappy_t;
 type snappy_exec_t;
+type snappy_cli_exec_t;
+
 # allow init domain to transition to snappy_t by executing snappy_exec_t
 init_daemon_domain(snappy_t, snappy_exec_t)
+# with the multi-call binary, /usr/libexec/snapd/snapd is a symlink to
+# /usr/bin/snap which is labeled snappy_cli_exec_t; declare it as a valid
+# entrypoint for the snappy_t domain so that systemd can use SELinuxContext= in
+# the unit file to explicitly transition to snappy_t
+domain_entry_file(snappy_t, snappy_cli_exec_t)
 
 role snappy_roles types snappy_t;
 
@@ -71,7 +78,6 @@ files_mountpoint(snappy_snap_t)
 
 # CLI tools: snap, snapctl
 type snappy_cli_t;
-type snappy_cli_exec_t;
 domain_type(snappy_cli_t)
 domain_entry_file(snappy_cli_t, snappy_cli_exec_t)
 
