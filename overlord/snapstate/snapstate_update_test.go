@@ -434,7 +434,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			op: "update-aliases",
 		},
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "some-snap",
 			revno: snap.R(1),
 		},
@@ -454,7 +454,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			stype: "app",
 		},
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "some-snap",
 			revno: snap.R(2),
 		},

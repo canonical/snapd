@@ -6115,7 +6115,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
 		},
@@ -6230,7 +6230,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			revno: snap.R(1),
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
 		},

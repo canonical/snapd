@@ -286,7 +286,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			revno: snap.R(7),
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -445,7 +445,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 			revno: snap.R(7),
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "some-snap_instance",
 			revno: snap.R(7),
 		},
@@ -610,7 +610,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			revno: snap.R(7),
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "some-snap_instance",
 			revno: snap.R(7),
 		},
@@ -732,7 +732,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			revno: snap.R(7),
 		},
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "some-snap",
 			revno: snap.R(3),
 		},
@@ -752,7 +752,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			stype: "app",
 		},
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "some-snap",
 			revno: snap.R(5),
 		},
@@ -772,7 +772,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			stype: "app",
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
@@ -918,7 +918,7 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "some-snap",
 			revno: snap.R(3),
 		},
@@ -1048,7 +1048,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			revno: snap.R(2),
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "some-snap",
 			revno: snap.R(2),
 		},
@@ -1184,7 +1184,7 @@ func (s *snapmgrTestSuite) TestRemoveLastActiveRevisionRunThrough(c *C) {
 			revno: snap.R(2),
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "some-snap",
 			revno: snap.R(2),
 		},
@@ -1821,7 +1821,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 			revno: snap.R(1),
 		},
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "some-snap",
 			revno: snap.R(2),
 		},
@@ -1916,7 +1916,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 			revno: snap.R(1),
 		},
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "some-snap",
 			revno: snap.R(2),
 		},
@@ -1936,7 +1936,7 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 			stype: "app",
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "some-snap",
 			revno: snap.R(1),
 		},
@@ -2666,7 +2666,7 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 			revno: snap.R(1),
 		},
 		{
-			op:    "list-non-mount-control-mounts-rev",
+			op:    "list-non-snapctl-mounts-rev",
 			name:  "snap1",
 			revno: snap.R(2),
 		},
@@ -2714,7 +2714,7 @@ func (s *snapmgrTestSuite) TestRemoveWithCompsTasks(c *C) {
 			stype: "app",
 		},
 		{
-			op:    "list-non-mount-control-mounts-all",
+			op:    "list-non-snapctl-mounts-all",
 			name:  "snap1",
 			revno: snap.R(1),
 		},
@@ -3050,7 +3050,7 @@ func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenRemoveMountUnitsErrors(c *
 	c.Check(chg.Err(), ErrorMatches, "(?s).*mock remove-snap-mount-units error.*")
 }
 
-func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonMountControlMountsInNonLastRevision(c *C) {
+func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonSnapctlMountsInNonLastRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3064,7 +3064,7 @@ func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonMountControlMountsInNon
 		SnapType: "app",
 	})
 
-	s.fakeBackend.nonMountControlMounts = []string{"/var/snap/some-snap/3/user-mount", "/var/snap/some-snap/3/sub/user-mount"}
+	s.fakeBackend.nonSnapctlMounts = []string{"/var/snap/some-snap/3/user-mount", "/var/snap/some-snap/3/sub/user-mount"}
 
 	chg := s.state.NewChange("remove", "remove snap revision")
 	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
@@ -3083,7 +3083,7 @@ func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonMountControlMountsInNon
 	c.Check(s.fakeBackend.ops.Filter("remove-snap-mount-units"), HasLen, 0)
 }
 
-func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonMountControlMountsInLastRevision(c *C) {
+func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonSnapctlMountsInLastRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3096,7 +3096,7 @@ func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonMountControlMountsInLas
 		SnapType: "app",
 	})
 
-	s.fakeBackend.nonMountControlMounts = []string{"/var/snap/some-snap/3/user-mount", "/var/snap/some-snap/common/sub/user-mount"}
+	s.fakeBackend.nonSnapctlMounts = []string{"/var/snap/some-snap/3/user-mount", "/var/snap/some-snap/common/sub/user-mount"}
 
 	chg := s.state.NewChange("remove", "remove snap")
 	ts, err := snapstate.Remove(s.state, "some-snap", snap.R(0), &snapstate.RemoveFlags{Purge: true})
@@ -3115,7 +3115,7 @@ func (s *snapmgrTestSuite) TestClearSnapDataAbortsWhenNonMountControlMountsInLas
 	c.Check(s.fakeBackend.ops.Filter("remove-snap-mount-units"), HasLen, 0)
 }
 
-func (s *snapmgrTestSuite) TestClearSnapDataLogsWhenListNonMountControlMountsErrors(c *C) {
+func (s *snapmgrTestSuite) TestClearSnapDataLogsWhenListNonSnapctlMountsErrors(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -3132,7 +3132,7 @@ func (s *snapmgrTestSuite) TestClearSnapDataLogsWhenListNonMountControlMountsErr
 	defer restoreLogger()
 
 	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
-		if op.op == "list-non-mount-control-mounts-all" {
+		if op.op == "list-non-snapctl-mounts-all" {
 			return errors.New("mock error")
 		}
 		return nil
@@ -3148,5 +3148,5 @@ func (s *snapmgrTestSuite) TestClearSnapDataLogsWhenListNonMountControlMountsErr
 	// The listing error must not abort the task; removal proceeds normally.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(logbuf.String(), testutil.Contains,
-		"cannot list mounts other than mount-control mounts: mock error")
+		"cannot list mounts other than snapctl mounts: mock error")
 }

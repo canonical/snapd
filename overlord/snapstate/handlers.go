@@ -3451,7 +3451,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	dirOpts := opts.getSnapDirOpts()
 
-	// Detect any non-"mount-control" mounts that would prevent data removal.
+	// Detect any non-snapctl mounts that would prevent data removal.
 	// This must run before deleting any data, so that if any such mounts
 	// exist, the returned error can still appropriately undo the change.
 	// Such mounts could be created, for example, manually by a user.
@@ -3459,12 +3459,12 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	// otherwise only check the revision-specific directories.
 	var unknownMounts []string
 	if len(snapst.Sequence.Revisions) > 1 {
-		unknownMounts, err = m.backend.ListNonMountControlMountsInSnapRevDataDirs(info, dirOpts)
+		unknownMounts, err = m.backend.ListNonSnapctlMountsInSnapRevDataDirs(info, dirOpts)
 	} else {
-		unknownMounts, err = m.backend.ListNonMountControlMountsInSnapAllDataDirs(info, dirOpts)
+		unknownMounts, err = m.backend.ListNonSnapctlMountsInSnapAllDataDirs(info, dirOpts)
 	}
 	if err != nil {
-		logger.Noticef("cannot list mounts other than mount-control mounts: %v", err)
+		logger.Noticef("cannot list mounts other than snapctl mounts: %v", err)
 	}
 	if len(unknownMounts) > 0 {
 		mountList := "- " + strings.Join(unknownMounts, "\n- ")

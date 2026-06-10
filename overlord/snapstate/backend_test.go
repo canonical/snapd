@@ -1081,7 +1081,7 @@ type fakeSnappyBackend struct {
 
 	infos map[string]map[snap.Revision]*snap.Info
 
-	nonMountControlMounts []string
+	nonSnapctlMounts []string
 }
 
 func (f *fakeSnappyBackend) maybeErrForLastOp() error {
@@ -1728,22 +1728,22 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) ListNonMountControlMountsInSnapRevDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+func (f *fakeSnappyBackend) ListNonSnapctlMountsInSnapRevDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	f.appendOp(&fakeOp{
-		op:    "list-non-mount-control-mounts-rev",
+		op:    "list-non-snapctl-mounts-rev",
 		name:  info.InstanceName(),
 		revno: info.Revision,
 	})
-	return f.nonMountControlMounts, f.maybeErrForLastOp()
+	return f.nonSnapctlMounts, f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) ListNonMountControlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+func (f *fakeSnappyBackend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
 	f.appendOp(&fakeOp{
-		op:    "list-non-mount-control-mounts-all",
+		op:    "list-non-snapctl-mounts-all",
 		name:  info.InstanceName(),
 		revno: info.Revision,
 	})
-	return f.nonMountControlMounts, f.maybeErrForLastOp()
+	return f.nonSnapctlMounts, f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
