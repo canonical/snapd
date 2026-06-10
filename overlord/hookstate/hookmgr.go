@@ -215,17 +215,10 @@ func (m *HookManager) Ensure() error {
 
 // ShutDown implements the ShutDowner interface for the HookManager.
 func (m *HookManager) ShutDown() {
-	// Don't proceed before the state lock has been released by the code
-	// path which may request a restart.
-	m.state.Lock()
-	restartType := restart.Pending(m.state)
-	m.state.Unlock()
-	// stop hooks gracefully if we are restarting
-	if restartType != restart.RestartUnset {
-		logger.Noticef("gracefully waiting for running hooks")
-		m.GracefullyWaitRunningHooks()
-		logger.Noticef("done waiting for running hooks")
-	}
+	// stop hooks gracefully
+	logger.Noticef("gracefully waiting for running hooks")
+	m.GracefullyWaitRunningHooks()
+	logger.Noticef("done waiting for running hooks")
 	m.StopHooks()
 }
 

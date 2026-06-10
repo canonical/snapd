@@ -482,7 +482,7 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookErrorAndIgnoresIt(c *C) {
 	c.Check(s.manager.NumRunningHooks(), Equals, 0)
 }
 
-func (s *hookManagerSuite) TestHookTaskShutDownWithoutRestart(c *C) {
+func (s *hookManagerSuite) TestHookTaskShutDown(c *C) {
 	restore := hookstate.MockDefaultHookTimeout(100 * time.Millisecond)
 	defer restore()
 	logbuf, restoreLog := logger.MockLogger()
@@ -503,48 +503,6 @@ func (s *hookManagerSuite) TestHookTaskShutDownWithoutRestart(c *C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("hook did not start")
 	}
-
-	s.se.ShutDown()
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Check(s.mockHandler.BeforeCalled, Equals, true)
-	c.Check(s.mockHandler.DoneCalled, Equals, false)
-	c.Check(s.mockHandler.ErrorCalled, Equals, true)
-
-	c.Check(s.task.Kind(), Equals, "run-hook")
-	c.Check(s.task.Status(), Equals, state.ErrorStatus)
-	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	c.Check(s.manager.NumRunningHooks(), Equals, 0)
-	c.Check(logbuf.String(), Not(testutil.Contains), "gracefully waiting for running hooks")
-	c.Check(logbuf.String(), Not(testutil.Contains), "done waiting for running hooks")
-}
-
-func (s *hookManagerSuite) TestHookTaskShutDownWithRestart(c *C) {
-	restore := hookstate.MockDefaultHookTimeout(100 * time.Millisecond)
-	defer restore()
-	logbuf, restoreLog := logger.MockLogger()
-	defer restoreLog()
-	cmd := testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
-	defer cmd.Restore()
-
-	// Signal when the hook has started running
-	started := make(chan struct{})
-	s.mockHandler.BeforeCallback = func() {
-		close(started)
-	}
-	// Start the hook (no restart pending)
-	s.se.Ensure()
-	// Wait for the hook to actually start
-	select {
-	case <-started:
-	case <-time.After(2 * time.Second):
-		c.Fatal("hook did not start")
-	}
-
-	s.state.Lock()
-	restart.MockPending(s.state, restart.RestartDaemon)
-	s.state.Unlock()
 
 	s.se.ShutDown()
 	s.state.Lock()
