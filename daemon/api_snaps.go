@@ -926,7 +926,7 @@ func (inst *snapInstruction) dispatchForMany() (op snapManyActionFunc) {
 	return op
 }
 
-func targetAlreadyInstalled(snapst *snapstate.SnapState, ropts *snapRevisionOptions) bool {
+func targetAlreadyInstalled(snapst *snapstate.SnapState, ropts snapstate.RevisionOptions) bool {
 	if !ropts.Revision.Unset() {
 		return snapst.Current == ropts.Revision
 	}
@@ -989,7 +989,7 @@ func installationTaskSets(ctx context.Context, st *state.State, inst *snapInstru
 			if len(comps) > 0 {
 				installedComponents[name] = comps
 			}
-		} else if !targetAlreadyInstalled(&snapst, &inst.snapRevisionOptions) && len(comps) == 0 {
+		} else if !targetAlreadyInstalled(&snapst, revOpts) {
 			continue
 		} else if len(comps) > 0 {
 			info, err := snapst.CurrentInfo()
