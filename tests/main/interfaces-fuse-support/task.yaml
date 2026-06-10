@@ -40,10 +40,10 @@ prepare: |
 
 restore: |
     # remove the mount point
-    mounts=$(nsenter "--mount=/run/snapd/ns/$NAME.mnt" cat /proc/mounts | \
+    mounts=$(snap debug mount-namespace shell "$NAME" -- cat /proc/mounts | \
              grep "$(basename "$MOUNT_POINT") fuse" | cut -f2 -d' ')
     for m in $mounts; do
-        nsenter "--mount=/run/snapd/ns/$NAME.mnt" umount "$m"
+        snap debug mount-namespace shell "$NAME" -- umount "$m"
     done
     rm -rf "$MOUNT_POINT_OUTSIDE"
 
@@ -103,6 +103,6 @@ execute: |
     wait $createpid || test "$?" = "159"
 
     # verify that the mount_point was not removed from mount namespace of the snap
-    mountpath=$(nsenter "--mount=/run/snapd/ns/$NAME.mnt" cat /proc/mounts | \
+    mountpath=$(snap debug mount-namespace shell "$NAME" -- cat /proc/mounts | \
                 grep "$(basename "$MOUNT_POINT") fuse" | cut -f2 -d' ')
     test -n "$mountpath"
