@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // Transaction holds a copy of the configuration originally present in the
@@ -134,6 +135,33 @@ func shadowsExternalConfig(instanceName string, key string, value any) error {
 	return nil
 }
 
+// snapBase returns the base for the given instance name. State must be locked
+// by caller.
+func snapBase(st *state.State, instanceName string) (string, error) {
+	type partialSnap struct {
+		Base string `json:"base"`
+	}
+
+	var snaps map[string]*json.RawMessage
+	err := st.Get("snaps", &snaps)
+	if err != nil {
+		return "", err
+	}
+
+	raw, ok := snaps[instanceName]
+	if !ok {
+		return "", state.ErrNoState
+	}
+
+	var snap partialSnap
+	err = json.Unmarshal(*raw, &snap)
+	if err != nil {
+		return "", fmt.Errorf("cannot unmarshal snap state: %v", err)
+	}
+
+	return snap.Base, nil
+}
+
 // Set sets the provided snap's configuration key to the given value.
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
@@ -142,12 +170,31 @@ func shadowsExternalConfig(instanceName string, key string, value any) error {
 //
 // The provided value must marshal properly by encoding/json.
 // Changes are not persisted until Commit is called.
+// State must be locked by caller.
 func (t *Transaction) Set(instanceName, key string, value any) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if key == "" {
 		return errors.New("internal error: key cannot be an empty string")
+	}
+
+	if keyErr := validateMapKeys(value); keyErr != nil {
+		if instanceName == "system" || instanceName == "core" {
+			return keyErr
+		}
+
+		base, err := snapBase(t.state, instanceName)
+		if err != nil {
+			return fmt.Errorf("cannot set option for %q: %w", instanceName, err)
+		}
+
+		coreVer, err := naming.CoreVersion(base)
+		if err == nil && coreVer >= 26 {
+			return keyErr
+		}
+
+		t.state.Warnf("Option value has invalid field name %q. For core26+ snaps, fields must be dash separated lowercase alphanumerics.", keyErr.field)
 	}
 
 	config := t.changes[instanceName]

@@ -10,6 +10,7 @@ details: |
 environment:
     SNAP/nobase: snapctl-from-snap
     SNAP/wcore18: snapctl-from-snap-core18
+    SNAP/core26: snapctl-from-snap-core26
 
 prepare: |
     echo "Build basic test package"
@@ -70,6 +71,20 @@ execute: |
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH bar
+
+    echo "Verify invalid option names are rejected"
+    if [ "$SNAP" == "snapctl-from-snap-core26" ]; then
+      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH "error: snapctl: invalid option name: \"Foo\""
+      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]' 2>&1 | MATCH "invalid option name: \"Bar\""
+      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo={"bar_baz":1}' 2>&1 | MATCH "invalid option name: \"bar_baz\""
+      # we don't need to re-run the rest of the test
+      exit 0
+    else
+      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH "error: snapctl: invalid option name: \"Foo\""
+      "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]'
+      snap warnings | tail -n2 | tr -d '\n' | tr -s '  ' ' ' | MATCH 'Option value has invalid field name "Bar". For core26\+ snaps, fields must be dash separated lowercase alphanumerics.'
+      snap okay
+    fi
 
     echo "Verify that snapctl set can modify configuration values"
     "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set foo=123

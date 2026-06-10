@@ -1,0 +1,8 @@
+name: snapctl-from-snap-core26
+version: 1.0
+base: core26
+apps:
+    snapctl-get:
+        command: bin/snapctl-get
+    snapctl-set:
+        command: bin/snapctl-set

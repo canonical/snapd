@@ -9,9 +9,8 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/canonical/go-efilib v1.7.1-0.20260310185303-7166aa858b24
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
-	github.com/canonical/go-tpm2 v1.15.0
+	github.com/canonical/go-tpm2 v1.16.2
 	github.com/chai2010/gettext-go v1.0.3
-	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
@@ -22,7 +21,7 @@ require (
 	// if below two libseccomp-golang lines are updated, one must also update packaging/ubuntu-14.04/rules
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
-	github.com/snapcore/secboot v0.0.0-20260410084611-3f8b98c2db70
+	github.com/snapcore/secboot v0.0.0-20260424115705-c00dcfff2f83
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/sync v0.8.0

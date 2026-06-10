@@ -1222,13 +1222,20 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 
 		minLen := int(math.Min(float64(len(xPath)), float64(len(yPath))))
 		for i := 0; i < minLen; i++ {
-			partAcc := xPath[i].Access()
-			otherPart := yPath[i].Access()
-			if partAcc == otherPart {
+			xAcc := xPath[i]
+			yAcc := yPath[i]
+			if xAcc.Access() == yAcc.Access() {
 				continue
 			}
 
-			return partAcc < otherPart
+			// sort placeholders before literals so the latter override the former
+			xPlaceholder := xAcc.Type() == KeyPlaceholderType || xAcc.Type() == IndexPlaceholderType
+			yPlaceholder := yAcc.Type() == KeyPlaceholderType || yAcc.Type() == IndexPlaceholderType
+			if xPlaceholder != yPlaceholder {
+				return xPlaceholder
+			}
+
+			return xAcc.Access() < yAcc.Access()
 		}
 
 		return len(xPath) < len(yPath)
@@ -2158,6 +2165,7 @@ type requestMatch struct {
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NoMatchError is returned.
 func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, err error) {
+	requestToAccs := make(map[string][]Accessor)
 	for _, rule := range v.rules {
 		placeholders, unmatchedSuffix, ok := rule.match(accessors)
 		if !ok {
@@ -2167,13 +2175,18 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		if !rule.isReadable() {
 			continue
 		}
-
 		m := requestMatch{
 			storagePath:     rule.storagePath(placeholders),
 			unmatchedSuffix: unmatchedSuffix,
 			request:         rule.originalRequest,
 		}
 		matches = append(matches, m)
+
+		reqAccs := make([]Accessor, len(rule.request))
+		for i, acc := range rule.request {
+			reqAccs[i] = acc.(Accessor)
+		}
+		requestToAccs[rule.originalRequest] = reqAccs
 	}
 
 	if len(matches) == 0 {
@@ -2181,9 +2194,8 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		return nil, NewNoMatchError(v, "get", []string{request})
 	}
 
-	// sort matches by namespace (unmatched suffix) to ensure that nested matches
-	// are read after
-	getAccs := func(i int) []Accessor { return matches[i].unmatchedSuffix }
+	// sort matches by request to ensure that more specific and nested matches are read after
+	getAccs := func(i int) []Accessor { return requestToAccs[matches[i].request] }
 	sort.Slice(matches, byAccessor(getAccs))
 
 	return matches, nil
