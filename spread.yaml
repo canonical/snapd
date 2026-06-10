@@ -398,9 +398,18 @@ backends:
             - ubuntu-22.04-64:
                 image: snapd-spread/ubuntu-22.04-64
                 workers: 8
+            - ubuntu-fips-22.04-64:
+                image: snapd-spread/ubuntu-22.04-64-pro-fips
+            - ubuntu-22.04-64:
+                image: snapd-spread/ubuntu-22.04-64
+                workers: 8
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
+            - ubuntu-fips-24.04-64:
+                image: snapd-spread/ubuntu-24.04-64-pro-fips
+            - ubuntu-secboot-24.04-64:
+                image: snapd-spread/ubuntu-24.04-64-secboot
             - ubuntu-25.10-64:
                 image: snapd-spread/ubuntu-25.10-64
                 workers: 8
@@ -1295,12 +1304,6 @@ prepare: |
     if [[ "$SPREAD_SYSTEM" == ubuntu-fips-* ]]; then
         pro refresh
         pro status
-
-        if [[ "$SPREAD_REBOOT" = 0 ]]; then
-            echo "--- enabling FIPS"
-            pro enable fips-updates --assume-yes
-            REBOOT
-        fi
 
         if ! [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]; then
             echo "FIPS not enabled"
