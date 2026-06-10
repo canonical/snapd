@@ -888,6 +888,21 @@ systemd_exec_systemctl(snappy_cli_t)
 # allow snap to read SSL certs
 miscfiles_read_all_certs(snappy_cli_t)
 
+# TODO: the following are workarounds for filesystem probes performed during
+# interface static info initialization (called unconditionally at init time via
+# interfaces/policy/basedeclaration.go). These should be removed once the probes
+# in interfaces/builtin/upower_observe.go and interfaces/builtin/polkit.go are
+# made lazy.
+#
+# upower-observe interface checks whether /usr/libexec/upowerd is executable
+gen_require(`
+	type devicekit_power_exec_t;
+')
+allow snappy_cli_t devicekit_power_exec_t:file getattr;
+# polkit interface checks write access to /usr/share/polkit-1/actions via
+# access(path, W_OK) to determine if it can manage polkit policy files
+allow snappy_cli_t usr_t:dir { getattr search write };
+
 ########################################
 #
 # snappy (unconfined snap) local policy
