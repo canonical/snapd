@@ -81,7 +81,7 @@ func (s *setSuite) TestInvalidArguments(c *C) {
 }
 
 func (s *setSuite) TestSetInvalidValueKey(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", `foo={"bad_key":1}`}, 0, nil)
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"set", `foo={"bad_key":1}`}, 0, nil)
 	c.Assert(err, ErrorMatches, `invalid option name: "bad_key"`)
 }
 
