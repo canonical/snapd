@@ -88,7 +88,7 @@ var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 // unchanged. It is a convenience wrapper so that each error return path in
 // loginUser can log with a single call.
 func apiLoginError(resp *apiError, snapdUser seclog.SnapdUser) *apiError {
-	seclog.LogLoginFailure(snapdUser, resp.reason())
+	seclog.LogLoginFailure(snapdUser, resp.seclogReason())
 	return resp
 }
 

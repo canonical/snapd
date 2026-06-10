@@ -47,8 +47,8 @@ type apiError struct {
 	Value errorValue
 }
 
-// reason returns a [seclog.Reason] derived from the API error fields.
-func (ae *apiError) reason() seclog.Reason {
+// seclogReason returns a [seclog.Reason] derived from the API error fields.
+func (ae *apiError) seclogReason() seclog.Reason {
 	return seclog.Reason{
 		Code:    ae.Status,
 		Kind:    string(ae.Kind),
