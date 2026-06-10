@@ -223,7 +223,13 @@ func (iface *upowerObserveInterface) Name() string {
 
 func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary:              upowerObserveSummary,
+		Summary: upowerObserveSummary,
+		// TODO: this check is called during init() via
+		// interfaces/policy/basedeclaration.go's composeBaseDeclaration(),
+		// causing a filesystem probe on every snap CLI invocation. This
+		// should be made lazy and only evaluated when actually needed
+		// (e.g., when setting up implicit slots). See also the SELinux
+		// policy workaround in data/selinux/snappy.te.
 		ImplicitOnCore:       osutil.IsExecutable("/usr/libexec/upowerd"),
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
