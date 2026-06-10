@@ -120,38 +120,43 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 			return nil, nil, err
 		}
 
-		var pollOutput snapctlOutput
-		for {
-			// Clear pollOutput before each run to avoid inheriting previous stdout/stderr.
-			pollOutput = snapctlOutput{}
-			_, err = client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(pollBody), &pollOutput)
-
-			if err != nil {
-				// If the error is of type unsuccessful with exit code 1,
-				// the change is still in progress, continue polling.
-				if e, ok := err.(*Error); ok && e.Kind == ErrorKindUnsuccessful {
-					if val, ok := e.Value.(map[string]any); ok {
-						if num, ok := val["exit-code"].(float64); ok {
-							if int64(num) == 1 {
-								continue
-							}
-						}
-					}
-				}
-				// Any other error means something actually failed.
-				return nil, nil, err
-			}
-
-			if pollOutput.Stderr != "" {
-				return []byte(pollOutput.Stdout), []byte(pollOutput.Stderr), fmt.Errorf("snapctl is-ready finished with error: %s", pollOutput.Stderr)
-			}
-
-			// If it succeeds and has no error, the change is ready, update output and break out.
-			output.Stdout = pollOutput.Stdout
-			output.Stderr = pollOutput.Stderr
-			break
+		output, err = client.SnapctlPollLoop(pollBody, header)
+		if err != nil {
+			return []byte(output.Stdout), []byte(output.Stderr), err
 		}
 	}
 
 	return []byte(output.Stdout), []byte(output.Stderr), nil
+}
+
+func (client *Client) SnapctlPollLoop(pollBody []byte, header map[string]string) (snapctlOutput, error) {
+	var pollOutput snapctlOutput
+	for {
+		// Clear pollOutput before each run to avoid inheriting previous stdout/stderr.
+		pollOutput = snapctlOutput{}
+		_, err := client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(pollBody), &pollOutput)
+
+		if err != nil {
+			// If the error is of type unsuccessful with exit code 3,
+			// the change is still in progress, continue polling.
+			if e, ok := err.(*Error); ok && e.Kind == ErrorKindUnsuccessful {
+				if val, ok := e.Value.(map[string]any); ok {
+					if num, ok := val["exit-code"].(float64); ok {
+						if int64(num) == 3 {
+							continue
+						}
+					}
+				}
+			}
+			// Any other error means something actually failed.
+			return pollOutput, err
+		}
+
+		if pollOutput.Stderr != "" {
+			return pollOutput, fmt.Errorf("snapctl is-ready finished with error: %s", pollOutput.Stderr)
+		}
+
+		// If it succeeds and has no error, the change is ready, update output and break out.
+		return pollOutput, nil
+	}
 }

@@ -161,7 +161,7 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 				"message": "snap is not ready",
 				"kind": "unsuccessful",
 				"value": {
-					"exit-code": 1
+					"exit-code": 3
 				}
 			}
 		}`,
