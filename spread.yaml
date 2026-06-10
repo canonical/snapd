@@ -1302,18 +1302,15 @@ prepare: |
     fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-fips-* ]]; then
-        pro refresh
-        pro status
-
         if ! [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]; then
             echo "FIPS not enabled"
             exit 1
         fi
 
-        # enable GO FIPS PPA
-        add-apt-repository --yes ppa:ubuntu-toolchain-r/golang-fips
-        # XXX pin priority?
-        apt update
+        if apt-cache policy | NOMATCH golang-fips; then
+            echo "golang-fips repo not found, the system is not properly configured for FIPS"
+            exit 1
+        fi
     fi
 
     # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
