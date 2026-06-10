@@ -179,9 +179,6 @@ dbus (send)
 dbus (receive)
     bus=session
     peer=(label=###SLOT_SECURITY_TAGS_SCANNER###),
-
-owner @{HOME}/.cache/mediascanner-2.0/ mrk,
-owner @{HOME}/.cache/mediascanner-2.0/** mrk,
 `
 
 const mediaHubPermanentSlotSecComp = `
