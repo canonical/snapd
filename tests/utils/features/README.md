@@ -77,3 +77,16 @@ Using local data in folder `~/Desktop/features` at timestamp `2025-07-08T11:59:1
 ```
 $ ./query_features.py dup -d ~/Desktop/features -t "2025-07-08T11:59:16.460000" -s 'google-distro-2:arch-linux-64'
 ```
+
+#### Calculate feature coverage
+
+Using local data in folder `~/Desktop/features` at timestamp `2026-06-06`, calculate complete feature coverage including matching snap types.
+
+```
+$ ./query_features.py feat cover -d ~/Desktop/features/ -t 2026-06-06 --match-snap-types
+```
+
+Using local data in folder `~/Desktop/features` at timestamp `2026-06-06`, calculate feature coverage with a total runtime for each system at or under 15 minutes, but force include any features with "refresh" or "install" keywords. Also remove features "cmds" and "interfaces" from consideration.
+```
+$ ./query_features.py feat cover -d ~/Desktop/features/ -t 2026-06-06 --max-minutes 15 --force-matches refresh install --match-snap-types --remove cmds interfaces
+```

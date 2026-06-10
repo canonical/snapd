@@ -38,7 +38,7 @@ def _parse_attempt_from_dirname(dirname: str) -> Optional[int]:
     '''
     Parse the attempt number from a directory name of the form:
       spread-results-<run_id>-<attempt>-<group>
-    where run_id is a sequence of digits and attempt is a single digit.
+    where run_id and attempt are a sequence of digits
 
     :param dirname: the directory name to parse
     :returns: attempt number as an int, or None if the name does not match

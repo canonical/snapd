@@ -661,11 +661,12 @@ def filter_snap_types(snap_types):
 
 def clean_dictionary(features: SystemFeatures, remove_snap_types: bool, remove_cmds: bool, remove_interfaces: bool) -> None:
     '''
-    Removes all status entires entries other than Done, Undone, Error.
+    Removes all status entries other than Done, Undone, Error.
     Filters out NOT_FOUND snap types.
-    if remove_snap_types, removes snap types from all features in the dictionary.
-    if remove_cmds: removes all commands features from the dictionary.
-    if remove_interfaces: removes all interface features from the dictionary.
+
+    :param remove_snap_types: if true, removes snap types from all features in the dictionary.
+    :param remove_cmds: if true, removes all commands features from the dictionary.
+    :param remove_interfaces: if true, removes all interface features from the dictionary.
     '''
     for test in features['tests']:
         if 'tasks' in test:
@@ -728,7 +729,7 @@ def get_force_matched_features(sorted_tasks: list[dict], force_matches: list[str
             if matching:
                 covered_features = union(covered_features, task_features)
                 minimal_tasks.add(TaskIdVariant(suite=task['suite'], task_name=task['task_name'], variant=task['variant']))
-                total_time += task.get('runtime', 0)
+                total_time += task.get('runtime', 0) or 0
                 break
     return covered_features, minimal_tasks, total_time
 
@@ -736,11 +737,13 @@ def get_force_matched_features(sorted_tasks: list[dict], force_matches: list[str
 def minimal_coverage(retriever: Retriever, timestamp: str, system: str, max_minutes: int, force_matches: list[str], remove: list[str], match_snap_types: bool) -> dict[str, list[TaskIdVariant]]:
     '''
     Given a timestamp and (optional) system, gets the minimal set of tasks that cover the same features as the entire system.
-    If max_minutes is greater than 0, then the total runtime for each system will be less than max_minutes.
-    If force_matches is provided, then coverage will include all features that include the specified strings. If the set of
+
+    :param max_minutes: if greater than 0, then the total runtime for each system will be less than max_minutes.
+    :param force_matches: if len > 0, then coverage will include all features that include the specified strings. If the set of
     such coverage has a greater runtime than max_minutes, then it will still be included.
-    remove will remove the specified list of features before calculating coverage.
-    match_snap_types will include matching snap types in coverage calculation.
+    :param remove: for each name of feature included (i.e. cmds, endpoints, ensures, interfaces, tasks, changes), in this list, will remove it before calculating coverage.
+    :param match_snap_types: if true, will include matching snap types in coverage calculation.
+    :returns: dictionary where each system is a key and the value is a list of tests for coverage.
     '''
     if system:
         sys_jsons = [retriever.get_single_json(timestamp, system)]
@@ -751,14 +754,14 @@ def minimal_coverage(retriever: Retriever, timestamp: str, system: str, max_minu
         time_left = max_minutes if max_minutes > 0 else math.inf
         clean_dictionary(sys_json, not match_snap_types, remove and 'cmds' in remove, remove and 'interfaces' in remove)
         tasks = sys_json['tests']
-        tasks = sorted(tasks, key=lambda x: x.get('runtime', 0))
+        tasks = sorted(tasks, key=lambda x: x.get('runtime', 0) or 0)
         covered_features = {}
         minimal_tasks = set()
         if force_matches:
             covered_features, minimal_tasks, total_seconds = get_force_matched_features(tasks, force_matches)
             time_left -= total_seconds / 60
         for task in tasks:
-            if time_left - task.get('runtime', 0) / 60 < 0:
+            if time_left - (task.get('runtime', 0) or 0) / 60 < 0:
                 break
             task_id = TaskIdVariant(suite=task['suite'], task_name=task['task_name'], variant=task['variant'])
             if task_id in minimal_tasks:
@@ -768,7 +771,7 @@ def minimal_coverage(retriever: Retriever, timestamp: str, system: str, max_minu
             if new_covered:
                 minimal_tasks.add(task_id)
                 covered_features = union(covered_features, task_features)
-                time_left -= task.get('runtime', 0) / 60
+                time_left -= (task.get('runtime', 0) or 0) / 60
         coverage[sys_json['system']] = list(minimal_tasks)
     return coverage
 
@@ -931,8 +934,8 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     find.add_argument('--remove-failed', help='remove all tasks that failed', action='store_true')
     find.add_argument('--match-snap-types', help='match the entire feature, including snap types', action='store_true')
 
-    cover = feat_subparsers.add_parser(cmd_cover, help='find the minimal set of tests that cover all features of a system',
-                                     description='Lists minimal set of tests that cover all features of a system')
+    cover = feat_subparsers.add_parser(cmd_cover, help='find the minimal set of tests that cover features of a system',
+                                     description='Lists minimal set of tests that cover features of a system')
     add_data_source_args(cover)
     cover.add_argument('-t', '--timestamp', help='timestamp for feature data', required=True, type=str)
     cover.add_argument('-s', '--system', help='system to search for feature in', default=None, type=str)
