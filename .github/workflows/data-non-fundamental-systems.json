@@ -102,16 +102,16 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-secboot",
-        "backend": "google",
+        "backend": "openstack",
         "alternative-backend": "google",
-        "systems": "ubuntu-secboot-20.04-64",
+        "systems": "ubuntu-secboot-24.04-64",
         "tasks": "tests/...",
         "rules": "main"
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-fips-snap",
-        "backend": "google-pro",
+        "backend": "openstack",
         "alternative-backend": "google-pro",
         "systems": "ubuntu-fips-22.04-64 ubuntu-fips-24.04-64",
         "tasks": "tests/fips-snap/...",
@@ -120,7 +120,7 @@
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-fips-deb",
-        "backend": "google-pro",
+        "backend": "openstack",
         "alternative-backend": "google-pro",
         "systems": "ubuntu-fips-22.04-64 ubuntu-fips-24.04-64",
         "tasks": "tests/fips-deb/...",
