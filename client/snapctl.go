@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 )
 
 // InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
@@ -106,22 +107,21 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 		return nil, nil, err
 	}
 
-	//If a change ID is returned, poll until the change is ready.
+	// If a change ID is returned, poll until the change is ready.
 	if output.ChangeID != "" {
-		var emptyStdin []byte
 		pollBody, err := json.Marshal(SnapCtlPostData{
 			SnapCtlOptions: SnapCtlOptions{
 				ContextID: options.ContextID,
 				Args:      []string{"is-ready", output.ChangeID},
 			},
-			Stdin: emptyStdin,
+			Stdin: nil,
 		})
 
 		if err != nil {
 			return nil, nil, err
 		}
 
-		output, err = client.SnapctlPollLoop(pollBody, header)
+		output, err = client.snapctlPollLoop(pollBody, header)
 		if err != nil {
 			return []byte(output.Stdout), []byte(output.Stderr), err
 		}
@@ -130,7 +130,7 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	return []byte(output.Stdout), []byte(output.Stderr), nil
 }
 
-func (client *Client) SnapctlPollLoop(pollBody []byte, header map[string]string) (snapctlOutput, error) {
+func (client *Client) snapctlPollLoop(pollBody []byte, header map[string]string) (snapctlOutput, error) {
 	var pollOutput snapctlOutput
 	for {
 		// Clear pollOutput before each run to avoid inheriting previous stdout/stderr.
@@ -143,6 +143,7 @@ func (client *Client) SnapctlPollLoop(pollBody []byte, header map[string]string)
 				if val, ok := e.Value.(map[string]any); ok {
 					if num, ok := val["exit-code"].(float64); ok {
 						if int64(num) == 3 {
+							time.Sleep(100 * time.Millisecond)
 							continue
 						}
 					}

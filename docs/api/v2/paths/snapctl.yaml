@@ -70,7 +70,7 @@ post:
               stderr:
                 type: string
                 description: Data written to stderr by the command.
-              changeID:
+              change-id:
                 type: string
                 description: |-
                   If the command initiated an asynchronous operation, this field contains
