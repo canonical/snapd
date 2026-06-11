@@ -13,7 +13,7 @@ import os
 import pymongo
 import pymongo.collection
 import sys
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 from features import SystemFeatures, Cmd, Endpoint, Status, Task, Change, Interface
 
@@ -739,7 +739,7 @@ def filter_snap_types(snap_types: list[str]) -> list[str]:
     return [t for t in snap_types if "NOT FOUND" not in t]
 
 
-def clean_dictionary(features: SystemFeatures, exclude: list[str], remove_snap_types: bool = False) -> None:
+def clean_dictionary(features: SystemFeatures, exclude: Optional[list[str]], remove_snap_types: bool = False) -> None:
     """
     Removes all status entries other than Done, Undone, Error.
     Filters out NOT_FOUND snap types.
@@ -760,8 +760,9 @@ def clean_dictionary(features: SystemFeatures, exclude: list[str], remove_snap_t
                     entry["snap_types"] = filter_snap_types(entry["snap_types"])
 
     for test in features["tests"]:
-        for exclude_feature in exclude:
-            test.pop(exclude_feature, None)
+        if exclude:
+            for exclude_feature in exclude:
+                test.pop(exclude_feature, None)
         clean_snap_types(test.get("tasks"))
         clean_snap_types(test.get("changes"))
 
@@ -810,8 +811,8 @@ def minimal_coverage(
     timestamp: str,
     system: str,
     max_minutes: int,
-    force_match_keywords: list[str],
-    exclude: list[str],
+    force_match_keywords: Optional[list[str]],
+    exclude: Optional[list[str]],
 ) -> dict[str, list[TaskIdVariant]]:
     """
     Given a timestamp and (optional) system, gets the minimal set of tasks that cover the same features as the entire system.

@@ -854,6 +854,34 @@ class TestQueryFeatures:
         assert TaskIdVariant(suite='suite1', task_name='task2', variant='') in coverage['system1']
 
 
+    def test_minimal_coverage_failed_task_at_end(self):
+        data = {'timestamp1': {'system1': {'system': 'system1', 'tests': [
+            TaskFeatures(suite='suite1', task_name='task1', success=True, variant='', runtime=150,
+                         cmds=[Cmd(cmd='snap list')],
+                         endpoints=[Endpoint(method='GET', path='/v2/snaps')]),
+            TaskFeatures(suite='suite1', task_name='task2', success=False, variant='', runtime=120,
+                         cmds=[Cmd(cmd='snap info')],
+                         endpoints=[Endpoint(method='GET', path='/v2/snaps')]),
+            TaskFeatures(suite='suite2', task_name='task3', success=True, variant='v1', runtime=60,
+                         changes=[Change(kind='install-snap', snap_types=['app'])]),
+        ]}}}
+        retriever = DictRetriever(data)
+
+        coverage = query_features.minimal_coverage(
+            retriever,
+            timestamp='timestamp1',
+            system='system1',
+            max_minutes=4,
+            force_match_keywords=None,
+            exclude=None
+        )
+
+        assert 'system1' in coverage and len(coverage['system1']) == 2
+        # force_matches includes install-snap even if it consumes most of max_minutes budget
+        assert TaskIdVariant(suite='suite2', task_name='task3', variant='v1') in coverage['system1']
+        assert TaskIdVariant(suite='suite1', task_name='task1', variant='') in coverage['system1']
+
+
     def test_sys_caching(self):
         data = {'timestamp1': {
                 'system1': {'system':'system1', 'tests': [
