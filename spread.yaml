@@ -398,9 +398,18 @@ backends:
             - ubuntu-22.04-64:
                 image: snapd-spread/ubuntu-22.04-64
                 workers: 8
+            - ubuntu-fips-22.04-64:
+                image: snapd-spread/ubuntu-22.04-64-pro-fips
+            - ubuntu-22.04-64:
+                image: snapd-spread/ubuntu-22.04-64
+                workers: 8
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
+            - ubuntu-fips-24.04-64:
+                image: snapd-spread/ubuntu-24.04-64-pro-fips
+            - ubuntu-secboot-24.04-64:
+                image: snapd-spread/ubuntu-24.04-64-secboot
             - ubuntu-25.10-64:
                 image: snapd-spread/ubuntu-25.10-64
                 workers: 8
@@ -1293,24 +1302,15 @@ prepare: |
     fi
 
     if [[ "$SPREAD_SYSTEM" == ubuntu-fips-* ]]; then
-        pro refresh
-        pro status
-
-        if [[ "$SPREAD_REBOOT" = 0 ]]; then
-            echo "--- enabling FIPS"
-            pro enable fips-updates --assume-yes
-            REBOOT
-        fi
-
         if ! [ "$(cat /proc/sys/crypto/fips_enabled)" = "1" ]; then
             echo "FIPS not enabled"
             exit 1
         fi
 
-        # enable GO FIPS PPA
-        add-apt-repository --yes ppa:ubuntu-toolchain-r/golang-fips
-        # XXX pin priority?
-        apt update
+        if apt-cache policy | NOMATCH golang-fips; then
+            echo "golang-fips repo not found, the system is not properly configured for FIPS"
+            exit 1
+        fi
     fi
 
     # Enable EPEL see https://docs.fedoraproject.org/en-US/epel/
