@@ -19,7 +19,7 @@
 
 package syscheck
 
-var checks []func() error
+var checks = make([]func() error, 0, 10)
 
 // CheckSystem ensures that the system is capable of running snapd and
 // snaps. It probe for e.g. that cgroup support is available and squashfs
