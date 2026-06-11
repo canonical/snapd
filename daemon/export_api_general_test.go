@@ -29,10 +29,14 @@ import (
 )
 
 func MockBuildID(mock string) (restore func()) {
-	old := buildID
-	buildID = mock
+	oldBuildID := buildID
+	r := testutil.Mock(&setBuildID, func() {
+		buildID = mock
+	})
+
 	return func() {
-		buildID = old
+		r()
+		buildID = oldBuildID
 	}
 }
 

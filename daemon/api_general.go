@@ -101,7 +101,9 @@ var (
 )
 
 var (
-	buildID             = "unknown"
+	buildID     = "unknown"
+	buildIDOnce sync.Once
+
 	snapdtoolIsReexecd  = snapdtool.IsReexecd
 	fdestateSystemState = fdestate.SystemState
 
@@ -110,7 +112,7 @@ var (
 	systemdVirtOnce sync.Once
 )
 
-func init() {
+var setBuildID = func() {
 	// cache the build-id on startup to ensure that changes in
 	// the underlying binary do not affect us
 	if bid, err := osutil.MyBuildID(); err == nil {
@@ -168,6 +170,8 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	} else {
 		refreshInfo.Schedule = refreshScheduleStr
 	}
+
+	buildIDOnce.Do(setBuildID)
 
 	m := map[string]any{
 		"series":         release.Series,
