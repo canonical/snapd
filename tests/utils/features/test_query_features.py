@@ -816,9 +816,8 @@ class TestQueryFeatures:
             timestamp='timestamp1',
             system='system1',
             max_minutes=1,
-            force_matches=['install'],
-            remove=[],
-            match_snap_types=True,
+            force_match_keywords=['install'],
+            exclude=[]
         )
 
         assert 'system1' in coverage
@@ -845,9 +844,8 @@ class TestQueryFeatures:
             timestamp='timestamp1',
             system='system1',
             max_minutes=4,
-            force_matches=['install'],
-            remove=[],
-            match_snap_types=True,
+            force_match_keywords=['install'],
+            exclude=[]
         )
 
         assert 'system1' in coverage and len(coverage['system1']) == 2
@@ -1291,9 +1289,8 @@ class TestQueryFeatures:
                 timestamp='2025-05-04',
                 system='system1',
                 max_minutes=8,
-                force_matches=['install'],
-                remove=[],
-                match_snap_types=True,
+                force_match_keywords=['install'],
+                exclude=[]
             )
             query_features.main()
 

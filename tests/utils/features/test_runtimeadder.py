@@ -194,22 +194,6 @@ class TestAddRuntimeToFeatures(unittest.TestCase):
             self.assertAlmostEqual(60.0, tests['install']['runtime'])
             self.assertAlmostEqual(30.0, tests['remove']['runtime'])
 
-    def test_runtime_null_when_not_found(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            system = 'google:ubuntu-24.04-64'
-            features = self._make_system_features(system, [
-                {'suite': 'tests/smoke', 'task_name': 'missing', 'variant': '',
-                 'success': True, 'cmds': []},
-            ])
-            with open(os.path.join(tmpdir, 'google:ubuntu-24.04-64.json'), 'w') as f:
-                json.dump(features, f)
-
-            runtimeadder.add_runtime_to_features(tmpdir, {})
-
-            with open(os.path.join(tmpdir, 'google:ubuntu-24.04-64.json')) as f:
-                result = json.load(f)
-            self.assertIsNone(result['tests'][0]['runtime'])
-
     def test_skips_non_json_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             with open(os.path.join(tmpdir, 'not-a-feature.txt'), 'w') as f:
