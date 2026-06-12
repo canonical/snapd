@@ -33,6 +33,8 @@ debug: |
     "$TESTSTOOLS"/journal-state get-log -u fakestore | tail -50 || true
 
 execute: |
+    snap install core24
+
     "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
 
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
@@ -44,6 +46,7 @@ execute: |
     cat > test-snap/meta/snap.yaml << 'EOF'
     name: test-snap-resume
     version: 1.0
+    base: core24
     summary: Test snap for download resume
     description: A test snap with padding data for resume testing
     EOF
