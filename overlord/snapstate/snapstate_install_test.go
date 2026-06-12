@@ -561,57 +561,6 @@ func (s *snapmgrTestSuite) TestInstallWithDeviceContext(c *C) {
 	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
 }
 
-func (s *snapmgrTestSuite) TestInstallPathWithDeviceContext(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// unset the global store, it will need to come via the device context
-	snapstate.ReplaceStore(s.state, nil)
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		CtxStore:    s.fakeStore,
-		DeviceModel: &asserts.Model{},
-	}
-
-	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
-	mockSnap := makeTestSnap(c, `name: some-snap
-version: 1.0
-`)
-
-	prqt := new(testPrereqTracker)
-
-	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallPathWithDeviceContext(s.state, si, mockSnap, "some-snap", opts, 0, snapstate.Flags{}, prqt, deviceCtx, "")
-	c.Assert(err, IsNil)
-
-	verifyInstallTasks(c, snap.TypeApp, localSnap|mockDelayedEffects, 0, ts)
-	c.Assert(s.state.TaskCount(), Equals, len(ts.Tasks()))
-
-	c.Assert(prqt.infos, HasLen, 1)
-	c.Check(prqt.infos[0].SnapName(), Equals, "some-snap")
-	c.Check(prqt.missingProviderContentTagsCalls, Equals, 1)
-}
-
-func (s *snapmgrTestSuite) TestInstallPathWithDeviceContextBadFile(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// unset the global store, it will need to come via the device context
-	snapstate.ReplaceStore(s.state, nil)
-
-	deviceCtx := &snapstatetest.TrivialDeviceContext{CtxStore: s.fakeStore}
-
-	si := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(7)}
-	path := filepath.Join(c.MkDir(), "some-snap_7.snap")
-	err := os.WriteFile(path, []byte(""), 0644)
-	c.Assert(err, IsNil)
-
-	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
-	ts, err := snapstate.InstallPathWithDeviceContext(s.state, si, path, "some-snap", opts, 0, snapstate.Flags{}, nil, deviceCtx, "")
-	c.Assert(err, ErrorMatches, `cannot open snap file: cannot process snap or snapdir: cannot read ".*/some-snap_7.snap": EOF`)
-	c.Assert(ts, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestInstallWithDeviceContextNoRemodelConflict(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

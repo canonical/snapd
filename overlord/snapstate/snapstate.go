@@ -749,41 +749,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	return ts, nil
 }
 
-// InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
-// Note that the state must be locked by the caller.
-//
-// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
-// identifying the last task before the first task that introduces system
-// modifications.
-func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string,
-	opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker,
-	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
-	logger.Debugf("installing from local file with device context %s", name)
-
-	if opts == nil {
-		opts = &RevisionOptions{}
-	}
-
-	target := PathInstallGoal(PathSnap{
-		InstanceName: name,
-		Path:         path,
-		SideInfo:     si,
-		RevOpts:      *opts,
-	})
-
-	_, ts, err := InstallOne(context.Background(), st, target, Options{
-		Flags:           flags,
-		UserID:          userID,
-		ConflictOptions: ConflictOptions{FromChange: fromChange},
-		PrereqTracker:   prqt,
-		DeviceCtx:       deviceCtx,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return ts, nil
-}
-
 // Download returns a set of tasks for downloading a snap and components into
 // the given directory. The snap.Info for the snap that is downloaded is also
 // returned. The tasks that are returned also download and validate the snap's
