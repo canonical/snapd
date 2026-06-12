@@ -32,7 +32,7 @@ import (
 
 type CertManager struct {
 	state            *state.State
-	oneTimeChecksRun bool
+	oneTimeChecksRan bool
 }
 
 const previousGenerationTaskKey = "cert-db-prev-generation"
@@ -52,8 +52,8 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 
 // hasTaskInProgress is meant to be used from non-task contexts,
 // so it doesn't take the current task as an argument. It checks if
-// there is any task of the given name that hasn't yet completed, which is
-// treated as in-progress.
+// there is a task with the given name that is part of a change yet to
+// be completed, which will be interpreted as "in progress".
 func hasTaskInProgress(st *state.State, taskName string) (bool, error) {
 	for _, t := range st.Tasks() {
 		if t.Kind() == taskName && !t.Change().Status().Ready() {
@@ -84,7 +84,7 @@ func (m *CertManager) Ensure() error {
 	st.Lock()
 	defer st.Unlock()
 
-	if m.oneTimeChecksRun {
+	if m.oneTimeChecksRan {
 		return nil
 	}
 
@@ -100,7 +100,7 @@ func (m *CertManager) Ensure() error {
 	// The reason we set it already, before any of the checks have actually run, is
 	// that in the case of errors we don't want to keep trying the below things. They are
 	// meant to run just once per boot (of snapd is fine too).
-	m.oneTimeChecksRun = true
+	m.oneTimeChecksRan = true
 
 	// If the ssl certs directory is missing, nothing to do.
 	if !hasSystemCertsDir() {
@@ -117,21 +117,17 @@ func (m *CertManager) Ensure() error {
 	// Remove the old style merged folder if it exists. If the merged folder exists, and
 	// it's not a symlink, we remove the folder and regenerate the database
 	mergedDir := CurrentCertificateDir()
-	if info, err := os.Lstat(mergedDir); err == nil {
-		if info.Mode()&os.ModeSymlink == 0 {
-			if err := os.RemoveAll(mergedDir); err != nil {
-				return err
-			}
-		} else {
-			// The merged directory is already a symlink, we assume it's correctly set up and skip generation.
-			logger.Debugf("merged certificate database exists, skipping generation")
+	if osutil.IsSymlink(mergedDir) {
+		// The merged directory is already a symlink, we assume it's correctly set up and skip generation.
+		logger.Debugf("merged certificate database exists, skipping generation")
+		return nil
+	} else {
+		if err := os.RemoveAll(mergedDir); err != nil {
+			// In case of weird errors in this case, log it and skip generation. If it was
+			// a weird FS error, then we'll just retry again on next snapd startup.
+			logger.Noticef("error checking merged certificate database: %v", err)
 			return nil
 		}
-	} else if !os.IsNotExist(err) {
-		// In case of weird errors in this case, log it and skip generation. If it was
-		// a weird FS error, then we'll just retry again on next snapd startup.
-		logger.Noticef("error checking merged certificate database: %v", err)
-		return nil
 	}
 
 	// Create the update CA certificate database, this is likely a first
@@ -140,6 +136,8 @@ func (m *CertManager) Ensure() error {
 	return RefreshCertificateDatabase()
 }
 
+// recordCurrentCertificateGeneration is a helper function to make sure
+// the current certificate generation is recorded before updating.
 func recordCurrentCertificateGeneration(t *state.Task, key string) (string, error) {
 	st := t.State()
 	st.Lock()
@@ -172,6 +170,9 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 		return nil
 	}
 
+	// Record the current generation before updating, so that
+	// if the system reboots during the update, we have a known
+	// generation to roll back to.
 	_, err := recordCurrentCertificateGeneration(t, previousGenerationTaskKey)
 	if err != nil {
 		return err
