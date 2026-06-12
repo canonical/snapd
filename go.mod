@@ -37,7 +37,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require go.etcd.io/bbolt v1.3.9
+require (
+	github.com/cilium/ebpf v0.9.1
+	go.etcd.io/bbolt v1.3.9
+)
 
 require (
 	github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb // indirect
