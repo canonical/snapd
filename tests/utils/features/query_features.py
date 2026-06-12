@@ -739,7 +739,7 @@ def filter_snap_types(snap_types: list[str]) -> list[str]:
     return [t for t in snap_types if "NOT FOUND" not in t]
 
 
-def clean_dictionary(features: SystemFeatures, exclude: Optional[list[str]], remove_snap_types: bool = False) -> None:
+def clean_dictionary(features: SystemFeatures, exclude: Optional[list[str]]) -> None:
     """
     Removes all status entries other than Done, Undone, Error.
     Filters out NOT_FOUND snap types.
@@ -750,26 +750,21 @@ def clean_dictionary(features: SystemFeatures, exclude: Optional[list[str]], rem
     """
 
     def clean_snap_types(lst: list):
-        if not lst:
-            return
         for entry in lst:
             if "snap_types" in entry:
-                if remove_snap_types:
-                    del entry["snap_types"]
-                else:
-                    entry["snap_types"] = filter_snap_types(entry["snap_types"])
+                entry["snap_types"] = filter_snap_types(entry["snap_types"])
 
     for test in features["tests"]:
         if exclude:
             for exclude_feature in exclude:
                 test.pop(exclude_feature, None)
-        clean_snap_types(test.get("tasks"))
-        clean_snap_types(test.get("changes"))
+        clean_snap_types(test.get("tasks", []))
+        clean_snap_types(test.get("changes", []))
 
 
 def get_force_matched_features(
     sorted_tasks: list[dict], force_matches: list[str]
-) -> tuple[dict, list[TaskIdVariant], int]:
+) -> tuple[dict, set[TaskIdVariant], int]:
     force_matches = [fm.lower() for fm in force_matches]
 
     def contains_force_matches(feature: dict[str, Any]) -> bool:
@@ -791,11 +786,8 @@ def get_force_matched_features(
     for task in sorted_tasks:
         task_features = {key: value for key, value in task.items() if key in KNOWN_FEATURES}
         for name, features in task_features.items():
-            matching = [
-                feature
-                for feature in features
-                if feature not in covered_features.get(name, []) and contains_force_matches(feature)
-            ]
+            matching = any(feature not in covered_features.get(name, []) and contains_force_matches(feature) 
+                           for feature in features)
             if matching:
                 covered_features = union(covered_features, task_features)
                 minimal_tasks.add(
@@ -809,7 +801,7 @@ def get_force_matched_features(
 def minimal_coverage(
     retriever: Retriever,
     timestamp: str,
-    system: str,
+    system: Optional[str],
     max_minutes: int,
     force_match_keywords: Optional[list[str]],
     exclude: Optional[list[str]],
@@ -821,7 +813,6 @@ def minimal_coverage(
     :param force_match_keywords: if len > 0, then coverage will include all features that include the specified strings. If the set of
     such coverage has a greater runtime than max_minutes, then it will still be included.
     :param exclude: for each name of feature included (i.e. cmds, endpoints, ensures, interfaces, tasks, changes), in this list, will remove it before calculating coverage.
-    :param match_snap_types: if true, will include matching snap types in coverage calculation.
     :returns: dictionary where each system is a key and the value is a list of tests for coverage.
     """
     if max_minutes == 0 and force_match_keywords:
