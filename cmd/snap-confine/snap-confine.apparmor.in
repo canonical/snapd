@@ -98,6 +98,10 @@ profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     /sys/kernel/mm/transparent_hugepage/enabled r,
     /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
 
+    # mount-support-hybris: Checks for vendor-provided partitions
+    # to ensure additional paths are only mounted on Halium systems
+    @{PROC}/{,self/,@{pid}/}mounts r,
+
     # cgroup: reading own cgroup
     @{PROC}/@{pid}/cgroup r,
 
