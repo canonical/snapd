@@ -456,8 +456,10 @@ func MockDevicestateInstallPreseed(f func(st *state.State, label string, chroot 
 
 func ResetVirtualizationDetection() {
 	systemdVirtOnce = sync.Once{}
+	systemdVirt = ""
 }
 
 func ResetBuildIDDetection() {
 	buildIDOnce = sync.Once{}
+	buildID = ""
 }

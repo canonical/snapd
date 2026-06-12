@@ -135,6 +135,10 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	st := c.d.overlord.State()
 	snapMgr := c.d.overlord.SnapManager()
 	deviceMgr := c.d.overlord.DeviceManager()
+
+	buildIDOnce.Do(setBuildID)
+	systemdVirtOnce.Do(setSystemdDetectVirt)
+
 	st.Lock()
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
@@ -171,8 +175,6 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		refreshInfo.Schedule = refreshScheduleStr
 	}
 
-	buildIDOnce.Do(setBuildID)
-
 	m := map[string]any{
 		"series":         release.Series,
 		"version":        c.d.Version,
@@ -192,7 +194,6 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"snapd-bin-from": snapdFrom,
 	}
 
-	systemdVirtOnce.Do(setSystemdDetectVirt)
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
 	}
