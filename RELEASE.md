@@ -111,7 +111,7 @@ The release process produces the following:
 - GitHub release https://github.com/canonical/snapd/releases
 - Cross-distro artifacts https://snapcraft.io/docs/reference/administration/distribution-support/
 
-*Note: documentation is produced separately from the [snap-docs repository](github.com/canonical/snap-docs)*
+*Note: documentation is produced separately from the [snap-docs repository](https://github.com/canonical/snap-docs)*
 
 ### Prerequisites
 

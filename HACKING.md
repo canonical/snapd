@@ -515,7 +515,7 @@ by `./configure` with your desired flags. See `./configure --help` for available
 
 After building the code locally as explained in the previous section, you can run the 
 test suite available for snap-confine (among other low-level tools) by running the 
-`make check` target available in [./cmd]((./cmd/)).
+`make check` target available in [./cmd](./cmd/).
 
 ## Submitting patches
 
