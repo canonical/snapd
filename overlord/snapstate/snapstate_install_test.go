@@ -1194,7 +1194,7 @@ func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
-func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
+func (s *snapmgrTestSuite) TestSeedingGoalTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1202,7 +1202,7 @@ func (s *snapmgrTestSuite) TestInstallPathTooEarly(c *C) {
 	defer r()
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	t := snapstate.PathInstallGoal(snapstate.PathSnap{
+	t := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:     mockSnap,
 		SideInfo: &snap.SideInfo{RealName: "some-snap"},
 	})
@@ -7431,23 +7431,23 @@ func (s *snapmgrTestSuite) testInstallComponentsRunThrough(c *C, opts testInstal
 	}
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathNoneRunThrough(c *C) {
-	s.testInstallComponentsFromPathRunThrough(c, testInstallComponentsFromPathRunThroughOpts{
+func (s *snapmgrTestSuite) TestSeedingGoalWithNoComponentsRunThrough(c *C) {
+	s.testSeedingGoalWithComponentsRunThrough(c, testSeedingGoalWithComponentsRunThroughOpts{
 		snapName: "test-snap",
 		snapType: snap.TypeApp,
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThrough(c *C) {
-	s.testInstallComponentsFromPathRunThrough(c, testInstallComponentsFromPathRunThroughOpts{
+func (s *snapmgrTestSuite) TestSeedingGoalWithOneComponentRunThrough(c *C) {
+	s.testSeedingGoalWithComponentsRunThrough(c, testSeedingGoalWithComponentsRunThroughOpts{
 		snapName:   "test-snap",
 		snapType:   snap.TypeApp,
 		components: []string{"standard-component"},
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThroughUndo(c *C) {
-	s.testInstallComponentsFromPathRunThrough(c, testInstallComponentsFromPathRunThroughOpts{
+func (s *snapmgrTestSuite) TestSeedingGoalWithOneComponentRunThroughUndo(c *C) {
+	s.testSeedingGoalWithComponentsRunThrough(c, testSeedingGoalWithComponentsRunThroughOpts{
 		snapName:   "test-snap",
 		snapType:   snap.TypeApp,
 		components: []string{"standard-component"},
@@ -7455,8 +7455,8 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathOneRunThroughUndo(c *C) 
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathUnassertedRunThrough(c *C) {
-	s.testInstallComponentsFromPathRunThrough(c, testInstallComponentsFromPathRunThroughOpts{
+func (s *snapmgrTestSuite) TestSeedingGoalWithUnassertedComponentRunThrough(c *C) {
+	s.testSeedingGoalWithComponentsRunThrough(c, testSeedingGoalWithComponentsRunThroughOpts{
 		snapName:   "test-snap",
 		snapType:   snap.TypeApp,
 		components: []string{"standard-component"},
@@ -7464,16 +7464,16 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathUnassertedRunThrough(c *
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathRunThrough(c *C) {
-	s.testInstallComponentsFromPathRunThrough(c, testInstallComponentsFromPathRunThroughOpts{
+func (s *snapmgrTestSuite) TestSeedingGoalWithComponentsRunThrough(c *C) {
+	s.testSeedingGoalWithComponentsRunThrough(c, testSeedingGoalWithComponentsRunThroughOpts{
 		snapName:   "some-kernel",
 		snapType:   snap.TypeKernel,
 		components: []string{"standard-component", "kernel-modules-component"},
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathRunThroughUndo(c *C) {
-	s.testInstallComponentsFromPathRunThrough(c, testInstallComponentsFromPathRunThroughOpts{
+func (s *snapmgrTestSuite) TestSeedingGoalWithComponentsRunThroughUndo(c *C) {
+	s.testSeedingGoalWithComponentsRunThrough(c, testSeedingGoalWithComponentsRunThroughOpts{
 		snapName:   "some-kernel",
 		snapType:   snap.TypeKernel,
 		components: []string{"standard-component", "kernel-modules-component"},
@@ -7481,8 +7481,8 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathRunThroughUndo(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRemovePaths(c *C) {
-	s.testInstallComponentsFromPathRunThrough(c, testInstallComponentsFromPathRunThroughOpts{
+func (s *snapmgrTestSuite) TestSeedingGoalWithComponentsRemovePaths(c *C) {
+	s.testSeedingGoalWithComponentsRunThrough(c, testSeedingGoalWithComponentsRunThroughOpts{
 		snapName:    "some-kernel",
 		snapType:    snap.TypeKernel,
 		components:  []string{"standard-component", "kernel-modules-component"},
@@ -7490,7 +7490,7 @@ func (s *snapmgrTestSuite) TestInstallComponentsFromPathManyRemovePaths(c *C) {
 	})
 }
 
-type testInstallComponentsFromPathRunThroughOpts struct {
+type testSeedingGoalWithComponentsRunThroughOpts struct {
 	snapName    string
 	snapType    snap.Type
 	instanceKey string
@@ -7500,7 +7500,7 @@ type testInstallComponentsFromPathRunThroughOpts struct {
 	unasserted  bool
 }
 
-func (s *snapmgrTestSuite) testInstallComponentsFromPathRunThrough(c *C, opts testInstallComponentsFromPathRunThroughOpts) {
+func (s *snapmgrTestSuite) testSeedingGoalWithComponentsRunThrough(c *C, opts testSeedingGoalWithComponentsRunThroughOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -7616,7 +7616,7 @@ components:
 		si.Revision = snap.Revision{}
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		InstanceName: instanceName,
 		Path:         snapPath,
 		SideInfo:     si,
@@ -7856,7 +7856,7 @@ func findLastTaskInTasks(tasks []*state.Task, kind string) *state.Task {
 	return last
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentFile(c *C) {
+func (s *snapmgrTestSuite) TestSeedingGoalWithComponentsInvalidComponentFile(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -7896,7 +7896,7 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:       snapPath,
 		SideInfo:   si,
 		Components: components,
@@ -7905,7 +7905,7 @@ components:
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`.*cannot process snap or snapdir: file "%s" is invalid.*`, compPath))
 }
 
-func (s *snapmgrTestSuite) TestInstallComponentsFromPathInvalidComponentName(c *C) {
+func (s *snapmgrTestSuite) TestSeedingGoalWithComponentsInvalidComponentName(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -7940,7 +7940,7 @@ components:
 		Revision: snapRevision,
 	}
 
-	goal := snapstate.PathInstallGoal(snapstate.PathSnap{
+	goal := snapstate.SeedingGoal(snapstate.PathSnap{
 		Path:       snapPath,
 		SideInfo:   si,
 		Components: components,

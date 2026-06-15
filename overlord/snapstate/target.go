@@ -69,6 +69,9 @@ type Options struct {
 	// Seed should be true while seeding the device. This indicates that we
 	// shouldn't require that the device is seeded before installing/updating
 	// snaps.
+	//
+	// TODO: we should figure out how to get rid of this flag since we have a
+	// seeding-specific goal
 	Seed bool
 	// ExpectOneSnap is a boolean flag indicating that this operation is expected
 	// to only operate on one snap (excluding any prerequisite snaps that may be
@@ -977,25 +980,27 @@ func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
 	return nil
 }
 
-// pathInstallGoal represents a single snap to be installed from a path on disk.
-type pathInstallGoal struct {
+// seedingGoal represents a single snap to be installed from a path on disk
+// during seeding.
+type seedingGoal struct {
 	snap PathSnap
 }
 
-// PathInstallGoal creates a new InstallGoal to install a snap from a given from
-// a path on disk. If instanceName is not provided, si.RealName will be used.
-func PathInstallGoal(sn PathSnap) InstallGoal {
+// SeedingGoal creates a new InstallGoal to install a snap from a path on disk
+// during seeding. If InstanceName is not provided, SideInfo.RealName will be
+// used.
+func SeedingGoal(sn PathSnap) InstallGoal {
 	if sn.InstanceName == "" {
 		sn.InstanceName = sn.SideInfo.RealName
 	}
 
-	return &pathInstallGoal{
+	return &seedingGoal{
 		snap: sn,
 	}
 }
 
 // toInstall returns the data needed to setup the snap from disk.
-func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
+func (p *seedingGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
 	var snapst SnapState
 	if err := Get(st, p.snap.InstanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err

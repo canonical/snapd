@@ -665,11 +665,6 @@ type PrereqTracker interface {
 // contain just a name which results in a local revision and sideloading, or
 // full metadata in which case it the snap will appear as installed from the
 // store.
-//
-// Note that this function results in task construction that more closely
-// matches a refresh, rather than simple snap installation. This means that this
-// function can trigger a seed refresh. Pure installation should consider using
-// InstallPath with a PathInstallGoal.
 func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, error) {
 	target := PathUpdateGoal(PathSnap{
 		InstanceName: instanceName,
