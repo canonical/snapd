@@ -17,15 +17,11 @@
  *
  */
 
-package main
+package snap_preseed
 
 import (
 	"github.com/snapcore/snapd/image/preseed"
 	"github.com/snapcore/snapd/testutil"
-)
-
-var (
-	Run = run
 )
 
 func MockOsGetuid(f func() int) (restore func()) {
