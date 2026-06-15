@@ -702,6 +702,8 @@ prepare_suite() {
 
     # make sure that reset did not break anything
     tests.invariant check snap-mount-dir
+
+    snap version | grep snapd | awk '{print $2}' > "${SNAPD_WORK_DIR}/snapd-testing-version"
 }
 
 prepare_suite_each() {
