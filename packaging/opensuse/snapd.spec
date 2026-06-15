@@ -449,6 +449,9 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %service_add_pre %{systemd_services_list}
 
 %post
+# Create the private tmp directory for snap-confine
+install -d -m 0700 /tmp/snap-private-tmp
+
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
