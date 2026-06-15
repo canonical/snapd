@@ -11,7 +11,7 @@ show_help() {
 	echo "    leftover-defer-sh: defer.sh must not be left over by tests"
 	echo "    broken-snaps: snaps must not be left around that are in a broken state"
 	echo "    segmentation-violations: snapd must not have segmentation-violation errors in journal logs"
-	echo "    check-snapd-version: the version of snapd during restore must be the same as during project prepare"
+	echo "    snapd-version: the version of snapd during restore must be the same as during project prepare"
     echo "    snap-mount-dir: assert that reported snap mount directory is the same as at test start"
     echo
     echo "Supported invariants for 'set' action:"
@@ -262,6 +262,10 @@ check_snap_mount_dir() {
 	fi
 }
 
+set_snapd_version() {
+    echo "$1" > "$TESTSTMP/tests.invariant.snapd-version"
+}
+
 check_snapd_version() {
 	if tests.nested is-nested; then
 		return 0
@@ -271,8 +275,8 @@ check_snapd_version() {
 			# re-exec may be explicitly disabled in the test variant, in which case the version will not match
 			return 0
 		fi
-		snap version | grep snapd | grep -qF "$(cat "${SNAPD_WORK_DIR}"/snapd-testing-version)" || {
-			echo "tests.invariant: snapd version mismatch, expected $(cat "${SNAPD_WORK_DIR}"/snapd-testing-version) but got $(snap version | grep snapd | awk '{print $2}')" >&2
+		snap version | grep snapd | grep -qF "$(cat "${TESTSTMP}"/tests.invariant.snapd-version)" || {
+			echo "tests.invariant: snapd version mismatch, expected $(cat "${TESTSTMP}"/tests.invariant.snapd-version) but got $(snap version | grep snapd | awk '{print $2}')" >&2
 			return 1
 		}
 	fi
@@ -313,7 +317,7 @@ check_invariant() {
         snap-mount-dir)
             check_snap_mount_dir "$1"
             ;;
-		check-snapd-version)
+		snapd-version)
 			check_snapd_version
 			;;
 		*)
@@ -336,7 +340,7 @@ main() {
 	segmentation-violations
 	check-fakestore-cleaned
     snap-mount-dir
-	check-snapd-version
+	snapd-version
 	"
 
 	case "$action" in
@@ -366,6 +370,10 @@ main() {
                     shift
                     set_snap_mount_dir "$*"
                     ;;
+			     snapd-version)
+				 	shift
+					set_snapd_version "$*"
+				 	;;
                  *)
                      echo "tests.invariant: unsupported set action"
                      exit 1
