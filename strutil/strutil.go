@@ -76,6 +76,17 @@ func ListContains(list []string, str string) bool {
 	return false
 }
 
+// ListContainsFold determines whether the given string is contained in the
+// given list of strings, with case-insensitive matching.
+func ListContainsFold(list []string, str string) bool {
+	for _, k := range list {
+		if strings.EqualFold(k, str) {
+			return true
+		}
+	}
+	return false
+}
+
 // SortedListContains determines whether the given string is contained
 // in the given list of strings, which must be sorted.
 func SortedListContains(list []string, str string) bool {

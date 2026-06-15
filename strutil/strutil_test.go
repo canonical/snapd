@@ -112,6 +112,27 @@ func (ts *strutilSuite) TestListContains(c *check.C) {
 	}
 }
 
+func (ts *strutilSuite) TestListContainsFold(c *check.C) {
+	for _, xs := range [][]string{
+		{},
+		nil,
+		{"foo"},
+		{"foo", "baz", "barbar"},
+	} {
+		c.Check(strutil.ListContainsFold(xs, "bar"), check.Equals, false)
+	}
+
+	for _, xs := range [][]string{
+		{"bar"},
+		{"foo", "bar", "baz"},
+		{"foo", "BAR", "baz"},
+		{"foo", "BaR", "baz"},
+		{"bar", "bar", "bar", "bar", "bar", "bar"},
+	} {
+		c.Check(strutil.ListContainsFold(xs, "bar"), check.Equals, true)
+	}
+}
+
 func (ts *strutilSuite) TestTruncateOutput(c *check.C) {
 	data := []byte("ab\ncd\nef\ngh\nij")
 	out := strutil.TruncateOutput(data, 3, 500)

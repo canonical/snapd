@@ -1,0 +1,19 @@
+summary: Verify resources/list via snap mcp
+
+details: |
+    Verify that snap mcp can invoke resources/list and
+    that the snap info resource is advertised.
+
+execute: |
+    snap set core experimental.mcp=true
+
+    req='{"jsonrpc":"2.0","id":"resources-list","method":"resources/list"}'
+    printf '%s\n' "$req" | snap mcp > response.json
+    NOMATCH "Structured content does not match the tool's output schema" < response.json
+
+    gojq -r '.jsonrpc' < response.json | MATCH '^2.0$'
+    gojq -r '.id' < response.json | MATCH '^resources-list$'
+    gojq -r 'has("error")' < response.json | MATCH '^false$'
+
+    gojq -r '.result.resources | map(.uri) | index("snap://info/{snap}") != null' < response.json | MATCH '^true$'
+    gojq -r '.result.resources[] | select(.uri == "snap://info/{snap}") | .mimeType' < response.json | MATCH '^application/json$'

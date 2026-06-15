@@ -518,7 +518,7 @@ func (s *confdbSuite) TestSetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled, enable with: snap set system experimental.confdb=true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
@@ -528,7 +528,7 @@ func (s *confdbSuite) TestGetFailUnsetFeatureFlag(c *C) {
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled, enable with: snap set system experimental.confdb=true`)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
 }
 
@@ -888,7 +888,7 @@ func (s *confdbControlSuite) TestConfdbFlagNotEnabled(c *C) {
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled: set 'experimental.confdb' to true`)
+	c.Check(rspe.Message, Equals, `feature flag "confdb" is disabled, enable with: snap set system experimental.confdb=true`)
 }
 
 func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
@@ -897,9 +897,9 @@ func (s *confdbControlSuite) TestConfdbControlFlagNotEnabled(c *C) {
 	req, err := http.NewRequest("POST", "/v2/confdb", nil)
 	c.Assert(err, IsNil)
 
-	rspe := s.errorReq(c, req, nil, actionIsExpected)
-	c.Check(rspe.Status, Equals, 400)
-	c.Check(rspe.Message, Equals, `feature flag "confdb-control" is disabled: set 'experimental.confdb-control' to true`)
+	rsps := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsps.Status, Equals, 400)
+	c.Check(rsps.Message, Equals, `feature flag "confdb-control" is disabled, enable with: snap set system experimental.confdb-control=true`)
 }
 
 func (s *confdbControlSuite) TestConfdbControlActionNoSerial(c *C) {

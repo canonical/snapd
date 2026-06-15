@@ -1,0 +1,43 @@
+summary: Verify tool snap_list_changes via snap mcp
+
+details: |
+    Verify that snap mcp can invoke the snap_list_changes
+    tool and return at least one ready change for a known snap.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-slot
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-plug
+
+execute: |
+    snap set core experimental.mcp=true
+
+    req='{"jsonrpc":"2.0","id":"tool-snap-list-changes","method":"tools/call","params":{"name":"snap_list_changes","arguments":{"select":"ready","snap_name":"test-snapd-content-plug"}}}'
+    printf '%s\n' "$req" | snap mcp > response.json
+    NOMATCH "Structured content does not match the tool's output schema" < response.json
+
+    gojq -r '.jsonrpc' < response.json | MATCH '^2.0$'
+    gojq -r '.id' < response.json | MATCH '^tool-snap-list-changes$'
+    gojq -r 'has("error")' < response.json | MATCH '^false$'
+
+    gojq -r '.result.isError' < response.json | MATCH '^false$'
+    gojq -r '.result.content[0].type' < response.json | MATCH '^text$'
+    gojq -r '.result.content[0].text | fromjson | .changes | length > 0' < response.json | MATCH '^true$'
+    gojq -r '.result.content[0].text | fromjson | .changes | map(.snap_names // [] | map(startswith("test-snapd-content-plug"))) | flatten | any' < response.json | MATCH '^true$'
+    gojq -r '.result.content[0].text | fromjson | .changes | map(has("tasks")) | any' < response.json | MATCH '^false$'
+
+    change_kind=$(gojq -r '.result.content[0].text | fromjson | .changes[0].kind' < response.json)
+    change_status=$(gojq -r '.result.content[0].text | fromjson | .changes[0].status' < response.json)
+    since='2000-01-01T00:00:00Z'
+    until='2100-01-01T00:00:00Z'
+    req_kind=$(printf '{"jsonrpc":"2.0","id":"tool-snap-list-changes-kind-date","method":"tools/call","params":{"name":"snap_list_changes","arguments":{"select":"ready","snap_name":"test-snapd-content-plug","kind":"%s","status":"%s","since":"%s","until":"%s"}}}' "$change_kind" "$change_status" "$since" "$until")
+    printf '%s\n' "$req_kind" | snap mcp > response_kind.json
+    NOMATCH "Structured content does not match the tool's output schema" < response_kind.json
+
+    gojq -r '.jsonrpc' < response_kind.json | MATCH '^2.0$'
+    gojq -r '.id' < response_kind.json | MATCH '^tool-snap-list-changes-kind-date$'
+    gojq -r 'has("error")' < response_kind.json | MATCH '^false$'
+    gojq -r '.result.isError' < response_kind.json | MATCH '^false$'
+    gojq -r '.result.content[0].text | fromjson | .changes | length > 0' < response_kind.json | MATCH '^true$'
+    gojq -r '.result.content[0].text | fromjson | .changes | all(.kind == "'"$change_kind"'")' < response_kind.json | MATCH '^true$'
+    gojq -r '.result.content[0].text | fromjson | .changes | all(.status == "'"$change_status"'")' < response_kind.json | MATCH '^true$'
+    gojq -r '.result.content[0].text | fromjson | .changes | map(has("tasks")) | any' < response_kind.json | MATCH '^false$'

@@ -95,6 +95,7 @@ var api = []*Command{
 	requestsRuleCmd,
 	systemSecurebootCmd,
 	systemVolumesCmd,
+	mcpCmd,
 }
 
 type featureEndpoint struct {
@@ -136,6 +137,7 @@ const (
 	polkitActionManageInterfaces    = "io.snapcraft.snapd.manage-interfaces"
 	polkitActionManageConfiguration = "io.snapcraft.snapd.manage-configuration"
 	polkitActionManageFDE           = "io.snapcraft.snapd.manage-fde"
+	polkitActionUseMCP              = "io.snapcraft.snapd.mcp"
 )
 
 // userFromRequest extracts user information from request and return the
