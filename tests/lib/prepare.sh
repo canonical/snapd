@@ -134,7 +134,6 @@ setup_systemd_snapd_overrides() {
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_REBOOT_DELAY=10m SNAPD_CONFIGURE_HOOK_TIMEOUT=30s SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE
-ExecStartPre=/bin/touch /dev/iio:device0
 
 [Unit]
 # The default limit is usually 5, which can be easily hit in 
@@ -160,6 +159,21 @@ EOF
     # start the service (it pulls up the socket)
     systemctl start snapd.service
 }
+
+setup_systemd_snapd_core_overrides() {
+    cat <<EOF > /etc/systemd/system/snapd.service.d/core-local.conf
+[Service]
+ExecStartPre=/bin/touch /dev/iio:device0
+EOF
+    # We change the service configuration so reload and restart
+    # the units to get them applied
+    systemctl daemon-reload
+    # stop the socket (it pulls down the service)
+    systemctl stop snapd.socket
+    # start the service (it pulls up the socket)
+    systemctl start snapd.service
+}
+
 
 # setup_experimental_features enables experimental snapd features passed
 # via optional EXPERIMENTAL_FEATURES environment variable. The features must be
@@ -2002,6 +2016,7 @@ prepare_ubuntu_core() {
 
     disable_refreshes
     setup_systemd_snapd_overrides
+    setup_systemd_snapd_core_overrides
 
     # Snapshot the fresh state (including boot/bootenv)
     if ! is_snapd_state_saved; then
