@@ -172,24 +172,12 @@ func MockSnapstateUpdateOne(mock func(ctx context.Context, st *state.State, goal
 	return testutil.Mock(&snapstateUpdateOne, mock)
 }
 
-func MockSnapstateInstallOne(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error)) (restore func()) {
-	return testutil.Mock(&snapstateInstallOne, mock)
-}
-
 func MockSnapstatePathUpdateGoal(mock func(snaps ...snapstate.PathSnap) snapstate.UpdateGoal) (restore func()) {
 	return testutil.Mock(&snapstatePathUpdateGoal, mock)
 }
 
-func MockSnapstateStoreInstallGoal(mock func(snaps ...snapstate.StoreSnap) snapstate.InstallGoal) (restore func()) {
-	return testutil.Mock(&snapstateStoreInstallGoal, mock)
-}
-
 func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snapstate.UpdateGoal) (restore func()) {
 	return testutil.Mock(&snapstateStoreUpdateGoal, mock)
-}
-
-func MockSnapstatePathInstallGoal(mock func(snapstate.PathSnap) snapstate.InstallGoal) (restore func()) {
-	return testutil.Mock(&snapstatePathInstallGoal, mock)
 }
 
 func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
