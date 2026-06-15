@@ -60,6 +60,7 @@ class TaskFeatures(TypedDict):
     tasks: list[Task]
     changes: list[Change]
     ensures: list[Ensure]
+    runtime: float
 
 
 class SystemFeatures(TypedDict):
