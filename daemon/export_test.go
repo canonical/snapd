@@ -461,5 +461,5 @@ func ResetVirtualizationDetection() {
 
 func ResetBuildIDDetection() {
 	buildIDOnce = sync.Once{}
-	buildID = ""
+	buildID = "unknown"
 }
