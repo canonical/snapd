@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package preseedtool_test
 
 import (
 	"testing"
@@ -25,7 +25,7 @@ import (
 	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap-preseed"
+	"github.com/snapcore/snapd/cmd/snapd/preseedtool"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/snap"
@@ -52,48 +52,48 @@ func (s *startPreseedSuite) TearDownTest(c *C) {
 }
 
 func testParser(c *C) *flags.Parser {
-	parser := main.Parser()
+	parser := preseedtool.Parser()
 	_, err := parser.ParseArgs([]string{})
 	c.Assert(err, IsNil)
 	return parser
 }
 
 func (s *startPreseedSuite) TestRequiresRoot(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 1000
 	})
 	defer restore()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{"/"}), ErrorMatches, `must be run as root`)
+	c.Check(preseedtool.Run(parser, []string{"/"}), ErrorMatches, `must be run as root`)
 }
 
 func (s *startPreseedSuite) TestMissingArg(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, nil), ErrorMatches, `need chroot path as argument`)
+	c.Check(preseedtool.Run(parser, nil), ErrorMatches, `need chroot path as argument`)
 }
 
 func (s *startPreseedSuite) TestRunPreseedAgainstFilesystemRoot(c *C) {
-	restore := main.MockOsGetuid(func() int { return 0 })
+	restore := preseedtool.MockOsGetuid(func() int { return 0 })
 	defer restore()
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"/"}), ErrorMatches, `cannot run snap-preseed against /`)
+	c.Assert(preseedtool.Run(parser, []string{"/"}), ErrorMatches, `cannot run snap-preseed against /`)
 }
 
 func (s *startPreseedSuite) TestRunPreseedClassicHappy(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	var called bool
-	restorePreseed := main.MockPreseedClassic(func(dir string) error {
+	restorePreseed := preseedtool.MockPreseedClassic(func(dir string) error {
 		c.Check(dir, Equals, "/a/dir")
 		called = true
 		return nil
@@ -101,54 +101,54 @@ func (s *startPreseedSuite) TestRunPreseedClassicHappy(c *C) {
 	defer restorePreseed()
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"/a/dir"}), IsNil)
+	c.Assert(preseedtool.Run(parser, []string{"/a/dir"}), IsNil)
 	c.Check(called, Equals, true)
 }
 
 func (s *startPreseedSuite) TestResetReexeced(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	var called bool
-	main.MockResetPreseededChroot(func(dir string) error {
+	preseedtool.MockResetPreseededChroot(func(dir string) error {
 		c.Check(dir, Equals, "/")
 		called = true
 		return nil
 	})
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--reset-chroot"}), IsNil)
+	c.Assert(preseedtool.Run(parser, []string{"--reset-chroot"}), IsNil)
 	c.Check(called, Equals, true)
 }
 
 func (s *startPreseedSuite) TestReset(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	var called bool
-	main.MockPreseedClassicReset(func(dir string) error {
+	preseedtool.MockPreseedClassicReset(func(dir string) error {
 		c.Check(dir, Equals, "/a/dir")
 		called = true
 		return nil
 	})
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--reset", "/a/dir"}), IsNil)
+	c.Assert(preseedtool.Run(parser, []string{"--reset", "/a/dir"}), IsNil)
 	c.Check(called, Equals, true)
 }
 
 func (s *startPreseedSuite) TestHybridHappy(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	var called bool
-	main.MockPreseedHybrid(func(dir, label string) error {
+	preseedtool.MockPreseedHybrid(func(dir, label string) error {
 		c.Check(dir, Equals, "/a/dir")
 		c.Check(label, Equals, "system-label")
 		called = true
@@ -156,18 +156,18 @@ func (s *startPreseedSuite) TestHybridHappy(c *C) {
 	})
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--hybrid", "--system-label", "system-label", "/a/dir"}), IsNil)
+	c.Assert(preseedtool.Run(parser, []string{"--hybrid", "--system-label", "system-label", "/a/dir"}), IsNil)
 	c.Check(called, Equals, true)
 }
 
 func (s *startPreseedSuite) TestHybridReset(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	var called bool
-	main.MockPreseedHybridReset(func(dir, label string) error {
+	preseedtool.MockPreseedHybridReset(func(dir, label string) error {
 		c.Check(dir, Equals, "/a/dir")
 		c.Check(label, Equals, "system-label")
 		called = true
@@ -175,28 +175,28 @@ func (s *startPreseedSuite) TestHybridReset(c *C) {
 	})
 
 	parser := testParser(c)
-	c.Assert(main.Run(parser, []string{"--hybrid", "--system-label", "system-label", "--reset", "/a/dir"}), IsNil)
+	c.Assert(preseedtool.Run(parser, []string{"--hybrid", "--system-label", "system-label", "--reset", "/a/dir"}), IsNil)
 	c.Check(called, Equals, true)
 }
 
 func (s *startPreseedSuite) TestHybridMissingLabel(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{"--hybrid", "/a/dir"}), ErrorMatches, `cannot use --hybrid without --system-label`)
+	c.Check(preseedtool.Run(parser, []string{"--hybrid", "/a/dir"}), ErrorMatches, `cannot use --hybrid without --system-label`)
 }
 
 func (s *startPreseedSuite) TestLabelWithoutHybrid(c *C) {
-	restore := main.MockOsGetuid(func() int {
+	restore := preseedtool.MockOsGetuid(func() int {
 		return 0
 	})
 	defer restore()
 
 	parser := testParser(c)
-	c.Check(main.Run(parser, []string{"--system-label", "label", "/a/dir"}), ErrorMatches, `cannot use --system-label without --hybrid`)
+	c.Check(preseedtool.Run(parser, []string{"--system-label", "label", "/a/dir"}), ErrorMatches, `cannot use --system-label without --hybrid`)
 }
 
 func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
@@ -214,7 +214,7 @@ func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 
 	parser := testParser(c)
 	tmpDir := c.MkDir()
-	_ = main.Run(parser, []string{tmpDir})
+	_ = preseedtool.Run(parser, []string{tmpDir})
 
 	// real sanitize method should be set after Run()
 	snap.SanitizePlugsSlots(inf)
