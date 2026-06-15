@@ -340,14 +340,11 @@ parts:
             lib/snapd/snap-exec
             lib/snapd/snap-failure
             lib/snapd/snap-fde-keymgr
-            lib/snapd/snap-preseed
             lib/snapd/snap-recovery-chooser
             lib/snapd/snap-repair
             lib/snapd/snap-seccomp
             lib/snapd/snap-update-ns
-            lib/snapd/snapctl
-            lib/snapd/snapd-apparmor
-            lib/snapd/snap-gpio-helper)
+            lib/snapd/snapctl)
       if [ -f fips-build ]; then
         # build FIPS dispatcher
         CMDS+=(lib/snapd/snap-fips-dispatch)
@@ -459,6 +456,15 @@ parts:
       # link usr/bin/snap -> usr/lib/snapd/snapd
       mkdir -p "${CRAFT_PART_INSTALL}/usr/bin"
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/bin/snap"
+      # link snapd-tool-wrap -> snap-preseed (C tool wrapper multi-call)
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
+         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
+      # link snapd-tool-wrap -> snapd-apparmor (C tool wrapper multi-call)
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
+         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-apparmor"
+      # link snapd-tool-wrap -> snap-gpio-helper (C tool wrapper multi-call)
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
+         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-gpio-helper"
 
       if [ -f fips-build ]; then
         # Set up FIPS dispatch: replace each original binary with a symlink

@@ -1,3 +1,6 @@
 /usr/lib/snapd/snap-device-helper  /usr/lib/udev/snappy-app-dev
 usr/lib/snapd/snapctl usr/bin/snapctl
 usr/lib/snapd/snapd usr/bin/snap
+usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snap-preseed
+usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snapd-apparmor
+usr/lib/snapd/snapd-tool-wrap usr/lib/snapd/snap-gpio-helper
