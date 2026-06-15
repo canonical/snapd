@@ -79,28 +79,28 @@ type UserState struct {
 func (u *UserState) changedFields(other *UserState) []string {
 	var changed []string
 	if u.ID != other.ID {
-		changed = append(changed, "snapd-user-id")
+		changed = append(changed, "snapd_user_id")
 	}
 	if u.Username != other.Username {
-		changed = append(changed, "store-user-name")
+		changed = append(changed, "store_user_name")
 	}
 	if u.Email != other.Email {
-		changed = append(changed, "store-user-email")
+		changed = append(changed, "store_user_email")
 	}
 	if !u.Expiration.UTC().Equal(other.Expiration.UTC()) {
 		changed = append(changed, "expiration")
 	}
 	if u.Macaroon != other.Macaroon {
-		changed = append(changed, "local-macaroon")
+		changed = append(changed, "local_macaroon")
 	}
 	if !stringMultisetsEqual(u.Discharges, other.Discharges) {
-		changed = append(changed, "local-discharges")
+		changed = append(changed, "local_discharges")
 	}
 	if u.StoreMacaroon != other.StoreMacaroon {
-		changed = append(changed, "store-macaroon")
+		changed = append(changed, "store_macaroon")
 	}
 	if !stringMultisetsEqual(u.StoreDischarges, other.StoreDischarges) {
-		changed = append(changed, "store-discharges")
+		changed = append(changed, "store_discharges")
 	}
 	sort.Strings(changed)
 	return changed
