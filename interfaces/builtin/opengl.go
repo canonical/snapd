@@ -230,25 +230,41 @@ const openglHybrisConnectedPlugAppArmor = `
 /{,android/}system/build.prop r,
 /{,android/}vendor/build.prop r,
 /{,android/}odm/build.prop    r,
-/{,android/}vendor/lib{,64}/**           r,
-/{,android/}vendor/lib{,64}/**.so        m,
-/{,android/}system/lib{,64}/**           r,
-/{,android/}system/lib{,64}/**.so        m,
-/{,android/}system/vendor/lib{,64}/**    r,
-/{,android/}system/vendor/lib{,64}/**.so m,
+
+# Top-level lib64 usually contains common libraries
+/{,android/}{,system/}vendor/lib{,64}/*    r,
+/{,android/}{,system/}vendor/lib{,64}/*.so m,
 /{,android/}odm/lib{,64}/**    r,
 /{,android/}odm/lib{,64}/**.so m,
+
+# APEXes ship their own lib64
 /{,android/}apex/com.android.*/lib{,64}/**     r,
 /{,android/}apex/com.android.*/lib{,64}/**.so  m,
-/{,dev/}socket/property_service rw, # attach_disconnected path
-/{,dev/}socket/logdw rw, # attach_disconnected path
-/{,dev/}__properties__/** r, # attach_disconnected path
-/dev/{,binderfs/}binder rw,
+
+# GLESv2 & EGL are in egl/
+/{,android/}{,system/}vendor/lib{,64}/egl/**    r,
+/{,android/}{,system/}vendor/lib{,64}/egl/**.so m,
+
+# /system is Halium and is Free and Open Source Software,
+# but only places required libraries in the lib64 top level.
+/{,android/}system/lib{,64}/*            r,
+/{,android/}system/lib{,64}/*.so         m,
+
+# Common Android services the blobs talk to
+/{,dev/}socket/property_service rw,
+/{,dev/}socket/logdw rw,
+/{,dev/}__properties__/** r,
+
+# Only allow access to hardware-related binder services
 /dev/{,binderfs/}hwbinder rw,
+
+# Memory creation and sharing
 /dev/ashmem rw,
 /dev/ion rw,
+
+# Qualcomm kernel interface
 /dev/kgsl-3d0 rw,
-/sys/devices/platform/soc/**/kgsl/kgsl-3d0/gpu_model rw,
+/sys/devices/platform/soc/**/kgsl/kgsl-3d0/gpu_model r,
 `
 
 type openglInterface struct {
