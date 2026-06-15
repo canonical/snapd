@@ -944,6 +944,9 @@ make -C data -k check
 %endif
 
 %post
+# Create the private tmp directory for snap-confine
+install -d -m 0700 /tmp/snap-private-tmp
+
 %if 0%{?rhel} == 7
 %sysctl_apply 99-snap.conf
 %endif
