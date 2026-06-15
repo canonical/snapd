@@ -746,7 +746,6 @@ def clean_dictionary(features: SystemFeatures, exclude: Optional[list[str]]) -> 
 
     :param features: features dictionary to clean
     :param exclude: removes all features of the specified type
-    :param remove_snap_types: if true, removes snap types from all features in the dictionary.
     """
 
     def clean_snap_types(lst: list):
