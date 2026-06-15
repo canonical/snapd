@@ -65,6 +65,7 @@ var (
 	SnapRunLockDir       string
 	SnapBootstrapRunDir  string
 	SnapVoidDir          string
+	SnapPrivateTmpDir    string
 
 	SnapInterfacesRequestsRunDir   string
 	SnapInterfacesRequestsStateDir string
@@ -592,6 +593,7 @@ func SetRootDir(rootdir string) {
 	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	SnapVoidDir = filepath.Join(rootdir, snappyDir, "void")
+	SnapPrivateTmpDir = filepath.Join(rootdir, "tmp", "snap-private-tmp")
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
 	// freedesktop.org specifications
