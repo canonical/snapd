@@ -356,7 +356,6 @@ Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-failure) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap-preseed) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-recovery-chooser) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-repair) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-seccomp) = %{version}-%{release}
@@ -739,6 +738,11 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 # Remove gpio-chardev ordering target
 rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
 
+# Drop tools not shipped on Fedora (handled via snapd multi-call dispatch
+# on Ubuntu/Debian; on Fedora these binaries are not needed)
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-gpio-helper
+
 # Disable re-exec by default
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 cat <<'EOF' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
@@ -829,6 +833,7 @@ make -C data -k check
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snapd-apparmor
+%{_libexecdir}/snapd/snapd-tool-wrap
 %if 0%{?with_selinux}
 %{_libexecdir}/snapd/snap-mgmt-selinux
 %endif
