@@ -1006,9 +1006,15 @@ func (s *snapmgrTestSuite) TestInstallRemovesSnapPathWhenRevisionPresent(c *C) {
 		Flags:    snapstate.Flags{RemoveSnapPath: true},
 	}
 
-	_, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
+	installTS, err := snapstate.DoInstallOrPreDownload(s.state, snapst, snapsup, nil, snapstate.InstallContext{})
 	c.Assert(err, IsNil)
 	c.Check(snapPath, testutil.FileAbsent)
+
+	setupTask, err := installTS.TaskSet().Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	updated, err := snapstate.TaskSnapSetup(setupTask)
+	c.Assert(err, IsNil)
+	c.Check(updated.SnapPath, Equals, "")
 }
 
 func (s *snapmgrTestSuite) TestInstallSnapdConflictExclusiveKind(c *C) {
@@ -1536,7 +1542,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 
 	c.Assert(snapsup.Channel, Equals, "channel-for-media")
 	c.Assert(snapsup.UserID, Equals, s.user.ID)
-	c.Assert(snapsup.SnapPath, Matches, `.*some-snap_11.snap`)
+	c.Assert(snapsup.SnapPath, Equals, "")
 	c.Assert(snapsup.DownloadInfo, DeepEquals, &snap.DownloadInfo{
 		DownloadURL: "https://some-server.com/some/path.snap",
 		Size:        5,
@@ -1890,9 +1896,8 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:  "some-channel",
-		UserID:   s.user.ID,
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_instance_11.snap"),
+		Channel: "some-channel",
+		UserID:  s.user.ID,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2265,9 +2270,8 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:  "some-channel",
-		UserID:   s.user.ID,
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_666.snap"),
+		Channel: "some-channel",
+		UserID:  s.user.ID,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2482,9 +2486,8 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:  setupChannel,
-		UserID:   s.user.ID,
-		SnapPath: filepath.Join(dirs.SnapBlobDir, snapFileName),
+		Channel: setupChannel,
+		UserID:  s.user.ID,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2658,7 +2661,6 @@ version: 1.0`)
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SnapPath:  mockSnap,
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
 		Version:   "1.0",
@@ -2798,7 +2800,6 @@ epoch: 1*
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		SnapPath:                        mockSnap,
 		SideInfo:                        snapsup.SideInfo,
 		Type:                            snap.TypeApp,
 		Version:                         "1.0",
