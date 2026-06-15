@@ -340,7 +340,6 @@ parts:
             lib/snapd/snap-exec
             lib/snapd/snap-failure
             lib/snapd/snap-fde-keymgr
-            lib/snapd/snap-preseed
             lib/snapd/snap-recovery-chooser
             lib/snapd/snap-repair
             lib/snapd/snap-seccomp
@@ -459,6 +458,8 @@ parts:
       # link usr/bin/snap -> usr/lib/snapd/snapd
       mkdir -p "${CRAFT_PART_INSTALL}/usr/bin"
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/bin/snap"
+      # link usr/lib/snapd/snap-preseed -> snapd
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
 
       if [ -f fips-build ]; then
         # Set up FIPS dispatch: replace each original binary with a symlink

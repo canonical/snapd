@@ -4,3 +4,4 @@
 /usr/lib/systemd/user/snapd.session-agent.socket /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket
 usr/lib/snapd/snapctl usr/bin/snapctl
 usr/lib/snapd/snapd usr/bin/snap
+usr/lib/snapd/snapd usr/lib/snapd/snap-preseed

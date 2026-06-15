@@ -372,6 +372,7 @@ Provides:      golang(%{import_path}/cmd/snapctl) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/cli) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/daemon) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/preseedtool) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock/runinhibit) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
@@ -742,6 +743,9 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 
 # Remove gpio-chardev ordering target
 rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
+
+# Drop snap-preseed
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
 
 # Disable re-exec by default
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig

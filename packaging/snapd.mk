@@ -211,6 +211,10 @@ install:: | $(DESTDIR)$(bindir)
 install:: | $(DESTDIR)$(bindir)
 	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd $|/snap
 
+# Ensure $(libexecdir)/snapd/snap-preseed is a symlink to $(libexecdir)/snapd/snap-preseed
+install:: | $(DESTDIR)$(libexecdir)/snapd
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd $|/snap-preseed
+
 # Generate and install man page for snap command.
 # The binary dispatches on argv[0]; invoke it as "snap" to get the CLI help.
 install:: $(builddir)/snapd | $(DESTDIR)$(mandir)/man8
@@ -263,12 +267,6 @@ install::
 install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
-
-# Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
-# for preseeding of ubuntu cloud images due to certain assumptions about
-# runtime environment of the host and of the preseeded image.
-install::
-	rm -f $(DESTDIR)$(bindir)/snap-preseed
 
 ifeq ($(with_core_bits),0)
 # Remove systemd units that are only used on core devices.
@@ -336,19 +334,6 @@ check-trusted-account-keys:
 		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
 			{ echo "ERROR: snap-bootstrap store generic models key not found" >&2; exit 1; }; \
 		echo "  snap-bootstrap: OK (2 keys)"; \
-	fi
-	@# Check snap-preseed if it exists (Ubuntu 16.04+)
-	@if [ -f "$(builddir)/snap-preseed" ]; then \
-		count=$$(strings $(builddir)/snap-preseed | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
-		if [ "$$count" -ne 2 ]; then \
-			echo "ERROR: Expected 2 public keys in snap-preseed, found $$count" >&2; \
-			exit 1; \
-		fi; \
-		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
-			{ echo "ERROR: snap-preseed store root key not found" >&2; exit 1; }; \
-		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
-			{ echo "ERROR: snap-preseed store generic models key not found" >&2; exit 1; }; \
-		echo "  snap-preseed: OK (2 keys)"; \
 	fi
 	@# Check snap-repair (3 keys expected: 2 common + 1 repair-root)
 	@if [ -f "$(builddir)/snap-repair" ]; then \
