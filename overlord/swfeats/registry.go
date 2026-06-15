@@ -95,7 +95,7 @@ type EnsureEntry struct {
 }
 
 func newEnsureRegistry() *EnsureRegistry {
-	return &EnsureRegistry{ensures: make(map[EnsureEntry]any, 24)}
+	return &EnsureRegistry{ensures: make(map[EnsureEntry]any, 32)}
 }
 
 // Add a ensure helper function to the registry
