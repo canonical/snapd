@@ -27,16 +27,18 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snapd/cli"
 	"github.com/snapcore/snapd/cmd/snapd/daemon"
+	"github.com/snapcore/snapd/cmd/snapd/preseedtool"
 )
 
 func main() {
 	argv0 := filepath.Base(os.Args[0])
 
 	// dispatch the binary multi entry point
-	// TODO add snap-preseed
 	switch argv0 {
 	case "snapd":
 		daemon.Main()
+	case "snap-preseed":
+		preseedtool.Main()
 	default:
 		// "snap" needs to be handled last, as it's a special entrypoint for
 		// snap application execution through symlinks at /snap/bin/<name>
