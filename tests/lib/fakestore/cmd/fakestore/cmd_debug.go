@@ -71,6 +71,10 @@ type cmdDebugAPIReset struct {
 }
 
 func (x *cmdDebugAPIReset) Execute(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("unexpected arguments: %v", args)
+	}
+
 	return doDebugPost(x.apiURL("/debug"), map[string]any{"action": "reset"})
 }
 
@@ -86,6 +90,10 @@ type cmdDebugAPIKillRequest struct {
 }
 
 func (x *cmdDebugAPIKillRequest) Execute(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("unexpected arguments: %v", args)
+	}
+
 	return doDebugPost(x.apiURL("/debug"), map[string]any{
 		"action":     "kill-request",
 		"kill-path":  x.Positional.Path,
@@ -100,6 +108,10 @@ type cmdDebugAPIStats struct {
 }
 
 func (x *cmdDebugAPIStats) Execute(args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("unexpected arguments: %v", args)
+	}
+
 	url := x.apiURL("/debug")
 	resp, err := http.Get(url)
 	if err != nil {
