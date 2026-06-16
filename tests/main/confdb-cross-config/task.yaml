@@ -50,140 +50,140 @@ execute: |
   "$TESTSTOOLS"/snaps-state install-local test-custodian-snap
   "$TESTSTOOLS"/snaps-state install-local test-snap
 
-  snap connect test-custodian-snap:manage-wifi
-  snap connect test-snap:setup-wifi
+  snap connect test-custodian-snap:network-wifi-admin
+  snap connect test-snap:network-wifi-admin
 
   echo "Test that confdb changes are observed by other snaps"
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-  test-custodian-snap.sh -c 'snapctl set --view :manage-wifi ssid=first'
+  test-custodian-snap.sh -c 'snapctl set --view :network-wifi-admin ssid=first'
   changeAfterID "$OLD_CHANGE"
 
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network/wifi-setup\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network/wifi-admin\""'
   # check that the right hooks were called and they can see the expected values
-  MATCH "first" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
+  MATCH "first" < /var/snap/test-custodian-snap/common/change-view-network-wifi-admin-ran
   # the value was modified by change-confdb
-  MATCH "first-custodian" < /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran
-  MATCH "first-custodian" < /var/snap/test-snap/common/observe-view-setup-wifi-ran
+  MATCH "first-custodian" < /var/snap/test-custodian-snap/common/save-view-network-wifi-admin-ran
+  MATCH "first-custodian" < /var/snap/test-snap/common/observe-view-network-wifi-admin-ran
 
   # check no other hooks were called
   test "2" = "$(find /var/snap/test-custodian-snap/common/* -maxdepth 1 | wc -l)"
   test "1" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"
   # the change was persisted
-  snap get developer1/network/wifi-setup ssid | MATCH "first-custodian"
+  snap get developer1/network/wifi-admin ssid | MATCH "first-custodian"
   resetTestState
 
   echo "Test that custodian snaps can manage and save confdb changes"
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-  test-snap.sh -c 'snapctl set --view :setup-wifi ssid=second'
+  test-snap.sh -c 'snapctl set --view :network-wifi-admin ssid=second'
   changeAfterID "$OLD_CHANGE"
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network/wifi-setup\""'
-  MATCH "second" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network/wifi-admin\""'
+  MATCH "second" < /var/snap/test-custodian-snap/common/change-view-network-wifi-admin-ran
   # the value was modified by the custodian snap
-  MATCH "second-custodian" < /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran
-  MATCH "second-custodian" < /var/snap/test-custodian-snap/common/observe-view-manage-wifi-ran
+  MATCH "second-custodian" < /var/snap/test-custodian-snap/common/save-view-network-wifi-admin-ran
+  MATCH "second-custodian" < /var/snap/test-custodian-snap/common/observe-view-network-wifi-admin-ran
   # check no other hooks were called
   test "3" = "$(find /var/snap/test-custodian-snap/common/* -maxdepth 1 | wc -l)"
   test "0" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"
-  snap get developer1/network/wifi-setup ssid | MATCH "second-custodian"
+  snap get developer1/network/wifi-admin ssid | MATCH "second-custodian"
   resetTestState
 
   echo "Test that many snaps can change the value and that failed save-confdb phases are rolled back"
   # install another custodian snap that will fail to save-confdb
   "$TESTSTOOLS"/snaps-state install-local test-failing-custodian-snap
-  snap connect test-failing-custodian-snap:manage-wifi
+  snap connect test-failing-custodian-snap:network-wifi-admin
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-  test-snap.sh -c 'snapctl set --view :setup-wifi ssid=third'
+  test-snap.sh -c 'snapctl set --view :network-wifi-admin ssid=third'
   changeAfterID "$OLD_CHANGE"
 
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Error.*Set confdb through \"developer1/network/wifi-setup\""'
-  MATCH "third" < /var/snap/test-custodian-snap/common/change-view-manage-wifi-ran
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Error.*Set confdb through \"developer1/network/wifi-admin\""'
+  MATCH "third" < /var/snap/test-custodian-snap/common/change-view-network-wifi-admin-ran
   # the value was modified by test-custodian-snap
-  MATCH "third-custodian" < /var/snap/test-failing-custodian-snap/common/change-view-manage-wifi-ran
+  MATCH "third-custodian" < /var/snap/test-failing-custodian-snap/common/change-view-network-wifi-admin-ran
   # and again by test-failing-custodian-snap, for the first run. The second run is
   # a rollback so the value should be the original one
-  test "2" = "$(wc -l /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran | awk '{printf $1}')"
-  head -n 1 /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran | MATCH "third-custodian-rollback"
-  tail -n 1 /var/snap/test-custodian-snap/common/save-view-manage-wifi-ran | MATCH "second-custodian"
+  test "2" = "$(wc -l /var/snap/test-custodian-snap/common/save-view-network-wifi-admin-ran | awk '{printf $1}')"
+  head -n 1 /var/snap/test-custodian-snap/common/save-view-network-wifi-admin-ran | MATCH "third-custodian-rollback"
+  tail -n 1 /var/snap/test-custodian-snap/common/save-view-network-wifi-admin-ran | MATCH "second-custodian"
   # check no other hooks were called (don't call observe-view since the change failed)
   test "2" = "$(find /var/snap/test-custodian-snap/common/* -maxdepth 1 | wc -l)"
   test "1" = "$(find /var/snap/test-failing-custodian-snap/common/* -maxdepth 1 | wc -l)"
   test "0" = "$(find /var/snap/test-snap/common/* -maxdepth 1 | wc -l)"
   # still the same value
-  snap get developer1/network/wifi-setup ssid | MATCH "second-custodian"
+  snap get developer1/network/wifi-admin ssid | MATCH "second-custodian"
   resetTestState
 
   # install a sole custodian that saves and loads data
   snap remove --purge test-custodian-snap test-failing-custodian-snap test-snap
   "$TESTSTOOLS"/snaps-state install-local loading-custodian
   snap ack "$TESTSLIB/assertions/network-ephemeral.confdb"
-  snap connect loading-custodian:manage-wifi
+  snap connect loading-custodian:network-ephemeral-wifi-admin
 
   # write some ephemeral data (i.e., password)
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-  loading-custodian.sh -c 'snapctl set --view :manage-wifi ssid=my-ssid password=written-secret'
+  loading-custodian.sh -c 'snapctl set --view :network-ephemeral-wifi-admin ssid=my-ssid password=written-secret'
   changeAfterID "$OLD_CHANGE"
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network-ephemeral/wifi-setup\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Set confdb through \"developer1/network-ephemeral/wifi-admin\""'
 
   # the hooks get the expected data
-  MATCH 'written-secret' < /var/snap/loading-custodian/common/change-view-manage-wifi-ran
-  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/save-view-manage-wifi-ran
+  MATCH 'written-secret' < /var/snap/loading-custodian/common/change-view-network-ephemeral-wifi-admin-ran
+  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/save-view-network-ephemeral-wifi-admin-ran
   # snapd caches the written value
-  gojq -c '.data."confdb-databags".developer1."network-ephemeral".wifi.psk' < /var/lib/snapd/state.json | MATCH "written-secret-changed"
+  gojq -c '.data."confdb-databags".developer1."network-ephemeral".v1.wifi.psk' < /var/lib/snapd/state.json | MATCH "written-secret-changed"
 
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
   # we load the most up to date value from the custodian snap
-  loading-custodian.sh -c 'snapctl get --view :manage-wifi password' | MATCH "loaded-secret-queried"
+  loading-custodian.sh -c 'snapctl get --view :network-ephemeral-wifi-admin password' | MATCH "loaded-secret-queried"
   changeAfterID "$OLD_CHANGE"
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-setup\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-admin\""'
 
   # check that before loading we read the cached version from snapd and the load-view hook gets this
-  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/load-view-manage-wifi-ran
+  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/load-view-network-ephemeral-wifi-admin-ran
   # but query-view gets the value load-view sets
-  MATCH "loaded-secret" < /var/snap/loading-custodian/common/query-view-manage-wifi-ran
+  MATCH "loaded-secret" < /var/snap/loading-custodian/common/query-view-network-ephemeral-wifi-admin-ran
 
   # check that triggering the change from the API has the same effect
   resetTestState
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-  snap get developer1/network-ephemeral/wifi-setup password | MATCH "loaded-secret-queried"
+  snap get developer1/network-ephemeral/wifi-admin password | MATCH "loaded-secret-queried"
   changeAfterID "$OLD_CHANGE"
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-setup\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-admin\""'
 
   # check we read the cached version before running any hooks (and load-view sees that)
-  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/load-view-manage-wifi-ran
+  MATCH 'written-secret-changed' < /var/snap/loading-custodian/common/load-view-network-ephemeral-wifi-admin-ran
   # but query-view gets the value load-view sets
-  MATCH "loaded-secret" < /var/snap/loading-custodian/common/query-view-manage-wifi-ran
+  MATCH "loaded-secret" < /var/snap/loading-custodian/common/query-view-network-ephemeral-wifi-admin-ran
 
   # waiting-custodian will block on write or read ops until a flag is written
   resetTestState
-  snap disconnect loading-custodian:manage-wifi
+  snap disconnect loading-custodian:network-ephemeral-wifi-admin
   "$TESTSTOOLS"/snaps-state install-local waiting-custodian
-  snap connect waiting-custodian:wifi-setup
+  snap connect waiting-custodian:network-ephemeral-wifi-admin
 
   OLD_CHANGE=$(snap changes | tail -n 2 | head -n 1 | awk '{print $1}')
-  snap set developer1/network-ephemeral/wifi-setup password=initial-password &
+  snap set developer1/network-ephemeral/wifi-admin password=initial-password &
 
   # first change blocks on the save-view-* hook
   changeAfterID "$OLD_CHANGE"
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Doing.*Set confdb through \"developer1/network-ephemeral/wifi-setup\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Doing.*Set confdb through \"developer1/network-ephemeral/wifi-admin\""'
   BLOCKED_CHANGE=$(( OLD_CHANGE + 1 ))
-  snap change "$BLOCKED_CHANGE" | MATCH "Doing.*Run hook save-view-wifi-setup"
+  snap change "$BLOCKED_CHANGE" | MATCH "Doing.*Run hook save-view-network-ephemeral-wifi-admin"
 
   # the access timeout should make this call error without being unblocked
-  timeout -s KILL 2s snap get developer1/network-ephemeral/wifi-setup --wait-for 0s password 2>&1 | tr -d "\n" | tr -s '  ' ' ' |  MATCH "error: cannot read developer1/network-ephemeral/wifi-setup: timed out waiting for access"
+  timeout -s KILL 2s snap get developer1/network-ephemeral/wifi-admin --wait-for 0s password 2>&1 | tr -d "\n" | tr -s '  ' ' ' |  MATCH "error: cannot read developer1/network-ephemeral/wifi-admin: timed out waiting for access"
 
   # queue a series of operations that will block on the previous one sequentially
   sleep 1
-  snap get developer1/network-ephemeral/wifi-setup password > first-read &
+  snap get developer1/network-ephemeral/wifi-admin password > first-read &
   sleep 1
-  snap set developer1/network-ephemeral/wifi-setup password=last-password &
+  snap set developer1/network-ephemeral/wifi-admin password=last-password &
   sleep 1
-  snap get developer1/network-ephemeral/wifi-setup password > last-read &
+  snap get developer1/network-ephemeral/wifi-admin password > last-read &
 
   # unblock the first write and wait for the next operations to complete
   touch /var/snap/waiting-custodian/common/flag
   wait
 
-  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-setup\""'
+  retry -n 5 --wait 1 sh -c 'snap changes | tail -n 2 | grep "Done.*Get confdb through \"developer1/network-ephemeral/wifi-admin\""'
 
   # check the operations executed in the expected order
   MATCH "initial-password" < first-read

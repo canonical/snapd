@@ -1,0 +1,9 @@
+#!/bin/sh
+
+until [ -e "$SNAP_COMMON"/flag ]; do
+	sleep 2
+done
+
+if val=$(snapctl get --view :network-wifi-admin ssid); then
+	snapctl set --view :network-wifi-admin ssid="prefix-$val"
+fi
