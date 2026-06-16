@@ -10,9 +10,11 @@ details: |
 
 # This test starts a user transient unit via `systemd-run --user`, and
 # Ubuntu 14.04 has special version of systemd which doesn't have StartTransientUnit API.
-# TODO: There seems to be an AppArmor mismatch between the one we have and the
-# one in Arch. Disable for now.
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -arch-linux-*]
+# Arch: no DBus mediation support at all
+systems:
+    - -ubuntu-core-*
+    - -ubuntu-14.04-*
+    - -arch-linux-*
 
 environment:
     DBUS_BUS_NAME: org.freedesktop.impl.portal.PermissionStore
@@ -27,6 +29,13 @@ skip:
     - reason: System does not support AppArmor D-Bus mediation
       if: |
         ! snap debug sandbox-features --required apparmor:kernel:dbus
+
+    - reason: Session D-Bus broker does not enforce AppArmor D-Bus mediation
+      # On OpenSUSE, the user session dbus-broker is started without --audit,
+      # which means AppArmor D-Bus mediation is not enforced.
+      if: |
+        os.query is-opensuse &&
+        ! systemctl cat --user dbus-broker.service 2>/dev/null | grep -q -- '--audit'
 
 prepare: |
     tests.session -u test prepare
