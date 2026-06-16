@@ -99,7 +99,7 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot get connections for snap %q: %v", snap.Name, err)
 	}
-	var hasHome, hasRemovableMedia bool
+	var hasHome, hasRemovableMedia, hasSystemPackagesDoc bool
 	for _, conn := range connections.Established {
 		if conn.Plug.Snap != snap.Name {
 			continue
@@ -109,6 +109,8 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 			hasHome = true
 		case "removable-media":
 			hasRemovableMedia = true
+		case "system-packages-doc":
+			hasSystemPackagesDoc = true
 		}
 	}
 
@@ -126,7 +128,7 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 		promptingRunning = ok && promptingFeatureInfo.Supported && promptingFeatureInfo.Enabled
 	}
 
-	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, promptingRunning, path)
+	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, promptingRunning, hasSystemPackagesDoc, path)
 	if err != nil {
 		return err
 	}
@@ -173,7 +175,7 @@ func pathHasPrefix(path, prefix []string) bool {
 	return true
 }
 
-func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, promptingRunning bool, path string) (FileAccess, error) {
+func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, promptingRunning, hasSystemPackagesDoc bool, path string) (FileAccess, error) {
 	// Classic confinement snaps run in the host system namespace,
 	// so can see everything.
 	if snap.Confinement == client.ClassicConfinement {
@@ -209,6 +211,18 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 	usr, err := userCurrent()
 	if err != nil {
 		return "", fmt.Errorf("cannot get the current user: %v", err)
+	}
+
+	shareDoc, err := splitPathAbs("/usr/share/doc")
+	if err != nil {
+		return "", err
+	}
+
+	if pathHasPrefix(pathParts, shareDoc) {
+		if hasSystemPackagesDoc {
+			return FileAccessReadOnly, nil
+		}
+		return FileAccessHidden, nil
 	}
 
 	home, err := splitPathAbs(usr.HomeDir)
