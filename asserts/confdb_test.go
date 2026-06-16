@@ -90,19 +90,21 @@ const schema = `{
 
 func (s *confdbSuite) TestDecodeOK(c *C) {
 	tests := []struct {
-		original    string
-		replacement string
-		authorityID string
-		accountID   string
+		original     string
+		replacements [][2]string
+		authorityID  string
+		accountID    string
 	}{
 		{
 			authorityID: "brand-id1",
 			accountID:   "brand-id1",
 		},
 		{
-			original:    "account-id: brand-id1\n",
-			replacement: "account-id: system\n",
-			authorityID: "brand-id1",
+			replacements: [][2]string{
+				{"account-id: brand-id1\n", "account-id: system\n"},
+				{"authority-id: brand-id1\n", "authority-id: canonical\n"},
+			},
+			authorityID: "canonical",
 			accountID:   "system",
 		},
 	}
@@ -110,8 +112,8 @@ func (s *confdbSuite) TestDecodeOK(c *C) {
 	for i, t := range tests {
 		cmt := Commentf("testcase %d/%d", i+1, len(tests))
 		encoded := strings.Replace(confdbExample, "TSLINE", s.tsLine, 1)
-		if t.original != "" {
-			encoded = strings.Replace(encoded, t.original, t.replacement, 1)
+		for _, replace := range t.replacements {
+			encoded = strings.Replace(encoded, replace[0], replace[1], 1)
 		}
 
 		a, err := asserts.Decode([]byte(encoded))
@@ -183,6 +185,7 @@ func (s *confdbSuite) TestDecodeInvalid(c *C) {
 		{"account-id: brand-id1\n", "", `"account-id" header is mandatory`},
 		{"account-id: brand-id1\n", "account-id: \n", `"account-id" header should not be empty`},
 		{"account-id: brand-id1\n", "account-id: random\n", `authority-id and account-id must match, confdb assertions are expected to be signed by the issuer account: "brand-id1" != "random"`},
+		{"account-id: brand-id1\n", "account-id: system\n", `"system" confdb-schemas must be signed by "canonical" got "brand-id1"`},
 		{"name: my-network\n", "", `"name" header is mandatory`},
 		{"name: my-network\n", "name: \n", `"name" header should not be empty`},
 		{"name: my-network\n", "name: my/network\n", `"name" primary key header cannot contain '/'`},

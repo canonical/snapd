@@ -242,7 +242,11 @@ func (ar *ConfdbSchema) Schema() *confdb.Schema {
 func assembleConfdbSchema(assert assertionBase) (Assertion, error) {
 	authorityID := assert.AuthorityID()
 	accountID := assert.HeaderString("account-id")
-	if accountID != "system" && accountID != authorityID {
+	if accountID == "system" {
+		if authorityID != "canonical" {
+			return nil, fmt.Errorf(`"system" confdb-schemas must be signed by "canonical" got %q`, authorityID)
+		}
+	} else if accountID != authorityID {
 		return nil, fmt.Errorf("authority-id and account-id must match, confdb assertions are expected to be signed by the issuer account: %q != %q", authorityID, accountID)
 	}
 
