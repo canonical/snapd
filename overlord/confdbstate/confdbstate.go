@@ -196,10 +196,11 @@ var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, db
 	err := st.Get("confdb-databags", &databags)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
-	} else if errors.Is(err, &state.NoStateError{}) || databags[account] == nil || databags[account][dbSchemaName] == nil {
-		databags = map[string]map[string]confdb.JSONDatabag{
-			account: {dbSchemaName: confdb.NewJSONDatabag()},
-		}
+	} else if errors.Is(err, &state.NoStateError{}) {
+		databags = map[string]map[string]confdb.JSONDatabag{}
+	}
+	if databags[account] == nil {
+		databags[account] = map[string]confdb.JSONDatabag{}
 	}
 
 	databags[account][dbSchemaName] = databag
