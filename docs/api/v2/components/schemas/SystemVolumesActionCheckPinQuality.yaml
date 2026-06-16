@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionCheckPinQuality
+description: Payload to check the quality of a PIN for system volume authentication.
+required:
+  - action
+  - pin
+properties:
+  action:
+    type: string
+    enum:
+      - check-pin-quality
+      - check-pin
+  pin:
+    type: string
+    format: password
+    description: The PIN to check.

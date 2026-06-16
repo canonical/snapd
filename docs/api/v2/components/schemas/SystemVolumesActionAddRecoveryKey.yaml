@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionAddRecoveryKey
+description: Payload to add a generated recovery key to one or more key slots.
+required:
+  - action
+  - key-id
+  - keyslots
+properties:
+  action:
+    type: string
+    enum:
+      - add-recovery-key
+  key-id:
+    type: string
+    description: The recovery key ID produced by `generate-recovery-key`.
+    example: key-id-1
+  keyslots:
+    type: array
+    description: Key slots targeted by the action.
+    items:
+      $ref: './SystemVolumesKeyslotRef.yaml'

@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionReplaceRecoveryKey
+description: Payload to replace existing recovery keys in one or more key slots.
+required:
+  - action
+  - key-id
+properties:
+  action:
+    type: string
+    enum:
+      - replace-recovery-key
+  key-id:
+    type: string
+    description: The recovery key ID produced by `generate-recovery-key`.
+    example: key-id-1
+  keyslots:
+    type: array
+    description: Key slots targeted by the action. If omitted, all applicable recovery key slots are targeted.
+    items:
+      $ref: './SystemVolumesKeyslotRef.yaml'

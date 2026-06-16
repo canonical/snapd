@@ -1,0 +1,140 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+get:
+  tags:
+    - InterfaceOpenAccess
+    - Systems
+    - Synchronous
+  summary: Get system volume encryption information
+  description: |-
+    Retrieves information about gadget volume structures and their full disk
+    encryption key slots.
+
+    Results are grouped by container role. Structures without a container role
+    are omitted. Use `container-role` to return only selected roles, or
+    `by-container-role=true` to explicitly request the default grouping.
+  operationId: getSystemVolumes
+  security: []
+  parameters:
+    - name: container-role
+      in: query
+      required: false
+      description: |-
+        Return only volume structures with the selected container role. This
+        parameter can be repeated. It cannot be used with
+        `by-container-role=true`.
+      schema:
+        type: array
+        items:
+          type: string
+      style: form
+      explode: true
+      example:
+        - system-data
+        - system-save
+    - name: by-container-role
+      in: query
+      required: false
+      description: |-
+        Explicitly group returned volume structures by their container role.
+        This is the default grouping when no query parameters are provided.
+      schema:
+        type: boolean
+      example: true
+  responses:
+    200:
+      description: A synchronous response containing system volume information.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/SystemVolumesGetResponse.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'
+
+post:
+  tags:
+    - AuthenticatedAccess
+    - Asynchronous
+    - Synchronous
+    - Systems
+  summary: Perform a system volume action
+  description: |-
+    Performs full disk encryption actions for system volumes.
+
+    The supported actions are `generate-recovery-key`, `check-recovery-key`,
+    `add-recovery-key`, `replace-recovery-key`, `replace-platform-key`,
+    `check-passphrase-quality`, `check-pin-quality`, `change-passphrase`, and
+    `change-pin`. The deprecated aliases `check-passphrase` and `check-pin` are
+    also accepted.
+
+    Some actions target key slots. A key slot reference contains `name` and,
+    optionally, `container-role`. If `container-role` is omitted, snapd expands
+    the reference to both `system-data` and `system-save` for that key slot name.
+  operationId: postSystemVolumesAction
+  security:
+    - PeerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: '../components/schemas/SystemVolumesAction.yaml'
+        examples:
+          generateRecoveryKey:
+            summary: Generate a recovery key
+            value:
+              action: generate-recovery-key
+          checkRecoveryKey:
+            summary: Check a recovery key
+            value:
+              action: check-recovery-key
+              recovery-key: 25970-28515-25974-31090-12593-12593-12593-12593
+              container-roles:
+                - system-data
+          addRecoveryKey:
+            summary: Add a generated recovery key
+            value:
+              action: add-recovery-key
+              key-id: key-id-1
+              keyslots:
+                - container-role: system-data
+                  name: default-recovery
+          replacePlatformKey:
+            summary: Replace a platform key with passphrase authentication
+            value:
+              action: replace-platform-key
+              auth-mode: passphrase
+              passphrase: passw0rd
+              kdf-type: argon2id
+              keyslots:
+                - container-role: system-data
+                  name: default
+          changePIN:
+            summary: Change a PIN
+            value:
+              action: change-pin
+              old-pin: '1234'
+              new-pin: '20250619'
+              keyslots:
+                - container-role: system-data
+                  name: default
+  responses:
+    200:
+      description: The synchronous action completed successfully.
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas/SystemVolumesActionResponse.yaml'
+    202:
+      $ref: '../components/responses/Accepted.yaml'
+    400:
+      $ref: '../components/responses/BadRequest.yaml'
+    401:
+      $ref: '../components/responses/AccessDenied.yaml'
+    409:
+      $ref: '../components/responses/Conflict.yaml'
+    500:
+      $ref: '../components/responses/InternalError.yaml'

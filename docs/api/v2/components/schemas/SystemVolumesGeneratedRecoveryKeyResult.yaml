@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesGeneratedRecoveryKeyResult
+description: A generated recovery key and its temporary key ID.
+properties:
+  recovery-key:
+    type: string
+    example: 25970-28515-25974-31090-12593-12593-12593-12593
+  key-id:
+    type: string
+    example: key-id-1

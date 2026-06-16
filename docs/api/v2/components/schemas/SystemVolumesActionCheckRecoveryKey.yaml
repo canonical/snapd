@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionCheckRecoveryKey
+description: Payload to verify a recovery key against system volumes.
+required:
+  - action
+  - recovery-key
+properties:
+  action:
+    type: string
+    enum:
+      - check-recovery-key
+  recovery-key:
+    type: string
+    description: The recovery key to verify.
+    example: 25970-28515-25974-31090-12593-12593-12593-12593
+  container-roles:
+    type: array
+    description: Limit the check to the specified container roles.
+    items:
+      type: string
+    example:
+      - system-data

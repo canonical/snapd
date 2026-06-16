@@ -255,6 +255,42 @@ components:
       $ref: './v2/components/schemas/System.yaml'
     SystemInfo:
       $ref: './v2/components/schemas/SystemInfo.yaml'
+    SystemVolumesAction:
+      $ref: './v2/components/schemas/SystemVolumesAction.yaml'
+    SystemVolumesActionAddRecoveryKey:
+      $ref: './v2/components/schemas/SystemVolumesActionAddRecoveryKey.yaml'
+    SystemVolumesActionChangePassphrase:
+      $ref: './v2/components/schemas/SystemVolumesActionChangePassphrase.yaml'
+    SystemVolumesActionChangePin:
+      $ref: './v2/components/schemas/SystemVolumesActionChangePin.yaml'
+    SystemVolumesActionCheckPassphraseQuality:
+      $ref: './v2/components/schemas/SystemVolumesActionCheckPassphraseQuality.yaml'
+    SystemVolumesActionCheckPinQuality:
+      $ref: './v2/components/schemas/SystemVolumesActionCheckPinQuality.yaml'
+    SystemVolumesActionCheckRecoveryKey:
+      $ref: './v2/components/schemas/SystemVolumesActionCheckRecoveryKey.yaml'
+    SystemVolumesActionGenerateRecoveryKey:
+      $ref: './v2/components/schemas/SystemVolumesActionGenerateRecoveryKey.yaml'
+    SystemVolumesActionReplacePlatformKey:
+      $ref: './v2/components/schemas/SystemVolumesActionReplacePlatformKey.yaml'
+    SystemVolumesActionReplaceRecoveryKey:
+      $ref: './v2/components/schemas/SystemVolumesActionReplaceRecoveryKey.yaml'
+    SystemVolumesActionResponse:
+      $ref: './v2/components/schemas/SystemVolumesActionResponse.yaml'
+    SystemVolumesAuthQualityResult:
+      $ref: './v2/components/schemas/SystemVolumesAuthQualityResult.yaml'
+    SystemVolumesGeneratedRecoveryKeyResult:
+      $ref: './v2/components/schemas/SystemVolumesGeneratedRecoveryKeyResult.yaml'
+    SystemVolumesGetResponse:
+      $ref: './v2/components/schemas/SystemVolumesGetResponse.yaml'
+    SystemVolumesKeyslotInfo:
+      $ref: './v2/components/schemas/SystemVolumesKeyslotInfo.yaml'
+    SystemVolumesKeyslotRef:
+      $ref: './v2/components/schemas/SystemVolumesKeyslotRef.yaml'
+    SystemVolumesResult:
+      $ref: './v2/components/schemas/SystemVolumesResult.yaml'
+    SystemVolumesStructureInfo:
+      $ref: './v2/components/schemas/SystemVolumesStructureInfo.yaml'
     Task:
       $ref: './v2/components/schemas/Task.yaml'
     TimerString:
@@ -337,6 +373,8 @@ paths:
     $ref: './v2/paths/snapshots-set-id-export.yaml'
   /v2/system/system-recovery-keys:
     $ref: './v2/paths/system-recovery-keys.yaml'
+  /v2/system-volumes:
+    $ref: './v2/paths/system-volumes.yaml'
   /v2/systems:
     $ref: './v2/paths/systems.yaml'
   /v2/systems/{label}:

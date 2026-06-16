@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionResponse
+description: The complete synchronous response for a system volume action.
+properties:
+  type:
+    type: string
+    enum:
+      - sync
+  status-code:
+    type: integer
+    enum:
+      - 200
+  status:
+    type: string
+    enum:
+      - OK
+  result:
+    oneOf:
+      - type: object
+        nullable: true
+        description: Null for actions without a response body.
+        example: null
+      - $ref: './SystemVolumesGeneratedRecoveryKeyResult.yaml'
+      - $ref: './SystemVolumesAuthQualityResult.yaml'

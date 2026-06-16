@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesKeyslotRef
+description: A reference to a key slot targeted by a system volume action.
+required:
+  - name
+properties:
+  name:
+    type: string
+    description: The key slot name.
+    example: default-recovery
+  container-role:
+    type: string
+    description: |-
+      The target container role. If omitted, snapd targets both `system-data`
+      and `system-save`.
+    example: system-data

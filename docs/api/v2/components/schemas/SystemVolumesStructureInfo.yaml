@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesStructureInfo
+description: Information about a gadget volume structure and its encryption state.
+required:
+  - volume-name
+  - name
+  - encrypted
+properties:
+  volume-name:
+    type: string
+    description: The gadget volume name.
+    example: pc
+  name:
+    type: string
+    description: The gadget volume structure name.
+    example: ubuntu-data
+  encrypted:
+    type: boolean
+    description: Whether the structure has encryption key slots.
+    example: true
+  keyslots:
+    type: object
+    description: Encryption key slots keyed by key slot name.
+    additionalProperties:
+      $ref: './SystemVolumesKeyslotInfo.yaml'
