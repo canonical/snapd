@@ -86,20 +86,8 @@ static void setup_private_tmp(const char *snap_instance) {
     int base_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
     int tmp_dir_fd SC_CLEANUP(sc_cleanup_close) = -1;
 
-    // /tmp/snap-private-tmp should have already been created by
-    // systemd-tmpfiles but we can try create it anyway since snapd may have
-    // just been installed in which case the tmpfiles conf would not have got
-    // executed yet. Internally sc_ensure_mkdir() first creates the directory
-    // with 0000 permissions and then updates its ownership and mode to 0700.
-    // Because of this, in case the directory was not present, there is a
-    // possibility for a race with another instance of snap-confine running in
-    // parallel, where one may have only created the directory with 0000
-    // permissions or owned by the user, while another observes the directory
-    // and proceeds with execution up to a point where it asserts mode bits or
-    // ownership.
-    if (sc_ensure_mkdir(SNAP_PRIVATE_TMP_ROOT_DIR, 0700, 0, 0) != 0) {
-        die("cannot create " SNAP_PRIVATE_TMP_ROOT_DIR);
-    }
+    // Open the /tmp/snap-private-tmp directory (created by packaging scripts,
+    // systemd-tmpfiles, or snapd).
     private_tmp_root_fd = open(SNAP_PRIVATE_TMP_ROOT_DIR, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (private_tmp_root_fd < 0) {
         die("cannot open %s", SNAP_PRIVATE_TMP_ROOT_DIR);
@@ -108,35 +96,10 @@ static void setup_private_tmp(const char *snap_instance) {
     if (fstat(private_tmp_root_fd, &st) < 0) {
         die("cannot stat %s", SNAP_PRIVATE_TMP_ROOT_DIR);
     }
-    // In case we were racing with another snap-confine instance (as described
-    // earlier), the permissions or ownership we observe here may be a snapshot
-    // of an intermediate state of the directory (before its mode was updated to
-    // 0700, or still owned by the user). Test each property and amend if
-    // possible. Even if racing, another instance of snap-confine tries to reach
-    // the same state. We still have CAP_DAC_OVERRIDE, CAP_FOWNER, so we can
-    // attempt to fix the state.
     if (!S_ISDIR(st.st_mode)) {
-        // This we cannot fix
         die("%s has unexpected type", SNAP_PRIVATE_TMP_ROOT_DIR);
     }
-    // We have already verified type, check ownership.
-    if (st.st_uid != 0 || st.st_gid != 0) {
-        // May have hit a race, let's fix the ownership.
-        if (fchown(private_tmp_root_fd, 0, 0) != 0) {
-            die("%s has unexpected ownership %d:%d which could not be fixed", SNAP_PRIVATE_TMP_ROOT_DIR, st.st_uid,
-                st.st_gid);
-        }
-    }
-    // We have already verified the type and ownership, check mode.
-    if ((st.st_mode & ~S_IFMT) != 0700) {
-        // May have hit a race, let's fix the mode.
-        if (fchmod(private_tmp_root_fd, 0700) != 0) {
-            die("%s has unexpected mode 0%o which could not be fixed", SNAP_PRIVATE_TMP_ROOT_DIR, st.st_mode & ~S_IFMT);
-        }
-    }
     // Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root:root.
-    // Note that the snap is locked at this point, so a race such as when
-    // creating /tmp/snap-private-tmp would not occur.
     sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
     if (sc_ensure_mkdirat(private_tmp_root_fd, base, 0700, 0, 0) != 0) {
         die("cannot create base directory: %s", base);
