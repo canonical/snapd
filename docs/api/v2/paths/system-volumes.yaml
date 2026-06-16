@@ -14,6 +14,9 @@ get:
     Results are grouped by container role. Structures without a container role
     are omitted. Use `container-role` to return only selected roles, or
     `by-container-role=true` to explicitly request the default grouping.
+
+    This feature is currently used as part of the install process only, but will
+    be expanded in the future.
   operationId: getSystemVolumes
   security: []
   parameters:
