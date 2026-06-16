@@ -10,9 +10,11 @@ details: |
 
 # This test starts a user transient unit via `systemd-run --user`, and
 # Ubuntu 14.04 has special version of systemd which doesn't have StartTransientUnit API.
-# TODO: There seems to be an AppArmor mismatch between the one we have and the
-# one in Arch. Disable for now.
-systems: [-ubuntu-core-*, -ubuntu-14.04-*, -arch-linux-*]
+# Arch: no DBus mediation support at all
+systems:
+    - -ubuntu-core-*
+    - -ubuntu-14.04-*
+    - -arch-linux-*
 
 environment:
     DBUS_BUS_NAME: org.freedesktop.impl.portal.PermissionStore
@@ -28,11 +30,21 @@ skip:
       if: |
         ! snap debug sandbox-features --required apparmor:kernel:dbus
 
+    - reason: Session D-Bus broker does not enforce AppArmor D-Bus mediation
+      # On OpenSUSE, the user session dbus-broker is started without --audit,
+      # which means AppArmor D-Bus mediation is not enforced.
+      if: |
+        os.query is-opensuse &&
+        ! systemctl cat --user dbus-broker.service 2>/dev/null | grep -q -- '--audit'
+
 prepare: |
     tests.session -u test prepare
 
     echo "Install the PermissionStore test client snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-portal-permission-store
+
+    cp -v fake-permission-store.py /tmp
+    tests.cleanup defer rm -f /tmp/fake-permission-store.py
 
     echo "Start the fake PermissionStore service on the session bus"
     tests.session -u test exec systemd-run --user \
@@ -41,7 +53,7 @@ prepare: |
             DBUS_BUS_NAME="$DBUS_BUS_NAME" \
             DBUS_OBJECT_PATH="$DBUS_OBJECT_PATH" \
             DBUS_IFACE_NAME="$DBUS_IFACE_NAME" \
-        python3 "$(pwd)/fake-permission-store.py"
+        python3 "/tmp/fake-permission-store.py"
 
     echo "Wait for the fake service to become available"
 
