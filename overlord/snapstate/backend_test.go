@@ -1080,6 +1080,8 @@ type fakeSnappyBackend struct {
 	maybeInjectErr func(*fakeOp) error
 
 	infos map[string]map[snap.Revision]*snap.Info
+
+	nonSnapctlMounts []string
 }
 
 func (f *fakeSnappyBackend) maybeErrForLastOp() error {
@@ -1724,6 +1726,24 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 		otherInstances: otherInstances,
 	})
 	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) ListNonSnapctlMountsInSnapRevDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	f.appendOp(&fakeOp{
+		op:    "list-non-snapctl-mounts-rev",
+		name:  info.InstanceName(),
+		revno: info.Revision,
+	})
+	return f.nonSnapctlMounts, f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	f.appendOp(&fakeOp{
+		op:    "list-non-snapctl-mounts-all",
+		name:  info.InstanceName(),
+		revno: info.Revision,
+	})
+	return f.nonSnapctlMounts, f.maybeErrForLastOp()
 }
 
 func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
