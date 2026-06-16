@@ -353,7 +353,7 @@
     # set up snap-specific private /tmp dir
     capability chown,
     /tmp/ rw,
-    /tmp/snap-private-tmp/ rw,
+    /tmp/snap-private-tmp/ r,
     /tmp/snap-private-tmp/snap.*/ rw,
     /tmp/snap-private-tmp/snap.*/tmp/ rw,
     mount options=(rw private) ->  /tmp/,
