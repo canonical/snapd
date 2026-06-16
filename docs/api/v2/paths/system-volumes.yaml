@@ -67,15 +67,14 @@ post:
     The supported actions are `generate-recovery-key`, `check-recovery-key`,
     `add-recovery-key`, `replace-recovery-key`, `replace-platform-key`,
     `check-passphrase-quality`, `check-pin-quality`, `change-passphrase`, and
-    `change-pin`. The deprecated aliases `check-passphrase` and `check-pin` are
-    also accepted.
+    `change-pin`.
 
     Some actions target key slots. A key slot reference contains `name` and,
     optionally, `container-role`. If `container-role` is omitted, snapd expands
     the reference to both `system-data` and `system-save` for that key slot name.
   operationId: postSystemVolumesAction
   security:
-    - PeerAuth: []
+    - PeerAuth: []    #TODO: Some actions should require stronger auth, e.g. RootAuth
   requestBody:
     required: true
     content:

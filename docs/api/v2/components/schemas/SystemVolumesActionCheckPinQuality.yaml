@@ -12,7 +12,6 @@ properties:
     type: string
     enum:
       - check-pin-quality
-      - check-pin
   pin:
     type: string
     format: password

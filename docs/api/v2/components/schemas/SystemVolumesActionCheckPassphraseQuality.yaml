@@ -12,7 +12,6 @@ properties:
     type: string
     enum:
       - check-passphrase-quality
-      - check-passphrase
   passphrase:
     type: string
     format: password
