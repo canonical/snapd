@@ -594,17 +594,17 @@ func (s *daemonSuite) TestTryExtractAction(c *check.C) {
 	c.Check(run(req), check.Equals, "")
 
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
-	c.Check(run(req), check.Equals, "")
+	c.Check(run(req), check.Equals, "install")
 
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
 	req.Header.Set("Content-Type", "multipart/form-data")
 	c.Check(run(req), check.Equals, "")
 
-	// Unknown Content-Length — do not read the body.
+	// Unknown Content-Length — read the full body.
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.ContentLength = -1
-	c.Check(run(req), check.Equals, "")
+	c.Check(run(req), check.Equals, "install")
 
 	// Body at or over the size limit — do not read the body.
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
@@ -614,14 +614,57 @@ func (s *daemonSuite) TestTryExtractAction(c *check.C) {
 }
 
 func (s *daemonSuite) TestTryExtractActionPreservesBody(c *check.C) {
-	body := `{"action":"install","snaps":["x"]}`
-	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
-
 	seclogBuf := bytes.NewBuffer(nil)
 	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
 	s.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
+
+	d := s.newTestDaemon(c)
+
+	for _, tc := range []struct {
+		caseName      string
+		contentLength int64
+	}{
+		{caseName: "known content-length", contentLength: 0}, // 0: use reader length
+		{caseName: "unknown content-length", contentLength: -1},
+	} {
+		body := `{"action":"install","snaps":["x"]}`
+		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+		if tc.contentLength != 0 {
+			req.ContentLength = tc.contentLength
+		}
+
+		seclogBuf.Reset()
+
+		var gotBody string
+		cmd := &Command{
+			d:    d,
+			Path: "/v2/test",
+		}
+		cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+			b, err := io.ReadAll(r.Body)
+			c.Assert(err, check.IsNil)
+			gotBody = string(b)
+			return SyncResponse(nil)
+		}
+		cmd.WriteAccess = authenticatedAccess{}
+
+		cmd.ServeHTTP(httptest.NewRecorder(), req)
+		c.Check(gotBody, check.Equals, body, check.Commentf("case: %s", tc.caseName))
+		c.Check(actionFromSeclog(seclogBuf.String()), check.Equals, "install", check.Commentf("case: %s", tc.caseName))
+	}
+}
+
+func (s *daemonSuite) TestTryExtractActionPreservesLargeUnknownBody(c *check.C) {
+	// Body exceeds maxBodySize; with unknown length the full body is read
+	// and restored for the handler.
+	padding := strings.Repeat("x", maxBodySize)
+	body := `{"action":"install","pad":"` + padding + `"}`
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = -1
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 	var gotBody string
 	d := s.newTestDaemon(c)
@@ -639,7 +682,6 @@ func (s *daemonSuite) TestTryExtractActionPreservesBody(c *check.C) {
 
 	cmd.ServeHTTP(httptest.NewRecorder(), req)
 	c.Check(gotBody, check.Equals, body)
-	c.Check(actionFromSeclog(seclogBuf.String()), check.Equals, "install")
 }
 
 // TestPeerFromUcred pins the cross-package sentinel mapping.

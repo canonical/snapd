@@ -117,11 +117,10 @@ execute: |
     echo "Checking that an unauthorized admin API call produces an authz_fail event"
     journal_pin
     # POST /v2/snaps as an unprivileged user over snapd.socket exercises
-    # authenticatedAccess without macaroon, root, or polkit authorization.
-    runuser -u test -- curl -sS --unix-socket /run/snapd.socket \
-        -X POST -H 'Content-Type: application/json' \
-        -d '{"action":"install","snaps":["test-snapd-sh"]}' \
-        http://localhost/v2/snaps > /dev/null || true
+    # authenticatedAccess without macaroon (--disable-auth), root, or polkit.
+    echo '{"action":"install","snaps":["test-snapd-sh"]}' | \
+        runuser -u test -- snap debug api --disable-auth \
+        -X POST -H 'Content-Type: application/json' /v2/snaps > /dev/null 2>&1 || true
 
     journal_match '"level":"CRITICAL","description":"User <unknown>:<unknown>:<unknown> from /run/snapd\.socket:[1-9][0-9]*:[0-9]+ attempted to access POST:/v2/snaps:install without authorization: 401:access denied","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHZ","event":"authz_fail","user":\{"snapd_user_id":0,"store_user_name":"","store_user_email":"","expiration":"never"\},"peer":\{"socket":"/run/snapd\.socket","uid":[1-9][0-9]*,"pid":[0-9]+\},"endpoint":\{"method":"POST","path":"/v2/snaps","action":"install","access_checker":"authenticated","access_level":"authenticated"\},"authz_checks":\{"access_options":"pass","peer_credentials":"pass","socket":"pass","interface_requirements":"not-applicable","open_access":"not-applicable","user_authentication":"fail","root":"fail","polkit":"fail"\},"error":\{"code":401,"kind":"login-required","message":"access denied"\}'
 

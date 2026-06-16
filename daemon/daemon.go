@@ -237,13 +237,24 @@ func tryExtractJSONAction(r *http.Request) string {
 	if (r.Method != "POST" && r.Method != "PUT") || r.Body == nil {
 		return ""
 	}
-	if r.Header.Get("Content-Type") != "application/json" {
+	if ct := r.Header.Get("Content-Type"); ct != "" && ct != "application/json" {
 		return ""
 	}
-	if r.ContentLength < 0 || r.ContentLength >= maxBodySize {
+	if r.ContentLength >= maxBodySize {
 		return ""
 	}
-	bodyBytes, err := io.ReadAll(io.LimitReader(r.Body, r.ContentLength))
+	var (
+		bodyBytes []byte
+		err       error
+	)
+	if r.ContentLength < 0 {
+		// ContentLength is -1 when the client streams the body without a
+		// Content-Length header (e.g. chunked encoding from piped stdin to
+		// snap debug api).
+		bodyBytes, err = io.ReadAll(r.Body)
+	} else {
+		bodyBytes, err = io.ReadAll(io.LimitReader(r.Body, r.ContentLength))
+	}
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return ""
