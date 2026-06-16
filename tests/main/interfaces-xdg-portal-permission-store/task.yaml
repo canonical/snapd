@@ -34,6 +34,9 @@ prepare: |
     echo "Install the PermissionStore test client snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-portal-permission-store
 
+    cp -v fake-permission-store.py /tmp
+    tests.cleanup defer rm -f /tmp/fake-permission-store.py
+
     echo "Start the fake PermissionStore service on the session bus"
     tests.session -u test exec systemd-run --user \
         --unit test-snapd-permission-store.service \
@@ -41,7 +44,7 @@ prepare: |
             DBUS_BUS_NAME="$DBUS_BUS_NAME" \
             DBUS_OBJECT_PATH="$DBUS_OBJECT_PATH" \
             DBUS_IFACE_NAME="$DBUS_IFACE_NAME" \
-        python3 "$(pwd)/fake-permission-store.py"
+        python3 "/tmp/fake-permission-store.py"
 
     echo "Wait for the fake service to become available"
 
