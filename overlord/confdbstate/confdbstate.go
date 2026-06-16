@@ -520,8 +520,19 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		}
 	}
 
-	// run observe-view hooks for any plug that references a view that could have
-	// changed with this data modification
+	// commit after custodians save ephemeral data
+	commitTask = st.NewTask("commit-confdb-tx", fmt.Sprintf("Commit changes to confdb (%s)", view.ID()))
+	commitTask.Set("confdb-transaction", tx)
+	commitTask.Set("view", view.Name)
+
+	// link all previous tasks to the commit task that carries the transaction
+	for _, t := range ts.Tasks() {
+		t.Set("tx-task", commitTask.ID())
+	}
+	linkTask(commitTask)
+
+	// run observe-view hooks after the commit for any plug that references a
+	// view that could have changed with this data modification
 	affectedPlugs, err := getPlugsAffectedByPaths(st, view.Schema(), paths)
 	if err != nil {
 		return nil, nil, nil, err
@@ -542,20 +553,10 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		for _, plug := range affectedPlugs[snapName] {
 			const ignoreError = true
 			task := setupConfdbHook(st, snapName, "observe-view-"+plug.Name, ignoreError)
+			task.Set("tx-task", commitTask.ID())
 			linkTask(task)
 		}
 	}
-
-	// commit after custodians save ephemeral data
-	commitTask = st.NewTask("commit-confdb-tx", fmt.Sprintf("Commit changes to confdb (%s)", view.ID()))
-	commitTask.Set("confdb-transaction", tx)
-	commitTask.Set("view", view.Name)
-
-	// link all previous tasks to the commit task that carries the transaction
-	for _, t := range ts.Tasks() {
-		t.Set("tx-task", commitTask.ID())
-	}
-	linkTask(commitTask)
 
 	// clear the ongoing tx from the state and unblock other writers waiting for it
 	clearTxTask = st.NewTask("clear-confdb-tx", "Clears the ongoing confdb transaction from state")
