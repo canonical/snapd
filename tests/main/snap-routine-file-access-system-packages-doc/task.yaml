@@ -1,0 +1,36 @@
+summary: The file-access command provides information about access to file paths
+
+details: |
+    The "snap routine file-access" command is intended to be a helper for
+    xdg-document-portal. When xdg-document-portal is asked to make a file
+    available to a snap, we would like to avoid proxying files that the snap can
+    access directly.
+
+    This spread test checks the system-packages-doc interface, which provides
+    read-only access to documentation files in /usr/share/doc.
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-system-packages-doc
+
+    # Ensure interface is disconnected
+    snap disconnect test-system-packages-doc:system-packages-doc
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
+        # set up classic execution support
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+
+execute: |
+    access() {
+        snap routine file-access test-system-packages-doc "$@"
+    }
+    # The root directory for strict confined snaps is hidden
+    access / | MATCH hidden
+
+    # The snap has access to its $SNAP_DATA and $SNAP_COMMON directories
+    access /usr/share/doc | MATCH hidden
+
+    snap connect test-system-packages-doc:system-packages-doc
+    access /usr/share/doc | MATCH read-only

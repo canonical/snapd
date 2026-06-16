@@ -53,7 +53,7 @@ func (s *SnapRoutineFileAccessSuite) SetUpTest(c *C) {
 	}))
 }
 
-func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRemovableMedia, promptingSupported, promptingEnabled bool) {
+func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRemovableMedia, promptingSupported, promptingEnabled, systemPackagesDocEnabled bool) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/snaps/hello":
@@ -152,7 +152,7 @@ func (s *SnapRoutineFileAccessSuite) checkBasicAccess(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessDefault(c *C) {
-	s.setUpClient(c, false, false, false, false, false)
+	s.setUpClient(c, false, false, false, false, false, false)
 	s.checkBasicAccess(c)
 
 	// No access to root
@@ -166,7 +166,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessDefault(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessClassicConfinement(c *C) {
-	s.setUpClient(c, true, false, false, false, false)
+	s.setUpClient(c, true, false, false, false, false, false)
 
 	// Classic confinement snaps run in the host file system
 	// namespace, so have access to everything.
@@ -178,7 +178,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessClassicConfinement(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterface(c *C) {
-	s.setUpClient(c, false, true, false, false, false)
+	s.setUpClient(c, false, true, false, false, false, false)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -190,7 +190,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterface(c *C) {
 
 func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingUnsupportedOrDisabled(c *C) {
 	// Prompting supported but not enabled
-	s.setUpClient(c, false, true, false, true, false)
+	s.setUpClient(c, false, true, false, true, false, false)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -200,7 +200,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingUns
 	s.checkAccess(c, filepath.Join(s.fakeHome, ".config"), "hidden\n")
 
 	// Prompting enabled but not supported
-	s.setUpClient(c, false, true, false, false, true)
+	s.setUpClient(c, false, true, false, false, true, false)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -211,7 +211,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingUns
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingSupportedAndEnabled(c *C) {
-	s.setUpClient(c, false, true, false, true, true)
+	s.setUpClient(c, false, true, false, true, true, false)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -222,7 +222,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingSup
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessRemovableMedia(c *C) {
-	s.setUpClient(c, false, false, true, false, false)
+	s.setUpClient(c, false, false, true, false, false, false)
 	s.checkBasicAccess(c)
 
 	s.checkAccess(c, "/mnt", "read-write\n")
@@ -231,4 +231,18 @@ func (s *SnapRoutineFileAccessSuite) TestAccessRemovableMedia(c *C) {
 	s.checkAccess(c, "/media/path/file.txt", "read-write\n")
 	s.checkAccess(c, "/run/media", "read-write\n")
 	s.checkAccess(c, "/run/media/path/file.txt", "read-write\n")
+}
+
+func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterface(c *C) {
+	s.setUpClient(c, false, true, false, false, false, true)
+	s.checkBasicAccess(c)
+
+	// If the interface is not present, files should be hidden
+	s.checkAccess(c, "/usr/share/doc", "hidden\n")
+
+	//s.setUpClient(c, false, true, false, false, false, true)
+	//s.checkBasicAccess(c)
+
+	// If the interface is present, files should be read-only
+	//s.checkAccess(c, "/usr/share/doc", "read-only\n")
 }

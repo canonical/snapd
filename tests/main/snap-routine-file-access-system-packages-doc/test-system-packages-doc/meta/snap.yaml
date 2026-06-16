@@ -1,0 +1,9 @@
+name: test-system-packages-doc
+summary: A test snap for checking if system-packages-doc interface is working as expected
+version: 1.0
+
+apps:
+    sh:
+        command: bin/sh
+        plugs:
+          - system-packages-doc
