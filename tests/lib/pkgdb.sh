@@ -860,6 +860,7 @@ pkg_dependencies_opensuse(){
         clang
         curl
         dbus-1-python3
+        dbus-1-tools
         evolution-data-server
         expect
         fish
