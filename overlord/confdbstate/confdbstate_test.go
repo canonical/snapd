@@ -621,7 +621,7 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 	chg.AddAll(ts)
 
 	// the custodian snap's hooks are run
-	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "run-hook", "commit-confdb-tx", "clear-confdb-tx"}
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "commit-confdb-tx", "run-hook", "clear-confdb-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "custodian-snap",
@@ -713,7 +713,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 
 	// we trigger hooks for the custodian snap and for the observe-view- for the
 	// observer snap that didn't trigger the change
-	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "run-hook", "run-hook", "commit-confdb-tx", "clear-confdb-tx"}
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "commit-confdb-tx", "run-hook", "run-hook", "clear-confdb-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "custodian-snap",
