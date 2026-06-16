@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -2659,7 +2660,7 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 // InstallSetupStorageEncryption creates a change that will setup the
 // storage encryption for the install of the given label and
 // volumes.
-func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions) (*state.Change, error) {
+func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, keyboardConfig *client.KeyboardConfig) (*state.Change, error) {
 	if label == "" {
 		return nil, fmt.Errorf("cannot setup storage encryption with an empty system label")
 	}
@@ -2667,6 +2668,9 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 		return nil, fmt.Errorf("cannot setup storage encryption without volumes data")
 	}
 	if volumesAuth != nil {
+		if volumesAuth.Mode != device.AuthModeNone && keyboardConfig == nil {
+			return nil, fmt.Errorf("cannot use authentication mode %q without a keyboard configuration", volumesAuth.Mode)
+		}
 		if err := volumesAuth.Validate(); err != nil {
 			return nil, err
 		}
@@ -2680,6 +2684,9 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 	setupStorageEncryptionTask.Set("on-volumes", onVolumes)
 	if volumesAuth != nil {
 		setupStorageEncryptionTask.Set("volumes-auth-required", true)
+	}
+	if keyboardConfig != nil {
+		setupStorageEncryptionTask.Set("keyboard-config", keyboardConfig)
 	}
 	chg.AddTask(setupStorageEncryptionTask)
 

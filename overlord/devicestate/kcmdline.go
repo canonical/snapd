@@ -19,14 +19,19 @@
 package devicestate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -38,6 +43,13 @@ type extraSnapdKernelCommandLineFragmentID string
 const (
 	extraSnapdKernelCommandLineFragmentXKB extraSnapdKernelCommandLineFragmentID = "xkb"
 )
+
+// expectedInstallTimeFragmentIDs lists the fragment IDs that may be initialized
+// from the install-time persistence file. Only these keys are copied into
+// state when lazily initializing from the file.
+var expectedInstallTimeFragmentIDs = []extraSnapdKernelCommandLineFragmentID{
+	extraSnapdKernelCommandLineFragmentXKB,
+}
 
 func (id extraSnapdKernelCommandLineFragmentID) validate(val string) error {
 	switch id {
@@ -59,6 +71,85 @@ const (
 	// and "update-gadget-cmdline".
 	kcmdlinePendingExtraSnapdFragmentsKey string = "kcmdline-pending-extra-snapd-fragments"
 )
+
+// kcmdlineExtraSnapdFragmentsFileName is the name of the JSON file written at
+// install time (to the ubuntu-save device dir) holding the extra snapd kernel
+// command line fragments map. It is read at runtime to lazily initialize
+// state with the install-time choices.
+const kcmdlineExtraSnapdFragmentsFileName = "kcmdline-extra-snapd-fragments.json"
+
+// renderExtraSnapdKernelCommandLineFragments renders a map of extra snapd
+// kernel command line fragments into sorted, space-joined args.
+func renderExtraSnapdKernelCommandLineFragments(fragments map[string]string) string {
+	if len(fragments) == 0 {
+		return ""
+	}
+
+	// XXX: Prune fragments that are no longer used?
+	sorted := make([]string, 0, len(fragments))
+	for _, fragment := range fragments {
+		sorted = append(sorted, fragment)
+	}
+	// Sorting is needed so that the same set of args would
+	// always have the same order so we don't accidentally
+	// trigger a kcmdline update when the args are unchanged.
+	sort.Strings(sorted)
+	return strings.Join(sorted, " ")
+}
+
+// initExtraSnapdFragmentsFromInstallTime initializes the extra snapd kernel command
+// line fragments state from the install-time persistence file when state has not
+// yet been set. If the state key is already set, it is a no-op.
+func initExtraSnapdFragmentsFromInstallTime(st *state.State) error {
+	var current map[extraSnapdKernelCommandLineFragmentID]string
+	if err := st.Get(kcmdlineExtraSnapdFragmentsKey, &current); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if current != nil {
+		// State already initialized, nothing to do.
+		return nil
+	}
+
+	path := filepath.Join(dirs.SnapDeviceSaveDir, kcmdlineExtraSnapdFragmentsFileName)
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		// No install-time file, nothing to do.
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	var fileFragments map[string]string
+	if err := json.Unmarshal(data, &fileFragments); err != nil {
+		return fmt.Errorf("cannot parse install-time kernel command line fragments file %q: %v", path, err)
+	}
+
+	fragments := make(map[extraSnapdKernelCommandLineFragmentID]string, len(expectedInstallTimeFragmentIDs))
+	for _, id := range expectedInstallTimeFragmentIDs {
+		if fragment, ok := fileFragments[string(id)]; ok && fragment != "" {
+			fragments[id] = fragment
+		}
+	}
+	st.Set(kcmdlineExtraSnapdFragmentsKey, fragments)
+	return nil
+}
+
+// writeInstallTimeExtraSnapdFragments writes the given extra snapd kernel
+// command line fragments map as a JSON file to the given device save
+// directory. It is written at install time so the fragments can be lazily
+// loaded into state at runtime.
+func writeInstallTimeExtraSnapdFragments(deviceSaveDir string, fragments map[string]string) error {
+	data, err := json.Marshal(fragments)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(deviceSaveDir, 0755); err != nil {
+		return err
+	}
+	path := filepath.Join(deviceSaveDir, kcmdlineExtraSnapdFragmentsFileName)
+	return osutil.AtomicWriteFile(path, data, 0644, 0)
+}
 
 // setExtraSnapdKernelCommandLineFragment updates the specified extra snapd
 // named fragment that is appended to the kernel command line. An empty
@@ -82,6 +173,13 @@ func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSna
 	}
 	if !seeded {
 		return fmt.Errorf("cannot set extra snapd kernel command line fragments until fully seeded")
+	}
+
+	// Ensure install-time fragments are seeded into state before comparing
+	// against the current value so runtime updates correctly override the
+	// install-time baseline.
+	if err := initExtraSnapdFragmentsFromInstallTime(st); err != nil {
+		return err
 	}
 
 	var currentFragments map[extraSnapdKernelCommandLineFragmentID]string
@@ -113,6 +211,13 @@ func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSna
 // kernelCommandLineAppendArgsFromSnapd returns extra arguments that snapd
 // might set internally using setExtraSnapdKernelCommandLineFragment.
 func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
+	// Lazily seed install-time fragments into state if not yet set so that
+	// the returned string includes any install-time choices that have not
+	// been overridden at runtime.
+	if err := initExtraSnapdFragmentsFromInstallTime(st); err != nil {
+		return "", err
+	}
+
 	var fragments map[extraSnapdKernelCommandLineFragmentID]string
 	if err := st.Get(kcmdlineExtraSnapdFragmentsKey, &fragments); err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err
@@ -121,16 +226,11 @@ func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
 		return "", nil
 	}
 
-	// XXX: Prune fragments that are no longer used?
-	sorted := make([]string, 0, len(fragments))
-	for _, fragment := range fragments {
-		sorted = append(sorted, fragment)
+	rendered := make(map[string]string, len(fragments))
+	for id, fragment := range fragments {
+		rendered[string(id)] = fragment
 	}
-	// Sorting is needed so that the same set of args would
-	// always have the same order so we don't accidentally
-	// trigger a kcmdline update when the args are unchanged.
-	sort.Strings(sorted)
-	return strings.Join(sorted, " "), nil
+	return renderExtraSnapdKernelCommandLineFragments(rendered), nil
 }
 
 // kernelCommandLineAppendArgsFromConfig returns extra arguments that we

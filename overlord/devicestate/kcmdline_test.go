@@ -20,12 +20,17 @@
 package devicestate_test
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func checkExtraSnapdFragments(c *C, st *state.State, expected map[string]string) {
@@ -100,4 +105,108 @@ func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineFragmentErr
 	fragmentID = devicestate.ExtraSnapdKernelCmdlineFragmentID("xkb")
 	err = devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, fragmentID, "some-val")
 	c.Assert(err, ErrorMatches, "cannot set extra snapd kernel command line fragments until fully seeded")
+}
+
+func (s *deviceMgrBootconfigSuite) TestRenderExtraSnapdKernelCommandLineFragments(c *C) {
+	// Empty/nil returns empty string.
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(nil), Equals, "")
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(map[string]string{}), Equals, "")
+
+	// Single fragment.
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(map[string]string{
+		"xkb": `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`,
+	}), Equals, `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`)
+
+	// Multiple fragments are sorted by value to get a stable order.
+	c.Check(devicestate.RenderExtraSnapdKernelCommandLineFragments(map[string]string{
+		"b": "zzz",
+		"a": "aaa",
+		"c": "mmm",
+	}), Equals, "aaa mmm zzz")
+}
+
+func (s *deviceMgrBootconfigSuite) writeInstallTimeFragmentsFile(c *C, fragments map[string]string) {
+	c.Assert(os.MkdirAll(dirs.SnapDeviceSaveDir, 0755), IsNil)
+	data, err := json.Marshal(fragments)
+	c.Assert(err, IsNil)
+	path := filepath.Join(dirs.SnapDeviceSaveDir, "kcmdline-extra-snapd-fragments.json")
+	c.Assert(os.WriteFile(path, data, 0644), IsNil)
+}
+
+func (s *deviceMgrBootconfigSuite) TestKernelCommandLineAppendArgsFromSnapdNoFileNoState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	args, err := devicestate.KernelCommandLineAppendArgsFromSnapd(s.state)
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, "")
+	// State is not touched when there is no file.
+	checkExtraSnapdFragments(c, s.state, nil)
+}
+
+func (s *deviceMgrBootconfigSuite) TestKernelCommandLineAppendArgsFromSnapdLazyInitFromFile(c *C) {
+	// File holds an expected key (xkb) and an unexpected one which must be
+	// ignored when initializing state.
+	s.writeInstallTimeFragmentsFile(c, map[string]string{
+		"xkb":     `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`,
+		"unknown": "should-be-ignored",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	args, err := devicestate.KernelCommandLineAppendArgsFromSnapd(s.state)
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`)
+
+	// Only the expected key was copied into state.
+	checkExtraSnapdFragments(c, s.state, map[string]string{
+		"xkb": `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`,
+	})
+
+	// File is kept as a record of the install-time choices.
+	c.Check(filepath.Join(dirs.SnapDeviceSaveDir, "kcmdline-extra-snapd-fragments.json"), testutil.FilePresent)
+}
+
+func (s *deviceMgrBootconfigSuite) TestKernelCommandLineAppendArgsFromSnapdAlreadySetNotReinitialized(c *C) {
+	// File has a different value from the one already in state.
+	s.writeInstallTimeFragmentsFile(c, map[string]string{
+		"xkb": `snapd.xkb="from-file"`,
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// State is already set, e.g. by a previous runtime detection.
+	s.state.Set("kcmdline-extra-snapd-fragments", map[string]string{
+		"xkb": `snapd.xkb="from-state"`,
+	})
+
+	args, err := devicestate.KernelCommandLineAppendArgsFromSnapd(s.state)
+	c.Assert(err, IsNil)
+	// State value takes precedence, file is not consulted.
+	c.Check(args, Equals, `snapd.xkb="from-state"`)
+	checkExtraSnapdFragments(c, s.state, map[string]string{
+		"xkb": `snapd.xkb="from-state"`,
+	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestSetExtraSnapdKernelCommandLineFragmentOverridesInstallTimeFile(c *C) {
+	s.writeInstallTimeFragmentsFile(c, map[string]string{
+		"xkb": `snapd.xkb="from-file"`,
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+
+	fragmentID := devicestate.ExtraSnapdKernelCmdlineFragmentID("xkb")
+	err := devicestate.SetExtraSnapdKernelCommandLineFragment(s.state, fragmentID, `snapd.xkb="runtime"`)
+	c.Assert(err, IsNil)
+	// Runtime value overrides the install-time file value.
+	checkExtraSnapdFragments(c, s.state, map[string]string{
+		"xkb": `snapd.xkb="runtime"`,
+	})
+	checkPendingExtraSnapdFragments(c, s.state, true)
 }

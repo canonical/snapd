@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -475,4 +476,20 @@ func (cs *clientSuite) TestRequestGeneratePreInstallRecoveryKeyError(c *check.C)
 	c.Assert(err, check.ErrorMatches, `cannot generate recovery key for system "1234": boom!`)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
+}
+
+func (s *clientSuite) TestKeyboardConfigXKBConfig(c *check.C) {
+	kb := client.KeyboardConfig{
+		Model:   "pc105",
+		Layout:  "us",
+		Variant: "dvorak",
+		Options: []string{"ctrl:nocaps"},
+	}
+	xkb := kb.XKBConfig()
+	c.Check(xkb, check.DeepEquals, keyboard.XKBConfig{
+		Model:    "pc105",
+		Layouts:  []string{"us"},
+		Variants: []string{"dvorak"},
+		Options:  []string{"ctrl:nocaps"},
+	})
 }

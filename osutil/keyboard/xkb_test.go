@@ -206,6 +206,61 @@ func (s *xkbTestSuite) TestCurrentXKBConfigErrors(c *C) {
 	}
 }
 
+func (s *xkbTestSuite) TestXKBConfigValidate(c *C) {
+	type testcase struct {
+		config      keyboard.XKBConfig
+		expectedErr string
+	}
+
+	tcs := []testcase{
+		{
+			config: keyboard.XKBConfig{
+				Model:    "pc105",
+				Variants: []string{"", "bksl", ""},
+				Layouts:  []string{"us", "cz", "de"},
+				Options:  []string{"grp:alt_shift_toggle", "terminate:ctrl_alt_bksp"},
+			},
+		},
+		{
+			config: keyboard.XKBConfig{
+				Model:    "pc105,pc104",
+				Variants: []string{"", "bksl", ""},
+				Layouts:  []string{"us", "cz", "de"},
+				Options:  []string{"grp:alt_shift_toggle", "terminate:ctrl_alt_bksp"},
+			},
+			expectedErr: `model cannot contain ',': found "pc105,pc104"`,
+		},
+		{
+			config: keyboard.XKBConfig{
+				Model:    "pc105",
+				Variants: []string{},
+				Layouts:  []string{"us,cz,de"},
+				Options:  []string{"grp:alt_shift_toggle", "terminate:ctrl_alt_bksp"},
+			},
+			expectedErr: `layout cannot contain ',': found "us,cz,de"`,
+		},
+		{
+			config: keyboard.XKBConfig{
+				Model:    "pc105",
+				Variants: []string{",bksl"},
+				Layouts:  []string{"us"},
+				Options:  []string{"terminate:ctrl_alt_bksp"},
+			},
+			expectedErr: `variant cannot contain ',': found ",bksl"`,
+		},
+	}
+
+	for i, tc := range tcs {
+		cmt := Commentf("tc[%d] failed", i)
+		err := tc.config.Validate()
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr, cmt)
+		} else {
+			c.Check(err, IsNil, cmt)
+		}
+	}
+}
+
 func (s *xkbTestSuite) TestXKBConfigListener(c *C) {
 	vconsoleConfPath := filepath.Join(s.rootDir, "/etc/vconsole.conf")
 	kbConfPath := filepath.Join(s.rootDir, "/etc/default/keyboard")
