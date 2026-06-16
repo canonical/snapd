@@ -651,3 +651,7 @@ var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)
 }
+
+func MockGadgetSetFallbackDefaults(f func(values map[string]any)) (restore func()) {
+	return testutil.Mock(&gadgetSetFallbackDefaults, f)
+}
