@@ -553,9 +553,9 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// connections.
 
 	// Daemon.Stop may be called before the operation that requested the restart
-	// (thereby triggering Daemon.Stop) released the state lock. Acquiring the
-	// lock here synchronizes with that operation, ensuring it has exited its
-	// critical section before the managers are shut down.
+	// (which would have triggered this invocation of Daemon.Stop) released the
+	// state lock. Acquiring the lock here synchronizes with that operation,
+	// ensuring it has exited its critical section before the managers are shutdown.
 	d.state.Lock()
 	d.state.Unlock()
 
