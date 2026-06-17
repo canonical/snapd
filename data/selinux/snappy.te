@@ -74,6 +74,7 @@ type snappy_cli_t;
 type snappy_cli_exec_t;
 domain_type(snappy_cli_t)
 domain_entry_file(snappy_cli_t, snappy_cli_exec_t)
+domain_entry_file(snappy_cli_t, snappy_exec_t)
 
 # helper tools: snap-{update,discard}-ns
 type snappy_mount_t;
