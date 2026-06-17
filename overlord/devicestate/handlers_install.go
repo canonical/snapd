@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
@@ -58,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -85,6 +87,7 @@ var (
 	fdestateGenerateRecoveryKey          = fdestate.GenerateRecoveryKey
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
+	copyInstallModeHostname          = copyInstallModeHostnameImpl
 )
 
 func writeLogs(rootdir string, fromMode string) error {
@@ -196,6 +199,32 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 
 	if err := gz.Flush(); err != nil {
 		return fmt.Errorf("cannot flush timings output: %v", err)
+	}
+
+	return nil
+}
+
+func copyInstallModeHostnameImpl(rootdir string) error {
+	hostnamePath := filepath.Join(dirs.GlobalRootDir, "etc/hostname")
+	hostnameBytes, err := os.ReadFile(hostnamePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("cannot read install-mode hostname: %v", err)
+	}
+
+	hostname := strings.TrimSpace(string(hostnameBytes))
+	if hostname == "" {
+		return nil
+	}
+
+	targetHostnamePath := sysconfig.WritableDefaultsDir(rootdir, "etc/writable/hostname")
+	if err := os.MkdirAll(filepath.Dir(targetHostnamePath), 0755); err != nil {
+		return err
+	}
+	if err := osutil.AtomicWriteFile(targetHostnamePath, []byte(hostname+"\n"), 0644, 0); err != nil {
+		return fmt.Errorf("cannot write install-mode hostname: %v", err)
 	}
 
 	return nil
@@ -415,6 +444,16 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		if err := sd.DaemonReload(); err != nil {
 			return err
 		}
+	}
+
+	err = func() error {
+		st.Unlock()
+		defer st.Lock()
+
+		return copyInstallModeHostname(boot.InstallHostWritableDir(model))
+	}()
+	if err != nil {
+		return err
 	}
 
 	// ensure the next boot goes into run mode
