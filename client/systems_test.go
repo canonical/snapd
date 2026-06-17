@@ -493,3 +493,20 @@ func (s *clientSuite) TestKeyboardConfigXKBConfig(c *check.C) {
 		Options:  []string{"ctrl:nocaps"},
 	})
 }
+
+func (s *clientSuite) TestKeyboardConfigValidate(c *check.C) {
+	// Valid configuration
+	kb := client.KeyboardConfig{
+		Model:   "pc105",
+		Layout:  "us",
+		Variant: "dvorak",
+	}
+	c.Assert(kb.Validate(), check.IsNil)
+
+	kb = client.KeyboardConfig{
+		Model:   "pc105,",
+		Layout:  "us",
+		Variant: "dvorak",
+	}
+	c.Assert(kb.Validate(), check.ErrorMatches, `model cannot contain ',': found "pc105,"`)
+}

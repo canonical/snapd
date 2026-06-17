@@ -3543,13 +3543,23 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionVolumeA
 	c.Check(chg, IsNil)
 }
 
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionKeyboardConfigError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	keyboardConfig := &client.KeyboardConfig{Model: "pc105,", Layout: "us"}
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, nil, keyboardConfig)
+	c.Check(err, ErrorMatches, `model cannot contain ',': found "pc105,"`)
+	c.Check(chg, IsNil)
+}
+
 func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionMissingKeyboardConfigError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	volumeOpts := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
 	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts, nil)
-	c.Check(err, ErrorMatches, `cannot use authentication mode "passphrase" without a keyboard configuration`)
+	c.Check(err, ErrorMatches, `cannot use volumes authentication without a keyboard configuration`)
 	c.Check(chg, IsNil)
 }
 

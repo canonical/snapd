@@ -85,7 +85,6 @@ func renderExtraSnapdKernelCommandLineFragments(fragments map[string]string) str
 		return ""
 	}
 
-	// XXX: Prune fragments that are no longer used?
 	sorted := make([]string, 0, len(fragments))
 	for _, fragment := range fragments {
 		sorted = append(sorted, fragment)

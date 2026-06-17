@@ -263,6 +263,7 @@ type KeyboardConfig struct {
 	Options []string `json:"options,omitempty"`
 }
 
+// XKBConfig converts the KeyboardConfig to simplified keyboard.XKBConfig struct.
 func (c *KeyboardConfig) XKBConfig() keyboard.XKBConfig {
 	xkb := keyboard.XKBConfig{
 		Model:   c.Model,
@@ -275,6 +276,12 @@ func (c *KeyboardConfig) XKBConfig() keyboard.XKBConfig {
 		xkb.Variants = []string{c.Variant}
 	}
 	return xkb
+}
+
+// Validate the keyboard configuration.
+func (c *KeyboardConfig) Validate() error {
+	xkb := c.XKBConfig()
+	return xkb.Validate()
 }
 
 type InstallSystemOptions struct {
@@ -295,7 +302,7 @@ type InstallSystemOptions struct {
 	// authentication). If VolumesAuth is nil, the default is to have no
 	// authentication.
 	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
-	// KeyboardConfig contains the keyboard layout selected at install-time.
+	// KeyboardConfig contains the selected keyboard layout.
 	KeyboardConfig *KeyboardConfig `json:"keyboard-config,omitempty"`
 
 	// TargetRoot is a path to the rootfs of a mounted target system for the

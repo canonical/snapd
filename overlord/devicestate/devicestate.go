@@ -2668,8 +2668,8 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 		return nil, fmt.Errorf("cannot setup storage encryption without volumes data")
 	}
 	if volumesAuth != nil {
-		if volumesAuth.Mode != device.AuthModeNone && keyboardConfig == nil {
-			return nil, fmt.Errorf("cannot use authentication mode %q without a keyboard configuration", volumesAuth.Mode)
+		if keyboardConfig == nil {
+			return nil, fmt.Errorf("cannot use volumes authentication without a keyboard configuration")
 		}
 		if err := volumesAuth.Validate(); err != nil {
 			return nil, err
@@ -2686,6 +2686,9 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 		setupStorageEncryptionTask.Set("volumes-auth-required", true)
 	}
 	if keyboardConfig != nil {
+		if err := keyboardConfig.Validate(); err != nil {
+			return nil, err
+		}
 		setupStorageEncryptionTask.Set("keyboard-config", keyboardConfig)
 	}
 	chg.AddTask(setupStorageEncryptionTask)

@@ -1431,6 +1431,34 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionMissingKeybo
 	c.Check(nCalls, check.Equals, 0)
 }
 
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionKeyboardConfigError(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]any{
+		"action": "install",
+		"step":   "setup-storage-encryption",
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
+				"bootloader": "grub",
+			},
+		},
+		"keyboard-config": map[string]any{
+			"model":   "pc105,",
+			"layout":  "eg",
+			"options": []string{"grp:alt_shift_toggle"},
+		},
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, `invalid keyboard configuration: model cannot contain ',': found "pc105,"`)
+}
+
 func (s *systemsSuite) TestSystemInstallActionPreseedCallsDevicestate(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()

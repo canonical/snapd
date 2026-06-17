@@ -38,6 +38,23 @@ oneOf:
         additionalProperties:
           type: string
         description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN).
+      keyboard-config:
+        type: object
+        properties:
+          layout:
+            type: string
+            description: The keyboard layout to use during installation (e.g. 'us', 'uk', 'eg').
+          model:
+            type: string
+            description: The keyboard model to use during installation (e.g. 'pc105').
+          variant:
+            type: string
+            description: The keyboard variant to use during installation (e.g. 'dvorak').
+          options:
+            type: array
+            items:
+              type: string
+            description: A list of additional keyboard options to use during installation (e.g. 'ctrl:nocaps').
   - type: object
     required:
       - step
