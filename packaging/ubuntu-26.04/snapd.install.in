@@ -1,6 +1,5 @@
 usr/bin/snapd /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
-usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/
 usr/bin/snap-failure /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
