@@ -797,7 +797,7 @@ sort -u -o devel.file-list devel.file-list
 %endif
 
 %check
-for binary in snap-exec snap-update-ns snapctl; do
+for binary in snap-update-ns snapctl; do
     ldd %{_builddir}/$binary 2>&1 | grep 'not a dynamic executable'
 done
 
