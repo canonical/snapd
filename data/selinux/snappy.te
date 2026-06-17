@@ -115,6 +115,9 @@ filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.so
 
 # Allow init_t to read snappy data
 allow init_t snappy_var_lib_t:dir read;
+# TODO: define a macro for this
+# Allow init_t to follow the /usr/libexec/snapd/snapd symlink
+allow init_t snappy_exec_t:lnk_file read;
 
 # Allow snapd to read procfs
 gen_require(`
@@ -197,6 +200,7 @@ corecmd_exec_bin(snappy_t)
 
 # Allow snappy to exec helpers
 can_exec(snappy_t, snappy_exec_t)
+allow snappy_t snappy_exec_t:lnk_file read;
 can_exec(snappy_t, snappy_mount_exec_t)
 can_exec(snappy_t, snappy_cli_exec_t)
 corecmd_search_bin(snappy_t)
@@ -838,6 +842,8 @@ allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
 
 allow snappy_cli_t snappy_var_t:dir { search getattr };
+# follow merged binary symlinks
+allow snappy_cli_t snappy_exec_t:lnk_file read;
 
 # the release package calls stat() on /proc/sys/fs/binfmt_misc/WSLInterop to
 # detect WSL

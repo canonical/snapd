@@ -29,6 +29,8 @@ ifdef(`distro_redhat',`
 /usr/libexec/snapd/snap-confine		--	gen_context(system_u:object_r:snappy_confine_exec_t,s0)
 /usr/libexec/snapd/snap-update-ns		--	gen_context(system_u:object_r:snappy_mount_exec_t,s0)
 /usr/libexec/snapd/snap-discard-ns		--	gen_context(system_u:object_r:snappy_mount_exec_t,s0)
+# snapd is a symlink
+/usr/libexec/snapd/snapd		-l	gen_context(system_u:object_r:snappy_exec_t,s0)
 /usr/libexec/snapd/.*		--	gen_context(system_u:object_r:snappy_exec_t,s0)
 /etc/sysconfig/snapd		-- 	gen_context(system_u:object_r:snappy_config_t,s0)
 /usr/lib/systemd/system/snapd.* --	gen_context(system_u:object_r:snappy_unit_file_t,s0)
@@ -39,6 +41,8 @@ ifdef(`distro_debian',`
 /usr/lib/snapd/snap-confine		--	gen_context(system_u:object_r:snappy_confine_exec_t,s0)
 /usr/lib/snapd/snap-update-ns		--	gen_context(system_u:object_r:snappy_mount_exec_t,s0)
 /usr/lib/snapd/snap-discard-ns		--	gen_context(system_u:object_r:snappy_mount_exec_t,s0)
+# snapd is a symlink
+/usr/libexec/snapd/snapd		-l	gen_context(system_u:object_r:snappy_exec_t,s0)
 /usr/lib/snapd/.*  		--	gen_context(system_u:object_r:snappy_exec_t,s0)
 /etc/default/snapd		-- 	gen_context(system_u:object_r:snappy_config_t,s0)
 /lib/systemd/system/snapd.* 	--	gen_context(system_u:object_r:snappy_unit_file_t,s0)
