@@ -431,6 +431,10 @@ func MockInstallLogicPrepareRunSystemData(f func(mod *asserts.Model, gadgetDir s
 	return r
 }
 
+func MockCopyInstallModeHostname(f func(rootdir string) error) (restore func()) {
+	return testutil.Mock(&copyInstallModeHostname, f)
+}
+
 func MockInstallRun(f func(model gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
