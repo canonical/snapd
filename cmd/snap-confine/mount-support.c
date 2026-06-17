@@ -99,6 +99,9 @@ static void setup_private_tmp(const char *snap_instance) {
     if (!S_ISDIR(st.st_mode)) {
         die("%s has unexpected type", SNAP_PRIVATE_TMP_ROOT_DIR);
     }
+    if (st.st_uid != 0 || st.st_gid != 0 || st.st_mode != (S_IFDIR | 0700)) {
+        die("%s has unexpected ownership / permissions", SNAP_PRIVATE_TMP_ROOT_DIR);
+    }
     // Create /tmp/snap-private-tmp/snap.$SNAP_INSTANCE_NAME/ 0700 root:root.
     sc_must_snprintf(base, sizeof(base), "snap.%s", snap_instance);
     if (sc_ensure_mkdirat(private_tmp_root_fd, base, 0700, 0, 0) != 0) {
