@@ -99,19 +99,19 @@ const (
 )
 
 // accessDecision is the structured result of an authorization check.
-//
-// Verdict carries the HTTP response to serve when the request is denied
-// (nil when access is granted). Checks records what each
-// authorization stage evaluated to, and Level is the access level the
-// request was evaluated at, or accessLevelNotEvaluated when no
-// authorization stage ran (e.g. on dispatch errors in byActionAccess).
-// CheckerName is the audit name of the checker that produced this
-// decision. For a multiplexer like byActionAccess it is the delegate's
-// name, not the multiplexer's; it is empty for dispatch-error decisions.
 type accessDecision struct {
-	Verdict     *apiError
-	Checks      seclog.AuthzChecks
-	Level       accessLevel
+	// Verdict carries the HTTP response to serve when the request is
+	// denied (nil when access is granted).
+	Verdict *apiError
+	// Checks records what each authorization stage evaluated to.
+	Checks seclog.AuthzChecks
+	// Level is the access level the request was evaluated at, or
+	// accessLevelNotEvaluated when no authorization stage ran
+	// (e.g. on dispatch errors in byActionAccess).
+	Level accessLevel
+	// CheckerName is the audit name of the checker that produced this
+	// decision. For a multiplexer like byActionAccess it is the delegate's
+	// name, not the multiplexer's; it is empty for dispatch-error decisions.
 	CheckerName accessCheckerName
 }
 
