@@ -56,7 +56,10 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 // be completed, which will be interpreted as "in progress".
 func hasTaskInProgress(st *state.State, taskName string) (bool, error) {
 	for _, t := range st.Tasks() {
-		if t.Kind() == taskName && !t.Change().Status().Ready() {
+		if t.Kind() != taskName {
+			continue
+		}
+		if chg := t.Change(); chg != nil && !chg.IsReady() {
 			return true, nil
 		}
 	}

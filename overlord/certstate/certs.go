@@ -378,7 +378,7 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		}
 
 		// Append it to the ca bundle
-		if _, err := io.Writer.Write(bundle, data); err != nil {
+		if _, err := bundle.Write(data); err != nil {
 			return err
 		}
 
@@ -623,21 +623,12 @@ func switchCurrentMergedCertificates(target string) error {
 // and returns an empty string if the link is missing (e.g. first run or after cleanup).
 func resolveCurrentCertificateTarget() (string, error) {
 	mergedDir := CurrentCertificateDir()
-	info, err := os.Lstat(mergedDir)
+	target, err := os.Readlink(mergedDir)
 	if err != nil {
 		// no merged directory?
 		if os.IsNotExist(err) {
 			return "", nil
 		}
-		return "", err
-	}
-
-	if info.Mode()&os.ModeSymlink == 0 {
-		return "", fmt.Errorf("merged certificates path is not a symlink")
-	}
-
-	target, err := os.Readlink(mergedDir)
-	if err != nil {
 		return "", err
 	}
 	return target, nil
@@ -664,11 +655,39 @@ func certificateGenerations() ([]string, error) {
 	return generations, nil
 }
 
+// cleanupStaleStagingDirectories removes any temporary staging directories left behind
+// by a crash during publication. These directories are named with a ".generation-"
+// prefix and are not considered valid published generations.
+func cleanupStaleStagingDirectories() error {
+	publishedDir := PublishedCertificatesDir()
+	entries, err := os.ReadDir(publishedDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("cannot read published certificates directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), ".generation-") {
+			continue
+		}
+		stagingPath := filepath.Join(publishedDir, entry.Name())
+		logger.Debugf("removing stale staging directory %s", stagingPath)
+		if err := os.RemoveAll(stagingPath); err != nil {
+			return fmt.Errorf("cannot remove stale staging directory at %q: %v", stagingPath, err)
+		}
+	}
+	return nil
+}
+
 // garbageCollectCertificateGenerations uses a two-boot cleanup policy for
 // non-current generations. The first pass only marks an inactive generation;
 // a later boot removes it if nothing has made it current again in the
 // meantime. This keeps cleanup away from the publication path and gives other
 // parts of the system time to stop referencing an older tree.
+// OBS: State lock must be held when calling this function,
+// to avoid concurrent updates to the database.
 func garbageCollectCertificateGenerations(bootID string) error {
 	currentTarget, err := resolveCurrentCertificateTarget()
 	if err != nil {
@@ -715,7 +734,10 @@ func garbageCollectCertificateGenerations(bootID string) error {
 			}
 		}
 	}
-	return nil
+
+	// cleanup any temporary staging directories left behind
+	// by a crash during publication
+	return cleanupStaleStagingDirectories()
 }
 
 // RefreshCertificateDatabase does a best-effort of performing an

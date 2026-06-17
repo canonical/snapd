@@ -1001,6 +1001,25 @@ func (s *certsTestSuite) TestGarbageCollectCertificateGenerationsProtectsCurrent
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
+func (s *certsTestSuite) TestGarbageCollectCertificateGenerationsRemovesStaleStagingDirectories(c *C) {
+	currentDir := filepath.Join(dirs.SnapdPKIV1Dir, "published", "current")
+	stagingDir := filepath.Join(dirs.SnapdPKIV1Dir, "published", ".generation-crash-leftover")
+	c.Assert(os.MkdirAll(currentDir, 0o755), IsNil)
+	c.Assert(os.MkdirAll(stagingDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(stagingDir, "partial"), []byte("leftover"), 0o644), IsNil)
+	c.Assert(os.Symlink(filepath.Join("published", "current"), filepath.Join(dirs.SnapdPKIV1Dir, "merged")), IsNil)
+
+	err := certstate.GarbageCollectCertificateGenerations("boot-1")
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(stagingDir)
+	c.Check(os.IsNotExist(err), Equals, true)
+	_, err = os.Stat(currentDir)
+	c.Assert(err, IsNil)
+	_, err = os.Stat(filepath.Join(currentDir, ".snapd-inactive"))
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
 func (s *certsTestSuite) TestCertificatePathAddsCrtExtension(c *C) {
 	path := certstate.CertificatePath("my-cert")
 	c.Check(path, Equals, filepath.Join(dirs.SnapdPKIV1Dir, "my-cert.crt"))
