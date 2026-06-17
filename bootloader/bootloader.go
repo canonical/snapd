@@ -260,6 +260,8 @@ type TrustedAssetsBootloader interface {
 	// modeenv (CurrentTrustedBootAssets and
 	// CurrentTrustedRecoveryBootAssets).
 	RevocationTriggeringAssets() ([]string, error)
+
+	FirmwareSignedAssets() ([]string, error)
 }
 
 // NotScriptableBootloader cannot change the bootloader environment

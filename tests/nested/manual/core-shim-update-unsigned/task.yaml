@@ -1,0 +1,44 @@
+summary: Verify that we do not allow installation of shim that is not signed by firmware
+
+details: |
+    Shim is signed my Microsoft. But the certificates can get updated. And the firmware
+    then need an update to allow newly signed shim. We need to detect shim that are signed
+    with keys that does not have the certificate in the firmware.
+
+systems:
+  - ubuntu-2*
+
+environment:
+    NESTED_ENABLE_TPM: "true"
+    NESTED_ENABLE_SECURE_BOOT: "true"
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    unsquashfs -d pc "$(tests.nested get extra-snaps-path)"/pc.snap
+    cp pc/shim.efi.signed old-shim.efi
+
+    gojq --yaml-input --yaml-output  '(.volumes.pc.structure[] | select(.name == "ubuntu-seed") | .update.edition) |= . + 1' <pc/meta/gadget.yaml >pc/meta/gadget.yaml.new
+    mv pc/meta/gadget.yaml.new pc/meta/gadget.yaml
+
+    openssl req -new -x509 -newkey rsa:2048 -keyout KEY.priv -outform PEM -out KEY.pem -days 365 -nodes  -subj "/CN=Key that is too new/"
+
+    tests.nested secboot-remove-signature pc/shim.efi.signed
+    objcopy -O binary -j .data.ident pc/shim.efi.signed ident
+    sed -i '/Commit: [a-f0-9]*/s//Commit: 0000000000000000000000000000000000000000/' ident
+    objcopy --update-section=.data.ident=ident pc/shim.efi.signed
+
+    tests.nested secboot-sign gadget pc "${PWD}/KEY.key" "${PWD}/KEY.pem"
+    snap pack pc --filename=pc-new.snap
+    rm -rf pc
+
+execute: |
+    remote.push pc-new.snap
+    change_id=$(remote.exec "sudo snap install --no-wait --dangerous pc-new.snap")
+
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\\s+(Done|Undone|Error)'"
+    remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Error"
+
+    # DEBUGGING: just to see the logs.
+    exit 1

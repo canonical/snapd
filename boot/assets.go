@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"context"
 	"crypto"
 	"encoding/hex"
 	"errors"
@@ -27,6 +28,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	_ "golang.org/x/crypto/sha3"
 
@@ -712,6 +714,7 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRo
 		// not one of the trusted assets
 		return gadget.ChangeApply, nil
 	}
+
 	if o.modeenv == nil {
 		// we've hit a trusted asset, so a modeenv is needed now too
 		modeenvLock()
@@ -734,7 +737,35 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, partRo
 	}
 }
 
+var secbootCheckPEImageKnownBySystem = secboot.CheckPEImageKnownBySystem
+
 func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, trustedAssetName string, change *gadget.ContentChange) (gadget.ContentChangeAction, error) {
+	if recovery {
+		var firmwareSignedAssets []string
+		tbl, isTrustedBootloader := bl.(bootloader.TrustedAssetsBootloader)
+		if isTrustedBootloader {
+			var err error
+			firmwareSignedAssets, err = tbl.FirmwareSignedAssets()
+			if err != nil {
+				return gadget.ChangeAbort, err
+			}
+		}
+		needCheckAgainstFirmware := false
+		for _, name := range firmwareSignedAssets {
+			if trustedAssetName == name {
+				needCheckAgainstFirmware = true
+				break
+			}
+		}
+		if needCheckAgainstFirmware {
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+			defer cancel()
+			if err := secbootCheckPEImageKnownBySystem(ctx, change.After); err != nil {
+				return gadget.ChangeAbort, fmt.Errorf("trying to install a shim that is not signed with a key in the firmware: %v", err)
+			}
+		}
+	}
+
 	modeenvBefore, err := o.modeenv.Copy()
 	if err != nil {
 		return gadget.ChangeAbort, fmt.Errorf("cannot copy modeenv: %v", err)

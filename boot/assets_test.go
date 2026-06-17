@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1498,10 +1499,20 @@ func (s *assetsSuite) TestUpdateObserverUpdateRollbackGrub(c *C) {
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grubx64.efi")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
+	defer boot.MockSecbootCheckPEImageKnownBySystem(func(ctx context.Context, path string) error {
+		return nil
+	})()
 	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "bootx64.efi")})
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, gadget.ChangeApply)
+	defer boot.MockSecbootCheckPEImageKnownBySystem(func(ctx context.Context, path string) error {
+		return fmt.Errorf("my error")
+	})()
+	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemSeed, seedDir, "EFI/boot/bootx64.efi",
+		&gadget.ContentChange{After: filepath.Join(gadgetDir, "bootx64.efi")})
+	c.Assert(err, ErrorMatches, `trying to install a shim that is not signed with a key in the firmware: my error`)
+	c.Check(res, Equals, gadget.ChangeAbort)
 	// grub.cfg on ubuntu-seed and ubuntu-boot is managed by snapd
 	res, err = obs.Observe(gadget.ContentUpdate, gadget.SystemBoot, seedDir, "EFI/ubuntu/grub.cfg",
 		&gadget.ContentChange{After: filepath.Join(gadgetDir, "grub.conf")})

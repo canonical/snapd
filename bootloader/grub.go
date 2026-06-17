@@ -711,6 +711,23 @@ func (g *grub) RevocationTriggeringAssets() ([]string, error) {
 	return []string{assets.shimBinary.Id(), assets.defaultShimBinary.Id()}, nil
 }
 
+func (g *grub) FirmwareSignedAssets() ([]string, error) {
+	// Note: this happens to be the same as
+	// RevocationTriggeringAssets, but maybe one day we add other
+	// binaries that need to be firmware signed but do not cause
+	// revocations.
+	if !g.recovery {
+		return nil, nil
+	}
+
+	assets, err := g.getGrubBootAssetsForArch()
+	if err != nil {
+		return nil, err
+	}
+
+	return []string{assets.shimBinary.Id(), assets.defaultShimBinary.Id()}, nil
+}
+
 // ParametersForEfiLoadOption returns a serialized load option for the
 // shim binary. It should be called on a UefiBootloader.
 // updatedAssets is a list of assets that were installed/updated. This

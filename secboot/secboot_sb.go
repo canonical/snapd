@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/secboot"
 	sb "github.com/snapcore/secboot"
+	sb_efi "github.com/snapcore/secboot/efi"
 	sb_luks2 "github.com/snapcore/secboot/luks2"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
 
@@ -965,4 +966,8 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 func validatePINImpl(pin string) error {
 	_, err := secboot.ParsePIN(pin)
 	return err
+}
+
+func CheckPEImageKnownBySystem(ctx context.Context, path string) error {
+	return sb_efi.CheckPEImageKnownBySystem(ctx, sb_efi.FileImage(path))
 }

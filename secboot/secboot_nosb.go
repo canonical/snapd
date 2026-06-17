@@ -225,3 +225,7 @@ func (f *fakeActivateContext) State() *ActivateState {
 func NewActivateContext(ctx context.Context) (ActivateContext, error) {
 	return &fakeActivateContext{}, nil
 }
+
+func CheckPEImageKnownBySystem(ctx context.Context, path string) error {
+	return errBuildWithoutSecboot
+}

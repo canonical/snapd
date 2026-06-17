@@ -451,6 +451,10 @@ type MockTrustedAssetsMixin struct {
 	RevocationTriggeringAssetsReturn []string
 	RevocationTriggeringAssetsError  error
 
+	FirmwareSignedAssetsCalls  int
+	FirmwareSignedAssetsReturn []string
+	FirmwareSignedAssetsError  error
+
 	KernelBootFileBuilder         func(kernelPath string) bootloader.BootFile
 	RecoveryKernelBootFileBuilder func(kernelPath string) bootloader.BootFile
 
@@ -591,6 +595,12 @@ func (b *MockTrustedAssetsMixin) RevocationTriggeringAssets() ([]string, error) 
 	b.RevocationTriggeringAssetsCalls++
 
 	return b.RevocationTriggeringAssetsReturn, b.RevocationTriggeringAssetsError
+}
+
+func (b *MockTrustedAssetsMixin) FirmwareSignedAssets() ([]string, error) {
+	b.FirmwareSignedAssetsCalls++
+
+	return b.FirmwareSignedAssetsReturn, b.FirmwareSignedAssetsError
 }
 
 // MockRecoveryAwareTrustedAssetsBootloader implements the

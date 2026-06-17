@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"context"
 	"fmt"
 	"sync/atomic"
 
@@ -257,4 +258,8 @@ func MockCryptsetupSupportsTokenReplace(support bool) (restore func()) {
 	return testutil.Mock(&cryptsetupSupportsTokenReplace, func() bool {
 		return support
 	})
+}
+
+func MockSecbootCheckPEImageKnownBySystem(f func(ctx context.Context, path string) error) (restore func()) {
+	return testutil.Mock(&secbootCheckPEImageKnownBySystem, f)
 }
