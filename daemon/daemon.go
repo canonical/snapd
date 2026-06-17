@@ -552,6 +552,13 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// it can pass the fds to the new process without ever having rejected incoming
 	// connections.
 
+	// Daemon.Stop may be called before the operation that requested the restart
+	// (thereby triggering Daemon.Stop) released the state lock. Acquiring the
+	// lock here synchronizes with that operation, ensuring it has exited its
+	// critical section before the managers are shut down.
+	d.state.Lock()
+	d.state.Unlock()
+
 	// take a timestamp before shutting down the snap listener, and
 	// use the time we may spend on waiting for hooks against the shutdown
 	// delay.
