@@ -47,7 +47,7 @@ type isConnectedCommand struct {
 	} `positional-args:"true"`
 	Pid             int    `long:"pid" description:"Process ID for a plausibly connected process"`
 	AppArmorLabel   string `long:"apparmor-label" description:"AppArmor label for a plausibly connected process"`
-	CheckSystemSlot bool   `long:"check-system-slot" description:"With --pid or --apparmor-label, also treat the equivalent core/snapd audio slot as connected"`
+	CheckSystemSlot bool   `long:"check-system-slot" description:"With --pid or --apparmor-label, also check the connection to equivalent system snap audio slots as acceptable"`
 	List            bool   `long:"list" description:"List all connected plugs and slots"`
 }
 
