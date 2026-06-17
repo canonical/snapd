@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package snapexec_test
 
 import (
 	"fmt"
@@ -30,7 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	snapExec "github.com/snapcore/snapd/cmd/snap-exec"
+	snapExec "github.com/snapcore/snapd/cmd/snapctl/snapexec"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
