@@ -337,7 +337,6 @@ parts:
             # being started from snap because of broken re-execution
             # and fixes that were not yet backported
             lib/snapd/snap-bootstrap
-            lib/snapd/snap-exec
             lib/snapd/snap-failure
             lib/snapd/snap-fde-keymgr
             lib/snapd/snap-recovery-chooser
@@ -357,7 +356,7 @@ parts:
            # FIXME: some binaries need to be run confined in apps. But
            # instead we should allow apps to access dynamic linkers
            # and libraries from snapd.
-           lib/snapd/snap-exec|lib/snapd/snapctl)
+           lib/snapd/snapctl)
              export CGO_ENABLED=0
              GO_LD_FLAGS=()
              CHECK_STATIC=1
@@ -460,6 +459,8 @@ parts:
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/bin/snap"
       # link usr/lib/snapd/snap-preseed -> snapd
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
+      # link usr/lib/snapd/snap-exec -> usr/lib/snapd/snapctl (multi-call binary)
+      ln -v -s snapctl "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-exec"
 
       if [ -f fips-build ]; then
         # Set up FIPS dispatch: replace each original binary with a symlink

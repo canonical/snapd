@@ -1,4 +1,5 @@
 /usr/lib/snapd/snap-device-helper  /usr/lib/udev/snappy-app-dev
 usr/lib/snapd/snapctl usr/bin/snapctl
+usr/lib/snapd/snapctl usr/lib/snapd/snap-exec
 usr/lib/snapd/snapd usr/bin/snap
 usr/lib/snapd/snapd usr/lib/snapd/snap-preseed

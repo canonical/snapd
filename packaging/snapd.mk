@@ -62,7 +62,7 @@ snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries = $(addprefix $(builddir)/, snapd snapctl snap-seccomp snap-update-ns snap-exec snapd-apparmor)
+go_binaries = $(addprefix $(builddir)/, snapd snapctl snap-seccomp snap-update-ns snapd-apparmor)
 
 GO_TAGS = nosecboot
 ifeq ($(with_testkeys),1)
@@ -139,7 +139,7 @@ $(builddir)/snapd $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 # Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
-$(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
+$(builddir)/snap-update-ns $(builddir)/snapctl:
 	go build -o $@ -buildmode=$(GO_STATIC_BUILDMODE) \
 		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
@@ -154,7 +154,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 .PHONY: check-static-binaries
 check-static-binaries:
 	@echo "Checking that critical binaries are statically linked..."
-	@for binary in snap-exec snap-update-ns snapctl; do \
+	@for binary in snap-update-ns snapctl; do \
 		if [ -f "$(builddir)/$$binary" ]; then \
 			if ! file "$(builddir)/$$binary" | grep -q -F static; then \
 				echo "ERROR: $$binary is dynamically linked, must be static"; \
@@ -199,11 +199,16 @@ $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedsta
 
 .PHONY: install
 
-# Install snapd, snapctl, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapd snapctl snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
+# Install snapd, snapctl, snap-{update-ns,seccomp} into /usr/lib/snapd/
+install:: $(addprefix $(builddir)/,snapd snapctl snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
-# Ensure /usr/bin/snapctl is a relative symlink to /usr/lib/snapd/snapctl
+# Ensure $(libexecdir)/snapd/snap-exec is a symlink to snapctl
+# (snap-exec is part of the multi-call snapctl binary)
+install:: | $(DESTDIR)$(libexecdir)/snapd
+	ln -v -s snapctl $|/snap-exec
+
+# Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
 install:: | $(DESTDIR)$(bindir)
 	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapctl $|/snapctl
 
