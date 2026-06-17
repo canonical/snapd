@@ -255,19 +255,19 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 // is provided, only those users directories are considered, otherwise all users
 // are considered for an empty users slice. Paths outside the snap's data
 // directories are skipped because they are not included in the snapshot.
-func mapMountPointsInDataDirsToExcludes(si *snap.Info, opts *dirs.SnapDirOptions, users []string, mountPoints []string) ([]string, error) {
+func mapMountPointsInDataDirsToExcludes(si *snap.Info, opts *dirs.SnapDirOptions, users []string, miEntries []*osutil.MountInfoEntry) ([]string, error) {
 	mappings, err := backendMapSnapDataDirToSnapVar(si, opts, users)
 	if err != nil {
 		return nil, err
 	}
 
 	var excludes []string
-	for _, where := range mountPoints {
-		where = strings.TrimRight(where, "/")
+	for _, e := range miEntries {
+		where := strings.TrimRight(e.MountDir, "/")
 		// The map iteration order does not matter here:
 		// the snap data directories are mutually exclusive, so at most one
 		// entry can match given mount point. The order of the returned excludes
-		// follows the order of mountPoints.
+		// follows the order of miEntries.
 		for snapDataDir, snapVar := range mappings {
 			if where == snapDataDir {
 				// The mount point is exactly over a snap data directory, so
@@ -290,11 +290,7 @@ func (s *snapshotSetup) excludeMountPoints(si *snap.Info, opts *dirs.SnapDirOpti
 	if err != nil {
 		return fmt.Errorf("cannot load mount info: %v", err)
 	}
-	mountPts := make([]string, len(entries))
-	for i, e := range entries {
-		mountPts[i] = e.MountDir
-	}
-	excludes, err := mapMountPointsInDataDirsToExcludes(si, opts, s.Users, mountPts)
+	excludes, err := mapMountPointsInDataDirsToExcludes(si, opts, s.Users, entries)
 	if err != nil {
 		return fmt.Errorf("cannot map mount points to excludes: %v", err)
 	}

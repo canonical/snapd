@@ -491,7 +491,11 @@ func (snapshotSuite) TestMapMountPointsInDataDirsToExcludes(c *check.C) {
 	})()
 
 	for _, t := range tests {
-		result, err := snapshotstate.MapMountPointsInDataDirsToExcludes(&snapInfo, t.opts, t.users, t.mountPoints)
+		entries := make([]*osutil.MountInfoEntry, len(t.mountPoints))
+		for i, mp := range t.mountPoints {
+			entries[i] = &osutil.MountInfoEntry{MountDir: mp}
+		}
+		result, err := snapshotstate.MapMountPointsInDataDirsToExcludes(&snapInfo, t.opts, t.users, entries)
 		c.Assert(err, check.IsNil, check.Commentf(t.comment))
 		c.Check(result, check.DeepEquals, t.expected, check.Commentf(t.comment))
 	}
