@@ -46,6 +46,10 @@ type snapExecSuite struct{}
 
 var _ = Suite(&snapExecSuite{})
 
+func (s *snapExecSuite) SetUpSuite(c *C) {
+	snapExec.LazyInit()
+}
+
 func (s *snapExecSuite) SetUpTest(c *C) {
 	// clean previous parse runs
 	snapExec.SetOptsCommand("")

@@ -26,8 +26,9 @@ import (
 )
 
 var (
-	ParseArgs    = parseArgs
-	FindCommand  = findCommand
+	ParseArgs   = parseArgs
+	FindCommand = findCommand
+	LazyInit    = lazyInit
 )
 
 func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
