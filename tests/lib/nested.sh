@@ -703,7 +703,8 @@ _add_nested_coverage_tweaks() {
     mkdir -p "${SNAP_CACHE}/unpack"
     unsquashfs -no-progress -f -d "${SNAP_CACHE}/unpack" "${SNAP_PATH}"
 
-    # add tweaks to run mode for spread tests
+    # add tweaks to install and run mode for spread tests
+    # shellcheck source=tests/lib/prepare.sh
     . "$TESTSLIB"/prepare.sh
     _add_coverage_tweaks "${SNAP_CACHE}/unpack"
 

@@ -72,14 +72,14 @@ features_after_suite() {
     # make sure this is only run once per suite
     if ! [ -f "$TESTSTMP/initial-coverage-collected-${SPREAD_SUITE//\//--}" ]; then
         suite_dir="$(_prepare_suite_artifacts_path feature-tags)"
-        find / -name install-mode.log.gz -exec gzip -dc {} > "/tmp/install-mode.log" \;
+        find / -name install-mode.log.gz -exec gzip -dc {} \; > "/tmp/install-mode.log"
         if [ -f /tmp/install-mode.log ]; then
             cat /tmp/install-mode.log | _extract_trace_entries >> "$suite_dir"/journal.txt
         fi
 
         journalctl --sync || true
         journalctl --flush || true
-        journalctl --list-boots -q | awk '{print $1}' | while read boot_id; do journalctl -b "$boot_id" --no-pager | _extract_trace_entries; done >> "$suite_dir"/journal.txt
+        journalctl --list-boots -q | awk '{print $1}' | while read -r boot_id; do journalctl -b "$boot_id" --no-pager | _extract_trace_entries; done >> "$suite_dir"/journal.txt
         cp /var/lib/snapd/state.json "$suite_dir" || true
 
         touch "$TESTSTMP/initial-coverage-collected-${SPREAD_SUITE//\//--}"
