@@ -665,6 +665,9 @@ type PrereqTracker interface {
 // contain just a name which results in a local revision and sideloading, or
 // full metadata in which case it the snap will appear as installed from the
 // store.
+//
+// This function should also be used when updating an already installed snap
+// from a local file.
 func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, error) {
 	target := PathUpdateGoal(PathSnap{
 		InstanceName: instanceName,
@@ -957,6 +960,9 @@ func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap
 // The provided SideInfos can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case
 // the snaps will appear as installed from the store.
+//
+// This function should also be used when updating an already installed snap
+// from a local file.
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if len(paths) != len(sideInfos) {
 		return nil, fmt.Errorf("internal error: number of paths and side infos must match: %d != %d", len(paths), len(sideInfos))
