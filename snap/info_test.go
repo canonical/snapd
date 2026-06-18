@@ -2345,6 +2345,91 @@ version: 1.0`, nil)
 	c.Check(err, ErrorMatches, `cannot extract snapd information, snaps of type app do not carry snapd information`)
 }
 
+func (s *infoSuite) TestParseSnapdLTSTracksValid(c *C) {
+	raw := `'{"18":{"latest":"18","18":"18"},"20":{"latest":"20","20":"20"}}'`
+	tracks, err := snap.ParseSnapdLTSTracks(raw)
+	c.Assert(err, IsNil)
+	c.Assert(tracks, DeepEquals, map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+		20: {"latest": "20", "20": "20"},
+	})
+}
+
+func (s *infoSuite) TestParseSnapdLTSTracksWithoutQuoteWrapper(c *C) {
+	raw := `{"18":{"latest":"18"}}`
+	tracks, err := snap.ParseSnapdLTSTracks(raw)
+	c.Assert(err, IsNil)
+	c.Assert(tracks, DeepEquals, map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+}
+
+func (s *infoSuite) TestParseSnapdLTSTracksEmpty(c *C) {
+	for _, raw := range []string{"", "   ", "''", `""`} {
+		tracks, err := snap.ParseSnapdLTSTracks(raw)
+		c.Assert(err, IsNil, Commentf("raw=%q", raw))
+		c.Assert(tracks, IsNil, Commentf("raw=%q", raw))
+	}
+}
+
+func (s *infoSuite) TestParseSnapdLTSTracksEmptyObject(c *C) {
+	tracks, err := snap.ParseSnapdLTSTracks("{}")
+	c.Assert(err, IsNil)
+	c.Assert(tracks, IsNil)
+}
+
+func (s *infoSuite) TestParseSnapdLTSTracksMalformedJSON(c *C) {
+	_, err := snap.ParseSnapdLTSTracks(`{not-json`)
+	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS:.*`)
+}
+
+func (s *infoSuite) TestParseSnapdLTSTracksInvalidBootBase(c *C) {
+	_, err := snap.ParseSnapdLTSTracks(`{"core18":{"latest":"18"}}`)
+	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS boot base "core18":.*`)
+}
+
+func (s *infoSuite) TestSnapdLTSTracksFromSnapFile(c *C) {
+	info := `VERSION=2.99
+SNAPD_LTS_TRACKS='{"18":{"latest":"18","18":"18"}}'`
+	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
+type: snapd
+version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
+	snapf, err := snapfile.Open(snapdPath)
+	c.Assert(err, IsNil)
+
+	tracks, err := snap.SnapdLTSTracksFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Assert(tracks, DeepEquals, map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+}
+
+func (s *infoSuite) TestSnapdLTSTracksFromSnapFileMissingKey(c *C) {
+	info := `VERSION=2.99`
+	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
+type: snapd
+version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
+	snapf, err := snapfile.Open(snapdPath)
+	c.Assert(err, IsNil)
+
+	tracks, err := snap.SnapdLTSTracksFromSnapFile(snapf)
+	c.Assert(err, IsNil)
+	c.Assert(tracks, IsNil)
+}
+
+func (s *infoSuite) TestSnapdLTSTracksFromSnapFileMalformed(c *C) {
+	info := `VERSION=2.99
+SNAPD_LTS_TRACKS='{bad'`
+	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
+type: snapd
+version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
+	snapf, err := snapfile.Open(snapdPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.SnapdLTSTracksFromSnapFile(snapf)
+	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS:.*`)
+}
+
 func (s *infoSuite) TestAppsForPlug(c *C) {
 	const snapYaml = `
 name: snap

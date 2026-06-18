@@ -136,6 +136,29 @@ func InternalToolPath(tool string) (string, error) {
 	return distroTool, nil
 }
 
+// RunningSnapdInfoDir returns the directory containing the info file for the
+// currently executing process, following the same rules as InternalToolPath
+// for locating the snapd tree (deb install vs re-execed snapd/core snap).
+func RunningSnapdInfoDir() (string, error) {
+	exe, err := osReadlink(selfExe)
+	if err != nil {
+		return "", err
+	}
+
+	if !strings.HasPrefix(exe, dirs.DistroLibExecDir) {
+		idx := strings.LastIndex(exe, "/usr/")
+		if idx > 0 {
+			prefix := exe[:idx]
+			infoDir := filepath.Join(prefix, "/usr/lib/snapd")
+			if osutil.FileExists(filepath.Join(infoDir, "info")) {
+				return infoDir, nil
+			}
+		}
+	}
+
+	return dirs.DistroLibExecDir, nil
+}
+
 // IsReexecEnabled checks the environment and configuration to assert whether
 // reexec has been explicitly enabled/disabled.
 func IsReexecEnabled() bool {

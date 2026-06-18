@@ -22,6 +22,8 @@ package snapdtool
 
 import (
 	"errors"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 var errUnsupported = errors.New("unsupported on non-Linux systems")
@@ -39,6 +41,14 @@ func ExecInSnapdOrCoreSnap() {
 // On this OS this is a stub and always returns an error.
 func InternalToolPath(tool string) (string, error) {
 	return "", errUnsupported
+}
+
+// RunningSnapdInfoDir returns the directory containing the info file for the
+// currently executing process.
+//
+// On this OS this falls back to the distro libexec directory.
+func RunningSnapdInfoDir() (string, error) {
+	return dirs.DistroLibExecDir, nil
 }
 
 // IsReexecd returns true when the current process binary is running from a snap.

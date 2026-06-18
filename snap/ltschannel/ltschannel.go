@@ -46,7 +46,8 @@ func (e *NoLTSTrackError) Error() string {
 func (e *NoLTSTrackError) Is(target error) bool { return target == ErrNoLTSTrack }
 
 // SnapdLTSChannel returns the snapd channel to use for the given model derived
-// from the given input channel, applying LTS-track policy.
+// from the given input channel, applying LTS-track policy using the LTS track
+// map from the currently running snapd's info file.
 //
 // Behaviour:
 //   - If LTS policy does not apply to the model (device kind out of scope,
@@ -60,13 +61,25 @@ func (e *NoLTSTrackError) Is(target error) bool { return target == ErrNoLTSTrack
 //     a *NoLTSTrackError is returned (matchable as ErrNoLTSTrack via
 //     errors.Is).
 //
-// Other errors: nil model, unparseable input channel, and explicitly
-// unsupported models (UC16) all return errors that are not ErrNoLTSTrack.
+// Other errors: nil model, unparseable input channel, explicitly unsupported
+// models (UC16), and failures reading the running snapd info file all return
+// errors that are not ErrNoLTSTrack.
 func SnapdLTSChannel(model *asserts.Model, channel string) (string, error) {
+	trackMap, err := snapdLTSTrackMapLoader()
+	if err != nil {
+		return "", err
+	}
+	return SnapdLTSChannelWithTrackMap(model, channel, trackMap)
+}
+
+// SnapdLTSChannelWithTrackMap is like SnapdLTSChannel but uses the provided
+// LTS track map instead of loading from the running snapd. This is used when
+// inspecting a candidate snapd snap after download.
+func SnapdLTSChannelWithTrackMap(model *asserts.Model, channel string, trackMap map[int]map[string]string) (string, error) {
 	if model == nil {
 		return "", errors.New("cannot use nil model")
 	}
-	tracks, applies, err := snapdLTSTracksForModel(model)
+	tracks, applies, err := snapdLTSTracksForModelWithMap(model, trackMap)
 	if err != nil {
 		return "", err
 	}
