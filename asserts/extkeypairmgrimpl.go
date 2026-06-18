@@ -39,24 +39,33 @@ const (
 	ExtKeypairMgrSigningOpenPGP ExtKeypairMgrSigning = "OpenPGP"
 )
 
-// ExtKeypairMgrBackend defines the backend contract used by ExternalKeypairManager.
-// KeyHandle is the backend-native identifier and Visit is used for enumeration
-// and fallback lookup when direct by-name lookup is not available.
+// ExtKeypairMgrBackend defines the minimum backend contract used by ExternalKeypairManager for signing.
+// Additional key discovery and lookup capabilities are provided via optional interfaces.
 type ExtKeypairMgrBackend interface {
 	// CheckFeatures validates backend support and returns the supported signing method.
 	CheckFeatures() (ExtKeypairMgrSigning, error)
-	// Visit discovers keys and may be used for both enumeration and fallback search.
-	Visit(consider func(loaded *ExtKeypairMgrLoadedKey) error) error
 	// RSAPKCSSign signs the caller-prepared RSA-PKCS input using keyHandle.
 	RSAPKCSSign(keyHandle string, prepared []byte) ([]byte, error)
 	// Sign signs content directly and returns a detached OpenPGP signature packet.
 	Sign(keyHandle string, content []byte) ([]byte, error)
 }
 
+// ExtKeypairMgrKeyVisitBackend adds key discovery and enumeration support.
+type ExtKeypairMgrKeyVisitBackend interface {
+	// Visit discovers keys and may be used for both enumeration and fallback search.
+	Visit(consider func(loaded *ExtKeypairMgrLoadedKey) error) error
+}
+
 // ExtKeypairMgrByNameLookupBackend adds optional direct lookup by user-visible key name.
 type ExtKeypairMgrByNameLookupBackend interface {
 	// LoadByName resolves a user-visible name directly when the backend supports by-name lookup.
 	LoadByName(name string) (*ExtKeypairMgrLoadedKey, error)
+}
+
+// ExtKeypairMgrByKeyIDLookupBackend adds optional direct lookup by public key ID.
+type ExtKeypairMgrByKeyIDLookupBackend interface {
+	// LoadByID resolves a public key ID directly when the backend supports by-ID lookup.
+	LoadByID(keyID string) (*ExtKeypairMgrLoadedKey, error)
 }
 
 // ExtKeypairMgrLoadedKey carries the key information loaded by a backend.
@@ -85,32 +94,53 @@ type ExtKeypairMgrConfig struct {
 }
 
 type extKeypairMgrImpl struct {
-	backend       ExtKeypairMgrBackend
-	signingMethod ExtKeypairMgrSigning
-	signingWith   string
-	keyStore      string
-	nameToID      map[string]string
+	backend              ExtKeypairMgrBackend
+	keyVisitBackend      ExtKeypairMgrKeyVisitBackend
+	byNameLookupBackend  ExtKeypairMgrByNameLookupBackend
+	byKeyIDLookupBackend ExtKeypairMgrByKeyIDLookupBackend
+	signingMethod        ExtKeypairMgrSigning
+	signingWith          string
+	keyStore             string
+	nameToID             map[string]string
 	// cache is keyed by public key ID and contains the loaded key information, including the private key when it has been requested.
 	cache map[string]*extKeypairMgrCachedKey
 }
 
 func newExtKeypairMgrImpl(backend ExtKeypairMgrBackend, config ExtKeypairMgrConfig) (*extKeypairMgrImpl, error) {
+	keyVisitBackend, _ := backend.(ExtKeypairMgrKeyVisitBackend)
+	byNameLookupBackend, _ := backend.(ExtKeypairMgrByNameLookupBackend)
+	byKeyIDLookupBackend, _ := backend.(ExtKeypairMgrByKeyIDLookupBackend)
+
+	if byNameLookupBackend != nil && keyVisitBackend == nil {
+		return nil, fmt.Errorf("cannot use external keypair backend: backends that implement LoadByName must also implement Visit")
+	}
+	if keyVisitBackend == nil && byKeyIDLookupBackend == nil {
+		return nil, fmt.Errorf("cannot use external keypair backend: backends must implement Visit or, for sign-only use, LoadByID")
+	}
+
 	signingMethod, err := backend.CheckFeatures()
 	if err != nil {
 		return nil, err
 	}
 	return &extKeypairMgrImpl{
-		backend:       backend,
-		signingMethod: signingMethod,
-		signingWith:   config.SigningWith,
-		keyStore:      config.KeyStore,
-		nameToID:      make(map[string]string),
-		cache:         make(map[string]*extKeypairMgrCachedKey),
+		backend:              backend,
+		keyVisitBackend:      keyVisitBackend,
+		byNameLookupBackend:  byNameLookupBackend,
+		byKeyIDLookupBackend: byKeyIDLookupBackend,
+		signingMethod:        signingMethod,
+		signingWith:          config.SigningWith,
+		keyStore:             config.KeyStore,
+		nameToID:             make(map[string]string),
+		cache:                make(map[string]*extKeypairMgrCachedKey),
 	}, nil
 }
 
 func (m *extKeypairMgrImpl) keyNotFoundError() error {
 	return &keyNotFoundError{msg: fmt.Sprintf("cannot find key pair in %s", m.keyStore)}
+}
+
+func (m *extKeypairMgrImpl) signOnlyUnsupportedOpError(action string) error {
+	return &ExternalUnsupportedOpError{msg: fmt.Sprintf("cannot %s sign-only external keypair manager", action)}
 }
 
 func (m *extKeypairMgrImpl) cacheLoadedKey(loaded *ExtKeypairMgrLoadedKey) (*extKeypairMgrCachedKey, error) {
@@ -156,23 +186,27 @@ func (m *extKeypairMgrImpl) dropCachedKey(keyID string) {
 	delete(m.cache, keyID)
 }
 
+var errExtKeypairMgrStopVisit = errors.New("stop visiting external keypair manager keys")
+
 func (m *extKeypairMgrImpl) loadByName(name string) (*extKeypairMgrCachedKey, error) {
+	if m.keyVisitBackend == nil {
+		return nil, m.signOnlyUnsupportedOpError("get key by name from")
+	}
 	if keyID, ok := m.nameToID[name]; ok {
 		if entry := m.cache[keyID]; entry != nil {
 			return entry, nil
 		}
 	}
-	if byNameLookupBackend, ok := m.backend.(ExtKeypairMgrByNameLookupBackend); ok {
-		loaded, err := byNameLookupBackend.LoadByName(name)
+	if m.byNameLookupBackend != nil {
+		loaded, err := m.byNameLookupBackend.LoadByName(name)
 		if err != nil {
 			return nil, err
 		}
 		return m.cacheLoadedKey(loaded)
 	}
 
-	stop := errors.New("stop marker")
 	var hit *extKeypairMgrCachedKey
-	err := m.backend.Visit(func(loaded *ExtKeypairMgrLoadedKey) error {
+	err := m.keyVisitBackend.Visit(func(loaded *ExtKeypairMgrLoadedKey) error {
 		if loaded.Name != name {
 			return nil
 		}
@@ -181,9 +215,9 @@ func (m *extKeypairMgrImpl) loadByName(name string) (*extKeypairMgrCachedKey, er
 			return err
 		}
 		hit = entry
-		return stop
+		return errExtKeypairMgrStopVisit
 	})
-	if err == stop {
+	if err == errExtKeypairMgrStopVisit {
 		return hit, nil
 	}
 	if err != nil {
@@ -196,10 +230,16 @@ func (m *extKeypairMgrImpl) loadByID(keyID string) (*extKeypairMgrCachedKey, err
 	if entry := m.cache[keyID]; entry != nil {
 		return entry, nil
 	}
+	if m.byKeyIDLookupBackend != nil {
+		loaded, err := m.byKeyIDLookupBackend.LoadByID(keyID)
+		if err != nil {
+			return nil, err
+		}
+		return m.cacheLoadedKey(loaded)
+	}
 
-	stop := errors.New("stop marker")
 	var hit *extKeypairMgrCachedKey
-	err := m.backend.Visit(func(loaded *ExtKeypairMgrLoadedKey) error {
+	err := m.keyVisitBackend.Visit(func(loaded *ExtKeypairMgrLoadedKey) error {
 		entry, err := m.cacheLoadedKey(loaded)
 		if err != nil {
 			return err
@@ -208,9 +248,9 @@ func (m *extKeypairMgrImpl) loadByID(keyID string) (*extKeypairMgrCachedKey, err
 			return nil
 		}
 		hit = entry
-		return stop
+		return errExtKeypairMgrStopVisit
 	})
-	if err == stop {
+	if err == errExtKeypairMgrStopVisit {
 		return hit, nil
 	}
 	if err != nil {
@@ -220,8 +260,11 @@ func (m *extKeypairMgrImpl) loadByID(keyID string) (*extKeypairMgrCachedKey, err
 }
 
 func (m *extKeypairMgrImpl) visitAll() ([]*extKeypairMgrCachedKey, error) {
+	if m.keyVisitBackend == nil {
+		return nil, m.signOnlyUnsupportedOpError("list keys in")
+	}
 	var entries []*extKeypairMgrCachedKey
-	err := m.backend.Visit(func(loaded *ExtKeypairMgrLoadedKey) error {
+	err := m.keyVisitBackend.Visit(func(loaded *ExtKeypairMgrLoadedKey) error {
 		entry, err := m.cacheLoadedKey(loaded)
 		if err != nil {
 			return err

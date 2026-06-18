@@ -78,6 +78,29 @@ func (b *fakePublicExtKeypairMgrBackend) Sign(keyHandle string, content []byte) 
 	return nil, errors.New("unexpected sign call")
 }
 
+type fakePublicSignOnlyExtKeypairMgrBackend struct {
+	loaded *asserts.ExtKeypairMgrLoadedKey
+}
+
+func (b *fakePublicSignOnlyExtKeypairMgrBackend) CheckFeatures() (asserts.ExtKeypairMgrSigning, error) {
+	return asserts.ExtKeypairMgrSigningRSAPKCS, nil
+}
+
+func (b *fakePublicSignOnlyExtKeypairMgrBackend) LoadByID(keyID string) (*asserts.ExtKeypairMgrLoadedKey, error) {
+	if b.loaded == nil || b.loaded.PublicKey.ID() != keyID {
+		return nil, errors.New("missing key")
+	}
+	return b.loaded, nil
+}
+
+func (b *fakePublicSignOnlyExtKeypairMgrBackend) RSAPKCSSign(keyHandle string, prepared []byte) ([]byte, error) {
+	return nil, errors.New("unexpected sign call")
+}
+
+func (b *fakePublicSignOnlyExtKeypairMgrBackend) Sign(keyHandle string, content []byte) ([]byte, error) {
+	return nil, errors.New("unexpected sign call")
+}
+
 func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 	tmpdir := c.MkDir()
 	s.keyDir = tmpdir
@@ -186,6 +209,41 @@ func (s *extKeypairMgrSuite) TestNewExternalKeypairManagerWithBackend(c *C) {
 	expected, err := asserts.EncodePublicKey(rsaPub)
 	c.Assert(err, IsNil)
 	c.Check(exported, DeepEquals, expected)
+}
+
+func (s *extKeypairMgrSuite) TestNewExternalKeypairManagerWithSignOnlyBackend(c *C) {
+	priv, err := rsa.GenerateKey(rand.Reader, 4096)
+	c.Assert(err, IsNil)
+	rsaPub := asserts.RSAPublicKey(&priv.PublicKey)
+	backend := &fakePublicSignOnlyExtKeypairMgrBackend{
+		loaded: &asserts.ExtKeypairMgrLoadedKey{
+			Name:      "default",
+			KeyHandle: "backend-default",
+			PublicKey: rsaPub,
+		},
+	}
+
+	kmgr, err := asserts.NewExternalKeypairManagerWithBackend(backend, asserts.ExtKeypairMgrConfig{
+		SigningWith: "fake backend",
+		KeyStore:    "fake store",
+	})
+	c.Assert(err, IsNil)
+
+	privKey, err := kmgr.Get(rsaPub.ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey.PublicKey().ID(), Equals, rsaPub.ID())
+
+	_, err = kmgr.GetByName("default")
+	c.Assert(err, ErrorMatches, `cannot get key by name from sign-only external keypair manager`)
+	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
+
+	_, err = kmgr.Export("default")
+	c.Assert(err, ErrorMatches, `cannot get key by name from sign-only external keypair manager`)
+	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
+
+	_, err = kmgr.List()
+	c.Assert(err, ErrorMatches, `cannot list keys in sign-only external keypair manager`)
+	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
 }
 
 func (s *extKeypairMgrSuite) TestFeatures(c *C) {
