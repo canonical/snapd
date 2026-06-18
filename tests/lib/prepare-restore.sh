@@ -569,6 +569,12 @@ prepare_project() {
             ;;
     esac
 
+    if [ "$TAG_FEATURES" = "true" ]; then
+        pushd "$SPREAD_PATH"
+        go run ./tests/utils/features/instrument-funcs
+        popd
+    fi
+
     # Retry go mod vendor to minimize the number of connection errors during the sync
     # It is required in any case because the testing tools like the fakestore are always compiled
     retry -n 10 go mod vendor
