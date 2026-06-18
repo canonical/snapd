@@ -774,7 +774,7 @@ prepare_suite_each() {
     fi
     tests.invariant check
 
-    if [[ "$TAG_FEATURES" = true ]]; then
+    if [ -n "$TAG_FEATURES" ]; then
         "$TESTSLIB"/collect-artifacts.sh features --after-suite
     fi
 }
@@ -872,7 +872,7 @@ restore_suite() {
             distro_purge_package snap-confine
         fi
     fi
-    if [ "$TAG_FEATURES" = "true" ]; then
+    if [ -n "$TAG_FEATURES" ]; then
         journalctl --rotate || true
         journalctl --vacuum-time=1s || true
     fi
