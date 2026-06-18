@@ -220,8 +220,6 @@ func MockFindGidNoFallback(mock func(name string) (uint64, error)) (restore func
 	return func() { findGidNoGetentFallback = old }
 }
 
-const MaxLinkTries = maxLinkTries
-
 var ParseRawEnvironment = parseRawEnvironment
 
 // ParseRawExpandableEnv returns a new expandable environment parsed from key=value strings.
@@ -250,4 +248,8 @@ func MockAllDataHomeGlobs(f func() []string) func() {
 	return func() {
 		dirsAllDataHomeGlobs = oldAllDataHomeGlobs
 	}
+}
+
+func MockFChmod(f func(file *os.File, mode os.FileMode) error) (restore func()) {
+	return testutil.Mock(&fChmod, f)
 }
