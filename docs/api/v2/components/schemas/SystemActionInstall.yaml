@@ -40,21 +40,22 @@ oneOf:
         description: A map of volume labels to their authentication credentials (e.g., passphrase or PIN).
       keyboard-config:
         type: object
+        description: Keyboard configuration selected at install time, used to configure the keymap on first boot (e.g. plymouth passphrase/PIN prompt). Required when 'volumes-auth' is set.
         properties:
           layout:
             type: string
-            description: The keyboard layout to use during installation (e.g. 'us', 'uk', 'eg').
+            description: The keyboard layout to use (e.g. 'us', 'uk', 'eg').
           model:
             type: string
-            description: The keyboard model to use during installation (e.g. 'pc105').
+            description: The keyboard model to use (e.g. 'pc105').
           variant:
             type: string
-            description: The keyboard variant to use during installation (e.g. 'dvorak').
+            description: The keyboard variant to use (e.g. 'dvorak').
           options:
             type: array
             items:
               type: string
-            description: A list of additional keyboard options to use during installation (e.g. 'ctrl:nocaps').
+            description: A list of additional keyboard options to use (e.g. 'ctrl:nocaps').
   - type: object
     required:
       - step
