@@ -195,10 +195,6 @@ jobs:
             echo "$TASKS_TO_RUN"
           }
 
-          # Determine if the alternative backend has to be used for the current group
-          # Alternative backends usage depends on the value stored in the file USE_ALTERNATIVE_BACKEND,
-          # where it is defined the backend to use when images are ready in both google and openstack.
-          USE_ALTERNATIVE_BACKEND="$(curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/use_alternative_backend.json)"
           SPREAD_BACKEND="${{ inputs.backend }}"
           echo SPREAD_BACKEND="$SPREAD_BACKEND" >> $GITHUB_ENV
 
