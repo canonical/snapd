@@ -49,9 +49,9 @@ features_after_nested_task() {
     # Collect TRACE logs from all boots, appending each boot's logs to journal.txt
     "$TESTSTOOLS"/remote.exec "journalctl --list-boots -q | awk '{print \$1}' | while read boot_id; do sudo journalctl -b \"\$boot_id\" --no-pager | grep -oP 'snapd?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*\\\"TRACE\\\".*[^}]$/ { N; s/\n//; ba }' | grep '\"TRACE\"'; done" > "$task_dir"/journal.txt || true
 
-    # install-mode.log.gz may exist on nested systems; pull it, extract and append TRACE entries
-    "$TESTSTOOLS"/remote.exec "install_mode_log=\$(find / -name install-mode.log.gz 2>/dev/null | head -n 1); if [ -n \"\$install_mode_log\" ]; then sudo cp \"\$install_mode_log\" /tmp/install-mode.log.gz && sudo chmod 644 /tmp/install-mode.log.gz; fi" || true
-    "$TESTSTOOLS"/remote.pull "/tmp/install-mode.log.gz" "$task_dir" || true
+    # install-mode.log.gz may exist on nested systems under /var/log; pull it, extract and append TRACE entries
+    "$TESTSTOOLS"/remote.exec "if [ -f /var/log/install-mode.log.gz ]; then sudo chmod 644 /var/log/install-mode.log.gz; fi" || true
+    "$TESTSTOOLS"/remote.pull "/var/log/install-mode.log.gz" "$task_dir" || true
     if [ -f "$task_dir"/install-mode.log.gz ]; then
         gzip -dc "$task_dir"/install-mode.log.gz | _extract_trace_entries >> "$task_dir"/journal.txt || true
         rm -f "$task_dir"/install-mode.log.gz
@@ -72,9 +72,8 @@ features_after_suite() {
     # make sure this is only run once per suite
     if ! [ -f "$TESTSTMP/initial-coverage-collected-${SPREAD_SUITE//\//--}" ]; then
         suite_dir="$(_prepare_suite_artifacts_path feature-tags)"
-        find / -name install-mode.log.gz -exec gzip -dc {} \; > "/tmp/install-mode.log"
-        if [ -f /tmp/install-mode.log ]; then
-            cat /tmp/install-mode.log | _extract_trace_entries >> "$suite_dir"/journal.txt
+        if [ -f /var/log/install-mode.log.gz ]; then
+            gzip -dc /var/log/install-mode.log.gz | _extract_trace_entries >> "$suite_dir"/journal.txt
         fi
 
         journalctl --sync || true
