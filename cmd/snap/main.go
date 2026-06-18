@@ -53,7 +53,7 @@ import (
 
 func init() {
 	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
+	snapdenv.SetUserAgentFromVersion(snapdtool.FullVersion(), nil, "snap")
 
 	// plug/slot sanitization not used by snap commands (except for snap
 	// pack and snap prepare-iamge, which re-sets it), make it no-op.

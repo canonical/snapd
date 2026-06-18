@@ -52,8 +52,8 @@ func (s *versionSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *setSuite) TestVersion(c *C) {
-	restore := snapdtool.MockVersion("2.71+g123123-happy")
+func (s *versionSuite) TestVersion(c *C) {
+	restore := snapdtool.MockVersion("2.71+g123123-happy", "")
 	defer restore()
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"version"}, 0, nil)
 	c.Check(err, IsNil)

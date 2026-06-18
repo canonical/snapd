@@ -86,12 +86,12 @@ func candidateVersionNewer(coreOrSnapdPath string) (bool, error) {
 	}
 
 	// > 0 means our Version is bigger than the version of snapd in core
-	res, err := strutil.VersionCompare(Version, ver)
+	res, err := strutil.VersionCompare(FullVersion(), ver)
 	if err != nil {
-		return false, fmt.Errorf("cannot version compare %q and %q: %v", Version, ver, err)
+		return false, fmt.Errorf("cannot version compare %q and %q: %v", FullVersion(), ver, err)
 	}
 	if res > 0 {
-		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q) according to the info file (%q)", coreOrSnapdPath, ver, Version, filepath.Join(infoDir, "info"))
+		logger.Debugf("snap (at %q) is older (%q) than distribution package (%q) according to the info file (%q)", coreOrSnapdPath, ver, FullVersion(), filepath.Join(infoDir, "info"))
 		return false, nil
 	}
 	return true, nil

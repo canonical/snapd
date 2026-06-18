@@ -143,7 +143,7 @@ func (x *cmdUserd) runAgent() error {
 	if err != nil {
 		return err
 	}
-	agent.Version = snapdtool.Version
+	agent.Version = snapdtool.FullVersion()
 	agent.Start()
 
 	ch, stop := signalNotify(syscall.SIGINT, syscall.SIGTERM)
