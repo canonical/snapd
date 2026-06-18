@@ -229,3 +229,77 @@ func (s *ltsSuite) TestSnapdLTSChannelScopeFlags(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "latest/stable")
 }
+
+// uc18CandidateTrackMap is the shape returned by snap.ParseSnapdLTSTracks from a
+// typical candidate snapd info file (not the test-helper []string form).
+func uc18CandidateTrackMap() map[int]map[string]string {
+	return map[int]map[string]string{
+		18: {
+			"latest":       "18",
+			"18":           "18",
+			"fips-updates": "18-fips",
+			"18-fips":      "18-fips",
+		},
+	}
+}
+
+func (s *ltsSuite) TestSnapdLTSChannelWithTrackMapRemap(c *C) {
+	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
+	candidateMap := uc18CandidateTrackMap()
+
+	resolved, err := ltschannel.SnapdLTSChannelWithTrackMap(model, "latest/stable", candidateMap)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "18/stable")
+
+	resolved, err = ltschannel.SnapdLTSChannelWithTrackMap(model, "fips-updates/candidate", candidateMap)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "18-fips/candidate")
+}
+
+func (s *ltsSuite) TestSnapdLTSChannelWithTrackMapUsesExplicitMapNotRunning(c *C) {
+	// Running loader has no UC18 onboarded; SnapdLTSChannel would pass through.
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int][]string{})
+	defer restore()
+
+	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
+
+	resolved, err := ltschannel.SnapdLTSChannel(model, "latest/stable")
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "latest/stable")
+
+	// Candidate inspect uses the squashfs map regardless of the running loader.
+	resolved, err = ltschannel.SnapdLTSChannelWithTrackMap(model, "latest/stable", uc18CandidateTrackMap())
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "18/stable")
+}
+
+func (s *ltsSuite) TestSnapdLTSChannelWithTrackMapEmptyCandidatePassthrough(c *C) {
+	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
+
+	for _, candidateMap := range []map[int]map[string]string{nil, {}} {
+		resolved, err := ltschannel.SnapdLTSChannelWithTrackMap(model, "latest/stable", candidateMap)
+		c.Assert(err, IsNil, Commentf("map %v", candidateMap))
+		c.Check(resolved, Equals, "latest/stable", Commentf("map %v", candidateMap))
+	}
+}
+
+func (s *ltsSuite) TestSnapdLTSChannelWithTrackMapUnmanagedBootBase(c *C) {
+	model := s.coreModel(c, "core22", "pc=22", "pc-kernel=22")
+	candidateMap := uc18CandidateTrackMap()
+
+	resolved, err := ltschannel.SnapdLTSChannelWithTrackMap(model, "latest/stable", candidateMap)
+	c.Assert(err, IsNil)
+	c.Check(resolved, Equals, "latest/stable")
+}
+
+func (s *ltsSuite) TestSnapdLTSChannelWithTrackMapErrors(c *C) {
+	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
+	candidateMap := uc18CandidateTrackMap()
+
+	_, err := ltschannel.SnapdLTSChannelWithTrackMap(nil, "latest/stable", candidateMap)
+	c.Check(err, ErrorMatches, "cannot use nil model")
+
+	_, err = ltschannel.SnapdLTSChannelWithTrackMap(model, "20/stable", candidateMap)
+	c.Check(err, ErrorMatches, `cannot resolve LTS channel for track "20"`)
+	c.Check(errors.Is(err, ltschannel.ErrNoLTSTrack), Equals, true)
+}

@@ -21,3 +21,6 @@ package ltschannel
 
 // SnapdLTSTracksForModel exposes snapdLTSTracksForModel for tests.
 var SnapdLTSTracksForModel = snapdLTSTracksForModel
+
+// SnapdLTSTracksForModelWithMap exposes snapdLTSTracksForModelWithMap for tests.
+var SnapdLTSTracksForModelWithMap = snapdLTSTracksForModelWithMap

@@ -24,30 +24,8 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snap"
 )
-
-// snapdLTSTrackMap maps each supported boot base to an allow-list of snapd
-// input tracks and the LTS track they resolve to. The lookup key is the input
-// track (empty input is treated as "latest"); the value is the LTS target
-// track. Risk is preserved from the input; branches are dropped.
-//
-// Tracks not present for a managed boot base are rejected. Boot bases not
-// listed are unmanaged and channels are passed through unchanged.
-//
-// Boot bases are onboarded gradually. UC16 is unsupported (no boot base).
-//
-// Example of a mature map:
-//
-//	{
-//	    18: {"latest": "18", "fips-updates": "18-fips", "18": "18", "18-fips": "18-fips"},
-//	    20: {"latest": "20", "fips-updates": "20-fips", "20": "20", "20-fips": "20-fips"},
-//	    22: {"latest": "22", "fips-updates": "22-fips", "22": "22", "22-fips": "22-fips"},
-//	}
-var snapdLTSTrackMap = map[int]map[string]string{
-	// Boot bases are onboarded gradually. Production map is intentionally
-	// empty until the first UC version reaches its LTS transition. Example:
-	// 18: {"latest": "18", "fips-updates": "18-fips", "18": "18", "18-fips": "18-fips"},
-}
 
 var (
 	// supportUbuntuCore gates Ubuntu Core models.
@@ -58,12 +36,38 @@ var (
 	supportHybridClassic = false
 )
 
+var (
+	runningSnapdLTSTracks    map[int]map[string]string
+	runningSnapdLTSTracksErr error
+)
+
+func init() {
+	runningSnapdLTSTracks, runningSnapdLTSTracksErr = snap.SnapdLTSTracksFromRunningSnapd()
+}
+
+func snapdLTSTrackMapFromRunningSnapd() (map[int]map[string]string, error) {
+	return runningSnapdLTSTracks, runningSnapdLTSTracksErr
+}
+
+var snapdLTSTrackMapLoader = snapdLTSTrackMapFromRunningSnapd
+
 // snapdLTSTracksForModel returns the LTS track allow-list that applies to
-// the model. applies=false means LTS policy does not apply (device kind out
-// of scope per the support* flags, model has no core base, or boot base not
-// yet onboarded) and callers should pass channels through unchanged. Returns
-// an error for explicitly unsupported models (UC16).
+// the model, loaded from the running snapd's info file. applies=false means
+// LTS policy does not apply (device kind out of scope per the support* flags,
+// model has no core base, or boot base not yet onboarded) and callers should
+// pass channels through unchanged. Returns an error for explicitly unsupported
+// models (UC16) or when the running snapd info file cannot be read.
 func snapdLTSTracksForModel(model *asserts.Model) (tracks map[string]string, applies bool, err error) {
+	trackMap, err := snapdLTSTrackMapLoader()
+	if err != nil {
+		return nil, false, err
+	}
+	return snapdLTSTracksForModelWithMap(model, trackMap)
+}
+
+// snapdLTSTracksForModelWithMap is like snapdLTSTracksForModel but uses the
+// provided track map instead of loading from the running snapd.
+func snapdLTSTracksForModelWithMap(model *asserts.Model, trackMap map[int]map[string]string) (tracks map[string]string, applies bool, err error) {
 	// device-kind scope gate
 	if model.Classic() {
 		if model.HybridClassic() {
@@ -88,7 +92,7 @@ func snapdLTSTracksForModel(model *asserts.Model) (tracks map[string]string, app
 		// UC16 is explicitly unsupported by LTS snapd channel policy.
 		return nil, false, errors.New("cannot use unsupported Ubuntu Core 16 model")
 	}
-	tracks, managed := snapdLTSTrackMap[bootBase]
+	tracks, managed := trackMap[bootBase]
 	if !managed {
 		// Boot base not yet onboarded.
 		return nil, false, nil
@@ -110,13 +114,12 @@ func MockSnapdLTSDeviceKindScope(supportUC, supportCl, supportHybrid bool) (rest
 	}
 }
 
-// MockSnapdLTSTrackMap replaces snapdLTSTrackMap for tests. For each boot
-// base, the first track is the default target for the "latest" input track
-// and is also accepted as an identity input; every additional track is
-// accepted as itself; any "-fips" track also installs a "fips-updates" alias
-// mapping to it.
-func MockSnapdLTSTrackMap(tracks map[int][]string) (restore func()) {
-	restoreMap := snapdLTSTrackMap
+// snapdLTSTrackMapFromTracks builds the input-track → LTS-target-track map
+// used by tests and MockSnapdLTSTrackMap. For each boot base, the first track
+// is the default target for the "latest" input track and is also accepted as
+// an identity input; every additional track is accepted as itself; any "-fips"
+// track also installs a "fips-updates" alias mapping to it.
+func snapdLTSTrackMapFromTracks(tracks map[int][]string) map[int]map[string]string {
 	mock := make(map[int]map[string]string, len(tracks))
 	for bootBase, ltsTracks := range tracks {
 		if len(ltsTracks) == 0 {
@@ -133,8 +136,18 @@ func MockSnapdLTSTrackMap(tracks map[int][]string) (restore func()) {
 		}
 		mock[bootBase] = rules
 	}
-	snapdLTSTrackMap = mock
+	return mock
+}
+
+// MockSnapdLTSTrackMap replaces the running snapd LTS track map loader for
+// tests.
+func MockSnapdLTSTrackMap(tracks map[int][]string) (restore func()) {
+	restoreLoader := snapdLTSTrackMapLoader
+	mock := snapdLTSTrackMapFromTracks(tracks)
+	snapdLTSTrackMapLoader = func() (map[int]map[string]string, error) {
+		return mock, nil
+	}
 	return func() {
-		snapdLTSTrackMap = restoreMap
+		snapdLTSTrackMapLoader = restoreLoader
 	}
 }
