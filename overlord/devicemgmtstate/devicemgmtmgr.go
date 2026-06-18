@@ -48,6 +48,8 @@ const (
 
 	defaultExchangeLimit    = 10
 	defaultExchangeInterval = 6 * time.Hour
+
+	mgmtMessageIDKey = "mgmt-message-id"
 )
 
 var (
@@ -66,15 +68,20 @@ type MessageHandler interface {
 	Validate(st *state.State, msg *RequestMessage) error
 
 	// Apply creates a change to process the message and returns its ID.
-	// Implementations must hold the state lock for the full call. Releasing it
-	// internally would flush state to disk before ApplyChangeID is set; if snapd
-	// then restarts, this method will be called again without knowing a change
-	// was already created. If releasing the lock is unavoidable, Apply must be
-	// idempotent.
+	// Implementations must call MarkChangeForMessage on the created change before
+	// releasing the state lock.
 	Apply(st *state.State, msg *RequestMessage) (changeID string, err error)
 
 	// ResultFromChange reads the completed change and returns the full result.
 	ResultFromChange(chg *state.Change) (body map[string]any, err error)
+}
+
+// MarkChangeForMessage records the message ID on the change created by an Apply
+// implementation. It must be called after change creation and before releasing
+// the state lock, so that doApplyMessage can recover the change ID on retry
+// and not call the handler's Apply again.
+func MarkChangeForMessage(chg *state.Change, msg *RequestMessage) {
+	chg.Set(mgmtMessageIDKey, msg.ID())
 }
 
 // responseMessageSigner can sign response-message assertions.
@@ -553,6 +560,13 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 
 	defer m.setState(ms)
 
+	// Check if a change was already created for this message before persisting its ApplyChangeID.
+	chg := findChangeByMgmtMessageID(m.state, msgID)
+	if chg != nil {
+		msg.ApplyChangeID = chg.ID()
+		return nil
+	}
+
 	handler, ok := m.handlers[msg.Kind]
 	if !ok {
 		msg.ResponseStatus = asserts.MessageStatusError
@@ -612,4 +626,22 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 		Body:        string(reqAs.Body()),
 		ReceiveTime: timeNow(),
 	}, nil
+}
+
+// findChangeByMgmtMessageID scans all changes for one marked with the given
+// message ID via MarkChangeForMessage.
+func findChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
+	for _, chg := range st.Changes() {
+		var id string
+		err := chg.Get(mgmtMessageIDKey, &id)
+		if err != nil {
+			continue
+		}
+
+		if id == msgID {
+			return chg
+		}
+	}
+
+	return nil
 }

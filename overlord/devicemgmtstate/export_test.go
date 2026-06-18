@@ -33,6 +33,8 @@ var (
 
 	DefaultExchangeLimit    = defaultExchangeLimit
 	DefaultExchangeInterval = defaultExchangeInterval
+
+	MgmtMessageIDKey = mgmtMessageIDKey
 )
 
 func MockMaxSequences(n int) func() {
@@ -87,6 +89,10 @@ func (m *DeviceMgmtManager) DoQueueResponse(t *state.Task, tomb *tomb.Tomb) erro
 
 func ParseRequestMessage(msg store.Message) (*RequestMessage, error) {
 	return parseRequestMessage(msg)
+}
+
+func FindChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
+	return findChangeByMgmtMessageID(st, msgID)
 }
 
 func MockTimeNow(t time.Time) func() {

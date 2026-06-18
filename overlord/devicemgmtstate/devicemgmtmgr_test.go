@@ -137,8 +137,9 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 		validate: func(*state.State, *devicemgmtstate.RequestMessage) error {
 			return nil
 		},
-		apply: func(st *state.State, _ *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
 			return chg.ID(), nil
 		},
 		resultFromChange: func(*state.Change) (map[string]any, error) {
@@ -1131,9 +1132,10 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
 
 	applyCalls := 0
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, _ *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			applyCalls++
 			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
 			return chg.ID(), nil
 		},
 	})
@@ -1173,6 +1175,56 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 	c.Check(ms.Sequences["msg1"].Messages[0].ApplyChangeID, Not(Equals), "")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageRecoverExistingChange(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:   "my-brand",
+						AuthorityID: "my-brand",
+						BaseID:      "msg1",
+						Kind:        "test-kind",
+						Devices:     []string{"serial-1.my-model.my-brand"},
+						ValidSince:  fixedTestTime,
+						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
+						Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+					},
+				},
+			},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	// Simulate a change that was created and marked before the crash.
+	existingChg := s.st.NewChange("subsystem", "apply payload")
+	devicemgmtstate.MarkChangeForMessage(existingChg, ms.Sequences["msg1"].Messages[0])
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(*state.State, *devicemgmtstate.RequestMessage) (string, error) {
+			c.Fatal("apply must not be called when a marked change already exists")
+			return "", nil
+		},
+	})
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("apply-mgmt-message", "apply msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err := s.mgr.DoApplyMessage(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.Sequences["msg1"].Messages[0].ApplyChangeID, Equals, existingChg.ID())
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageSequenceNotFound(c *C) {
@@ -1273,6 +1325,24 @@ func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 		c.Check(msg, IsNil, cmt)
 	}
+}
+
+func (s *deviceMgmtMgrSuite) TestMarkChangeForMessage(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	msg := &devicemgmtstate.RequestMessage{BaseID: "msg1"}
+
+	chg := s.st.NewChange("subsystem", "apply payload")
+	devicemgmtstate.MarkChangeForMessage(chg, msg)
+	c.Check(chg.Has(devicemgmtstate.MgmtMessageIDKey), Equals, true)
+
+	found := devicemgmtstate.FindChangeByMgmtMessageID(s.st, "msg1")
+	c.Assert(found, NotNil)
+	c.Check(found.ID(), Equals, chg.ID())
+
+	notFound := devicemgmtstate.FindChangeByMgmtMessageID(s.st, "other-msg")
+	c.Check(notFound, IsNil)
 }
 
 func changesOfKind(changes []*state.Change, kind string) []*state.Change {
