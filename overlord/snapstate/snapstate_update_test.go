@@ -84,14 +84,8 @@ func lastSnapOrderingTask(c *C, sn string, ts *state.TaskSet) *state.Task {
 }
 
 // snapdOrderingBarrierTask is the task other snaps wait on when snapd is
-// refreshed in the same change. check-lts-channel is appended at the end of
-// snapd's refresh spine when present.
+// refreshed in the same change.
 func snapdOrderingBarrierTask(c *C, snapdTS *state.TaskSet) *state.Task {
-	for _, t := range snapdTS.Tasks() {
-		if t.Kind() == "check-lts-channel" {
-			return t
-		}
-	}
 	t, err := snapdTS.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
 	return t
