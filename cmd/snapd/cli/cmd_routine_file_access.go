@@ -153,6 +153,20 @@ const (
 	FileAccessReadWrite FileAccess = "read-write"
 )
 
+// systemPackagesDocPaths lists the file system locations accessible via the
+// system-packages-doc interface.
+var systemPackagesDocPaths = []string{
+	"/usr/share/doc",
+	"/usr/local/share/doc",
+	"/usr/share/cups/doc-root",
+	"/usr/share/gimp/2.0/help",
+	"/usr/share/gtk-doc",
+	"/usr/share/javascript",
+	"/usr/share/libreoffice/help",
+	"/usr/share/sphinx_rtd_theme",
+	"/usr/share/xubuntu-docs",
+}
+
 func splitPathAbs(path string) ([]string, error) {
 	// Abs also cleans the path, removing any ".." components
 	path, err := filepath.Abs(path)
@@ -208,21 +222,23 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 		}
 	}
 
+	// Snaps with system-packages-doc plugged can access system
+	// documentation directories.
+	if hasSystemPackagesDoc {
+		for _, docPath := range systemPackagesDocPaths {
+			docParts, err := splitPathAbs(docPath)
+			if err != nil {
+				return "", err
+			}
+			if pathHasPrefix(pathParts, docParts) {
+				return FileAccessReadOnly, nil
+			}
+		}
+	}
+
 	usr, err := userCurrent()
 	if err != nil {
 		return "", fmt.Errorf("cannot get the current user: %v", err)
-	}
-
-	shareDoc, err := splitPathAbs("/usr/share/doc")
-	if err != nil {
-		return "", err
-	}
-
-	if pathHasPrefix(pathParts, shareDoc) {
-		if hasSystemPackagesDoc {
-			return FileAccessReadOnly, nil
-		}
-		return FileAccessHidden, nil
 	}
 
 	home, err := splitPathAbs(usr.HomeDir)

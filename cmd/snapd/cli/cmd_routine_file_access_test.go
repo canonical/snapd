@@ -97,6 +97,19 @@ func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRe
 					Interface: "removable-media",
 				})
 			}
+			if systemPackagesDocEnabled {
+				connections = append(connections, client.Connection{
+					Slot: client.SlotRef{
+						Snap: "core",
+						Name: "system-packages-doc",
+					},
+					Plug: client.PlugRef{
+						Snap: "hello",
+						Name: "system-packages-doc",
+					},
+					Interface: "system-packages-doc",
+				})
+			}
 			result := client.Connections{Established: connections}
 			EncodeResponseBody(c, w, map[string]any{
 				"type":   "sync",
@@ -233,16 +246,39 @@ func (s *SnapRoutineFileAccessSuite) TestAccessRemovableMedia(c *C) {
 	s.checkAccess(c, "/run/media/path/file.txt", "read-write\n")
 }
 
-func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterface(c *C) {
-	s.setUpClient(c, false, true, false, false, false, true)
+func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterfaceHidden(c *C) {
+	s.setUpClient(c, false, false, false, false, false, false)
 	s.checkBasicAccess(c)
 
-	// If the interface is not present, files should be hidden
+	// Without the interface connected, all doc paths should be hidden
 	s.checkAccess(c, "/usr/share/doc", "hidden\n")
+	s.checkAccess(c, "/usr/share/doc/package/README", "hidden\n")
+	s.checkAccess(c, "/usr/local/share/doc", "hidden\n")
+	s.checkAccess(c, "/usr/share/cups/doc-root", "hidden\n")
+	s.checkAccess(c, "/usr/share/gimp/2.0/help", "hidden\n")
+	s.checkAccess(c, "/usr/share/gtk-doc", "hidden\n")
+	s.checkAccess(c, "/usr/share/javascript", "hidden\n")
+	s.checkAccess(c, "/usr/share/libreoffice/help", "hidden\n")
+	s.checkAccess(c, "/usr/share/sphinx_rtd_theme", "hidden\n")
+	s.checkAccess(c, "/usr/share/xubuntu-docs", "hidden\n")
+}
 
-	//s.setUpClient(c, false, true, false, false, false, true)
-	//s.checkBasicAccess(c)
+func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterfaceReadOnly(c *C) {
+	s.setUpClient(c, false, false, false, false, false, true)
+	s.checkBasicAccess(c)
 
-	// If the interface is present, files should be read-only
-	//s.checkAccess(c, "/usr/share/doc", "read-only\n")
+	// With the interface connected, all doc paths should be read-only
+	s.checkAccess(c, "/usr/share/doc", "read-only\n")
+	s.checkAccess(c, "/usr/share/doc/package/README", "read-only\n")
+	s.checkAccess(c, "/usr/local/share/doc", "read-only\n")
+	s.checkAccess(c, "/usr/share/cups/doc-root", "read-only\n")
+	s.checkAccess(c, "/usr/share/gimp/2.0/help", "read-only\n")
+	s.checkAccess(c, "/usr/share/gtk-doc", "read-only\n")
+	s.checkAccess(c, "/usr/share/javascript", "read-only\n")
+	s.checkAccess(c, "/usr/share/libreoffice/help", "read-only\n")
+	s.checkAccess(c, "/usr/share/sphinx_rtd_theme", "read-only\n")
+	s.checkAccess(c, "/usr/share/xubuntu-docs", "read-only\n")
+
+	// Other paths under /usr/share should still be hidden
+	s.checkAccess(c, "/usr/share/other", "hidden\n")
 }
