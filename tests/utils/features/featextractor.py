@@ -6,7 +6,7 @@ import json
 from typing import Any, TextIO
 import sys
 
-from features import Cmd, Endpoint, Interface, Task, Change, Ensure, CmdLogLine, EndpointLogLine, InterfaceLogLine, EnsureLogLine, ChangeLogLine, TaskLogLine
+from features import Coverage, Cmd, Endpoint, Interface, Task, Change, Ensure, CoverageLogLine, CmdLogLine, EndpointLogLine, InterfaceLogLine, EnsureLogLine, ChangeLogLine, TaskLogLine
 from state import State, NotInStateError
 
 
@@ -18,6 +18,22 @@ def _remove_duplicate_features(key: str, dictionary: dict[str, Any]):
     if key in dictionary:
         l = dictionary[key]
         dictionary[key] = [i for n, i in enumerate(l) if i not in l[n + 1:]]
+
+
+class CoverageFeature:
+    name = 'coverage'
+    parent = 'coverages'
+    msg = 'coverage'
+
+    @staticmethod
+    def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], _):
+        coverage = Coverage(file=json_entry[CoverageLogLine.file], func=json_entry[CoverageLogLine.func])
+        if CoverageFeature.parent not in feature_dict or coverage not in feature_dict[CoverageFeature.parent]:
+            feature_dict[CoverageFeature.parent].append(coverage)
+
+    @staticmethod
+    def cleanup_dict(_):
+        pass
 
 
 class CmdFeature:
@@ -141,7 +157,7 @@ class TaskFeature:
                 del entry['id']
 
 
-FEATURE_LIST = [CmdFeature, EndpointFeature, InterfaceFeature,
+FEATURE_LIST = [CoverageFeature, CmdFeature, EndpointFeature, InterfaceFeature,
                 EnsureFeature, ChangeFeature, TaskFeature]
 
 
