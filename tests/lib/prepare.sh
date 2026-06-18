@@ -566,7 +566,6 @@ prepare_classic() {
 
         prepare_reexec_override
         prepare_state_lock "SNAPD PROJECT"
-        prepare_tag_features
         prepare_memory_limit_override
         disable_refreshes
 
@@ -739,7 +738,7 @@ EOF
 }
 
 _add_coverage_tweaks() {
-    if [[ "$TAG_FEATURES" = "false" ]]; then
+    if [ -z "$TAG_FEATURES" ]; then
         return
     fi
     local UNPACK_DIR
@@ -1110,7 +1109,7 @@ if [ "$1" != initramfs-mounts ]; then
     exec /usr/lib/snapd/snap-bootstrap.real "$@"
 fi
 EOF
-    if [ "$TAG_FEATURES" = "true" ]; then
+    if [ -n "$TAG_FEATURES" ]; then
         cat <<'EOF' >>"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
 export SNAPD_TRACE=1
 export SNAPD_JSON_LOGGING=1
@@ -1738,7 +1737,7 @@ EOF
                 echo "$cmd" >> pc-gadget/cmdline.extra
             done
         fi
-        if [ "$TAG_FEATURES" = "true" ]; then
+        if [ -n "$TAG_FEATURES" ]; then
             cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
   system:
@@ -2156,7 +2155,7 @@ prepare_ubuntu_core() {
         remove_disabled_snaps
         prepare_memory_limit_override
         prepare_state_lock "SNAPD PROJECT"
-        if [ "$TAG_FEATURES" = "true" ]; then
+        if [ -n "$TAG_FEATURES" ]; then
             # ensure persistent journal is set
             snap set system journal.persistent=true
         fi
