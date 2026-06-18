@@ -89,10 +89,12 @@ signed with the well-known, insecure test key.
 
 Building several elements of snapd individually:
 ```bash
-go build -o /tmp/build/snap ./cmd/snap
 go build -o /tmp/build/snapd ./cmd/snapd
 go build -o /tmp/build ./...  # All binaries
 ```
+
+The snapd binary implements both the daemon and the client functionality. The
+client functionality is invoked when `argv[0]` equals to `snap`.
 
 You may want to build the snapd snap package with `snapcraft pack` instead, as that constructs a complete, cohesive set of programs.
 
