@@ -70,10 +70,16 @@ var (
 	userCurrent              = user.Current
 	osGetenv                 = os.Getenv
 	timeNow                  = time.Now
+	traceExecveTimings       = strace.TraceExecveTimings
 	selinuxIsEnabled         = selinux.IsEnabled
 	selinuxVerifyPathContext = selinux.VerifyPathContext
 	selinuxRestoreContext    = selinux.RestoreContext
 )
+
+// The trace reader should complete right after closing the fifo writer; this
+// timeout is long enough for normal scheduler delays while still keeping error
+// reporting snappy if the reader is blocked opening the fifo.
+const traceExecReaderWaitTimeout = 100 * time.Millisecond
 
 type cmdRun struct {
 	mustWaitMixin
@@ -1150,7 +1156,7 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	go func() {
 		// FIXME: make this configurable?
 		nSlowest := 10
-		slg, traceErr = strace.TraceExecveTimings(straceLog, nSlowest, func() {
+		slg, traceErr = traceExecveTimings(straceLog, nSlowest, func() {
 			logger.Debug("strace attached to child process")
 			if childStopped {
 				childStopped = false
@@ -1185,8 +1191,17 @@ func (x *cmdRun) runCmdWithTraceExec(origCmd []string, envForExec envForExecFunc
 	// for this)
 	fw.Close()
 
-	// wait for strace reader
-	<-doneCh
+	// wait for strace reader; on unhappy strace runs avoid a potential hang if
+	// the reader goroutine is still waiting to open the fifo.
+	if straceCmdErr != nil {
+		select {
+		case <-doneCh:
+		case <-time.After(traceExecReaderWaitTimeout):
+			traceErr = fmt.Errorf("internal error: timed out waiting for strace trace reader")
+		}
+	} else {
+		<-doneCh
+	}
 	if traceErr == nil {
 		slg.Display(Stderr)
 	} else {

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/strace"
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -260,6 +261,14 @@ func MockTimeNow(newTimeNow func() time.Time) (restore func()) {
 	timeNow = newTimeNow
 	return func() {
 		timeNow = oldTimeNow
+	}
+}
+
+func MockTraceExecveTimings(f func(string, int, func()) (*strace.ExecveTiming, error)) (restore func()) {
+	oldTraceExecveTimings := traceExecveTimings
+	traceExecveTimings = f
+	return func() {
+		traceExecveTimings = oldTraceExecveTimings
 	}
 }
 
