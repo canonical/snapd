@@ -260,3 +260,27 @@ func serializeTaskSets(prev, next *state.TaskSet) {
 		}
 	}
 }
+
+// serializeTaskSetBeforeInProgressChange makes the tasks in chg that still need
+// to run (in the do direction) wait on ts without creating superfluous
+// dependencies.
+func serializeTaskSetBeforeInProgressChange(ts *state.TaskSet, chg *state.Change) {
+	tasks := make([]*state.Task, 0, len(chg.Tasks()))
+	for _, t := range chg.Tasks() {
+		// only consider tasks that still need to be done, everything else can
+		// be skipped
+		switch t.Status() {
+		case state.DoStatus:
+		case state.WaitStatus:
+			if t.WaitedStatus() != state.DoStatus {
+				continue
+			}
+		default:
+			continue
+		}
+
+		tasks = append(tasks, t)
+	}
+
+	serializeTaskSets(ts, state.NewTaskSet(tasks...))
+}

@@ -44,8 +44,8 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	perfTimings := state.TimingsForTask(t)
-	defer perfTimings.Save(st)
+	tm := state.TimingsForTask(t)
+	defer tm.Save(st)
 
 	// check if we need to inject tasks to install core
 	snapsup, _, err := snapSetupAndState(t)
@@ -53,22 +53,23 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// os/base/kernel/gadget cannot have prerequisites other
-	// than the models default base (or core) which is installed anyway
+	// snapd/os/base/kernel/gadget cannot have prerequisites other than the
+	// models default base (or core) which is installed anyway
 	switch snapsup.Type {
-	case snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
-		return nil
-	}
-	// snapd is special and has no prereqs
-	if snapsup.Type == snap.TypeSnapd {
+	case snap.TypeSnapd, snap.TypeOS, snap.TypeBase, snap.TypeKernel, snap.TypeGadget:
 		return nil
 	}
 
-	// we need to make sure we install all prereqs together in one
-	// operation
-	base := defaultCoreSnapName
-	if snapsup.Base != "" {
-		base = snapsup.Base
+	dctx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+
+	// remodeling requires that all snaps are accounted for in the initial
+	// operation. thus, none of the snaps will have prerequisites that must be
+	// pulled in by this task.
+	if dctx.ForRemodeling() {
+		return nil
 	}
 
 	// if a previous version of snapd persisted Prereq only, fill the contentAttrs.
@@ -81,11 +82,54 @@ func (m *SnapManager) doPrerequisites(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	if err := installPrereqs(t, base, snapsup.PrereqContentAttrs, snapsup.UserID, perfTimings, snapsup.Flags); err != nil {
-		return err
+	// If transactional, use a single lane for all tasks, so when one fails the
+	// changes for all affected snaps will be undone. Otherwise, have different
+	// lanes per snap so failures only affect the culprit snap.
+	flags := Flags{
+		Transaction: snapsup.Transaction,
+
+		// TODO: as a temporary workaround for a bug that occurs when a snap updates
+		// a prereq, we disable rerefreshes.
+		//
+		// specifically, if the snap that pulls in the prereq contains a configure
+		// hook that creates some tasks via snapctl, then those tasks will end up
+		// waiting on the check-rerefresh task for the updated prereq. the
+		// check-rerefresh task panics if any tasks are found to be waiting on it.
+		NoReRefresh: true,
+
+		// we're calling an API facing call which would otherwise be normally
+		// expected to produce a delayed effects taskset, but since the desire
+		// is to inject the tasksets into the current change, set the flag to
+		// avoid generating one
+		NoDelayedSideEffects: true,
+	}
+	if flags.Transaction == client.TransactionAllSnaps {
+		lanes := t.Lanes()
+		if len(lanes) != 1 {
+			return fmt.Errorf("internal error: more than one lane (%d) on a transactional action", len(lanes))
+		}
+
+		flags.Lane = lanes[0]
+	} else {
+		flags.Transaction = client.TransactionPerSnap
 	}
 
-	return nil
+	base := defaultCoreSnapName
+	if snapsup.Base != "" {
+		base = snapsup.Base
+	}
+
+	return installPrereqs(t, base, snapsup.PrereqContentAttrs, tm, Options{
+		Flags:     flags,
+		UserID:    snapsup.UserID,
+		DeviceCtx: dctx,
+		ConflictOptions: ConflictOptions{
+			FromChange: t.Change().ID(),
+			// setting this lets us use snap update conflict detection, even
+			// though we're passing in the change ID
+			DoNotIgnoreFromChangeInTaskConflictCheck: true,
+		},
+	})
 }
 
 func defaultBaseSnapsChannel() string {
@@ -112,35 +156,23 @@ func defaultPrereqSnapsChannel() string {
 	return channel
 }
 
-func installPrereqs(t *state.Task, base string, prereq map[string][]string, userID int, tm timings.Measurer, flags Flags) error {
+func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm timings.Measurer, opts Options) error {
 	st := t.State()
 
-	// If transactional, use a single lane for all tasks, so when
-	// one fails the changes for all affected snaps will be
-	// undone. Otherwise, have different lanes per snap so
-	// failures only affect the culprit snap.
-	if flags.Transaction == client.TransactionAllSnaps {
-		lanes := t.Lanes()
-		if len(lanes) != 1 {
-			return fmt.Errorf("internal error: more than one lane (%d) on a transactional action", len(lanes))
-		}
-
-		flags.Lane = lanes[0]
-	} else {
-		flags.Transaction = client.TransactionPerSnap
-	}
-
 	// We try to install all wanted snaps. If one snap cannot be installed
-	// because of change conflicts or similar we retry. Only if all snaps
-	// can be installed together we add the tasks to the change.
+	// because of change conflicts or similar we retry. Only if all snaps can be
+	// installed together we add the tasks to the change.
 	var tss []*state.TaskSet
 	for prereqName, contentAttrs := range prereq {
-		var onInFlightErr error = nil
-		var err error
 		var ts *state.TaskSet
+		var err error
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install %q", prereqName), func(timings.Measurer) {
-			noTypeBaseCheck := false
-			ts, err = installOneBaseOrRequired(t, prereqName, contentAttrs, noTypeBaseCheck, defaultPrereqSnapsChannel(), onInFlightErr, userID, flags)
+			ts, err = ensurePrerequisite(t, contentAttrs, StoreSnap{
+				InstanceName: prereqName,
+				RevOpts: RevisionOptions{
+					Channel: defaultPrereqSnapsChannel(),
+				},
+			}, opts)
 		})
 		if err != nil {
 			return prereqError("prerequisite", prereqName, err)
@@ -151,48 +183,42 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, user
 		tss = append(tss, ts)
 	}
 
-	// for base snaps we need to wait until the change is done
-	// (either finished or failed)
-	onInFlightErr := &state.Retry{After: prerequisitesRetryTimeout}
-
-	var tsBase *state.TaskSet
-	var err error
+	var baseTS *state.TaskSet
 	if base != "none" {
+		var err error
 		timings.Run(tm, "install-prereq", fmt.Sprintf("install base %q", base), func(timings.Measurer) {
-			requireTypeBase := true
-			tsBase, err = installOneBaseOrRequired(t, base, nil, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID, Flags{
-				Transaction: flags.Transaction,
-				Lane:        flags.Lane,
-			})
+			// base prerequisites are installed with the same options as other
+			// prerequisites, except that they must be verified to have type
+			// base.
+			opts := opts
+			opts.Flags.RequireTypeBase = true
+
+			baseTS, err = ensurePrerequisite(t, nil, StoreSnap{
+				InstanceName: base,
+				RevOpts: RevisionOptions{
+					Channel: defaultBaseSnapsChannel(),
+				},
+			}, opts)
 		})
 		if err != nil {
 			return prereqError("snap base", base, err)
 		}
 	}
 
-	// On classic systems that are already seeded, automatically
-	// install snapd snap (covers LP: 1819318). Not allowed for
-	// Ubuntu Core systems - requires remodeling.
-	var tsSnapd *state.TaskSet
-	snapdSnapInstalled, err := isInstalled(st, "snapd")
+	installSnapd, err := considerSnapdAsPrereq(st)
 	if err != nil {
 		return err
 	}
 
-	// consider the state of seeding to avoid seed conflict error
-	var seeded bool
-	err = st.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
-	if release.OnClassic && seeded && !snapdSnapInstalled {
+	var snapdTS *state.TaskSet
+	if installSnapd {
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
-			noTypeBaseCheck := false
-			tsSnapd, err = installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{
-				Transaction: flags.Transaction,
-				Lane:        flags.Lane,
-			})
+			snapdTS, err = ensurePrerequisite(t, nil, StoreSnap{
+				InstanceName: "snapd",
+				RevOpts: RevisionOptions{
+					Channel: defaultSnapdSnapsChannel(),
+				},
+			}, opts)
 		})
 		if err != nil {
 			return prereqError("system snap", "snapd", err)
@@ -206,18 +232,14 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, user
 		chg.AddAll(ts)
 	}
 	// add the base if needed, prereqs else must wait on this
-	if tsBase != nil {
-		for _, t := range chg.Tasks() {
-			t.WaitAll(tsBase)
-		}
-		chg.AddAll(tsBase)
+	if baseTS != nil {
+		serializeTaskSetBeforeInProgressChange(baseTS, chg)
+		chg.AddAll(baseTS)
 	}
 	// add snapd if needed, everything must wait on this
-	if tsSnapd != nil {
-		for _, t := range chg.Tasks() {
-			t.WaitAll(tsSnapd)
-		}
-		chg.AddAll(tsSnapd)
+	if snapdTS != nil {
+		serializeTaskSetBeforeInProgressChange(snapdTS, chg)
+		chg.AddAll(snapdTS)
 	}
 
 	// make sure that the new change is committed to the state
@@ -227,187 +249,170 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, user
 	return nil
 }
 
-func installOneBaseOrRequired(t *state.Task, snapName string, contentAttrs []string, requireTypeBase bool, channel string, onInFlight error, userID int, flags Flags) (*state.TaskSet, error) {
-	st := t.State()
-
-	// The core snap provides everything we need for core16.
-	coreInstalled, err := isInstalled(st, "core")
+// considerSnapdAsPrereq returns true if we should install snapd as a
+// prerequisite, such as on classic systems that are already seeded. It returns
+// false on Ubuntu Core systems where this requires remodeling.
+func considerSnapdAsPrereq(st *state.State) (bool, error) {
+	installed, err := isInstalled(st, "snapd")
 	if err != nil {
-		return nil, err
-	}
-	if snapName == "core16" && coreInstalled {
-		return nil, nil
+		return false, err
 	}
 
-	// installed already?
-	isInstalled, err := isInstalled(st, snapName)
-	if err != nil {
-		return nil, err
+	// consider the state of seeding to avoid seed conflict error
+	var seeded bool
+	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+		return false, err
 	}
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	shouldWaitForInFlightInstall := func(snapName string) (bool, error) {
-		linkTask, err := findLinkSnapTaskForSnap(st, snapName)
-		if err != nil {
-			return false, err
-		}
-
-		if linkTask == nil {
-			// snap is not being installed
-			return false, nil
-		}
-
-		if requireTypeBase {
-			// if this snap is already ordered behind the in-flight base refresh
-			// prerequisites does not need to wait for that base out-of-band as
-			// well.
-			alreadyOrdered, err := snapWaitsForBaseLinkInSameLane(t, linkTask)
-			if err != nil {
-				return false, err
-			}
-
-			if alreadyOrdered {
-				return false, nil
-			}
-		}
-
-		if onInFlight != nil && willWaitOn(linkTask, t) {
-			return false, fmt.Errorf(
-				"internal error: prerequisites task cannot wait on task %[1]q because task %[1]q is waiting on the prerequisites task",
-				linkTask.ID(),
-			)
-		}
-
-		// snap is being installed, retry later
-		return true, nil
-	}
-
-	// if we are remodeling, then we should return early due to the way that
-	// tasks are ordered by the remodeling code. specifically, all snap
-	// downloads during a remodel happen prior to snap installation. thus,
-	// we cannot wait for snaps to be installed here. see remodelTasks for
-	// more information on how the tasks are ordered.
-	if deviceCtx.ForRemodeling() {
-		return nil, nil
-	}
-
-	if isInstalled {
-		if len(contentAttrs) > 0 {
-			// the default provider is already installed, update it if it's missing content attributes the snap needs
-			return updatePrereqIfOutdated(t, snapName, contentAttrs, userID, flags)
-		}
-
-		// other kind of dependency, check if it's in progress
-		if ok, err := shouldWaitForInFlightInstall(snapName); err != nil {
-			return nil, err
-		} else if ok {
-			return nil, onInFlight
-		}
-
-		return nil, nil
-	}
-
-	// not installed, wait for it if it is. If not, we'll install it
-	if ok, err := shouldWaitForInFlightInstall(snapName); err != nil {
-		return nil, err
-	} else if ok {
-		return nil, onInFlight
-	}
-
-	// not installed, nor queued for install -> install it
-	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{
-		RequireTypeBase: requireTypeBase,
-		Transaction:     flags.Transaction,
-		Lane:            flags.Lane,
-		// we're calling an API facing call which would otherwise be normally
-		// expected to produce a delayed effects taskset, but since the desire
-		// is to inject the tasksets into the current change, set the flag to
-		// avoid generating one
-		NoDelayedSideEffects: true,
-	}, nil, deviceCtx, "")
-
-	// something might have triggered an explicit install while
-	// the state was unlocked -> deal with that here by simply
-	// retrying the operation.
-	var conflErr *ChangeConflictError
-	if errors.As(err, &conflErr) {
-		// conflicted with an install in the same change, just skip
-		if conflErr.ChangeID == t.Change().ID() {
-			return nil, nil
-		}
-
-		return nil, &state.Retry{After: prerequisitesRetryTimeout}
-	}
-	return ts, err
+	return release.OnClassic && seeded && !installed, nil
 }
 
-// updates a prerequisite, if it's not providing a content interface that a plug expects it to
-func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []string, userID int, flags Flags) (*state.TaskSet, error) {
+type prereqInFlightAction int
+
+const (
+	prereqProceed prereqInFlightAction = iota
+	prereqSkip
+	prereqRetry
+)
+
+// checkForInFlightPrereqTasks checks whether a link-snap task for
+// prerequisiteName is already in flight and reports how the caller should handle
+// the prerequisite.
+func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, basePrerequisite bool) (prereqInFlightAction, error) {
+	st := prereqs.State()
+
+	link, err := findLinkSnapTaskForSnap(st, prerequisiteName)
+	if err != nil {
+		return 0, err
+	}
+
+	// no link-snap task is in flight for this prerequisite snap, proceed
+	if link == nil {
+		return prereqProceed, nil
+	}
+
+	isContentProvider := !basePrerequisite && prerequisiteName != "snapd"
+	if isContentProvider {
+		// the content-provider snap is already being linked by this change, so
+		// there is no need to add another prerequisite operation for it
+		if link.Change().ID() == prereqs.Change().ID() {
+			return prereqSkip, nil
+		}
+
+		// a different change contains a link-snap task for this prerequisite.
+		// retry the current task to avoid a conflict with that change.
+		return prereqRetry, nil
+	}
+
+	if basePrerequisite {
+		// if the base being installed by the prerequisites task is already ordered
+		// behind the in-flight prerequisite link task in the same lane, this task
+		// does not need to wait for that prerequisite out-of-band as well.
+		waiting, err := snapWaitsForLinkInSameLane(prereqs, link)
+		if err != nil {
+			return 0, err
+		}
+
+		if waiting {
+			return prereqSkip, nil
+		}
+	}
+
+	// avoid creating an infinite retry loop: a bug in snapd could cause the
+	// prerequisite's link task to already be ordered behind this
+	// "prerequisites" task. thus, we should fail rather than waiting forever.
+	if willWaitOn(link, prereqs) {
+		return 0, fmt.Errorf(
+			"internal error: prerequisites task cannot wait on task %[1]q because task %[1]q is waiting on the prerequisites task",
+			link.ID(),
+		)
+	}
+
+	return prereqRetry, nil
+}
+
+func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts Options) (*state.TaskSet, error) {
 	st := t.State()
 
-	// check if the default provider has all expected content tags
-	if ok, err := hasAllContentAttrs(st, snapName, contentAttrs); err != nil {
-		return nil, err
-	} else if ok {
-		return nil, nil
+	// as a special case, we allow the core snap to satisfy a core16 requirement
+	if sn.InstanceName == "core16" {
+		installed, err := isInstalled(st, "core")
+		if err != nil {
+			return nil, err
+		}
+
+		// this is safe since bases are not content-providers. thus, they will
+		// never need an update. note that this also skips any retry behavior,
+		// but is consistent with the current implementation.
+		if installed {
+			return nil, nil
+		}
 	}
 
-	// this is an optimization since the Update would also detect a conflict
-	// but only after accessing the store
-	if ok, err := shouldSkipToAvoidConflict(t, snapName); err != nil {
+	// check for an existing link-snap task before creating prerequisite tasks.
+	action, err := checkForInFlightPrereqTasks(t, sn.InstanceName, opts.Flags.RequireTypeBase)
+	if err != nil {
 		return nil, err
-	} else if ok {
+	}
+	switch action {
+	case prereqSkip:
 		return nil, nil
+	case prereqRetry:
+		return nil, &state.Retry{After: prerequisitesRetryTimeout}
 	}
 
-	deviceCtx, err := DeviceCtx(st, t, nil)
+	installed, err := isInstalled(st, sn.InstanceName)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: as a temporary workaround for a bug that occurs when a snap updates
-	// a prereq, we disable rerefreshes.
-	//
-	// specifically, if the snap that pulls in the prereq contains a configure hook
-	// that creates some tasks via snapctl, then those tasks will end up waiting
-	// on the check-rerefresh task for the updated prereq. the check-rerefresh
-	// task panics if any tasks are found to be waiting on it.
-	flags.NoReRefresh = true
-
-	// default provider is missing some content tags (likely outdated) so update it
-	ts, err := UpdateOne(context.Background(), st, StoreUpdateGoal(StoreUpdate{
-		InstanceName: snapName,
-	}), nil, Options{
-		Flags:     flags,
-		UserID:    userID,
-		DeviceCtx: deviceCtx,
-		ConflictOptions: ConflictOptions{
-			FromChange: t.Change().ID(),
-			// setting this lets us use snap update conflict detection, even
-			// though we're passing in the change ID
-			DoNotIgnoreFromChangeInTaskConflictCheck: true,
-		},
-	})
+	var ts *state.TaskSet
+	if !installed {
+		_, ts, err = InstallOne(context.TODO(), st, StoreInstallGoal(sn), opts)
+	} else {
+		ts, err = maybeUpdateContentProvider(t, sn.InstanceName, contentAttrs, opts)
+	}
 	if err != nil {
-		if conflErr, ok := err.(*ChangeConflictError); ok {
-			// If we aren't seeded, then it's too early to do any updates and we cannot
-			// handle this during seeding, so expect the ChangeConflictError in this scenario.
-			if conflErr.ChangeKind == "seed" {
-				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), conflErr)
-				return nil, nil
-			}
-
-			// there's already an update for the same snap in this change,
-			// just skip this one
-			if conflErr.ChangeID == t.Change().ID() {
+		var cerr *ChangeConflictError
+		if errors.As(err, &cerr) {
+			// conflicted with an install in the same change, just skip
+			if cerr.ChangeID == t.Change().ID() {
 				return nil, nil
 			}
 
 			return nil, &state.Retry{After: prerequisitesRetryTimeout}
+		}
+		return nil, err
+	}
+
+	return ts, nil
+}
+
+func maybeUpdateContentProvider(t *state.Task, snapName string, contentAttrs []string, opts Options) (*state.TaskSet, error) {
+	st := t.State()
+	provided, err := hasAllContentAttrs(st, snapName, contentAttrs)
+	if err != nil {
+		return nil, err
+	}
+	if provided {
+		return nil, nil
+	}
+
+	ts, err := UpdateOne(context.TODO(), st, StoreUpdateGoal(StoreUpdate{
+		InstanceName: snapName,
+	}), nil, opts)
+	if err != nil {
+		var cerr *ChangeConflictError
+		if errors.As(err, &cerr) {
+			// if we aren't seeded, then it's too early to do any updates and we
+			// cannot handle this during seeding, so expect the
+			// ChangeConflictError in this scenario.
+			if cerr.ChangeKind == "seed" {
+				t.Logf("cannot update %q during seeding, will not have required content %q: %s", snapName, strings.Join(contentAttrs, ", "), cerr)
+				return nil, nil
+			}
+
+			return nil, err
 		}
 
 		// don't propagate error to avoid failing the main install since the
@@ -416,36 +421,10 @@ func updatePrereqIfOutdated(t *state.Task, snapName string, contentAttrs []strin
 		return nil, nil
 	}
 
-	if err := maybeMergeLateSeedRefreshPrereq(t.Change(), deviceCtx, ts); err != nil {
+	if err := maybeMergeLateSeedRefreshPrereq(t.Change(), opts.DeviceCtx, ts); err != nil {
 		return nil, err
 	}
-
 	return ts, nil
-}
-
-// shouldSkipToAvoidConflict checks for conflicting tasks. Returns true if the
-// operation should be skipped. The error can be a state.Retry if the operation
-// should be retried later.
-func shouldSkipToAvoidConflict(task *state.Task, snapName string) (bool, error) {
-	otherTask, err := findLinkSnapTaskForSnap(task.State(), snapName)
-	if err != nil {
-		return false, err
-	}
-
-	if otherTask == nil {
-		return false, nil
-	}
-
-	// it's in the same change, so the snap is already going to be installed
-	if otherTask.Change().ID() == task.Change().ID() {
-		return true, nil
-	}
-
-	// it's not in the same change, so retry to avoid conflicting changes to the snap
-	return true, &state.Retry{
-		After:  prerequisitesRetryTimeout,
-		Reason: fmt.Sprintf("conflicting changes on snap %q by task %q", snapName, otherTask.Kind()),
-	}
 }
 
 // hasAllContentAttrs checks if the snap has slots with "content" attributes
@@ -583,12 +562,12 @@ func tasksShareLane(t, other *state.Task) bool {
 	return false
 }
 
-// snapWaitsForBaseLinkInSameLane reports whether another task for the same snap
-// in the same lane is already ordered behind the base's link-snap task.
-func snapWaitsForBaseLinkInSameLane(prereqs *state.Task, baseLink *state.Task) (bool, error) {
+// snapWaitsForLinkInSameLane reports whether another task for the same snap in
+// the same lane is already ordered behind the prerequisite's link-snap task.
+func snapWaitsForLinkInSameLane(prereqs *state.Task, link *state.Task) (bool, error) {
 	// if they don't share a change, then there won't be dependencies already
 	// established
-	if prereqs.Change().ID() != baseLink.Change().ID() {
+	if prereqs.Change().ID() != link.Change().ID() {
 		return false, nil
 	}
 
@@ -614,13 +593,13 @@ func snapWaitsForBaseLinkInSameLane(prereqs *state.Task, baseLink *state.Task) (
 		}
 
 		// this check could be made stronger by enforcing that the first local
-		// modification task for the snap waits on the base's link-snap task,
+		// modification task for the snap waits on the prereq's link-snap task,
 		// but we don't have a great way to find that task at this point in
 		// time, since we don't have access to edges any more.
 		//
 		// in short, this is somewhat of a heuristic. we'd need to enumerate all
 		// before-local-modification tasks if we want to make this check better.
-		if willWaitOn(t, baseLink) {
+		if willWaitOn(t, link) {
 			return true, nil
 		}
 	}

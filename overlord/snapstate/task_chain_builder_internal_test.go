@@ -524,6 +524,67 @@ func (s *taskChainBuilderTestSuite) TestFindHeadAndTailTasksLinearChain(c *C) {
 	c.Check(remainder, DeepEquals, []*state.Task{t2})
 }
 
+func (s *taskChainBuilderTestSuite) TestSerializeTaskSetBeforeInProgressChangeSkipsDoingTasks(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	prev1 := st.NewTask("prev-1", "first previous task")
+	prev2 := st.NewTask("prev-2", "second previous task")
+	prev2.WaitFor(prev1)
+	prevTS := state.NewTaskSet(prev1, prev2)
+
+	next1 := st.NewTask("next-1", "first next task")
+	next2 := st.NewTask("next-2", "second next task")
+	next3 := st.NewTask("next-3", "third next task")
+	next2.WaitFor(next1)
+	next3.WaitFor(next2)
+	next1.SetStatus(state.DoingStatus)
+
+	chg := st.NewChange("sample", "...")
+	chg.AddTask(next1)
+	chg.AddTask(next2)
+	chg.AddTask(next3)
+
+	serializeTaskSetBeforeInProgressChange(prevTS, chg)
+
+	// the running task cannot be gated anymore, so the pending frontier waits
+	// on the previous task set instead.
+	c.Check(next1.WaitTasks(), HasLen, 0)
+	c.Check(next2.WaitTasks(), DeepEquals, []*state.Task{next1, prev2})
+	c.Check(next3.WaitTasks(), DeepEquals, []*state.Task{next2})
+	c.Check(prev2.HaltTasks(), DeepEquals, []*state.Task{next2})
+}
+
+func (s *taskChainBuilderTestSuite) TestSerializeTaskSetBeforeInProgressChangeIncludesWaitStatusForDo(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	prev1 := st.NewTask("prev-1", "first previous task")
+	prev2 := st.NewTask("prev-2", "second previous task")
+	prev2.WaitFor(prev1)
+	prevTS := state.NewTaskSet(prev1, prev2)
+
+	// a task waiting to resume in DoStatus still needs forward dependencies.
+	waitingDo := st.NewTask("waiting-do", "waiting to do")
+	waitingDo.SetToWait(state.DoStatus)
+
+	// a task waiting to finish as DoneStatus must not be gated again.
+	waitingDone := st.NewTask("waiting-done", "waiting to finish")
+	waitingDone.SetToWait(state.DoneStatus)
+
+	chg := st.NewChange("sample", "...")
+	chg.AddTask(waitingDo)
+	chg.AddTask(waitingDone)
+
+	serializeTaskSetBeforeInProgressChange(prevTS, chg)
+
+	c.Check(waitingDo.WaitTasks(), DeepEquals, []*state.Task{prev2})
+	c.Check(waitingDone.WaitTasks(), HasLen, 0)
+	c.Check(prev2.HaltTasks(), DeepEquals, []*state.Task{waitingDo})
+}
+
 func (s *taskChainBuilderTestSuite) TestFindHeadAndTailTasksDiamond(c *C) {
 	st := state.New(nil)
 	st.Lock()
