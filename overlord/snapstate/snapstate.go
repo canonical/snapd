@@ -1648,15 +1648,6 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			return nil, false, nil, err
 		}
 
-		// on snapd refresh, have the restarted (new) snapd check whether it
-		// must switch to an LTS channel as part of the same change.
-		// First install is excluded for now; revisit (DESIGN.md open questions).
-		if up.Setup.Type == snap.TypeSnapd && up.SnapState.IsInstalled() {
-			if err := appendCheckLTSChannelAtEndOfSnapdRefresh(st, &sts); err != nil {
-				return nil, false, nil, err
-			}
-		}
-
 		lane := generateLane(st, opts)
 		snapLanes[lane] = struct{}{}
 

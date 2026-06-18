@@ -201,9 +201,6 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 	expected = append(expected,
 		"run-hook[check-health]",
 	)
-	if typ == snap.TypeSnapd && (opts&unlinkBefore) != 0 {
-		expected = append(expected, "check-lts-channel")
-	}
 
 	if opts&mockDelayedEffects != 0 {
 		expected = append(expected, "mock-process-delayed-security-backend-effects")

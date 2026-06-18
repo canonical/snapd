@@ -23,8 +23,6 @@ import (
 	"context"
 	"time"
 
-	"gopkg.in/tomb.v2"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -345,26 +343,6 @@ func MockReRefreshRetryTimeout(d time.Duration) (restore func()) {
 	return func() {
 		reRefreshRetryTimeout = old
 	}
-}
-
-func MockLtsChannelUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
-	old := ltsChannelUpdateMany
-	ltsChannelUpdateMany = f
-	return func() {
-		ltsChannelUpdateMany = old
-	}
-}
-
-func MockLtsChannelRetryTimeout(d time.Duration) (restore func()) {
-	old := ltsChannelRetryTimeout
-	ltsChannelRetryTimeout = d
-	return func() {
-		ltsChannelRetryTimeout = old
-	}
-}
-
-func (m *SnapManager) DoCheckLTSChannel(t *state.Task, tb *tomb.Tomb) error {
-	return m.doCheckLTSChannel(t, tb)
 }
 
 type DisabledServices = disabledServices
