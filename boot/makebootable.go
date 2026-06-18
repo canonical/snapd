@@ -67,7 +67,8 @@ type BootableSet struct {
 	KernelMods []BootableKModsComponents
 
 	// ExtraSnapdKernelCommandLineAppend holds extra snapd kernel command line
-	// arguments to append to the kernel command line.
+	// arguments to append to the kernel command line which is only applied to
+	// runnable systems.
 	ExtraSnapdKernelCommandLineAppend string
 }
 

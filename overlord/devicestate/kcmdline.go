@@ -174,13 +174,6 @@ func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSna
 		return fmt.Errorf("cannot set extra snapd kernel command line fragments until fully seeded")
 	}
 
-	// Ensure install-time fragments are seeded into state before comparing
-	// against the current value so runtime updates correctly override the
-	// install-time baseline.
-	if err := initExtraSnapdFragmentsFromInstallTime(st); err != nil {
-		return err
-	}
-
 	var currentFragments map[extraSnapdKernelCommandLineFragmentID]string
 	if err := st.Get(kcmdlineExtraSnapdFragmentsKey, &currentFragments); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
@@ -210,13 +203,6 @@ func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSna
 // kernelCommandLineAppendArgsFromSnapd returns extra arguments that snapd
 // might set internally using setExtraSnapdKernelCommandLineFragment.
 func kernelCommandLineAppendArgsFromSnapd(st *state.State) (string, error) {
-	// Lazily seed install-time fragments into state if not yet set so that
-	// the returned string includes any install-time choices that have not
-	// been overridden at runtime.
-	if err := initExtraSnapdFragmentsFromInstallTime(st); err != nil {
-		return "", err
-	}
-
 	var fragments map[extraSnapdKernelCommandLineFragmentID]string
 	if err := st.Get(kcmdlineExtraSnapdFragmentsKey, &fragments); err != nil && !errors.Is(err, state.ErrNoState) {
 		return "", err

@@ -1208,6 +1208,21 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// Carry any install-time extra snapd kernel command line fragments
+	// (e.g. keyboard configuration) into the boot configuration.
+	var extraSnapdKernelCommandLineFragments map[string]string
+	if encryptSetupData != nil {
+		extraSnapdKernelCommandLineFragments = encryptSetupData.ExtraSnapdKernelCommandLineFragments()
+	}
+	// Persist the install-time extra snapd kernel command line fragments to
+	// the installed system's ubuntu-save device dir so they can be lazily loaded
+	// into state at runtime and kept as a record of the install-time choices.
+	if len(extraSnapdKernelCommandLineFragments) > 0 {
+		if err := writeInstallTimeExtraSnapdFragments(boot.InstallHostDeviceSaveDir, extraSnapdKernelCommandLineFragments); err != nil {
+			return err
+		}
+	}
+
 	bootWith := &boot.BootableSet{
 		Base:              snapInfos[snap.TypeBase],
 		BasePath:          snapSeeds[snap.TypeBase].Path,
@@ -1219,15 +1234,9 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 		RecoverySystemLabel: systemLabel,
 		KernelMods:          kBootInfo.BootableKMods,
-	}
 
-	// Carry any install-time extra snapd kernel command line fragments
-	// (e.g. keyboard configuration) into the boot configuration.
-	var extraSnapdKernelCommandLineFragments map[string]string
-	if encryptSetupData != nil {
-		extraSnapdKernelCommandLineFragments = encryptSetupData.ExtraSnapdKernelCommandLineFragments()
+		ExtraSnapdKernelCommandLineAppend: renderExtraSnapdKernelCommandLineFragments(extraSnapdKernelCommandLineFragments),
 	}
-	bootWith.ExtraSnapdKernelCommandLineAppend = renderExtraSnapdKernelCommandLineFragments(extraSnapdKernelCommandLineFragments)
 
 	// installs in system-seed{,-null} partition: grub.cfg, grubenv
 	logger.Debugf("making the system-seed{,-null} partition bootable, mount dir is %q", seedMntDir)
@@ -1275,15 +1284,6 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		trustedInstallObserver.EncryptionSetup(),
 		st.Unlocker()); err != nil {
 		return err
-	}
-
-	// Persist the install-time extra snapd kernel command line fragments to
-	// the installed system's ubuntu-save device dir so they can be lazily loaded
-	// into state at runtime and kept as a record of the install-time choices.
-	if len(extraSnapdKernelCommandLineFragments) > 0 {
-		if err := writeInstallTimeExtraSnapdFragments(boot.InstallHostDeviceSaveDir, extraSnapdKernelCommandLineFragments); err != nil {
-			return err
-		}
 	}
 
 	return nil
