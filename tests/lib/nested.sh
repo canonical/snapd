@@ -694,11 +694,7 @@ _add_nested_coverage_tweaks() {
 
     mkdir -p "${SNAP_CACHE}"
 
-    SNAP_PATH=
-    for f in "${TARGET}"/snapd_*.snap; do
-        SNAP_PATH="$f"
-        break
-    done
+    SNAP_PATH="$(ls "${TARGET}"/snapd_*.snap | head -1)"
 
     mkdir -p "${SNAP_CACHE}/unpack"
     unsquashfs -no-progress -f -d "${SNAP_CACHE}/unpack" "${SNAP_PATH}"
