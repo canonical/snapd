@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/randutil"
@@ -35,6 +36,7 @@ import (
 // one failing necessitates undoing the Restore.
 type RestoreState struct {
 	Done    bool     `json:"done,omitempty"`
+	Snap    string   `json:"snap,omitempty"`
 	Created []string `json:"created,omitempty"`
 	Moved   []string `json:"moved,omitempty"`
 	// Config is here for convenience; this package doesn't touch it
@@ -77,6 +79,32 @@ func (rs *RestoreState) Revert() {
 	rs.Done = true
 	for _, dir := range rs.Created {
 		logger.Debugf("Removing %q.", dir)
+		// Handle mounts under dir before removing it.
+		// * snapctl mounts are stopped and restarted after Revert returns
+		//   (i.e., once the Moved loop has put old data back in place).
+		// * rs.Snap may be empty for a RestoreState persisted by an older
+		//   snapd, in that case skip mount handling.
+		if rs.Snap != "" {
+			snapctlMPs, nonSnapctlMPs, mountErr := listMountsAtOrUnder(rs.Snap, dir)
+			if mountErr != nil {
+				logger.Noticef("cannot list mounts for snap %q under %q: %v", rs.Snap, dir, mountErr)
+			} else if len(nonSnapctlMPs) > 0 {
+				// Non-snapctl mounts are present; RemoveAll will fail on them
+				// anyway, so snapctl mounts are not stopped.
+				logger.Noticef("cannot move data with unknown mount(s) under %q: %s",
+					dir, strings.Join(nonSnapctlMPs, ", "))
+			} else {
+				stoppedUnits, stopErr := stopMountUnits(snapctlMPs)
+				if stopErr != nil {
+					logger.Noticef("cannot stop mount unit(s) for snap %q under %q: %v", rs.Snap, dir, stopErr)
+				}
+				defer func(units []string) {
+					if startErr := startMountUnits(units); startErr != nil {
+						logger.Noticef("cannot restart mount unit(s) for snap %q under %q: %v", rs.Snap, dir, startErr)
+					}
+				}(stoppedUnits)
+			}
+		}
 		if err := os.RemoveAll(dir); err != nil {
 			logger.Noticef("While undoing changes because of a previous error: cannot remove %q: %v.", dir, err)
 		}
