@@ -25,7 +25,7 @@ class TestCompose(unittest.TestCase):
         features['endpoints'] = [Endpoint(method='POST', path=msg)]
         features['interfaces'] = [Interface(name=msg)]
         features['tasks'] = [
-            Task(kind=msg, snap_type='snap', last_status=Status.done)]
+            Task(kind=msg, snap_type='snap', last_status=Status.done.value)]
         features['changes'] = [Change(kind=msg, snap_type='snap')]
         return features
 
@@ -80,18 +80,18 @@ class TestCompose(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             res = os.path.join(tmpdir, 'res')
             os.mkdir(res)
-            sys1test1 = TestCompose.get_features('sys1test1')
-            sys1test2 = TestCompose.get_features('sys1test2')
-            sys2test1 = TestCompose.get_features('sys2test1')
-            sys2test3 = TestCompose.get_features('sys2test3')
+            sys1test1 = TestCompose.get_json('tests/main', 'test1', '', False, 'sys1test1')
+            sys1test2 = TestCompose.get_json('tests/main', 'test2', 'variant1', False, 'sys1test2')
+            sys2test1 = TestCompose.get_json('tests/main', 'test1', '', True, 'sys2test1')
+            sys2test3 = TestCompose.get_json('tests/main', 'test3', '', False, 'sys2test3')
 
-            with open(os.path.join(res, 'backend:system1:tests--test1'), mode='w', encoding='utf-8') as f:
+            with open(os.path.join(res, 'backend:system1:tests--main--test1'), mode='w', encoding='utf-8') as f:
                 json.dump(sys1test1, f)
-            with open(os.path.join(res, 'backend:system1:tests--test2:variant1'), mode='w', encoding='utf-8') as f:
+            with open(os.path.join(res, 'backend:system1:tests--main--test2:variant1'), mode='w', encoding='utf-8') as f:
                 json.dump(sys1test2, f)
-            with open(os.path.join(res, 'backend:system2:tests--test1'), mode='w', encoding='utf-8') as f:
+            with open(os.path.join(res, 'backend:system2:tests--main--test1'), mode='w', encoding='utf-8') as f:
                 json.dump(sys2test1, f)
-            with open(os.path.join(res, 'backend:system2:tests--test3'), mode='w', encoding='utf-8') as f:
+            with open(os.path.join(res, 'backend:system2:tests--main--test3'), mode='w', encoding='utf-8') as f:
                 json.dump(sys2test3, f)
             out = os.path.join(tmpdir, 'out')
             os.mkdir(out)
@@ -120,6 +120,8 @@ class TestCompose(unittest.TestCase):
                     if test['task_name'] == 'test1':
                         check_test_equal(sys1test1, test, False)
                     if test['task_name'] == 'test2':
+                        print(f'test is {test}')
+                        print(f'sys1test2 is {sys1test2}')
                         check_test_equal(sys1test2, test, False)
             with open(os.path.join(out, 'backend:system2_1.json'), mode='r', encoding='utf-8') as f:
                 sys1 = json.load(f)
