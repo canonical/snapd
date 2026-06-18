@@ -14,7 +14,7 @@ on:
       skip-tests:
         type: string
         description: 'Filters out all matches for each space-separated regex expression when running spread tests'
-        default: 'ubuntu-14.04-64 tests/lib/ tests/unit/ manual/snapd-refresh-from-old core/persistent-journal'
+        default: 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build manual/snapd-refresh-from-old core/persistent-journal'
   schedule:
     - cron: '30 4 * * 6'
 
@@ -31,15 +31,54 @@ jobs:
         run: |
           echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
           echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
-          echo "skip-tests=${{ inputs.skip-tests || 'ubuntu-14.04-64 tests/lib/ tests/unit/ manual/snapd-refresh-from-old core/persistent-journal' }}" >> $GITHUB_OUTPUT
+          echo "skip-tests=${{ inputs.skip-tests || 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build manual/snapd-refresh-from-old core/persistent-journal' }}" >> $GITHUB_OUTPUT
 
+  snap-builds:
+    runs-on: ${{ fromJSON(matrix.runs-on) }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Patch builds
+      run: |
+        sudo snap install go --classic 
+        go run ./tests/utils/features/instrument-funcs
+
+    - name: Commit changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "bot@githubactions.com"
+        git add .
+        git commit -m "Patch builds for coverage"
+    
+    - name: Build and upload snap
+      uses: ./.github/actions/build-snapd-snap
+      with:
+        toolchain: ${{ matrix.toolchain }}
+        variant: test
+        runs-on: ${{ matrix.runs-on }}
+        pr-number: ${{ github.event.pull_request.number || '' }}
+    strategy:
+      matrix:
+        runs-on:
+          - '["ubuntu-22.04"]'
+          - ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
+        toolchain:
+          - default
+          - FIPS
+        exclude:
+          - runs-on: ${{ github.event.repository.private && '["self-hosted", "Linux", "jammy", "ARM64", "large"]' || '["ubuntu-22.04-arm"]' }}
+            toolchain: FIPS
+  
   read-systems:
     runs-on: ubuntu-latest
     needs: set-inputs
     outputs:
-      fundamental-systems: ${{ steps.read-systems.outputs.fundamental-systems }}
-      non-fundamental-systems: ${{ steps.read-systems.outputs.non-fundamental-systems }}
-      nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
+      systems: ${{ steps.read-systems.outputs.systems }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -69,15 +108,16 @@ jobs:
         id: read-systems
         shell: bash
         run: |
-          echo "fundamental-systems=$fundamental_systems" >> $GITHUB_OUTPUT
-          echo "non-fundamental-systems=$non_fundamental_systems" >> $GITHUB_OUTPUT
-          echo "nested-systems=$nested_systems" >> $GITHUB_OUTPUT
+          echo "systems=$(jq -cs '{include: (map(.include // []) | add)}' \
+            <(echo "${fundamental_systems:-{\"include\":[]}}") \
+            <(echo "${non_fundamental_systems:-{\"include\":[]}}") \
+            <(echo "${nested_systems:-{\"include\":[]}}"))" >> $GITHUB_OUTPUT
 
-  tag-features-fundamental:
+  tag-features:
     uses: ./.github/workflows/spread-tests.yaml
     needs: [set-inputs, read-systems]
     name: "spread ${{ matrix.group }}"
-    if: needs.read-systems.outputs.fundamental-systems != ''
+    if: needs.read-systems.outputs.systems != ''
     secrets: inherit
     with:
       runs-on: '${{ matrix.runs-on }}'
@@ -86,61 +126,18 @@ jobs:
       systems: ${{ matrix.systems }}  
       tasks: ${{ matrix.tasks }}
       rules: ${{ matrix.rules }}
-      is-fundamental: true
-      use-snapd-snap-from-master: true
       spread-env: "SPREAD_TAG_FEATURES=1"
       upload-artifacts: true
       skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
+      log-to-grafana: false
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.read-systems.outputs.fundamental-systems) }}
-
-  tag-features-non-fundamental:
-    uses: ./.github/workflows/spread-tests.yaml
-    needs: [set-inputs, read-systems]
-    if: needs.read-systems.outputs.non-fundamental-systems != ''
-    name: "spread ${{ matrix.group }}"
-    secrets: inherit
-    with:
-      runs-on: '${{ matrix.runs-on }}'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      systems: ${{ matrix.systems }}  
-      tasks: ${{ matrix.tasks }}
-      rules: ${{ matrix.rules }}
-      use-snapd-snap-from-master: true
-      spread-env: "SPREAD_TAG_FEATURES=1"
-      upload-artifacts: true
-      skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.read-systems.outputs.non-fundamental-systems) }}
-
-  tag-features-nested:
-    uses: ./.github/workflows/spread-tests.yaml
-    needs: [set-inputs, read-systems]
-    if: needs.read-systems.outputs.nested-systems != ''
-    name: "spread ${{ matrix.group }}"
-    secrets: inherit
-    with:
-      runs-on: '${{ matrix.runs-on }}'
-      group: ${{ matrix.group }}
-      backend: ${{ matrix.backend }}
-      systems: ${{ matrix.systems }}  
-      tasks: ${{ matrix.tasks }}
-      rules: ${{ matrix.rules }}
-      use-snapd-snap-from-master: true
-      spread-env: "SPREAD_TAG_FEATURES=1"
-      upload-artifacts: true
-      skip-tests: ${{ needs.set-inputs.outputs.skip-tests }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.read-systems.outputs.nested-systems) }}
+      matrix: ${{ fromJson(needs.read-systems.outputs.systems) }}
 
   re-run:
     permissions:
       actions: write
-    needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested]
+    needs: [set-inputs, tag-features]
     # If the spread tests ended in failure, rerun the workflow up to maximum-reruns times
     if: failure() && fromJSON(github.run_attempt) <= fromJSON(needs.set-inputs.outputs.maximum-reruns)
     runs-on: ubuntu-latest
@@ -160,7 +157,7 @@ jobs:
       - name: Download snapd snap
         uses: ./.github/actions/download-snapd-snap
         with:
-          use-master-push: true
+          use-master-push: false
           is-amd64: true
           is-arm64: false
           is-fips: false
@@ -177,12 +174,10 @@ jobs:
           path: "all-features.json"
 
   create-reports:
-    needs: [set-inputs, tag-features-fundamental, tag-features-non-fundamental, tag-features-nested, get-all-features]
+    needs: [set-inputs, tag-features, get-all-features]
     runs-on: ["self-hosted", "spread-enabled"]
     if: |
-      (always() && (needs.tag-features-fundamental.result == 'success' || needs.tag-features-fundamental.result == 'skipped')
-      && (needs.tag-features-non-fundamental.result == 'success' || needs.tag-features-non-fundamental.result == 'skipped')
-      && (needs.tag-features-nested.result == 'success' || needs.tag-features-nested.result == 'skipped')) 
+      (always() && needs.tag-features.result == 'success') 
       || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
     steps:
       - name: Checkout code
