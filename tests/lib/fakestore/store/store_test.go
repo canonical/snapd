@@ -92,6 +92,19 @@ func (s *storeTestSuite) StorePostJSON(path string, content []byte) (*http.Respo
 	return s.client.Post(s.store.URL()+path, "application/json", r)
 }
 
+func (s *storeTestSuite) assertRequestStats(c *C, expected map[string]uint64) {
+	resp, err := s.StoreGet("/debug")
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	var result debugResultJSON
+	c.Assert(json.NewDecoder(resp.Body).Decode(&result), IsNil)
+	// the /debug request itself is counted, adjust expectation
+	expected["/debug"] = expected["/debug"] + 1
+	c.Check(result.RequestStats, DeepEquals, expected)
+}
+
 func (s *storeTestSuite) TestStoreURL(c *C) {
 	u, err := url.Parse(s.store.URL())
 	c.Assert(err, IsNil)
@@ -576,6 +589,10 @@ func (s *storeTestSuite) TestSnapDownloadByFullname(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
+
+	s.assertRequestStats(c, map[string]uint64{
+		"/download/foo_1_all.snap": 1,
+	})
 }
 
 const (
@@ -621,6 +638,10 @@ func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
 	body, err := io.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, string(asserts.Encode(systestkeys.TestRootAccount)))
+
+	s.assertRequestStats(c, map[string]uint64{
+		"/v2/assertions/account/testrootorg": 1,
+	})
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
@@ -751,6 +772,10 @@ func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {
 			"type":        "app",
 			"snap-yaml":   "name: test-snapd-tools\nversion: 1",
 		},
+	})
+
+	s.assertRequestStats(c, map[string]uint64{
+		"/v2/snaps/refresh": 1,
 	})
 }
 
@@ -1405,7 +1430,6 @@ func (s *storeTestSuite) TestDebugEndpointMethodNotAllowed(c *C) {
 }
 
 func (s *storeTestSuite) TestDebugActionReset(c *C) {
-	// Set a rule for endpoint connection interrupt
 	resp, err := s.StorePostJSON("/debug", []byte(`{
 		"action": "kill-request",
 		"kill-path": "/foo/bar",
@@ -1423,9 +1447,9 @@ func (s *storeTestSuite) TestDebugActionReset(c *C) {
 	c.Assert(resp.StatusCode, Equals, 200)
 	_, err = io.Copy(&buf, resp.Body)
 	c.Assert(err, IsNil)
-	c.Check(buf.String(), Equals, `{"kill-after":{"/foo/bar":123}}`)
+	c.Check(buf.String(), Equals, `{"kill-after":{"/foo/bar":123},"request-stats":{"/debug":2}}`)
 
-	// Clear it by setting kill-after to 0
+	// Reset everything using the 'reset' action
 	resp, err = s.StorePostJSON("/debug", []byte(`{
 		"action": "reset"
 	}`))
@@ -1440,5 +1464,5 @@ func (s *storeTestSuite) TestDebugActionReset(c *C) {
 	buf.Reset()
 	_, err = io.Copy(&buf, resp.Body)
 	c.Assert(err, IsNil)
-	c.Check(buf.String(), Equals, `{"kill-after":{}}`)
+	c.Check(buf.String(), Equals, `{"kill-after":{},"request-stats":{"/debug":1}}`)
 }

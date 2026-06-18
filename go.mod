@@ -7,7 +7,7 @@ replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131
 
 require (
 	github.com/bmatcuk/doublestar/v4 v4.6.1
-	github.com/canonical/go-efilib v1.7.1-0.20260310185303-7166aa858b24
+	github.com/canonical/go-efilib v1.8.0
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v1.16.2
 	github.com/chai2010/gettext-go v1.0.3
@@ -37,7 +37,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-require go.etcd.io/bbolt v1.3.9
+require (
+	github.com/cilium/ebpf v0.9.1
+	go.etcd.io/bbolt v1.3.9
+)
 
 require (
 	github.com/canonical/cpuid v0.0.0-20220614022739-219e067757cb // indirect

@@ -983,6 +983,13 @@ func (s *mgrsSuite) TestHappyRefreshWithQuotasInServiceUnitMaintained(c *C) {
 	r = servicestate.EnsureQuotaUsability()
 	defer r()
 
+	r = cgroup.MockVersion(cgroup.V2, nil)
+	defer r()
+
+	ctrls := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/cgroup.controllers")
+	c.Assert(os.MkdirAll(filepath.Dir(ctrls), 0755), IsNil)
+	c.Assert(os.WriteFile(ctrls, []byte("foo memory baz\n"), 0o644), IsNil)
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()

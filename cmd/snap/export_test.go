@@ -504,3 +504,7 @@ func MockSquashfsGenerateDelta(f func(context.Context, string, string, string, s
 func MockSquashfsApplyDelta(f func(context.Context, string, string, string) error) (restore func()) {
 	return testutil.Mock(&squashfsApplyDelta, f)
 }
+
+func MockOsGetuid(f func() int) (restore func()) {
+	return testutil.Mock(&osGetuid, f)
+}

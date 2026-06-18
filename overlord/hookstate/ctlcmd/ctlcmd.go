@@ -116,7 +116,7 @@ type commandInfo struct {
 	hidden    bool
 }
 
-var commands = make(map[string]*commandInfo)
+var commands = make(map[string]*commandInfo, 32)
 
 func addCommand(name, shortHelp, longHelp string, generator func() command) *commandInfo {
 	cmd := &commandInfo{

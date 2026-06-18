@@ -122,11 +122,11 @@ func (s *SecLogSuite) TestLogLoginFailure(c *C) {
 		StoreUserEmail: "user@example.com",
 		StoreUserName:  "jdoe",
 	}
-	seclog.LogLoginFailure(user, seclog.Reason{Code: seclog.ReasonInvalidCredentials, Message: "invalid credentials"})
+	seclog.LogLoginFailure(user, seclog.Reason{Code: 401, Kind: "invalid-credentials", Message: "invalid credentials"})
 
 	c.Check(s.buf.String(), testutil.Contains, "authn_login_failure")
 	c.Check(s.buf.String(), testutil.Contains, "user@example.com")
-	c.Check(s.buf.String(), testutil.Contains, seclog.ReasonInvalidCredentials)
+	c.Check(s.buf.String(), testutil.Contains, "invalid-credentials")
 }
 
 func (s *SecLogSuite) TestLogLoggerEnabledLogsEvent(c *C) {
@@ -217,4 +217,52 @@ func (s *SecLogSuite) TestLogUserRemoved(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "user_removed")
 	c.Check(s.buf.String(), testutil.Contains, "jdoe")
 	c.Check(s.buf.String(), testutil.Contains, "jdoe@test.com")
+}
+
+// TestLogAdminActivity verifies that LogAdminActivity emits the expected event and attributes.
+func (s *SecLogSuite) TestLogAdminActivity(c *C) {
+	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
+	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 0, PID: 4242}
+	endpoint := seclog.Endpoint{
+		Method:        "POST",
+		Path:          "/v2/snaps",
+		Action:        "install",
+		AccessChecker: "authenticated",
+		AccessLevel:   "authenticated",
+	}
+	checks := seclog.NewAuthzChecks()
+
+	seclog.LogAdminActivity(user, peer, endpoint, checks)
+
+	c.Check(s.buf.String(), testutil.Contains, "authz_admin")
+	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
+	c.Check(s.buf.String(), testutil.Contains, "accessed POST:/v2/snaps:install")
+	c.Check(s.buf.String(), testutil.Contains, "admin@example.com")
+	c.Check(s.buf.String(), testutil.Contains, "/run/snapd.socket")
+	c.Check(s.buf.String(), testutil.Contains, "4242")
+	c.Check(s.buf.String(), testutil.Contains, "[peer=")
+	c.Check(s.buf.String(), testutil.Contains, "[endpoint=")
+	c.Check(s.buf.String(), testutil.Contains, "[authz_checks=")
+	c.Check(s.buf.String(), testutil.Contains, "[user=")
+}
+
+// TestLogUnauthorizedAccess verifies that LogUnauthorizedAccess emits the expected event, peer, and reason.
+func (s *SecLogSuite) TestLogUnauthorizedAccess(c *C) {
+	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "hacker@example.com", StoreUserName: "hacker"}
+	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 1000, PID: 12345}
+	endpoint := seclog.Endpoint{Method: "DELETE", Path: "/v2/snaps/core"}
+	checks := seclog.NewAuthzChecks()
+	reason := seclog.Reason{Code: 401, Kind: "invalid-credentials", Message: "no permission"}
+
+	seclog.LogUnauthorizedAccess(user, peer, endpoint, checks, reason)
+
+	c.Check(s.buf.String(), testutil.Contains, "authz_fail")
+	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
+	c.Check(s.buf.String(), testutil.Contains, "without authorization:")
+	c.Check(s.buf.String(), testutil.Contains, "without authorization: 401:no permission")
+	c.Check(s.buf.String(), testutil.Contains, "hacker@example.com")
+	c.Check(s.buf.String(), testutil.Contains, "DELETE:/v2/snaps/core:<none>")
+	c.Check(s.buf.String(), testutil.Contains, "12345")
+	c.Check(s.buf.String(), testutil.Contains, "[error=")
+	c.Check(s.buf.String(), testutil.Contains, "[user=")
 }

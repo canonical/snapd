@@ -48,6 +48,17 @@ const iscsiInitiatorConnectedPlugAppArmor = `
 # iSCSI initiator configuration files
 /etc/iscsi/initiatorname.iscsi r,
 /etc/iscsi/iscsid.conf r,
+# Additional Open-iSCSI persistent state
+/etc/iscsi/ifaces/ rwk,
+/etc/iscsi/ifaces/** rw,
+/etc/iscsi/send_targets/ rwk,
+/etc/iscsi/send_targets/** rw,
+/etc/iscsi/fw/ rwk,
+/etc/iscsi/fw/** rw,
+/etc/iscsi/static/ rwk,
+/etc/iscsi/static/** rw,
+/etc/iscsi/isns/ rwk,
+/etc/iscsi/isns/** rw,
 # iSCSI target node information for persistent connections
 /etc/iscsi/nodes/ rwk,
 /etc/iscsi/nodes/** rw,

@@ -395,6 +395,9 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(daemon.MockSnapstateStoreInstallGoal(newStoreInstallGoalRecorder))
 	s.AddCleanup(daemon.MockSnapstatePathUpdateGoal(newPathUpdateGoalRecorder))
 	s.AddCleanup(daemon.MockSnapstateStoreUpdateGoal(newStoreUpdateGoalRecorder))
+
+	daemon.ResetVirtualizationDetection()
+	daemon.ResetBuildIDDetection()
 }
 
 type storeInstallGoalRecorder struct {

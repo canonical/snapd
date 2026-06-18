@@ -84,14 +84,11 @@ type userResponseData struct {
 
 var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 
-// apiLoginError logs a login failure to the security audit log and returns resp
+// apiLoginError logs a login failure via [seclog.LogLoginFailure] and returns resp
 // unchanged. It is a convenience wrapper so that each error return path in
 // loginUser can log with a single call.
-func apiLoginError(resp *apiError, snapdUser seclog.SnapdUser, code string) *apiError {
-	seclog.LogLoginFailure(snapdUser, seclog.Reason{
-		Code:    code,
-		Message: resp.Message,
-	})
+func apiLoginError(resp *apiError, snapdUser seclog.SnapdUser) *apiError {
+	seclog.LogLoginFailure(snapdUser, resp.seclogReason())
 	return resp
 }
 
@@ -105,8 +102,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginData); err != nil {
-		return apiLoginError(BadRequest("cannot decode login data from request body: %v", err),
-			seclog.SnapdUser{}, seclog.ReasonInvalidAuthData)
+		return apiLoginError(BadRequest("cannot decode login data from request body: %v", err), seclog.SnapdUser{})
 	}
 
 	if loginData.Email == "" && isEmailish(loginData.Username) {
@@ -129,7 +125,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, seclog.SnapdUser{
 			StoreUserName:  loginData.Username,
 			StoreUserEmail: loginData.Email,
-		}, seclog.ReasonInvalidAuthData)
+		})
 	}
 
 	// Build the user identity for security audit logging. At this point we know
@@ -150,13 +146,13 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 			Status:  401,
 			Message: err.Error(),
 			Kind:    client.ErrorKindTwoFactorRequired,
-		}, snapdUser, seclog.ReasonTwoFactorRequired)
+		}, snapdUser)
 	case store.Err2faFailed:
 		return apiLoginError(&apiError{
 			Status:  401,
 			Message: err.Error(),
 			Kind:    client.ErrorKindTwoFactorFailed,
-		}, snapdUser, seclog.ReasonTwoFactorFailed)
+		}, snapdUser)
 	default:
 		switch err := err.(type) {
 		case store.InvalidAuthDataError:
@@ -165,20 +161,16 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 				Message: err.Error(),
 				Kind:    client.ErrorKindInvalidAuthData,
 				Value:   err,
-			}, snapdUser, seclog.ReasonInvalidAuthData)
+			}, snapdUser)
 		case store.PasswordPolicyError:
 			return apiLoginError(&apiError{
 				Status:  401,
 				Message: err.Error(),
 				Kind:    client.ErrorKindPasswordPolicy,
 				Value:   err,
-			}, snapdUser, seclog.ReasonPasswordPolicy)
+			}, snapdUser)
 		}
-		reason := seclog.ReasonInternal
-		if err == store.ErrInvalidCredentials {
-			reason = seclog.ReasonInvalidCredentials
-		}
-		return apiLoginError(Unauthorized(err.Error()), snapdUser, reason)
+		return apiLoginError(Unauthorized(err.Error()), snapdUser)
 	case nil:
 		// continue
 	}
@@ -200,7 +192,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	st.Unlock()
 	if err != nil {
-		return apiLoginError(InternalError("cannot persist authentication details: %v", err), snapdUser, seclog.ReasonInternal)
+		return apiLoginError(InternalError("cannot persist authentication details: %v", err), snapdUser)
 	}
 
 	snapdUser.ID = int64(user.ID)

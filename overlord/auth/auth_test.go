@@ -610,10 +610,10 @@ func (as *authSuite) TestChangedFieldsFieldMapping(c *C) {
 	}
 	c.Check(prev.ChangedFields(cur), DeepEquals, []string{
 		"expiration",
-		"local-discharges", "local-macaroon",
-		"snapd-user-id",
-		"store-discharges", "store-macaroon",
-		"store-user-email", "store-user-name",
+		"local_discharges", "local_macaroon",
+		"snapd_user_id",
+		"store_discharges", "store_macaroon",
+		"store_user_email", "store_user_name",
 	})
 }
 
@@ -650,7 +650,7 @@ func (as *authSuite) TestChangedFieldsSingleField(c *C) {
 		ID: 1, Email: "new@test.com",
 		StoreMacaroon: "sm1",
 	}
-	c.Check(a.ChangedFields(b), DeepEquals, []string{"store-user-email"})
+	c.Check(a.ChangedFields(b), DeepEquals, []string{"store_user_email"})
 }
 
 func (as *authSuite) TestChangedFieldsExpirationLocationIndependent(c *C) {
@@ -710,8 +710,8 @@ func (as *authSuite) TestUpdateUserLogsUpdated(c *C) {
 	c.Check(as.seclogBuf.String(), testutil.Contains, "user_updated")
 	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe")
 	c.Check(as.seclogBuf.String(), testutil.Contains, "new@test.com")
-	c.Check(as.seclogBuf.String(), testutil.Contains, "store-user-email")
-	c.Check(as.seclogBuf.String(), testutil.Contains, "store-macaroon")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "store_user_email")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "store_macaroon")
 }
 
 func (as *authSuite) TestUpdateUserNoChangeSkipsLog(c *C) {

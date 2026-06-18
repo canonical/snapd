@@ -501,11 +501,18 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 	}
 
 	// Check if re-exec in snapd
-	path := filepath.Join(dirs.SnapMountDir, "snapd/*/usr/bin/snap")
+	path := filepath.Join(dirs.SnapMountDir, "snapd/*/usr/bin/*")
 	if matched, err := filepath.Match(path, exe); err != nil {
 		return false, err
 	} else if matched {
-		return true, nil
+		base := filepath.Base(exe)
+		// Depending on the build variant of the snapd snap, the command could
+		// either be $SNAPD_MOUNT/usr/bin/snap or $SNAPD_MOUNT/usr/bin/snap-fips
+		if base == "snap" || base == "snap-fips" {
+			return true, nil
+		}
+
+		return false, nil
 	}
 
 	// Check if re-exec in core

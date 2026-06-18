@@ -970,6 +970,10 @@ func (s *noticesSuite) TestAddNoticesSnapCmdReexecSnapd(c *C) {
 	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "snapd/11/usr/bin/snap"), false)
 }
 
+func (s *noticesSuite) TestAddNoticesSnapCmdReexecSnapdFIPS(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "snapd/11/usr/bin/snap-fips"), false)
+}
+
 func (s *noticesSuite) TestAddNoticesSnapCmdReexecCore(c *C) {
 	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "core/12/usr/bin/snap"), false)
 }

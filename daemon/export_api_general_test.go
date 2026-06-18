@@ -29,17 +29,27 @@ import (
 )
 
 func MockBuildID(mock string) (restore func()) {
-	old := buildID
-	buildID = mock
+	oldBuildID := buildID
+	r := testutil.Mock(&setBuildID, func() {
+		buildID = mock
+	})
+
 	return func() {
-		buildID = old
+		r()
+		buildID = oldBuildID
 	}
 }
 
 func MockSystemdVirt(newVirt string) (restore func()) {
 	oldVirt := systemdVirt
-	systemdVirt = newVirt
-	return func() { systemdVirt = oldVirt }
+	r := testutil.Mock(&setSystemdDetectVirt, func() {
+		systemdVirt = newVirt
+	})
+
+	return func() {
+		r()
+		systemdVirt = oldVirt
+	}
 }
 
 func MockWarningsAccessors(okay func(*state.State, time.Time) int, all func(*state.State) []*state.Warning, pending func(*state.State) ([]*state.Warning, time.Time)) (restore func()) {

@@ -312,6 +312,73 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	c.Assert(val, DeepEquals, "foo")
 }
 
+func (s *confdbTestSuite) TestSetViewDoesNotEraseOtherSchemaUnderSameAccount(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": noHooks}, nil)
+
+	// Write a value into the first schema.
+	view, err := confdbstate.GetView(s.state, s.devAccID, "network", "setup-wifi")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"ssid": "preserved-value"})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.o.Settle(5 * time.Second)
+	s.state.Lock()
+
+	c.Assert(s.state.Change(chgID).Status(), Equals, state.DoneStatus)
+
+	// Write a value into a second schema under the same account.
+	view, err = confdbstate.GetView(s.state, s.devAccID, "other", "other")
+	c.Assert(err, IsNil)
+
+	chgID, err = confdbstate.WriteConfdb(context.Background(), s.state, view, map[string]any{"foo": "bar"})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.o.Settle(5 * time.Second)
+	s.state.Lock()
+
+	c.Assert(s.state.Change(chgID).Status(), Equals, state.DoneStatus)
+
+	// The first schema's data must still be present.
+	bag, err := confdbstate.ReadDatabag(s.state, s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	val, err := bag.Get(parsePath(c, "wifi.ssid"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "preserved-value")
+}
+
+func (s *confdbTestSuite) TestWriteDatabagDoesNotEraseOtherAccounts(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Seed data for a different account directly.
+	otherAccID := "other-account-id"
+	otherBag := confdb.NewJSONDatabag()
+	err := otherBag.Set(parsePath(c, "foo"), "preserved-value")
+	c.Assert(err, IsNil)
+	s.state.Set("confdb-databags", map[string]map[string]confdb.JSONDatabag{
+		otherAccID: {"some-schema": otherBag},
+	})
+
+	// Write to our account for the first time.
+	err = confdbstate.WriteDatabag(s.state, confdb.NewJSONDatabag(), s.devAccID, "network")
+	c.Assert(err, IsNil)
+
+	// The other account's data must still be present.
+	bag, err := confdbstate.ReadDatabag(s.state, otherAccID, "some-schema")
+	c.Assert(err, IsNil)
+
+	val, err := bag.Get(parsePath(c, "foo"), nil)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, "preserved-value")
+}
+
 func (s *confdbTestSuite) TestSetNotFound(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -621,7 +688,7 @@ func (s *confdbTestSuite) TestConfdbTasksUserSetWithCustodianInstalled(c *C) {
 	chg.AddAll(ts)
 
 	// the custodian snap's hooks are run
-	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "run-hook", "commit-confdb-tx", "clear-confdb-tx"}
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "commit-confdb-tx", "run-hook", "clear-confdb-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "custodian-snap",
@@ -713,7 +780,7 @@ func (s *confdbTestSuite) TestConfdbTasksObserverSnapSetWithCustodianInstalled(c
 
 	// we trigger hooks for the custodian snap and for the observe-view- for the
 	// observer snap that didn't trigger the change
-	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "run-hook", "run-hook", "commit-confdb-tx", "clear-confdb-tx"}
+	tasks := []string{"clear-confdb-tx-on-error", "run-hook", "run-hook", "commit-confdb-tx", "run-hook", "run-hook", "clear-confdb-tx"}
 	hooks := []*hookstate.HookSetup{
 		{
 			Snap:        "custodian-snap",
