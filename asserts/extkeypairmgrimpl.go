@@ -29,13 +29,6 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
-type extKeypairMgrSigning string
-
-const (
-	extKeypairMgrSigningRSAPKCS extKeypairMgrSigning = "RSA-PKCS"
-	extKeypairMgrSigningOpenPGP extKeypairMgrSigning = "OpenPGP"
-)
-
 // ExtKeypairMgrSigning describes the signing mode supported by an external keypair manager backend.
 type ExtKeypairMgrSigning string
 
@@ -85,15 +78,15 @@ type extKeypairMgrCachedKey struct {
 
 // ExtKeypairMgrConfig carries diagnostic strings for ExternalKeypairManager.
 type ExtKeypairMgrConfig struct {
-	// signingWith identifies the signing backend for diagnostics and error messages.
+	// SigningWith identifies the signing backend for diagnostics and error messages.
 	SigningWith string
-	// keyStore names the backing key store for diagnostics, in particular key not found errors.
+	// KeyStore names the backing key store for diagnostics, in particular key not found errors.
 	KeyStore string
 }
 
 type extKeypairMgrImpl struct {
 	backend       ExtKeypairMgrBackend
-	signingMethod extKeypairMgrSigning
+	signingMethod ExtKeypairMgrSigning
 	signingWith   string
 	keyStore      string
 	nameToID      map[string]string
@@ -108,7 +101,7 @@ func newExtKeypairMgrImpl(backend ExtKeypairMgrBackend, config ExtKeypairMgrConf
 	}
 	return &extKeypairMgrImpl{
 		backend:       backend,
-		signingMethod: extKeypairMgrSigning(signingMethod),
+		signingMethod: signingMethod,
 		signingWith:   config.SigningWith,
 		keyStore:      config.KeyStore,
 		nameToID:      make(map[string]string),
@@ -251,12 +244,12 @@ func (m *extKeypairMgrImpl) signOpenPGP(keyHandle string, content []byte) (*pack
 	badSig := fmt.Sprintf("bad %s produced signature: ", m.signingWith)
 	sigpkt, err := packet.Read(bytes.NewReader(out))
 	if err != nil {
-		return nil, fmt.Errorf(badSig+"%v", err)
+		return nil, fmt.Errorf("%s%v", badSig, err)
 	}
 
 	sig, ok := sigpkt.(*packet.Signature)
 	if !ok {
-		return nil, fmt.Errorf(badSig+"got %T", sigpkt)
+		return nil, fmt.Errorf("%sgot %T", badSig, sigpkt)
 	}
 
 	return sig, nil
@@ -272,7 +265,7 @@ func (m *extKeypairMgrImpl) privateKey(entry *extKeypairMgrCachedKey) PrivateKey
 	}
 
 	switch m.signingMethod {
-	case extKeypairMgrSigningRSAPKCS:
+	case ExtKeypairMgrSigningRSAPKCS:
 		signer := packet.NewSignerPrivateKey(v1FixedTimestamp, &rsaPKCSSigner{
 			keyHandle: entry.keyHandle,
 			publicKey: rsaPub,
@@ -286,7 +279,7 @@ func (m *extKeypairMgrImpl) privateKey(entry *extKeypairMgrCachedKey) PrivateKey
 			bitLen:     rsaPub.N.BitLen(),
 			doSign:     signk.sign,
 		}
-	case extKeypairMgrSigningOpenPGP:
+	case ExtKeypairMgrSigningOpenPGP:
 		entry.privKey = &extPGPPrivateKey{
 			pubKey:     entry.pubKey,
 			from:       m.signingWith,
