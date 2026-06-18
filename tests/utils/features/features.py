@@ -65,6 +65,7 @@ class TaskFeatures(TypedDict):
     tasks: list[Task]
     changes: list[Change]
     ensures: list[Ensure]
+    coverages: list[Coverage]
     runtime: float
 
 

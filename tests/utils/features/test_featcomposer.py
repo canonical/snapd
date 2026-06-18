@@ -27,6 +27,7 @@ class TestCompose(unittest.TestCase):
         features['tasks'] = [
             Task(kind=msg, snap_type='snap', last_status=Status.done.value)]
         features['changes'] = [Change(kind=msg, snap_type='snap')]
+        features['coverages'] = [Coverage(file=f'{msg}.go', func=msg)]
         return features
 
     @staticmethod
@@ -41,7 +42,8 @@ class TestCompose(unittest.TestCase):
             endpoints=features['endpoints'],
             interfaces=features['interfaces'],
             tasks=features['tasks'],
-            changes=features['changes']
+            changes=features['changes'],
+            coverages=features['coverages']
         )
 
     @staticmethod
@@ -131,6 +133,44 @@ class TestCompose(unittest.TestCase):
                         check_test_equal(sys2test1, test, True)
                     if test['task_name'] == 'test3':
                         check_test_equal(sys2test3, test, False)
+
+    def test_coverage_preservation(self):
+        """Test that coverage data is preserved during composition"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create test files with coverage data
+            test_file = os.path.join(tmpdir, 'backend:system1:tests--main--test1')
+            test_data = {
+                'suite': 'tests/main',
+                'task_name': 'test1',
+                'variant': '',
+                'success': True,
+                'cmds': [],
+                'endpoints': [],
+                'interfaces': [],
+                'tasks': [],
+                'changes': [],
+                'ensures': [],
+                'coverages': [
+                    {'file': 'core/overlord/snapstate.go', 'func': 'doInstall'},
+                    {'file': 'core/daemon/api.go', 'func': 'handleGet'},
+                ]
+            }
+            with open(test_file, 'w', encoding='utf-8') as f:
+                json.dump(test_data, f)
+            
+            systems = featcomposer.get_system_list(tmpdir)
+            self.assertEqual(1, len(systems))
+            composed = featcomposer.compose_system(tmpdir, systems.pop(),
+                                                       'backend:system1:tests/main/test1',
+                                                       [], [])
+            
+            # Verify coverage data is present in composed output
+            assert 'tests' in composed and len(composed['tests']) == 1
+            test = composed['tests'][0]
+            assert 'coverages' in test
+            assert len(test['coverages']) == 2
+            assert {'file': 'core/overlord/snapstate.go', 'func': 'doInstall'} in test['coverages']
+            assert {'file': 'core/daemon/api.go', 'func': 'handleGet'} in test['coverages']
 
 
 class TestReplace(unittest.TestCase):
