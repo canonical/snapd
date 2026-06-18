@@ -74,6 +74,27 @@ type TestLogEntry struct {
 	Source TestSourceLogEntry
 }
 
+func decodeStructuredEntries(c *C, buf *bytes.Buffer) []TestLogEntry {
+	raw := bytes.TrimSpace(buf.Bytes())
+	if len(raw) == 0 {
+		return nil
+	}
+
+	lines := bytes.Split(raw, []byte("\n"))
+	entries := make([]TestLogEntry, 0, len(lines))
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
+		var data TestLogEntry
+		err := json.Unmarshal(line, &data)
+		c.Assert(err, IsNil)
+		entries = append(entries, data)
+	}
+
+	return entries
+}
+
 func (s *LogStructuredSuite) TestNewStructured(c *C) {
 	os.Setenv("SNAPD_JSON_LOGGING", "1")
 	defer os.Unsetenv("SNAPD_JSON_LOGGING")
@@ -104,6 +125,37 @@ func (s *LogStructuredSuite) TestTraceEnvStructured(c *C) {
 	c.Check(data.Level, Equals, "TRACE")
 	c.Check(data.Attr, Equals, "val")
 	c.Check(data.Source.File, Equals, "structured_logger_test.go")
+}
+
+func (s *LogStructuredSuite) TestTraceEnvStructuredDeduplicatesRepeatedEntry(c *C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	logger.Trace("xyzzy", "attr", "val")
+	logger.Trace("xyzzy", "attr", "val")
+
+	entries := decodeStructuredEntries(c, s.logbuf)
+	c.Assert(entries, HasLen, 1)
+	c.Check(entries[0].Msg, Equals, "xyzzy")
+	c.Check(entries[0].Level, Equals, "TRACE")
+	c.Check(entries[0].Attr, Equals, "val")
+}
+
+func (s *LogStructuredSuite) TestTraceEnvStructuredAllowsDistinctEntries(c *C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	logger.Trace("xyzzy", "attr", "val")
+	logger.Trace("xyzzy", "attr", "different")
+
+	entries := decodeStructuredEntries(c, s.logbuf)
+	c.Assert(entries, HasLen, 2)
+	c.Check(entries[0].Msg, Equals, "xyzzy")
+	c.Check(entries[0].Level, Equals, "TRACE")
+	c.Check(entries[0].Attr, Equals, "val")
+	c.Check(entries[1].Msg, Equals, "xyzzy")
+	c.Check(entries[1].Level, Equals, "TRACE")
+	c.Check(entries[1].Attr, Equals, "different")
 }
 
 func (s *LogStructuredSuite) TestTraceEnvDebugStructured(c *C) {
