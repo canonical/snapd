@@ -817,7 +817,6 @@ class TestQueryFeatures:
             system='system1',
             max_minutes=1,
             force_match_keywords=['install'],
-            exclude=[]
         )
 
         assert 'system1' in coverage
@@ -845,7 +844,6 @@ class TestQueryFeatures:
             system='system1',
             max_minutes=4,
             force_match_keywords=['install'],
-            exclude=[]
         )
 
         assert 'system1' in coverage and len(coverage['system1']) == 2
@@ -873,7 +871,6 @@ class TestQueryFeatures:
             system='system1',
             max_minutes=4,
             force_match_keywords=None,
-            exclude=None
         )
 
         assert 'system1' in coverage and len(coverage['system1']) == 2
@@ -1035,7 +1032,8 @@ class TestQueryFeatures:
                 remove_failed=False,
                 only_same=False,
                 match_snap_types=True,
-                sort_by_test=False
+                sort_by_test=False,
+                exclude=None,
             )
             query_features.main()
             expected = {'cmds': [{'cmd': 'b'}], 'endpoints': [{'1': 'a'}]}
@@ -1079,7 +1077,8 @@ class TestQueryFeatures:
                 dir=mocker.get_dir() if mocker_class == "DirMocker" else None,
                 timestamp='2025-05-04',
                 system='system',
-                remove_failed=False
+                remove_failed=False,
+                exclude=None,
             )
             query_features.main()
             expected = {'cmds': [Cmd(cmd='c'),Cmd(cmd='e'),Cmd(cmd='f')],
@@ -1108,6 +1107,7 @@ class TestQueryFeatures:
                 timestamp='2025-05-04',
                 system='system',
                 remove_failed=False,
+                exclude=None,
             )
             query_features.main()
             actual = json.loads(mocker.get_stdout())
@@ -1214,7 +1214,8 @@ class TestQueryFeatures:
                 suite=None,
                 task=None,
                 variant=None,
-                remove_failed=True
+                remove_failed=True,
+                exclude=None,
             )
             query_features.main()
 
@@ -1222,6 +1223,112 @@ class TestQueryFeatures:
             expected = {'cmds':[{'cmd':'a'},{'cmd':'b'},{'cmd':'d'}],
                         'endpoints':[{'1':'a'},{'5':'d'}]}
             assert expected == output
+
+
+    def test_mongoretriever_projection_helpers(self):
+        assert query_features.MongoRetriever._projection_for_system_features(None) is None
+        assert query_features.MongoRetriever._projection_for_all_features(None) is None
+        assert {
+            'tests.cmds': 0,
+            'tests.tasks': 0,
+        } == query_features.MongoRetriever._projection_for_system_features(['cmds', 'tasks'])
+        assert {
+            'cmds': 0,
+            'tasks': 0,
+        } == query_features.MongoRetriever._projection_for_all_features(['cmds', 'tasks'])
+
+
+    def test_dirretriever_exclude_removes_features(self):
+        data = [
+            {
+                'timestamp': '2025-05-04',
+                'system': 'system1',
+                'tests': [
+                    TaskFeatures(
+                        task_name='task1',
+                        suite='suite1',
+                        variant='',
+                        cmds=[{'cmd': 'a'}],
+                        endpoints=[{'path': '/v2/snaps', 'method': 'GET'}],
+                        tasks=[{'kind': 'install-snap', 'last_status': 'Done'}],
+                        success=True,
+                    )
+                ],
+            },
+            {
+                'timestamp': '2025-05-04',
+                'all_features': True,
+                'cmds': [{'cmd': 'a'}, {'cmd': 'b'}],
+                'endpoints': [{'path': '/v2/snaps', 'method': 'GET'}],
+                'tasks': [{'kind': 'install-snap', 'last_status': 'Done'}],
+            },
+        ]
+
+        with DirMocker(data) as dm:
+            retriever = query_features.DirRetriever(dm.get_dir(), exclude=['cmds', 'tasks'])
+
+            single = retriever.get_single_json('2025-05-04', 'system1')
+            assert 'cmds' not in single['tests'][0]
+            assert 'tasks' not in single['tests'][0]
+            assert 'endpoints' in single['tests'][0]
+
+            listed = list(retriever.get_systems('2025-05-04', ['system1']))
+            assert len(listed) == 1
+            assert 'cmds' not in listed[0]['tests'][0]
+            assert 'tasks' not in listed[0]['tests'][0]
+
+            all_features = retriever.get_all_features('2025-05-04')
+            assert 'cmds' not in all_features
+            assert 'tasks' not in all_features
+            assert 'endpoints' in all_features
+
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_retriever_feat_sys_with_exclude(self, parse_args_mock: Mock):
+        data = [
+            {
+                'timestamp': '2025-05-04',
+                'system': 'system1',
+                'tests': [
+                    TaskFeatures(
+                        task_name='task1',
+                        suite='suite1',
+                        variant='',
+                        cmds=[{'cmd': 'a'}],
+                        endpoints=[{'1': 'a'}],
+                        success=True,
+                    ),
+                    TaskFeatures(
+                        task_name='task2',
+                        suite='suite1',
+                        variant='',
+                        cmds=[{'cmd': 'd'}],
+                        endpoints=[{'5': 'd'}],
+                        success=True,
+                    ),
+                ],
+            }
+        ]
+
+        with DirMocker(data, do_patch_stdout=True) as dm:
+            parse_args_mock.return_value = argparse.Namespace(
+                command='feat',
+                features_cmd='sys',
+                file=None,
+                dir=dm.get_dir(),
+                timestamp='2025-05-04',
+                system='system1',
+                suite=None,
+                task=None,
+                variant=None,
+                remove_failed=False,
+                exclude=['cmds'],
+            )
+            query_features.main()
+
+            output = json.loads(dm.get_stdout())
+            assert 'cmds' not in output
+            assert output == {'endpoints': [{'1': 'a'}, {'5': 'd'}]}
 
 
     @pytest.mark.parametrize("mocker_class", ["MongoMocker","DirMocker"])

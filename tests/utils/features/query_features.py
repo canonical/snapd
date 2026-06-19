@@ -15,9 +15,9 @@ import pymongo.collection
 import sys
 from typing import Any, Iterable, Optional
 
-from features import SystemFeatures, Cmd, Endpoint, Status, Task, Change, Interface
+from features import SystemFeatures, TaskFeatures, Cmd, Endpoint, Status, Task, Change, Interface
 
-KNOWN_FEATURES = ["cmds", "endpoints", "ensures", "tasks", "changes", "interfaces"]
+KNOWN_FEATURES = ["coverages", "cmds", "endpoints", "ensures", "tasks", "changes", "interfaces"]
 
 # file name for the complete list of all features
 ALL_FEATURES_FILE = "all-features.json"
@@ -78,8 +78,9 @@ class Retriever(ABC):
     Retrieves features tags from a data source.
     """
 
-    def __init__(self):
+    def __init__(self, exclude: Optional[list[str]] = None):
         self.cache = {}
+        self.exclude = exclude
 
     @abstractmethod
     def get_sorted_timestamps_and_systems(self) -> list[dict[str, Any]]:
@@ -161,8 +162,8 @@ class MongoRetriever(Retriever):
     json file with host, port, user, and password defined.
     """
 
-    def __init__(self, creds_file):
-        super().__init__()
+    def __init__(self, creds_file, exclude: Optional[list[str]] = None):
+        super().__init__(exclude)
         config = json.load(creds_file)
         self.client = pymongo.MongoClient(
             host=config["host"], port=config["port"], username=config["user"], password=config["password"]
@@ -181,30 +182,51 @@ class MongoRetriever(Retriever):
             dictionary[result["timestamp"].isoformat()].append(result["system"])
         return [{"timestamp": entry[0], "systems": entry[1]} for entry in sorted(dictionary.items(), reverse=True)]
 
+    @staticmethod
+    def _projection_for_system_features(exclude: Optional[list[str]]) -> Optional[dict[str, int]]:
+        if not exclude:
+            return None
+        return {f"tests.{feature}": 0 for feature in exclude}
+
+    @staticmethod
+    def _projection_for_all_features(exclude: Optional[list[str]]) -> Optional[dict[str, int]]:
+        if not exclude:
+            return None
+        return {feature: 0 for feature in exclude}
+
     def _get_systems(self, timestamp: str, systems: list[str] = None) -> Iterable[SystemFeatures]:
+        projection = self._projection_for_system_features(self.exclude)
         if systems:
             for system in systems:
                 system_jsons = self.collection.find(
-                    {"timestamp": datetime.datetime.fromisoformat(timestamp), "system": system}
+                    {"timestamp": datetime.datetime.fromisoformat(timestamp), "system": system},
+                    projection,
                 )
                 for system_json in system_jsons:
                     yield system_json
         else:
-            for result in self.collection.find({"timestamp": datetime.datetime.fromisoformat(timestamp)}):
+            for result in self.collection.find(
+                {"timestamp": datetime.datetime.fromisoformat(timestamp)},
+                projection,
+            ):
                 if "all_features" not in result or not result["all_features"]:
                     yield result
 
     def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
+        projection = self._projection_for_system_features(self.exclude)
         json_result = self.collection.find(
-            {"timestamp": datetime.datetime.fromisoformat(timestamp), "system": system}
+            {"timestamp": datetime.datetime.fromisoformat(timestamp), "system": system},
+            projection,
         ).to_list()
         if len(json_result) != 1:
             raise RuntimeError(f"{len(json_result)} entries of system {system} found in collection {timestamp}")
         return json_result[0]
 
     def _get_all_features(self, timestamp) -> dict[str, list[Any]]:
+        projection = self._projection_for_all_features(self.exclude)
         json_result = self.collection.find(
-            {"timestamp": datetime.datetime.fromisoformat(timestamp), "all_features": True}
+            {"timestamp": datetime.datetime.fromisoformat(timestamp), "all_features": True},
+            projection,
         ).to_list()
         if len(json_result) != 1:
             raise RuntimeError(
@@ -228,8 +250,8 @@ class DirRetriever(Retriever):
     Then one can use /write/dir as a data source with this retriever
     """
 
-    def __init__(self, dir: str):
-        super().__init__()
+    def __init__(self, dir: str, exclude: Optional[list[str]] = None):
+        super().__init__(exclude)
         if not os.path.exists(dir):
             raise RuntimeError(f"directory {dir} does not exist")
         self.dir = dir
@@ -264,14 +286,20 @@ class DirRetriever(Retriever):
                 not systems or self.__get_filename_without_last_ext(filename) in systems
             ):
                 with open(os.path.join(timestamp_dir, filename), "r", encoding="utf-8") as f:
-                    yield json.load(f)
+                    system_json = json.load(f)
+                    if self.exclude and "tests" in system_json:
+                        remove_features(system_json["tests"], self.exclude)
+                    yield system_json
 
     def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
         sys_path = os.path.join(self.dir, timestamp, system + ".json")
         if not os.path.exists(sys_path):
             raise RuntimeError(f"system file not found {sys_path}")
         with open(sys_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            system_json = json.load(f)
+            if self.exclude and "tests" in system_json:
+                remove_features(system_json["tests"], self.exclude)
+            return system_json
 
     def _get_all_features(self, timestamp) -> dict[str, list[Any]]:
         sys_path = os.path.join(self.dir, timestamp, ALL_FEATURES_FILE)
@@ -283,6 +311,9 @@ class DirRetriever(Retriever):
                 del all["timestamp"]
             if "all_features" in all:
                 del all["all_features"]
+            if self.exclude:
+                for feature in self.exclude:
+                    all.pop(feature, None)
             return all
 
 
@@ -381,6 +412,15 @@ def subtract_features(first: dict[str, list], second: dict[str, list], match_sna
     if interfaces:
         diff["interfaces"] = interfaces
     return diff
+
+
+def remove_features(tests: list[TaskFeatures], exclude: Optional[list[str]]) -> None:
+    if not exclude:
+        return
+    for test in tests:
+        for feature in exclude:
+            if feature in test.keys():
+                del test[feature]
 
 
 def list_tasks(system_json: SystemFeatures, remove_failed: bool) -> set[TaskIdVariant]:
@@ -594,6 +634,8 @@ def get_feature_name_from_feature(feat: dict) -> str:
         return "interfaces"
     elif "kind" in feat:
         return "changes"
+    elif "coverage" in feat:
+        return "coverage"
     return ""
 
 
@@ -739,13 +781,12 @@ def filter_snap_types(snap_types: list[str]) -> list[str]:
     return [t for t in snap_types if "NOT FOUND" not in t]
 
 
-def clean_dictionary(features: SystemFeatures, exclude: Optional[list[str]]) -> None:
+def clean_dictionary(features: SystemFeatures) -> None:
     """
     Removes all status entries other than Done, Undone, Error.
     Filters out NOT_FOUND snap types.
 
     :param features: features dictionary to clean
-    :param exclude: removes all features of the specified type
     """
 
     def clean_snap_types(lst: list):
@@ -754,9 +795,6 @@ def clean_dictionary(features: SystemFeatures, exclude: Optional[list[str]]) -> 
                 entry["snap_types"] = filter_snap_types(entry["snap_types"])
 
     for test in features["tests"]:
-        if exclude:
-            for exclude_feature in exclude:
-                test.pop(exclude_feature, None)
         clean_snap_types(test.get("tasks", []))
         clean_snap_types(test.get("changes", []))
 
@@ -803,7 +841,6 @@ def minimal_coverage(
     system: Optional[str],
     max_minutes: int,
     force_match_keywords: Optional[list[str]],
-    exclude: Optional[list[str]],
 ) -> dict[str, list[TaskIdVariant]]:
     """
     Given a timestamp and (optional) system, gets the minimal set of tasks that cover the same features as the entire system.
@@ -823,7 +860,7 @@ def minimal_coverage(
     coverage = {}
     for sys_json in sys_jsons:
         time_left = max_minutes if max_minutes > 0 else math.inf
-        clean_dictionary(sys_json, exclude)
+        clean_dictionary(sys_json)
         tasks = sys_json["tests"]
         # All tasks that were successful appear before those that failed
         tasks = sorted(tasks, key=lambda x: (not x["success"], x["runtime"]))
@@ -882,6 +919,7 @@ def add_diff_parser(subparsers: argparse._SubParsersAction) -> str:
     diff.add_argument("-s2", "--system2", help="system of second execution", type=str, required=True)
     diff.add_argument("--remove-failed", help="remove all tasks that failed", action="store_true")
     diff.add_argument("--only-same", help="only compare tasks that were executed on both systems", action="store_true")
+    diff.add_argument("--exclude", help="exclude the list of features", nargs="+")
     return cmd
 
 
@@ -935,6 +973,7 @@ def add_diff_parsers(subparsers: argparse._SubParsersAction) -> tuple[str, str, 
     sys.add_argument("--match-snap-types", help="match the entire feature, including snap types", action="store_true")
     sys.add_argument("--sort-by-test", help="group features by the tests they are found in", action="store_true")
     sys.add_argument("--csv", help="output the diff in csv format rather than json", action="store_true")
+    sys.add_argument("--exclude", help="exclude the list of features", nargs="+")
 
     all = diff_subparsers.add_parser(
         cmd_all,
@@ -946,6 +985,7 @@ def add_diff_parsers(subparsers: argparse._SubParsersAction) -> tuple[str, str, 
     all.add_argument("-t", "--timestamp", help="timestamp of instance to search", required=True, type=str)
     all.add_argument("-s", "--system", help="system whose features should be searched", required=True, type=str)
     all.add_argument("--remove-failed", help="remove all tasks that failed", action="store_true")
+    all.add_argument("--exclude", help="exclude the list of features", nargs="+")
     return cmd, cmd_sys, cmd_all
 
 
@@ -970,6 +1010,7 @@ def add_dup_parser(subparsers: argparse._SubParsersAction) -> str:
     duplicate.add_argument("-t", "--timestamp", help="timestamp of instance to search", required=True, type=str)
     duplicate.add_argument("-s", "--system", help="system whose features should be searched", required=True, type=str)
     duplicate.add_argument("--remove-failed", help="remove all tasks that failed", action="store_true")
+    duplicate.add_argument("--exclude", help="exclude the list of features", nargs="+")
     return cmd
 
 
@@ -986,6 +1027,7 @@ def add_export_parser(subparsers: argparse._SubParsersAction) -> str:
     )
     export.add_argument("-s", "--systems", help="space-separated list of systems", nargs="*")
     export.add_argument("-o", "--output", help="folder to save feature data", required=True, type=str)
+    export.add_argument("--exclude", help="exclude the list of features", nargs="+")
     return cmd
 
 
@@ -1028,6 +1070,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     sys.add_argument("--task", help="if provided, only grab features of this task", default=None, type=str)
     sys.add_argument("--variant", help="if provided, only grab features with this variant", default=None, type=str)
     sys.add_argument("--remove-failed", help="remove all tasks that failed", action="store_true")
+    sys.add_argument("--exclude", help="exclude the list of features", nargs="+")
 
     find = feat_subparsers.add_parser(
         cmd_find,
@@ -1040,6 +1083,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     find.add_argument("--feat", help="feature to search for (json format)", required=True, type=str)
     find.add_argument("--remove-failed", help="remove all tasks that failed", action="store_true")
     find.add_argument("--match-snap-types", help="match the entire feature, including snap types", action="store_true")
+    find.add_argument("--exclude", help="exclude the list of features", nargs="+")
 
     cover = feat_subparsers.add_parser(
         cmd_cover,
@@ -1087,12 +1131,12 @@ def main():
     if args.dir:
 
         def retriever_creator():
-            return DirRetriever(args.dir)
+            return DirRetriever(args.dir, getattr(args, "exclude", None))
 
     elif args.file:
 
         def retriever_creator():
-            return MongoRetriever(args.file)
+            return MongoRetriever(args.file, getattr(args, "exclude", None))
 
     else:
         raise RuntimeError(
@@ -1174,7 +1218,7 @@ def main():
                     raise RuntimeError(f"Error parsing feature {args.feat}: {e}")
             elif args.features_cmd == feat_cover_cmd:
                 result = minimal_coverage(
-                    retriever, args.timestamp, args.system, args.max_minutes, args.force_match_keywords, args.exclude
+                    retriever, args.timestamp, args.system, args.max_minutes, args.force_match_keywords
                 )
                 json.dump(result, sys.stdout, default=lambda x: str(x))
             else:
