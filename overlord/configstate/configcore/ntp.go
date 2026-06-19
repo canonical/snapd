@@ -55,8 +55,7 @@ func init() {
 }
 
 // Too simplistic?
-var validHostname = regexp.MustCompile(`^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]{0,61}[a-zA-Z0-9]))*$`).MatchString
-var validIPv4 = net.ParseIP
+var validHostname = regexp.MustCompile(`^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9])(\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]))*$`).MatchString
 
 // Match the line containing "μs:" or "us:" and capture the following digits
 var timespanUsRegexp = regexp.MustCompile(`(?:μs|us):\s*(\d+)`)
@@ -177,7 +176,7 @@ func validateNTPServers(servers []any) error {
 }
 
 func validateServerName(serverAddress string) error {
-	if validIPv4(serverAddress) == nil && !validHostname(serverAddress) {
+	if net.ParseIP(serverAddress) == nil && !validHostname(serverAddress) {
 		return fmt.Errorf("%q is not a valid server name", serverAddress)
 	}
 	return nil

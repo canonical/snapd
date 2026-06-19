@@ -103,6 +103,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 					"servers": []any{
 						"192.168.15.1",
 						"ntp.ubuntu.com",
+						"2610:20:6f15:15::25", // time-f-g.nist.gov
 					},
 					"fallback-servers": []any{
 						"192.168.1.100",
@@ -125,7 +126,7 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 				"RootDistanceMaxSec=5s",
 				"PollIntervalMinSec=30s",
 				"PollIntervalMaxSec=40m0s",
-				"NTP=192.168.15.1 ntp.ubuntu.com",
+				"NTP=192.168.15.1 ntp.ubuntu.com 2610:20:6f15:15::25",
 				"FallbackNTP=192.168.1.100 pool.ntp.org",
 				"ConnectionRetrySec=5s",
 			},
