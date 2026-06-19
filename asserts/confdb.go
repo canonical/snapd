@@ -56,6 +56,16 @@ views:
                 storage: revision
               -
                 storage: presence
+              -
+                storage: components
+                content:
+                  -
+                    storage: {component}
+                    content:
+                      -
+                        storage: presence
+                      -
+                        storage: revision
           -
             storage: mode
           -
@@ -122,6 +132,18 @@ views:
       "set-name": {
         "type": "string",
         "pattern": "^[a-z0-9](?:-?[a-z0-9])*$"
+      },
+      "natural-number": {
+        "type": "int",
+        "min": 1
+      },
+      "presence": {
+        "type": "string",
+        "choices": [
+          "required",
+          "optional",
+          "invalid"
+        ]
       }
     },
     "schema": {
@@ -141,18 +163,9 @@ views:
                   "enforce"
                 ]
               },
-              "pinned-sequence": {
-                "type": "int",
-                "min": 0
-              },
-              "revision": {
-                "type": "int",
-                "min": 0
-              },
-              "sequence": {
-                "type": "int",
-                "min": 1
-              },
+              "pinned-sequence": "${natural-number}",
+              "revision": "${natural-number}",
+              "sequence": "${natural-number}",
               "snaps": {
                 "type": "array",
                 "unique": true,
@@ -160,17 +173,15 @@ views:
                   "schema": {
                     "id": "string",
                     "name": "string",
-                    "presence": {
-                      "type": "string",
-                      "choices": [
-                        "required",
-                        "optional",
-                        "invalid"
-                      ]
-                    },
-                    "revision": {
-                      "type": "int",
-                      "min": 1
+                    "presence": "${presence}",
+                    "revision": "${natural-number}",
+                    "components": {
+                      "values": {
+                        "schema": {
+                          "presence": "${presence}",
+                          "revision": "${natural-number}"
+                        }
+                      }
                     }
                   }
                 }
