@@ -347,7 +347,7 @@ check-trusted-account-keys:
 			exit 1; \
 		fi; \
 		strings $(builddir)/snap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
-			{ echo "ERROR: snap store root key not found" &>2; exit 1; }; \
+			{ echo "ERROR: snap store root key not found" >&2; exit 1; }; \
 		strings $(builddir)/snap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
 			{ echo "ERROR: snap store generic models key not found" >&2; exit 1; }; \
 		echo "  snap: OK (2 keys)"; \
