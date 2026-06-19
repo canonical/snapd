@@ -392,6 +392,19 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	snapsup.SnapPath = targetFn
 
+	st.Lock()
+	deviceCtx, deviceCtxErr := DeviceCtx(st, t, nil)
+	model := (*asserts.Model)(nil)
+	if deviceCtxErr == nil && deviceCtx != nil {
+		model = deviceCtx.Model()
+	}
+	st.Unlock()
+	if deviceCtxErr != nil {
+		logger.Debugf("skipping snapd LTS inspect after download: %v", deviceCtxErr)
+	} else {
+		maybeInspectSnapdLTSAfterDownload(snapsup, model, targetFn)
+	}
+
 	// update the snap setup for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", snapsup)

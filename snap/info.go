@@ -2085,42 +2085,55 @@ func SnapdInfoFromSnapFile(snapf Container, snapType Type) (version string, flag
 	return snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", snapType))
 }
 
-// SnapdLTSTracksFromSnapFile returns the LTS track map carried inside the given
-// snapd snap squashfs, read from /usr/lib/snapd/info. If the snap does not
-// carry SNAPD_LTS_TRACKS, (nil, nil) is returned. This is only applicable to
-// snapd snaps.
-func SnapdLTSTracksFromSnapFile(snapf Container) (map[int]map[string]string, error) {
-	_, flags, err := SnapdInfoFromSnapFile(snapf, TypeSnapd)
+// SnapdLTSTrackMapFromSnapFile returns the LTS track map and snapd version from
+// /usr/lib/snapd/info inside the given snapd snap. If SNAPD_LTS_TRACKS is
+// absent or empty, trackMap is nil.
+func SnapdLTSTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	snapdVersion, flags, err := SnapdInfoFromSnapFile(snapf, TypeSnapd)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if flags == nil {
-		return nil, nil
+		return nil, snapdVersion, nil
 	}
 	raw, ok := flags["SNAPD_LTS_TRACKS"]
 	if !ok {
-		return nil, nil
+		return nil, snapdVersion, nil
 	}
-	return parseSnapdLTSTracks(raw)
+	trackMap, err = parseSnapdLTSTracks(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	return trackMap, snapdVersion, nil
 }
 
-// SnapdLTSTracksFromRunningSnapd returns the LTS track map from the info file
-// belonging to the currently executing snapd (deb or re-execed snap). If
-// SNAPD_LTS_TRACKS is absent or empty, (nil, nil) is returned.
-func SnapdLTSTracksFromRunningSnapd() (map[int]map[string]string, error) {
-	dir, err := snapdtool.RunningSnapdInfoDir()
+// SnapdLTSTrackMapFromThis returns the LTS track map and snapd version from the
+// info file belonging to the currently executing snapd (deb or re-execed
+// snap). If SNAPD_LTS_TRACKS is absent or empty, trackMap is nil.
+func SnapdLTSTrackMapFromThis() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	return snapdLTSTrackMapFromThis()
+}
+
+var snapdLTSTrackMapFromThis = snapdLTSTrackMapFromThisImpl
+
+func snapdLTSTrackMapFromThisImpl() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	dir, err := snapdtool.InternalLibExecDir()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	_, flags, err := snapdtool.SnapdVersionFromInfoFile(dir)
+	snapdVersion, flags, err := snapdtool.SnapdVersionFromInfoFile(dir)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	raw, ok := flags["SNAPD_LTS_TRACKS"]
 	if !ok {
-		return nil, nil
+		return nil, snapdVersion, nil
 	}
-	return parseSnapdLTSTracks(raw)
+	trackMap, err = parseSnapdLTSTracks(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	return trackMap, snapdVersion, nil
 }
 
 // parseSnapdLTSTracks parses the value of the SNAPD_LTS_TRACKS key from a

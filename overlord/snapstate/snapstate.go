@@ -2020,10 +2020,16 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 		return "", err
 	}
 	if snapName == "snapd" && snapID != "" {
-		required, err := ltschannel.SnapdLTSChannel(model, effectiveChannel)
-		var nolts *ltschannel.NoLTSTrackError
-		if errors.As(err, &nolts) {
-			return "", fmt.Errorf("cannot use snapd channel %q: LTS policy rejects track %q", effectiveChannel, nolts.Track)
+		required, err := ltschannel.SnapdLTSChannel(model, effectiveChannel, nil)
+		if errors.Is(err, ltschannel.ErrLTSNoTrack) {
+			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
+			track := "latest"
+			if parseErr == nil {
+				if parsed.Track != "" {
+					track = parsed.Track
+				}
+			}
+			return "", fmt.Errorf("cannot use snapd channel %q: LTS policy rejects track %q", effectiveChannel, track)
 		}
 		if err != nil {
 			return "", err

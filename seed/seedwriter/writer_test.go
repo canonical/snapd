@@ -661,7 +661,23 @@ func (s *writerSuite) uc20SeedModel(snapdDefaultChannel string) *asserts.Model {
 	})
 }
 
-func (s *writerSuite) checkSnapdDownloadChannel(c *C, model *asserts.Model, tracks map[int][]string, systemLabel, label string, want string, optSnaps ...*seedwriter.OptionsSnap) {
+func ltsTrackMap(bootBase int, tracks ...string) map[int]map[string]string {
+	if len(tracks) == 0 {
+		return map[int]map[string]string{}
+	}
+	rules := map[string]string{
+		"latest": tracks[0],
+	}
+	for _, track := range tracks {
+		rules[track] = track
+		if strings.HasSuffix(track, "-fips") {
+			rules["fips-updates"] = track
+		}
+	}
+	return map[int]map[string]string{bootBase: rules}
+}
+
+func (s *writerSuite) checkSnapdDownloadChannel(c *C, model *asserts.Model, tracks map[int]map[string]string, systemLabel, label string, want string, optSnaps ...*seedwriter.OptionsSnap) {
 	restore := ltschannel.MockSnapdLTSTrackMap(tracks)
 	defer restore()
 
@@ -699,12 +715,33 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC18(c *C) {
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	model := s.uc18SeedModel()
-	s.checkSnapdDownloadChannel(c, model, map[int][]string{18: {"18"}}, "", "in scope", "18/stable")
-	s.checkSnapdDownloadChannel(c, model, map[int][]string{}, "", "not in scope", "stable")
-	s.checkSnapdDownloadChannel(c, model, map[int][]string{18: {"18"}}, "", "option channel override", "18/candidate",
+	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "in scope", "18/stable")
+	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "option channel override", "18/candidate",
 		&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"},
 		&seedwriter.OptionsSnap{Name: "snapd", Channel: "latest/candidate"},
 	)
+}
+
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelNoMapErrors(c *C) {
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "pc=18", "")
+	s.makeSnap(c, "cont-producer", "developerid")
+	s.makeSnap(c, "cont-consumer", "developerid")
+
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{})
+	defer restore()
+
+	model := s.uc18SeedModel()
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{{Name: "pc", Channel: "edge"}})
+	c.Assert(err, IsNil)
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+	_, err = w.SnapsToDownload()
+	c.Check(err, ErrorMatches, `no LTS track map for boot base 18 from running snapd version 2.75`)
 }
 
 func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUnknownTrackErrors(c *C) {
@@ -715,7 +752,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUnknownTrackErrors(c *C)
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int][]string{18: {"18"}})
+	restore := ltschannel.MockSnapdLTSTrackMap(ltsTrackMap(18, "18"))
 	defer restore()
 
 	model := s.uc18SeedModel()
@@ -729,7 +766,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUnknownTrackErrors(c *C)
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 	_, err = w.SnapsToDownload()
-	c.Check(err, ErrorMatches, `cannot resolve LTS channel for track "20"`)
+	c.Check(err, ErrorMatches, `no LTS track for boot base 18 for input track "20" from running snapd version 2.75`)
 }
 
 func (s *writerSuite) uc22SeedModel(snapdDefaultChannel string) *asserts.Model {
@@ -771,8 +808,8 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC20(c *C) {
 	s.makeSnap(c, "pc-kernel=20", "")
 	s.makeSnap(c, "pc=20", "")
 
-	s.checkSnapdDownloadChannel(c, s.uc20SeedModel(""), map[int][]string{20: {"20"}}, "20200101", "implicit snapd", "20/stable")
-	s.checkSnapdDownloadChannel(c, s.uc20SeedModel("latest/edge"), map[int][]string{20: {"20"}}, "20200102", "explicit latest/edge", "20/edge")
+	s.checkSnapdDownloadChannel(c, s.uc20SeedModel(""), ltsTrackMap(20, "20"), "20200101", "implicit snapd", "20/stable")
+	s.checkSnapdDownloadChannel(c, s.uc20SeedModel("latest/edge"), ltsTrackMap(20, "20"), "20200102", "explicit latest/edge", "20/edge")
 }
 
 func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC22FIPS(c *C) {
@@ -781,7 +818,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC22FIPS(c *C) {
 	s.makeSnap(c, "pc-kernel=22", "")
 	s.makeSnap(c, "pc=22", "")
 
-	tracks := map[int][]string{22: {"22", "22-fips"}}
+	tracks := ltsTrackMap(22, "22", "22-fips")
 	s.checkSnapdDownloadChannel(c, s.uc22SeedModel("22-fips/stable"), tracks, "20220101", "explicit fips track", "22-fips/stable")
 }
 

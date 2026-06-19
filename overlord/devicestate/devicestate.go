@@ -1094,10 +1094,12 @@ func remodelSnapdSnapTasks(ctx context.Context, st *state.State, rm remodeler) (
 	skipLockdown := snapdModelSnap != nil && snapdModelSnap.SnapID == ""
 	if !skipLockdown {
 		var err error
-		newSnapdChannel, err = ltschannel.SnapdLTSChannel(rm.newModel, newSnapdChannel)
+		var resolved string
+		resolved, err = ltschannel.SnapdLTSChannel(rm.newModel, newSnapdChannel, nil)
 		if err != nil {
 			return nil, err
 		}
+		newSnapdChannel = resolved
 	}
 
 	_, tss, err := rm.maybeInstallOrUpdate(ctx, st, remodelSnapTarget{

@@ -7791,7 +7791,9 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
-	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int][]string{18: {"18"}})
+	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
 	defer restoreTracks()
 
 	model := ModelWithBase("core18")

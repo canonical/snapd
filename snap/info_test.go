@@ -2388,7 +2388,7 @@ func (s *infoSuite) TestParseSnapdLTSTracksInvalidBootBase(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS boot base "core18":.*`)
 }
 
-func (s *infoSuite) TestSnapdLTSTracksFromSnapFile(c *C) {
+func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFile(c *C) {
 	info := `VERSION=2.99
 SNAPD_LTS_TRACKS='{"18":{"latest":"18","18":"18"}}'`
 	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
@@ -2397,14 +2397,15 @@ version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	snapf, err := snapfile.Open(snapdPath)
 	c.Assert(err, IsNil)
 
-	tracks, err := snap.SnapdLTSTracksFromSnapFile(snapf)
+	trackMap, version, err := snap.SnapdLTSTrackMapFromSnapFile(snapf)
 	c.Assert(err, IsNil)
-	c.Assert(tracks, DeepEquals, map[int]map[string]string{
+	c.Check(version, Equals, "2.99")
+	c.Assert(trackMap, DeepEquals, map[int]map[string]string{
 		18: {"latest": "18", "18": "18"},
 	})
 }
 
-func (s *infoSuite) TestSnapdLTSTracksFromSnapFileMissingKey(c *C) {
+func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFileMissingKey(c *C) {
 	info := `VERSION=2.99`
 	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
 type: snapd
@@ -2412,12 +2413,13 @@ version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	snapf, err := snapfile.Open(snapdPath)
 	c.Assert(err, IsNil)
 
-	tracks, err := snap.SnapdLTSTracksFromSnapFile(snapf)
+	trackMap, version, err := snap.SnapdLTSTrackMapFromSnapFile(snapf)
 	c.Assert(err, IsNil)
-	c.Assert(tracks, IsNil)
+	c.Check(version, Equals, "2.99")
+	c.Assert(trackMap, IsNil)
 }
 
-func (s *infoSuite) TestSnapdLTSTracksFromSnapFileMalformed(c *C) {
+func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFileMalformed(c *C) {
 	info := `VERSION=2.99
 SNAPD_LTS_TRACKS='{bad'`
 	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
@@ -2426,7 +2428,7 @@ version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	snapf, err := snapfile.Open(snapdPath)
 	c.Assert(err, IsNil)
 
-	_, err = snap.SnapdLTSTracksFromSnapFile(snapf)
+	_, _, err = snap.SnapdLTSTrackMapFromSnapFile(snapf)
 	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS:.*`)
 }
 

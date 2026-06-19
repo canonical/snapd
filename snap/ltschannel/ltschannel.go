@@ -17,89 +17,119 @@
  *
  */
 
+// Package ltschannel implements snapd LTS track policy for Ubuntu Core models.
+//
+// An LTS-aware snapd consults this package when resolving snapd store
+// channels. LTS awareness does not imply the snapd carries an LTS track map;
+// maps are added incrementally as LTS branches are onboarded.
+//
+// SnapdLTSChannel reads the LTS track map from the running snapd, or from a
+// candidate snapd snap when one is supplied for inspection.
 package ltschannel
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/snap"
 	snapchannel "github.com/snapcore/snapd/snap/channel"
 )
 
-// ErrNoLTSTrack is the sentinel matched by errors.Is when SnapdLTSChannel
-// rejects an input channel whose track is not in the LTS allow-list for the
-// model's managed boot base. It is the LTS-policy analogue of
-// channel.ErrPinnedTrackSwitch. Callers wanting the offending track name
-// should use errors.As with *NoLTSTrackError.
-var ErrNoLTSTrack = errors.New("no LTS track")
+var (
+	// supportUbuntuCore gates Ubuntu Core models.
+	supportUbuntuCore = true
+	// supportClassic gates classic (non-hybrid) models.
+	supportClassic = false
+	// supportHybridClassic gates hybrid classic models (classic with modes).
+	supportHybridClassic = false
+)
 
-// NoLTSTrackError is returned by SnapdLTSChannel when the input track has no
-// LTS mapping for the model's managed boot base. errors.Is matches
-// ErrNoLTSTrack.
-type NoLTSTrackError struct{ Track string }
-
-func (e *NoLTSTrackError) Error() string {
-	return fmt.Sprintf("cannot resolve LTS channel for track %q", e.Track)
-}
-
-func (e *NoLTSTrackError) Is(target error) bool { return target == ErrNoLTSTrack }
-
-// SnapdLTSChannel returns the snapd channel to use for the given model derived
-// from the given input channel, applying LTS-track policy using the LTS track
-// map from the currently running snapd's info file.
-//
-// Behaviour:
-//   - If LTS policy does not apply to the model (device kind out of scope,
-//     non-core base, or boot base not yet onboarded), the input channel is
-//     returned unchanged.
-//   - If LTS policy applies and the input track is in the model's LTS
-//     allow-list, the channel is rewritten: the track is swapped for the
-//     LTS target track, the risk is preserved and any branch is dropped.
-//     The input track "" is normalised to "latest" before lookup.
-//   - If LTS policy applies and the input track is not in the allow-list,
-//     a *NoLTSTrackError is returned (matchable as ErrNoLTSTrack via
-//     errors.Is).
-//
-// Other errors: nil model, unparseable input channel, explicitly unsupported
-// models (UC16), and failures reading the running snapd info file all return
-// errors that are not ErrNoLTSTrack.
-func SnapdLTSChannel(model *asserts.Model, channel string) (string, error) {
-	trackMap, err := snapdLTSTrackMapLoader()
-	if err != nil {
-		return "", err
-	}
-	return SnapdLTSChannelWithTrackMap(model, channel, trackMap)
-}
-
-// SnapdLTSChannelWithTrackMap is like SnapdLTSChannel but uses the provided
-// LTS track map instead of loading from the running snapd. This is used when
-// inspecting a candidate snapd snap after download.
-func SnapdLTSChannelWithTrackMap(model *asserts.Model, channel string, trackMap map[int]map[string]string) (string, error) {
+// SnapdLTSChannel applies LTS track policy to channel for model. On success it
+// returns the remapped channel with the LTS target track, the original risk, and
+// any branch dropped. On failure it returns ("", err). Errors are typed:
+// LTSNotAllowedError when the model's system type or boot base is not allowed,
+// LTSNoTrackError when the boot base or input track has no LTS mapping, and
+// LTSInternalError for nil model, parse failures, or map load failures. When
+// candidate is non-nil the map is read from that snapd snap; otherwise from the
+// running snapd.
+func SnapdLTSChannel(model *asserts.Model, channel string, candidate snap.Container) (string, error) {
 	if model == nil {
-		return "", errors.New("cannot use nil model")
-	}
-	tracks, applies, err := snapdLTSTracksForModelWithMap(model, trackMap)
-	if err != nil {
-		return "", err
-	}
-	if !applies {
-		return channel, nil
+		return "", &LTSInternalError{Msg: "cannot use nil model"}
 	}
 
 	parsed, err := snapchannel.ParseVerbatim(channel, "-")
 	if err != nil {
-		return "", fmt.Errorf("cannot parse input channel: %v", err)
+		return "", &LTSInternalError{Msg: fmt.Sprintf("cannot parse input channel: %v", err)}
 	}
 	inputTrack := parsed.Track
 	if inputTrack == "" {
 		inputTrack = "latest"
 	}
-	target, ok := tracks[inputTrack]
-	if !ok {
-		return "", &NoLTSTrackError{Track: inputTrack}
+
+	bootBase, err := systemBootBaseAllowed(model)
+	if err != nil {
+		return "", err
 	}
-	parsed.Track = target
+
+	var ltsTrack string
+	if candidate != nil {
+		candidateTrackMap, candidateVersion, err := snap.SnapdLTSTrackMapFromSnapFile(candidate)
+		if err != nil {
+			return "", &LTSInternalError{Msg: fmt.Sprintf("cannot retrieve LTS track map from candidate snapd version %s: %v", candidateVersion, err)}
+		}
+		baseTrackMap, ok := candidateTrackMap[bootBase]
+		if !ok {
+			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track map for boot base %d from candidate snapd version %s", bootBase, candidateVersion)}
+		}
+		ltsTrack, ok = baseTrackMap[inputTrack]
+		if !ok || ltsTrack == "" {
+			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d input track %q from candidate snapd version %s", bootBase, inputTrack, candidateVersion)}
+		}
+	} else {
+		thisTrackMap, thisVersion, err := snap.SnapdLTSTrackMapFromThis()
+		if err != nil {
+			return "", &LTSInternalError{Msg: fmt.Sprintf("cannot retrieve LTS track map from running snapd version %s: %v", thisVersion, err)}
+		}
+		baseTrackMap, ok := thisTrackMap[bootBase]
+		if !ok {
+			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track map for boot base %d from running snapd version %s", bootBase, thisVersion)}
+		}
+		ltsTrack, ok = baseTrackMap[inputTrack]
+		if !ok || ltsTrack == "" {
+			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d input track %q from running snapd version %s", bootBase, inputTrack, thisVersion)}
+		}
+	}
+
+	parsed.Track = ltsTrack
 	parsed.Branch = ""
 	return parsed.Clean().String(), nil
+}
+
+// systemBootBaseAllowed returns the boot-base version to consult for LTS policy
+// when it applies to the model's system type. It returns an error when the
+// system type or boot base is not allowed.
+func systemBootBaseAllowed(model *asserts.Model) (int, error) {
+	if model.Classic() {
+		if model.HybridClassic() {
+			if !supportHybridClassic {
+				return 0, &LTSNotAllowedError{Msg: "policy does not allow hybrid classic system"}
+			}
+		} else if !supportClassic {
+			return 0, &LTSNotAllowedError{Msg: "policy does not allow classic system"}
+		}
+		return 0, &LTSNotAllowedError{Msg: "classic boot base not currently supported"}
+	}
+
+	if !supportUbuntuCore {
+		return 0, &LTSNotAllowedError{Msg: "policy does not allow ubuntu core system"}
+	}
+
+	bootBase, err := model.CoreVersion()
+	if err != nil {
+		return 0, &LTSInternalError{Msg: fmt.Sprintf("cannot determine boot base: %v", err)}
+	}
+	if bootBase == 16 {
+		return 0, &LTSNotAllowedError{Msg: "cannot use unsupported Ubuntu Core 16 model"}
+	}
+	return bootBase, nil
 }
