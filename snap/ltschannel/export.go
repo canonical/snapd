@@ -19,19 +19,12 @@
 
 package ltschannel
 
-// SystemBootBaseAllowed exposes systemBootBaseAllowed for tests.
-var SystemBootBaseAllowed = systemBootBaseAllowed
+import "github.com/snapcore/snapd/snap"
 
-// MockSystemAllowed replaces the system-type scope flags consulted by
-// systemBootBaseAllowed for tests.
-func MockSystemAllowed(supportUC, supportCl, supportHybrid bool) (restore func()) {
-	restoreUC, restoreCl, restoreHybrid := supportUbuntuCore, supportClassic, supportHybridClassic
-	supportUbuntuCore = supportUC
-	supportClassic = supportCl
-	supportHybridClassic = supportHybrid
-	return func() {
-		supportUbuntuCore = restoreUC
-		supportClassic = restoreCl
-		supportHybridClassic = restoreHybrid
-	}
+// MockSnapdLTSTrackMap replaces the running snapd LTS track map and version
+// for tests. version defaults to 2.75 when empty.
+//
+// Lives outside export_test.go because other packages' tests import it.
+func MockSnapdLTSTrackMap(tracks map[int]map[string]string) (restore func()) {
+	return snap.MockSnapdLTSTrackMapFromThis("2.75", tracks)
 }

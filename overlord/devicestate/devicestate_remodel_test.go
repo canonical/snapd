@@ -2570,7 +2570,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannel(c *C) {
-	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int][]string{20: {"20"}})
+	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		20: {"latest": "20", "20": "20"},
+	})
 	defer restoreTracks()
 
 	s.state.Lock()
@@ -2662,7 +2664,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannel(c *C) {
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelUnknownTrackErrors(c *C) {
-	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int][]string{18: {"18"}})
+	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
 	defer restoreTracks()
 
 	s.state.Lock()
@@ -2749,7 +2753,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelUnknownTrackErrors(c *
 	testDeviceCtx := &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	_, err = devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", devicestate.RemodelOptions{})
-	c.Assert(err, ErrorMatches, `cannot resolve LTS channel for track "20"`)
+	c.Assert(err, ErrorMatches, `no LTS track for boot base 18 for input track "20" from running snapd version 2.75`)
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C) {

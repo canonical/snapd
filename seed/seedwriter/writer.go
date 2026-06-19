@@ -1137,7 +1137,11 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 		if base := w.model.Base(); base == "" || base == "core" {
 			return resChannel, nil
 		}
-		return ltschannel.SnapdLTSChannel(w.model, resChannel)
+		resolved, err := ltschannel.SnapdLTSChannel(w.model, resChannel, nil)
+		if err != nil {
+			return "", err
+		}
+		return resolved, nil
 	}
 	return resChannel, nil
 }

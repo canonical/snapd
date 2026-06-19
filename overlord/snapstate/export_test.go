@@ -659,6 +659,13 @@ func NewSnapInstallTaskSetForTest(
 
 var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
 
+var (
+	NeedsSnapdLTSChannelResolve  = needsSnapdLTSChannelResolve
+	InspectSnapdLTSAfterDownload = inspectSnapdLTSAfterDownload
+)
+
+type SnapdLTSInspectResult = snapdLTSInspectResult
+
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)
 }
