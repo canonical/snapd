@@ -107,3 +107,10 @@ func SnapMountContext() string {
 	// podman do for container volumes.
 	return "system_u:object_r:snappy_snap_t:s0"
 }
+
+func SnapRunContext() string {
+	// The snap CLI must run in the snappy_cli_t domain so that it can perform
+	// actions like creating ~/snap with the correct snappy_home_t label and
+	// transitioning into snappy_confine_t when exec-ing snap-confine.
+	return "system_u:system_r:snappy_cli_t:s0"
+}

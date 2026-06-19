@@ -34,3 +34,7 @@ func RestoreContext(aPath string, mode RestoreMode) error {
 func SnapMountContext() string {
 	return ""
 }
+
+func SnapRunContext() string {
+	return ""
+}

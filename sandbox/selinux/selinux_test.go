@@ -96,3 +96,13 @@ func (s *selinuxBasicSuite) TestProbePermissive(c *C) {
 	c.Assert(selinux.ProbedLevel(), Equals, level)
 	c.Assert(selinux.Summary(), Equals, status)
 }
+
+func (s *selinuxBasicSuite) TestSnapRunCallWrapsArgv(c *C) {
+	argv := []string{"snap", "run", "--hook", "configure", "-r", "1", "test-snap"}
+	result := selinux.SnapRunCall(argv)
+	// Extended with runcon and appropriate context.
+	c.Check(result, DeepEquals, []string{
+		"runcon", "system_u:system_r:snappy_cli_t:s0",
+		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
+	})
+}

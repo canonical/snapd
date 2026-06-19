@@ -95,3 +95,15 @@ func MockIsEnforcing(isEnforcing func() (bool, error)) (restore func()) {
 		selinuxIsEnforcing = old
 	}
 }
+
+// SnapRunCall wraps the given argv with runcon to run in the snap command with
+// a specific SELinux context if applicable. This is intended to be used when
+// invoking `snap run` directly from the snapd daemon and forcing a domain
+// transition.
+func SnapRunCall(args []string) []string {
+	ctx := SnapRunContext()
+	if ctx == "" {
+		return args
+	}
+	return append([]string{"runcon", ctx}, args...)
+}
