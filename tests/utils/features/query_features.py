@@ -618,6 +618,7 @@ def feat_sys(
     suite: str = None,
     task: str = None,
     variant: str = None,
+    consolidate: bool = True,
 ) -> dict:
     """
     Calculates set(system_features), at the indicated timestamp.
@@ -646,7 +647,13 @@ def feat_sys(
     if remove_failed:
         include_tasks = list_tasks(system_json, remove_failed)
 
-    return consolidate_system_features(system_json, include_tasks=include_tasks)
+    if consolidate:
+        return consolidate_system_features(system_json, include_tasks=include_tasks)
+    
+    if include_tasks:
+        system_json["tests"] = [test for test in system_json["tests"] if TaskIdVariant(test["suite"], test["task_name"], test["variant"]) in include_tasks]
+    return system_json
+
 
 
 def get_feature_name_from_feature(feat: dict) -> str:
@@ -1098,6 +1105,7 @@ def add_all_features_parser(subparsers: argparse._SubParsersAction) -> tuple[str
     sys.add_argument("--task", help="if provided, only grab features of this task", default=None, type=str)
     sys.add_argument("--variant", help="if provided, only grab features with this variant", default=None, type=str)
     sys.add_argument("--remove-failed", help="remove all tasks that failed", action="store_true")
+    sys.add_argument("--consolidate", help="consolidate features across all tests into one", action="store_true")
     sys.add_argument("--exclude", help="exclude the list of features", nargs="+")
 
     find = feat_subparsers.add_parser(
@@ -1232,7 +1240,7 @@ def main():
                 json.dump(result, sys.stdout, cls=DateTimeEncoder)
             elif args.features_cmd == feat_sys_cmd:
                 result = feat_sys(
-                    retriever, args.timestamp, args.system, args.remove_failed, args.suite, args.task, args.variant
+                    retriever, args.timestamp, args.system, args.remove_failed, args.suite, args.task, args.variant, args.consolidate,
                 )
                 json.dump(result, sys.stdout, cls=DateTimeEncoder)
             elif args.features_cmd == feat_find_cmd:

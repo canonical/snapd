@@ -602,6 +602,43 @@ class TestQueryFeatures:
                     'changes':[Change(kind="install-snap", snap_types=["app"])]}
         assert expected == cov
 
+    def test_feat_sys_not_consolidated(self):
+        data = {'timestamp1': {'system': {
+            'system': 'system1',
+            'tests': [
+                TaskFeatures(
+                    suite='suite1',
+                    task_name='task1',
+                    success=True,
+                    variant='',
+                    cmds=[Cmd(cmd='snap list')],
+                    endpoints=[Endpoint(method='GET', path='/v2/snaps')],
+                ),
+                TaskFeatures(
+                    suite='suite2',
+                    task_name='task2',
+                    success=False,
+                    variant='v1',
+                    cmds=[Cmd(cmd='snap debug api')],
+                    endpoints=[Endpoint(method='POST', path='/v2/system-info', action='advise-system-key-mismatch')],
+                ),
+            ],
+        }}}
+        retriever = DictRetriever(data)
+
+        # With consolidate=False, feat_sys should return the original system structure.
+        not_consolidated = query_features.feat_sys(retriever, 'timestamp1', 'system', False, consolidate=False)
+        assert 'tests' in not_consolidated
+        assert len(not_consolidated['tests']) == 2
+        assert not_consolidated['tests'][0]['task_name'] == 'task1'
+        assert not_consolidated['tests'][1]['task_name'] == 'task2'
+
+        # remove_failed still applies in non-consolidated mode.
+        not_consolidated_success = query_features.feat_sys(retriever, 'timestamp1', 'system', True, consolidate=False)
+        assert 'tests' in not_consolidated_success
+        assert len(not_consolidated_success['tests']) == 1
+        assert not_consolidated_success['tests'][0]['task_name'] == 'task1'
+
     def test_feat_sys_suite(self):
         data = {'timestamp1': {'system': {
             'system': 'system1',
@@ -1269,6 +1306,7 @@ class TestQueryFeatures:
                 task=None,
                 variant=None,
                 remove_failed=True,
+                consolidate=True,
                 exclude=None,
             )
             query_features.main()
@@ -1376,6 +1414,7 @@ class TestQueryFeatures:
                 task=None,
                 variant=None,
                 remove_failed=False,
+                consolidate=True,
                 exclude=['cmds'],
             )
             query_features.main()
