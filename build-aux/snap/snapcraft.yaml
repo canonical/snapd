@@ -183,7 +183,7 @@ parts:
       # parser gets built to support as many as possible even if glibc in
       # the current build environment does not support them
       cp -a "${LOCAL_APPARMOR_DIR}"/af_names.h .
-      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" WITH_STATIC_LINKING=1
+      make -j"${CRAFT_PARALLEL_BUILD_COUNT}" WITH_STATIC_LINKING=1 USE_DFA_CACHE=1
       install -Dm755 -s -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" apparmor_parser
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd/apparmor" parser.conf
       cd "${CRAFT_PART_BUILD}/profiles"
