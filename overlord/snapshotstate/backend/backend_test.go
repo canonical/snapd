@@ -1690,3 +1690,85 @@ func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(export.ContentHash(), check.Not(check.DeepEquals), export3.ContentHash())
 }
+
+func (s *snapshotSuite) TestMapSnapDataDirToSnapVarNilUsernames(c *check.C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(7)},
+	}
+	restore := backend.MockUsersForUsernames(func(usernames []string, opts *dirs.SnapDirOptions) ([]*user.User, error) {
+		c.Assert(usernames, check.IsNil)
+		return []*user.User{
+			{HomeDir: "/home/user1"},
+			{HomeDir: "/home/user2"},
+		}, nil
+	})
+	defer restore()
+
+	mappings, err := backend.MapSnapDataDirToSnapVar(info, nil, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(mappings, check.DeepEquals, map[string]string{
+		info.DataDir():                             "$SNAP_DATA",
+		info.CommonDataDir():                       "$SNAP_COMMON",
+		info.UserDataDir("/home/user1", nil):       "$SNAP_USER_DATA",
+		info.UserCommonDataDir("/home/user1", nil): "$SNAP_USER_COMMON",
+		info.UserDataDir("/home/user2", nil):       "$SNAP_USER_DATA",
+		info.UserCommonDataDir("/home/user2", nil): "$SNAP_USER_COMMON",
+	})
+}
+
+func (s *snapshotSuite) TestMapSnapDataDirToSnapVarNoUsers(c *check.C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(7)},
+	}
+	restore := backend.MockUsersForUsernames(func(usernames []string, opts *dirs.SnapDirOptions) ([]*user.User, error) {
+		c.Assert(usernames, check.IsNil)
+		return nil, nil
+	})
+	defer restore()
+
+	mappings, err := backend.MapSnapDataDirToSnapVar(info, nil, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(mappings, check.DeepEquals, map[string]string{
+		info.DataDir():       "$SNAP_DATA",
+		info.CommonDataDir(): "$SNAP_COMMON",
+	})
+}
+
+func (s *snapshotSuite) TestMapSnapDataDirToSnapVarSelectedUsernames(c *check.C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(7)},
+	}
+
+	usernames := []string{"user2"}
+	opts := &dirs.SnapDirOptions{HiddenSnapDataDir: true}
+
+	restore := backend.MockUsersForUsernames(func(gotUsernames []string, gotOpts *dirs.SnapDirOptions) ([]*user.User, error) {
+		c.Assert(gotUsernames, check.DeepEquals, usernames)
+		c.Assert(gotOpts, check.DeepEquals, opts)
+		return []*user.User{{HomeDir: "/home/user2"}}, nil
+	})
+	defer restore()
+
+	mappings, err := backend.MapSnapDataDirToSnapVar(info, opts, usernames)
+	c.Assert(err, check.IsNil)
+	c.Check(mappings, check.DeepEquals, map[string]string{
+		info.DataDir():                              "$SNAP_DATA",
+		info.CommonDataDir():                        "$SNAP_COMMON",
+		info.UserDataDir("/home/user2", opts):       "$SNAP_USER_DATA",
+		info.UserCommonDataDir("/home/user2", opts): "$SNAP_USER_COMMON",
+	})
+}
+
+func (s *snapshotSuite) TestMapSnapDataDirToSnapVarUserLookupError(c *check.C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(7)},
+	}
+	restore := backend.MockUsersForUsernames(func(_ []string, _ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return nil, fmt.Errorf("mock usersForUsernames error")
+	})
+	defer restore()
+
+	mappings, err := backend.MapSnapDataDirToSnapVar(info, nil, nil)
+	c.Assert(err, check.ErrorMatches, "mock usersForUsernames error")
+	c.Check(mappings, check.IsNil)
+}
