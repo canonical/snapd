@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -495,31 +496,27 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 		return false, err
 	}
 
-	// SNAP_REEXEC=0
-	if exe == filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap") {
-		return true, nil
-	}
+	// There aren't too many options, but overall possibilities are:
+	// - we are re-executed and the client isn't
+	// - the client re-executed but we did not
+	// - the client could be a merged snapd-snap binary
 
-	// Check if re-exec in snapd
-	path := filepath.Join(dirs.SnapMountDir, "snapd/*/usr/bin/*")
-	if matched, err := filepath.Match(path, exe); err != nil {
-		return false, err
-	} else if matched {
-		base := filepath.Base(exe)
-		// Depending on the build variant of the snapd snap, the command could
-		// either be $SNAPD_MOUNT/usr/bin/snap or $SNAPD_MOUNT/usr/bin/snap-fips
-		if base == "snap" || base == "snap-fips" {
-			return true, nil
-		}
-
+	switch filepath.Base(exe) {
+	case "snap", "snap-fips": // the standalone snap binary
+	case "snapd", "snapd-fips": // the merged snap binary
+	default:
 		return false, nil
 	}
 
-	// Check if re-exec in core
-	path = filepath.Join(dirs.SnapMountDir, "core/*/usr/bin/snap")
-	if matched, err := filepath.Match(path, exe); err != nil {
-		return false, err
-	} else if matched {
+	if strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
+		strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "core")+"/") {
+		// client with expected name from snap or core snap
+		return true, nil
+	}
+
+	if strings.HasPrefix(exe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
+		strings.HasPrefix(exe, dirs.DistroLibExecDir+"/") {
+		// client with expected name from one of the system locations
 		return true, nil
 	}
 
