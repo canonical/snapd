@@ -104,11 +104,11 @@ func validateNTPSettings(tr ConfGetter) error {
 	// Validation for user submitted values has already been done, so ParseDuration cannot fail here.
 	if minVal, exists := ntpCfg["min-poll-interval"]; exists {
 		pollIntervalMinString = minVal.(string)
-		pollIntervalMin, _ = time.ParseDuration(strings.TrimSpace(pollIntervalMinString))
+		pollIntervalMin, _ = time.ParseDuration(pollIntervalMinString)
 	}
 	if maxVal, exists := ntpCfg["max-poll-interval"]; exists {
 		pollIntervalMaxString = maxVal.(string)
-		pollIntervalMax, _ = time.ParseDuration(strings.TrimSpace(pollIntervalMaxString))
+		pollIntervalMax, _ = time.ParseDuration(pollIntervalMaxString)
 	}
 
 	if pollIntervalMin > pollIntervalMax {
@@ -136,7 +136,12 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 
 		// The value that the user inputs should be parsed as a Go duration string for consistency
 		// with other configuration options
-		duration, err := time.ParseDuration(strings.TrimSpace(valueStr))
+
+		if strings.TrimSpace(valueStr) != valueStr {
+			return fmt.Errorf("%v: contains leading or trailing whitespace", key)
+		}
+
+		duration, err := time.ParseDuration(valueStr)
 		if err != nil {
 			return fmt.Errorf("%v: %v", key, err)
 		}
@@ -185,7 +190,6 @@ func validateServerName(serverAddress string) error {
 func convertSystemdTimespanToUs(span string) (timeSpanUs int64, err error) {
 	// The most reliable way to parse the timespans appears to be having
 	// systemd-analyze do it
-	// We also use this to compare min and max values as input validation
 	cmd := exec.Command("systemd-analyze", "timespan", span)
 
 	output, err := cmd.CombinedOutput()

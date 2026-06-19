@@ -283,6 +283,15 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 			},
 			expectedError: `invalid NTP configuration: max-root-time-distance: duration "500ns" is below systemd's minimum resolution of 1µs`,
 		},
+		// 16: string contains leading or trailing whitespace
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"min-poll-interval": " 30s ",
+				},
+			},
+			expectedError: "invalid NTP configuration: min-poll-interval: contains leading or trailing whitespace",
+		},
 	}
 
 	for i, test := range getConfigurationTests {
