@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -71,6 +72,9 @@ var (
 
 func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+
+	// SELinux is not relevant in unit tests; prevent mountinfo probing
+	s.AddCleanup(hookstate.MockSELinuxProbedLevel(func() selinux.LevelType { return selinux.Unsupported }))
 
 	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 	hooktype1 := snap.NewHookType(regexp.MustCompile("^do-something$"))
@@ -971,6 +975,28 @@ func (s *hookManagerSuite) TestHookTaskRunsRightSnapCmd(c *C) {
 		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
 	}})
 
+}
+
+func (s *hookManagerSuite) TestHookTaskRunsWithRunconOnSELinux(c *C) {
+	// Mock SELinux as enforcing so that SnapRunCall wraps argv with runcon.
+	restore := hookstate.MockSELinuxProbedLevel(func() selinux.LevelType { return selinux.Enforcing })
+	defer restore()
+
+	// runcon is looked up in PATH; mock it so the hook runner finds it.
+	runconCmd := testutil.MockCommand(c, "runcon", "")
+	defer runconCmd.Restore()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(s.context, NotNil, Commentf("Expected handler generator to be called with a valid context"))
+	c.Check(runconCmd.Calls(), DeepEquals, [][]string{{
+		"runcon", "system_u:system_r:snappy_cli_t:s0",
+		"snap", "run", "--hook", "configure", "-r", "1", "test-snap",
+	}})
 }
 
 func (s *hookManagerSuite) TestHookTasksForSameSnapAreSerialized(c *C) {

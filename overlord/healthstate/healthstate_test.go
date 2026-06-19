@@ -57,6 +57,7 @@ var _ = check.Suite(&healthSuite{})
 func (s *healthSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
 	s.AddCleanup(healthstate.MockCheckTimeout(time.Second))
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	dirs.SetRootDir(c.MkDir())
 	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 

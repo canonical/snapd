@@ -43,6 +43,8 @@ import (
 )
 
 type tasksetsSuite struct {
+	testutil.BaseTest
+
 	state *state.State
 }
 
@@ -54,6 +56,8 @@ var (
 )
 
 func (s *tasksetsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	s.state = state.New(nil)
 }
 
@@ -289,6 +293,7 @@ type configcoreHijackSuite struct {
 
 func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	s.o = overlord.Mock()
 	s.state = s.o.State()
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
@@ -416,6 +421,7 @@ type earlyConfigSuite struct {
 
 func (s *earlyConfigSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 
 	s.state = state.New(nil)
 

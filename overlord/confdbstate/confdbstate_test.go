@@ -56,6 +56,8 @@ import (
 )
 
 type confdbTestSuite struct {
+	testutil.BaseTest
+
 	state *state.State
 	o     *overlord.Overlord
 
@@ -69,6 +71,8 @@ var _ = Suite(&confdbTestSuite{})
 func Test(t *testing.T) { TestingT(t) }
 
 func (s *confdbTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	dirs.SetRootDir(c.MkDir())
 	s.o = overlord.Mock()
 	s.state = s.o.State()

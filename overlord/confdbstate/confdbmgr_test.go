@@ -40,6 +40,8 @@ import (
 )
 
 type hookHandlerSuite struct {
+	testutil.BaseTest
+
 	state *state.State
 
 	repo *interfaces.Repository
@@ -48,6 +50,8 @@ type hookHandlerSuite struct {
 var _ = Suite(&hookHandlerSuite{})
 
 func (s *hookHandlerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	dirs.SetRootDir(c.MkDir())
 	s.state = overlord.Mock().State()
 

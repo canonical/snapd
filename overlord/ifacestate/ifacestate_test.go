@@ -242,6 +242,7 @@ plugs:
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	s.mockSnapCmd = testutil.MockCommand(c, "snap", "")
 	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
 

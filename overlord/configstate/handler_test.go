@@ -63,6 +63,7 @@ var _ = Suite(&configureHandlerSuite{})
 
 func (s *configureHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	hookstate.IsConfdbHookname = confdbstate.IsConfdbHookname
@@ -279,6 +280,7 @@ var _ = Suite(&defaultConfigureHandlerSuite{})
 
 func (s *defaultConfigureHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
@@ -439,6 +441,7 @@ var _ = Suite(&configcoreHandlerSuite{})
 
 func (s *configcoreHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("/") })

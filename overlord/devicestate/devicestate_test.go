@@ -181,6 +181,7 @@ var (
 func (s *deviceMgrBaseSuite) setupBaseTest(c *C, classic bool) {
 	s.BaseTest.SetUpTest(c)
 
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 	s.AddCleanup(release.MockOnClassic(classic))
 
 	dirs.SetRootDir(c.MkDir())

@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 )
@@ -543,6 +544,24 @@ func MockRunHook(hookInvoke func(c *Context, tomb *tomb.Tomb) ([]byte, error)) (
 
 var osReadlink = os.Readlink
 
+var selinuxProbedLevel = selinux.ProbedLevel
+
+// MockSELinuxProbedLevel replaces the SELinux level probe used by the hook
+// runner. For use in tests.
+func MockSELinuxProbedLevel(f func() selinux.LevelType) func() {
+	old := selinuxProbedLevel
+	selinuxProbedLevel = f
+	return func() {
+		selinuxProbedLevel = old
+	}
+}
+
+// MockSELinuxUnsupported makes the hook runner believe SELinux is not
+// supported, preventing mountinfo probing. For use in test SetUpTest.
+func MockSELinuxUnsupported() func() {
+	return MockSELinuxProbedLevel(func() selinux.LevelType { return selinux.Unsupported })
+}
+
 // snapCmd returns the "snap" command to run. If snapd is re-execed
 // it will be the snap command from the core snap, otherwise it will
 // be the system "snap" command (c.f. LP: #1668738).
@@ -570,6 +589,11 @@ func runHookAndWait(hookSource string, revision snap.Revision, hookName, hookCon
 	argv := []string{snapCmd(), "run", "--hook", hookName, "-r", revision.String(), hookSource}
 	if timeout == 0 {
 		timeout = defaultHookTimeout
+	}
+
+	// TODO: if selinux call through
+	if selinuxProbedLevel() != selinux.Unsupported {
+		argv = selinux.SnapRunCall(argv)
 	}
 
 	env := []string{

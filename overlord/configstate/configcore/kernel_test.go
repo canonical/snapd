@@ -75,6 +75,7 @@ var (
 
 func (s *kernelSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	s.AddCleanup(hookstate.MockSELinuxUnsupported())
 
 	var err error
 
