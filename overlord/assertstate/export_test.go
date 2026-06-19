@@ -26,7 +26,10 @@ var (
 	ValidationSetAssertionForMonitor          = validationSetAssertionForMonitor
 	AddCurrentTrackingToValidationSetsHistory = addCurrentTrackingToValidationSetsHistory
 	ValidationSetsHistoryTop                  = validationSetsHistoryTop
+	DelayedCrossMgrInit                       = delayedCrossMgrInit
 )
+
+type ValsetsConfdbHandler = valsetsConfdbHandler
 
 func MockMaxGroups(n int) (restore func()) {
 	oldMaxGroups := maxGroups

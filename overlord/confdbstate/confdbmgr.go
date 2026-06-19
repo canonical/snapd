@@ -45,16 +45,29 @@ const (
 	schedulingCachePrefix = "scheduling-confdb-"
 )
 
-func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
-	hookSup := &hookstate.HookSetup{
-		Snap:        snapName,
-		Hook:        hookName,
-		Optional:    true,
-		IgnoreError: ignoreError,
-	}
-	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
-	task := hookstate.HookTask(st, summary, hookSup, nil)
-	return task
+// SystemConfdbHandler is implemented by specific handlers that process confdb
+// request for "system" confdb-schema related to a particular subsystem
+// (e.g., validation-sets).
+type SystemConfdbHandler interface {
+	// SchemaName returns the name of the confdb-schema this handler
+	// manages (e.g. "validation-sets").
+	SchemaName() string
+
+	// Commit takes a transaction holding the modified confdb data and makes those
+	// changes effective within the subsystem.
+	Commit(st *state.State, tx *Transaction) error
+
+	// Databag returns a JSONDatabag holding a confdb-acceptable representation
+	// of the data this handler is responsible for.
+	Databag(st *state.State) (confdb.JSONDatabag, error)
+}
+
+// systemHandlers holds handlers for "system" confdb-schemas.
+var systemHandlers = map[string]SystemConfdbHandler{}
+
+// RegisterConfdbHandler registers a handler for a "system" confdb-schema.
+func RegisterConfdbHandler(c SystemConfdbHandler) {
+	systemHandlers[c.SchemaName()] = c
 }
 
 type ConfdbManager struct{}
@@ -104,11 +117,21 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 		return err
 	}
 
-	confdbAssert, err := assertstateConfdbSchema(st, tx.ConfdbAccount, tx.ConfdbName)
+	confdbAssert, err := AssertstateConfdbSchema(st, tx.ConfdbAccount, tx.ConfdbName)
 	if err != nil {
 		return err
 	}
 	schema := confdbAssert.Schema().DatabagSchema
+
+	// changes to "system" confdbs are made effective by subsystem handlers
+	if tx.ConfdbAccount == "system" {
+		handler, ok := systemHandlers[tx.ConfdbName]
+		if !ok {
+			// shouldn't happen; we check for this early
+			return fmt.Errorf("internal error: no system handler registered for confdb-schema %q", tx.ConfdbName)
+		}
+		return handler.Commit(st, tx)
+	}
 
 	hasSaveViewHook := false
 	for _, task := range t.Change().Tasks() {
@@ -139,7 +162,7 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 		}
 
 		view := confdbAssert.Schema().View(viewName)
-		paths := tx.alteredPaths()
+		paths := tx.AlteredPaths()
 		mightAffectEph, err := view.WriteAffectsEphemeral(paths)
 		if err != nil {
 			return fmt.Errorf("cannot commit transaction: cannot check for ephemeral paths: %v", err)
@@ -180,6 +203,8 @@ func (m *ConfdbManager) doLoadDataIntoChange(t *state.Task, _ *tomb.Tomb) error 
 	if err != nil {
 		return err
 	}
+
+	// TODO: also needs to handle reads of "system" confdb-schemas
 
 	var viewName string
 	err = t.Get("view-name", &viewName)
@@ -570,6 +595,18 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 
 	// ignore error for now so we run again to try to undo any committed data
 	return true, nil
+}
+
+func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
+	hookSup := &hookstate.HookSetup{
+		Snap:        snapName,
+		Hook:        hookName,
+		Optional:    true,
+		IgnoreError: ignoreError,
+	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
+	task := hookstate.HookTask(st, summary, hookSup, nil)
+	return task
 }
 
 func (h *saveViewHandler) Done() error {
