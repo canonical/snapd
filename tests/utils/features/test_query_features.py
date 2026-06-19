@@ -423,7 +423,9 @@ class TestQueryFeatures:
 
 
     def test_dup(self):
-        data = {'timestamp1': {'system1': {'tests': [
+        data = {'timestamp1': {'system1': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list --all"),
                                Cmd(cmd="snap ack file")],
@@ -445,7 +447,9 @@ class TestQueryFeatures:
         assert [] == dup
 
     def test_dup_variants(self):
-        data = {'timestamp1': {'system1': {'tests': [
+        data = {'timestamp1': {'system1': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite', task_name='task1', success=True, variant='a',
                          cmds=[Cmd(cmd="snap list --all"),
                                Cmd(cmd="snap ack file")],
@@ -500,7 +504,9 @@ class TestQueryFeatures:
             check_equal(os.path.join(timestamp2, 'system2.json'), s2_dict)
 
     def test_diff(self):
-        data = {'timestamp1': {'system1': {'tests': [
+        data = {'timestamp1': {'system1': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list --all"),
                                Cmd(cmd="snap ack file")],
@@ -511,15 +517,17 @@ class TestQueryFeatures:
                          cmds=[Cmd(cmd="snap pack file"),
                                Cmd(cmd="snap debug api")],
                          endpoints=[Endpoint(method="POST", path="/v2/snaps/{name}", action="remove")])]},
-            'system2': {'tests': []}},
-            'timestamp2': {'system1': {'tests': [
+            'system2': {'system': 'system2', 'tests': []}},
+            'timestamp2': {'system1': {
+                'system': 'system1',
+                'tests': [
                 TaskFeatures(suite='suite', task_name='task1', success=False, variant='',
                              cmds=[
                                  Cmd(cmd="snap list --all")],
                              endpoints=[Endpoint(
                                  method="GET", path="/v2/changes/{id}"), Endpoint(method="GET", path="/v2/snaps")],
                              changes=[Change(kind="install-snap", snap_types=["app"])])]},
-                           'system2': {'tests': []}}}
+                           'system2': {'system': 'system2', 'tests': []}}}
         retriever = DictRetriever(data)
 
         # When getting difference only between the same tasks in both systems,
@@ -564,7 +572,9 @@ class TestQueryFeatures:
         assert {} == diff
 
     def test_feat_sys(self):
-        data = {'timestamp1': {'system': {'tests': [
+        data = {'timestamp1': {'system': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list")],
                          endpoints=[
@@ -593,7 +603,9 @@ class TestQueryFeatures:
         assert expected == cov
 
     def test_feat_sys_suite(self):
-        data = {'timestamp1': {'system': {'tests': [
+        data = {'timestamp1': {'system': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list")],
                          endpoints=[
@@ -629,7 +641,9 @@ class TestQueryFeatures:
         assert {} == cov
 
     def test_feat_sys_task(self):
-        data = {'timestamp1': {'system': {'tests': [
+        data = {'timestamp1': {'system': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list")],
                          endpoints=[
@@ -661,7 +675,9 @@ class TestQueryFeatures:
         assert {} == cov
 
     def test_feat_sys_variant(self):
-        data = {'timestamp1': {'system': {'tests': [
+        data = {'timestamp1': {'system': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list")],
                          endpoints=[
@@ -691,7 +707,9 @@ class TestQueryFeatures:
         assert {} == cov
 
     def test_diff_feat_all(self):
-        data = {'timestamp1': {'system': {'tests': [
+        data = {'timestamp1': {'system': {
+            'system': 'system1',
+            'tests': [
             TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
                          cmds=[Cmd(cmd="snap list")],
                          endpoints=[
@@ -883,41 +901,77 @@ class TestQueryFeatures:
         data = {'timestamp1': {
                 'system1': {'system':'system1', 'tests': [
                     TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
-                                cmds=[Cmd(cmd="some command")])]},
+                                cmds=[Cmd(cmd="system1")])]},
                 'system2': {'system':'system2', 'tests': [
                     TaskFeatures(suite='suite2', task_name='task2', success=True, variant='',
                                 cmds=[Cmd(cmd="system2")]),]}},}
         retriever = DictRetriever(data)
         retriever.get_single_json('timestamp1', 'system1')
-        assert len(retriever.cache) == 0
-        res = retriever.get_systems('timestamp1', ['system1'])
-        assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'some command'
-
-        # Before data is cached, it's possible to overwrite values
-        retriever.data['timestamp1']['system1']['tests'][0]['cmds'][0]['cmd'] = 'system1'
-        res = retriever.get_systems('timestamp1', ['system1'])
-        assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'system1'
-        assert len(retriever.cache) == 0
-
-        # By calling get_systems without specifying a system list, the base
-        # class will cache the result
-        retriever.get_systems('timestamp1')
         assert len(retriever.cache) == 1
-        assert 'timestamp1' in retriever.cache
-        assert 'systems' in retriever.cache['timestamp1']
-
-        # To prove the cached data is being used, here we change the underlying data
-        retriever.data['timestamp1']['system1']['tests'][0]['cmds'][0]['cmd'] = 'new'
-        res = retriever.get_single_json('timestamp1', 'system1')
-        assert res['tests'][0]['cmds'][0]['cmd'] == 'system1'
-
-        # get_systems and get_single_json all use the cached data
+        assert 'timestamp1' in retriever.cache and 'sub-systems' in retriever.cache['timestamp1']
+        
+        # If I overwrite some data, I will get the cached version
+        retriever.data['timestamp1']['system1']['tests'][0]['cmds'][0]['cmd'] = 'some command'
         res = retriever.get_systems('timestamp1', ['system1'])
         assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'system1'
+
+
+    def test_sys_caching_all_systems(self):
+        data = {'timestamp1': {
+                'system1': {'system':'system1', 'tests': [
+                    TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
+                                cmds=[Cmd(cmd="system1")])]},
+                'system2': {'system':'system2', 'tests': [
+                    TaskFeatures(suite='suite2', task_name='task2', success=True, variant='',
+                                cmds=[Cmd(cmd="system2")]),]}},}
+        retriever = DictRetriever(data)
         res = retriever.get_systems('timestamp1')
-        assert res[0]['tests'][0]['cmds'][0]['cmd'] == 'system1'
+        assert len(retriever.cache) == 1
+        assert 'timestamp1' in retriever.cache and 'systems' in retriever.cache['timestamp1']
+        
+        # If I overwrite some data, I will get the cached version
+        retriever.data['timestamp1']['system1']['tests'][0]['cmds'][0]['cmd'] = 'some command'
         res = retriever.get_single_json('timestamp1', 'system1')
         assert res['tests'][0]['cmds'][0]['cmd'] == 'system1'
+
+
+    def test_sys_caching_subset_only_returns_requested_systems(self):
+        data = {'timestamp1': {
+                'system1': {'system':'system1', 'tests': [
+                    TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
+                                cmds=[Cmd(cmd='system1-cmd')])]},
+                'system2': {'system':'system2', 'tests': [
+                    TaskFeatures(suite='suite2', task_name='task2', success=True, variant='',
+                                cmds=[Cmd(cmd='system2-cmd')])]},
+            },
+        }
+        retriever = DictRetriever(data)
+
+        retriever.get_single_json('timestamp1', 'system1')
+        res = retriever.get_systems('timestamp1', ['system2'])
+
+        assert len(res) == 1
+        assert res[0]['system'] == 'system2'
+
+
+    def test_sys_caching_all_systems_clears_partial_cache(self):
+        data = {'timestamp1': {
+                'system1': {'system':'system1', 'tests': [
+                    TaskFeatures(suite='suite1', task_name='task1', success=True, variant='',
+                                cmds=[Cmd(cmd='system1-cmd')])]},
+                'system2': {'system':'system2', 'tests': [
+                    TaskFeatures(suite='suite2', task_name='task2', success=True, variant='',
+                                cmds=[Cmd(cmd='system2-cmd')])]},
+            },
+        }
+        retriever = DictRetriever(data)
+
+        retriever.get_systems('timestamp1', ['system1'])
+        assert 'sub-systems' in retriever.cache['timestamp1']
+
+        retriever.get_systems('timestamp1')
+        assert 'systems' in retriever.cache['timestamp1']
+        assert 'sub-systems' not in retriever.cache['timestamp1']
 
 
     def test_all_features_caching(self):
