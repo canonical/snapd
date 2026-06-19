@@ -374,6 +374,10 @@ func APIErrorReason(e *APIError) seclog.Reason {
 	return e.seclogReason()
 }
 
+var TryExtractJSONAction = tryExtractJSONAction
+
+const ActionPeekSize = actionPeekSize
+
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }

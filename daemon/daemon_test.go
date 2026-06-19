@@ -600,17 +600,49 @@ func (s *daemonSuite) TestTryExtractAction(c *check.C) {
 	req.Header.Set("Content-Type", "multipart/form-data")
 	c.Check(run(req), check.Equals, "")
 
-	// Unknown Content-Length — read the full body.
+	// Unknown Content-Length — peeked prefix still yields the action.
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.ContentLength = -1
 	c.Check(run(req), check.Equals, "install")
 
-	// Body at or over the size limit — do not read the body.
+	// Content-Length is not trusted: a header value far larger than the
+	// real body must not affect extraction (old implementation refused
+	// at ContentLength >= maxBodySize; new implementation peeks anyway).
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.ContentLength = maxBodySize
+	c.Check(run(req), check.Equals, "install")
+
+	// Action key lies beyond the 4 KiB peek window — extractor fails
+	// closed and returns "".
+	padding := strings.Repeat("x", ActionPeekSize)
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"pad":"`+padding+`","action":"install"}`))
+	req.Header.Set("Content-Type", "application/json")
 	c.Check(run(req), check.Equals, "")
+
+	// Action is the first key but its preceding sibling value spans
+	// across the window boundary — still returns "" without panicking.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"pad":"`+padding[:ActionPeekSize-10]+`","action":"install"}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(run(req), check.Equals, "")
+
+	// Top-level value is an array, not an object — no action to find.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`[{"action":"install"}]`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(run(req), check.Equals, "")
+
+	// "action" appears as a nested key only — top-level walk must not
+	// confuse it for a top-level field.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"nested":{"action":"install"}}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(run(req), check.Equals, "")
+
+	// "action" string appears inside a preceding string value; the JSON
+	// tokenizer correctly skips it and finds the real top-level key.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"desc":"\"action\":\"fake\"","action":"install"}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(run(req), check.Equals, "install")
 }
 
 func (s *daemonSuite) TestTryExtractActionPreservesBody(c *check.C) {
@@ -682,6 +714,131 @@ func (s *daemonSuite) TestTryExtractActionPreservesLargeUnknownBody(c *check.C) 
 
 	cmd.ServeHTTP(httptest.NewRecorder(), req)
 	c.Check(gotBody, check.Equals, body)
+}
+
+// TestTryExtractJSONActionDirect exercises the extractor in isolation
+// from the daemon/seclog pipeline. It pins the two robustness
+// guarantees that motivated the rewrite:
+//   - the body is never consumed (the handler still sees every byte),
+//     regardless of Content-Length;
+//   - extraction is bounded to actionPeekSize and fails closed when
+//     the action key is not reachable within that window.
+func (s *daemonSuite) TestTryExtractJSONActionDirect(c *check.C) {
+	makeReq := func(body string, contentLength int64) *http.Request {
+		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if contentLength != 0 {
+			req.ContentLength = contentLength
+		}
+		return req
+	}
+
+	for _, tc := range []struct {
+		name          string
+		body          string
+		contentLength int64 // 0 means: use the reader's length (default)
+		wantAction    string
+	}{
+		{
+			name:       "action first key",
+			body:       `{"action":"install","snaps":["x"]}`,
+			wantAction: "install",
+		},
+		{
+			name:       "action second key",
+			body:       `{"snaps":["x"],"action":"refresh"}`,
+			wantAction: "refresh",
+		},
+		{
+			name:          "unknown content length",
+			body:          `{"action":"install"}`,
+			contentLength: -1,
+			wantAction:    "install",
+		},
+		{
+			name:          "lying content length (too large) is ignored",
+			body:          `{"action":"install"}`,
+			contentLength: maxBodySize,
+			wantAction:    "install",
+		},
+		{
+			name:          "lying content length (too small) does not truncate extraction or body",
+			body:          `{"action":"install","snaps":["x"]}`,
+			contentLength: 5,
+			wantAction:    "install",
+		},
+		{
+			name:       "non-object top-level",
+			body:       `["action","install"]`,
+			wantAction: "",
+		},
+		{
+			name:       "action only nested",
+			body:       `{"x":{"action":"install"}}`,
+			wantAction: "",
+		},
+		{
+			name:       "action absent",
+			body:       `{"snaps":["x"]}`,
+			wantAction: "",
+		},
+		{
+			name:       "malformed json prefix",
+			body:       `{not json`,
+			wantAction: "",
+		},
+		{
+			name:       "action beyond peek window",
+			body:       `{"pad":"` + strings.Repeat("x", ActionPeekSize) + `","action":"install"}`,
+			wantAction: "",
+		},
+		{
+			name:       "preceding string straddles window boundary",
+			body:       `{"pad":"` + strings.Repeat("x", ActionPeekSize-10) + `","action":"install"}`,
+			wantAction: "",
+		},
+		{
+			name:       "tokenizer not fooled by quoted action inside preceding string",
+			body:       `{"desc":"\"action\":\"fake\"","action":"install"}`,
+			wantAction: "install",
+		},
+	} {
+		req := makeReq(tc.body, tc.contentLength)
+		got := TryExtractJSONAction(req)
+		c.Check(got, check.Equals, tc.wantAction, check.Commentf("case: %s", tc.name))
+
+		// The body must be readable in full afterwards, regardless of
+		// the (possibly lying) Content-Length header.
+		gotBody, err := io.ReadAll(req.Body)
+		c.Assert(err, check.IsNil, check.Commentf("case: %s", tc.name))
+		c.Check(string(gotBody), check.Equals, tc.body, check.Commentf("case: %s", tc.name))
+	}
+}
+
+// TestTryExtractJSONActionShortCircuits verifies the early-return paths.
+func (s *daemonSuite) TestTryExtractJSONActionShortCircuits(c *check.C) {
+	// GET with no body.
+	req := httptest.NewRequest("GET", "/", nil)
+	c.Check(TryExtractJSONAction(req), check.Equals, "")
+
+	// POST with non-JSON content type.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	c.Check(TryExtractJSONAction(req), check.Equals, "")
+	// Body is unconsumed.
+	gotBody, err := io.ReadAll(req.Body)
+	c.Assert(err, check.IsNil)
+	c.Check(string(gotBody), check.Equals, `{"action":"install"}`)
+
+	// POST with no Content-Type is treated as JSON.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
+	req.Header.Del("Content-Type")
+	c.Check(TryExtractJSONAction(req), check.Equals, "install")
+
+	// DELETE is not considered.
+	req = httptest.NewRequest("DELETE", "/", strings.NewReader(`{"action":"install"}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(TryExtractJSONAction(req), check.Equals, "")
 }
 
 // TestPeerFromUcred pins the cross-package sentinel mapping.

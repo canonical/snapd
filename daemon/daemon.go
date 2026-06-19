@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -176,10 +177,6 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Emit the authz_admin event before invoking the handler: it records
-	// that the authorization gate passed, not that the API operation
-	// succeeded, and must be persisted even if the handler panics, hangs,
-	// or the client disconnects mid-response.
 	if admin {
 		logAdminActivity(c, r, ucred, user, dec, action)
 	}
@@ -231,8 +228,26 @@ func peerFromUcred(ucred *ucrednet) seclog.Peer {
 	}
 }
 
-// tryExtractJSONAction reads the request body when safe and returns the
-// "action" field. The body is buffered back into r.Body for the handler.
+// actionPeekSize bounds how much of the request body we inspect when
+// looking for the top-level "action" key. The body itself is not
+// consumed; the handler sees the full original stream.
+const actionPeekSize = 4096
+
+// bodyWithCloser lets us replace r.Body with a buffered reader while
+// preserving the original Close so the http server can release the
+// underlying body normally.
+type bodyWithCloser struct {
+	io.Reader
+	io.Closer
+}
+
+// tryExtractJSONAction returns the top-level "action" field of a JSON
+// request body without consuming the body. It buffers at most
+// actionPeekSize bytes via bufio.Reader.Peek (which does not advance
+// the reader) and walks the prefix with a streaming JSON tokenizer.
+// On any failure (action beyond the peek window, malformed prefix,
+// preceding value too large) it returns an empty string; the handler
+// always sees the full original body.
 func tryExtractJSONAction(r *http.Request) string {
 	if (r.Method != "POST" && r.Method != "PUT") || r.Body == nil {
 		return ""
@@ -240,32 +255,61 @@ func tryExtractJSONAction(r *http.Request) string {
 	if ct := r.Header.Get("Content-Type"); ct != "" && ct != "application/json" {
 		return ""
 	}
-	if r.ContentLength >= maxBodySize {
+
+	// Wrap the body so Peek can inspect a bounded prefix without
+	// advancing the read position. The handler will read through br
+	// and transparently see the peeked bytes followed by the rest of
+	// the stream.
+	orig := r.Body
+	br := bufio.NewReaderSize(orig, actionPeekSize)
+	r.Body = bodyWithCloser{Reader: br, Closer: orig}
+
+	// Ignore the error: a short body (EOF) still yields the bytes we
+	// got, which is all we need; any tokenize error below returns "".
+	peeked, _ := br.Peek(actionPeekSize)
+
+	dec := json.NewDecoder(bytes.NewReader(peeked))
+	t, err := dec.Token()
+	if err != nil || t != json.Delim('{') {
 		return ""
 	}
-	var (
-		bodyBytes []byte
-		err       error
-	)
-	if r.ContentLength < 0 {
-		// ContentLength is -1 when the client streams the body without a
-		// Content-Length header (e.g. chunked encoding from piped stdin to
-		// snap debug api).
-		bodyBytes, err = io.ReadAll(r.Body)
-	} else {
-		bodyBytes, err = io.ReadAll(io.LimitReader(r.Body, r.ContentLength))
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return ""
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return ""
+		}
+		if key == "action" {
+			var v string
+			if dec.Decode(&v) != nil {
+				return ""
+			}
+			return v
+		}
+		// Skip this value (scalar, object or array) by depth counting.
+		depth := 0
+		for {
+			tok, err := dec.Token()
+			if err != nil {
+				return ""
+			}
+			if d, ok := tok.(json.Delim); ok {
+				switch d {
+				case '{', '[':
+					depth++
+				case '}', ']':
+					depth--
+				}
+			}
+			if depth == 0 {
+				break
+			}
+		}
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	if err != nil {
-		return ""
-	}
-	var data struct {
-		Action string `json:"action"`
-	}
-	if json.Unmarshal(bodyBytes, &data) != nil {
-		return ""
-	}
-	return data.Action
+	return ""
 }
 
 func endpointFromRequest(c *Command, r *http.Request, dec accessDecision, action string) seclog.Endpoint {
