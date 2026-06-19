@@ -1,6 +1,8 @@
 name: Feature Tagging
 
 on:
+  pull_request:
+    branches: [ "master" ]
 
   workflow_dispatch:
     inputs:
@@ -41,7 +43,7 @@ jobs:
       - name: Set inputs
         id: set-inputs
         run: |
-          echo "maximum-reruns=${{ inputs.maximum-reruns || 2 }}" >> $GITHUB_OUTPUT
+          echo "maximum-reruns=${{ inputs.maximum-reruns || 1 }}" >> $GITHUB_OUTPUT
           echo "run-one-system=${{ inputs.run-one-system || '' }}" >> $GITHUB_OUTPUT
           echo "skip-tests=${{ inputs.skip-tests || 'ubuntu-14.04-64 tests/lib/ tests/unit/ tests/utils/cross-build manual/snapd-refresh-from-old core/persistent-journal' }}" >> $GITHUB_OUTPUT
 
