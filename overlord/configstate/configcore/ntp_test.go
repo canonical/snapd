@@ -22,7 +22,6 @@ import (
 type ntpSuite struct {
 	configcoreSuite
 	timesyncdConfigFile string
-	sysdLog             [][]string
 }
 
 var (
@@ -48,8 +47,6 @@ var (
 
 func (s *ntpSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-
-	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc/systemd"), 0755), IsNil)
 
 	// Create the config file and write a predictable configuration
 	systemdConfigFolder := filepath.Join(dirs.GlobalRootDir, "etc/systemd")
@@ -407,7 +404,7 @@ func (s *ntpSuite) TestNTPSetMissingConfigFile(c *C) {
 
 func (s *ntpSuite) TestNTPSetRestartDaemonError(c *C) {
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		s.sysdLog = append(s.sysdLog, cmd)
+		s.systemctlArgs = append(s.systemctlArgs, cmd)
 		return nil, fmt.Errorf("boom")
 	})
 	defer r()
@@ -416,6 +413,7 @@ func (s *ntpSuite) TestNTPSetRestartDaemonError(c *C) {
 
 	err := configcore.FilesystemOnlyRun(core24Dev, conf)
 	c.Check(err, ErrorMatches, "cannot restart timesyncd daemon after configuration change: boom")
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{{"reload-or-restart", "systemd-timesyncd.service"}})
 }
 
 func (s *ntpSuite) TestNTPGetMissingConfigFile(c *C) {
