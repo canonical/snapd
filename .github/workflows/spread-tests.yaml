@@ -15,10 +15,6 @@ on:
         description: 'The spread backend to use (for possible values, check spread.yaml). This cannot be empty'
         required: true
         type: string
-      alternative-backend:
-        description: 'The spread backend to use when the backend cannot be used'
-        required: false
-        type: string
       systems:
         description: 'The spread system(s) to use (for possible values, check spread.yaml). If more than one, separate them with a space. To run all, write ALL. To run none, write NONE'
         required: true
@@ -199,14 +195,7 @@ jobs:
             echo "$TASKS_TO_RUN"
           }
 
-          # Determine if the alternative backend has to be used for the current group
-          # Alternative backends usage depends on the value stored in the file USE_ALTERNATIVE_BACKEND,
-          # where it is defined the backend to use when images are ready in both google and openstack.
-          USE_ALTERNATIVE_BACKEND="$(curl -s https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/use_alternative_backend.json)"
           SPREAD_BACKEND="${{ inputs.backend }}"
-          if [ -n "${{ inputs.alternative-backend }}" ] && [ $(jq -r ".\"${{ inputs.group }}\"" <<< "$USE_ALTERNATIVE_BACKEND") == true ]; then
-              SPREAD_BACKEND="${{ inputs.alternative-backend }}"
-          fi
           echo SPREAD_BACKEND="$SPREAD_BACKEND" >> $GITHUB_ENV
 
           CHANGES_PARAM=""
