@@ -1,3 +1,12 @@
+snapd (2.76.1) resolute; urgency=medium
+
+  * New upstream release, LP: #2157692
+    - LP: #2067006 CVE-2024-5300
+    - CVE-2026-3888
+    - SNAPDENG-36017
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Sat, 20 Jun 2026 10:27:54 +0200
+
 snapd (2.76) resolute; urgency=medium
 
   * New upstream release, LP: #2154498

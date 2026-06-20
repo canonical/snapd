@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.76
+Version:        2.76.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1016,6 +1016,12 @@ fi
 %endif
 
 %changelog
+* Sat Jun 20 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.76.1
+ - LP: #2067006 CVE-2024-5300
+ - CVE-2026-3888
+ - SNAPDENG-36017
+
 * Thu May 28 2026 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.76
  - assertions: add helper for validating integrity data
