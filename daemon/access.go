@@ -188,10 +188,12 @@ func (o accessOptions) validate() error {
 	return nil
 }
 
-// checkPrerequisites runs prerequisite authorization checks that must all pass
-// before access level checks are evaluated. These include peer credentials,
-// socket restrictions, and interface requirements.
-func checkPrerequisites(d *Daemon, r *http.Request, ucred *ucrednet, checks *seclog.AuthzChecks, opts accessOptions) *apiError {
+// checkChannelAuthorization runs the gates that qualify the request
+// channel — peer credentials, the socket the request arrived on, and
+// any required interface connection — all of which must pass before
+// the access-level check is evaluated. "Channel" here refers to the
+// HTTP request's transport and peer.
+func checkChannelAuthorization(d *Daemon, r *http.Request, ucred *ucrednet, checks *seclog.AuthzChecks, opts accessOptions) *apiError {
 	// Mark applicable checks as AuthzNotReached (will become Pass/Fail during evaluation).
 	// AccessOptions is intentionally not reset here: it is set by the caller after
 	// opts.validate() has run.
@@ -320,7 +322,7 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 	dec.Checks.AccessOptions = seclog.AuthzPass
 	dec.Level = opts.AccessLevel
 
-	if err := checkPrerequisites(d, r, ucred, &dec.Checks, opts); err != nil {
+	if err := checkChannelAuthorization(d, r, ucred, &dec.Checks, opts); err != nil {
 		dec.Verdict = err
 		return dec
 	}

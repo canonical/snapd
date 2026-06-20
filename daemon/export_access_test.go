@@ -55,7 +55,7 @@ const (
 
 var (
 	CheckAccess                   = checkAccess
-	CheckPrerequisites            = checkPrerequisites
+	CheckChannelAuthorization     = checkChannelAuthorization
 	CheckAccessLevelAuthorization = checkAccessLevelAuthorization
 	IsAdministrativeAccess        = isAdministrativeAccess
 	CheckPolkitActionImpl         = checkPolkitActionImpl

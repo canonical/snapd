@@ -413,7 +413,8 @@ func (s *daemonSuite) TestAdminActivitySecurityLogging(c *check.C) {
 	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
 		// Consume the body like a real handler does, to verify the audit
 		// action was captured before the handler ran.
-		io.ReadAll(r.Body)
+		_, err := io.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
 		return SyncResponse(nil)
 	}
 	cmd.WriteAccess = authenticatedAccess{}
@@ -689,8 +690,9 @@ func (s *daemonSuite) TestTryExtractActionPreservesBody(c *check.C) {
 }
 
 func (s *daemonSuite) TestTryExtractActionPreservesLargeUnknownBody(c *check.C) {
-	// Body exceeds maxBodySize; with unknown length the full body is read
-	// and restored for the handler.
+	// Body far exceeds the actionPeekSize window; the extractor only
+	// peeks the first 4 KiB but the handler must still read the full
+	// original body byte-for-byte.
 	padding := strings.Repeat("x", maxBodySize)
 	body := `{"action":"install","pad":"` + padding + `"}`
 	req := httptest.NewRequest("POST", "/", strings.NewReader(body))

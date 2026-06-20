@@ -1104,7 +1104,7 @@ func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
 	c.Assert(err, DeepEquals, daemon.BadRequest("unexpected data after request body"))
 }
 
-func (s *accessSuite) TestCheckPrerequisites(c *C) {
+func (s *accessSuite) TestCheckChannelAuthorization(c *C) {
 	d := s.daemon(c)
 
 	tests := []struct {
@@ -1158,7 +1158,7 @@ func (s *accessSuite) TestCheckPrerequisites(c *C) {
 			},
 		},
 		{
-			name:  "all prerequisites pass",
+			name:  "all channel checks pass",
 			ucred: &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket},
 			opts: daemon.AccessOptions{
 				AccessLevel: "authenticated",
@@ -1207,7 +1207,7 @@ func (s *accessSuite) TestCheckPrerequisites(c *C) {
 		}
 
 		req := httptest.NewRequest("GET", "/", nil)
-		err := daemon.CheckPrerequisites(d, req, tc.ucred, &checks, tc.opts)
+		err := daemon.CheckChannelAuthorization(d, req, tc.ucred, &checks, tc.opts)
 
 		if tc.expectErr != nil {
 			c.Check(err, DeepEquals, tc.expectErr, Commentf("test case: %s", tc.name))
