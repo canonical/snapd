@@ -211,6 +211,7 @@ func snapdUser(user *auth.UserState) seclog.SnapdUser {
 		ID:             int64(user.ID),
 		StoreUserName:  user.Username,
 		StoreUserEmail: user.Email,
+		Expiration:     user.Expiration,
 	}
 }
 

@@ -860,6 +860,31 @@ func (s *daemonSuite) TestPeerFromUcred(c *check.C) {
 	c.Check(p.String(), check.Equals, "/run/snapd.socket:42:100")
 }
 
+// TestSnapdUserMapping pins the auth.UserState → seclog.SnapdUser
+// projection. Notably the Expiration must be carried through so that
+// audit events can render either an absolute time or "never".
+func (s *daemonSuite) TestSnapdUserMapping(c *check.C) {
+	// nil user → zero value; seclog renders Expiration as "never".
+	u := snapdUser(nil)
+	c.Check(u, check.DeepEquals, seclog.SnapdUser{})
+	c.Check(u.Expiration.IsZero(), check.Equals, true)
+
+	// Populated user, no expiration → fields copy across, Expiration
+	// stays zero so audit output remains "never".
+	src := &auth.UserState{ID: 7, Username: "alice", Email: "alice@example.com"}
+	u = snapdUser(src)
+	c.Check(u, check.DeepEquals, seclog.SnapdUser{
+		ID: 7, StoreUserName: "alice", StoreUserEmail: "alice@example.com",
+	})
+	c.Check(u.Expiration.IsZero(), check.Equals, true)
+
+	// Populated user with expiration → propagated verbatim.
+	exp := time.Date(2030, 1, 2, 3, 4, 5, 0, time.UTC)
+	src = &auth.UserState{ID: 7, Username: "alice", Email: "alice@example.com", Expiration: exp}
+	u = snapdUser(src)
+	c.Check(u.Expiration.Equal(exp), check.Equals, true)
+}
+
 func (s *daemonSuite) TestReadAccess(c *check.C) {
 	cmd := &Command{d: s.newTestDaemon(c)}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
