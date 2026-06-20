@@ -88,14 +88,33 @@ type accessChecker interface {
 type accessCheckerName string
 
 const (
-	accessCheckerOpen                   accessCheckerName = "open"
-	accessCheckerAuthenticated          accessCheckerName = "authenticated"
-	accessCheckerRoot                   accessCheckerName = "root"
-	accessCheckerSnap                   accessCheckerName = "snap"
-	accessCheckerInterfaceOpen          accessCheckerName = "interface-open"
-	accessCheckerInterfaceAuthenticated accessCheckerName = "interface-authenticated"
-	accessCheckerInterfaceProviderRoot  accessCheckerName = "interface-provider-root"
-	accessCheckerInterfaceRoot          accessCheckerName = "interface-root"
+	// accessCheckerOpen: any peer on snapd.socket; no authentication.
+	accessCheckerOpen accessCheckerName = "open"
+	// accessCheckerSnap: any peer on snapd-snap.socket only; no
+	// authentication beyond the socket restriction.
+	accessCheckerSnap accessCheckerName = "open-plus-snap-socket-only"
+	// accessCheckerInterfaceOpen: any peer on snapd.socket, or a snap
+	// on snapd-snap.socket that is on the plug side of an active
+	// connection of one of the required interfaces.
+	accessCheckerInterfaceOpen accessCheckerName = "open-plus-plug-of-required-iface"
+	// accessCheckerAuthenticated: peer on snapd.socket authenticated
+	// via snapd user macaroon, or root uid, or (optionally) polkit.
+	accessCheckerAuthenticated accessCheckerName = "authenticated"
+	// accessCheckerInterfaceAuthenticated: like authenticated, but
+	// also allows a snap on snapd-snap.socket that is on the plug
+	// side of an active connection of one of the required interfaces.
+	accessCheckerInterfaceAuthenticated accessCheckerName = "authenticated-plus-plug-of-required-iface"
+	// accessCheckerRoot: peer on snapd.socket with root uid.
+	accessCheckerRoot accessCheckerName = "root"
+	// accessCheckerInterfaceRoot: root uid or (optionally) polkit on
+	// snapd.socket, or a snap on snapd-snap.socket that is on the
+	// plug side of an active connection of one of the required
+	// interfaces.
+	accessCheckerInterfaceRoot accessCheckerName = "root-plus-plug-of-required-iface"
+	// accessCheckerInterfaceProviderRoot: root uid on snapd.socket,
+	// or a snap on snapd-snap.socket that is on the slot (provider)
+	// side of an active connection of one of the required interfaces.
+	accessCheckerInterfaceProviderRoot accessCheckerName = "root-plus-slot-of-required-iface"
 )
 
 // accessDecision is the structured result of an authorization check.

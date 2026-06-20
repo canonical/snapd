@@ -1450,13 +1450,13 @@ func (s *accessSuite) TestAccessCheckersPopulateCheckerName(c *C) {
 		expectedName string
 	}{
 		{daemon.OpenAccess{}, rootUcred, nil, "open"},
+		{daemon.SnapAccess{}, snapUcred, nil, "open-plus-snap-socket-only"},
+		{daemon.InterfaceOpenAccess{Interfaces: []string{"x"}}, rootUcred, nil, "open-plus-plug-of-required-iface"},
 		{daemon.AuthenticatedAccess{}, rootUcred, nil, "authenticated"},
+		{daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"x"}}, rootUcred, nil, "authenticated-plus-plug-of-required-iface"},
 		{daemon.RootAccess{}, rootUcred, nil, "root"},
-		{daemon.SnapAccess{}, snapUcred, nil, "snap"},
-		{daemon.InterfaceOpenAccess{Interfaces: []string{"x"}}, rootUcred, nil, "interface-open"},
-		{daemon.InterfaceAuthenticatedAccess{Interfaces: []string{"x"}}, rootUcred, nil, "interface-authenticated"},
-		{daemon.InterfaceProviderRootAccess{Interfaces: []string{"x"}}, rootUcred, nil, "interface-provider-root"},
-		{daemon.InterfaceRootAccess{Interfaces: []string{"x"}}, rootUcred, nil, "interface-root"},
+		{daemon.InterfaceRootAccess{Interfaces: []string{"x"}}, rootUcred, nil, "root-plus-plug-of-required-iface"},
+		{daemon.InterfaceProviderRootAccess{Interfaces: []string{"x"}}, rootUcred, nil, "root-plus-slot-of-required-iface"},
 		// byActionAccess propagates the delegate's name; here the
 		// delegate is rootAccess.
 		{
