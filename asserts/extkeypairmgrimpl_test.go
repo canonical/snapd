@@ -139,19 +139,6 @@ func (s *fakeExtKeypairMgrSignOnlyBackend) LoadByID(keyID string) (*ExtKeypairMg
 	return loaded, nil
 }
 
-type fakeExtKeypairMgrSignOnlyBackendWithByName struct {
-	fakeExtKeypairMgrSignOnlyBackend
-}
-
-func (s *fakeExtKeypairMgrSignOnlyBackendWithByName) LoadByName(name string) (*ExtKeypairMgrLoadedKey, error) {
-	s.loadCalls = append(s.loadCalls, name)
-	loaded := s.loadByName[name]
-	if loaded == nil {
-		return nil, &keyNotFoundError{msg: "missing key"}
-	}
-	return loaded, nil
-}
-
 func (s *extKeypairMgrImplSuite) newLoadedKeyBits(c *check.C, name string, keyHandle string, bits int) (*rsa.PrivateKey, *ExtKeypairMgrLoadedKey) {
 	privKey, err := rsa.GenerateKey(rand.Reader, bits)
 	c.Assert(err, check.IsNil)
@@ -639,23 +626,6 @@ func (s *extKeypairMgrImplSuite) TestOpenPGPSigningInvalidPacketUsesSigningWithI
 func (s *extKeypairMgrImplSuite) TestConstructorRejectsBackendsWithoutVisitOrLoadByID(c *check.C) {
 	_, err := newExtKeypairMgrImpl(&fakeExtKeypairMgrBackendBase{signingMethod: ExtKeypairMgrSigningRSAPKCS}, fakeExtKeypairMgrConfig)
 	c.Assert(err, check.ErrorMatches, `cannot use external keypair backend: backends must implement Visit or, for sign-only use, LoadByID`)
-}
-
-func (s *extKeypairMgrImplSuite) TestConstructorRejectsLoadByNameWithoutVisit(c *check.C) {
-	privKey, loaded := s.newLoadedKey(c, "default", "handle-default")
-	backend := &fakeExtKeypairMgrSignOnlyBackendWithByName{
-		fakeExtKeypairMgrSignOnlyBackend: fakeExtKeypairMgrSignOnlyBackend{fakeExtKeypairMgrBackendBase: fakeExtKeypairMgrBackendBase{
-			signingMethod: ExtKeypairMgrSigningRSAPKCS,
-			loadByName:    map[string]*ExtKeypairMgrLoadedKey{"default": loaded},
-			loadByID:      map[string]*ExtKeypairMgrLoadedKey{loaded.PublicKey.ID(): loaded},
-			privByHandle: map[string]*rsa.PrivateKey{
-				"handle-default": privKey,
-			},
-		}},
-	}
-
-	_, err := newExtKeypairMgrImpl(backend, fakeExtKeypairMgrConfig)
-	c.Assert(err, check.ErrorMatches, `cannot use external keypair backend: backends that implement LoadByName must also implement Visit`)
 }
 
 func (s *extKeypairMgrImplSuite) TestSignOnlyOperationsUseUnsupportedError(c *check.C) {

@@ -56,8 +56,10 @@ type ExtKeypairMgrKeyVisitBackend interface {
 	Visit(consider func(loaded *ExtKeypairMgrLoadedKey) error) error
 }
 
-// ExtKeypairMgrByNameLookupBackend adds optional direct lookup by user-visible key name.
+// ExtKeypairMgrByNameLookupBackend adds optional direct lookup by user-visible key name on top of key discovery.
 type ExtKeypairMgrByNameLookupBackend interface {
+	ExtKeypairMgrKeyVisitBackend
+
 	// LoadByName resolves a user-visible name directly when the backend supports by-name lookup.
 	LoadByName(name string) (*ExtKeypairMgrLoadedKey, error)
 }
@@ -94,7 +96,10 @@ type ExtKeypairMgrConfig struct {
 }
 
 type extKeypairMgrImpl struct {
-	backend              ExtKeypairMgrBackend
+	backend ExtKeypairMgrBackend
+	// optional interfaces implemented by the backend
+	// byNameLookupBackend includes keyVisitBackend so they they can only be nil together
+	// in which case we have a sign-only backend and byKeyIDLookupBackend must be non-nil
 	keyVisitBackend      ExtKeypairMgrKeyVisitBackend
 	byNameLookupBackend  ExtKeypairMgrByNameLookupBackend
 	byKeyIDLookupBackend ExtKeypairMgrByKeyIDLookupBackend
@@ -111,9 +116,6 @@ func newExtKeypairMgrImpl(backend ExtKeypairMgrBackend, config ExtKeypairMgrConf
 	byNameLookupBackend, _ := backend.(ExtKeypairMgrByNameLookupBackend)
 	byKeyIDLookupBackend, _ := backend.(ExtKeypairMgrByKeyIDLookupBackend)
 
-	if byNameLookupBackend != nil && keyVisitBackend == nil {
-		return nil, fmt.Errorf("cannot use external keypair backend: backends that implement LoadByName must also implement Visit")
-	}
 	if keyVisitBackend == nil && byKeyIDLookupBackend == nil {
 		return nil, fmt.Errorf("cannot use external keypair backend: backends must implement Visit or, for sign-only use, LoadByID")
 	}

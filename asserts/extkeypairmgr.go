@@ -57,13 +57,13 @@ func NewExternalKeypairManager(keyMgrPath string) (*ExternalKeypairManager, erro
 //
 // Backends must implement ExtKeypairMgrBackend and either:
 //   - implement ExtKeypairMgrKeyVisitBackend, optionally with
-//     ExtKeypairMgrByNameLookupBackend and/or ExtKeypairMgrByKeyIDLookupBackend; or
+//     ExtKeypairMgrByKeyIDLookupBackend, or via ExtKeypairMgrByNameLookupBackend; or
 //   - implement ExtKeypairMgrByKeyIDLookupBackend without ExtKeypairMgrKeyVisitBackend
 //     for sign-only use.
 //
-// Backends that implement ExtKeypairMgrByNameLookupBackend must also implement
-// ExtKeypairMgrKeyVisitBackend. Sign-only backends support Get by key ID, while
-// GetByName, Export, and List return ExternalUnsupportedOpError.
+// ExtKeypairMgrByNameLookupBackend includes ExtKeypairMgrKeyVisitBackend.
+// Sign-only backends support Get by key ID, while GetByName, Export, and List
+// return ExternalUnsupportedOpError.
 func NewExternalKeypairManagerWithBackend(backend ExtKeypairMgrBackend, config ExtKeypairMgrConfig) (*ExternalKeypairManager, error) {
 	impl, err := newExtKeypairMgrImpl(backend, config)
 	if err != nil {
@@ -114,8 +114,8 @@ func (em *ExternalKeypairManager) List() ([]ExternalKeyInfo, error) {
 	return em.impl.List()
 }
 
-// externalCmdKeypairMgrBackend implements extKeypairMgrBackend and
-// extKeypairMgrByNameLookupBackend by invoking the configured external
+// externalCmdKeypairMgrBackend implements ExtKeypairMgrBackend and
+// ExtKeypairMgrByNameLookupBackend by invoking the configured external
 // keypair manager command.
 type externalCmdKeypairMgrBackend struct {
 	keyMgrPath string
