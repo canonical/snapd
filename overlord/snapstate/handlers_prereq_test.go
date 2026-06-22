@@ -170,6 +170,8 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 		},
 		Base:               "none",
 		PrereqContentAttrs: map[string][]string{"prereq1": {"some-content"}},
+		// set devmode to prove that prerequisites don't inherit these flags
+		Flags: snapstate.Flags{DevMode: true},
 	})
 	chg := s.state.NewChange("sample", "...")
 	chg.AddTask(t)
@@ -190,6 +192,8 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 		if t.Kind() == "link-snap" {
 			snapsup, err := snapstate.TaskSnapSetup(t)
 			c.Assert(err, IsNil)
+			// prerequisites are installed with sanitized flags
+			c.Check(snapsup.DevMode, Equals, false)
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		} else if t.Kind() == "prerequisites" {
 			c.Assert(t.Lanes(), DeepEquals, []int{lane})
@@ -461,6 +465,59 @@ func (s *prereqSuite) TestDoPrereqRetryWhenBaseInFlight(c *C) {
 
 	// validity
 	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqRetryWhenPrereqInstallInAnotherChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// keep the other change's link-snap pending
+	blocker := s.state.NewTask("blocker", "block prereq1 link task")
+	link := s.state.NewTask("link-snap", "pretend prereq1 gets installed")
+	link.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "prereq1",
+			Revision: snap.R(11),
+		},
+	})
+	link.WaitFor(blocker)
+
+	// install snapd so that prerequisites handler won't try to install it
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		}),
+		Current: snap.R(1),
+	})
+
+	prereq := s.state.NewTask("prerequisites", "foo")
+	prereq.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
+		Base:               "none",
+		PrereqContentAttrs: map[string][]string{"prereq1": nil},
+	})
+
+	linkChg := s.state.NewChange("install", "install prereq1")
+	linkChg.AddTask(blocker)
+	linkChg.AddTask(link)
+
+	prereqChg := s.state.NewChange("install", "install foo")
+	prereqChg.AddTask(prereq)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// doing + scheduled at-time means the handler returned state.Retry
+	c.Check(prereq.Status(), Equals, state.DoingStatus)
+	c.Check(prereq.AtTime().IsZero(), Equals, false)
 }
 
 func (s *prereqSuite) TestDoPrereqRetryWhenDifferentLaneWaitsOnBaseInFlight(c *C) {
@@ -1108,6 +1165,58 @@ func (s *prereqSuite) TestPreReqContentAttrsNotSatisfied(c *C) {
 	for _, t := range chg.Tasks() {
 		c.Assert(t.Kind(), Not(Equals), "check-rerefresh")
 	}
+}
+
+func (s *prereqSuite) TestPreReqContentAttrsRefreshKeepsTrackedChannel(c *C) {
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	s.AddCleanup(func() { snapstate.AutoAliases = nil })
+
+	st := s.state
+	st.Lock()
+
+	mockInstalledSnap(c, st, `name: some-snap`, false)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst), IsNil)
+	snapst.TrackingChannel = "latest/edge"
+	snapstate.Set(st, "some-snap", &snapst)
+
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(1)},
+		}),
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	t := st.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base:               "none",
+		PrereqContentAttrs: map[string][]string{"some-snap": {"this-does-not-match"}},
+	})
+	chg := st.NewChange("sample", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(s.fakeBackend.ops.Count("storesvc-snap-action:action"), Equals, 1)
+	op := s.fakeBackend.ops.MustFindOp(c, "storesvc-snap-action:action")
+	c.Check(op.action.InstanceName, Equals, "some-snap")
+	c.Check(op.action.Action, Equals, "refresh")
+	c.Check(op.action.Channel, Equals, "latest/edge")
 }
 
 func (s *prereqSuite) TestPreReqContentAttrsNotSatisfiedSeeding(c *C) {

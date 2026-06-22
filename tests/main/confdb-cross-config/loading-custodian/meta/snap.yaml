@@ -6,8 +6,8 @@ apps:
 base: core24
 
 plugs:
-  manage-wifi:
+  network-ephemeral-wifi-admin:
     interface: confdb
     account: developer1
-    view: network-ephemeral/wifi-setup
+    view: network-ephemeral/wifi-admin
     role: custodian

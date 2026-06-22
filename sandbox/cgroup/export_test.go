@@ -42,7 +42,13 @@ var (
 	ApplyToSnap = applyToSnap
 
 	KillProcessesInCgroup = killProcessesInCgroup
+
+	CollectDevicesV1   = collectDevicesV1
+	FindSecurityTagsV1 = findSecurityTagsV1
 )
+
+// DeviceMapAccessor is exported for testing.
+type DeviceMapAccessor = deviceMapAccessor
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
 	old := fsTypeForPath
@@ -157,4 +163,12 @@ func MockMaxKillTimeout(t time.Duration) (restore func()) {
 
 func MockKillThawCooldown(t time.Duration) (restore func()) {
 	return testutil.Mock(&killThawCooldown, t)
+}
+
+func MockLoadDeviceMap(fn func(string) (DeviceMapAccessor, error)) (restore func()) {
+	return testutil.Mock(&loadDeviceMapFunc, fn)
+}
+
+func MockFindDeviceMapsForSnap(fn func(string) ([]string, error)) (restore func()) {
+	return testutil.Mock(&findDeviceMapsForSnapFunc, fn)
 }

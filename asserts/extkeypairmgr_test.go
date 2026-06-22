@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -46,6 +47,36 @@ type extKeypairMgrSuite struct {
 }
 
 var _ = Suite(&extKeypairMgrSuite{})
+
+type fakePublicExtKeypairMgrBackend struct {
+	loaded *asserts.ExtKeypairMgrLoadedKey
+}
+
+func (b *fakePublicExtKeypairMgrBackend) CheckFeatures() (asserts.ExtKeypairMgrSigning, error) {
+	return asserts.ExtKeypairMgrSigningRSAPKCS, nil
+}
+
+func (b *fakePublicExtKeypairMgrBackend) LoadByName(name string) (*asserts.ExtKeypairMgrLoadedKey, error) {
+	if b.loaded == nil || b.loaded.Name != name {
+		return nil, errors.New("missing key")
+	}
+	return b.loaded, nil
+}
+
+func (b *fakePublicExtKeypairMgrBackend) Visit(consider func(loaded *asserts.ExtKeypairMgrLoadedKey) error) error {
+	if b.loaded == nil {
+		return nil
+	}
+	return consider(b.loaded)
+}
+
+func (b *fakePublicExtKeypairMgrBackend) RSAPKCSSign(keyHandle string, prepared []byte) ([]byte, error) {
+	return nil, errors.New("unexpected sign call")
+}
+
+func (b *fakePublicExtKeypairMgrBackend) Sign(keyHandle string, content []byte) ([]byte, error) {
+	return nil, errors.New("unexpected sign call")
+}
 
 func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 	tmpdir := c.MkDir()
@@ -130,6 +161,31 @@ esac
 
 func (s *extKeypairMgrSuite) TearDownSuite(c *C) {
 	s.pgm.Restore()
+}
+
+func (s *extKeypairMgrSuite) TestNewExternalKeypairManagerWithBackend(c *C) {
+	priv, err := rsa.GenerateKey(rand.Reader, 4096)
+	c.Assert(err, IsNil)
+	rsaPub := asserts.RSAPublicKey(&priv.PublicKey)
+	backend := &fakePublicExtKeypairMgrBackend{
+		loaded: &asserts.ExtKeypairMgrLoadedKey{
+			Name:      "default",
+			KeyHandle: "backend-default",
+			PublicKey: rsaPub,
+		},
+	}
+
+	kmgr, err := asserts.NewExternalKeypairManagerWithBackend(backend, asserts.ExtKeypairMgrConfig{
+		SigningWith: "fake backend",
+		KeyStore:    "fake store",
+	})
+	c.Assert(err, IsNil)
+
+	exported, err := kmgr.Export("default")
+	c.Assert(err, IsNil)
+	expected, err := asserts.EncodePublicKey(rsaPub)
+	c.Assert(err, IsNil)
+	c.Check(exported, DeepEquals, expected)
 }
 
 func (s *extKeypairMgrSuite) TestFeatures(c *C) {

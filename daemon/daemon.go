@@ -552,25 +552,19 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// it can pass the fds to the new process without ever having rejected incoming
 	// connections.
 
+	// Daemon.Stop may be called before the operation that requested the restart
+	// (which would have triggered this invocation of Daemon.Stop) released the
+	// state lock. Acquiring the lock here synchronizes with that operation,
+	// ensuring it has exited its critical section before the managers are shutdown.
+	d.state.Lock()
+	d.state.Unlock()
+
 	// take a timestamp before shutting down the snap listener, and
 	// use the time we may spend on waiting for hooks against the shutdown
 	// delay.
 	ts := time.Now()
+	d.overlord.ShutDown()
 	if d.snapListener != nil {
-		// stop running hooks first
-		// and do it more gracefully if we are restarting
-		hookMgr := d.overlord.HookManager()
-		// Don't proceed before the state lock has been released by the code
-		// path which may request a restart.
-		d.state.Lock()
-		restartType := d.overlord.RestartManager().Pending()
-		d.state.Unlock()
-		if restartType != restart.RestartUnset {
-			logger.Noticef("gracefully waiting for running hooks")
-			hookMgr.GracefullyWaitRunningHooks()
-			logger.Noticef("done waiting for running hooks")
-		}
-		hookMgr.StopHooks()
 		d.snapListener.Close()
 	}
 	timeSpent := time.Since(ts)
