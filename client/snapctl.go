@@ -110,10 +110,9 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 
 	// If a change ID is returned, poll until the change is ready.
 	if output.ChangeID != "" {
-
 		err = client.snapctlPollLoop(output.ChangeID, options.ContextID, header)
 		if err != nil {
-			return []byte(output.Stdout), []byte(output.Stderr), err
+			return nil, nil, err
 		}
 	}
 
