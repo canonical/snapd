@@ -574,7 +574,8 @@ pkg_dependencies_ubuntu_classic(){
         fish
         fontconfig
         gnome-keyring
-        nfs-kernel-server        
+        nfs-kernel-server
+        printer-driver-cups-pdf
         python3-dbus
         python3-gi
         python3-yaml
