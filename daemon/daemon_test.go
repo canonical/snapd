@@ -644,6 +644,22 @@ func (s *daemonSuite) TestTryExtractAction(c *check.C) {
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"desc":"\"action\":\"fake\"","action":"install"}`))
 	req.Header.Set("Content-Type", "application/json")
 	c.Check(run(req), check.Equals, "install")
+
+	// A deeply nested object precedes "action"; the depth-counting skip
+	// loop must unwind all levels correctly and still find the key.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"foo":{"a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":{"i":{}}}}}}}}}},"action":"install"}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(run(req), check.Equals, "install")
+
+	// "action" value is an array — Decode into string fails, must return "".
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"foo":{"a":{"b":{"c":{"d":{"e":{}}}}}},"action":[]}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(run(req), check.Equals, "")
+
+	// "action" value is an object — Decode into string fails, must return "".
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"foo":{"a":{"b":{}}},"action":{}}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(run(req), check.Equals, "")
 }
 
 func (s *daemonSuite) TestTryExtractActionPreservesBody(c *check.C) {
