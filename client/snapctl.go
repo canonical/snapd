@@ -128,16 +128,15 @@ func (client *Client) snapctlPollLoop(changeID string, contextID string, header 
 		},
 		Stdin: nil,
 	})
-
 	if err != nil {
 		return errors.New("internal error: cannot marshal poll options")
 	}
 
-	var pollOutput snapctlOutput
 	for {
-		// Clear pollOutput before each run to avoid inheriting previous stdout/stderr.
-		pollOutput = snapctlOutput{}
-		_, err := client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(pollBody), &pollOutput)
+		_, err := client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(pollBody), nil)
+
+		// an empty error here implies exit-code==0. in that case, the change is
+		// done and successful, proceed.
 		if err == nil {
 			return nil
 		}
@@ -147,15 +146,13 @@ func (client *Client) snapctlPollLoop(changeID string, contextID string, header 
 			return err
 		}
 
-		val, val_ok := e.Value.(map[string]any)
-
-		if !val_ok {
+		val, ok := e.Value.(map[string]any)
+		if !ok {
 			return errors.New("internal error: unexpected type")
 		}
 
-		num, num_ok := val["exit-code"].(float64)
-
-		if !num_ok {
+		num, ok := val["exit-code"].(float64)
+		if !ok {
 			return errors.New("internal error: unexpected type")
 		}
 
@@ -163,9 +160,10 @@ func (client *Client) snapctlPollLoop(changeID string, contextID string, header 
 
 		switch int64(num) {
 		case 1:
+			// Failed to get the state of the change. Return the stderr message.
 			return errors.New(stderr)
 		case 2:
-			// Ready, but command failed. Return the output and error.
+			// Ready, but the change failed. Return the stderr message.
 			return errors.New(stderr)
 		case 3:
 			// Not ready yet, wait and poll again.
