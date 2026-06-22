@@ -3986,44 +3986,6 @@ func (s *snapmgrTestSuite) TestInstallUserDaemonsPromptingClient(c *C) {
 	c.Check(err, ErrorMatches, `feature flag validation failed for snap "prompting-client": user session daemons are not supported on this release`)
 }
 
-func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// D-Bus activation is disabled by default.
-	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
-	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// D-Bus activation can be explicitly enabled.
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", true)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// D-Bus activation can be explicitly disabled.
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", false)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.dbus-activation' to true`)
-
-	// The default empty value means "enabled"
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", "")
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// D-Bus activation is enabled when the controlling flag is reset to nil.
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", nil)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

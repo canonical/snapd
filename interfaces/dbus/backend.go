@@ -173,8 +173,6 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		if err := setupDbusServiceForUserd(snapInfo); err != nil {
 			logger.Noticef("cannot create host `snap userd` dbus service file: %s", err)
 		}
-		// TODO: Make this conditional on the dbus-activation
-		// feature flag.
 		if err := setupHostDBusConf(snapInfo); err != nil {
 			logger.Noticef("cannot create host dbus config: %s", err)
 		}
