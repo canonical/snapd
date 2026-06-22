@@ -113,6 +113,9 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Description: Can access basic graphical desktop resources")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/fonts>")
 
+	// check for permissions required by apps for gio
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "@{PROC}/pressure/memory r,")
+
 	// check desktop interface uses correct label for Mutter when provided
 	// by a snap
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "  member=\"GetIdletime\"\n    peer=(label=\"snap.provider.app\"),\n")
