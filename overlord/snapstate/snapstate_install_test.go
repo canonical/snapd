@@ -3784,33 +3784,6 @@ func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
 	c.Check(err, ErrorMatches, `boom`)
 }
 
-func (s *snapmgrTestSuite) TestInstallPathWithLayoutsChecksFeatureFlag(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// When layouts are disabled we cannot install a local snap depending on the feature.
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", false)
-	tr.Commit()
-
-	mockSnap := makeTestSnap(c, `name: some-snap
-version: 1.0
-layout:
- /usr:
-  bind: $SNAP/usr
-`)
-	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{}, nil)
-	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.layouts' to true`)
-
-	// When layouts are enabled we can install a local snap depending on the feature.
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", true)
-	tr.Commit()
-
-	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(8)}, mockSnap, "", "", snapstate.Flags{}, nil)
-	c.Assert(err, IsNil)
-}
-
 func (s *snapmgrTestSuite) TestInstallPathWithMetadataChannelSwitchKernel(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
@@ -3871,44 +3844,6 @@ version: 1.0`)
 	}
 	_, err := snapstate.InstallPath(s.state, si, someSnap, "", "some-channel", snapstate.Flags{Required: true}, nil)
 	c.Assert(err, ErrorMatches, `cannot switch from gadget track "18" as specified for the \(device\) model to "some-channel"`)
-}
-
-func (s *snapmgrTestSuite) TestInstallLayoutsChecksFeatureFlag(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// Layouts are now enabled by default.
-	opts := &snapstate.RevisionOptions{Channel: "channel-for-layout"}
-	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// Layouts can be explicitly disabled.
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", false)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `feature flag validation failed for snap "some-snap": experimental feature disabled - test it by setting 'experimental.layouts' to true`)
-
-	// Layouts can be explicitly enabled.
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", true)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// The default empty value now means "enabled".
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", "")
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
-
-	// Layouts are enabled when the controlling flag is reset to nil.
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.layouts", nil)
-	tr.Commit()
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallUserDaemonsChecksFeatureFlag(c *C) {
