@@ -1850,7 +1850,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 				snapTag := snap.SecurityTag(runner.info.InstanceName())
 				opts, err2 := cgroup.LoadSnapDeviceCgroupOptions(snapTag)
 				if err2 != nil {
-					logger.Noticef("cannot load snap device cgroup options: %s", err)
+					logger.Noticef("cannot load snap device cgroup options: %s", err2)
 				}
 
 				// NOTE: opts is never nil so this is safe to use even in the error case.
