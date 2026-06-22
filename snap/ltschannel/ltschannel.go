@@ -79,7 +79,7 @@ func SnapdLTSChannel(model *asserts.Model, channel string, candidate snap.Contai
 		}
 		baseTrackMap, ok := candidateTrackMap[bootBase]
 		if !ok {
-			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track map for boot base %d from candidate snapd version %s", bootBase, candidateVersion)}
+			return "", &LTSBaseNotManagedError{Msg: fmt.Sprintf("no LTS track map for boot base %d from candidate snapd version %s", bootBase, candidateVersion)}
 		}
 		ltsTrack, ok = baseTrackMap[inputTrack]
 		if !ok || ltsTrack == "" {
@@ -92,7 +92,7 @@ func SnapdLTSChannel(model *asserts.Model, channel string, candidate snap.Contai
 		}
 		baseTrackMap, ok := thisTrackMap[bootBase]
 		if !ok {
-			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track map for boot base %d from running snapd version %s", bootBase, thisVersion)}
+			return "", &LTSBaseNotManagedError{Msg: fmt.Sprintf("no LTS track map for boot base %d from running snapd version %s", bootBase, thisVersion)}
 		}
 		ltsTrack, ok = baseTrackMap[inputTrack]
 		if !ok || ltsTrack == "" {

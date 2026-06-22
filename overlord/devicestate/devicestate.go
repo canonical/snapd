@@ -1097,7 +1097,15 @@ func remodelSnapdSnapTasks(ctx context.Context, st *state.State, rm remodeler) (
 		var resolved string
 		resolved, err = ltschannel.SnapdLTSChannel(rm.newModel, newSnapdChannel, nil)
 		if err != nil {
-			return nil, err
+			if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) ||
+				errors.Is(err, ltschannel.ErrLTSNotAllowed) ||
+				errors.Is(err, ltschannel.ErrLTSInternal) {
+				// Base not yet managed, model type not in scope, or running
+				// snapd cannot load its own map; use the planned channel unchanged.
+				resolved = newSnapdChannel
+			} else {
+				return nil, err
+			}
 		}
 		newSnapdChannel = resolved
 	}

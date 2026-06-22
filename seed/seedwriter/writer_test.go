@@ -722,7 +722,9 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC18(c *C) {
 	)
 }
 
-func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelNoMapErrors(c *C) {
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelNoMapPassthrough(c *C) {
+	// When the LTS map has no entry for the boot base, the channel is passed
+	// through unchanged — the base is not yet managed.
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core18", "")
 	s.makeSnap(c, "pc-kernel=18", "")
@@ -741,7 +743,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelNoMapErrors(c *C) {
 	err = w.Start(s.db, s.rf)
 	c.Assert(err, IsNil)
 	_, err = w.SnapsToDownload()
-	c.Check(err, ErrorMatches, `no LTS track map for boot base 18 from running snapd version 2.75`)
+	c.Assert(err, IsNil)
 }
 
 func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUnknownTrackErrors(c *C) {
