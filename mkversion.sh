@@ -139,9 +139,11 @@ elif [ ! -d "$GO_GENERATE_BUILDDIR/vendor/github.com"  ] ; then
     MOD=--
 fi
 fmts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./asserts/info)
+lts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./snap/ltschannel/info)
 
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v
 SNAPD_APPARMOR_REEXEC=1
 ${fmts}
+${lts}
 EOF
