@@ -1763,7 +1763,9 @@ func SeedRefreshTasks(
 		added[candidate.InstanceName] = true
 
 		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
-		compsups = append(compsups, candidate.ComponentSetupTaskIDs...)
+		for _, tid := range candidate.ComponentSetupTaskIDs {
+			compsups = append(compsups, tid)
+		}
 	}
 	if len(added) == 0 {
 		return nil, nil, nil
@@ -1860,14 +1862,18 @@ func UpdateSeedRefreshChange(seedTS *snapstate.SeedRefreshTasks, dctx snapstate.
 	return true, nil
 }
 
-func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTasks []string) error {
+func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks []string, compSetupTasks map[string]string) error {
 	setup, err := taskRecoverySystemSetup(create)
 	if err != nil {
 		return err
 	}
 
+	var compSetupTaskIds []string
+	for _, tid := range compSetupTasks {
+		compSetupTaskIds = append(compSetupTaskIds, tid)
+	}
 	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTasks...)
-	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTasks...)
+	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTaskIds...)
 
 	return setTaskRecoverySystemSetup(create, setup)
 }
