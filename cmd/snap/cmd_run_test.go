@@ -3060,7 +3060,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26SelfManagedAllowed(c *check.C
 	defer restore()
 
 	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "core26")), &snap.SideInfo{
+	info := snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "core26")), &snap.SideInfo{
 		Revision: snap.R("x2"),
 	})
 
@@ -3088,7 +3088,8 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26SelfManagedAllowed(c *check.C
 	cgroupOptsData, err := cgroupOpts.MarshalText()
 	c.Assert(err, check.IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapCgroupPolicyDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(cgroup.SnapDeviceFile("snap.snapname.app"), cgroupOptsData, 0644), check.IsNil)
+	c.Assert(os.WriteFile(cgroup.SnapDeviceFile(snap.SecurityTag(info.InstanceName())),
+		cgroupOptsData, 0644), check.IsNil)
 
 	// redirect exec
 	execArg0 := ""
