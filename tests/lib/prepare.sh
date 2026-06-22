@@ -309,9 +309,15 @@ update_core_snap_for_classic_reexec() {
     for p in "$LIBEXEC_DIR/snapd/snap-exec" "$LIBEXEC_DIR/snapd/snap-confine" "$LIBEXEC_DIR/snapd/snap-discard-ns" "$LIBEXEC_DIR/snapd/snapd" "$LIBEXEC_DIR/snapd/snap-update-ns"; do
         check_file "$p" "$core/usr/lib/snapd/$(basename "$p")"
     done
-    for p in /usr/bin/snapctl /usr/bin/snap; do
-        check_file "$p" "$core$p"
-    done
+    check_file /usr/bin/snapctl "${core}/usr/bin/snapctl"
+    if ! command -v selinuxenabled ; then
+        # systems without SELinux have the exact same binary in the core snap and on the host
+        check_file "/usr/bin/snap" "${core}/usr/bin/snap"
+    else
+        # on SELinux enabled systems /usr/bin/snap is a thin wrapper which
+        # serves as an policy attachment point
+        not check_file "/usr/bin/snap" "${core}/usr/bin/snap"
+    fi
 }
 
 prepare_memory_limit_override() {
