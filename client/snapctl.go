@@ -22,6 +22,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -109,19 +110,8 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 
 	// If a change ID is returned, poll until the change is ready.
 	if output.ChangeID != "" {
-		pollBody, err := json.Marshal(SnapCtlPostData{
-			SnapCtlOptions: SnapCtlOptions{
-				ContextID: options.ContextID,
-				Args:      []string{"is-ready", output.ChangeID},
-			},
-			Stdin: nil,
-		})
 
-		if err != nil {
-			return nil, nil, err
-		}
-
-		output, err = client.snapctlPollLoop(pollBody, header)
+		err = client.snapctlPollLoop(output.ChangeID, options.ContextID, header)
 		if err != nil {
 			return []byte(output.Stdout), []byte(output.Stderr), err
 		}
@@ -130,34 +120,59 @@ func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdo
 	return []byte(output.Stdout), []byte(output.Stderr), nil
 }
 
-func (client *Client) snapctlPollLoop(pollBody []byte, header map[string]string) (snapctlOutput, error) {
+func (client *Client) snapctlPollLoop(changeID string, contextID string, header map[string]string) error {
+	pollBody, err := json.Marshal(SnapCtlPostData{
+		SnapCtlOptions: SnapCtlOptions{
+			ContextID: contextID,
+			Args:      []string{"is-ready", changeID},
+		},
+		Stdin: nil,
+	})
+
+	if err != nil {
+		return errors.New("internal error: cannot marshal poll options")
+	}
+
 	var pollOutput snapctlOutput
 	for {
 		// Clear pollOutput before each run to avoid inheriting previous stdout/stderr.
 		pollOutput = snapctlOutput{}
 		_, err := client.doSync("POST", "/v2/snapctl", nil, header, bytes.NewReader(pollBody), &pollOutput)
-		if err != nil {
-			// If the error is of type unsuccessful with exit code 3,
-			// the change is still in progress, continue polling.
-			if e, ok := err.(*Error); ok && e.Kind == ErrorKindUnsuccessful {
-				if val, ok := e.Value.(map[string]any); ok {
-					if num, ok := val["exit-code"].(float64); ok {
-						if int64(num) == 3 {
-							time.Sleep(100 * time.Millisecond)
-							continue
-						}
-					}
-				}
-			}
-			// Any other error means something actually failed.
-			return pollOutput, err
+		if err == nil {
+			return nil
 		}
 
-		if pollOutput.Stderr != "" {
-			return pollOutput, fmt.Errorf("%s", pollOutput.Stderr)
+		e, ok := err.(*Error)
+		if !ok || e.Kind != ErrorKindUnsuccessful {
+			return err
 		}
 
-		// If it succeeds and has no error, the change is ready, update output and break out.
-		return pollOutput, nil
+		val, val_ok := e.Value.(map[string]any)
+
+		if !val_ok {
+			return errors.New("internal error: unexpected type")
+		}
+
+		num, num_ok := val["exit-code"].(float64)
+
+		if !num_ok {
+			return errors.New("internal error: unexpected type")
+		}
+
+		stderr, _ := val["stderr"].(string)
+
+		switch int64(num) {
+		case 1:
+			return errors.New(stderr)
+		case 2:
+			// Ready, but command failed. Return the output and error.
+			return errors.New(stderr)
+		case 3:
+			// Not ready yet, wait and poll again.
+			time.Sleep(100 * time.Millisecond)
+			continue
+		default:
+			return fmt.Errorf("internal error: unexpected exit code %d", int64(num))
+		}
 	}
 }

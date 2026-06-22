@@ -21,6 +21,7 @@ package daemon_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -168,4 +169,23 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 		"stderr":    "",
 		"exit-code": 123,
 	})
+}
+
+func (s *snapctlSuite) TestSnapctlGenericError(c *check.C) {
+	s.daemon(c)
+
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 0, Pid: 9999, Socket: dirs.SnapSocket}, nil
+	})()
+
+	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32, features []string) ([]byte, []byte, string, error) {
+		return nil, nil, "", errors.New("something broke")
+	})()
+
+	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "foo"]}`)
+	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
+	c.Assert(err, check.IsNil)
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, "snapctl: something broke")
 }

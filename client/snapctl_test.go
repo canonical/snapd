@@ -168,10 +168,7 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 		`{
 			"type": "sync",
 			"status-code": 200,
-			"result": {
-				"stdout": "snap installed",
-				"stderr": ""
-			}
+			"result": {}
 		}`,
 	}
 
@@ -182,7 +179,7 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 	stdout, stderr, err := cs.cli.RunSnapctl(options, nil)
 
 	c.Assert(err, check.IsNil)
-	c.Check(string(stdout), check.Equals, "snap installed")
+	c.Check(stdout, check.HasLen, 0)
 	c.Check(stderr, check.HasLen, 0)
 
 	c.Assert(cs.reqs, check.HasLen, 3)
@@ -238,7 +235,7 @@ func (cs *clientSuite) TestClientRunSnapctlAsyncFatalError(c *check.C) {
 
 	c.Assert(cs.reqs, check.HasLen, 2)
 
-	// Check the daemon makes the is-ready call, and stops looping when non 1
+	// Check the daemon makes the is-ready call, and stops looping when non 3
 	// error code is returned
 	var payload0 map[string]any
 	err = json.NewDecoder(cs.reqs[0].Body).Decode(&payload0)
@@ -249,4 +246,136 @@ func (cs *clientSuite) TestClientRunSnapctlAsyncFatalError(c *check.C) {
 	err = json.NewDecoder(cs.reqs[1].Body).Decode(&payload1)
 	c.Check(err, check.IsNil)
 	c.Check(payload1["args"], check.DeepEquals, []any{"is-ready", "123"})
+}
+
+func (cs *clientSuite) TestClientRunSnapctlPollLoopErrors(c *check.C) {
+	// Initial response that triggers the poll loop (returns a change-id).
+	initialRsp := `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"change-id": "123"
+		}
+	}`
+
+	tests := []struct {
+		summary  string
+		pollRsp  string
+		errMatch string
+	}{
+		{
+			summary: "non-*Error from doSync (e.g. unexpected response type)",
+			pollRsp: `{
+				"type": "async",
+				"status-code": 200,
+				"result": {}
+			}`,
+			errMatch: `expected sync response, got "async"`,
+		},
+		{
+			summary: "*Error with non-unsuccessful kind",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 400,
+				"result": {
+					"message": "something else went wrong",
+					"kind": "snap-change-conflict",
+					"value": {}
+				}
+			}`,
+			errMatch: "something else went wrong",
+		},
+		{
+			summary: "value is not map[string]any",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 400,
+				"result": {
+					"message": "bad value",
+					"kind": "unsuccessful",
+					"value": "not-a-map"
+				}
+			}`,
+			errMatch: "internal error: unexpected type",
+		},
+		{
+			summary: "exit-code is not a number",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 400,
+				"result": {
+					"message": "bad exit code",
+					"kind": "unsuccessful",
+					"value": {
+						"exit-code": "abc"
+					}
+				}
+			}`,
+			errMatch: "internal error: unexpected type",
+		},
+		{
+			summary: "exit code 1",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 400,
+				"result": {
+					"message": "command error",
+					"kind": "unsuccessful",
+					"value": {
+						"exit-code": 1,
+						"stderr": "command error details"
+					}
+				}
+			}`,
+			errMatch: "command error details",
+		},
+		{
+			summary: "exit code 2 (command failed)",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 400,
+				"result": {
+					"message": "install failed",
+					"kind": "unsuccessful",
+					"value": {
+						"exit-code": 2,
+						"stderr": "change finished with status Error"
+					}
+				}
+			}`,
+			errMatch: "change finished with status Error",
+		},
+		{
+			summary: "unexpected exit code (default case)",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 400,
+				"result": {
+					"message": "unknown",
+					"kind": "unsuccessful",
+					"value": {
+						"exit-code": 99
+					}
+				}
+			}`,
+			errMatch: "internal error: unexpected exit code 99",
+		},
+	}
+
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"install", "some-snap"},
+	}
+
+	for _, t := range tests {
+		c.Logf("test: %s", t.summary)
+
+		cs.rsps = []string{initialRsp, t.pollRsp}
+		cs.doCalls = 0
+		cs.reqs = nil
+
+		_, _, err := cs.cli.RunSnapctl(options, nil)
+		c.Check(err, check.ErrorMatches, t.errMatch)
+		c.Check(cs.reqs, check.HasLen, 2)
+	}
 }
