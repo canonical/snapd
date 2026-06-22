@@ -225,11 +225,11 @@ reboots the machine.
    `false` by default).
 3. **Where to act.** No "after snapd refreshed, now running new snapd"
    hook is acceptable (post-link injection rejected, see Appendix).
-   **Resolved:** intercept in `doDownloadSnap` after the blob lands; the
+    **Resolved:** intercept in `doDownloadSnap` after the blob lands; the
    candidate's map is then on disk and readable from the squashfs; precedent
    exists (§3.4 COMPAT branch). Other snapd code paths that ship a snapd
    (BB4a image build, BB4b remodel) pre-remap at planning using the
-   *running* snapd's view; the download intercept is the second line of
+    *running* snapd's view; the download intercept is the second line of
    defence for the in-field case.
 4. **Source-of-truth selection.** Decided: candidate squashfs at download;
    running snapd's compiled-in map for planning consumers (BB3/BB4a/BB4b)
@@ -237,7 +237,7 @@ reboots the machine.
    (that is the entire point) and are reconciled by the download intercept.
 5. **snapd downgrade.** Latest moves ahead of the frozen LTS track, so the
    reroute can be a downgrade. Constrained by `patch.Level` (§3.7).
-   **Open:** whether to pre-flight `patch.Level` against the second
+    **Open:** whether to pre-flight `patch.Level` against the second
    `SnapAction`'s revision before re-download commits.
 6. **Risk preservation and target existence.** Snapd channels are
    track/risk only (UC039). Branches are dropped on remap. Target risk may
