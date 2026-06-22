@@ -1092,6 +1092,10 @@ func remodelSnapdSnapTasks(ctx context.Context, st *state.State, rm remodeler) (
 	}
 
 	skipLockdown := snapdModelSnap != nil && snapdModelSnap.SnapID == ""
+	// UC16 has no separate snapd snap (the core snap acts as snapd); LTS snapd channel policy does not apply.
+	if base := rm.newModel.Base(); base == "" || base == "core" {
+		skipLockdown = true
+	}
 	if !skipLockdown {
 		var err error
 		var resolved string
