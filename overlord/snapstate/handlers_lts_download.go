@@ -70,6 +70,17 @@ func maybeRedirectSnapdToLTSChannel(
 		return nil
 	}
 
+	// Fast path: ask the running snapd's compiled-in map first. If it already
+	// confirms the planned channel is the correct LTS channel for this device's
+	// UC base, trust the plan and skip opening the candidate squashfs. This
+	// covers the steady state after redirection: once a device is tracking the
+	// correct LTS channel, every subsequent refresh skips the squashfs read.
+	// Any error from the running snapd's map (base not managed, map unavailable,
+	// etc.) falls through to the authoritative candidate inspection below.
+	if snapdLTSChannelAlreadyCorrect(snapsup, model) {
+		return nil
+	}
+
 	inspected, err := inspectSnapdLTSAfterDownload(snapsup, model, snapsup.SnapPath)
 	if err != nil {
 		// Cannot read the LTS track map from the candidate snap (missing key,
@@ -237,4 +248,21 @@ func checkSnapdLTSTargetPatchLevel(st *state.State, blobPath, targetChannel stri
 			targetChannel, targetVersion, targetLevel, stateLevel)
 	}
 	return nil
+}
+
+// snapdLTSChannelAlreadyCorrect returns true when the running snapd's compiled-in
+// map confirms that the planned channel is already the correct LTS channel for
+// this device's UC base. Any error (base not managed, map unavailable, etc.)
+// returns false so the caller falls through to the authoritative candidate
+// squashfs inspection.
+func snapdLTSChannelAlreadyCorrect(snapsup *SnapSetup, model *asserts.Model) bool {
+	required, err := ltschannel.SnapdLTSChannel(model, snapsup.Channel, nil)
+	if err != nil {
+		return false
+	}
+	parsed, err := snapchannel.ParseVerbatim(snapsup.Channel, "-")
+	if err != nil {
+		return false
+	}
+	return required == parsed.Clean().String()
 }

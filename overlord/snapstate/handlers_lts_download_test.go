@@ -352,6 +352,115 @@ func (s *ltsDownloadSuite) TestRedirectValidationSetsError(c *C) {
 	c.Check(snapsup.Channel, Equals, "latest/stable")
 }
 
+// ---- Fast-path gating ------------------------------------------------
+
+func (s *ltsDownloadSuite) TestFastPathSkipsSquashfsWhenAlreadyOnLTSChannel(c *C) {
+	// Running snapd knows UC18 maps latest → 18. Device is already on 18/stable.
+	// Fast path must return early without opening the squashfs.
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	s.AddCleanup(restore)
+
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	// Blob has no /usr/lib/snapd/info at all — if the fast path fails to fire
+	// and the squashfs is opened, SnapdInfoFromSnapFile would error.
+	blobPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
+type: snapd
+version: 2.75`, nil)
+	snapsup := snapdSnapsup(blobPath, "18/stable")
+
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	// No store action taken — fast path confirmed the channel is correct.
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+}
+
+func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenChannelWrong(c *C) {
+	// Running snapd knows UC18 maps latest → 18. Device is on latest/stable.
+	// Fast path must not fire; candidate squashfs must be inspected.
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	s.AddCleanup(restore)
+
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "latest/stable")
+
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	// Redirect fired — store was called with LTS channel.
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Assert(s.fakeBackend.ops, HasLen, 3) // snap-action + action:action + download
+}
+
+func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenBaseUnmanaged(c *C) {
+	// Running snapd has no entry for UC18 (empty map). Fast path must not fire;
+	// candidate squashfs must be inspected as the authoritative source.
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{})
+	s.AddCleanup(restore)
+
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "latest/stable")
+
+	// Candidate carries the map; redirect must still fire.
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+}
+
+// ---- SnapdLTSChannelAlreadyCorrect unit tests ------------------------
+
+func (s *ltsDownloadSuite) TestAlreadyCorrectTrue(c *C) {
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	s.AddCleanup(restore)
+
+	model := ModelWithBase("core18")
+	snapsup := &snapstate.SnapSetup{
+		Type:     snap.TypeSnapd,
+		SideInfo: &snap.SideInfo{SnapID: "snapd-id"},
+		Channel:  "18/stable",
+	}
+	c.Check(snapstate.SnapdLTSChannelAlreadyCorrect(snapsup, model), Equals, true)
+}
+
+func (s *ltsDownloadSuite) TestAlreadyCorrectFalseWrongChannel(c *C) {
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	s.AddCleanup(restore)
+
+	model := ModelWithBase("core18")
+	snapsup := &snapstate.SnapSetup{
+		Type:     snap.TypeSnapd,
+		SideInfo: &snap.SideInfo{SnapID: "snapd-id"},
+		Channel:  "latest/stable",
+	}
+	c.Check(snapstate.SnapdLTSChannelAlreadyCorrect(snapsup, model), Equals, false)
+}
+
+func (s *ltsDownloadSuite) TestAlreadyCorrectFalseBaseUnmanaged(c *C) {
+	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{})
+	s.AddCleanup(restore)
+
+	model := ModelWithBase("core18")
+	snapsup := &snapstate.SnapSetup{
+		Type:     snap.TypeSnapd,
+		SideInfo: &snap.SideInfo{SnapID: "snapd-id"},
+		Channel:  "18/stable",
+	}
+	// Base not managed → false, must fall through to candidate inspection.
+	c.Check(snapstate.SnapdLTSChannelAlreadyCorrect(snapsup, model), Equals, false)
+}
+
 // ---- NeedsSnapdLTSChannelResolve gate (unit) -------------------------
 
 func (s *ltsDownloadSuite) TestNeedsGateSnapdType(c *C) {
