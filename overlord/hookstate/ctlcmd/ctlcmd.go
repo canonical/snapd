@@ -42,13 +42,13 @@ func (e *MissingContextError) Error() string {
 }
 
 type baseCommand struct {
-	stdout      io.Writer
-	stderr      io.Writer
-	c           *hookstate.Context
-	name        string
-	uid         string
-	changeID    *string
-	clientFlags []string
+	stdout         io.Writer
+	stderr         io.Writer
+	c              *hookstate.Context
+	name           string
+	uid            string
+	changeID       *string
+	clientFeatures []string
 }
 
 func (c *baseCommand) setName(name string) {
@@ -67,8 +67,8 @@ func (c *baseCommand) setChangeID(id *string) {
 	c.changeID = id
 }
 
-func (c *baseCommand) setClientFlags(flags []string) {
-	c.clientFlags = flags
+func (c *baseCommand) setClientFeatures(features []string) {
+	c.clientFeatures = features
 }
 
 func (c *baseCommand) printf(format string, a ...any) {
@@ -117,7 +117,7 @@ type command interface {
 	context() *hookstate.Context
 
 	setChangeID(changeID *string)
-	setClientFlags(flags []string)
+	setClientFeatures(features []string)
 
 	Execute(args []string) error
 }
@@ -186,7 +186,7 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
 		cmd.setChangeID(&changeID)
-		cmd.setClientFlags(features)
+		cmd.setClientFeatures(features)
 
 		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		theCmd.Hidden = cmdInfo.hidden

@@ -21,7 +21,6 @@ package ctlcmd
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
@@ -58,7 +57,7 @@ func (c *installCommand) Execute([]string) error {
 		return err
 	}
 
-	async := slices.Contains(c.clientFlags, "async")
+	async := strutil.ListContains(c.clientFeatures, "async")
 
 	id, affectedComponents, err := runSnapManagementCommand(ctx, managementCommand{operation: installManagementCommand, components: comps, async: async, noWait: c.NoWait})
 

@@ -21,9 +21,9 @@ package ctlcmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -56,7 +56,7 @@ func (c *removeCommand) Execute([]string) error {
 		return err
 	}
 
-	async := strings.Contains(strings.Join(c.clientFlags, ","), "async")
+	async := strutil.ListContains(c.clientFeatures, "async")
 
 	id, _, err := runSnapManagementCommand(ctx, managementCommand{operation: removeManagementCommand, components: comps, async: async, noWait: c.NoWait})
 	if err != nil {
