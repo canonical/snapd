@@ -150,17 +150,23 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 		`{
 			"type": "sync",
 			"status-code": 200,
+			"status": "OK",
 			"result": {
+				"stdout": "",
+				"stderr": "",
 				"change-id": "123"
 			}
 		}`,
 		`{
 			"type": "error",
-			"status-code": 400,
+			"status-code": 200,
+			"status": "OK",
 			"result": {
-				"message": "snap is not ready",
+				"message": "unsuccessful with exit code: 3",
 				"kind": "unsuccessful",
 				"value": {
+					"stdout": "",
+					"stderr": "",
 					"exit-code": 3
 				}
 			}
@@ -168,7 +174,11 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 		`{
 			"type": "sync",
 			"status-code": 200,
-			"result": {}
+			"status": "OK",
+			"result": {
+				"stdout": "",
+				"stderr": ""
+			}
 		}`,
 	}
 
@@ -184,7 +194,7 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 
 	c.Assert(cs.reqs, check.HasLen, 3)
 
-	// Check the daemon makes the is-ready call, and loops when error code 1 is returned
+	// Check the client makes the is-ready call, and loops when exit code 3 is returned.
 	var payload0 map[string]any
 	err = json.NewDecoder(cs.reqs[0].Body).Decode(&payload0)
 	c.Check(err, check.IsNil)
@@ -201,59 +211,15 @@ func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
 	c.Check(payload2["args"], check.DeepEquals, []any{"is-ready", "123"})
 }
 
-func (cs *clientSuite) TestClientRunSnapctlAsyncFatalError(c *check.C) {
-	cs.rsps = []string{
-		`{
-			"type": "sync",
-			"status-code": 200,
-			"result": {
-				"change-id": "123"
-			}
-		}`,
-		`{
-			"type": "error",
-			"status-code": 400,
-			"result": {
-				"message": "snap is not ready",
-				"kind": "unsuccessful",
-				"value": {
-					"exit-code": 2
-				}
-			}
-		}`,
-	}
-
-	options := &client.SnapCtlOptions{
-		ContextID: "1234ABCD",
-		Args:      []string{"install", "some-snap"},
-	}
-	stdout, stderr, err := cs.cli.RunSnapctl(options, nil)
-
-	c.Assert(err, check.NotNil)
-	c.Check(string(stdout), check.Equals, "")
-	c.Check(stderr, check.HasLen, 0)
-
-	c.Assert(cs.reqs, check.HasLen, 2)
-
-	// Check the daemon makes the is-ready call, and stops looping when non 3
-	// error code is returned
-	var payload0 map[string]any
-	err = json.NewDecoder(cs.reqs[0].Body).Decode(&payload0)
-	c.Check(err, check.IsNil)
-	c.Check(payload0["args"], check.DeepEquals, []any{"install", "some-snap"})
-
-	var payload1 map[string]any
-	err = json.NewDecoder(cs.reqs[1].Body).Decode(&payload1)
-	c.Check(err, check.IsNil)
-	c.Check(payload1["args"], check.DeepEquals, []any{"is-ready", "123"})
-}
-
 func (cs *clientSuite) TestClientRunSnapctlPollLoopErrors(c *check.C) {
 	// Initial response that triggers the poll loop (returns a change-id).
-	initialRsp := `{
+	const initialRsp = `{
 		"type": "sync",
 		"status-code": 200,
+		"status": "OK",
 		"result": {
+			"stdout": "",
+			"stderr": "",
 			"change-id": "123"
 		}
 	}`
@@ -264,101 +230,54 @@ func (cs *clientSuite) TestClientRunSnapctlPollLoopErrors(c *check.C) {
 		errMatch string
 	}{
 		{
-			summary: "non-*Error from doSync (e.g. unexpected response type)",
+			summary: "generic snapctl bad request",
 			pollRsp: `{
-				"type": "async",
+				"type": "error",
+				"status-code": 400,
+				"status": "Bad Request",
+				"result": {
+					"message": "snapctl: change \"123\" not found"
+				}
+			}`,
+			errMatch: `snapctl: change "123" not found`,
+		},
+		{
+			// note: this case shouldn't happen, but it is good to ensure that
+			// the client can handle it.
+			summary: "explicit unsuccessful exit code 1",
+			pollRsp: `{
+				"type": "error",
 				"status-code": 200,
-				"result": {}
-			}`,
-			errMatch: `expected sync response, got "async"`,
-		},
-		{
-			summary: "*Error with non-unsuccessful kind",
-			pollRsp: `{
-				"type": "error",
-				"status-code": 400,
+				"status": "OK",
 				"result": {
-					"message": "something else went wrong",
-					"kind": "snap-change-conflict",
-					"value": {}
-				}
-			}`,
-			errMatch: "something else went wrong",
-		},
-		{
-			summary: "value is not map[string]any",
-			pollRsp: `{
-				"type": "error",
-				"status-code": 400,
-				"result": {
-					"message": "bad value",
-					"kind": "unsuccessful",
-					"value": "not-a-map"
-				}
-			}`,
-			errMatch: "internal error: unexpected type",
-		},
-		{
-			summary: "exit-code is not a number",
-			pollRsp: `{
-				"type": "error",
-				"status-code": 400,
-				"result": {
-					"message": "bad exit code",
+					"message": "unsuccessful with exit code: 1",
 					"kind": "unsuccessful",
 					"value": {
-						"exit-code": "abc"
-					}
-				}
-			}`,
-			errMatch: "internal error: unexpected type",
-		},
-		{
-			summary: "exit code 1",
-			pollRsp: `{
-				"type": "error",
-				"status-code": 400,
-				"result": {
-					"message": "command error",
-					"kind": "unsuccessful",
-					"value": {
-						"exit-code": 1,
-						"stderr": "command error details"
+						"stdout": "",
+						"stderr": "command error details",
+						"exit-code": 1
 					}
 				}
 			}`,
 			errMatch: "command error details",
 		},
 		{
-			summary: "exit code 2 (command failed)",
+			summary: "change ready but unsuccessful",
 			pollRsp: `{
 				"type": "error",
-				"status-code": 400,
+				"status-code": 200,
+				"status": "OK",
 				"result": {
-					"message": "install failed",
+					"message": "unsuccessful with exit code: 2",
 					"kind": "unsuccessful",
 					"value": {
-						"exit-code": 2,
-						"stderr": "change finished with status Error"
+						"stdout": "",
+						"stderr": "change finished with status Error",
+						"exit-code": 2
 					}
 				}
 			}`,
 			errMatch: "change finished with status Error",
-		},
-		{
-			summary: "unexpected exit code (default case)",
-			pollRsp: `{
-				"type": "error",
-				"status-code": 400,
-				"result": {
-					"message": "unknown",
-					"kind": "unsuccessful",
-					"value": {
-						"exit-code": 99
-					}
-				}
-			}`,
-			errMatch: "internal error: unexpected exit code 99",
 		},
 	}
 
