@@ -1,0 +1,297 @@
+name: Test Predictor
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    types:
+      - completed
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Workflow run ID to analyze (from a Tests workflow run)'
+        required: false
+        type: string
+      pr_number:
+        description: 'PR number to comment on (required if run_id is not from a PR)'
+        required: false
+        type: string
+
+jobs:
+  # Gate: check if the PR has the required label (skip for schedule/dispatch)
+  check-label:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.label-check.outputs.should_run }}
+    steps:
+      - name: Check for run-test-predictor label
+        id: label-check
+        uses: actions/github-script@v9
+        with:
+          script: |
+            // For schedule or manual dispatch, always run
+            if (context.eventName !== 'workflow_run') {
+              core.setOutput('should_run', 'true');
+              return;
+            }
+
+            // For workflow_run, check if the PR has the label
+            const prs = context.payload.workflow_run.pull_requests || [];
+            if (prs.length === 0) {
+              core.info("No pull request associated with this workflow run");
+              core.setOutput('should_run', 'false');
+              return;
+            }
+
+            const prNumber = prs[0].number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const hasLabel = pr.labels.some(l => l.name === 'run-test-predictor');
+            if (!hasLabel) {
+              core.info(`PR #${prNumber} does not have the 'run-test-predictor' label, skipping`);
+              core.setOutput('should_run', 'false');
+            } else {
+              core.info(`PR #${prNumber} has the 'run-test-predictor' label`);
+              core.setOutput('should_run', 'true');
+            }
+
+  # Predict potential failures from spread test results
+  predict-failures:
+    needs: check-label
+    if: needs.check-label.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREDICTOR_URL: ${{ vars.TEST_PREDICTOR_URL || 'http://test-predictor.canonical.com:5000' }}
+      # Resolve the target run ID based on trigger type
+      TARGET_RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id || '' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Resolve target workflow run
+        id: resolve-run
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let runId = process.env.TARGET_RUN_ID;
+            let runAttempt = '1';
+
+            if (context.eventName === 'workflow_run') {
+              // Use event data directly — no extra API call needed
+              runId = String(context.payload.workflow_run.id);
+              runAttempt = String(context.payload.workflow_run.run_attempt || 1);
+            } else if (runId) {
+              // workflow_dispatch with explicit run_id — must fetch to get attempt
+              const run = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: parseInt(runId),
+              });
+              runAttempt = String(run.data.run_attempt || 1);
+            } else {
+              // Schedule trigger or dispatch without run_id: find most recent completed Tests run
+              const workflows = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'Tests',
+                status: 'completed',
+                per_page: 1,
+              });
+              if (workflows.data.workflow_runs.length === 0) {
+                core.setFailed("No completed Tests workflow runs found");
+                return;
+              }
+              runId = String(workflows.data.workflow_runs[0].id);
+              runAttempt = String(workflows.data.workflow_runs[0].run_attempt || 1);
+            }
+
+            core.setOutput('run_id', runId);
+            core.setOutput('run_attempt', runAttempt);
+            core.info(`Resolved run_id=${runId}, run_attempt=${runAttempt}`);
+
+      - name: Get PR number
+        id: pr-number
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const runId = '${{ steps.resolve-run.outputs.run_id }}';
+
+            // If manually provided via dispatch input
+            if ('${{ inputs.pr_number }}') {
+              const fs = require('fs');
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number`, '${{ inputs.pr_number }}');
+              core.setOutput('has_pr', 'true');
+              return;
+            }
+
+            // Try to get pr_number artifact from the target workflow run
+            let page = 1;
+            let per_page = 100;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: parseInt(runId),
+                per_page: per_page,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (allArtifacts.length < response.data.total_count);
+
+            let matchArtifact = allArtifacts.filter((artifact) => {
+              return artifact.name == "pr_number"
+            })[0];
+
+            if (!matchArtifact) {
+              core.info("No pr_number artifact found — skipping PR comment");
+              core.setOutput('has_pr', 'false');
+              return;
+            }
+
+            let download = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifact.id,
+               archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
+            core.setOutput('has_pr', 'true');
+
+      - name: Unzip PR number
+        if: steps.pr-number.outputs.has_pr == 'true' && !inputs.pr_number
+        run: |
+          unzip pr_number.zip
+          cat pr_number
+
+      - name: Download spread results artifacts
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const runId = parseInt('${{ steps.resolve-run.outputs.run_id }}');
+            const runAttempt = '${{ steps.resolve-run.outputs.run_attempt }}';
+
+            let page = 1;
+            let per_page = 100;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId,
+                per_page: per_page,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (allArtifacts.length < response.data.total_count);
+
+            let matchingArtifacts = allArtifacts.filter((artifact) => {
+              return artifact.name.startsWith(`spread-results-${runId}-${runAttempt}`);
+            });
+
+            if (matchingArtifacts.length === 0) {
+              core.info("No spread-results artifacts found");
+              return;
+            }
+
+            for (let artifact of matchingArtifacts) {
+              let download = await github.rest.actions.downloadArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip',
+              });
+              let fs = require('fs');
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
+              console.log(`Downloaded artifact: ${artifact.name}.zip`);
+            }
+
+      - name: Unzip spread results
+        run: |
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
+          find . -name "spread-results-${RUN_ID}*.zip" | while read filename; do
+            dir="${filename%.zip}"
+            mkdir -p "$dir"
+            unzip "$filename" -d "$dir"
+          done
+
+      - name: Consolidate spread results
+        id: consolidate
+        run: |
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
+          if ! ls spread-results-${RUN_ID}-*/*.json &> /dev/null; then
+            echo "has_results=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          jq -s '{items: (map(.items[]))}' spread-results-${RUN_ID}*/*.json > consolidated-results.json
+          echo "has_results=true" >> "$GITHUB_OUTPUT"
+
+      - name: Get predictions for failed tests
+        if: steps.consolidate.outputs.has_results == 'true'
+        continue-on-error: true
+        run: |
+          echo "Getting predictions for failed tests"
+          wget -q -O predict https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/src/client/predict
+          chmod +x predict
+          ./predict consolidated-results.json --url "${PREDICTOR_URL}" | tee prediction-output.txt
+
+      - name: Comment prediction report to PR
+        if: steps.consolidate.outputs.has_results == 'true' && steps.pr-number.outputs.has_pr == 'true'
+        run: |
+          if [ ! -s prediction-output.txt ]; then
+            echo "No prediction output generated, skipping comment"
+            exit 0
+          fi
+
+          PR_NUMBER="$(cat pr_number)"
+          COMMENT_TAG="<!-- test-predictor-report -->"
+
+          # Build the markdown report from prediction output
+          REPORT_CONTENT="${COMMENT_TAG}
+          ## 🔮 Test Predictor Analysis
+
+          *AI-powered failure risk assessment from [Test Predictor](${PREDICTOR_URL}) • Run ID: ${{ steps.resolve-run.outputs.run_id }}*
+
+          \`\`\`
+          $(cat prediction-output.txt)
+          \`\`\`
+          "
+
+          # Try to find and update existing comment
+          COMMENT_ID=$(gh api \
+            "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${COMMENT_TAG}\")) | .id" \
+            2>/dev/null | head -1)
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api \
+              --method PATCH \
+              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+              -f body="$REPORT_CONTENT"
+            echo "Updated existing prediction comment"
+          else
+            gh api \
+              --method POST \
+              "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+              -f body="$REPORT_CONTENT"
+            echo "Created new prediction comment"
+          fi
