@@ -167,23 +167,23 @@ func collectDevicesV1(securityTag string) ([]DeviceEntry, error) {
 			majMin := parts[1]
 			access := parts[2]
 
-			majMinParts := strings.SplitN(majMin, ":", 2)
-			if l := len(majMinParts); l != 2 {
-				return fmt.Errorf("unexpected number of fields in major:minor: %v", l)
+			majPart, minPart, found := strings.Cut(majMin, ":")
+			if !found {
+				return fmt.Errorf("unexpected format of major:minor")
 			}
 
-			major, err := strconv.ParseUint(majMinParts[0], 10, 32)
+			major, err := strconv.ParseUint(majPart, 10, 32)
 			if err != nil {
-				if majMinParts[0] == "*" {
+				if majPart == "*" {
 					major = AccessAny
 				} else {
 					return fmt.Errorf("malformed major number: %w", err)
 				}
 			}
 
-			minor, err := strconv.ParseUint(majMinParts[1], 10, 32)
+			minor, err := strconv.ParseUint(minPart, 10, 32)
 			if err != nil {
-				if majMinParts[1] == "*" {
+				if minPart == "*" {
 					minor = AccessAny
 				} else {
 					return fmt.Errorf("malformed minor number: %w", err)

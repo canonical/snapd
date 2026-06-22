@@ -113,7 +113,7 @@ b 12:z rwm
 	l := s.log.String()
 	c.Check(l, testutil.Contains, "malformed minor number:")
 	c.Check(l, testutil.Contains, "unexpected number of fields: 2")
-	c.Check(l, testutil.Contains, "unexpected number of fields in major:minor: 1")
+	c.Check(l, testutil.Contains, "unexpected format of major:minor")
 }
 
 func (s *devicesSuite) TestCollectDevicesV1MissingFile(c *C) {
