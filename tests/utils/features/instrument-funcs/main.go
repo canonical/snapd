@@ -20,25 +20,26 @@ func main() {
 
 	wd, _ := os.Getwd()
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "skipping %s: %v\n", path, err)
-			return nil
+			os.Exit(1)
 		}
-		if info.IsDir() && (info.Name() == "vendor" || info.Name() == ".git" ||
-			info.Name() == "logger" || info.Name() == "osutil" ||
-			info.Name() == "randutil" || info.Name() == "strutil" ||
-			info.Name() == "testutil" || info.Name() == "dbusutil" ||
-			info.Name() == "tests" || info.Name() == "release" ||
-			info.Name() == "blkid" || info.Name() == "snap-seccomp" ||
-			info.Name() == "snap-update-ns" || info.Name() == "dirs") {
+		if d.IsDir() && (d.Name() == "vendor" || d.Name() == ".git" ||
+			d.Name() == "logger" || d.Name() == "osutil" ||
+			d.Name() == "randutil" || d.Name() == "strutil" ||
+			d.Name() == "testutil" || d.Name() == "dbusutil" ||
+			d.Name() == "tests" || d.Name() == "release" ||
+			d.Name() == "blkid" || d.Name() == "snap-seccomp" ||
+			d.Name() == "snap-update-ns" || d.Name() == "dirs") {
 			return filepath.SkipDir
 		}
-		if !strings.HasSuffix(path, ".go") || info.IsDir() || strings.HasSuffix(path, "_test.go") {
+		if !strings.HasSuffix(path, ".go") || d.IsDir() || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		if err := instrumentFile(path, wd); err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s: %v\n", path, err)
+			os.Exit(1)
 		}
 		return nil
 	})
@@ -79,10 +80,6 @@ func instrumentFile(path, wd string) error {
 			continue
 		}
 
-		if isAlreadyInstrumented(funcDecl.Body) {
-			continue
-		}
-
 		lbrace := fset.Position(funcDecl.Body.Lbrace).Offset
 		insOffset := lbrace + 1
 
@@ -92,10 +89,6 @@ func instrumentFile(path, wd string) error {
 
 		insText := fmt.Sprintf("\n\t%s(\"coverage\", \"file\", %s, \"func\", %s)",
 			"logger.Trace", strLit(relPath), strLit(funcName))
-		if inLoggerPkg {
-			insText = fmt.Sprintf("\n\t%s(\"coverage\", \"file\", %s, \"func\", %s)",
-				"Trace", strLit(relPath), strLit(funcName))
-		}
 		if bodyOnSameLine {
 			insText += "\n"
 		}
@@ -138,45 +131,6 @@ func hasLoggerImport(f *ast.File) bool {
 		}
 	}
 	return false
-}
-
-func isAlreadyInstrumented(body *ast.BlockStmt) bool {
-	if len(body.List) == 0 {
-		return false
-	}
-	stmt, ok := body.List[0].(*ast.ExprStmt)
-	if !ok {
-		return false
-	}
-	call, ok := stmt.X.(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-
-	switch fun := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		if x, ok := fun.X.(*ast.Ident); !ok || x.Name != "logger" {
-			return false
-		}
-		if fun.Sel.Name != "Trace" {
-			return false
-		}
-	case *ast.Ident:
-		if fun.Name != "Trace" {
-			return false
-		}
-	default:
-		return false
-	}
-
-	if len(call.Args) < 1 {
-		return false
-	}
-	if lit, ok := call.Args[0].(*ast.BasicLit); !ok || lit.Kind != token.STRING || lit.Value != `"coverage"` {
-		return false
-	}
-
-	return true
 }
 
 func addImportToSource(src []byte, fset *token.FileSet, f *ast.File, importPath string) []byte {
