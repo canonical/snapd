@@ -62,6 +62,25 @@ on:
 
 jobs:
   run-spread:
+    # A job-level `permissions:` block fully overrides the caller workflow's
+    # grant: any scope not listed here is reset to `none`, even if the caller
+    # granted it. List every scope this reusable job actually uses:
+    #   contents:      checkout, `gh api repos/.../rules/branches/master`
+    #   pull-requests: `gh pr view --json body/labels` (PR metadata in a
+    #                  private repo)
+    #   actions:       `listWorkflowRunArtifacts` / `downloadArtifact` in
+    #                  "Download and extract pre-built packages if they exist"
+    #                  and the cross-attempt `download-artifact` restore
+    #   packages:      ghcr.io image pulls used by setup actions and
+    #                  download-snapd-snap
+    # Callers must also grant these at workflow level (see ci-test.yaml,
+    # ci-release.yaml), because reusable workflows cannot elevate caller
+    # scopes.
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
+      actions: read
     env:
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
       GH_TOKEN: ${{ github.token }}
