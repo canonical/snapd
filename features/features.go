@@ -46,8 +46,6 @@ const (
 	ClassicPreservesXdgRuntimeDir
 	// UserDaemons controls availability of user mode service support.
 	UserDaemons
-	// DbusActivation controls whether snaps daemons can be activated via D-Bus
-	DbusActivation
 	// HiddenSnapDataHomeDir controls if the snaps' data dir is ~/.snap/data instead of ~/snap
 	HiddenSnapDataHomeDir
 	// MoveSnapHomeDir controls whether snap user data under ~/snap (or ~/.snap/data) can be moved to ~/Snap.
@@ -110,8 +108,7 @@ var featureNames = map[SnapdFeature]string{
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
 
-	UserDaemons:    "user-daemons",
-	DbusActivation: "dbus-activation",
+	UserDaemons: "user-daemons",
 
 	HiddenSnapDataHomeDir: "hidden-snap-folder",
 	MoveSnapHomeDir:       "move-snap-home-dir",
@@ -145,7 +142,6 @@ var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	Layouts:                       true,
 	RefreshAppAwareness:           true,
 	ClassicPreservesXdgRuntimeDir: true,
-	DbusActivation:                true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
