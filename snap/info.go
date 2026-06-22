@@ -2107,6 +2107,28 @@ func SnapdLTSTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]
 	return trackMap, snapdVersion, nil
 }
 
+// SnapdPatchLevelFromSnapFile returns the patch level and snapd version from
+// /usr/lib/snapd/info inside the given snapd snap. If SNAPD_PATCH_LEVEL is
+// absent, patchLevel is 0.
+func SnapdPatchLevelFromSnapFile(snapf Container) (patchLevel int, snapdVersion string, err error) {
+	snapdVersion, flags, err := SnapdInfoFromSnapFile(snapf, TypeSnapd)
+	if err != nil {
+		return 0, "", err
+	}
+	if flags == nil {
+		return 0, snapdVersion, nil
+	}
+	raw, ok := flags["SNAPD_PATCH_LEVEL"]
+	if !ok || strings.TrimSpace(raw) == "" {
+		return 0, snapdVersion, nil
+	}
+	patchLevel, err = strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, snapdVersion, fmt.Errorf("cannot parse SNAPD_PATCH_LEVEL: %v", err)
+	}
+	return patchLevel, snapdVersion, nil
+}
+
 // SnapdLTSTrackMapFromThis returns the LTS track map and snapd version from the
 // info file belonging to the currently executing snapd (deb or re-execed
 // snap). If SNAPD_LTS_TRACKS is absent or empty, trackMap is nil.

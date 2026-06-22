@@ -2021,6 +2021,18 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 	}
 	if snapName == "snapd" && snapID != "" {
 		required, err := ltschannel.SnapdLTSChannel(model, effectiveChannel, nil)
+		if errors.Is(err, ltschannel.ErrLTSNotAllowed) {
+			// Model is out of scope for LTS policy (classic, UC16, base-less,
+			// etc.); no channel restriction applies.
+			return effectiveChannel, nil
+		}
+		if errors.Is(err, ltschannel.ErrLTSInternal) {
+			// Running snapd cannot load its own LTS map (missing libexec dir,
+			// parse failure, etc.). Channel validation here is a planning-time
+			// best-effort check; pass through and let the download-stage
+			// intercept enforce the correct channel.
+			return effectiveChannel, nil
+		}
 		if errors.Is(err, ltschannel.ErrLTSNoTrack) {
 			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
 			track := "latest"

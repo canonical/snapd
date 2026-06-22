@@ -128,6 +128,7 @@ VERSION=$(version_from_changelog)
 SNAPD_APPARMOR_REEXEC=0
 SNAPD_ASSERTS_FORMATS='{"account-key":1,"snap-declaration":6,"system-user":2}'
 SNAPD_LTS_TRACKS='{}'
+SNAPD_PATCH_LEVEL=6
 endef
 
 # Generate snapd.defines.mk for use by snapd.mk makefile targets.
