@@ -1,0 +1,240 @@
+summary: Verify snapd LTS channel bootstrap redirect on UC18
+
+details: |
+  When a UC18 device is running an LTS-aware snapd (one that carries
+  SNAPD_LTS_TRACKS in its /usr/lib/snapd/info) and the next snapd revision on
+  latest/stable also carries SNAPD_LTS_TRACKS with an entry for boot base 18,
+  the download-stage intercept must:
+
+    1. Download the candidate snap from latest/stable.
+    2. Read SNAPD_LTS_TRACKS from the candidate squashfs.
+    3. Detect the mismatch (device on latest/stable, map requires 18/stable).
+    4. Issue a second store action for 18/stable.
+    5. Download the 18/stable snap, overwriting the blob.
+    6. Rewrite snap-setup so validate/mount/link use the 18/stable revision.
+
+  The intermediate revision from latest/stable must never be linked. After the
+  change completes the device must track 18/stable and snapd must be functional.
+
+  The three-snap setup mirrors the production scenario:
+
+    Snap 1 (seed, revision 1): LTS-aware code, SNAPD_LTS_TRACKS='{}' — no base
+      onboarded yet. Represents the snapd currently installed on the device.
+
+    Snap 2 (latest/stable, revision 2): LTS-aware code + UC18 entry injected
+      into SNAPD_LTS_TRACKS. Represents the first LTS-aware snapd that ships
+      the mapping once UC18 is onboarded. This is the candidate whose squashfs
+      the download intercept reads.
+
+    Snap 3 (18/stable, revision 3): The actual LTS-track snap the device ends
+      up on. Distinct sha3-384 from snap 2 so the fakestore can serve it
+      independently on 18/stable.
+
+  In production, snap 2 would be produced by adding the UC18 entry to
+  snapdLTSTracks in snap/ltschannel/info/main.go and rebuilding. In this test
+  the SNAPD_LTS_TRACKS value is injected directly into the info file of the
+  pre-built snap so the test is feasible in CI without a second full build.
+
+systems: [ubuntu-18.04-64]
+
+environment:
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  # We manage fakestore snap assertions manually — three revisions of the same
+  # snap-id with different blobs and different channel assignments.
+  NESTED_SIGN_SNAPS_FAKESTORE: false
+  # Inject a prepare-device hook into the gadget so the nested VM can register
+  # its serial with fakedevicesvc.
+  NESTED_REPACK_FOR_FAKESTORE: true
+  NESTED_ENABLE_TPM: false
+  NESTED_ENABLE_SECURE_BOOT: false
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+  # QEMU host IP as seen from inside the guest VM.
+  REMOTE_SAS_URL: http://10.0.2.2:11028
+  SNAPD_SNAP_ID: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+
+skip:
+  - reason: This test needs test keys to be trusted
+    if: |
+      [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB"/nested.sh
+  #shellcheck source=tests/lib/core-config.sh
+  . "$TESTSLIB"/core-config.sh
+
+  # Start the fakestore. The --assert-fallback flag (set by store-state) means
+  # assertions the fakestore does not have are proxied to the real store —
+  # this covers the gadget, kernel, and base snaps we do not customise.
+  "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+  tests.cleanup defer "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+  cp "$TESTSLIB"/assertions/testrootorg-store.account-key \
+      "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account \
+      "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+  cp "$TESTSLIB"/assertions/developer1.account-key \
+      "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+  # Build the seed snapd (revision 1) from the current tree.
+  # SNAPD_LTS_TRACKS is '{}' by default — the LTS mechanism is present but no
+  # UC version has been onboarded yet. This snap represents the currently
+  # installed snapd before the first LTS onboarding event.
+  tests.nested prepare-essential-snaps
+  seed_snap="$(echo /tmp/extra-snaps/snapd_*.snap)"
+  test -f "$seed_snap"
+
+  # Register the seed snap in the fakestore as revision 1. No channel
+  # assignment — this snap is only ever in the seed, never served as a refresh.
+  "$TESTSTOOLS"/store-state make-snap-installable \
+      --noack --revision 1 \
+      "$NESTED_FAKESTORE_BLOB_DIR" "$seed_snap" "$SNAPD_SNAP_ID"
+
+  # Produce snap 2 (latest/stable, revision 2): take the seed snap and inject
+  # the UC18 LTS mapping into SNAPD_LTS_TRACKS. The mapping says:
+  #   input track "latest" -> LTS target track "18"
+  #   input track "18"     -> "18" (identity allow, already on correct track)
+  # In production this mapping would come from snap/ltschannel/info/main.go
+  # being updated and the snapd snap rebuilt with the new map.
+  unsquashfs -d snapd-lts-aware "$seed_snap"
+  tests.cleanup defer rm -rf snapd-lts-aware snapd-lts-aware.snap
+  sed -i "s|SNAPD_LTS_TRACKS='.*'|SNAPD_LTS_TRACKS='{\"18\":{\"latest\":\"18\",\"18\":\"18\"}}'|" \
+      snapd-lts-aware/usr/lib/snapd/info
+  MATCH '"18"' < snapd-lts-aware/usr/lib/snapd/info
+  snap pack snapd-lts-aware --filename=snapd-lts-aware.snap
+  rm -rf snapd-lts-aware
+
+  # Register snap 2 as revision 2 on latest/stable. The auto-refresh will
+  # download this snap first; its SNAPD_LTS_TRACKS is what the download
+  # intercept reads to determine that a redirect to 18/stable is needed.
+  "$TESTSTOOLS"/store-state make-snap-installable \
+      --noack --revision 2 \
+      "$NESTED_FAKESTORE_BLOB_DIR" snapd-lts-aware.snap "$SNAPD_SNAP_ID"
+  "$TESTSTOOLS"/store-state add-to-channel \
+      "$NESTED_FAKESTORE_BLOB_DIR" snapd-lts-aware.snap "latest/stable"
+
+  # Produce snap 3 (18/stable, revision 3): derive from snap 2 with a bumped
+  # VERSION so it has a distinct sha3-384. The fakestore keys channel
+  # assignments by content hash, so snap 2 and snap 3 must differ.
+  unsquashfs -d snapd-18-target snapd-lts-aware.snap
+  tests.cleanup defer rm -rf snapd-18-target snapd-18-target.snap
+  sed -i 's/^VERSION=/VERSION=18target./' snapd-18-target/usr/lib/snapd/info
+  snap pack snapd-18-target --filename=snapd-18-target.snap
+  rm -rf snapd-18-target
+
+  # Register snap 3 as revision 3 on 18/stable. The download intercept's
+  # second store action requests this channel; the fakestore returns revision 3.
+  "$TESTSTOOLS"/store-state make-snap-installable \
+      --noack --revision 3 \
+      "$NESTED_FAKESTORE_BLOB_DIR" snapd-18-target.snap "$SNAPD_SNAP_ID"
+  "$TESTSTOOLS"/store-state add-to-channel \
+      "$NESTED_FAKESTORE_BLOB_DIR" snapd-18-target.snap "18/stable"
+
+  # Start the fake device serial service. The prepare-device hook injected by
+  # NESTED_REPACK_FOR_FAKESTORE points the nested VM at this service so it can
+  # obtain a device serial for authenticated store requests.
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+  tests.cleanup defer systemctl stop fakedevicesvc.service
+
+  # Build the UC18 image. The extra snaps from /tmp/extra-snaps/ (seed snapd,
+  # kernel, gadget, core18) are included in the seed.
+  # SNAPPY_FORCE_SAS_URL makes ubuntu-image / snap prepare-image fetch snap
+  # assertions from our fakestore (which falls back to the real store for snaps
+  # we have not customised).
+  version="$(tests.nested show version)"
+  export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+  ubuntu-image snap \
+      --image-size 10G \
+      "$(tests.nested get model)" \
+      --snap /tmp/extra-snaps/pc.snap \
+      --snap /tmp/extra-snaps/pc-kernel.snap \
+      --snap "$seed_snap" \
+      --snap "/tmp/extra-snaps/core${version}.snap"
+
+  image_dir=$(tests.nested get images-path)
+  image_name=$(tests.nested get image-name core)
+  cp ./pc.img "${image_dir}/${image_name}"
+  tests.nested configure-default-user
+
+  # Build the QEMU boot config and start the VM.
+  tests.nested build-image core
+  tests.nested create-vm core
+
+  # Wait for seeding and device registration to complete.
+  remote.wait-for device-initialized
+
+  # Inject a fake device session macaroon so snapd treats the device as
+  # registered without requiring a real serial round-trip. This is the standard
+  # pattern for fakestore-based nested tests.
+  remote.exec "sudo systemctl stop snapd snapd.socket"
+  remote.exec "sudo cat /var/lib/snapd/state.json" \
+      | gojq '.data.auth.device."session-macaroon" = "fake-session"' \
+      > state.json
+  remote.push state.json
+  remote.exec "sudo mv state.json /var/lib/snapd/state.json"
+
+  # Point the running snapd at our fakestore for all store API calls.
+  cat >snapd-override.conf <<EOF
+  [Service]
+  Environment=SNAPPY_FORCE_API_URL=${REMOTE_SAS_URL}
+  EOF
+  tests.cleanup defer rm -f snapd-override.conf state.json
+  remote.push snapd-override.conf
+  remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
+  remote.exec "sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/"
+  remote.exec "sudo systemctl daemon-reload"
+  remote.exec "sudo systemctl start snapd snapd.socket"
+  remote.wait-for snap-command
+
+restore: |
+  # Registered cleanup defers handle: fakestore teardown, fakedevicesvc stop,
+  # snap build artefacts, and config file removal.
+  true
+
+debug: |
+  remote.exec "snap changes" || true
+  remote.exec "snap change \$(remote.exec snap changes | awk 'NR==2{print \$1}')" || true
+  remote.exec "snap list --all snapd" || true
+  remote.exec "journalctl -u snapd --no-pager -n 100" || true
+
+execute: |
+  echo "Verify initial state: snapd is at revision 1 on latest/stable"
+  remote.exec "snap list snapd" | MATCH "latest/stable"
+  initial_rev="$(remote.exec "snap list snapd" | awk 'NR==2{print $3}')"
+  test "$initial_rev" = "1"
+
+  echo "Remove any existing refresh hold and trigger an auto-refresh Ensure cycle"
+  remote.exec "sudo snap set core refresh.hold="
+  initial_boot_id="$(tests.nested boot-id)"
+  remote.exec "sudo snap debug ensure-state-soon"
+
+  echo "Wait for the auto-refresh change to appear"
+  retry -n 60 --wait 5 sh -c \
+      'remote.exec "snap changes" | MATCH "auto-refresh"'
+
+  echo "Wait for snapd daemon restart (occurs after link-snap)"
+  remote.exec "snap watch \$(remote.exec snap change --last=auto-refresh | awk 'NR==1{print \$1}')" || true
+  remote.wait-for reboot "$initial_boot_id"
+  remote.wait-for snap-command
+
+  echo "Wait for the auto-refresh change to reach Done status"
+  retry -n 60 --wait 5 sh -c \
+      'remote.exec "snap changes" | MATCH "Done.*auto-refresh"'
+
+  echo "Core: snapd must now track 18/stable"
+  remote.exec "snap list snapd" | MATCH "18/stable"
+
+  echo "Core: the installed revision must be 3 (the 18/stable LTS target)"
+  remote.exec "snap list snapd" | MATCH " 3 "
+
+  echo "Core: revision 2 (from latest/stable) was never linked"
+  remote.exec "snap list --all snapd" | NOMATCH " 2 "
+
+  echo "Core: the change task log must contain the user-visible redirect notice"
+  remote.exec "snap change --last=auto-refresh" | \
+      MATCH "Switching snapd from channel.*latest/stable.*to LTS channel.*18/stable"
+
+  echo "Ancillary: snapd is functional after the redirect and daemon restart"
+  remote.exec "snap version" | MATCH "snapd"
+  remote.exec "snap list" | MATCH "snapd"
+  remote.exec "snap info snapd" | MATCH "tracking:.*18/stable"
