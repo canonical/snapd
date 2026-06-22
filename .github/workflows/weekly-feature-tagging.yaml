@@ -239,13 +239,13 @@ jobs:
 
           tar -czf "final-feature-tags.tar.gz" "final-feature-tags"
 
-      - name: Upload results to mongo
-        env: 
-          MONGO_USER: ${{ secrets.MONGO_USER }}
-          MONGO_PASSWORD: ${{ secrets.MONGO_PASS }}
-          MONGO_HOST: ${{ secrets.MONGO_HOST }}
-          MONGO_PORT: ${{ secrets.MONGO_PORT }}
-        run: ./tests/utils/features/mongo_upload.py --dir "final-feature-tags" --verbose
+      # - name: Upload results to mongo
+      #   env: 
+      #     MONGO_USER: ${{ secrets.MONGO_USER }}
+      #     MONGO_PASSWORD: ${{ secrets.MONGO_PASS }}
+      #     MONGO_HOST: ${{ secrets.MONGO_HOST }}
+      #     MONGO_PORT: ${{ secrets.MONGO_PORT }}
+      #   run: ./tests/utils/features/mongo_upload.py --dir "final-feature-tags" --verbose
       
       - name: Upload feature data
         uses: actions/upload-artifact@v7
