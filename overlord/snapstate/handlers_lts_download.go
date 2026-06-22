@@ -109,6 +109,8 @@ func maybeRedirectSnapdToLTSChannel(
 			inspected.targetChannel, err)
 	}
 
+	meter.Notify(fmt.Sprintf("Switching snapd from channel %q to LTS channel %q for this device",
+		inspected.currentChannel, inspected.targetChannel))
 	logger.Noticef("snapd LTS redirect: channel %q requires %q for this device, downloading LTS target",
 		inspected.currentChannel, inspected.targetChannel)
 
@@ -143,6 +145,8 @@ func maybeRedirectSnapdToLTSChannel(
 	snapsup.Channel = inspected.targetChannel
 	snapsup.ExpectedProvenance = sar.SnapProvenance
 
+	meter.Notify(fmt.Sprintf("snapd redirected to LTS channel %q (revision %s)",
+		inspected.targetChannel, sar.SideInfo.Revision))
 	logger.Noticef("snapd LTS redirect complete: rev %s on channel %q (was %q)",
 		sar.SideInfo.Revision, inspected.targetChannel, inspected.currentChannel)
 	return nil
@@ -181,6 +185,10 @@ func inspectSnapdLTSAfterDownload(snapsup *SnapSetup, model *asserts.Model, blob
 
 	targetChannel, err := ltschannel.SnapdLTSChannel(model, snapsup.Channel, squashfs.New(blobPath))
 	if err != nil {
+		if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) {
+			// Base has no LTS policy yet; no redirect needed.
+			return snapdLTSInspectResult{remapNeeded: false}, nil
+		}
 		return snapdLTSInspectResult{}, fmt.Errorf("cannot resolve LTS channel: %v", err)
 	}
 

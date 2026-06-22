@@ -1989,6 +1989,10 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 			// intercept enforce the correct channel.
 			return effectiveChannel, nil
 		}
+		if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) {
+			// This boot base has no LTS policy yet; no channel restriction applies.
+			return effectiveChannel, nil
+		}
 		if errors.Is(err, ltschannel.ErrLTSNoTrack) {
 			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
 			track := "latest"

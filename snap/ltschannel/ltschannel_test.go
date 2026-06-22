@@ -220,7 +220,7 @@ func (s *ltsSuite) TestSnapdLTSChannelUnmanagedBootBaseErrors(c *C) {
 	for _, channel := range []string{"latest/stable", "22/stable", "stable"} {
 		_, err := ltschannel.SnapdLTSChannel(model, channel, nil)
 		c.Assert(err, ErrorMatches, `no LTS track map for boot base 22 from running snapd version .*`, Commentf("channel %q", channel))
-		c.Check(errors.Is(err, ltschannel.ErrLTSNoTrack), Equals, true, Commentf("channel %q", channel))
+		c.Check(errors.Is(err, ltschannel.ErrLTSBaseNotManaged), Equals, true, Commentf("channel %q", channel))
 	}
 }
 
@@ -231,7 +231,7 @@ func (s *ltsSuite) TestSnapdLTSChannelMockEmptyMapErrors(c *C) {
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
 	_, err := ltschannel.SnapdLTSChannel(model, "latest/stable", nil)
 	c.Assert(err, ErrorMatches, `no LTS track map for boot base 18 from running snapd version 2.75`)
-	c.Check(errors.Is(err, ltschannel.ErrLTSNoTrack), Equals, true)
+	c.Check(errors.Is(err, ltschannel.ErrLTSBaseNotManaged), Equals, true)
 }
 
 func (s *ltsSuite) TestSnapdLTSChannelBranchDropped(c *C) {
@@ -256,19 +256,25 @@ func (s *ltsSuite) TestLTSTypedErrors(c *C) {
 			err:      &ltschannel.LTSInternalError{Msg: "internal situation A"},
 			msg:      "internal error: internal situation A",
 			sentinel: ltschannel.ErrLTSInternal,
-			other:    []error{ltschannel.ErrLTSNotAllowed, ltschannel.ErrLTSNoTrack},
+			other:    []error{ltschannel.ErrLTSNotAllowed, ltschannel.ErrLTSBaseNotManaged, ltschannel.ErrLTSNoTrack},
 		},
 		{
 			err:      &ltschannel.LTSNotAllowedError{Msg: "not allowed situation B"},
 			msg:      "not allowed situation B",
 			sentinel: ltschannel.ErrLTSNotAllowed,
-			other:    []error{ltschannel.ErrLTSInternal, ltschannel.ErrLTSNoTrack},
+			other:    []error{ltschannel.ErrLTSInternal, ltschannel.ErrLTSBaseNotManaged, ltschannel.ErrLTSNoTrack},
 		},
 		{
-			err:      &ltschannel.LTSNoTrackError{Msg: "no track situation C"},
-			msg:      "no track situation C",
+			err:      &ltschannel.LTSBaseNotManagedError{Msg: "base not managed situation C"},
+			msg:      "base not managed situation C",
+			sentinel: ltschannel.ErrLTSBaseNotManaged,
+			other:    []error{ltschannel.ErrLTSInternal, ltschannel.ErrLTSNotAllowed, ltschannel.ErrLTSNoTrack},
+		},
+		{
+			err:      &ltschannel.LTSNoTrackError{Msg: "no track situation D"},
+			msg:      "no track situation D",
 			sentinel: ltschannel.ErrLTSNoTrack,
-			other:    []error{ltschannel.ErrLTSInternal, ltschannel.ErrLTSNotAllowed},
+			other:    []error{ltschannel.ErrLTSInternal, ltschannel.ErrLTSNotAllowed, ltschannel.ErrLTSBaseNotManaged},
 		},
 	} {
 		c.Check(tc.err.Error(), Equals, tc.msg, Commentf("%v", tc.sentinel))
@@ -285,6 +291,10 @@ func (s *ltsSuite) TestLTSTypedErrors(c *C) {
 			var notAllowed *ltschannel.LTSNotAllowedError
 			c.Assert(errors.As(tc.err, &notAllowed), Equals, true)
 			c.Check(notAllowed.Msg, Equals, tc.msg)
+		case ltschannel.ErrLTSBaseNotManaged:
+			var notManaged *ltschannel.LTSBaseNotManagedError
+			c.Assert(errors.As(tc.err, &notManaged), Equals, true)
+			c.Check(notManaged.Msg, Equals, tc.msg)
 		case ltschannel.ErrLTSNoTrack:
 			var noTrack *ltschannel.LTSNoTrackError
 			c.Assert(errors.As(tc.err, &noTrack), Equals, true)
@@ -404,7 +414,7 @@ func (s *ltsSuite) TestSnapdLTSChannelCandidateUsesMapNotRunning(c *C) {
 
 	_, err := ltschannel.SnapdLTSChannel(model, "latest/stable", nil)
 	c.Assert(err, ErrorMatches, `no LTS track map for boot base 18 from running snapd version 2.75`)
-	c.Check(errors.Is(err, ltschannel.ErrLTSNoTrack), Equals, true)
+	c.Check(errors.Is(err, ltschannel.ErrLTSBaseNotManaged), Equals, true)
 
 	candidate := s.snapdContainer(c, uc18CandidateInfo)
 	resolved, err := ltschannel.SnapdLTSChannel(model, "latest/stable", candidate)
@@ -421,7 +431,7 @@ func (s *ltsSuite) TestSnapdLTSChannelCandidateWithoutMapErrors(c *C) {
 
 	_, err := ltschannel.SnapdLTSChannel(model, "latest/stable", candidate)
 	c.Assert(err, ErrorMatches, `no LTS track map for boot base 18 from candidate snapd version 2.99`)
-	c.Check(errors.Is(err, ltschannel.ErrLTSNoTrack), Equals, true)
+	c.Check(errors.Is(err, ltschannel.ErrLTSBaseNotManaged), Equals, true)
 }
 
 func (s *ltsSuite) TestSnapdLTSChannelCandidateUnmanagedBootBaseErrors(c *C) {
@@ -430,7 +440,7 @@ func (s *ltsSuite) TestSnapdLTSChannelCandidateUnmanagedBootBaseErrors(c *C) {
 
 	_, err := ltschannel.SnapdLTSChannel(model, "latest/stable", candidate)
 	c.Assert(err, ErrorMatches, `no LTS track map for boot base 22 from candidate snapd version 2.99`)
-	c.Check(errors.Is(err, ltschannel.ErrLTSNoTrack), Equals, true)
+	c.Check(errors.Is(err, ltschannel.ErrLTSBaseNotManaged), Equals, true)
 }
 
 func (s *ltsSuite) TestSnapdLTSChannelCandidateErrors(c *C) {
