@@ -42,8 +42,6 @@ const (
 	Hotplug
 	// RefreshAppAwareness controls refresh being aware of running applications.
 	RefreshAppAwareness
-	// ClassicPreservesXdgRuntimeDir controls $XDG_RUNTIME_DIR in snaps with classic confinement.
-	ClassicPreservesXdgRuntimeDir
 	// UserDaemons controls availability of user mode service support.
 	UserDaemons
 	// DbusActivation controls whether snaps daemons can be activated via D-Bus
@@ -108,8 +106,6 @@ var featureNames = map[SnapdFeature]string{
 	Hotplug:             "hotplug",
 	RefreshAppAwareness: "refresh-app-awareness",
 
-	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
-
 	UserDaemons:    "user-daemons",
 	DbusActivation: "dbus-activation",
 
@@ -142,10 +138,9 @@ var featureNames = map[SnapdFeature]string{
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	Layouts:                       true,
-	RefreshAppAwareness:           true,
-	ClassicPreservesXdgRuntimeDir: true,
-	DbusActivation:                true,
+	Layouts:             true,
+	RefreshAppAwareness: true,
+	DbusActivation:      true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
@@ -153,9 +148,8 @@ var featuresExported = map[SnapdFeature]bool{
 	RefreshAppAwareness: true,
 	ParallelInstances:   true,
 
-	ClassicPreservesXdgRuntimeDir: true,
-	HiddenSnapDataHomeDir:         true,
-	MoveSnapHomeDir:               true,
+	HiddenSnapDataHomeDir: true,
+	MoveSnapHomeDir:       true,
 
 	RefreshAppAwarenessUX: true,
 	Confdb:                true,
