@@ -121,7 +121,7 @@ jobs:
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Read matrix file
         id: read-systems
