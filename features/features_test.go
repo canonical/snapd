@@ -48,7 +48,6 @@ func (*featureSuite) TestName(c *C) {
 	check(features.Layouts, "layouts")
 	check(features.ParallelInstances, "parallel-instances")
 	check(features.Hotplug, "hotplug")
-	check(features.RefreshAppAwareness, "refresh-app-awareness")
 	check(features.ClassicPreservesXdgRuntimeDir, "classic-preserves-xdg-runtime-dir")
 	check(features.UserDaemons, "user-daemons")
 	check(features.DbusActivation, "dbus-activation")
@@ -92,7 +91,6 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.Layouts, false)
 	check(features.Hotplug, false)
 	check(features.ParallelInstances, true)
-	check(features.RefreshAppAwareness, true)
 	check(features.ClassicPreservesXdgRuntimeDir, true)
 	check(features.UserDaemons, false)
 	check(features.DbusActivation, false)
@@ -221,7 +219,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.Layouts, true)
 	check(features.ParallelInstances, false)
 	check(features.Hotplug, false)
-	check(features.RefreshAppAwareness, true)
 	check(features.ClassicPreservesXdgRuntimeDir, true)
 	check(features.UserDaemons, false)
 	check(features.DbusActivation, true)
@@ -246,7 +243,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 }
 
 func (*featureSuite) TestControlFile(c *C) {
-	c.Check(features.RefreshAppAwareness.ControlFile(), Equals, "/var/lib/snapd/features/refresh-app-awareness")
 	c.Check(features.ParallelInstances.ControlFile(), Equals, "/var/lib/snapd/features/parallel-instances")
 	c.Check(features.HiddenSnapDataHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/hidden-snap-folder")
 	c.Check(features.MoveSnapHomeDir.ControlFile(), Equals, "/var/lib/snapd/features/move-snap-home-dir")
@@ -261,12 +257,6 @@ func (*featureSuite) TestConfigOptionLayouts(c *C) {
 	snapName, configName := features.Layouts.ConfigOption()
 	c.Check(snapName, Equals, "core")
 	c.Check(configName, Equals, "experimental.layouts")
-}
-
-func (*featureSuite) TestConfigOptionRefreshAppAwareness(c *C) {
-	snapName, configName := features.RefreshAppAwareness.ConfigOption()
-	c.Check(snapName, Equals, "core")
-	c.Check(configName, Equals, "experimental.refresh-app-awareness")
 }
 
 func (*featureSuite) TestConfigOptionRefreshAppAwarenessUX(c *C) {

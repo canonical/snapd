@@ -32,19 +32,11 @@ import (
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func enableFeatures(c *C, ff ...features.SnapdFeature) {
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), IsNil)
-	for _, f := range ff {
-		c.Assert(os.WriteFile(f.ControlFile(), nil, 0755), IsNil)
-	}
-}
 
 type trackingSuite struct{}
 
@@ -59,18 +51,13 @@ func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-// CreateTransientScopeForTracking always attempts to track, even when refresh app awareness flag is off.
-func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C) {
+func (s *trackingSuite) TestCreateTransientScopeForTrackingNoDBus(c *C) {
 	noDBus := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("dbus not available")
 	}
 	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
-	// The feature is disabled but we still track applications. The feature
-	// flag is now only observed in side snapd snap manager, while considering
-	// snap refreshes.
-	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, false)
 	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
 	c.Assert(err, ErrorMatches, "cannot track application process")
 }
@@ -91,11 +78,7 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUUIDFailure(c *C) {
 	c.Assert(err, ErrorMatches, "mocked uuid error")
 }
 
-// CreateTransientScopeForTracking does stuff when refresh app awareness is on
-func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) {
-	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
-	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, true)
+func (s *trackingSuite) TestCreateTransientScopeForTracking(c *C) {
 	// Pretend we are a non-root user so that session bus is used.
 	restore := cgroup.MockOsGetuid(12345)
 	defer restore()
@@ -143,7 +126,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureEnabled(c *C) 
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric(c *C) {
 	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
@@ -202,7 +184,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c *C) {
 	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
@@ -256,7 +237,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFallback(c *C) {
 	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	// Make it appear that session bus is there but system bus is not.
 	noSystemBus := func() (*dbus.Conn, error) {
@@ -299,7 +279,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	// Make it appear that DBus is entirely unavailable.
 	noBus := func() (*dbus.Conn, error) {
@@ -344,7 +323,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
 	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
@@ -391,7 +369,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
 
 func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
 	// Pretend that refresh app awareness is enabled
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	// Hand out stub connections to both the system and session bus. Remember
 	// the identity of the system bus to that we can verify access later.
@@ -446,7 +423,6 @@ type testTransientScopeConfirm struct {
 }
 
 func (s *trackingSuite) testCreateTransientScopeConfirm(c *C, tc testTransientScopeConfirm) {
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	logBuf, restore := logger.MockLogger()
 	defer restore()
@@ -651,7 +627,6 @@ func mockJobRemovedSignal(unit, result string) *dbus.Message {
 }
 
 func (s *trackingSuite) TestCreateTransientScopeHappyWithRetriedCheckCgroupV1(c *C) {
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	restore := cgroup.MockVersion(cgroup.V1, nil)
 	defer restore()
@@ -712,7 +687,6 @@ func (s *trackingSuite) TestCreateTransientScopeHappyWithRetriedCheckCgroupV1(c 
 }
 
 func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	restore := cgroup.MockOsGetuid(12345)
 	defer restore()
@@ -760,7 +734,6 @@ func (s *trackingSuite) TestCreateTransientScopeUnhappyJobFailed(c *C) {
 }
 
 func (s *trackingSuite) TestCreateTransientScopeUnhappyJobTimeout(c *C) {
-	enableFeatures(c, features.RefreshAppAwareness)
 
 	restore := cgroup.MockOsGetuid(12345)
 	defer restore()
