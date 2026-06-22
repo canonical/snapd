@@ -140,10 +140,12 @@ elif [ ! -d "$GO_GENERATE_BUILDDIR/vendor/github.com"  ] ; then
 fi
 fmts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./asserts/info)
 lts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./snap/ltschannel/info)
+patchlevel=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./overlord/patch/info)
 
 cat <<EOF > "$PKG_BUILDDIR/data/info"
 VERSION=$v
 SNAPD_APPARMOR_REEXEC=1
 ${fmts}
 ${lts}
+${patchlevel}
 EOF

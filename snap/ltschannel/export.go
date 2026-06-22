@@ -28,3 +28,19 @@ import "github.com/snapcore/snapd/snap"
 func MockSnapdLTSTrackMap(tracks map[int]map[string]string) (restore func()) {
 	return snap.MockSnapdLTSTrackMapFromThis("2.75", tracks)
 }
+
+// MockSnapdLTSDeviceKindScope replaces the device-kind scope flags
+// (supportUbuntuCore, supportClassic, supportHybridClassic) for tests.
+//
+// Lives outside export_test.go because other packages' tests import it.
+func MockSnapdLTSDeviceKindScope(supportUC, supportCl, supportHybrid bool) (restore func()) {
+	restoreUC, restoreCl, restoreHybrid := supportUbuntuCore, supportClassic, supportHybridClassic
+	supportUbuntuCore = supportUC
+	supportClassic = supportCl
+	supportHybridClassic = supportHybrid
+	return func() {
+		supportUbuntuCore = restoreUC
+		supportClassic = restoreCl
+		supportHybridClassic = restoreHybrid
+	}
+}

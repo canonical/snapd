@@ -83,7 +83,7 @@ func SnapdLTSChannel(model *asserts.Model, channel string, candidate snap.Contai
 		}
 		ltsTrack, ok = baseTrackMap[inputTrack]
 		if !ok || ltsTrack == "" {
-			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d input track %q from candidate snapd version %s", bootBase, inputTrack, candidateVersion)}
+			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d for input track %q from candidate snapd version %s", bootBase, inputTrack, candidateVersion)}
 		}
 	} else {
 		thisTrackMap, thisVersion, err := snap.SnapdLTSTrackMapFromThis()
@@ -96,7 +96,7 @@ func SnapdLTSChannel(model *asserts.Model, channel string, candidate snap.Contai
 		}
 		ltsTrack, ok = baseTrackMap[inputTrack]
 		if !ok || ltsTrack == "" {
-			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d input track %q from running snapd version %s", bootBase, inputTrack, thisVersion)}
+			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d for input track %q from running snapd version %s", bootBase, inputTrack, thisVersion)}
 		}
 	}
 
@@ -122,6 +122,14 @@ func systemBootBaseAllowed(model *asserts.Model) (int, error) {
 
 	if !supportUbuntuCore {
 		return 0, &LTSNotAllowedError{Msg: "policy does not allow ubuntu core system"}
+	}
+
+	// A model without a "base" header, or with base "core", is UC16-equivalent:
+	// the core snap acts as both base and snapd, so there is no separate snapd
+	// snap to apply LTS track policy to.
+	base := model.Base()
+	if base == "" || base == "core" {
+		return 0, &LTSNotAllowedError{Msg: "cannot use unsupported Ubuntu Core 16 model"}
 	}
 
 	bootBase, err := model.CoreVersion()
