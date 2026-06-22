@@ -1746,7 +1746,8 @@ func SeedRefreshTasks(
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
-		ok, err := triggers(candidate.InstanceName)
+		componentExclusive := len(candidate.SnapSetupTaskIDs) == 0
+		ok, err := triggers(candidate.InstanceName, candidate.Components, componentExclusive)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1823,7 +1824,8 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 
 	triggers := seedRefreshTriggers(chg.State(), dctx)
 
-	ok, err := triggers(candidate.InstanceName)
+	componentExclusive := len(candidate.SnapSetupTaskIDs) == 0
+	ok, err := triggers(candidate.InstanceName, candidate.Components, componentExclusive)
 	if err != nil {
 		return nil, err
 	}
@@ -1862,7 +1864,7 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTas
 // gaining/losing snaps
 func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
 	triggers := seedRefreshTriggers(st, dctx)
-	ok, err := triggers(si.SnapName())
+	ok, err := triggers(si.SnapName(), nil, false)
 	if err != nil {
 		return err
 	}
@@ -1876,30 +1878,58 @@ func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.Devic
 // seedRefreshTriggers returns a closure that reports whether the given snap
 // should trigger a seed refresh. The seed is lazily loaded, and only opened
 // when required.
-func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(string) (bool, error) {
-	required := make(map[string]bool)
-	optional := make(map[string]bool)
+func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(string, []string, bool) (bool, error) {
+	requiredSnap := make(map[string]bool)
+	optionalSnap := make(map[string]bool)
+
+	requiredSnapComps := make(map[string]map[string]bool)
+	optionalSnapComps := make(map[string]map[string]bool)
 	for _, sn := range dctx.Model().AllSnaps() {
 		if sn.Presence == "required" {
-			required[sn.SnapName()] = true
+			requiredSnap[sn.SnapName()] = true
 		} else {
-			optional[sn.SnapName()] = true
+			optionalSnap[sn.SnapName()] = true
 		}
+
+		requiredComp := make(map[string]bool)
+		optionalComp := make(map[string]bool)
+		for compName, comp := range sn.Components {
+			if comp.Presence == "required" {
+				requiredComp[compName] = true
+			} else {
+				optionalComp[compName] = true
+			}
+		}
+		requiredSnapComps[sn.SnapName()] = requiredComp
+		optionalSnapComps[sn.SnapName()] = optionalComp
 	}
 
 	// snapd should always be considered a part of the model. this is really a
 	// compatibility thing, and maybe should not be here since seed-refresh
 	// isn't gonna work on old models anyways.
-	required["snapd"] = true
+	requiredSnap["snapd"] = true
 
 	var optionalInSeed map[string]bool
 
-	return func(instanceName string) (bool, error) {
-		if required[instanceName] {
+	return func(instanceName string, components []string, componentExclusive bool) (bool, error) {
+		if componentExclusive {
+			requiredComp := requiredSnapComps[instanceName]
+			optionalComp := optionalSnapComps[instanceName]
+			for _, component := range components {
+				if requiredComp != nil && requiredComp[component] {
+					return true, nil
+				} else if optionalComp != nil && optionalComp[component] {
+					return true, nil
+				}
+			}
+			return false, nil
+		}
+
+		if requiredSnap[instanceName] {
 			return true, nil
 		}
 
-		if !optional[instanceName] {
+		if !optionalSnap[instanceName] {
 			return false, nil
 		}
 

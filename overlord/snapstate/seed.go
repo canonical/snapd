@@ -50,6 +50,10 @@ type SeedRefreshEvictionPolicy struct {
 type SeedRefreshCandidate struct {
 	// InstanceName is the snap's instance name.
 	InstanceName string
+
+	// Components is the name of the components involved in the refresh.
+	Components []string
+
 	// SnapSetupTaskIDs are the snap tasks that should be considered as inputs to
 	// recovery system creation. Will be empty for component-only refreshes.
 	SnapSetupTaskIDs []string
@@ -91,9 +95,21 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 		return SeedRefreshCandidate{}, err
 	}
 
+	compsups, err := TaskComponentSetups(t)
+	if err != nil {
+		return SeedRefreshCandidate{}, err
+	}
+	var components []string
+
+	for _, compsup := range compsups {
+		components = append(components, compsup.ComponentName())
+	}
+
 	candidate := SeedRefreshCandidate{
 		InstanceName: snapsup.InstanceName(),
+		Components:   components,
 	}
+
 	if !snapsup.ComponentExclusiveOperation {
 		candidate.SnapSetupTaskIDs = append(candidate.SnapSetupTaskIDs, t.ID())
 	}
