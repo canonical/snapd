@@ -403,44 +403,56 @@ right after the blob lands and **before** the task persists the updated
 **Gates** (`needsSnapdLTSChannelResolve`):
 - `snapsup.Type == snap.TypeSnapd`,
 - `snapsup.SideInfo.SnapID != ""` (asserted only),
-- `model != nil`.
+- `model != nil`,
+- `len(snapsup.Prereq) == 0 && len(snapsup.PrereqContentAttrs) == 0` (prerequisites invariant — see §3).
+
+**Fast path** (`snapdLTSChannelAlreadyCorrect`):
+- Ask the running snapd's compiled-in map first.
+- If it confirms the planned channel is already correct → return immediately, no squashfs open.
+- Any error (base not managed, map unavailable) → fall through to candidate inspection.
+- Covers steady state: once a device is on the correct LTS channel every subsequent refresh skips the squashfs read.
 
 **Inspect** (`inspectSnapdLTSAfterDownload`):
-- Open the squashfs at `snapsup.BlobPath()` (`squashfs.New(blobPath)`).
+- Open the squashfs at `snapsup.SnapPath` (`squashfs.New(blobPath)`).
 - Call `ltschannel.SnapdLTSChannel(model, snapsup.Channel, container)`.
-- Compare the resulting LTS channel against the planned channel
-  (`snapChannelsDiffer`).
+- `LTSBaseNotManagedError` → pass-through (base not yet onboarded).
+- Compare the resulting LTS channel against the planned channel.
 
-**Reroute** (target behaviour — not yet implemented; see §7 step 9):
-- Issue a second `SnapAction` on the LTS channel via the existing store
-  helpers (precedent: COMPAT branch's `sendOneInstallActionUnlocked`).
-- Re-download to the same blob path; honour checksum, integrity, and
-  `DownloadInfo` from the new action result.
-- Rewrite the task's `snap-setup` in place: `SideInfo` (new SnapID/rev),
-  `DownloadInfo`, `Channel`, `Revision`, `SnapPath`.
-- Persist via `t.Set("snap-setup", snapsup)`. Downstream tasks
-  (`validate-snap`, `mount-snap`, `link-snap`) pick up the corrected setup
-  through `snap-setup-task` without any graph mutation.
+**Redirect** (when remap needed):
+- Issue a second `SnapAction` on the LTS channel via `sendOneInstallActionUnlocked`.
+  Cohort key dropped (scoped to original channel); validation sets re-fetched.
+- Pre-flight `patch.Level` check against the downloaded LTS blob
+  (`checkSnapdLTSTargetPatchLevel`); incompatible frozen revision rejected before
+  snap-setup is rewritten.
+- Re-download to the same blob path via `theStore.Download`.
+- Rewrite snap-setup in place: `SideInfo`, `DownloadInfo`, `Channel`, `ExpectedProvenance`.
+- Notify the task progress meter so the redirect is visible in `snap tasks` output.
+- Downstream tasks (`validate-snap`, `mount-snap`, `link-snap`) pick up the corrected
+  setup through `snap-setup-task` without any graph mutation.
 
 **Failure handling:**
-- Second `SnapAction` error → fail the download task.
-- Re-download error → fail the download task.
-- Candidate-map parse / load error → **open decision** (block vs fall back
-  to running snapd's view); current scaffold logs and continues.
-- `patch.Level` violation on rerouted target → BB7 (open).
+- Candidate-map missing/parse error → log and pass through (v1 policy).
+- `patch.Level` violation on rerouted target → fail download task early.
+- Second `SnapAction` error → fail download task.
+- Re-download error → fail download task.
 
-**Current implementation status:** scaffold only. `inspectSnapdLTSAfterDownload`
-computes the remap and logs it via `logger.Noticef`; the second action +
-re-download + `snap-setup` rewrite is the **next implementation step**
-(§7 step 9).
+**Architectural invariants verified:**
+- Prerequisites: `doPrerequisites` is an unconditional no-op for `TypeSnapd`; the
+  prereq gate in `needsSnapdLTSChannelResolve` makes this explicit.
+- Provenance: `snapsup.ExpectedProvenance = sar.SnapProvenance` keeps snap-setup
+  fully consistent with the redirected snap.
+- Cohort key: dropped — it was associated with the original channel.
+- Epoch: snapd carries epoch 0; `checkEpochs` in `doMountSnap` catches any
+  incompatibility after the redirect.
+- Re-refresh (`doCheckReRefresh`): filters by epoch diff only; no spurious re-refresh
+  triggered.
+- Prune safety: the running change is non-ready; `wait-for-system-restart` attr
+  protects it through the daemon restart.
 
 **Forward/backward compatibility:**
-- A snapd that does not implement the download intercept simply never
-  reroutes; it would also not be LTS-aware on any other code path, so
-  there is no regression.
-- A candidate snapd without a `SNAPD_LTS_TRACKS` key produces a `nil`
-  map, which results in `LTSNoTrackError` for managed boot bases. Behaviour
-  on that error is part of the open "missing map" decision.
+- A snapd that does not implement the download intercept simply never reroutes.
+- A candidate snapd without `SNAPD_LTS_TRACKS` returns `LTSBaseNotManagedError`
+  → pass-through.
 
 ### 5.5 Considered and rejected drivers (see Appendix)
 
@@ -593,44 +605,42 @@ running snapd's view) is the only line of defence.
    - (b) Drop BB5; rely on refresh retries.
    - (c) Defer BB5 until spread tests show whether the gap is real.
 
-   Current direction: **(c)**. Ship the download intercept + BB7; add BB5
+   Current direction: **(c)**. Ship the download intercept; add BB5
    only if spread data justifies it.
 
 2. **Behaviour when the candidate's `SNAPD_LTS_TRACKS` is missing or
-   parse-fails.** Options:
-   - (a) Block the refresh — strictest, but punishes legitimate older
-     LTS-aware snaps that never carry a map for a brand-new UC version.
-   - (b) Fall back to the running snapd's compiled-in map — pragmatic;
-     accepts that some reroutes won't fire when they "should".
-   - (c) Pass through (no reroute) — most permissive.
+   parse-fails.** **Resolved (v1):** log and pass through — same
+   `LTSBaseNotManagedError` path as an unmanaged base. The planning-side
+   lockdown (BB3) remains the only guard for that refresh cycle. Spread
+   tests should force the failure modes explicitly.
 
-   Likely **(b)** for production, with telemetry. Spread tests should
-   force the failure modes explicitly.
+3. **BB3 lockdown UX vs candidate authority.** **Resolved:** `LTSBaseNotManagedError`
+   (base not in the running snapd's map) is now a pass-through in BB3,
+   so a device whose base isn't onboarded yet receives no spurious
+   rejection. `LTSNoTrackError` (base IS managed, track not in the
+   allow-list) still rejects as intended.
 
-3. **BB3 lockdown UX vs candidate authority.** Now that real enforcement
-   is at download, BB3 can produce confusing errors when the running snapd
-   doesn't know about a track that the candidate would accept. Options:
-   relax BB3 to warn-only; keep BB3 strict and document; or skip BB3 when
-   `SnapdLTSChannel` returns `LTSNoTrackError` (assume the candidate may
-   know better). **Open.**
-
-4. **Patch-level incompatibility on rerouted target** — pre-check + hold
-   vs rely on `snap-failure` revert. Affects BB7.
+4. **Patch-level incompatibility on rerouted target.** **Resolved:** BB7
+   pre-flight reads `SNAPD_PATCH_LEVEL` from the downloaded LTS blob and
+   compares it against the state's current patch level before rewriting
+   snap-setup. An incompatible frozen revision is rejected at the download
+   task; no daemon restart is attempted.
 
 5. **Target risk missing on UC track** — fallback behaviour undefined.
-   Affects BB7.
+   Remains open; depends on store behaviour and future BB5/spread data.
 
 6. **`--amend`-only-onto-ESM-track constraint for unasserted snapd** —
-   not implemented; today's download intercept simply skips unasserted
-   snapd via the SnapID gate.
+   not implemented; the download intercept simply skips unasserted snapd
+   via the SnapID gate.
 
-7. **Re-download bandwidth.** Reroute by design wastes the first
-   download. Tolerated for v1. Follow-up: investigate a metadata-only path
-   (e.g. fetch `info` ahead of the squashfs body) or a store hint analogous
-   to `redirect-channel` but honoured on refresh.
+7. **Re-download bandwidth.** The redirect by design downloads the first
+   blob (planned channel) and then downloads the LTS blob. Tolerated for
+   v1; fast-path gating (`snapdLTSChannelAlreadyCorrect`) eliminates the
+   redundant squashfs open in steady state. Full bandwidth elimination
+   (metadata-only pre-fetch or a store hint) is a future follow-up.
 
 8. **Spec wording confirmation:** `default-channel: latest/<track>` ==
-   `latest/<risk>` → `<UC>/<risk>`.
+   `latest/<risk>` → `<UC>/<risk>` — still needs spec/product confirmation.
 
 ---
 
@@ -639,21 +649,21 @@ running snapd's view) is the only line of defence.
 | Step | Item | Status |
 |------|------|--------|
 | 0 | `asserts.Model.CoreVersion()` | **done** |
-| 1 | `snap/ltschannel`: `SnapdLTSChannel(model, channel, candidate)` + typed errors (`LTSInternalError`, `LTSNotAllowedError`, `LTSNoTrackError`) | **done** |
+| 1 | `snap/ltschannel`: `SnapdLTSChannel(model, channel, candidate)` + typed errors (`LTSInternalError`, `LTSNotAllowedError`, `LTSBaseNotManagedError`, `LTSNoTrackError`) | **done** |
 | 2 | `snap.SnapdLTSTrackMapFromSnapFile` (candidate) + `parseSnapdLTSTracks` | **done** |
 | 3 | `snap.SnapdLTSTrackMapFromThis` + `snapdtool.InternalLibExecDir` + `SnapdVersionFromInfoFile` for running-snapd info file | **done** |
 | 4 | BB3 runtime lockdown (`resolveChannel`, candidate=nil) + `snapIDForSnapdChannelLockdown` | **done** |
 | 5 | BB4a seedwriter remap (candidate=nil, UC16 skip) | **done** |
 | 6 | BB4b remodel remap (candidate=nil) | **done** |
-| 7 | `doDownloadSnap` reroute scaffold (`handlers_lts_download.go`) — gate, candidate inspect, log-only | **done** |
-| 8 | **Metadata contract**: agree `SNAPD_LTS_TRACKS` JSON shape and ship via `data/info`/`mkversion.sh`/snapcraft so candidate snaps actually carry the map | **open** |
-| 9 | **`doDownloadSnap` reroute completion**: second `SnapAction` on LTS channel, re-download over same blob path, rewrite `snap-setup` (SideInfo, DownloadInfo, Channel, Revision, SnapPath); follows the existing COMPAT-branch pattern | **open** |
-| 10 | Fast-path gating: skip squashfs open when planning-time channel already on LTS track per running snapd's view | **open** |
-| 11 | Failure-mode policy for missing/corrupt candidate map (Q2): block vs fall back to running map vs pass-through | **open** |
-| 12 | BB7 downgrade safety: newest-on-track selection, `patch.Level` pre-flight on rerouted target before re-download commits, verify `FinishRestart` rollback path | **open** |
+| 7 | `doDownloadSnap` reroute: gate + candidate squashfs inspect + second `SnapAction` + re-download + snap-setup rewrite (`SideInfo`, `DownloadInfo`, `Channel`, `ExpectedProvenance`) + task progress notification | **done** |
+| 8 | **Metadata contract**: `SNAPD_LTS_TRACKS` + `SNAPD_PATCH_LEVEL` shipped via `data/info`/`mkversion.sh`/snapcraft generators (`snap/ltschannel/info`, `overlord/patch/info`) | **done** |
+| 9 | Fast-path gating: `snapdLTSChannelAlreadyCorrect` skips squashfs open when running snapd's map already confirms the channel is correct | **done** |
+| 10 | Failure-mode policy: `LTSBaseNotManagedError` (base not yet onboarded) → pass-through everywhere; `LTSNotAllowedError`/`LTSInternalError` → pass-through in BB4a/BB4b; `LTSNoTrackError` (base managed, track forbidden) → reject in BB3 | **done** |
+| 11 | BB7 downgrade safety: `patch.Level` pre-flight on downloaded LTS blob before snap-setup rewrite | **done** |
+| 12 | Architectural review (D1–D5): provenance rewrite, cohort key drop, prereq gate, epoch invariant, re-refresh no-op, prune safety | **done** |
 | 13 | BB5 ensure-driven safety net for installed-aware-snapd-on-wrong-track-no-refresh | **deferred** (re-evaluate after spread §14) |
-| 14 | Spread validation: Case 3 bootstrap (old snapd on latest, candidate carries map, single change lands on UC track); ordering before other snaps; BB3 lockdown rejection; image-build track selection (BB4a); downgrade across reroute boot; missing-map fallback; quiet-device gap simulation | **open** |
-| 15 | **Branch hygiene before PR**: split unrelated changes off the spike branch. Specifically:<br/> • `.github/workflows/weekly-feature-tagging.yaml`<br/> • `build-aux/snap/local/apparmor/af_names.h`, `build-aux/snap/snapcraft.yaml`<br/> • `cmd/configure.ac`<br/> • `cmd/snap/cmd_debug_mount_namespace*` (deleted)<br/> • `daemon/access.go`, `daemon/api_general.go`, `daemon/api_users*`, `daemon/api_base_test.go`, `daemon/api_notices_test.go`, `daemon/errors.go`, `daemon/export_*`<br/> • `dirs/dirs.go`<br/> • `docs/api/*`<br/> • `go.mod`, `go.sum`<br/> • `interfaces/builtin/iscsi_initiator*`<br/> • `osutil/udev/README.md`<br/> • `overlord/auth/*`, `overlord/confdbstate/*`, `overlord/hookstate/ctlcmd/ctlcmd.go`, `overlord/managers_test.go`, `overlord/servicestate/quota_control.go`<br/> • `overlord/snapstate/backend*`, `overlord/snapstate/catalogrefresh*`, `overlord/snapstate/reboot_test.go`, the `doClearSnapData` revert in `handlers.go`, `snapstate_remove_test.go`<br/> • `overlord/swfeats/registry.go`<br/> • `packaging/debian-sid/control`, `packaging/fedora/snapd.spec`<br/> • `sandbox/apparmor/apparmor_test.go`, `sandbox/ebpf/*` (deleted)<br/> • `seclog/*` (rewrite)<br/> • `snap/quota/resources.go`<br/> • `syscheck/check.go`<br/> • `tests/lib/fakestore/cmd/fakestore/cmd_debug.go` (deleted), `cmd_run.go`, `tests/lib/fakestore/store/*`<br/> • `tests/lib/prepare.sh`, `tests/lib/pkgdb.sh`<br/> • `tests/main/*` deletions and edits unrelated to snapd LTS<br/> • `tests/regression/lp-1884849`, `tests/regression/lp-1898038`, `tests/release/distro-upgrade`<br/> • `tests/utils/features/*` overhaul (`query_features.py`, `runtimeadder.py`, README, etc.)<br/> • Decide on the two top-level PDFs (`Spec_UC039__*.pdf`, `Spec_UC042__*.pdf`) — license/checked-in policy | **open** |
+| 14 | Spread validation: Case 3 bootstrap (old snapd on latest, candidate carries map, single change lands on UC track); ordering before other snaps; BB3 lockdown rejection; image-build track selection (BB4a); downgrade across redirect boot; missing-map fallback; quiet-device gap simulation | **open** |
+| 15 | Branch hygiene: branch carries only LTS-related changes — no unrelated files present | **done** |
 
 ---
 
