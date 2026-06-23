@@ -122,7 +122,7 @@ func sha256HexForChain(chainDER [][]byte) string {
 // sha1HexForCertSubjectName reproduces the OpenSSL subject-name hash used by
 // c_rehash-style lookup links.
 // OBS: This is not great, because generating SHA1 hashes is not allowed
-// under the go FIPS toolchain. In the future this needs to somewhere else, and
+// under the go FIPS toolchain. In the future this needs to go somewhere else, and
 // not stay here. The use-case here is covered by the 140-3 FIPS, as we don't use
 // SHA1 for digital signage. But the problem is the go FIPS toolchain will throw
 // a runtime error in all cases. We have other places in Snapd that are affected by this

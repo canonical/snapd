@@ -573,6 +573,66 @@ func (s *certsTestSuite) TestGenerateCACertificatesDoesNotOverwriteDistinctCerti
 	c.Check(gotAdded, DeepEquals, addedPEM)
 }
 
+func (s *certsTestSuite) TestGenerateCACertificatesUsesNumberedFallbackWhenDigestNameTaken(c *C) {
+	basePEM, _, err := makeTestCertPEM("base-shared-name")
+	c.Assert(err, IsNil)
+	conflictingPEM, _, err := makeTestCertPEM("conflicting-digest-name")
+	c.Assert(err, IsNil)
+	addedPEM, _, err := makeTestCertPEM("added-shared-name")
+	c.Assert(err, IsNil)
+
+	addedDigest := digestForPEM(c, addedPEM)
+
+	baseDir := c.MkDir()
+	conflictingDir := c.MkDir()
+	addedDir := c.MkDir()
+	outDir := filepath.Join(c.MkDir(), "merged")
+
+	basePath := filepath.Join(baseDir, "shared.crt")
+	conflictingPath := filepath.Join(conflictingDir, "shared-"+addedDigest+".crt")
+	addedPath := filepath.Join(addedDir, "shared.crt")
+
+	c.Assert(os.WriteFile(basePath, basePEM, 0o644), IsNil)
+	c.Assert(os.WriteFile(conflictingPath, conflictingPEM, 0o644), IsNil)
+	c.Assert(os.WriteFile(addedPath, addedPEM, 0o644), IsNil)
+
+	base, err := certstate.ParseCertificates(baseDir)
+	c.Assert(err, IsNil)
+	conflicting, err := certstate.ParseCertificates(conflictingDir)
+	c.Assert(err, IsNil)
+	added, err := certstate.ParseCertificates(addedDir)
+	c.Assert(err, IsNil)
+	c.Assert(base, HasLen, 1)
+	c.Assert(conflicting, HasLen, 1)
+	c.Assert(added, HasLen, 1)
+
+	err = certstate.GenerateCACertificates(&certstate.Certificates{
+		SystemCertificates: []certstate.Certificate{base[0], conflicting[0]},
+		AddedCertificates:  added,
+	}, outDir)
+	c.Assert(err, IsNil)
+
+	baseCopy, err := os.ReadFile(filepath.Join(outDir, "shared.crt"))
+	c.Assert(err, IsNil)
+	c.Check(baseCopy, DeepEquals, basePEM)
+
+	conflictingCopyName := "shared-" + addedDigest + ".crt"
+	conflictingCopy, err := os.ReadFile(filepath.Join(outDir, conflictingCopyName))
+	c.Assert(err, IsNil)
+	c.Check(conflictingCopy, DeepEquals, conflictingPEM)
+
+	addedCopyName := "shared-" + addedDigest + "-1.crt"
+	addedCopy, err := os.ReadFile(filepath.Join(outDir, addedCopyName))
+	c.Assert(err, IsNil)
+	c.Check(addedCopy, DeepEquals, addedPEM)
+
+	bundle, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(bundle, basePEM), Equals, true)
+	c.Check(bytes.Contains(bundle, conflictingPEM), Equals, true)
+	c.Check(bytes.Contains(bundle, addedPEM), Equals, true)
+}
+
 func (s *certsTestSuite) TestGenerateCACertificatesSkipsSourceBundleFile(c *C) {
 	aPEM, _, err := makeTestCertPEM("A")
 	c.Assert(err, IsNil)

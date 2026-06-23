@@ -54,23 +54,21 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 // so it doesn't take the current task as an argument. It checks if
 // there is a task with the given name that is part of a change yet to
 // be completed, which will be interpreted as "in progress".
-func hasTaskInProgress(st *state.State, taskName string) (bool, error) {
+func hasTaskInProgress(st *state.State, taskName string) bool {
 	for _, t := range st.Tasks() {
 		if t.Kind() != taskName {
 			continue
 		}
 		if chg := t.Change(); chg != nil && !chg.IsReady() {
-			return true, nil
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 func (m *CertManager) ensureGarbageCollectionRun() error {
 	// Skip garbage collection if there is a "update-cert-db" change in flight
-	if inProgress, err := hasTaskInProgress(m.state, "update-cert-db"); err != nil {
-		return err
-	} else if inProgress {
+	if hasTaskInProgress(m.state, "update-cert-db") {
 		logger.Debugf("skipping certificate database garbage collection as update-cert-db change is in flight")
 		return nil
 	}
@@ -135,13 +133,17 @@ func (m *CertManager) Ensure() error {
 
 	// Create the update CA certificate database, this is likely a first
 	// run on a pre-existing system after this was introduced.
+	// TODO: The database will be generated with the lock being held here, which is not
+	// the best, as there is some overhead in file-generation and hashing.
 	logger.Noticef("No CA certificate database found, generating it now")
 	return RefreshCertificateDatabase()
 }
 
 // recordCurrentCertificateGeneration is a helper function to make sure
 // the current certificate generation is recorded before updating.
+// OBS: This function will lock the state and commit to disk.
 func recordCurrentCertificateGeneration(t *state.Task, key string) (string, error) {
+	// Make sure we commit the changes here to disk immediately.
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -176,6 +178,8 @@ func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) e
 	// Record the current generation before updating, so that
 	// if the system reboots during the update, we have a known
 	// generation to roll back to.
+	// The function will do it's own lock/unlock to force a commit to the underlying
+	// state to disk.
 	_, err := recordCurrentCertificateGeneration(t, previousGenerationTaskKey)
 	if err != nil {
 		return err

@@ -386,6 +386,27 @@ func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseCheckpointsPreviousGen
 	c.Assert(err, IsNil)
 }
 
+func (s *certMgrTestSuite) TestDoUpdateCertificateDatabasePropagatesCheckpointReadError(c *C) {
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	var called bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	task := s.state.NewTask("update-cert-db", "checkpoint read error")
+	task.Set(certstate.PreviousGenerationTaskKey, 42)
+	s.state.Unlock()
+
+	err := s.mgr.DoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, NotNil)
+	c.Check(called, Equals, false)
+}
+
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C) {
 	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
