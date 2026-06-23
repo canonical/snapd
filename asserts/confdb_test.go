@@ -89,19 +89,88 @@ const schema = `{
 }`
 
 func (s *confdbSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(confdbExample, "TSLINE", s.tsLine, 1)
+	tests := []struct {
+		original     string
+		replacements [][2]string
+		authorityID  string
+		accountID    string
+	}{
+		{
+			authorityID: "brand-id1",
+			accountID:   "brand-id1",
+		},
+		{
+			replacements: [][2]string{
+				{"account-id: brand-id1\n", "account-id: system\n"},
+				{"authority-id: brand-id1\n", "authority-id: canonical\n"},
+			},
+			authorityID: "canonical",
+			accountID:   "system",
+		},
+	}
 
-	a, err := asserts.Decode([]byte(encoded))
-	c.Assert(err, IsNil)
-	c.Check(a, NotNil)
-	c.Check(a.Type(), Equals, asserts.ConfdbSchemaType)
-	ar := a.(*asserts.ConfdbSchema)
-	c.Check(ar.AuthorityID(), Equals, "brand-id1")
-	c.Check(ar.AccountID(), Equals, "brand-id1")
-	c.Check(ar.Name(), Equals, "my-network")
-	schema := ar.Schema()
-	c.Assert(schema, NotNil)
-	c.Check(schema.View("wifi-setup"), NotNil)
+	for i, t := range tests {
+		cmt := Commentf("testcase %d/%d", i+1, len(tests))
+		encoded := strings.Replace(confdbExample, "TSLINE", s.tsLine, 1)
+		for _, replace := range t.replacements {
+			encoded = strings.Replace(encoded, replace[0], replace[1], 1)
+		}
+
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil, cmt)
+		c.Check(a.Type(), Equals, asserts.ConfdbSchemaType, cmt)
+		ar := a.(*asserts.ConfdbSchema)
+		c.Check(ar.AuthorityID(), Equals, t.authorityID, cmt)
+		c.Check(ar.AccountID(), Equals, t.accountID, cmt)
+		c.Check(ar.Name(), Equals, "my-network", cmt)
+
+		schema := ar.Schema()
+		c.Assert(schema, NotNil, cmt)
+		c.Check(schema.View("wifi-setup"), NotNil, cmt)
+	}
+}
+
+func (s *confdbSuite) TestBuiltinConfdbSchemas(c *C) {
+	tests := []struct {
+		name  string
+		views []string
+	}{
+		{
+			name:  "validation-sets",
+			views: []string{"state", "admin", "pinning-admin"},
+		},
+	}
+
+	builtins := make(map[string]*asserts.ConfdbSchema)
+	for _, a := range asserts.Builtin() {
+		if cs, ok := a.(*asserts.ConfdbSchema); ok {
+			if _, ok := builtins[cs.Name()]; ok {
+				c.Fatalf("expected one %q confdb-schema: got two", cs.Name())
+			}
+			builtins[cs.Name()] = cs
+		}
+	}
+	// we should have one test per builtin
+	c.Assert(builtins, HasLen, len(tests))
+
+	for _, t := range tests {
+		cmt := Commentf("testcase %q", t.name)
+		cs, ok := builtins[t.name]
+		c.Assert(ok, Equals, true, cmt)
+
+		c.Check(cs.AccountID(), Equals, "system", cmt)
+		c.Check(cs.AuthorityID(), Equals, "canonical", cmt)
+		c.Check(cs.Name(), Equals, t.name, cmt)
+
+		schema := cs.Schema()
+		for _, view := range t.views {
+			c.Check(schema.View(view), NotNil, cmt)
+		}
+
+		// carries a "$builtin" signature
+		_, sign := cs.Signature()
+		c.Assert(string(sign), Equals, "$builtin", cmt)
+	}
 }
 
 func (s *confdbSuite) TestDecodeInvalid(c *C) {
@@ -116,6 +185,7 @@ func (s *confdbSuite) TestDecodeInvalid(c *C) {
 		{"account-id: brand-id1\n", "", `"account-id" header is mandatory`},
 		{"account-id: brand-id1\n", "account-id: \n", `"account-id" header should not be empty`},
 		{"account-id: brand-id1\n", "account-id: random\n", `authority-id and account-id must match, confdb assertions are expected to be signed by the issuer account: "brand-id1" != "random"`},
+		{"account-id: brand-id1\n", "account-id: system\n", `"system" confdb-schemas must be signed by "canonical" got "brand-id1"`},
 		{"name: my-network\n", "", `"name" header is mandatory`},
 		{"name: my-network\n", "name: \n", `"name" header should not be empty`},
 		{"name: my-network\n", "name: my/network\n", `"name" primary key header cannot contain '/'`},
