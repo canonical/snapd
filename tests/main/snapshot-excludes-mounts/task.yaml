@@ -18,8 +18,8 @@ environment:
     SNAP_NAME: test-snapd-mount-control
     SNAP_COMMON: /var/snap/$SNAP_NAME/common
     SNAP_DATA: /var/snap/$SNAP_NAME/x1
-    SNAP_USER_COMMON: /root/snap/$SNAP_NAME/common
-    SNAP_USER_DATA: /root/snap/$SNAP_NAME/x1
+    SNAP_USER_COMMON: $HOME/snap/$SNAP_NAME/common
+    SNAP_USER_DATA: $HOME/snap/$SNAP_NAME/x1
     MOUNT_SRC: /var/tmp/$SNAP_NAME
     SNAPCTL_MOUNT_DEST_COMMON: $SNAP_COMMON/target1
     SNAPCTL_MOUNT_DEST_DATA: $SNAP_DATA/target1
@@ -103,6 +103,8 @@ execute: |
         snap check-snapshot "${set_id}"
     }
 
+    # Depending on TEST_CASE, either just snapctl mounts are expected to be excluded,
+    # or both snapctl and user mounts are expected to be excluded
     then_snapshot_has_mount_point_excludes() {
         local set_id=$1
         echo "Verify snapshot ${set_id} has excludes for active mount points"
@@ -124,6 +126,8 @@ execute: |
         fi
     }
 
+    # Depending on TEST_CASE, either just snapctl mounts are expected to be excluded,
+    # or both snapctl and user mounts are expected to be excluded
     then_restore_and_verify_excludes() {
         local set_id=$1
         echo "Restore snapshot ${set_id} and verify that data outside mount points is present"
