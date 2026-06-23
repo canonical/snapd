@@ -25,6 +25,7 @@
 package devicemgmtstate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -57,6 +58,8 @@ var (
 
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
+
+	awaitSubsystemRetryInterval = 30 * time.Second
 
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
@@ -178,6 +181,23 @@ func (ms *deviceMgmtState) getRequestMessage(id string) (*RequestMessage, error)
 	}
 
 	return nil, fmt.Errorf("cannot find message %q", id)
+}
+
+// removeRequestMessage removes a processed request message from its sequence,
+// leaving the sequence entry in place so its Applied progress is preserved for
+// later messages in the same sequence.
+func (ms *deviceMgmtState) removeRequestMessage(msg *RequestMessage) {
+	seq := ms.Sequences[msg.BaseID]
+	if seq == nil {
+		return
+	}
+
+	for i, m := range seq.Messages {
+		if m.SeqNum == msg.SeqNum {
+			seq.Messages = append(seq.Messages[:i], seq.Messages[i+1:]...)
+			return
+		}
+	}
 }
 
 // enqueueRequestMessages queues incoming request messages for processing
@@ -586,9 +606,86 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // doQueueResponse builds a response, signs it, and queues it for transmission on the next exchange.
-// Retries until subsystem change completes.
+// Retries until the subsystem change (if any) completes.
 func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	var msgID string
+	err = t.Get("message-id", &msgID)
+	if err != nil {
+		return err
+	}
+
+	msg, err := ms.getRequestMessage(msgID)
+	if err != nil {
+		// Message already processed on a prior run.
+		return nil
+	}
+
+	err = m.setMessageResponseFromChange(msg)
+	if err != nil {
+		return err
+	}
+
+	bodyBytes, err := json.Marshal(msg.ResponseBody)
+	if err != nil {
+		return fmt.Errorf("cannot marshal response body: %w", err)
+	}
+
+	resAs, err := m.signer.SignResponseMessage(msg.AccountID, msg.ID(), msg.ResponseStatus, bodyBytes)
+	if err != nil {
+		return fmt.Errorf("cannot sign response message: %w", err)
+	}
+
+	ms.ReadyResponses[msg.ID()] = store.Message{
+		Format: "assertion",
+		Data:   string(asserts.Encode(resAs)),
+	}
+
+	if msg.SeqNum > 0 {
+		ms.Sequences[msg.BaseID].Applied = msg.SeqNum
+	}
+	ms.removeRequestMessage(msg)
+
+	m.setState(ms)
+
+	return nil
+}
+
+// setMessageResponseFromChange populates msg's response fields from the completed apply change.
+func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) error {
+	if msg.ResponseStatus != "" {
+		return nil
+	}
+
+	handler, ok := m.handlers[msg.Kind]
+	if !ok {
+		return fmt.Errorf("cannot find handler for message kind %q", msg.Kind)
+	}
+
+	change := m.state.Change(msg.ApplyChangeID)
+	if change == nil {
+		return fmt.Errorf("cannot find subsystem change %q", msg.ApplyChangeID)
+	}
+	if !change.Status().Ready() {
+		return &state.Retry{After: awaitSubsystemRetryInterval}
+	}
+
+	body, err := handler.ResultFromChange(change)
+	if err != nil {
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": err.Error()}
+	} else {
+		msg.ResponseStatus = asserts.MessageStatusSuccess
+		msg.ResponseBody = body
+	}
+
 	return nil
 }
 
