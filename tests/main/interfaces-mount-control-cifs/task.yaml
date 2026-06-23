@@ -67,9 +67,6 @@ prepare: |
     # credentials here
     smbclient --user test --password test -L //localhost | MATCH "var-cifs-share-with-password .* test CIFS share"
 
-restore: |
-    tests.cleanup restore
-
 execute: |
     snap install test-snapd-mount-control-cifs
     mkdir -p /media/mounted
