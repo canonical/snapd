@@ -68,6 +68,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/ltschannel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -7318,6 +7319,62 @@ func (s *snapmgrTestSuite) TestInjectTasksMainAborted(c *C) {
 	c.Assert(t02.Status(), Equals, state.HoldStatus)
 }
 
+func (s *snapmgrTestSuite) TestJoinLanesFrom(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	from := s.state.NewTask("from", "")
+	lane := s.state.NewLane()
+	from.JoinLane(lane)
+
+	t1 := s.state.NewTask("extra-1", "")
+	t2 := s.state.NewTask("extra-2", "")
+	ts := state.NewTaskSet(t1, t2)
+
+	snapstate.JoinLanesFrom(ts, from)
+
+	c.Assert(t1.Lanes(), DeepEquals, []int{lane})
+	c.Assert(t2.Lanes(), DeepEquals, []int{lane})
+
+	fromLane0 := s.state.NewTask("from-lane-0", "")
+	t3 := s.state.NewTask("extra-3", "")
+	ts0 := state.NewTaskSet(t3)
+	snapstate.JoinLanesFrom(ts0, fromLane0)
+	c.Assert(t3.Lanes(), DeepEquals, []int{0})
+}
+
+func (s *snapmgrTestSuite) TestAddTaskSetsToChange(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("change", "")
+	from := s.state.NewTask("from", "")
+	lane := s.state.NewLane()
+	from.JoinLane(lane)
+	chg.AddTask(from)
+
+	t1 := s.state.NewTask("task-1", "")
+	t2 := s.state.NewTask("task-2", "")
+	ts1 := state.NewTaskSet(t1)
+	t3 := s.state.NewTask("task-3", "")
+	ts2 := state.NewTaskSet(t2, t3)
+
+	ids := snapstate.AddTaskSetsToChange(chg, from, []*state.TaskSet{ts1, ts2})
+	c.Assert(ids, DeepEquals, []string{t1.ID(), t2.ID(), t3.ID()})
+	c.Assert(t1.Change().ID(), Equals, chg.ID())
+	c.Assert(t2.Change().ID(), Equals, chg.ID())
+	c.Assert(t3.Change().ID(), Equals, chg.ID())
+	c.Assert(t1.Lanes(), DeepEquals, []int{lane})
+	c.Assert(t3.Lanes(), DeepEquals, []int{lane})
+
+	chg2 := s.state.NewChange("change-2", "")
+	t4 := s.state.NewTask("task-4", "")
+	ts3 := state.NewTaskSet(t4)
+	ids = snapstate.AddTaskSetsToChange(chg2, nil, []*state.TaskSet{ts3})
+	c.Assert(ids, DeepEquals, []string{t4.ID()})
+	c.Assert(t4.Lanes(), DeepEquals, []int{0})
+}
+
 func hasConfigureTask(ts *state.TaskSet) bool {
 	for _, tk := range taskKinds(ts.Tasks()) {
 		if tk == "run-hook[configure]" {
@@ -7721,7 +7778,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx)
+		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx, "")
 		s.state.Unlock()
 		comment := Commentf("tc %d: %#v", i, tc)
 		if tc.err != "" {
@@ -7730,6 +7787,52 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 			c.Check(err, IsNil, comment)
 			c.Check(ch, Equals, tc.exp, comment)
 		}
+	}
+}
+
+func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
+	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+
+	model := ModelWithBase("core18")
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+	snapID := naming.WellKnownSnapID("snapd")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, tc := range []struct {
+		cur          string
+		new          string
+		exp          string
+		err          string
+		snap         string
+		skipLockdown bool
+	}{
+		{cur: "18/stable", new: "18/edge", exp: "18/edge"},
+		{cur: "18/stable", new: "20/stable", err: `cannot use snapd channel "20/stable": LTS policy rejects track "20"`},
+		{cur: "18/stable", new: "latest/edge", err: `cannot use snapd channel "latest/edge": LTS policy requires "18/edge"`},
+		{cur: "", new: "stable", err: `cannot use snapd channel "stable": LTS policy requires "18/stable"`},
+		{snap: "some-snap", cur: "stable", new: "latest/edge", exp: "latest/edge"},
+		{cur: "18/stable", new: "20/stable", skipLockdown: true, exp: "20/stable"},
+	} {
+		snapName := "snapd"
+		if tc.snap != "" {
+			snapName = tc.snap
+		}
+		lockdownSnapID := snapID
+		if tc.skipLockdown {
+			lockdownSnapID = ""
+		}
+		ch, err := snapstate.ResolveChannel(snapName, tc.cur, tc.new, deviceCtx, lockdownSnapID)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, Commentf("%#v", tc))
+			continue
+		}
+		c.Check(err, IsNil, Commentf("%#v", tc))
+		c.Check(ch, Equals, tc.exp, Commentf("%#v", tc))
 	}
 }
 
@@ -10108,8 +10211,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSnapdAndTwoA
 	c.Assert(app1TS, NotNil)
 	c.Assert(app2TS, NotNil)
 
-	snapdEnd := snapdTS.MaybeEdge(snapstate.EndEdge)
-	c.Assert(snapdEnd, NotNil)
+	snapdEnd := snapdOrderingBarrierTask(c, snapdTS)
 
 	for _, appTS := range []*state.TaskSet{app1TS, app2TS} {
 		appBegin := appTS.MaybeEdge(snapstate.BeginEdge)
@@ -10391,8 +10493,18 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 			// wait for that base's local-modification phase, and then for the base
 			// to link before it proceeds past its own mount phase.
 			if snapdTS := tasksByName["snapd"]; snapdTS != nil {
-				for _, t := range snapdTS.Tasks() {
-					c.Assert(waitsOnTransitively(sts.begin, t), Equals, true)
+				barrier := snapdOrderingBarrierTask(c, snapdTS)
+				if classic {
+					var waitsOnSnapd bool
+					for _, t := range sts.begin.WaitTasks() {
+						if strutil.ListContains(snapdTaskIDs, t.ID()) {
+							waitsOnSnapd = true
+							break
+						}
+					}
+					c.Assert(waitsOnSnapd, Equals, true)
+				} else {
+					c.Assert(waitsOnTransitively(sts.begin, barrier), Equals, true)
 				}
 			}
 

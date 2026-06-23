@@ -55,6 +55,7 @@ import (
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/ltschannel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
@@ -1082,10 +1083,35 @@ func remodelSnapdSnapTasks(ctx context.Context, st *state.State, rm remodeler) (
 
 	// Implicit new channel if snapd is not explicitly in the model
 	newSnapdChannel := "latest/stable"
+	var snapdModelSnap *asserts.ModelSnap
 	essentialSnaps := rm.newModel.EssentialSnaps()
 	if essentialSnaps[0].SnapType == "snapd" {
 		// snapd can be specified explicitly in the model (UC20+)
-		newSnapdChannel = essentialSnaps[0].DefaultChannel
+		snapdModelSnap = essentialSnaps[0]
+		newSnapdChannel = snapdModelSnap.DefaultChannel
+	}
+
+	skipLockdown := snapdModelSnap != nil && snapdModelSnap.SnapID == ""
+	// UC16 has no separate snapd snap (the core snap acts as snapd); LTS snapd channel policy does not apply.
+	if base := rm.newModel.Base(); base == "" || base == "core" {
+		skipLockdown = true
+	}
+	if !skipLockdown {
+		var err error
+		var resolved string
+		resolved, err = ltschannel.SnapdLTSChannel(rm.newModel, newSnapdChannel, nil)
+		if err != nil {
+			if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) ||
+				errors.Is(err, ltschannel.ErrLTSNotAllowed) ||
+				errors.Is(err, ltschannel.ErrLTSInternal) {
+				// Base not yet managed, model type not in scope, or running
+				// snapd cannot load its own map; use the planned channel unchanged.
+				resolved = newSnapdChannel
+			} else {
+				return nil, err
+			}
+		}
+		newSnapdChannel = resolved
 	}
 
 	_, tss, err := rm.maybeInstallOrUpdate(ctx, st, remodelSnapTarget{

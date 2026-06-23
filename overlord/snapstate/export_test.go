@@ -319,6 +319,14 @@ var (
 	MaybeRestoreValidationSetsAndRevertSnaps = maybeRestoreValidationSetsAndRevertSnaps
 )
 
+func JoinLanesFrom(ts *state.TaskSet, from *state.Task) {
+	joinLanesFrom(ts, from)
+}
+
+func AddTaskSetsToChange(chg *state.Change, from *state.Task, tss []*state.TaskSet) []string {
+	return addTaskSetsToChange(chg, from, tss)
+}
+
 type UpdateFilter = updateFilter
 
 func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
@@ -646,6 +654,16 @@ func NewSnapInstallTaskSetForTest(
 }
 
 var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
+
+var (
+	NeedsSnapdLTSChannelResolve    = needsSnapdLTSChannelResolve
+	InspectSnapdLTSAfterDownload   = inspectSnapdLTSAfterDownload
+	MaybeRedirectSnapdToLTSChannel = maybeRedirectSnapdToLTSChannel
+	CheckSnapdLTSTargetPatchLevel  = checkSnapdLTSTargetPatchLevel
+	SnapdLTSChannelAlreadyCorrect  = snapdLTSChannelAlreadyCorrect
+)
+
+type SnapdLTSInspectResult = snapdLTSInspectResult
 
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)

@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -2082,6 +2083,113 @@ func SnapdInfoFromSnapFile(snapf Container, snapType Type) (version string, flag
 		return "", nil, err
 	}
 	return snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", snapType))
+}
+
+// SnapdLTSTrackMapFromSnapFile returns the LTS track map and snapd version from
+// /usr/lib/snapd/info inside the given snapd snap. If SNAPD_LTS_TRACKS is
+// absent or empty, trackMap is nil.
+func SnapdLTSTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	snapdVersion, flags, err := SnapdInfoFromSnapFile(snapf, TypeSnapd)
+	if err != nil {
+		return nil, "", err
+	}
+	if flags == nil {
+		return nil, snapdVersion, nil
+	}
+	raw, ok := flags["SNAPD_LTS_TRACKS"]
+	if !ok {
+		return nil, snapdVersion, nil
+	}
+	trackMap, err = parseSnapdLTSTracks(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	return trackMap, snapdVersion, nil
+}
+
+// SnapdPatchLevelFromSnapFile returns the patch level and snapd version from
+// /usr/lib/snapd/info inside the given snapd snap. If SNAPD_PATCH_LEVEL is
+// absent, patchLevel is 0.
+func SnapdPatchLevelFromSnapFile(snapf Container) (patchLevel int, snapdVersion string, err error) {
+	snapdVersion, flags, err := SnapdInfoFromSnapFile(snapf, TypeSnapd)
+	if err != nil {
+		return 0, "", err
+	}
+	if flags == nil {
+		return 0, snapdVersion, nil
+	}
+	raw, ok := flags["SNAPD_PATCH_LEVEL"]
+	if !ok || strings.TrimSpace(raw) == "" {
+		return 0, snapdVersion, nil
+	}
+	patchLevel, err = strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, snapdVersion, fmt.Errorf("cannot parse SNAPD_PATCH_LEVEL: %v", err)
+	}
+	return patchLevel, snapdVersion, nil
+}
+
+// SnapdLTSTrackMapFromThis returns the LTS track map and snapd version from the
+// info file belonging to the currently executing snapd (deb or re-execed
+// snap). If SNAPD_LTS_TRACKS is absent or empty, trackMap is nil.
+func SnapdLTSTrackMapFromThis() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	return snapdLTSTrackMapFromThis()
+}
+
+var snapdLTSTrackMapFromThis = snapdLTSTrackMapFromThisImpl
+
+func snapdLTSTrackMapFromThisImpl() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	dir, err := snapdtool.InternalLibExecDir()
+	if err != nil {
+		return nil, "", err
+	}
+	snapdVersion, flags, err := snapdtool.SnapdVersionFromInfoFile(dir)
+	if err != nil {
+		return nil, "", err
+	}
+	raw, ok := flags["SNAPD_LTS_TRACKS"]
+	if !ok {
+		return nil, snapdVersion, nil
+	}
+	trackMap, err = parseSnapdLTSTracks(raw)
+	if err != nil {
+		return nil, "", err
+	}
+	return trackMap, snapdVersion, nil
+}
+
+// parseSnapdLTSTracks parses the value of the SNAPD_LTS_TRACKS key from a
+// snapd info file. The expected JSON shape is a map of UC boot base version
+// (e.g. 18, 20) to input-track → LTS-target-track rules. An empty or
+// whitespace-only value returns (nil, nil). Malformed JSON or non-numeric
+// boot-base keys return an error.
+func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	raw = strings.Trim(raw, "'\"")
+	if raw == "" {
+		return nil, nil
+	}
+
+	var stringKeyed map[string]map[string]string
+	if err := json.Unmarshal([]byte(raw), &stringKeyed); err != nil {
+		return nil, fmt.Errorf("cannot parse SNAPD_LTS_TRACKS: %v", err)
+	}
+	if len(stringKeyed) == 0 {
+		return nil, nil
+	}
+
+	tracks := make(map[int]map[string]string, len(stringKeyed))
+	for bootBaseStr, rules := range stringKeyed {
+		bootBase, err := strconv.Atoi(bootBaseStr)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse SNAPD_LTS_TRACKS boot base %q: %v", bootBaseStr, err)
+		}
+		tracks[bootBase] = rules
+	}
+	return tracks, nil
 }
 
 // SnapdAssertionMaxFormatsFromSnapFile returns the supported assertion max

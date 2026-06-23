@@ -781,7 +781,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 			sn.RevOpts.Channel = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx); err != nil {
+		if err := sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx, snapIDForSnapdChannelLockdown(sn.InstanceName, nil, nil, false)); err != nil {
 			return err
 		}
 
@@ -1472,7 +1472,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 			fallback = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
+		if err := sn.RevOpts.resolveChannel(sn.InstanceName, fallback, opts.DeviceCtx, snapIDForSnapdChannelLockdown(sn.InstanceName, snapst, nil, false)); err != nil {
 			return err
 		}
 
@@ -1641,7 +1641,7 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 		update.RevOpts.Channel = update.SideInfo.Channel
 	}
 
-	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx); err != nil {
+	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx, snapIDForSnapdChannelLockdown(update.InstanceName, &snapst, update.SideInfo, true)); err != nil {
 		return target{}, err
 	}
 

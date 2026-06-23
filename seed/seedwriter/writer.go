@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/ltschannel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
@@ -1092,8 +1093,10 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 		optChannel = w.opts.DefaultChannel
 	}
 
+	var resChannel string
 	if modSnap != nil && modSnap.PinnedTrack != "" {
-		resChannel, err := channel.ResolvePinned(modSnap.PinnedTrack, optChannel)
+		var err error
+		resChannel, err = channel.ResolvePinned(modSnap.PinnedTrack, optChannel)
 		if err == channel.ErrPinnedTrackSwitch {
 			return "", fmt.Errorf("option channel %q for %s has a track incompatible with the pinned track from model assertion: %s", optChannel, whichModelSnap(modSnap, w.model), modSnap.PinnedTrack)
 		}
@@ -1102,24 +1105,50 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 			// the inputs parse before
 			return "", fmt.Errorf("internal error: cannot resolve pinned track %q and option channel %q for snap %q", modSnap.PinnedTrack, optChannel, whichSnap)
 		}
-		return resChannel, nil
-	}
-
-	var defaultChannel string
-	if modSnap != nil {
-		defaultChannel = modSnap.DefaultChannel
-		if defaultChannel == "" {
-			defaultChannel = w.policy.modelSnapDefaultChannel()
-		}
 	} else {
-		defaultChannel = w.policy.extraSnapDefaultChannel()
+		var defaultChannel string
+		if modSnap != nil {
+			defaultChannel = modSnap.DefaultChannel
+			if defaultChannel == "" {
+				defaultChannel = w.policy.modelSnapDefaultChannel()
+			}
+		} else {
+			defaultChannel = w.policy.extraSnapDefaultChannel()
+		}
+
+		var err error
+		resChannel, err = channel.Resolve(defaultChannel, optChannel)
+		if err != nil {
+			// shouldn't happen given that we check that
+			// the inputs parse before
+			return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", defaultChannel, optChannel, whichSnap)
+		}
 	}
 
-	resChannel, err := channel.Resolve(defaultChannel, optChannel)
-	if err != nil {
-		// shouldn't happen given that we check that
-		// the inputs parse before
-		return "", fmt.Errorf("internal error: cannot resolve model default channel %q and option channel %q for snap %q", defaultChannel, optChannel, whichSnap)
+	if whichSnap == "snapd" {
+		if modSnap != nil && modSnap.SnapID == "" {
+			return resChannel, nil
+		}
+		if optSnap != nil && optSnap.Path != "" {
+			return resChannel, nil
+		}
+		// UC16 has no separate snapd snap (the core snap acts as
+		// snapd); LTS snapd channel policy does not apply.
+		if base := w.model.Base(); base == "" || base == "core" {
+			return resChannel, nil
+		}
+		resolved, err := ltschannel.SnapdLTSChannel(w.model, resChannel, nil)
+		if err != nil {
+			if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) ||
+				errors.Is(err, ltschannel.ErrLTSNotAllowed) ||
+				errors.Is(err, ltschannel.ErrLTSInternal) {
+				// Base not yet managed, model type not in scope, or running
+				// snapd cannot load its own map; use the planned channel unchanged.
+				return resChannel, nil
+			}
+			return "", err
+		}
+		return resolved, nil
 	}
 	return resChannel, nil
 }

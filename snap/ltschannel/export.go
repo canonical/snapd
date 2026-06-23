@@ -1,0 +1,46 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2026 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package ltschannel
+
+import "github.com/snapcore/snapd/snap"
+
+// MockSnapdLTSTrackMap replaces the running snapd LTS track map and version
+// for tests. version defaults to 2.75 when empty.
+//
+// Lives outside export_test.go because other packages' tests import it.
+func MockSnapdLTSTrackMap(tracks map[int]map[string]string) (restore func()) {
+	return snap.MockSnapdLTSTrackMapFromThis("2.75", tracks)
+}
+
+// MockSnapdLTSDeviceKindScope replaces the device-kind scope flags
+// (supportUbuntuCore, supportClassic, supportHybridClassic) for tests.
+//
+// Lives outside export_test.go because other packages' tests import it.
+func MockSnapdLTSDeviceKindScope(supportUC, supportCl, supportHybrid bool) (restore func()) {
+	restoreUC, restoreCl, restoreHybrid := supportUbuntuCore, supportClassic, supportHybridClassic
+	supportUbuntuCore = supportUC
+	supportClassic = supportCl
+	supportHybridClassic = supportHybrid
+	return func() {
+		supportUbuntuCore = restoreUC
+		supportClassic = restoreCl
+		supportHybridClassic = restoreHybrid
+	}
+}

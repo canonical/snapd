@@ -459,8 +459,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssential(c *C) {
 
 	// snapd is refreshed in this change. thus, essential snaps should not start
 	// prerequisites/download before snapd fully finishes.
-	snapdEndTask, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	snapdEndTask := snapdOrderingBarrierTask(c, stss[0].TaskSet())
 	for _, idx := range []int{1, 2, 3} {
 		beginTask, err := stss[idx].TaskSet().Edge(snapstate.BeginEdge)
 		c.Assert(err, IsNil)
@@ -908,8 +907,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialEarlyDownlo
 	)
 	c.Assert(err, IsNil)
 
-	snapdEnd, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
+	snapdEnd := snapdOrderingBarrierTask(c, stss[0].TaskSet())
 
 	baseBegin, err := stss[1].TaskSet().Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)

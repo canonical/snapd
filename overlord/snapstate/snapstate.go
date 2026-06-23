@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/ltschannel"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
@@ -1646,6 +1647,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			}
 			return nil, false, nil, err
 		}
+
 		lane := generateLane(st, opts)
 		snapLanes[lane] = struct{}{}
 
@@ -1957,10 +1959,35 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
+// snapIDForSnapdChannelLockdown returns a snap ID to use for snapd runtime
+// track lockdown, or empty to skip (unasserted path install). For store
+// installs of snapd the well-known ID is used when no asserted ID is available.
+func snapIDForSnapdChannelLockdown(instanceName string, snapst *SnapState, sideInfo *snap.SideInfo, fromPath bool) string {
+	snapName, _ := snap.SplitInstanceName(instanceName)
+	if snapName != "snapd" {
+		return ""
+	}
+	if fromPath {
+		if sideInfo == nil || sideInfo.SnapID == "" {
+			return ""
+		}
+		return sideInfo.SnapID
+	}
+	if snapst != nil && snapst.IsInstalled() {
+		if si := snapst.CurrentSideInfo(); si != nil && si.SnapID != "" {
+			return si.SnapID
+		}
+	}
+	if sideInfo != nil && sideInfo.SnapID != "" {
+		return sideInfo.SnapID
+	}
+	return naming.WellKnownSnapID("snapd")
+}
+
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
+func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext, snapID string) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return oldChannel, nil
 	}
@@ -1978,22 +2005,59 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 
 	if pinnedTrack == "" {
 		// no pinned track
-		return channel.Resolve(oldChannel, newChannel)
-	}
-
-	// channel name is valid and consist of risk level or
-	// risk/branch only, do the right thing and default to risk (or
-	// risk/branch) within the pinned track
-	resChannel, err := channel.ResolvePinned(pinnedTrack, newChannel)
-	if err == channel.ErrPinnedTrackSwitch {
-		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
-
+		effectiveChannel, err = channel.Resolve(oldChannel, newChannel)
+	} else {
+		// channel name is valid and consist of risk level or
+		// risk/branch only, do the right thing and default to risk (or
+		// risk/branch) within the pinned track
+		effectiveChannel, err = channel.ResolvePinned(pinnedTrack, newChannel)
+		if err == channel.ErrPinnedTrackSwitch {
+			// switching to a different track is not allowed
+			return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
+		}
 	}
 	if err != nil {
 		return "", err
 	}
-	return resChannel, nil
+	if snapName == "snapd" && snapID != "" {
+		required, err := ltschannel.SnapdLTSChannel(model, effectiveChannel, nil)
+		if errors.Is(err, ltschannel.ErrLTSNotAllowed) {
+			// Model is out of scope for LTS policy (classic, UC16, base-less,
+			// etc.); no channel restriction applies.
+			return effectiveChannel, nil
+		}
+		if errors.Is(err, ltschannel.ErrLTSInternal) {
+			// Running snapd cannot load its own LTS map (missing libexec dir,
+			// parse failure, etc.). Channel validation here is a planning-time
+			// best-effort check; pass through and let the download-stage
+			// intercept enforce the correct channel.
+			return effectiveChannel, nil
+		}
+		if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) {
+			// This boot base has no LTS policy yet; no channel restriction applies.
+			return effectiveChannel, nil
+		}
+		if errors.Is(err, ltschannel.ErrLTSNoTrack) {
+			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
+			track := "latest"
+			if parseErr == nil {
+				if parsed.Track != "" {
+					track = parsed.Track
+				}
+			}
+			return "", fmt.Errorf("cannot use snapd channel %q: LTS policy rejects track %q", effectiveChannel, track)
+		}
+		if err != nil {
+			return "", err
+		}
+		if required != effectiveChannel {
+			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
+			if parseErr != nil || required != parsed.Clean().String() {
+				return "", fmt.Errorf("cannot use snapd channel %q: LTS policy requires %q", effectiveChannel, required)
+			}
+		}
+	}
+	return effectiveChannel, nil
 }
 
 var errRevisionSwitch = errors.New("cannot switch revision")
@@ -2089,7 +2153,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTrac
 		return nil, err
 	}
 
-	channel, err := resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
+	channel, err := resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx, snapIDForSnapdChannelLockdown(name, &snapst, nil, false))
 	if err != nil {
 		return nil, err
 	}
@@ -2152,7 +2216,7 @@ func firstNonEmpty(strs ...string) string {
 // resolveChannel conditionally resolves the channel for the given snap. If the
 // the revision is set and the channel is empty, then we assume that the caller
 // wants to install by revision and do not mutate the channel.
-func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
+func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext, snapID string) error {
 	// if the revision is set and the caller didn't provide a channel, then we
 	// shouldn't mess with the channel. this is because we don't want the caller
 	// to have to pick the right channel when refreshing/installing by revision.
@@ -2163,7 +2227,7 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 	// otherwise, we know that the channel is either empty, or it is specified
 	// along with the revision. in either case, we need to resolve the channel.
 
-	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
+	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx, snapID)
 	if err != nil {
 		return err
 	}
