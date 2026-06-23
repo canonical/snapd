@@ -1,6 +1,9 @@
 name: Test Predictor
 
 on:
+  push:
+    branches:
+      - static-analysis-workflow
   workflow_run:
     workflows: [Tests]
     types:
