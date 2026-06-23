@@ -67,6 +67,8 @@ jobs:
       PREDICTOR_URL: ${{ vars.TEST_PREDICTOR_URL || 'http://test-predictor.canonical.com:5000' }}
       TARGET_RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id || '' }}
       RERUN_THRESHOLD: '0.5'
+      SOURCE_OWNER: canonical
+      SOURCE_REPO: snapd
     steps:
       - name: Resolve target workflow run
         id: resolve-run
@@ -76,20 +78,23 @@ jobs:
             let runId = process.env.TARGET_RUN_ID;
             let runAttempt = '1';
 
+            const owner = process.env.SOURCE_OWNER;
+            const repo = process.env.SOURCE_REPO;
+
             if (context.eventName === 'workflow_run') {
               runId = String(context.payload.workflow_run.id);
               runAttempt = String(context.payload.workflow_run.run_attempt || 1);
             } else if (runId) {
               const run = await github.rest.actions.getWorkflowRun({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 run_id: parseInt(runId),
               });
               runAttempt = String(run.data.run_attempt || 1);
             } else {
               const workflows = await github.rest.actions.listWorkflowRuns({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 workflow_id: 'Tests',
                 status: 'completed',
                 per_page: 1,
@@ -111,6 +116,8 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
+            const owner = process.env.SOURCE_OWNER;
+            const repo = process.env.SOURCE_REPO;
             const runId = '${{ steps.resolve-run.outputs.run_id }}';
 
             if ('${{ inputs.pr_number }}') {
@@ -125,8 +132,8 @@ jobs:
             let response;
             do {
               response = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 run_id: parseInt(runId),
                 per_page: 100,
                 page: page
@@ -143,8 +150,8 @@ jobs:
             }
 
             const download = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
+               owner,
+               repo,
                artifact_id: matchArtifact.id,
                archive_format: 'zip',
             });
@@ -162,6 +169,8 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
+            const owner = process.env.SOURCE_OWNER;
+            const repo = process.env.SOURCE_REPO;
             const runId = parseInt('${{ steps.resolve-run.outputs.run_id }}');
             const runAttempt = '${{ steps.resolve-run.outputs.run_attempt }}';
 
@@ -170,8 +179,8 @@ jobs:
             let response;
             do {
               response = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 run_id: runId,
                 per_page: 100,
                 page: page
@@ -192,8 +201,8 @@ jobs:
             const fs = require('fs');
             for (const artifact of matchingArtifacts) {
               const download = await github.rest.actions.downloadArtifact({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 artifact_id: artifact.id,
                 archive_format: 'zip',
               });
@@ -276,7 +285,7 @@ jobs:
         run: |
           RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
           echo "All ${flaky_count} failures appear flaky (success probability > ${RERUN_THRESHOLD}) — triggering rerun"
-          gh run rerun "$RUN_ID" --failed
+          gh run rerun "$RUN_ID" --failed --repo "${SOURCE_OWNER}/${SOURCE_REPO}"
         env:
           flaky_count: ${{ steps.predict.outputs.flaky_count }}
 
@@ -322,16 +331,16 @@ jobs:
 
           # Find and update or create PR comment
           COMMENT_ID=$(gh api \
-            "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            "/repos/${SOURCE_OWNER}/${SOURCE_REPO}/issues/${PR_NUMBER}/comments" \
             --jq ".[] | select(.body | contains(\"${COMMENT_TAG}\")) | .id" \
             2>/dev/null | head -1)
 
           if [[ -n "$COMMENT_ID" ]]; then
             gh api --method PATCH \
-              "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+              "/repos/${SOURCE_OWNER}/${SOURCE_REPO}/issues/comments/${COMMENT_ID}" \
               -F body=@report_body.md
           else
             gh api --method POST \
-              "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+              "/repos/${SOURCE_OWNER}/${SOURCE_REPO}/issues/${PR_NUMBER}/comments" \
               -F body=@report_body.md
           fi
