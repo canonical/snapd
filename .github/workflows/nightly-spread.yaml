@@ -25,6 +25,18 @@ on:
           - spread-master-not-fundamental
           - spread-master-nested
 
+# Granted at workflow level so the reusable spread-tests.yaml `run-spread`
+# job (which declares `pull-requests: read` for `gh pr view`) can be called
+# from a private repo. Reusable workflows cannot elevate caller scopes; an
+# explicit `permissions:` block also resets unlisted scopes to `none`, so
+# `contents`, `packages` and `actions` are listed to preserve defaults
+# (checkout, image pulls, cross-run artifact downloads).
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+  actions: read
+
 jobs:
 
   spread-nightly:
