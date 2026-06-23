@@ -2823,6 +2823,78 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelUnknownTrackErrors(c *
 	c.Assert(err, ErrorMatches, `no LTS track for boot base 18 for input track "20" from running snapd version 2.75`)
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelSkipsUC16(c *C) {
+	// UC16 models have no separate snapd snap (core acts as both base and
+	// snapd). LTS channel resolution must be skipped regardless of whether
+	// snapd happens to be present in state (e.g. in tests), otherwise
+	// SnapdLTSChannel would error for the UC16 boot base.
+	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+		// UC16 has no boot-base entry; a UC20 entry is provided so that
+		// the mock would redirect a UC20 channel but must not affect UC16.
+		20: {"latest": "20", "20": "20"},
+	})
+	defer restoreTracks()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// UC16 state: core (type os), kernel, gadget, and snapd all at latest/stable.
+	snapstatetest.InstallSnap(c, s.state, "name: core\nversion: 1\ntype: os\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("core"),
+		Revision: snap.R(1),
+		RealName: "core",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state, "name: pc-kernel\nversion: 1\ntype: kernel\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+		Revision: snap.R(1),
+		RealName: "pc-kernel",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state, "name: pc\nversion: 1\ntype: gadget\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("pc"),
+		Revision: snap.R(1),
+		RealName: "pc",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+	snapstatetest.InstallSnap(c, s.state, "name: snapd\nversion: 1\ntype: snapd\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("snapd"),
+		Revision: snap.R(1),
+		RealName: "snapd",
+		Channel:  "latest/stable",
+	}, snapstatetest.InstallSnapOptions{Required: true})
+
+	// UC16 model: uses old-style kernel/gadget headers, no base field.
+	current := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	err := assertstate.Add(s.state, current)
+	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]any{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"revision":     "1",
+	})
+
+	testDeviceCtx := &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
+
+	// RemodelTasks must succeed: the UC16 guard must fire before any LTS
+	// channel resolution is attempted, so no error from SnapdLTSChannel.
+	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", devicestate.RemodelOptions{})
+	c.Assert(err, IsNil)
+	// Nothing to update; only the set-model task set is expected.
+	c.Assert(tss, HasLen, 1)
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C) {
 	s.testRemodelUC20SwitchKernelGadgetBaseSnaps(c, &prepareRemodelFlags{})
 }
