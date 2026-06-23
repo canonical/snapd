@@ -91,18 +91,20 @@ func (rs *RestoreState) Revert() {
 			} else if len(nonSnapctlMPs) > 0 {
 				// Non-snapctl mounts are present; RemoveAll will fail on them
 				// anyway, so snapctl mounts are not stopped.
-				logger.Noticef("cannot move data with unknown mount(s) under %q: %s",
+				logger.Noticef("cannot remove data with unknown mount(s) under %q: %s",
 					dir, strings.Join(nonSnapctlMPs, ", "))
 			} else {
 				stoppedUnits, stopErr := stopMountUnits(snapctlMPs)
 				if stopErr != nil {
 					logger.Noticef("cannot stop mount unit(s) for snap %q under %q: %v", rs.Snap, dir, stopErr)
 				}
-				defer func(units []string) {
+				// Pass dir as a parameter to avoid capturing the loop
+				// variable by reference (Go < 1.22 reuses it each iteration).
+				defer func(units []string, d string) {
 					if startErr := startMountUnits(units); startErr != nil {
-						logger.Noticef("cannot restart mount unit(s) for snap %q under %q: %v", rs.Snap, dir, startErr)
+						logger.Noticef("cannot restart mount unit(s) for snap %q under %q: %v", rs.Snap, d, startErr)
 					}
-				}(stoppedUnits)
+				}(stoppedUnits, dir)
 			}
 		}
 		if err := os.RemoveAll(dir); err != nil {

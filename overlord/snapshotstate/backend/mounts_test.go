@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -52,6 +53,15 @@ func makeMountUnitFile(c *C, mountPoint string) string {
 // mountInfoLine returns a single mountinfo line for a bind mount at mountPoint.
 func mountInfoLine(mountPoint string) string {
 	return fmt.Sprintf("100 1 8:1 / %s rw,relatime - tmpfs tmpfs rw\n", mountPoint)
+}
+
+// mountInfoLines returns one mountinfo line per mount point, with unique IDs.
+func mountInfoLines(mountPoints ...string) string {
+	var sb strings.Builder
+	for i, mp := range mountPoints {
+		fmt.Fprintf(&sb, "%d 1 8:1 / %s rw,relatime - tmpfs tmpfs rw\n", 100+i, mp)
+	}
+	return sb.String()
 }
 
 // saveAndOpenSnapshot creates a snapshot of "hello-snap" rev 42 (whose data
@@ -333,7 +343,7 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnNonSnapctlMounts(c *C) {
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
 	c.Check(s.sysd.StopCalls, HasLen, 0)
 	c.Check(s.sysd.StartCalls, HasLen, 0)
-	c.Check(logbuf.String(), testutil.Contains, `cannot move data with unknown mount`)
+	c.Check(logbuf.String(), testutil.Contains, `cannot remove data with unknown mount`)
 }
 
 func (s *snapshotSuite) TestRevertLogsAndContinuesOnStopFailure(c *C) {
@@ -433,4 +443,43 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnListMountError(c *C) {
 	// dir was still removed despite the error
 	_, err := os.Stat(createdDir)
 	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *snapshotSuite) TestRevertRestartsEachDirsMountsIndependently(c *C) {
+	// Two Created dirs each with their own snapctl mount. Start fails for both.
+	// Without the loop-variable fix each deferred closure would capture the
+	// last value of `dir`, so the log would mention only dir2; with the fix
+	// both dirs are mentioned.
+	dir1 := filepath.Join(s.root, "var/snap/mysnap/x1")
+	mp1 := filepath.Join(dir1, "target1")
+	c.Assert(os.MkdirAll(dir1, 0755), IsNil)
+	makeMountUnitFile(c, mp1)
+
+	dir2 := filepath.Join(s.root, "var/snap/mysnap/x2")
+	mp2 := filepath.Join(dir2, "target2")
+	c.Assert(os.MkdirAll(dir2, 0755), IsNil)
+	makeMountUnitFile(c, mp2)
+
+	s.sysd.ListMountUnitsResult = systemdtest.ResultForListMountUnits{
+		MountPoints: []string{mp1, mp2},
+	}
+	s.sysd.StartResult = errors.New("systemd start failed")
+	defer osutil.MockMountInfo(mountInfoLines(mp1, mp2))()
+
+	logbuf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	rs := &backend.RestoreState{
+		Snap:    "mysnap",
+		Created: []string{dir1, dir2},
+	}
+	rs.Revert()
+
+	// Each dir contributes one stop and one (attempted) start.
+	c.Assert(s.sysd.StopCalls, HasLen, 2)
+	c.Assert(s.sysd.StartCalls, HasLen, 2)
+
+	// The error log must mention both dirs, not just the last one.
+	c.Check(logbuf.String(), testutil.Contains, dir1)
+	c.Check(logbuf.String(), testutil.Contains, dir2)
 }

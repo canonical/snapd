@@ -74,7 +74,7 @@ func stopMountUnits(mountPoints []string) (stoppedUnits []string, err error) {
 	for _, mp := range mountPoints {
 		unitPath := systemd.ExistingMountUnitPath(dirs.StripRootDir(mp))
 		if unitPath == "" {
-			return stoppedUnits, fmt.Errorf("cannot find mount unit file for %q", mp)
+			return stoppedUnits, fmt.Errorf("cannot find mount unit file for mount point %q", mp)
 		}
 
 		unit := filepath.Base(unitPath)
