@@ -155,6 +155,12 @@ func firstTaskAfterMount(c *C, ts *state.TaskSet) *state.Task {
 	return nil
 }
 
+func findMountSnap(c *C, ts *state.TaskSet) *state.Task {
+	mountTask := findKindInTaskSet(ts, "mount-snap")
+	c.Assert(mountTask, NotNil)
+	return mountTask
+}
+
 func findSeedRefreshTaskSet(tss []*state.TaskSet) *state.TaskSet {
 	for _, ts := range tss {
 		for _, task := range ts.Tasks() {
@@ -1084,6 +1090,34 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapsup.Channel, Equals, "some-channel")
+}
+
+func (s *snapmgrTestSuite) TestUpdatePrerequisitesSyncTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}}),
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "some-channel"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh-snap", "test: update snap")
+	chg.AddAll(ts)
+
+	earlyPrereq, syncPrereq := findPrereqTasks(c, chg)
+
+	c.Check(earlyPrereq.Has("snap-setup"), Equals, true)
+	c.Check(earlyPrereq.Has("snap-setup-task"), Equals, false)
+
+	c.Check(syncPrereq.Has("snap-setup"), Equals, false)
+	c.Check(syncPrereq.Has("snap-setup-task"), Equals, true)
+	c.Check(firstTaskAfterLocalModifications(c, ts), Equals, syncPrereq)
 }
 
 func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
@@ -4857,7 +4891,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 		}
 		if scenario.update {
 			first := tasks[j]
-			j += 19
+			j += 20
 			c.Check(first.Kind(), Equals, "prerequisites")
 			wait := false
 			if expectedPruned["other-snap"]["aliasA"] {
@@ -7523,7 +7557,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqDetectConflictWithPrereq(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	prereqTask := findStrictlyOnePrereqTask(c, updateChg)
+	prereqTask, _ := findPrereqTasks(c, updateChg)
 
 	// check that it's not done and that it was scheduled for a specific time
 	// (only done when retrying). This doesn't test that it's scheduled for
@@ -7576,7 +7610,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqWithConflictingTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	prereqTask := findStrictlyOnePrereqTask(c, updateChg)
+	prereqTask, _ := findPrereqTasks(c, updateChg)
 
 	// check that it's not done and that it was scheduled for a specific time
 	// (only done when retrying). This doesn't test that it's scheduled for
@@ -7619,7 +7653,7 @@ func (s *snapmgrTestSuite) TestUpdateNoRetryIfPrereqTaskFails(c *C) {
 
 	s.settle(c)
 
-	prereqTask := findStrictlyOnePrereqTask(c, updateChg)
+	prereqTask, _ := findPrereqTasks(c, updateChg)
 
 	// check that the task is done and that it wasn't ever rescheduled for a
 	// specific time (only done when retrying)
@@ -7673,31 +7707,38 @@ func (s *snapmgrTestSuite) TestUpdatePrereqIgnoreDuplOpInSameChange(c *C) {
 	defer s.state.Unlock()
 
 	// check that the prereq task wasn't retried
-	prereqTask := findStrictlyOnePrereqTask(c, chg)
+	prereqTask, _ := findPrereqTasks(c, chg)
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 	c.Assert(prereqTask.AtTime().IsZero(), Equals, true)
 }
 
-// looks for a 'prerequisites' task in the change and fails if more or less
-// than one is found
-func findStrictlyOnePrereqTask(c *C, chg *state.Change) *state.Task {
-	var prereqTask *state.Task
+// findPrereqTasks looks for the early and sync prerequisites tasks in the
+// change and fails if either is missing or duplicated.
+func findPrereqTasks(c *C, chg *state.Change) (earlyPrereq, syncPrereq *state.Task) {
+	checkDuplicate := func(kind string, task, existing *state.Task) {
+		if existing != nil {
+			c.Fatalf("encountered two %s prerequisites tasks in the change but only expected one: \n%s\n%s\n",
+				kind, task.Summary(), existing.Summary())
+		}
+	}
 
 	for _, task := range chg.Tasks() {
 		if task.Kind() != "prerequisites" {
 			continue
 		}
 
-		if prereqTask != nil {
-			c.Fatalf("encountered two 'prerequisite' tasks in the change but only expected one: \n%s\n%s\n",
-				task.Summary(), prereqTask.Summary())
+		if task.Has("prerequisites-sync") {
+			checkDuplicate("sync", task, syncPrereq)
+			syncPrereq = task
+		} else {
+			checkDuplicate("early", task, earlyPrereq)
+			earlyPrereq = task
 		}
-
-		prereqTask = task
 	}
 
-	c.Assert(prereqTask, NotNil)
-	return prereqTask
+	c.Assert(earlyPrereq, NotNil)
+	c.Assert(syncPrereq, NotNil)
+	return earlyPrereq, syncPrereq
 }
 
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequiredRevision(c *C) {
@@ -8782,16 +8823,21 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteBackwardsCompat(c *C) {
 	chg := s.state.NewChange("update", "test: update snap")
 	chg.AddAll(tasks)
 
-	prereqTask := findStrictlyOnePrereqTask(c, chg)
+	earlyPrereq, syncPrereq := findPrereqTasks(c, chg)
 
+	// mimic tasks serialized by an "old" snapd without PrereqContentAttrs.
+	// The new code shouldn't update the prereq since it doesn't have the content attrs.
 	var snapsup snapstate.SnapSetup
-	err = prereqTask.Get("snap-setup", &snapsup)
+	err = earlyPrereq.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-
-	// mimic a task serialized by an "old" snapd without PrereqContentAttrs
-	// The new code shouldn't update the prereq since it doesn't have the content attrs
+	c.Assert(snapsup.InstanceName(), Equals, "outdated-consumer")
 	snapsup.PrereqContentAttrs = nil
-	prereqTask.Set("snap-setup", &snapsup)
+	earlyPrereq.Set("snap-setup", &snapsup)
+
+	// the sync prerequisites task also needs to be updated, since it points to
+	// a different snap setup
+	err = snapstate.SetTaskSnapSetup(syncPrereq, &snapsup)
+	c.Assert(err, IsNil)
 
 	s.settle(c)
 
@@ -9614,9 +9660,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - first local modification task of kernel must be its mount task and must depend on the base mount
-	c.Check(firstTaskOfKernel, Equals, mountTaskOfKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfBase)
+	// - first local modification task of kernel must be its prerequisites sync task
+	// - the kernel mount task must run after the base mount
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfBase)
 	// - the first post-mount task of kernel must depend on the base link
 	c.Check(firstPostMountTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - prerequisites/download should not be serialized behind base link
@@ -9814,8 +9861,8 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelAndSnapdSingleRebootHappy(c *C) {
 
 	c.Check(beginTaskOfBase.WaitTasks(), testutil.Contains, snapdEndTask)
 	c.Check(beginTaskOfKernel.WaitTasks(), testutil.Contains, snapdEndTask)
-	c.Check(firstTaskOfKernel, Equals, mountTaskOfKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfBase)
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfBase)
 	c.Check(firstPostMountTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	c.Check(beginTaskOfKernel.WaitTasks(), Not(testutil.Contains), linkTaskOfBase)
 	c.Check(acTaskOfBase.WaitTasks(), testutil.Contains, linkTaskOfKernel)
@@ -9984,9 +10031,10 @@ func (s *snapmgrTestSuite) TestUpdateGadgetKernelSingleRebootHappy(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - first local modification task of kernel must be its mount task and must depend on the gadget mount
-	c.Check(firstTaskOfKernel, Equals, mountTaskOfKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfGadget)
+	// - first local modification task of kernel must be its prerequisites sync task
+	// - the kernel mount task must run after the gadget mount
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfGadget)
 	// - the first post-mount task of kernel must depend on the gadget link
 	c.Check(firstPostMountTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfGadget)
 	// - "auto-connect" (MaybeRebootWaitEdge) of gadget must depend on "link-snap" of kernel (MaybeRebootEdge)
@@ -10189,9 +10237,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetSingleRebootHappy(c *C) {
 	acTaskOfGadget, err := gadgetTs.Edge(snapstate.MaybeRebootWaitEdge)
 	c.Assert(err, IsNil)
 
-	// - first local modification task of gadget must be its mount task and must depend on the base mount
-	c.Check(firstTaskOfGadget, Equals, mountTaskOfGadget)
-	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, mountTaskOfBase)
+	// - first local modification task of gadget must be its prerequisites sync task
+	// - the gadget mount task must run after the base mount
+	c.Check(firstTaskOfGadget.Kind(), Equals, "prerequisites")
+	c.Check(mountTaskOfGadget.WaitTasks(), testutil.Contains, mountTaskOfBase)
 	// - the first post-mount task of gadget must depend on the base link
 	c.Check(firstPostMountTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of gadget (MaybeRebootEdge)
@@ -10634,9 +10683,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelSingleReboot(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct between base and gadget:
-	// - first local modification task of gadget must be its mount task and must depend on the base mount
-	c.Check(firstTaskOfGadget, Equals, mountTaskOfGadget)
-	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, mountTaskOfBase)
+	// - first local modification task of gadget must be its prerequisites sync task
+	// - the gadget mount task must run after the base mount
+	c.Check(firstTaskOfGadget.Kind(), Equals, "prerequisites")
+	c.Check(mountTaskOfGadget.WaitTasks(), testutil.Contains, mountTaskOfBase)
 	// - the first post-mount task of gadget must depend on the base link
 	c.Check(firstPostMountTaskOfGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of kernel (MaybeRebootEdge)
@@ -10645,9 +10695,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseGadgetKernelSingleReboot(c *C) {
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, lastTaskOfBase)
 
 	// Things that must be correct between gadget and kernel:
-	// - first local modification task of kernel must be its mount task and must depend on the gadget mount
-	c.Check(firstTaskOfKernel, Equals, mountTaskOfKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfGadget)
+	// - first local modification task of kernel must be its prerequisites sync task
+	// - the kernel mount task must run after the gadget mount
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfGadget)
 	// - the first post-mount task of kernel must depend on the gadget link
 	c.Check(firstPostMountTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfGadget)
 	// - "auto-connect" (MaybeRebootWaitEdge) of gadget must depend on last task of base (EndEdge)
@@ -10755,9 +10806,10 @@ func (s *snapmgrTestSuite) TestUpdateBaseKernelSingleRebootUndone(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - first local modification task of kernel must be its mount task and must depend on the base mount
-	c.Check(firstTaskOfKernel, Equals, mountTaskOfKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfBase)
+	// - first local modification task of kernel must be its prerequisites sync task
+	// - the kernel mount task must run after the base mount
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountTaskOfKernel.WaitTasks(), testutil.Contains, mountTaskOfBase)
 	// - the first post-mount task of kernel must depend on the base link
 	c.Check(firstPostMountTaskOfKernel.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - "auto-connect" (MaybeRebootWaitEdge) of base must depend on "link-snap" of kernel (MaybeRebootEdge)
@@ -11139,22 +11191,18 @@ NextSnap1:
 			// the snapd snap. If the snapd snap is present, make sure it's depending on
 			// that
 			if snapdEndTask != nil {
-				firstTaskOfCurrent := firstTaskAfterLocalModifications(c, currentTs)
-				c.Check(firstTaskOfCurrent.WaitTasks(), testutil.Contains, snapdEndTask)
+				mountTaskOfCurrent := findMountSnap(c, currentTs)
+				c.Check(mountTaskOfCurrent.WaitTasks(), testutil.Contains, snapdEndTask)
 			}
 		} else {
-			firstTaskOfCurrent := firstTaskAfterLocalModifications(c, currentTs)
-			firstTaskOfPrev := firstTaskAfterLocalModifications(c, prevRebootTs)
+			mountTaskOfCurrent := findMountSnap(c, currentTs)
+			mountTaskOfPrev := findMountSnap(c, prevRebootTs)
 			linkSnapOfPrev, err := prevRebootTs.Edge(snapstate.MaybeRebootEdge)
 			c.Assert(err, IsNil)
-			c.Check(firstTaskOfCurrent.WaitTasks(), testutil.Contains, firstTaskOfPrev)
+			c.Check(mountTaskOfCurrent.WaitTasks(), testutil.Contains, mountTaskOfPrev)
 
-			if findKindInTaskSet(currentTs, "mount-snap") != nil {
-				firstPostMountOfCurrent := firstTaskAfterMount(c, currentTs)
-				c.Check(firstPostMountOfCurrent.WaitTasks(), testutil.Contains, linkSnapOfPrev)
-			} else {
-				c.Check(firstTaskOfCurrent.WaitTasks(), testutil.Contains, linkSnapOfPrev)
-			}
+			firstPostMountOfCurrent := firstTaskAfterMount(c, currentTs)
+			c.Check(firstPostMountOfCurrent.WaitTasks(), testutil.Contains, linkSnapOfPrev)
 
 			beginTaskOfCurrent, err := currentTs.Edge(snapstate.BeginEdge)
 			c.Assert(err, IsNil)
@@ -11373,11 +11421,11 @@ func (s *snapmgrTestSuite) TestUpdateBaseAndSnapdOrder(c *C) {
 	// Use edges to verify there are correct dependencies
 	beginTaskOfBase, err := baseTs.Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
-	firstTaskOfBase := firstTaskAfterLocalModifications(c, baseTs)
+	mountTaskOfBase := findMountSnap(c, baseTs)
 	lastTaskOfSnapd, err := snapdTs.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
 	c.Check(beginTaskOfBase.WaitTasks(), testutil.Contains, lastTaskOfSnapd)
-	c.Check(firstTaskOfBase.WaitTasks(), testutil.Contains, lastTaskOfSnapd)
+	c.Check(mountTaskOfBase.WaitTasks(), testutil.Contains, lastTaskOfSnapd)
 
 	s.fakeBackend.linkSnapMaybeReboot = true
 	s.fakeBackend.linkSnapRebootFor = map[string]bool{
@@ -18338,6 +18386,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithComponentsRemoved(c *C) {
 		"prerequisites",
 		"download-snap",
 		"validate-snap",
+		"prerequisites",
 		"mount-snap",
 		"run-hook[pre-refresh]",
 		"stop-snap-services",
@@ -20610,9 +20659,10 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshEarlyDownloadWithSnapd(c
 	c.Assert(err, IsNil)
 	c.Check(waitsOnTransitively(seedCreate, snapdLastBefore), Equals, true)
 
-	baseFirstLocalMod := firstTaskAfterLocalModifications(c, baseTS)
-	c.Check(baseFirstLocalMod.WaitTasks(), testutil.Contains, snapdEnd)
-	c.Check(waitsOnTransitively(baseFirstLocalMod, snapdLastBefore), Equals, true)
+	baseMount := findKindInTaskSet(baseTS, "mount-snap")
+	c.Assert(baseMount, NotNil)
+	c.Check(baseMount.WaitTasks(), testutil.Contains, snapdEnd)
+	c.Check(waitsOnTransitively(baseMount, snapdLastBefore), Equals, true)
 
 	snapdFirstLocalMod := firstTaskAfterLocalModifications(c, snapdTS)
 	c.Check(waitsOnTransitively(snapdFirstLocalMod, baseLastBefore), Equals, true)

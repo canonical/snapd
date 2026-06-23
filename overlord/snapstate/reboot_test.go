@@ -73,8 +73,10 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	prereq.Set("snap-setup", snapsup)
 	prepareSnap := s.state.NewTask("prepare-snap", "...")
 	prepareSnap.WaitFor(prereq)
+	prereqSync := s.state.NewTask("prerequisites", "...")
+	prereqSync.WaitFor(prepareSnap)
 	mountSnap := s.state.NewTask("mount-snap", "...")
-	mountSnap.WaitFor(prepareSnap)
+	mountSnap.WaitFor(prereqSync)
 	unlinkSnap := s.state.NewTask("unlink-snap", "...")
 	unlinkSnap.WaitFor(mountSnap)
 	linkSnap := s.state.NewTask("link-snap", "...")
@@ -83,7 +85,7 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	autoConnect.WaitFor(linkSnap)
 	startServices := s.state.NewTask("start-snap-services", "...")
 	startServices.WaitFor(autoConnect)
-	ts := state.NewTaskSet(prereq, prepareSnap, mountSnap, unlinkSnap, linkSnap, autoConnect, startServices)
+	ts := state.NewTaskSet(prereq, prepareSnap, prereqSync, mountSnap, unlinkSnap, linkSnap, autoConnect, startServices)
 
 	ts.MarkEdge(prereq, snapstate.BeginEdge)
 	ts.MarkEdge(prepareSnap, snapstate.LastBeforeLocalModificationsEdge)
@@ -97,6 +99,7 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 		snapsup,
 		ts,
 		[]*state.Task{prereq, prepareSnap}, // before local modification tasks
+		prereqSync,
 		mountSnap,
 		[]*state.Task{unlinkSnap, linkSnap}, // modification inducing tasks before reboot
 		[]*state.Task{autoConnect, startServices}, // post reboot tasks
@@ -525,9 +528,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - first local modification task of kernel must be its mount task and must depend on the base mount
-	c.Check(firstTaskOfKernel, Equals, mountSnapKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountSnapBase)
+	// - first local modification task of kernel must be its prerequisites sync task
+	// - the kernel mount task must run after the base mount
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountSnapKernel.WaitTasks(), testutil.Contains, mountSnapBase)
 	// - the base's remaining pre-reboot work only starts after the kernel mount phase finishes
 	c.Check(unlinkSnapBase.WaitTasks(), testutil.Contains, mountSnapKernel)
 	// - the first post-mount task of kernel must depend on the base link
@@ -602,9 +606,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadget(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - first local modification task of gadget must be its mount task and must depend on the base mount
-	c.Check(firstTaskOfGadget, Equals, mountSnapGadget)
-	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, mountSnapBase)
+	// - first local modification task of gadget must be its prerequisites sync task
+	// - the gadget mount task must run after the base mount
+	c.Check(firstTaskOfGadget.Kind(), Equals, "prerequisites")
+	c.Check(mountSnapGadget.WaitTasks(), testutil.Contains, mountSnapBase)
 	// - the base's remaining pre-reboot work only starts after the gadget mount phase finishes
 	c.Check(unlinkSnapBase.WaitTasks(), testutil.Contains, mountSnapGadget)
 	// - the first post-mount task of gadget must depend on the base link
@@ -677,9 +682,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsGadgetKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct:
-	// - first local modification task of kernel must be its mount task and must depend on the gadget mount
-	c.Check(firstTaskOfKernel, Equals, mountSnapKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountSnapGadget)
+	// - first local modification task of kernel must be its prerequisites sync task
+	// - the kernel mount task must run after the gadget mount
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountSnapKernel.WaitTasks(), testutil.Contains, mountSnapGadget)
 	// - the gadget's remaining pre-reboot work only starts after the kernel mount phase finishes
 	c.Check(unlinkSnapGadget.WaitTasks(), testutil.Contains, mountSnapKernel)
 	// - the first post-mount task of kernel must depend on the gadget link
@@ -760,11 +766,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	// Things that must be correct between base and gadget:
-	// - first local modification task of gadget must be its mount task and must depend on the base mount
-	c.Check(firstTaskOfGadget, Equals, mountSnapGadget)
-	c.Check(firstTaskOfGadget.WaitTasks(), testutil.Contains, mountSnapBase)
-	// - essential mounts happen before the remaining pre-reboot work starts
-	c.Check(mountSnapKernel.WaitTasks(), testutil.Contains, mountSnapGadget)
+	// - first local modification task of gadget must be its prerequisites sync task
+	// - the gadget mount task must run after the base mount
+	c.Check(firstTaskOfGadget.Kind(), Equals, "prerequisites")
+	c.Check(mountSnapGadget.WaitTasks(), testutil.Contains, mountSnapBase)
 	c.Check(unlinkSnapBase.WaitTasks(), testutil.Contains, mountSnapKernel)
 	// - the first post-mount task of gadget must depend on the base link
 	c.Check(unlinkSnapGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
@@ -774,9 +779,10 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 	c.Check(acTaskOfGadget.WaitTasks(), testutil.Contains, lastTaskOfBase)
 
 	// Things that must be correct between gadget and kernel:
-	// - first local modification task of kernel must be its mount task and must depend on the gadget mount
-	c.Check(firstTaskOfKernel, Equals, mountSnapKernel)
-	c.Check(firstTaskOfKernel.WaitTasks(), testutil.Contains, mountSnapGadget)
+	// - first local modification task of kernel must be its prerequisites sync task
+	// - the kernel mount task must run after the gadget mount
+	c.Check(firstTaskOfKernel.Kind(), Equals, "prerequisites")
+	c.Check(mountSnapKernel.WaitTasks(), testutil.Contains, mountSnapGadget)
 	// - the gadget's remaining pre-reboot work starts only after the base pre-reboot phase completes
 	c.Check(unlinkSnapGadget.WaitTasks(), testutil.Contains, linkTaskOfBase)
 	// - the first post-mount task of kernel must depend on the gadget link
@@ -1031,9 +1037,12 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	}
 
 	downloadComp := s.state.NewTask("download-component", "...")
+	prereqSync := s.state.NewTask("prerequisites", "...")
+	prereqSync.Set("prerequisites-sync", true)
+	prereqSync.WaitFor(downloadComp)
 	setupSecurity := s.state.NewTask("setup-profiles", "...")
 	setupSecurity.Set("snap-setup", snapsup)
-	setupSecurity.WaitFor(downloadComp)
+	setupSecurity.WaitFor(prereqSync)
 
 	componentSetupTasks := []string{downloadComp.ID()}
 	setupSecurity.Set("component-setup-tasks", componentSetupTasks)
@@ -1044,7 +1053,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	postLink := s.state.NewTask("run-hook", "...")
 	postLink.WaitFor(linkComp)
 
-	ts := state.NewTaskSet(downloadComp, setupSecurity, linkComp, postLink)
+	ts := state.NewTaskSet(downloadComp, prereqSync, setupSecurity, linkComp, postLink)
 	ts.MarkEdge(downloadComp, snapstate.BeginEdge)
 	ts.MarkEdge(downloadComp, snapstate.LastBeforeLocalModificationsEdge)
 	ts.MarkEdge(setupSecurity, snapstate.SnapSetupEdge)
@@ -1055,6 +1064,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 		snapsup,
 		ts,
 		[]*state.Task{downloadComp},
+		prereqSync,
 		nil,
 		[]*state.Task{setupSecurity, linkComp},
 		[]*state.Task{postLink},
@@ -1271,7 +1281,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsFailsSplit(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		snapstate.NewSnapInstallTaskSetForTest(nil, nil, nil, nil, nil, nil),
+		snapstate.NewSnapInstallTaskSetForTest(nil, nil, nil, nil, nil, nil, nil),
 	}
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,

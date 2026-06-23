@@ -187,7 +187,7 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 	// check that the do-prereq task added all needed prereqs
 	expectedLinkedSnaps := []string{"prereq1", "snapd"}
 	linkedSnaps := make([]string, 0, len(expectedLinkedSnaps))
-	lane := 0
+	var prereqLanes []int
 	for _, t := range chg.Tasks() {
 		if t.Kind() == "link-snap" {
 			snapsup, err := snapstate.TaskSnapSetup(t)
@@ -196,11 +196,12 @@ func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
 			c.Check(snapsup.DevMode, Equals, false)
 			linkedSnaps = append(linkedSnaps, snapsup.InstanceName())
 		} else if t.Kind() == "prerequisites" {
-			c.Assert(t.Lanes(), DeepEquals, []int{lane})
-			lane++
+			c.Assert(t.Lanes(), HasLen, 1)
+			prereqLanes = append(prereqLanes, t.Lanes()[0])
 		}
 	}
-	c.Assert(lane, Equals, 3)
+	// original prereq, early/sync prereqs for prereq1, early/sync prereqs for snapd.
+	c.Assert(prereqLanes, DeepEquals, []int{0, 1, 1, 2, 2})
 	c.Check(linkedSnaps, DeepEquals, expectedLinkedSnaps)
 }
 

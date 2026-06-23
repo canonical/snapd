@@ -107,6 +107,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 				"prepare-snap",
 			}
 			startTasks = append(startTasks, tasksAfterDownload...)
+			startTasks = append(startTasks, "prerequisites")
 			startTasks = append(startTasks, "mount-snap")
 		case opts&localRevision != 0:
 			startTasks = []string{
@@ -114,6 +115,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 				"prepare-snap",
 			}
 			startTasks = append(startTasks, tasksAfterDownload...)
+			startTasks = append(startTasks, "prerequisites")
 		default:
 			startTasks = []string{
 				"prerequisites",
@@ -121,6 +123,7 @@ func expectedDoInstallTasks(typ snap.Type, opts, compOpts, discards int, startTa
 				"validate-snap",
 			}
 			startTasks = append(startTasks, tasksAfterDownload...)
+			startTasks = append(startTasks, "prerequisites")
 			startTasks = append(startTasks, "mount-snap")
 		}
 	}
@@ -3364,8 +3367,8 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	if len(chg1.Tasks()) < len(chg2.Tasks()) {
 		chg1, chg2 = chg2, chg1
 	}
-	c.Assert(taskKinds(chg1.Tasks()), HasLen, 30)
-	c.Assert(taskKinds(chg2.Tasks()), HasLen, 16)
+	c.Assert(taskKinds(chg1.Tasks()), HasLen, 32)
+	c.Assert(taskKinds(chg2.Tasks()), HasLen, 17)
 
 	// FIXME: add helpers and do a DeepEquals here for the operations
 }
@@ -4284,7 +4287,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
-			if t.Kind() == "prerequisites" {
+			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
 				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
@@ -4314,7 +4317,7 @@ func (s *snapmgrTestSuite) TestInstallManyNoDelayed(c *C) {
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
-			if t.Kind() == "prerequisites" {
+			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
 				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
@@ -5399,7 +5402,7 @@ func (s *snapmgrTestSuite) TestInstallPrereqIgnoreConflictInSameChange(c *C) {
 	s.settle(c)
 
 	// check that the prereq task wasn't retried
-	prereqTask := findStrictlyOnePrereqTask(c, chg)
+	prereqTask, _ := findPrereqTasks(c, chg)
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 	c.Assert(prereqTask.AtTime().IsZero(), Equals, true)
 }
@@ -5806,7 +5809,7 @@ epoch: 1
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
-			if t.Kind() == "prerequisites" {
+			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
 				c.Check(sup.SnapName(), Equals, snapNames[i])
@@ -6410,7 +6413,7 @@ epoch: 1
 		// check that tasksets are in separate lanes
 		for _, t := range ts.Tasks() {
 			c.Assert(t.Lanes(), DeepEquals, []int{i + 1})
-			if t.Kind() == "prerequisites" {
+			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
 				c.Check(sup.SnapName(), Equals, snapNames[i])
