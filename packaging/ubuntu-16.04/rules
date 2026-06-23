@@ -95,26 +95,26 @@ export GOMAXPROCS=2
 endif
 
 # build with "tpm" support on ubuntu by default TAGS are the go build tags for
-# all binaries, SNAP_TAGS are for snap-bootstrap build only.
+# all binaries
 _TAGS=
-_SNAP_TAGS=
+_SNAP_BOOTSTRAP_TAGS=
 # check if we need to include the testkeys in the binary
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
   # if enabled also enable bootloader assets testing and fault injection
 	_TAGS := withtestkeys,withbootassetstesting,faultinject,statelocktrace
-	_SNAP_TAGS := nomanagers,withtestkeys,faultinject,statelocktrace
+	_SNAP_BOOTSTRAP_TAGS := nomanagers,withtestkeys,faultinject,statelocktrace
 else
-	_SNAP_TAGS=nomanagers
+	_SNAP_BOOTSTRAP_TAGS=nomanagers
 endif
 
 ifeq (${FIPSBUILD},1)
   # if enabled also enable bootloader assets testing and fault injection
 	_TAGS := $(_TAGS),goexperiment.opensslcrypto,snapdfips
-	_SNAP_TAGS := $(_SNAP_TAGS),goexperiment.opensslcrypto,snapdfips
+	_SNAP_BOOTSTRAP_TAGS := $(_SNAP_BOOTSTRAP_TAGS),goexperiment.opensslcrypto,snapdfips
 endif
 
 TAGS=-tags "$(_TAGS)"
-SNAP_TAGS=-tags "$(_SNAP_TAGS)"
+SNAP_BOOTSTRAP_TAGS=-tags "$(_SNAP_BOOTSTRAP_TAGS)"
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
@@ -253,7 +253,7 @@ endif
 	PATH="$$(pwd)/packaging/build-tools/:$$PATH" \
 		dh_auto_build -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod=vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_BOOTSTRAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
 
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
