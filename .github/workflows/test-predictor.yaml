@@ -19,12 +19,12 @@ on:
         type: string
 
 jobs:
-  # Gate: check if the PR has the required label (skip for schedule/dispatch)
   check-label:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request')
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request')
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.label-check.outputs.should_run }}
@@ -34,53 +34,36 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            // For schedule or manual dispatch, always run
             if (context.eventName !== 'workflow_run') {
-              core.setOutput('should_run', 'true');
-              return;
+              return core.setOutput('should_run', 'true');
             }
 
-            // For workflow_run, check if the PR has the label
             const prs = context.payload.workflow_run.pull_requests || [];
             if (prs.length === 0) {
-              core.info("No pull request associated with this workflow run");
-              core.setOutput('should_run', 'false');
-              return;
+              return core.setOutput('should_run', 'false');
             }
 
-            const prNumber = prs[0].number;
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: prNumber,
+              pull_number: prs[0].number,
             });
 
-            const hasLabel = pr.labels.some(l => l.name === 'run-test-predictor');
-            if (!hasLabel) {
-              core.info(`PR #${prNumber} does not have the 'run-test-predictor' label, skipping`);
-              core.setOutput('should_run', 'false');
-            } else {
-              core.info(`PR #${prNumber} has the 'run-test-predictor' label`);
-              core.setOutput('should_run', 'true');
-            }
+            core.setOutput('should_run', String(pr.labels.some(l => l.name === 'run-test-predictor')));
 
-  # Predict potential failures from spread test results
   predict-failures:
     needs: check-label
     if: needs.check-label.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-      actions: read
+      actions: write
     env:
       GH_TOKEN: ${{ github.token }}
       PREDICTOR_URL: ${{ vars.TEST_PREDICTOR_URL || 'http://test-predictor.canonical.com:5000' }}
-      # Resolve the target run ID based on trigger type
       TARGET_RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id || '' }}
+      RERUN_THRESHOLD: '0.5'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
       - name: Resolve target workflow run
         id: resolve-run
         uses: actions/github-script@v9
@@ -90,11 +73,9 @@ jobs:
             let runAttempt = '1';
 
             if (context.eventName === 'workflow_run') {
-              // Use event data directly — no extra API call needed
               runId = String(context.payload.workflow_run.id);
               runAttempt = String(context.payload.workflow_run.run_attempt || 1);
             } else if (runId) {
-              // workflow_dispatch with explicit run_id — must fetch to get attempt
               const run = await github.rest.actions.getWorkflowRun({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -102,7 +83,6 @@ jobs:
               });
               runAttempt = String(run.data.run_attempt || 1);
             } else {
-              // Schedule trigger or dispatch without run_id: find most recent completed Tests run
               const workflows = await github.rest.actions.listWorkflowRuns({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -129,7 +109,6 @@ jobs:
           script: |
             const runId = '${{ steps.resolve-run.outputs.run_id }}';
 
-            // If manually provided via dispatch input
             if ('${{ inputs.pr_number }}') {
               const fs = require('fs');
               fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number`, '${{ inputs.pr_number }}');
@@ -137,9 +116,7 @@ jobs:
               return;
             }
 
-            // Try to get pr_number artifact from the target workflow run
             let page = 1;
-            let per_page = 100;
             let allArtifacts = [];
             let response;
             do {
@@ -147,30 +124,27 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 run_id: parseInt(runId),
-                per_page: per_page,
+                per_page: 100,
                 page: page
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
             } while (allArtifacts.length < response.data.total_count);
 
-            let matchArtifact = allArtifacts.filter((artifact) => {
-              return artifact.name == "pr_number"
-            })[0];
-
+            const matchArtifact = allArtifacts.find(a => a.name === 'pr_number');
             if (!matchArtifact) {
               core.info("No pr_number artifact found — skipping PR comment");
               core.setOutput('has_pr', 'false');
               return;
             }
 
-            let download = await github.rest.actions.downloadArtifact({
+            const download = await github.rest.actions.downloadArtifact({
                owner: context.repo.owner,
                repo: context.repo.repo,
                artifact_id: matchArtifact.id,
                archive_format: 'zip',
             });
-            let fs = require('fs');
+            const fs = require('fs');
             fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
             core.setOutput('has_pr', 'true');
 
@@ -188,7 +162,6 @@ jobs:
             const runAttempt = '${{ steps.resolve-run.outputs.run_attempt }}';
 
             let page = 1;
-            let per_page = 100;
             let allArtifacts = [];
             let response;
             do {
@@ -196,30 +169,30 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 run_id: runId,
-                per_page: per_page,
+                per_page: 100,
                 page: page
               });
               allArtifacts = allArtifacts.concat(response.data.artifacts);
               page++;
             } while (allArtifacts.length < response.data.total_count);
 
-            let matchingArtifacts = allArtifacts.filter((artifact) => {
-              return artifact.name.startsWith(`spread-results-${runId}-${runAttempt}`);
-            });
+            const matchingArtifacts = allArtifacts.filter(a =>
+              a.name.startsWith(`spread-results-${runId}-${runAttempt}`)
+            );
 
             if (matchingArtifacts.length === 0) {
               core.info("No spread-results artifacts found");
               return;
             }
 
-            for (let artifact of matchingArtifacts) {
-              let download = await github.rest.actions.downloadArtifact({
+            const fs = require('fs');
+            for (const artifact of matchingArtifacts) {
+              const download = await github.rest.actions.downloadArtifact({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 artifact_id: artifact.id,
                 archive_format: 'zip',
               });
-              let fs = require('fs');
               fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
               console.log(`Downloaded artifact: ${artifact.name}.zip`);
             }
@@ -245,53 +218,116 @@ jobs:
           jq -s '{items: (map(.items[]))}' spread-results-${RUN_ID}*/*.json > consolidated-results.json
           echo "has_results=true" >> "$GITHUB_OUTPUT"
 
-      - name: Get predictions for failed tests
+      - name: Predict failure rates for failed tests
+        id: predict
         if: steps.consolidate.outputs.has_results == 'true'
-        continue-on-error: true
         run: |
-          echo "Getting predictions for failed tests"
-          wget -q -O predict https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/src/client/predict
-          chmod +x predict
-          ./predict consolidated-results.json --url "${PREDICTOR_URL}" | tee prediction-output.txt
+          ATTEMPT="${{ steps.resolve-run.outputs.run_attempt }}"
+
+          # Extract failed tests from consolidated results and query the predictor
+          jq -r '.items[] | select(.success == false and .skipped != true and .verb != "checking" and .start != null and .end != null) |
+            [.name, .variant, .verb, .system, .scenario // "generic"] | @tsv' consolidated-results.json |
+          while IFS=$'\t' read -r name variant verb system scenario; do
+            [[ -z "$name" ]] && continue
+            full_name="${name}"
+            [[ -n "$variant" ]] && full_name="${name}:${variant}"
+
+            # Query the predictor REST API directly
+            RESPONSE=$(curl -sf -G "${PREDICTOR_URL}/predict" \
+              --data-urlencode "name=${full_name}" \
+              --data-urlencode "verb=${verb}" \
+              --data-urlencode "system=${system}" \
+              --data-urlencode "scenario=${scenario}" \
+              --data-urlencode "attempt=${ATTEMPT}" \
+              2>/dev/null) || continue
+
+            PROB=$(echo "$RESPONSE" | jq -r '.success_probability // 0')
+            echo "${full_name}|${verb}|${system}|${PROB}" >> predictions.txt
+          done
+
+          # Determine rerun recommendation: rerun if ALL failures look flaky
+          SHOULD_RERUN=false
+          FLAKY_COUNT=0
+          REAL_FAILURE_COUNT=0
+          if [[ -f predictions.txt ]]; then
+            FLAKY_COUNT=$(awk -F'|' -v t="$RERUN_THRESHOLD" '$4+0 > t+0' predictions.txt | wc -l)
+            REAL_FAILURE_COUNT=$(awk -F'|' -v t="$RERUN_THRESHOLD" '$4+0 <= t+0' predictions.txt | wc -l)
+            TOTAL=$((FLAKY_COUNT + REAL_FAILURE_COUNT))
+
+            echo "Predictions: ${TOTAL} failed tests — ${FLAKY_COUNT} likely flaky, ${REAL_FAILURE_COUNT} likely real failures"
+
+            if [[ "$REAL_FAILURE_COUNT" -eq 0 && "$FLAKY_COUNT" -gt 0 ]]; then
+              SHOULD_RERUN=true
+            fi
+          else
+            echo "No failed tests found or predictor unreachable"
+          fi
+
+          echo "should_rerun=${SHOULD_RERUN}" >> "$GITHUB_OUTPUT"
+          echo "flaky_count=${FLAKY_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "real_failure_count=${REAL_FAILURE_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Rerun failed jobs
+        if: steps.predict.outputs.should_rerun == 'true'
+        run: |
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
+          echo "All ${flaky_count} failures appear flaky (success probability > ${RERUN_THRESHOLD}) — triggering rerun"
+          gh run rerun "$RUN_ID" --failed
+        env:
+          flaky_count: ${{ steps.predict.outputs.flaky_count }}
 
       - name: Comment prediction report to PR
-        if: steps.consolidate.outputs.has_results == 'true' && steps.pr-number.outputs.has_pr == 'true'
+        if: steps.predict.outputs.should_rerun != '' && steps.pr-number.outputs.has_pr == 'true'
         run: |
-          if [ ! -s prediction-output.txt ]; then
-            echo "No prediction output generated, skipping comment"
+          if [[ ! -f predictions.txt ]]; then
+            echo "No predictions generated, skipping comment"
             exit 0
           fi
 
           PR_NUMBER="$(cat pr_number)"
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
           COMMENT_TAG="<!-- test-predictor-report -->"
+          FLAKY="${{ steps.predict.outputs.flaky_count }}"
+          REAL="${{ steps.predict.outputs.real_failure_count }}"
+          SHOULD_RERUN="${{ steps.predict.outputs.should_rerun }}"
 
-          # Build the markdown report from prediction output
-          REPORT_CONTENT="${COMMENT_TAG}
-          ## 🔮 Test Predictor Analysis
+          # Build markdown table from predictions
+          {
+            echo "${COMMENT_TAG}"
+            echo "## Test Predictor Analysis"
+            echo ""
+            echo "*Run ID: ${RUN_ID} • ${FLAKY} likely flaky, ${REAL} likely real failures*"
+            echo ""
+            if [[ "$SHOULD_RERUN" == "true" ]]; then
+              echo "> ✅ **All failures appear flaky — rerun triggered automatically.**"
+            else
+              echo "> ⚠️ **Some failures appear to be real — manual investigation recommended.**"
+            fi
+            echo ""
+            echo "| Test | Verb | System | Success Prob |"
+            echo "|------|------|--------|--------------|"
+            sort -t'|' -k4 -n predictions.txt | while IFS='|' read -r name verb system prob; do
+              pct=$(echo "$prob * 100" | bc -l | xargs printf "%.1f")
+              if (( $(echo "$prob > $RERUN_THRESHOLD" | bc -l) )); then
+                echo "| ${name} | ${verb} | ${system} | 🟡 ${pct}% |"
+              else
+                echo "| ${name} | ${verb} | ${system} | 🔴 ${pct}% |"
+              fi
+            done
+          } > report_body.md
 
-          *AI-powered failure risk assessment from [Test Predictor](${PREDICTOR_URL}) • Run ID: ${{ steps.resolve-run.outputs.run_id }}*
-
-          \`\`\`
-          $(cat prediction-output.txt)
-          \`\`\`
-          "
-
-          # Try to find and update existing comment
+          # Find and update or create PR comment
           COMMENT_ID=$(gh api \
             "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
             --jq ".[] | select(.body | contains(\"${COMMENT_TAG}\")) | .id" \
             2>/dev/null | head -1)
 
-          if [ -n "$COMMENT_ID" ]; then
-            gh api \
-              --method PATCH \
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api --method PATCH \
               "/repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
-              -f body="$REPORT_CONTENT"
-            echo "Updated existing prediction comment"
+              -F body=@report_body.md
           else
-            gh api \
-              --method POST \
+            gh api --method POST \
               "/repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
-              -f body="$REPORT_CONTENT"
-            echo "Created new prediction comment"
+              -F body=@report_body.md
           fi
