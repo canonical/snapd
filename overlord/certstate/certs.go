@@ -271,13 +271,14 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 			continue
 		}
 
-		if !isAllowedExtension(caFile.Name()) {
+		caName := caFile.Name()
+		if !isAllowedExtension(caName) || caName == "ca-certificates.crt" {
 			continue
 		}
 
 		// When provided with certificate directories they may be symbolic links to
 		// the actual certificate file.
-		certRealPath := filepath.Join(certsPath, caFile.Name())
+		certRealPath := filepath.Join(certsPath, caName)
 		if caFile.Type()&os.ModeSymlink != 0 {
 			resolvedPath, err := filepath.EvalSymlinks(certRealPath)
 			if err != nil {
@@ -302,8 +303,8 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 
 		// If the file is not a symbolic link then Path and RealPath will be identical.
 		certObject := certificate{
-			Name:            trimExtension(caFile.Name()),
-			Path:            filepath.Join(certsPath, caFile.Name()),
+			Name:            trimExtension(caName),
+			Path:            filepath.Join(certsPath, caName),
 			RealPath:        certRealPath,
 			Sha256:          cert.Sha256,
 			SubjectNameSha1: cert.SubjectNameSha1,
@@ -775,6 +776,17 @@ func refreshCertificateDatabaseImpl() error {
 	manifest, err := generateCACertificates(certs, stagedDir)
 	if err != nil {
 		return err
+	}
+
+	// guard against empty certificate sets, in this case treat it like we do not
+	// have an active generation. This should really only happen on systems that have
+	// an unexpected/unsupported /etc/ssl/certs layout.
+	if len(manifest.records) == 0 {
+		logger.Debugf("no system or user certificates found, no active generation")
+		if err := os.Remove(CurrentCertificateDir()); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("cannot clear merged view: %v", err)
+		}
+		return nil
 	}
 
 	// Name published generations after semantic certificate content plus the

@@ -649,7 +649,7 @@ func (s *certsTestSuite) TestGenerateCACertificatesSkipsSourceBundleFile(c *C) {
 
 	base, err := certstate.ParseCertificates(baseDir)
 	c.Assert(err, IsNil)
-	c.Assert(base, HasLen, 3)
+	c.Assert(base, HasLen, 2)
 
 	err = certstate.GenerateCACertificates(&certstate.Certificates{
 		SystemCertificates: base,

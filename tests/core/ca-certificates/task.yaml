@@ -4,6 +4,10 @@ details: |
     Check that snapd correctly generates the ca-certificates database
     upon first run, the change should be scheduled after seeding.
 
+# skip on UC26 for now, as it only has the ca-certificates db and this 
+# kind of setup needs some changes
+systems: [-ubuntu-core-26-*]
+
 execute: |
     CA_CERTIFICATES_DB=/var/lib/snapd/pki/v1/merged/ca-certificates.crt
     CA_CERTIFICATES_DIR=/var/lib/snapd/pki/v1/merged
