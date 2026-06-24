@@ -53,7 +53,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/systemd"
 )
 
 var _ = check.Suite(&generalSuite{})
@@ -124,10 +123,6 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 
 	restore = daemon.MockSystemdVirt("magic")
 	defer restore()
-	// Set systemd version <230 so QuotaGroups feature unsupported
-	restore = systemd.MockSystemdVersion(229, nil)
-	defer restore()
-
 	buildID := "this-is-my-build-id"
 	restore = daemon.MockBuildID(buildID)
 	defer restore()
@@ -142,7 +137,6 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
 	tr.Set("core", "refresh.timer", "8:00~9:00/2")
 	tr.Set("core", "experimental.parallel-instances", "false")
-	tr.Set("core", "experimental.quota-groups", "true")
 	tr.Commit()
 	st.Unlock()
 
@@ -217,17 +211,6 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	_, exists = parallelInstancesInfo["unsupported-reason"]
 	c.Check(exists, check.Equals, false)
 	c.Check(parallelInstancesInfo["enabled"], check.Equals, false)
-	// Ensure that QuotaGroups exists and is a feature.FeatureInfo
-	quotaGroupsInfoRaw, exists := featuresAll[features.QuotaGroups.String()]
-	c.Assert(exists, check.Equals, true)
-	quotaGroupsInfo, ok := quotaGroupsInfoRaw.(map[string]any)
-	c.Assert(ok, check.Equals, true)
-	// Ensure that QuotaGroups is unsupported but enabled
-	c.Check(quotaGroupsInfo["supported"], check.Equals, false)
-	unsupportedReason, exists := quotaGroupsInfo["unsupported-reason"]
-	c.Check(exists, check.Equals, true)
-	c.Check(unsupportedReason, check.Not(check.Equals), "")
-	c.Check(quotaGroupsInfo["enabled"], check.Equals, true)
 }
 
 func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
@@ -340,9 +323,6 @@ func (s *generalSuite) testSysInfoBinOrigin(c *check.C, exp string, expErr strin
 	dirs.SetRootDir(r)
 
 	restore = daemon.MockSystemdVirt("magic")
-	defer restore()
-	// Set systemd version <230 so QuotaGroups feature unsupported
-	restore = systemd.MockSystemdVersion(229, nil)
 	defer restore()
 
 	buildID := "this-is-my-build-id"
