@@ -1038,6 +1038,82 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	c.Check(ti.queue["msg2"], NotNil)
 }
 
+func (s *deviceMgmtMgrSuite) TestDispatchMessagesLaneIsolation(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "test-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	// Override validate to simulate an internal error for msg1,
+	// causing the task runner to put msg1's chain in error/hold.
+	s.runner.AddHandler("validate-mgmt-message", func(t *state.Task, _ *tomb.Tomb) error {
+		t.State().Lock()
+		defer t.State().Unlock()
+
+		var msgID string
+		err := t.Get("message-id", &msgID)
+		c.Assert(err, IsNil)
+
+		if msgID == "msg1" {
+			return fmt.Errorf("internal error: unexpected state for msg1")
+		}
+
+		return nil
+	}, nil)
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			return map[string]any{"result": "ok"}, nil
+		},
+	})
+
+	s.mgr.MockSigner(&mockSigner{
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
+	c.Assert(changes, HasLen, 1)
+	ti := buildTaskIndex(changes[0])
+
+	// msg1's chain is held due to the validate task's error.
+	c.Check(ti.validate["msg1"].Status(), Equals, state.ErrorStatus)
+	c.Check(ti.apply["msg1"].Status(), Equals, state.HoldStatus)
+	c.Check(ti.queue["msg1"].Status(), Equals, state.HoldStatus)
+
+	// msg2's chain completes independently.
+	c.Check(ti.validate["msg2"].Status(), Equals, state.DoneStatus)
+	c.Check(ti.apply["msg2"].Status(), Equals, state.DoneStatus)
+	c.Check(ti.queue["msg2"].Status(), Equals, state.DoneStatus)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["msg2"].Format, Equals, "assertion")
+}
+
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -1660,28 +1736,6 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 	c.Assert(err, FitsTypeOf, &state.Retry{})
 }
 
-func (s *deviceMgmtMgrSuite) TestDoQueueResponseMessageNotFound(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	ms := &devicemgmtstate.DeviceMgmtState{
-		Sequences:      make(map[string]*devicemgmtstate.SequenceState),
-		ReadyResponses: make(map[string]store.Message),
-	}
-	s.mgr.SetState(ms)
-
-	chg := s.st.NewChange("test", "test change")
-	t := s.st.NewTask("queue-mgmt-response", "queue response for unknown message")
-	t.Set("message-id", "msg1")
-	chg.AddTask(t)
-
-	s.st.Unlock()
-	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
-	s.st.Lock()
-	// Message not found means it was already processed on a prior run; handler returns nil.
-	c.Assert(err, IsNil)
-}
-
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -1714,16 +1768,14 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 
 	s.settle(c)
 
-	var found bool
-	for _, chg := range s.st.Changes() {
-		for _, t := range chg.Tasks() {
-			if t.Kind() == "queue-mgmt-response" && t.Status() == state.ErrorStatus {
-				c.Check(strings.Join(t.Log(), "\n"), testutil.Contains, "cannot sign response message: device key not found")
-				found = true
-			}
-		}
-	}
-	c.Assert(found, Equals, true)
+	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
+	c.Assert(changes, HasLen, 1)
+	ti := buildTaskIndex(changes[0])
+
+	queueTask := ti.queue["mesg-1"]
+	c.Assert(queueTask, NotNil)
+	c.Check(queueTask.Status(), Equals, state.ErrorStatus)
+	c.Check(strings.Join(queueTask.Log(), "\n"), testutil.Contains, "cannot sign response message: device key not found")
 }
 
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {

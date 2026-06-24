@@ -499,8 +499,6 @@ func (m *DeviceMgmtManager) dispatchSequence(dispatchTask *state.Task, seq *sequ
 // the final task so callers can chain subsequent messages after it.
 func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *RequestMessage) *state.Task {
 	chg := prevTask.Change()
-	// TODO: add tests verifying that a failure in one message's task chain does not
-	// affect other messages (lanes provide this isolation, but it needs test coverage).
 	lane := m.state.NewLane()
 
 	addTask := func(kind, summary string) {
