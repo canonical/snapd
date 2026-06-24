@@ -50,10 +50,9 @@ type SeedRefreshEvictionPolicy struct {
 type SeedRefreshCandidate struct {
 	// InstanceName is the snap's instance name.
 	InstanceName string
-
-	// Components is the name of the components involved in the refresh.
+	// Components are the names of the components involved in the refresh.
+	// This will be empty for snap-only refreshes.
 	Components []string
-
 	// SnapSetupTaskIDs are the snap tasks that should be considered as inputs to
 	// recovery system creation. Will be empty for component-only refreshes.
 	SnapSetupTaskIDs []string
