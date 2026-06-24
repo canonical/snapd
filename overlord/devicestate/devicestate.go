@@ -1746,8 +1746,7 @@ func SeedRefreshTasks(
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
-		componentExclusive := len(candidate.SnapSetupTaskIDs) == 0
-		ok, err := triggers(candidate.InstanceName, candidate.Components, componentExclusive)
+		ok, err := triggers(candidate)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1757,7 +1756,9 @@ func SeedRefreshTasks(
 		added[candidate.InstanceName] = true
 
 		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
-		compsups = append(compsups, candidate.ComponentSetupTaskIDs...)
+		for _, tid := range candidate.ComponentSetupTaskIDs {
+			compsups = append(compsups, tid)
+		}
 	}
 	if len(added) == 0 {
 		return nil, nil, nil
@@ -1824,8 +1825,7 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 
 	triggers := seedRefreshTriggers(chg.State(), dctx)
 
-	componentExclusive := len(candidate.SnapSetupTaskIDs) == 0
-	ok, err := triggers(candidate.InstanceName, candidate.Components, componentExclusive)
+	ok, err := triggers(candidate)
 	if err != nil {
 		return nil, err
 	}
@@ -1845,14 +1845,18 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 	return seedTS, nil
 }
 
-func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTasks []string) error {
+func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks []string, compSetupTasks map[string]string) error {
 	setup, err := taskRecoverySystemSetup(create)
 	if err != nil {
 		return err
 	}
 
+	var compSetupTaskIds []string
+	for _, tid := range compSetupTasks {
+		compSetupTaskIds = append(compSetupTaskIds, tid)
+	}
 	setup.SnapSetupTasks = appendUnique(setup.SnapSetupTasks, snapSetupTasks...)
-	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTasks...)
+	setup.ComponentSetupTasks = appendUnique(setup.ComponentSetupTasks, compSetupTaskIds...)
 
 	return setTaskRecoverySystemSetup(create, setup)
 }
@@ -1864,7 +1868,10 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks, compSetupTas
 // gaining/losing snaps
 func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
 	triggers := seedRefreshTriggers(st, dctx)
-	ok, err := triggers(si.SnapName(), nil, false)
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: si.SnapName(),
+	}
+	ok, err := triggers(candidate)
 	if err != nil {
 		return err
 	}
@@ -1878,7 +1885,7 @@ func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.Devic
 // seedRefreshTriggers returns a closure that reports whether the given snap
 // should trigger a seed refresh. The seed is lazily loaded, and only opened
 // when required.
-func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(string, []string, bool) (bool, error) {
+func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(snapstate.SeedRefreshCandidate) (bool, error) {
 	requiredSnap := make(map[string]bool)
 	optionalSnap := make(map[string]bool)
 
@@ -1911,11 +1918,15 @@ func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(str
 
 	var optionalInSeed map[string]bool
 
-	return func(instanceName string, components []string, componentExclusive bool) (bool, error) {
+	return func(candidate snapstate.SeedRefreshCandidate) (bool, error) {
+		// CheckSeedRefreshRemove has both candidate.SnapSetupTaskIDs and
+		// candidate.ComponentSetupTaskIDs empty. Make sure we don't
+		// enter the component exclusive path.
+		componentExclusive := len(candidate.SnapSetupTaskIDs) == 0 && len(candidate.ComponentSetupTaskIDs) > 0
 		if componentExclusive {
-			requiredComp := requiredSnapComps[instanceName]
-			optionalComp := optionalSnapComps[instanceName]
-			for _, component := range components {
+			requiredComp := requiredSnapComps[candidate.InstanceName]
+			optionalComp := optionalSnapComps[candidate.InstanceName]
+			for component, _ := range candidate.ComponentSetupTaskIDs {
 				if requiredComp != nil && requiredComp[component] {
 					return true, nil
 				} else if optionalComp != nil && optionalComp[component] {
@@ -1925,11 +1936,11 @@ func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(str
 			return false, nil
 		}
 
-		if requiredSnap[instanceName] {
+		if requiredSnap[candidate.InstanceName] {
 			return true, nil
 		}
 
-		if !optionalSnap[instanceName] {
+		if !optionalSnap[candidate.InstanceName] {
 			return false, nil
 		}
 
@@ -1964,7 +1975,7 @@ func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(str
 			}
 		}
 
-		return optionalInSeed[instanceName], nil
+		return optionalInSeed[candidate.InstanceName], nil
 	}
 }
 

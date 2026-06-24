@@ -2209,7 +2209,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 		{
 			InstanceName:          "snap-1",
 			SnapSetupTaskIDs:      []string{tSnap1.ID()},
-			ComponentSetupTaskIDs: []string{tComp1.ID()},
+			ComponentSetupTaskIDs: map[string]string{"comp1": tComp1.ID()},
 		},
 		{
 			InstanceName:     "snap-2",
@@ -2274,8 +2274,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksModelComponentExclusive(c *C)
 	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
 		{
 			InstanceName:          "snap-1",
-			Components:            []string{"comp1", "comp2"},
-			ComponentSetupTaskIDs: []string{compTask1.ID(), compTask2.ID()},
+			ComponentSetupTaskIDs: map[string]string{"comp1": compTask1.ID(), "comp2": compTask2.ID()},
 		},
 	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
@@ -2285,7 +2284,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksModelComponentExclusive(c *C)
 	var setup devicestate.RecoverySystemSetup
 	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
 	c.Check(setup.SnapSetupTasks, HasLen, 0)
-	c.Check(setup.ComponentSetupTasks, DeepEquals, []string{compTask1.ID(), compTask2.ID()})
+	c.Check(setup.ComponentSetupTasks, testutil.DeepUnsortedMatches, []string{compTask1.ID(), compTask2.ID()})
 }
 
 func (s *deviceMgrSuite) TestCreateSeedRefreshTasksNonModelComponentExclusive(c *C) {
@@ -2311,8 +2310,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksNonModelComponentExclusive(c 
 	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
 		{
 			InstanceName:          "snap-1",
-			Components:            []string{"comp1", "comp2"},
-			ComponentSetupTaskIDs: []string{compTask1.ID(), compTask2.ID()},
+			ComponentSetupTaskIDs: map[string]string{"comp1": compTask1.ID(), "comp2": compTask2.ID()},
 		},
 	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
@@ -2499,7 +2497,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 	seedTS, err := devicestate.UpdateSeedRefreshChange(chg, dctx, snapstate.SeedRefreshCandidate{
 		InstanceName:          "snap-2",
 		SnapSetupTaskIDs:      []string{snap2Task.ID()},
-		ComponentSetupTaskIDs: []string{"comp-2", "comp-1"},
+		ComponentSetupTaskIDs: map[string]string{"comp1": "comp-1", "comp2": "comp-2"},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
@@ -2510,7 +2508,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 	seedTS, err = devicestate.UpdateSeedRefreshChange(chg, dctx, snapstate.SeedRefreshCandidate{
 		InstanceName:          "snap-1",
 		SnapSetupTaskIDs:      []string{snap1Task.ID()},
-		ComponentSetupTaskIDs: []string{"comp-3"},
+		ComponentSetupTaskIDs: map[string]string{"comp3": "comp-3"},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
@@ -2518,7 +2516,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 	seedTS, err = devicestate.UpdateSeedRefreshChange(chg, dctx, snapstate.SeedRefreshCandidate{
 		InstanceName:          "snap-3",
 		SnapSetupTaskIDs:      []string{snap3Task.ID()},
-		ComponentSetupTaskIDs: []string{"comp-4"},
+		ComponentSetupTaskIDs: map[string]string{"comp4": "comp-4"},
 	})
 	c.Assert(err, IsNil)
 	c.Check(seedTS, IsNil)
@@ -2603,8 +2601,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeComponentExclusive(c *C) {
 
 	seedTS, err := devicestate.UpdateSeedRefreshChange(chg, dctx, snapstate.SeedRefreshCandidate{
 		InstanceName:          "snap-2",
-		Components:            []string{"comp1", "comp2"},
-		ComponentSetupTaskIDs: []string{compTask2.ID(), compTask1.ID()},
+		ComponentSetupTaskIDs: map[string]string{"comp2": compTask2.ID(), "comp1": compTask1.ID()},
 	})
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
@@ -2806,14 +2803,34 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 
 	headers := make([]any, 0, len(snaps))
 	for _, sn := range snaps {
-		if sn["presence"] != "optional" {
-			var files [][]string
-			if sn["type"] == "gadget" {
-				files = [][]string{{"meta/gadget.yaml", mockGadgetUCYaml}}
+		// create asserted snaps with components (if present)
+		if sn["presence"] == "optional" {
+			continue
+		}
+		var files [][]string
+		if sn["type"] == "gadget" {
+			files = [][]string{{"meta/gadget.yaml", mockGadgetUCYaml}}
+		}
+		comps := components[sn["name"]]
+		if len(comps) > 0 {
+			compRevisions := make(map[string]snap.Revision, len(comps))
+			var b strings.Builder
+			b.WriteString(seedRefreshSnapYAML(sn["name"], sn["type"]))
+			b.WriteString("\ncomponents:")
+			for _, comp := range comps {
+				fmt.Fprintf(&b, "\n  %s:\n    type: standard", comp["name"])
+				compRevisions[comp["name"]] = snap.R(1)
+				cname := snap.SnapComponentName(sn["name"], comp["name"])
+				seedtest.SampleSnapYaml[cname] = fmt.Sprintf("component: %s\ntype: standard\nversion: 1.0", cname)
 			}
+			seed20.MakeAssertedSnapWithComps(c, b.String(), files, snap.R(1), compRevisions, "my-brand", seed20.StoreSigning.Database)
+		} else {
 			seed20.MakeAssertedSnap(c, seedRefreshSnapYAML(sn["name"], sn["type"]), files, snap.R(1), "my-brand", seed20.StoreSigning.Database)
 		}
+	}
 
+	for _, sn := range snaps {
+		// create model assertion headers
 		modelSnap := make(map[string]any, len(sn)+1)
 		for k, v := range sn {
 			modelSnap[k] = v
@@ -2827,7 +2844,6 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 			}
 			modelSnap["components"] = modelComps
 		}
-
 		headers = append(headers, modelSnap)
 	}
 
