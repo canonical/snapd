@@ -3766,6 +3766,45 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
 }
 
+func (s *snapmgrTestSuite) TestInstallConfigureDiskSpaceReservation(c *C) {
+	const freeDiskSpace = uint64(1500)
+	var requiredSizes []uint64
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, sz)
+		if sz > freeDiskSpace {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
+		return 123, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-install", true)
+	tr.Set("core", "system.disk-space-reservation", "2kB")
+	tr.Commit()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, FitsTypeOf, &snapstate.InsufficientSpaceError{})
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "system.disk-space-reservation", "1kB")
+	tr.Commit()
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(requiredSizes, DeepEquals, []uint64{2123, 1123})
+}
+
 func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
 	restore := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
 		return 0, fmt.Errorf("boom")
