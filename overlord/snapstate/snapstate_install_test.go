@@ -5402,7 +5402,7 @@ func (s *snapmgrTestSuite) TestInstallPrereqIgnoreConflictInSameChange(c *C) {
 	s.settle(c)
 
 	// check that the prereq task wasn't retried
-	prereqTask, _ := findPrereqTasks(c, chg)
+	prereqTask, _ := findPrereqTasksForSnap(c, chg, "snap-content-plug")
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 	c.Assert(prereqTask.AtTime().IsZero(), Equals, true)
 }
