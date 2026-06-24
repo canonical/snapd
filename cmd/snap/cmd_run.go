@@ -1640,8 +1640,8 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		}
 	}
 
-	securityTag := runner.SecurityTag()
-	cmd = append(cmd, securityTag)
+	appSecurityTag := runner.SecurityTag()
+	cmd = append(cmd, appSecurityTag)
 
 	// when under confinement, snap-exec is run from 'core' snap rootfs
 	snapExecPath := filepath.Join(dirs.CoreLibExecDir, "snap-exec")
@@ -1772,7 +1772,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		// service) was invoked by the user, so it may be running inside
 		// a user's scope cgroup, in which case separate tracking group
 		// needs to be established
-		if err := cgroupConfirmSystemdServiceTracking(securityTag); err != nil {
+		if err := cgroupConfirmSystemdServiceTracking(appSecurityTag); err != nil {
 			if err == cgroup.ErrCannotTrackProcess {
 				// we are not being tracked in a service cgroup
 				// after all, go ahead and create a transient
@@ -1810,7 +1810,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	// Allow using the session bus for all apps but not for hooks.
 	allowSessionBus := !runner.IsHook()
 	// Track, or confirm existing tracking from systemd.
-	if err := cgroupConfirmSystemdAppTracking(securityTag); err != nil {
+	if err := cgroupConfirmSystemdAppTracking(appSecurityTag); err != nil {
 		if err != cgroup.ErrCannotTrackProcess {
 			return err
 		}
@@ -1823,7 +1823,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	}
 	if needsTracking {
 		opts := &cgroup.TrackingOptions{AllowSessionBus: allowSessionBus}
-		if err = cgroupCreateTransientScopeForTracking(securityTag, opts); err != nil {
+		if err = cgroupCreateTransientScopeForTracking(appSecurityTag, opts); err != nil {
 			if err != cgroup.ErrCannotTrackProcess {
 				return err
 			}
@@ -1847,9 +1847,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 				// For apps using core26+, fail hard unless they don't rely on
 				// cgroup for device control and have the self-managed=true
 				// setting.
-				opts, err2 := cgroup.LoadSnapDeviceCgroupOptions(securityTag)
+				snapTag := snap.SecurityTag(runner.info.InstanceName())
+				opts, err2 := cgroup.LoadSnapDeviceCgroupOptions(snapTag)
 				if err2 != nil {
-					logger.Noticef("cannot load snap device cgroup options: %s", err)
+					logger.Noticef("cannot load snap device cgroup options: %s", err2)
 				}
 
 				// NOTE: opts is never nil so this is safe to use even in the error case.
