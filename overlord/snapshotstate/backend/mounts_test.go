@@ -320,13 +320,17 @@ func (s *snapshotSuite) TestRevertStopsAndRestartsSnapctlMounts(c *C) {
 }
 
 func (s *snapshotSuite) TestRevertLogsAndContinuesOnNonSnapctlMounts(c *C) {
-	// Non-snapctl mount under a Created dir.
-	// Logged, no Stop called, Revert continues.
-	createdDir := filepath.Join(s.root, "var/snap/mysnap/x1")
-	mountPoint := filepath.Join(createdDir, "user-target")
-	c.Assert(os.MkdirAll(createdDir, 0755), IsNil)
+	// Non-snapctl mount under the first Created dir; second dir is clean.
+	// Logged for dir1, no Stop called, Revert continues to dir2 and removes it
+	// (verifies the loop is not aborted on a non-snapctl mount).
+	dir1 := filepath.Join(s.root, "var/snap/mysnap/x1")
+	dir2 := filepath.Join(s.root, "var/snap/mysnap/x2")
+	mountPoint := filepath.Join(dir1, "user-target")
+	c.Assert(os.MkdirAll(dir1, 0755), IsNil)
+	c.Assert(os.MkdirAll(dir2, 0755), IsNil)
 
-	// sysd reports no mount-control mounts (ListMountUnitsResult empty default)
+	// sysd reports no mount-control mounts (ListMountUnitsResult empty default);
+	// the non-snapctl mount is only under dir1.
 	defer osutil.MockMountInfo(mountInfoLine(mountPoint))()
 
 	logbuf, restoreLogger := logger.MockLogger()
@@ -334,26 +338,38 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnNonSnapctlMounts(c *C) {
 
 	rs := &backend.RestoreState{
 		Snap:    "mysnap",
-		Created: []string{createdDir},
+		Created: []string{dir1, dir2},
 	}
 	rs.Revert()
 
+	// Both dirs must have been visited (loop continued past dir1).
 	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
-	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 1)
+	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 2)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
+	c.Check(s.sysd.ListMountUnitsCalls[1], DeepEquals, expListMountUnitsParams)
 	c.Check(s.sysd.StopCalls, HasLen, 0)
 	c.Check(s.sysd.StartCalls, HasLen, 0)
 	c.Check(logbuf.String(), testutil.Contains, `cannot remove data with unknown mount`)
+	c.Check(logbuf.String(), testutil.Contains, dir1)
+	// dir1 was skipped (non-snapctl mount present), dir2 was removed.
+	_, err := os.Stat(dir1)
+	c.Check(err, IsNil)
+	_, err = os.Stat(dir2)
+	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 func (s *snapshotSuite) TestRevertLogsAndContinuesOnStopFailure(c *C) {
-	// Stop fails for a snapctl mount under a Created dir.
-	// Logged, no Start called (nothing was stopped).
-	createdDir := filepath.Join(s.root, "var/snap/mysnap/x1")
-	mountPoint := filepath.Join(createdDir, "target")
-	c.Assert(os.MkdirAll(createdDir, 0755), IsNil)
+	// Stop fails for a snapctl mount under the first Created dir; second dir is clean.
+	// Logged for dir1, no Start called, Revert continues to dir2 and removes it
+	// (verifies the loop is not aborted on a stop failure).
+	dir1 := filepath.Join(s.root, "var/snap/mysnap/x1")
+	dir2 := filepath.Join(s.root, "var/snap/mysnap/x2")
+	mountPoint := filepath.Join(dir1, "target")
+	c.Assert(os.MkdirAll(dir1, 0755), IsNil)
+	c.Assert(os.MkdirAll(dir2, 0755), IsNil)
 	unitName := makeMountUnitFile(c, mountPoint)
 
+	// The snapctl mount is only under dir1; dir2 has no mounts.
 	s.sysd.ListMountUnitsResult = systemdtest.ResultForListMountUnits{
 		MountPoints: []string{mountPoint},
 	}
@@ -365,18 +381,27 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnStopFailure(c *C) {
 
 	rs := &backend.RestoreState{
 		Snap:    "mysnap",
-		Created: []string{createdDir},
+		Created: []string{dir1, dir2},
 	}
 	rs.Revert()
 
+	// Both dirs must have been visited (loop continued past dir1).
 	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
-	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 1)
+	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 2)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
+	c.Check(s.sysd.ListMountUnitsCalls[1], DeepEquals, expListMountUnitsParams)
+	// Stop attempted only for dir1's mount; dir2 had no mounts.
 	c.Check(s.sysd.StopCalls, HasLen, 1)
 	c.Check(s.sysd.StopCalls[0], DeepEquals, []string{unitName})
 	c.Check(s.sysd.StartCalls, HasLen, 0)
 	c.Check(logbuf.String(), testutil.Contains, `cannot stop mount unit`)
 	c.Check(logbuf.String(), testutil.Contains, `systemd stop failed`)
+	c.Check(logbuf.String(), testutil.Contains, dir1)
+	// dir1 was skipped (stop failed), dir2 was removed.
+	_, err := os.Stat(dir1)
+	c.Check(err, IsNil)
+	_, err = os.Stat(dir2)
+	c.Check(os.IsNotExist(err), Equals, true)
 }
 
 func (s *snapshotSuite) TestRevertLogsAndContinuesOnStartFailure(c *C) {
@@ -417,10 +442,13 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnStartFailure(c *C) {
 }
 
 func (s *snapshotSuite) TestRevertLogsAndContinuesOnListMountError(c *C) {
-	// ListMountUnits error.
-	// Logged, no Stop called, Revert continues.
-	createdDir := filepath.Join(s.root, "var/snap/mysnap/x1")
-	c.Assert(os.MkdirAll(createdDir, 0755), IsNil)
+	// ListMountUnits error on both Created dirs.
+	// Logged for each, no Stop called, Revert continues to the second dir
+	// after skipping the first (verifies the loop is not aborted on error).
+	dir1 := filepath.Join(s.root, "var/snap/mysnap/x1")
+	dir2 := filepath.Join(s.root, "var/snap/mysnap/x2")
+	c.Assert(os.MkdirAll(dir1, 0755), IsNil)
+	c.Assert(os.MkdirAll(dir2, 0755), IsNil)
 
 	s.sysd.ListMountUnitsResult = systemdtest.ResultForListMountUnits{
 		Err: errors.New("mock ListMountUnits error"),
@@ -431,18 +459,26 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnListMountError(c *C) {
 
 	rs := &backend.RestoreState{
 		Snap:    "mysnap",
-		Created: []string{createdDir},
+		Created: []string{dir1, dir2},
 	}
 	rs.Revert()
 
+	// Both dirs must have been visited (loop continued past the first error).
 	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
-	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 1)
+	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 2)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
+	c.Check(s.sysd.ListMountUnitsCalls[1], DeepEquals, expListMountUnitsParams)
+	c.Check(s.sysd.StopCalls, HasLen, 0)
+	// Error logged for both dirs.
 	c.Check(logbuf.String(), testutil.Contains, `cannot list mounts`)
 	c.Check(logbuf.String(), testutil.Contains, `mock ListMountUnits error`)
-	// dir was still removed despite the error
-	_, err := os.Stat(createdDir)
-	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(logbuf.String(), testutil.Contains, dir1)
+	c.Check(logbuf.String(), testutil.Contains, dir2)
+	// Neither dir was removed because we couldn't determine their mounts.
+	_, err := os.Stat(dir1)
+	c.Check(err, IsNil)
+	_, err = os.Stat(dir2)
+	c.Check(err, IsNil)
 }
 
 func (s *snapshotSuite) TestRevertRestartsEachDirsMountsIndependently(c *C) {

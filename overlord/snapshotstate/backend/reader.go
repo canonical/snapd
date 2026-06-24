@@ -410,7 +410,8 @@ func moveFile(rs *RestoreState, file, sourceDir, targetDir string) error {
 		}
 		stoppedUnits, err := stopMountUnits(snapctlMPs)
 		defer func() {
-			// best effort restart
+			// best effort restart when we exit to restore the mounts in the newly
+			// restored directory, but also cover the error path
 			if startErr := startMountUnits(stoppedUnits); startErr != nil {
 				logger.Noticef("cannot restart mount unit(s) for snap %q under %q: %v",
 					rs.Snap, dst, startErr)
