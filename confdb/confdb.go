@@ -1658,6 +1658,12 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 		return res, nil
 	}
 
+	// we use nil to indicate missing results in a list (if we just did not
+	// include them, the subsequent values would be out of order). Skip it
+	if res == nil {
+		return nil, nil
+	}
+
 	// check if the part is an unmatched placeholder which should have been filled
 	// by the databag with all possible values
 	switch part := unmatchedSuffix[0]; part.Type() {
@@ -2647,6 +2653,7 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 	}
 
 	if matchAll {
+		var hasData bool
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
@@ -2672,16 +2679,20 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 			var res any
 			if err := get(accessors, keyIndex+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
+					// add a nil to maintain the order of nested results. When merging
+					// we'll check for nil values and skip them
+					results = append(results, nil)
 					continue
 				}
+
+				return err
 			}
 
-			if res != nil {
-				results = append(results, res)
-			}
+			hasData = true
+			results = append(results, res)
 		}
 
-		if len(results) == 0 {
+		if !hasData {
 			return &NoDataError{}
 		}
 

@@ -3707,6 +3707,41 @@ func (*viewSuite) TestGetListPlaceholderValueNotFound(c *C) {
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
+func (*viewSuite) TestGetListUnevenListMerge(c *C) {
+	// check that reading lists with values missing in early positions preserves
+	// the position of later elements when merging the results
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{
+					"request": "items[{n}]",
+					"storage": "items[{n}]",
+					"content": []any{
+						map[string]any{"storage": "name"},
+						map[string]any{"storage": "other"},
+					},
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "items"), []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second", "other": "value"},
+	})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	val, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second", "other": "value"},
+	})
+}
+
 func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
 		"foo": map[string]any{
