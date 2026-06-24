@@ -78,7 +78,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		features = strings.Split(header, ",")
 	}
 
-	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid, features)
+	stdout, stderr, changeID, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid, features)
 	if err != nil {
 		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
 			result := map[string]any{
@@ -114,6 +114,11 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	result := map[string]string{
 		"stdout": string(stdout),
 		"stderr": string(stderr),
+	}
+
+	// If a change ID is returned, include it in the response.
+	if changeID != "" {
+		result["change-id"] = changeID
 	}
 
 	return SyncResponse(result)

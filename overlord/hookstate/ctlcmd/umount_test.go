@@ -71,19 +71,19 @@ func (s *umountSuite) SetUpTest(c *C) {
 }
 
 func (s *umountSuite) TestMissingContext(c *C) {
-	_, _, err := ctlcmd.Run(nil, []string{"umount", "/dest"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(nil, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "umount"\) from outside of a snap`)
 }
 
 func (s *umountSuite) TestMissingParameters(c *C) {
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"umount"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount"}, 0, nil)
 	c.Check(err, ErrorMatches, "the required argument `<where>` was not provided")
 }
 
 func (s *umountSuite) TestListUnitFailure(c *C) {
 	s.sysd.ListMountUnitsResult.Err = errors.New("list error")
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot retrieve list of mount units: list error`)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		{SnapName: "snap1", Origin: "mount-control"},
@@ -97,7 +97,7 @@ func (s *umountSuite) TestUnitNotFound(c *C) {
 		"/not/our/mount/destination",
 	}
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot find the given mount`)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		{SnapName: "snap1", Origin: "mount-control"},
@@ -110,7 +110,7 @@ func (s *umountSuite) TestRemovalError(c *C) {
 
 	s.sysd.RemoveMountUnitFileResult = errors.New("remove error")
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot remove mount unit: remove error`)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		{SnapName: "snap1", Origin: "mount-control"},
@@ -123,7 +123,7 @@ func (s *umountSuite) TestRemovalError(c *C) {
 func (s *umountSuite) TestHappy(c *C) {
 	s.sysd.ListMountUnitsResult.MountPoints = []string{"/dest"}
 
-	_, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
+	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		{SnapName: "snap1", Origin: "mount-control"},
