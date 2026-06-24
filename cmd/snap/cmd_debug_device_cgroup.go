@@ -94,9 +94,7 @@ func (cmd *cmdDeviceCgroupDevices) Execute(args []string) error {
 
 	for _, tag := range tags {
 		fmt.Fprintf(w, "Security tag: %s\n", tag)
-		var entries []cgroup.DeviceEntry
-		var err error
-		entries, err = cgroup.ListMediatedDevicesForSecurityTag(tag)
+		entries, err := cgroup.ListMediatedDevicesForSecurityTag(tag)
 		if err != nil {
 			fmt.Fprintf(w, "  error: %v\n", err)
 		} else {
