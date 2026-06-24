@@ -2246,7 +2246,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 	c.Check(boundary, Equals, restart.RestartBoundaryDirectionDo)
 }
 
-func (s *deviceMgrSuite) TestCreateSeedRefreshTasksComponentExclusive(c *C) {
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksModelComponentExclusive(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2266,8 +2266,8 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksComponentExclusive(c *C) {
 		{"name": "snap-1"},
 	}, map[string][]map[string]string{
 		"snap-1": {
-			{"name": "comp1", "presence": "optional"},
-			{"name": "comp2", "presence": "optional"},
+			{"name": "comp1", "presence": "required"},
+			{"name": "comp2", "presence": "required"},
 		},
 	})
 
@@ -2286,6 +2286,38 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksComponentExclusive(c *C) {
 	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
 	c.Check(setup.SnapSetupTasks, HasLen, 0)
 	c.Check(setup.ComponentSetupTasks, DeepEquals, []string{compTask1.ID(), compTask2.ID()})
+}
+
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksNonModelComponentExclusive(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 8, 45, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	compTask1 := s.state.NewTask("fake-download-component", "...")
+	compTask2 := s.state.NewTask("fake-download-component", "...")
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-1"},
+	}, nil)
+
+	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName:          "snap-1",
+			Components:            []string{"comp1", "comp2"},
+			ComponentSetupTaskIDs: []string{compTask1.ID(), compTask2.ID()},
+		},
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
+	c.Assert(err, IsNil)
+	c.Assert(seedTS, IsNil)
+	c.Assert(added, IsNil)
 }
 
 func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) {
