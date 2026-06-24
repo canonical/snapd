@@ -98,8 +98,8 @@ func (c *XKBConfig) KernelCommandLineFragment() string {
 	}
 	opts := strings.Join(c.Options, ",")
 
-	simplified := fmt.Sprintf("%s,%s,%s,%s", layout, c.Model, variant, opts)
-	return fmt.Sprintf("snapd.xkb=%q", simplified)
+	simplified := fmt.Sprintf(`"%s,%s,%s,%s"`, layout, c.Model, variant, opts)
+	return fmt.Sprintf("snapd.xkb=%s", simplified)
 }
 
 func CurrentXKBConfig() (*XKBConfig, error) {

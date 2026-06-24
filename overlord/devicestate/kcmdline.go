@@ -51,7 +51,7 @@ var expectedInstallTimeFragmentIDs = []extraSnapdKernelCommandLineFragmentID{
 	extraSnapdKernelCommandLineFragmentXKB,
 }
 
-func (id extraSnapdKernelCommandLineFragmentID) validate(val string) error {
+func (id extraSnapdKernelCommandLineFragmentID) validate() error {
 	switch id {
 	case extraSnapdKernelCommandLineFragmentXKB:
 		// TODO:FDEM: add kind-specific validation?
@@ -162,7 +162,7 @@ func writeInstallTimeExtraSnapdFragments(deviceSaveDir string, fragments map[str
 // Note that this only updates the specified fragment in snapd state and
 // does not directly update the command line and key polices.
 func setExtraSnapdKernelCommandLineFragment(st *state.State, fragmentID extraSnapdKernelCommandLineFragmentID, fragment string) error {
-	if err := fragmentID.validate(fragment); err != nil {
+	if err := fragmentID.validate(); err != nil {
 		return err
 	}
 

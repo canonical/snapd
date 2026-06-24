@@ -382,7 +382,7 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 				return BadRequest("invalid volume authentication options: %v", err)
 			}
 			if req.KeyboardConfig == nil {
-				return BadRequest("keyboard configuration is required when volume authentication is set")
+				return BadRequest("cannot use volumes authentication without a keyboard configuration")
 			}
 		}
 		if req.KeyboardConfig != nil {

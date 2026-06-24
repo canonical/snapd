@@ -1427,7 +1427,7 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionMissingKeybo
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Message, check.Equals, "keyboard configuration is required when volume authentication is set")
+	c.Check(rsp.Message, check.Equals, "cannot use volumes authentication without a keyboard configuration")
 	c.Check(nCalls, check.Equals, 0)
 }
 
