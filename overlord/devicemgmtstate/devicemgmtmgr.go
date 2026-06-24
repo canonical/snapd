@@ -646,7 +646,14 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 		Data:   string(asserts.Encode(resAs)),
 	}
 
-	if msg.SeqNum > 0 {
+	// TODO: rejecting sequences currently happens in 2 ways:
+	// 1. doDispatchMessage can evict the sequence immediately if it's rejected early.
+	// 2. If it errors elsewhere (in validate, apply, or queue-response), we end
+	//    up not advancing Applied, which means we accumulate messages until we
+	//    hit the sequence cap.
+	// Refactor sequence rejection to always evict immediately and determine the
+	// right behavior for internal errors.
+	if msg.SeqNum > 0 && msg.ResponseStatus == asserts.MessageStatusSuccess {
 		ms.Sequences[msg.BaseID].Applied = msg.SeqNum
 	}
 	ms.removeRequestMessage(msg)

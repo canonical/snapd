@@ -1528,6 +1528,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseStatusAlreadyKnown(c *C) {
 
 	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
 	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseIdempotent(c *C) {
@@ -1641,6 +1642,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
@@ -1837,6 +1839,10 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 	c.Assert(queueTask, NotNil)
 	c.Check(queueTask.Status(), Equals, state.ErrorStatus)
 	c.Check(strings.Join(queueTask.Log(), "\n"), testutil.Contains, "cannot sign response message: device key not found")
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
 }
 
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
