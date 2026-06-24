@@ -1688,6 +1688,67 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find subsystem change "16384"`)
 }
 
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseNoHandlerForMessageKind(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:   "my-brand",
+						AuthorityID: "my-brand",
+						BaseID:      "msg1",
+						Kind:        "unknown-kind",
+						Devices:     []string{"serial-1.my-model.my-brand"},
+						ValidSince:  fixedTestTime,
+						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
+						Body:        `what is this?`,
+					},
+				},
+			},
+		},
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	s.mgr.MockSigner(&mockSigner{
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			c.Check(accountID, Equals, "my-brand")
+			c.Check(messageID, Equals, "msg1")
+			c.Check(status, Equals, asserts.MessageStatusError)
+			c.Check(string(body), Equals, `{"message":"cannot find handler for message kind \"unknown-kind\""}`)
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("queue-mgmt-response", "queue response for msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["msg1"].Messages, HasLen, 0)
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
+}
+
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()

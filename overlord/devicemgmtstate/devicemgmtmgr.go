@@ -664,7 +664,9 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) er
 
 	handler, ok := m.handlers[msg.Kind]
 	if !ok {
-		return fmt.Errorf("cannot find handler for message kind %q", msg.Kind)
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
+		return nil
 	}
 
 	change := m.state.Change(msg.ApplyChangeID)
