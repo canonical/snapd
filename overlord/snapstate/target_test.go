@@ -1170,6 +1170,69 @@ version: 1.0
 	verifyUpdateTasksWithComponents(c, snap.TypeApp, doesReRefresh|localSnap|updatesGadgetAssets|mockDelayedEffects, 0, 0, []string{compName}, ts)
 }
 
+func (s *targetTestSuite) TestPathUpdateGoalExplicitRevisionAlwaysUpdates(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	const (
+		snapName = "some-snap"
+		snapID   = "some-snap-id"
+	)
+
+	rev := snap.R(7)
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: snapName,
+			SnapID:   snapID,
+			Revision: rev,
+		}}),
+		Current:  rev,
+		SnapType: "app",
+	})
+
+	si := &snap.SideInfo{
+		RealName: snapName,
+		SnapID:   snapID,
+		Revision: rev,
+	}
+	snapPath := makeTestSnap(c, `name: some-snap
+version: 1.0
+epoch: 1
+`)
+
+	goal := snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+	})
+
+	// without the revision set, the same-revision update is already satisfied.
+	_, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, Equals, store.ErrNoUpdateAvailable)
+
+	goal = snapstate.PathUpdateGoal(snapstate.PathSnap{
+		InstanceName: snapName,
+		Path:         snapPath,
+		SideInfo:     si,
+		RevOpts: snapstate.RevisionOptions{
+			Revision: rev,
+		},
+	})
+
+	// with the revision set, the same-revision update runs the full update path.
+	ts, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	setupTask, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(setupTask)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.InstanceName(), Equals, snapName)
+	c.Check(snapsup.Revision(), Equals, rev)
+	c.Check(snapsup.SnapPath, Equals, snapPath)
+}
+
 func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentFile(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
