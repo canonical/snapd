@@ -1175,13 +1175,15 @@ func (s *targetTestSuite) TestPathUpdateGoalExplicitRevisionAlwaysUpdates(c *C) 
 	defer s.state.Unlock()
 
 	const (
-		snapName = "some-snap"
-		snapID   = "some-snap-id"
+		snapName       = "some-snap"
+		snapID         = "some-snap-id"
+		trackedChannel = "latest/edge"
 	)
 
 	rev := snap.R(7)
 	snapstate.Set(s.state, snapName, &snapstate.SnapState{
-		Active: true,
+		Active:          true,
+		TrackingChannel: trackedChannel,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
 			RealName: snapName,
 			SnapID:   snapID,
@@ -1231,6 +1233,7 @@ epoch: 1
 	c.Check(snapsup.InstanceName(), Equals, snapName)
 	c.Check(snapsup.Revision(), Equals, rev)
 	c.Check(snapsup.SnapPath, Equals, snapPath)
+	c.Check(snapsup.Channel, Equals, trackedChannel)
 }
 
 func (s *targetTestSuite) TestUpdateComponentsFromPathInvalidComponentFile(c *C) {
