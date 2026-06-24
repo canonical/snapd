@@ -38,14 +38,11 @@ prepare: |
         snap pack classic-container-mgr-snap
         snap install --dangerous --classic test-snapd-classic-container-mgrs*.snap
     fi
-
-restore: |
-    tests.cleanup restore
     if os.query is-xenial || os.query is-bionic; then
-        # old system is not doing cleanups
-        find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do
-             rmdir "$svc" || true
-        done
+        # old kernels do not clean up snap cgroup dirs on snap removal;
+        # registered here so it runs after snap remove --purge docker (LIFO)
+        # shellcheck disable=SC2016
+        tests.cleanup defer sh -c 'find /sys/fs/cgroup/ -type d -name "snap.*" -prune | while read -r svc; do rmdir "$svc" || true; done'
     fi
 
 execute: |
