@@ -129,7 +129,7 @@ var (
 
 	HasOtherInstances = hasOtherInstances
 
-	SafetyMarginDiskSpace = safetyMarginDiskSpace
+	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
 
 	AffectedByRefresh = affectedByRefresh
 
