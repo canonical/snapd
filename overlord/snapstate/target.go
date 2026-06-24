@@ -786,7 +786,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 			sn.RevOpts.Channel = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx); err != nil {
+		if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, "stable", opts.DeviceCtx); err != nil {
 			return err
 		}
 
@@ -1006,7 +1006,7 @@ func (p *seedingGoal) toInstall(ctx context.Context, st *state.State, opts Optio
 		return nil, err
 	}
 
-	t, err := targetForPathSnap(p.snap, snapst, opts)
+	t, err := targetFromPathSnap(p.snap, snapst, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1479,7 +1479,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 			fallback = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
+		if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
 			return err
 		}
 
@@ -1585,7 +1585,7 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 			return updatePlan{}, err
 		}
 
-		t, err := targetForPathSnap(sn, snapst, opts)
+		t, err := targetFromPathSnap(sn, snapst, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -1605,7 +1605,7 @@ func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) erro
 	return nil
 }
 
-func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
+func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
 	si := update.SideInfo
 
 	if si.RealName == "" {
@@ -1644,12 +1644,8 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 		trackingChannel = snapst.TrackingChannel
 	}
 
-	// resolveChannel leaves an empty channel untouched for explicit revision
-	// updates, since store-backed by-revision refreshes should not require a
-	// channel. path installs still need to preserve the channel recorded in the
-	// snap state, so set that fallback before resolving.
 	if update.RevOpts.Channel == "" {
-		update.RevOpts.Channel = firstNonEmpty(update.SideInfo.Channel, trackingChannel)
+		update.RevOpts.Channel = update.SideInfo.Channel
 	}
 
 	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx); err != nil {
