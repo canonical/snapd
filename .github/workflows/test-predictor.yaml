@@ -95,7 +95,7 @@ jobs:
               const workflows = await github.rest.actions.listWorkflowRuns({
                 owner,
                 repo,
-                workflow_id: 'Tests',
+                workflow_id: 'ci-test.yaml',
                 status: 'completed',
                 per_page: 1,
               });
