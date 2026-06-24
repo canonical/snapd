@@ -87,7 +87,7 @@ func (s *ThumbnailerServiceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = apparmorSpec.AddConnectedSlot(s.iface, s.plug, s.coreSlot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.thumbnailer-service.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `interface=com.canonical.Thumbnailer`)
+	c.Assert(apparmorSpec.SnippetForTag("snap.thumbnailer-service.app"), testutil.Contains, `interface=com.lomiri.Thumbnailer`)
 
 	// slots have no permanent snippet on classic
 	appSet, err = interfaces.NewSnapAppSet(s.classicSlot.Snap(), nil)
