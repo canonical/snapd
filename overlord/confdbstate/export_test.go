@@ -102,8 +102,8 @@ func ResetBlockingSignals() {
 	blockingSignals = nil
 }
 
-func MaybeUnblockAccesses(txs *confdbTransactions) error {
-	return maybeUnblockAccesses(txs)
+func MaybeUnblockAccesses(txs *confdbTransactions) {
+	maybeUnblockAccesses(txs)
 }
 
 func GetOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *confdbTransactions, updateTxStateFunc func(*confdbTransactions), err error) {

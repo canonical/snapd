@@ -284,11 +284,7 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, accK
 			}
 		}
 
-		err = maybeUnblockAccesses(txs)
-		if err != nil {
-			return "", fmt.Errorf("cannot cleanup state after timeout/cancel: %v", err)
-		}
-
+		maybeUnblockAccesses(txs)
 		updateTxs(txs)
 
 		return "", fmt.Errorf("cannot %s %s: timed out waiting for access", accKind, view.ID())
@@ -870,11 +866,8 @@ func cleanupAccess(st *state.State, accessID, account, schema string) {
 		}
 	}
 
-	// this may actually not unblock anything, if other accesses are being processed
-	uerr = maybeUnblockAccesses(txs)
-	if uerr != nil {
-		logger.Noticef("cannot unblock next access after failed access: %v", uerr)
-	}
+	// this may not actually unblock anything if other accesses are being processed
+	maybeUnblockAccesses(txs)
 }
 
 // ReadConfdb schedules a change to load a confdb, running any appropriate

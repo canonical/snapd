@@ -426,13 +426,13 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 		}
 	}
 
-	if len(txs.ReadTxIDs) > 0 {
-		// there are other transactions running (can only be reads) so skip this.
-		// The last one will unblock the next accesses
-		return nil
+	// if there are other transactions running, skip this. The last one will
+	// unblock the next access
+	if len(txs.ReadTxIDs) == 0 {
+		maybeUnblockAccesses(txs)
 	}
 
-	return maybeUnblockAccesses(txs)
+	return nil
 }
 
 // maybeUnblockAccesses unblocks as many consecutive pending accesses as
@@ -447,9 +447,9 @@ func unsetOngoingTransaction(st *state.State, account, schemaName, id string) er
 //
 // If accesses are unblocked, they're removed from the Pending list and put into
 // the Scheduling list so we can track unblocked but still unscheduled accesses.
-func maybeUnblockAccesses(txs *confdbTransactions) error {
+func maybeUnblockAccesses(txs *confdbTransactions) {
 	if len(txs.Pending) == 0 || txs.WriteTxID != "" || len(txs.ReadTxIDs) > 0 || len(txs.Scheduling) != 0 {
-		return nil
+		return
 	}
 
 	var upTo int
@@ -471,8 +471,6 @@ func maybeUnblockAccesses(txs *confdbTransactions) error {
 
 	txs.Scheduling = append([]access{}, txs.Pending[:upTo+1]...)
 	txs.Pending = txs.Pending[upTo+1:]
-
-	return nil
 }
 
 func (m *ConfdbManager) noop(*state.Task, *tomb.Tomb) error { return nil }
