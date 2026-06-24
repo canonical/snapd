@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
@@ -1251,10 +1250,6 @@ func (s *quotaControlSuite) TestAddSnapServicesToQuotaJournalGroupQuotaFail(c *C
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.journal-quota", true)
-	tr.Commit()
 
 	// setup test-snap
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
