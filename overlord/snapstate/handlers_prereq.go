@@ -383,6 +383,8 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 				return nil, fmt.Errorf("prerequisite %q is not available during prerequisites synchronization", sn.InstanceName)
 			}
 
+			// content providers are soft prerequisites. if we don't have it by
+			// now, we just proceed.
 			return nil, nil
 		}
 		_, ts, err = InstallOne(context.TODO(), st, StoreInstallGoal(sn), opts)
