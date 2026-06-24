@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -1014,13 +1013,4 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 	linkTask(clearTxTask)
 
 	return ts, clearTxTask, nil
-}
-
-func MockFetchConfdbSchemaAssertion(f func(*state.State, int, string, string) error) func() {
-	osutil.MustBeTestBinary("mocking can only be done in tests")
-	old := assertstateFetchConfdbSchemaAssertion
-	assertstateFetchConfdbSchemaAssertion = f
-	return func() {
-		assertstateFetchConfdbSchemaAssertion = old
-	}
 }

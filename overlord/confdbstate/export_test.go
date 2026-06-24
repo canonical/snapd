@@ -109,3 +109,11 @@ func MaybeUnblockAccesses(txs *confdbTransactions) error {
 func GetOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *confdbTransactions, updateTxStateFunc func(*confdbTransactions), err error) {
 	return getOngoingTxs(st, account, schemaName)
 }
+
+func MockFetchConfdbSchemaAssertion(f func(*state.State, int, string, string) error) func() {
+	old := assertstateFetchConfdbSchemaAssertion
+	assertstateFetchConfdbSchemaAssertion = f
+	return func() {
+		assertstateFetchConfdbSchemaAssertion = old
+	}
+}
