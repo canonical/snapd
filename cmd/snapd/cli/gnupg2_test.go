@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,11 @@
  *
  */
 
-package main
+package cli_test
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	. "gopkg.in/check.v1"
 )
 
-func main() {
-	cli.Main()
-}
+// FIXME: drop once gpg2 is the default
+var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg2"})

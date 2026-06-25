@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,18 @@
  *
  */
 
-package main
+package cli_test
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	. "gopkg.in/check.v1"
+
+	snap "github.com/snapcore/snapd/cmd/snapd/cli"
 )
 
-func main() {
-	cli.Main()
+func (s *SnapSuite) TestCreateKeyInvalidCharacters(c *C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"create-key", "a b"})
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "key name \"a b\" is not valid; only ASCII letters, digits, and hyphens are allowed")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
 }

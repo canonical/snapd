@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,19 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/snapcore/snapd/i18n"
 )
 
-func main() {
-	cli.Main()
-}
+type cmdRoutine struct{}
+
+var shortRoutineHelp = i18n.G("Run routine commands")
+var longRoutineHelp = i18n.G(`
+The routine command contains a selection of additional sub-commands.
+
+Routine commands are not intended to be directly invoked by the user.
+Instead, they are intended to be called by other programs and produce
+machine readable output.
+`)

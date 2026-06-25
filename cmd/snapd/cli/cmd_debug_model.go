@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2019 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,38 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"fmt"
+
+	"github.com/jessevdk/go-flags"
 )
 
-func main() {
-	cli.Main()
+type cmdGetModel struct {
+	clientMixin
+}
+
+func init() {
+	cmd := addDebugCommand("model",
+		"(internal) obtain the active model assertion",
+		"(internal) obtain the active model assertion",
+		func() flags.Commander {
+			return &cmdGetModel{}
+		}, nil, nil)
+	cmd.hidden = true
+}
+
+func (x *cmdGetModel) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+	var resp struct {
+		Model string `json:"model"`
+	}
+	if err := x.client.DebugGet("model", &resp, nil); err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, "%s\n", resp.Model)
+	return nil
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,30 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/jessevdk/go-flags"
 )
 
-func main() {
-	cli.Main()
+type cmdEnsureStateSoon struct {
+	clientMixin
+}
+
+func init() {
+	cmd := addDebugCommand("ensure-state-soon",
+		"(internal) trigger an ensure run in the state engine",
+		"(internal) trigger an ensure run in the state engine",
+		func() flags.Commander {
+			return &cmdEnsureStateSoon{}
+		}, nil, nil)
+	cmd.hidden = true
+}
+
+func (x *cmdEnsureStateSoon) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	return x.client.Debug("ensure-state-soon", nil, nil)
 }

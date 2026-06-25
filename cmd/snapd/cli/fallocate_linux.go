@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2018 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,19 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"os"
+	"syscall"
 )
 
-func main() {
-	cli.Main()
+func maybeReserveDiskSpace(f *os.File, size int64) error {
+	const fallocKeepSize = 1 // This is FALLOC_FL_KEEP_SIZE
+	if err := syscall.Fallocate(int(f.Fd()), fallocKeepSize, 0, size); err != nil {
+		if err != syscall.EOPNOTSUPP && err != syscall.ENOSYS {
+			return err
+		}
+	}
+	return nil
 }

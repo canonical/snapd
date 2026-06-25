@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2015-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,37 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
-func main() {
-	cli.Main()
+type cmdLogout struct {
+	clientMixin
+}
+
+var shortLogoutHelp = i18n.G("Log out of snapd and the store")
+
+var longLogoutHelp = i18n.G(`
+The logout command logs the current user out of snapd and the store.
+`)
+
+func init() {
+	addCommand("logout",
+		shortLogoutHelp,
+		longLogoutHelp,
+		func() flags.Commander {
+			return &cmdLogout{}
+		}, nil, nil)
+}
+
+func (cmd *cmdLogout) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	return cmd.client.Logout()
 }

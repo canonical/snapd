@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !linux
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +18,24 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"fmt"
+	"runtime"
+
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 )
 
-func main() {
-	cli.Main()
+func serverVersion(*client.Client) *client.ServerVersion {
+	return &client.ServerVersion{
+		Version:       i18n.G("unavailable"),
+		Series:        release.Series,
+		OSID:          runtime.GOOS,
+		OnClassic:     true,
+		KernelVersion: fmt.Sprintf("%s (%s)", osutil.KernelVersion(), runtime.GOARCH),
+	}
 }

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2026 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,12 +17,18 @@
  *
  */
 
-package main
+package cli
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/snapcore/snapd/i18n"
 )
 
-func main() {
-	cli.Main()
-}
+type cmdDebug struct{}
+
+var shortDebugHelp = i18n.G("Run debug commands")
+var longDebugHelp = i18n.G(`
+The debug command contains a selection of additional sub-commands.
+
+Debug commands can be removed without notice and may not work on
+non-development systems.
+`)
