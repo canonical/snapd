@@ -108,8 +108,8 @@ execute: |
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_sh > device-access.map-app
 
-    echo "Verify snap debug device-cgroup devices shows the allowed devices for the app"
-    snap debug device-cgroup devices test-snapd-service > device-cgroup-devices.out
+    echo "Verify snap debug device-cgroup shows the allowed devices for the app"
+    snap debug device-cgroup test-snapd-service > device-cgroup-devices.out
     MATCH 'Security tag: snap\.test-snapd-service\.sh' < device-cgroup-devices.out
     MATCH 'c +1:3 +rwm +/dev/null' < device-cgroup-devices.out
 
@@ -138,8 +138,8 @@ execute: |
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service > device-access.map-service
 
-    echo "Verify snap debug device-cgroup devices also shows the service's allowed devices"
-    snap debug device-cgroup devices test-snapd-service > device-cgroup-devices-service.out
+    echo "Verify snap debug device-cgroup also shows the service's allowed devices"
+    snap debug device-cgroup test-snapd-service > device-cgroup-devices-service.out
     MATCH 'Security tag: snap\.test-snapd-service\.test-snapd-service' < device-cgroup-devices-service.out
     MATCH 'c +1:3 +rwm +/dev/null' < device-cgroup-devices-service.out
 
