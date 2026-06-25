@@ -20,6 +20,7 @@
 package systemd
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -37,8 +38,9 @@ type addedService struct {
 // holds internal state that is used by the systemd backend during the interface
 // setup process.
 type Specification struct {
-	curIface string
-	services map[string]*addedService
+	curIface             string
+	services             map[string]*addedService
+	snapServiceOverrides map[string]*addedSnapServiceOverride
 }
 
 // AddService adds a new systemd service unit.
@@ -60,6 +62,31 @@ func (spec *Specification) AddService(distinctServiceSuffix string, s *Service) 
 	spec.services[distinctServiceSuffix] = &addedService{
 		svc:   s,
 		iface: spec.curIface,
+	}
+	return nil
+}
+
+type addedSnapServiceOverride struct {
+	plugOrSlot string
+	content    []byte
+}
+
+// Note: Slot and plug names share the same namespace and snap validation enforces name
+// uniqueness checks, hence conflicts are not possible.
+func (spec *Specification) AddSnapServiceOverride(plugOrSlot string, name string, content []byte) error {
+	if old, ok := spec.snapServiceOverrides[name]; ok && old != nil && !bytes.Equal(old.content, content) {
+		if old.plugOrSlot == plugOrSlot {
+			return fmt.Errorf("internal error: %q has inconsistent system needs: service override for %q used to be defined as:\n%s\nnow re-defined as:\n%s", plugOrSlot, name, string(old.content), string(content))
+		} else {
+			return fmt.Errorf("internal error: %q and %q have conflicting system needs: service override for %q used to be defined as:\n%s\nnow re-defined as:\n%s", plugOrSlot, old.plugOrSlot, name, string(old.content), string(content))
+		}
+	}
+	if spec.snapServiceOverrides == nil {
+		spec.snapServiceOverrides = make(map[string]*addedSnapServiceOverride)
+	}
+	spec.snapServiceOverrides[name] = &addedSnapServiceOverride{
+		plugOrSlot: plugOrSlot,
+		content:    content,
 	}
 	return nil
 }
