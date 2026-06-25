@@ -1,7 +1,6 @@
 # New in snapd 2.76.1
 * LP: #2067006 CVE-2024-5300
 * CVE-2026-3888
-* SNAPDENG-36017
 
 # New in snapd 2.76
 * assertions: add helper for validating integrity data

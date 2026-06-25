@@ -1016,6 +1016,11 @@ fi
 %endif
 
 %changelog
+* Thu Jun 25 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.76.1
+ - LP: #2067006 CVE-2024-5300
+ - CVE-2026-3888
+
 * Sat Jun 20 2026 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.76.1
  - LP: #2067006 CVE-2024-5300
