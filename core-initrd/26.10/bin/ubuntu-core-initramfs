@@ -466,7 +466,7 @@ def install_misc(dest_dir, sysroot, deb_arch):
     ]
     files += glob.glob("/lib/" + deb_arch + "/libnss_compat.so.*")
     files += glob.glob("/lib/" + deb_arch + "/libnss_files.so.*")
-    files += glob.glob("/usr/lib/" + deb_arch + "/libtss2*")
+    files += glob.glob("/usr/lib/" + deb_arch + "/libtss2*.so.*")
     files += glob.glob("/usr/lib/" + deb_arch + "/plymouth/renderers/*.so")
     files += glob.glob("/usr/share/plymouth/themes/bgrt/*")
     files += glob.glob("/usr/share/plymouth/themes/spinner/*")
