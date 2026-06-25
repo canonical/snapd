@@ -92,6 +92,7 @@ build_deb(){
             FIPS_BUILD_OPTION=fips
             ;;
     esac
+
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$newver" "testing build"
 
@@ -227,6 +228,13 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if os.query is-classic && [ -n "$TAG_FEATURES"] && [ "$SPREAD_REBOOT" = 0 ]; then
+        cat <<'EOF' | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
+GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} snapd.trace=1 snapd.jsonlog=1"
+EOF
+sudo update-grub
+REBOOT
+    fi
     if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
         "$TESTSTOOLS"/snapd-state cancel-autorefresh
 

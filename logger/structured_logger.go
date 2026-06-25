@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
 type StructuredLog struct {
@@ -143,7 +144,7 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 	if opts == nil {
 		opts = &LoggerOptions{}
 	}
-	if !osutil.GetenvBool("SNAPD_JSON_LOGGING") {
+	if !osutil.GetenvBool("SNAPD_JSON_LOGGING") && !jsonLoggingEnabledOnKernelCmdline() {
 		return newLog(w, flag, opts)
 	}
 	options := &slog.HandlerOptions{
@@ -188,8 +189,28 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 		log:      slog.New(slog.NewJSONHandler(w, options)),
 		debug:    opts.ForceDebug || debugEnabledOnKernelCmdline(),
 		flags:    flag,
-		trace:    false,
+		trace:    traceEnabledOnKernelCmdline(),
 		seenLogs: make(map[string]bool),
 	}
 	return logger
+}
+
+func traceEnabledOnKernelCmdline() bool {
+	// if this is called during tests, always ignore it so we don't have to mock
+	// the /proc/cmdline for every test that ends up using a logger
+	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
+		return false
+	}
+	m, _ := kcmdline.KeyValues("tag.features")
+	return m["tag.features"] == "1"
+}
+
+func jsonLoggingEnabledOnKernelCmdline() bool {
+	// if this is called during tests, always ignore it so we don't have to mock
+	// the /proc/cmdline for every test that ends up using a logger
+	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
+		return false
+	}
+	m, _ := kcmdline.KeyValues("tag.features")
+	return m["tag.features"] == "1"
 }
