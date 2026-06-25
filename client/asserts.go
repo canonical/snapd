@@ -27,8 +27,6 @@ import (
 	"net/url"
 	"strconv"
 
-	"golang.org/x/xerrors"
-
 	// for parsing
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
@@ -54,8 +52,7 @@ func (client *Client) AssertionTypes() ([]string, error) {
 	}
 	_, err := client.doSync("GET", "/v2/assertions", nil, nil, nil, &types)
 	if err != nil {
-		fmt := "cannot get assertion type names: %w"
-		return nil, xerrors.Errorf(fmt, err)
+		return nil, fmt.Errorf("cannot get assertion type names: %w", err)
 	}
 
 	return types.Types, nil
@@ -87,8 +84,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 
 	response, cancel, err := client.rawWithTimeout(context.Background(), "GET", path, q, nil, nil, nil)
 	if err != nil {
-		fmt := "failed to query assertions: %w"
-		return nil, xerrors.Errorf(fmt, err)
+		return nil, fmt.Errorf("failed to query assertions: %w", err)
 	}
 	defer cancel()
 	defer response.Body.Close()

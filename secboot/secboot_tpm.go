@@ -38,7 +38,6 @@ import (
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -158,7 +157,7 @@ func measureWhenPossible(whatHow func(tpm *sb_tpm2.Connection) error) error {
 	// the model is ready, we're good to try measuring it now
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
-		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
+		if errors.Is(err, sb_tpm2.ErrNoTPM2Device) {
 			return nil
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
@@ -207,7 +206,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 func lockTPMSealedKeys() error {
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
-		if xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
+		if errors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
 			logger.Noticef("cannot open TPM connection: %v", tpmErr)
 			return nil
 		}
@@ -429,7 +428,7 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
-		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
+		if errors.Is(err, sb_tpm2.ErrNoTPM2Device) {
 			return nil
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)

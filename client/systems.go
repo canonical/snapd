@@ -24,8 +24,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"golang.org/x/xerrors"
-
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/keyboard"
@@ -76,7 +74,7 @@ func (client *Client) ListSystems() ([]System, error) {
 	var rsp systemsResponse
 
 	if _, err := client.doSync("GET", "/v2/systems", nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot list recovery systems: %v", err)
+		return nil, fmt.Errorf("cannot list recovery systems: %v", err)
 	}
 	return rsp.Systems, nil
 }
@@ -105,7 +103,7 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 		return err
 	}
 	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot request system action: %v", err)
+		return fmt.Errorf("cannot request system action: %v", err)
 	}
 	return nil
 }
@@ -138,9 +136,9 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	}
 	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
 		if systemLabel != "" {
-			return xerrors.Errorf("cannot request system reboot into %q: %v", systemLabel, err)
+			return fmt.Errorf("cannot request system reboot into %q: %v", systemLabel, err)
 		}
-		return xerrors.Errorf("cannot request system reboot: %v", err)
+		return fmt.Errorf("cannot request system reboot: %v", err)
 	}
 	return nil
 }
@@ -223,7 +221,7 @@ func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) 
 	var rsp SystemDetails
 
 	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
+		return nil, fmt.Errorf("cannot get details for system %q: %v", systemLabel, err)
 	}
 	gadget.SetEnclosingVolumeInStructs(rsp.Volumes)
 	return &rsp, nil
@@ -338,7 +336,7 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	}
 	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
 	if err != nil {
-		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
+		return "", fmt.Errorf("cannot request system install for %q: %v", systemLabel, err)
 	}
 	return chgID, nil
 }
@@ -372,7 +370,7 @@ func (client *Client) GeneratePreInstallRecoveryKey(systemLabel string) (recover
 		RecoveryKey string `json:"recovery-key"`
 	}
 	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, &rsp); err != nil {
-		return "", xerrors.Errorf("cannot generate recovery key for system %q: %v", systemLabel, err)
+		return "", fmt.Errorf("cannot generate recovery key for system %q: %v", systemLabel, err)
 	}
 	return rsp.RecoveryKey, nil
 }
