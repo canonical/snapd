@@ -21,7 +21,6 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -38,11 +37,11 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
-var shortDeviceCgroupHelp = i18n.G("Inspect device cgroup state for a snap")
+var shortDeviceCgroupHelp = i18n.G("Inspect device cgroup state of a snap")
 
 var longDeviceCgroupHelp = i18n.G(`
 The device-cgroup command allows inspection of device cgroup filtering
-state for a snap.
+state of a snap.
 
 This command requires root privileges.
 `)
@@ -134,7 +133,6 @@ func resolveDevNode(devType byte, major, minor uint32) string {
 	}
 	wantRdev := unix.Mkdev(major, minor)
 
-	var errSkip = errors.New("skip walk")
 	var result string
 
 	err := filepath.WalkDir("/dev", func(path string, d fs.DirEntry, err error) error {
@@ -143,7 +141,7 @@ func resolveDevNode(devType byte, major, minor uint32) string {
 		}
 		// Filter by device type cheaply using DirEntry.Type()
 		mode := d.Type()
-		isChar := mode&os.ModeCharDevice != 0 && mode&os.ModeDevice != 0
+		isChar := mode&os.ModeDevice != 0 && mode&os.ModeCharDevice != 0
 		isBlock := mode&os.ModeDevice != 0 && mode&os.ModeCharDevice == 0
 		if devType == 'c' && !isChar {
 			return nil
@@ -162,11 +160,11 @@ func resolveDevNode(devType byte, major, minor uint32) string {
 		}
 		if stat.Rdev == wantRdev {
 			result = path
-			return errSkip
+			return filepath.SkipDir
 		}
 		return nil
 	})
-	if err != nil && !errors.Is(err, errSkip) {
+	if err != nil && err != filepath.SkipDir {
 		return ""
 	}
 	return result
