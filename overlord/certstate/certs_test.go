@@ -239,6 +239,42 @@ func (s *certsTestSuite) TestLoadCertificatesPropagatesBlockedDirLookupError(c *
 	c.Check(errors.Is(err, syscall.ELOOP), Equals, true)
 }
 
+func (s *certsTestSuite) TestLoadCertificatesFallsBackToCertificateDatabase(c *C) {
+	aPEM, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	bPEM, _, err := makeTestCertPEM("B")
+	c.Assert(err, IsNil)
+
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+	sourceBundle := append(append([]byte{}, aPEM...), bPEM...)
+	c.Assert(os.WriteFile(filepath.Join(dirs.SystemCertsDir, "ca-certificates.crt"), sourceBundle, 0o644), IsNil)
+
+	certs, err := certstate.LoadCertificates()
+	c.Assert(err, IsNil)
+	c.Assert(certs.SystemCertificates, HasLen, 2)
+	for _, cert := range certs.SystemCertificates {
+		c.Check(cert.Name, Equals, "")
+		c.Check(cert.Path, Equals, "")
+		c.Check(cert.RealPath, Equals, "")
+		c.Check(cert.Sha256, Not(Equals), "")
+	}
+
+	outDir := filepath.Join(c.MkDir(), "merged")
+	err = certstate.GenerateCACertificates(certs, outDir)
+	c.Assert(err, IsNil)
+
+	bundle, err := os.ReadFile(filepath.Join(outDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(bundle, aPEM), Equals, true)
+	c.Check(bytes.Contains(bundle, bPEM), Equals, true)
+	c.Check(bytes.Count(bundle, []byte("BEGIN CERTIFICATE")), Equals, 2)
+
+	entries, err := os.ReadDir(outDir)
+	c.Assert(err, IsNil)
+	c.Assert(entries, HasLen, 1)
+	c.Check(entries[0].Name(), Equals, "ca-certificates.crt")
+}
+
 func (s *certsTestSuite) TestParseCertificateDataMultipleCertificatesSkipsSubjectHash(c *C) {
 	cert1, _, err := makeTestCertPEM("Test Certificate Root CA 1")
 	c.Assert(err, IsNil)
