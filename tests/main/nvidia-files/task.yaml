@@ -205,9 +205,6 @@ prepare: |
     tests.cleanup defer rm -f test-this-permutation
     touch test-this-permutation
 
-restore: |
-    tests.cleanup restore
-
 debug: |
     if [ -f install.txt ]; then cat install.txt; fi
     if [ -f log-32.txt ]; then cat log-32.txt; fi

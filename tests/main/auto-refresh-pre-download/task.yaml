@@ -34,7 +34,6 @@ debug: |
 execute: |
   err_and_exit(){
     echo "$1"
-    tests.cleanup restore
     exit 1
   }
 
