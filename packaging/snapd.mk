@@ -219,9 +219,9 @@ install:: $(builddir)/snap | $(DESTDIR)$(bindir)
 install:: $(addprefix $(builddir)/,snapctl snapd snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
-# Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
+# Ensure /usr/bin/snapctl is a relative symlink to /usr/lib/snapd/snapctl
 install:: | $(DESTDIR)$(bindir)
-	ln -s $(libexecdir)/snapd/snapctl $|/snapctl
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapctl $|/snapctl
 
 # Generate and install man page for snap command
 install:: $(builddir)/snap | $(DESTDIR)$(mandir)/man8
