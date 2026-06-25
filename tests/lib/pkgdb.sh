@@ -565,6 +565,20 @@ pkg_dependencies_ubuntu_nested(){
         xz-utils
         qemu-system
         "
+    if os.query is-arm; then
+        echo "
+            qemu-efi-aarch64
+        "
+    fi
+    if os.query is-ubuntu-ge 24.04; then
+        echo "
+            dpkg-dev
+            debhelper
+            devscripts
+            distro-info
+            linux-firmware
+        "
+    fi
 }
 
 pkg_dependencies_ubuntu_classic(){

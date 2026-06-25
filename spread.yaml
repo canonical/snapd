@@ -514,11 +514,11 @@ backends:
                   storage: 25G
                   workers: 12
             - ubuntu-24.04-64:
-                  image: snapd-spread/ubuntu-24.04-64
+                  image: snapd-spread/ubuntu-24.04-64-nested
                   storage: 30G
                   workers: 12
             - ubuntu-26.04-64:
-                  image: snapd-spread/ubuntu-26.04-64
+                  image: snapd-spread/ubuntu-26.04-64-nested
                   storage: 30G
                   workers: 12
 
@@ -596,7 +596,19 @@ backends:
         cidr-port-rel: [10.151.89.0/24:8000]
         volume-auto-delete: true
         environment: *openstack-env
-        systems: *openstack-arm-systems
+        systems: &openstack-arm-nested-systems
+            - ubuntu-20.04-arm-64:
+                image: snapd-spread/ubuntu-20.04-arm-64
+                workers: 8
+            - ubuntu-22.04-arm-64:
+                image: snapd-spread/ubuntu-22.04-arm-64
+                workers: 8
+            - ubuntu-24.04-arm-64:
+                image: snapd-spread/ubuntu-24.04-arm-64-nested
+                workers: 8
+            - ubuntu-26.04-arm-64:
+                image: snapd-spread/ubuntu-26.04-arm-64-nested
+                workers: 8
 
     openstack-arm-dev:
         type: openstack
@@ -1767,6 +1779,8 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
+            elif os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
             else
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
@@ -1831,6 +1845,7 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
@@ -1846,6 +1861,7 @@ suites:
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             elif os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 #shellcheck source=tests/lib/image.sh
@@ -1906,6 +1922,7 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
             . "$TESTSLIB"/prepare.sh
@@ -1921,6 +1938,7 @@ suites:
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             elif os.query is-arm; then
+                distro_install_local_package qemu-efi-aarch64
                 snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
                 #shellcheck source=tests/lib/image.sh
