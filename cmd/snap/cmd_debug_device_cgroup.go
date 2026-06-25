@@ -21,7 +21,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io/fs"
 	"os"
@@ -37,44 +36,29 @@ import (
 	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
-var shortDeviceCgroupHelp = i18n.G("Inspect device cgroup state of a snap")
+var shortDeviceCgroupHelp = i18n.G("Show devices allowed in a snap's device cgroup")
 
 var longDeviceCgroupHelp = i18n.G(`
-The device-cgroup command allows inspection of device cgroup filtering
-state of a snap.
+The device-cgroup command shows the devices currently allowed in
+the device cgroup of a snap. On cgroup v1, this reads the devices.list
+file. On cgroup v2, this reads the BPF device hash map.
 
 This command requires root privileges.
 `)
 
-type cmdDeviceCgroup struct{}
-
-type cmdDeviceCgroupDevices struct {
+type cmdDeviceCgroup struct {
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 func init() {
-	cmd := addDebugCommand("device-cgroup", shortDeviceCgroupHelp, longDeviceCgroupHelp, func() flags.Commander {
+	addDebugCommand("device-cgroup", shortDeviceCgroupHelp, longDeviceCgroupHelp, func() flags.Commander {
 		return &cmdDeviceCgroup{}
 	}, nil, nil)
-	cmd.hidden = true
-	cmd.extra = func(c *flags.Command) {
-		c.AddCommand("devices", i18n.G("Show allowed devices in a snap's device cgroup"), i18n.G(`
-The devices sub-command shows the devices currently allowed in
-the device cgroup for a given snap. On cgroup v1, this reads the
-devices.list file. On cgroup v2, this reads the BPF device hash map.
-
-Requires root.
-`), &cmdDeviceCgroupDevices{})
-	}
 }
 
 func (cmd *cmdDeviceCgroup) Execute(args []string) error {
-	return flag.ErrHelp
-}
-
-func (cmd *cmdDeviceCgroupDevices) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
