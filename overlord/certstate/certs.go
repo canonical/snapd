@@ -56,10 +56,22 @@ type CertificateData struct {
 }
 
 type certificate struct {
-	Name            string
-	Path            string
-	RealPath        string
-	Sha256          string
+	// Name is the logical certificate name without its on-disk extension.
+	// It is empty for nameless certificates parsed from ca-certificates.crt.
+	Name string
+	// Path is the directory entry snapd discovered for the certificate before
+	// resolving any symlinks. It is empty for bundle-derived certificates.
+	Path string
+	// RealPath is the resolved backing file path used to read file-backed
+	// certificates. It is empty for bundle-derived certificates.
+	RealPath string
+	// Data holds the certificate payload for entries that do not have a stable
+	// backing file path, such as certificates parsed from ca-certificates.crt.
+	Data []byte
+	// Sha256 is the semantic content digest of the certificate payload.
+	Sha256 string
+	// SubjectNameSha1 is the OpenSSL subject-name hash used for c_rehash-style
+	// lookup symlinks when the payload contains a single certificate.
 	SubjectNameSha1 string
 }
 
@@ -72,6 +84,10 @@ type certificateManifest struct {
 
 func (m *certificateManifest) addFile(name, digest string) {
 	m.records = append(m.records, fmt.Sprintf("file\x00%s\x00%s", name, digest))
+}
+
+func (m *certificateManifest) addDbEntry(digest string) {
+	m.records = append(m.records, fmt.Sprintf("ca-db\x00%s", digest))
 }
 
 func (m *certificateManifest) addLink(name, target string) {
@@ -245,6 +261,10 @@ func isBlocked(cert certificate, blockedCertDigests []string) bool {
 		return true
 	}
 
+	if cert.RealPath == "" {
+		return len(cert.Data) == 0 || strutil.ListContains(blockedCertDigests, cert.Sha256)
+	}
+
 	// Check that the real underlying filepath to the
 	// certificate ends with a supported extension
 	if !isAllowedExtension(cert.RealPath) {
@@ -314,6 +334,66 @@ func parseCertificates(certsPath string) ([]certificate, error) {
 	return certsObjects, nil
 }
 
+// parseCertificatesDb reads the system ca-certificates.crt bundle and returns
+// one certificate entry per parsed certificate block. The returned entries are
+// nameless and carry their payload inline because the bundle does not provide a
+// stable per-certificate source path.
+func parseCertificatesDb(certsPath string) ([]certificate, error) {
+	certDbPath := filepath.Join(certsPath, "ca-certificates.crt")
+	logger.Debugf("Reading certificates from %s", certDbPath)
+
+	// If no ca-certificates.crt file exists, we return an empty list of certificates.
+	if !osutil.FileExists(certDbPath) {
+		return nil, nil
+	}
+
+	certDb, err := os.ReadFile(certDbPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read certificate database %q: %v", certDbPath, err)
+	}
+	var certsObjects []certificate
+	rest := certDb
+	for {
+		block, next := pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		rest = next
+
+		if !certificatePEMBlockTypePattern.MatchString(block.Type) {
+			logger.Debugf("encountered unsupported pem-block type in %q: %s", certDbPath, block.Type)
+			continue
+		}
+
+		pemBytes := pem.EncodeToMemory(&pem.Block{Type: block.Type, Headers: block.Headers, Bytes: block.Bytes})
+		cert, err := ParseCertificateData(pemBytes)
+		if err != nil {
+			logger.Noticef("cannot parse certificate database entry from %q: %v", certDbPath, err)
+			continue
+		}
+
+		certsObjects = append(certsObjects, certificate{
+			Data:            pemBytes,
+			Sha256:          cert.Sha256,
+			SubjectNameSha1: cert.SubjectNameSha1,
+		})
+	}
+	if len(certsObjects) != 0 {
+		return certsObjects, nil
+	}
+
+	cert, err := ParseCertificateData(certDb)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse certificate database %q: %v", certDbPath, err)
+	}
+
+	return []certificate{{
+		Data:            certDb,
+		Sha256:          cert.Sha256,
+		SubjectNameSha1: cert.SubjectNameSha1,
+	}}, nil
+}
+
 // readDigests reads the names of all files in the given directory
 // and returns them as a list of strings (with any extension trimmed).
 // It expects that the files in the directory are named by their digest.
@@ -350,6 +430,10 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 	// distinct certificate would otherwise overwrite an existing copy.
 	outputNameFor := func(cert certificate) string {
 		base := filepath.Base(cert.RealPath)
+		if base == "." {
+			return ""
+		}
+
 		if ownerDigest, ok := usedOutputNames[base]; !ok || ownerDigest == cert.Sha256 {
 			usedOutputNames[base] = cert.Sha256
 			return base
@@ -372,8 +456,15 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		}
 	}
 
+	certData := func(cert certificate) ([]byte, error) {
+		if len(cert.Data) != 0 {
+			return cert.Data, nil
+		}
+		return os.ReadFile(cert.RealPath)
+	}
+
 	copyOne := func(cert certificate, outputName string) error {
-		data, err := os.ReadFile(cert.RealPath)
+		data, err := certData(cert)
 		if err != nil {
 			return err
 		}
@@ -381,6 +472,13 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 		// Append it to the ca bundle
 		if _, err := bundle.Write(data); err != nil {
 			return err
+		}
+
+		// For certificates that are not backed by a real file, we don't
+		// create a copy in the merged directory.
+		if outputName == "" {
+			manifest.addDbEntry(cert.Sha256)
+			return nil
 		}
 
 		// Create a copy in the merged directory under the chosen unique name.
@@ -395,6 +493,13 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 	// Create the c_rehash-style subject hash link for single-certificate files.
 	maybeSha1Link := func(cert certificate, outputName string) error {
 		if cert.SubjectNameSha1 == "" {
+			return nil
+		}
+
+		// Only generate c_rehash style Sha1 links for certificates that actually have
+		// a physical certificate backing them. For ca-certificates.crt derived certificates,
+		// we ignore this.
+		if outputName == "" {
 			return nil
 		}
 
@@ -511,6 +616,16 @@ func loadCertificates() (*certificates, error) {
 		return nil, err
 	}
 	certs.SystemCertificates = systemCerts
+
+	// Support systems that do not have the individual certs, but rather use
+	// the ca-certificates database only.
+	if len(systemCerts) == 0 {
+		systemDbCerts, err := parseCertificatesDb(dirs.SystemCertsDir)
+		if err != nil {
+			return nil, err
+		}
+		certs.SystemCertificates = systemDbCerts
+	}
 
 	// If the added directory exists, parse it
 	if exists, isDir, err := osutil.DirExists(filepath.Join(dirs.SnapdPKIV1Dir, "added")); err != nil {
