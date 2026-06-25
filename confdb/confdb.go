@@ -150,7 +150,7 @@ func (e *UnmatchedConstraintsError) Is(err error) bool {
 	return ok
 }
 
-func NewUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
+func newUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
 	return &UnmatchedConstraintsError{
 		view:        view.ID(),
 		requests:    requests,
@@ -1748,7 +1748,7 @@ func (e *UnconstrainedParamsError) Is(err error) bool {
 	return ok
 }
 
-func NewUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
+func newUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
 	return &UnconstrainedParamsError{
 		operation:     op,
 		unconstrained: unconstrained,
@@ -1794,7 +1794,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	}
 
 	if len(unconstrainedReqs) != 0 {
-		return NewUnconstrainedParamsError(op, unconstrainedReqs)
+		return newUnconstrainedParamsError(op, unconstrainedReqs)
 	}
 	return nil
 }
@@ -1848,7 +1848,7 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 
 	unusedConstraints := keys(constraintPlaceholders)
 	sort.Strings(unusedConstraints)
-	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
+	return newUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
 func getVisibilitiesToPrune(userAccess Access) []Visibility {
@@ -3176,17 +3176,6 @@ func (s JSONDatabag) Copy() JSONDatabag {
 	}
 
 	return JSONDatabag(copy)
-}
-
-// Overwrite replaces the entire databag with the provided data.
-func (s *JSONDatabag) Overwrite(data []byte) error {
-	var unmarshalledBag map[string]json.RawMessage
-	if err := json.Unmarshal(data, &unmarshalledBag); err != nil {
-		return err
-	}
-
-	*s = JSONDatabag(unmarshalledBag)
-	return nil
 }
 
 // JSONSchema is the Schema implementation corresponding to JSONDatabag and it's

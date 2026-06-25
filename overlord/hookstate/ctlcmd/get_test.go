@@ -21,6 +21,7 @@ package ctlcmd_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -48,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -952,14 +952,13 @@ func (s *confdbSuite) TestConfdbExperimentalFlag(c *C) {
 }
 
 func (s *confdbSuite) TestConfdbGetPreviousInvalid(c *C) {
-	restore := confdbstate.MockFetchConfdbSchemaAssertion(func(*state.State, int, string, string) error {
-		return store.ErrStoreOffline
+	success := fmt.Sprintf(`mock error`)
+	forbidMsg := `cannot use --previous outside of save-view, change-view or observe-view hooks`
+
+	restore := ctlcmd.MockConfdbstateGetView(func(*state.State, string, string, string) (*confdb.View, error) {
+		return nil, errors.New(success)
 	})
 	defer restore()
-
-	// the parsing succeeded
-	success := fmt.Sprintf(`confdb-schema (other; account-id:%s) not found`, s.devAccID)
-	forbidMsg := `cannot use --previous outside of save-view, change-view or observe-view hooks`
 
 	type testcase struct {
 		hook string

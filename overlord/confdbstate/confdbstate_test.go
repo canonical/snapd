@@ -2974,8 +2974,7 @@ func (s *confdbTestSuite) endOngoingAccess(c *C, newPending *confdbstate.Access)
 	txs.ReadTxIDs = nil
 	txs.WriteTxID = ""
 
-	err = confdbstate.MaybeUnblockAccesses(txs)
-	c.Assert(err, IsNil)
+	confdbstate.MaybeUnblockAccesses(txs)
 
 	if newPending != nil {
 		txs.Pending = append(txs.Pending, *newPending)

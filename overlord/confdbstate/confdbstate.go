@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -285,11 +284,7 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, accK
 			}
 		}
 
-		err = maybeUnblockAccesses(txs)
-		if err != nil {
-			return "", fmt.Errorf("cannot cleanup state after timeout/cancel: %v", err)
-		}
-
+		maybeUnblockAccesses(txs)
 		updateTxs(txs)
 
 		return "", fmt.Errorf("cannot %s %s: timed out waiting for access", accKind, view.ID())
@@ -478,7 +473,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		return nil, nil, nil, fmt.Errorf("cannot write confdb view %s: no custodian snap connected", view.ID())
 	}
 
-	paths := tx.AlteredPaths()
+	paths := tx.alteredPaths()
 	mightAffectEph, err := view.WriteAffectsEphemeral(paths)
 	if err != nil {
 		return nil, nil, nil, err
@@ -871,11 +866,8 @@ func cleanupAccess(st *state.State, accessID, account, schema string) {
 		}
 	}
 
-	// this may actually not unblock anything, if other accesses are being processed
-	uerr = maybeUnblockAccesses(txs)
-	if uerr != nil {
-		logger.Noticef("cannot unblock next access after failed access: %v", uerr)
-	}
+	// this may not actually unblock anything if other accesses are being processed
+	maybeUnblockAccesses(txs)
 }
 
 // ReadConfdb schedules a change to load a confdb, running any appropriate
@@ -1014,13 +1006,4 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 	linkTask(clearTxTask)
 
 	return ts, clearTxTask, nil
-}
-
-func MockFetchConfdbSchemaAssertion(f func(*state.State, int, string, string) error) func() {
-	osutil.MustBeTestBinary("mocking can only be done in tests")
-	old := assertstateFetchConfdbSchemaAssertion
-	assertstateFetchConfdbSchemaAssertion = f
-	return func() {
-		assertstateFetchConfdbSchemaAssertion = old
-	}
 }

@@ -1134,28 +1134,6 @@ func (s *viewSuite) TestJSONDatabagCopy(c *C) {
 	c.Assert(string(data), Equals, `{"foo":"baz"}`)
 }
 
-func (s *viewSuite) TestJSONDataOverwrite(c *C) {
-	bag := confdb.NewJSONDatabag()
-	err := bag.Set(parsePath(c, "foo"), "bar")
-	c.Assert(err, IsNil)
-
-	// precondition check
-	data, err := bag.Data()
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"foo":"bar"}`)
-
-	err = bag.Overwrite([]byte(`{"bar":"foo"}`))
-	c.Assert(err, IsNil)
-
-	val, err := bag.Get(parsePath(c, "bar"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
-
-	data, err = bag.Data()
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"bar":"foo"}`)
-}
-
 func (s *viewSuite) TestViewGetResultNamespaceMatchesRequest(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{

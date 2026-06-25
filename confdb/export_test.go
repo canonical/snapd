@@ -19,6 +19,8 @@
 
 package confdb
 
+import "github.com/snapcore/snapd/testutil"
+
 type (
 	ViewRef = viewRef
 )
@@ -49,9 +51,5 @@ func PathValuePairsIntoMap(pairs []pathValuePair) map[string]any {
 }
 
 func MockMaxValueDepth(newDepth int) (restore func()) {
-	oldDepth := maxValueDepth
-	maxValueDepth = newDepth
-	return func() {
-		maxValueDepth = oldDepth
-	}
+	return testutil.Mock(&maxValueDepth, newDepth)
 }
