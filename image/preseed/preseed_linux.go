@@ -45,9 +45,9 @@ var (
 	// snapdMountPath is where target core/snapd is going to be mounted in the target chroot
 	snapdMountPath = "/tmp/snapd-preseed"
 	syscallChroot  = syscall.Chroot
-	// list of the permitted sysfs overlay paths
-	// this list has to be kept in sync with sysfs paths used by snap interfaces, e.g. gpio
-	permitedSysfsOverlays = []string{
+	// PermittedSysfsOverlays is the list of the permitted sysfs overlay paths.
+	// This list has to be kept in sync with sysfs paths used by snap interfaces, e.g. gpio.
+	PermittedSysfsOverlays = []string{
 		"sys/class/backlight", "sys/class/bluetooth", "sys/class/gpio",
 		"sys/class/leds", "sys/class/ptp", "sys/class/pwm",
 		"sys/class/rtc", "sys/class/video4linux", "sys/devices/platform",
@@ -317,7 +317,7 @@ func prepareCore20Mountpoints(opts *preseedCoreOptions) (cleanupMounts func(), e
 
 	if opts.SysfsOverlay != "" {
 		// bind mount only permitted directories under sys/class and sys/devices
-		for _, dir := range permitedSysfsOverlays {
+		for _, dir := range PermittedSysfsOverlays {
 			info, err := os.Stat(underOverlay(dir))
 			if err == nil && info.IsDir() {
 				// ensure dir exists
