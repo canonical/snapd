@@ -416,13 +416,13 @@ func mkClient() *client.Client {
 	// same value as when talking to the store.
 	cfg.UserAgent = snapdenv.UserAgent()
 
-	cli := client.New(cfg)
+	client := client.New(cfg)
 	goos := runtime.GOOS
 	if release.WSLVersion == 1 {
 		goos = "Windows Subsystem for Linux 1"
 	}
 	if goos != "linux" {
-		cli.Hijack(func(*http.Request) (*http.Response, error) {
+		client.Hijack(func(*http.Request) (*http.Response, error) {
 			fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
 This command has been left available for documentation purposes only.
 `), goos)
@@ -430,7 +430,7 @@ This command has been left available for documentation purposes only.
 			panic("execution continued past call to exit")
 		})
 	}
-	return cli
+	return client
 }
 
 func init() {
@@ -616,8 +616,8 @@ func makeCommandHandler(allCommands []*flags.Command) func(flags.Commander, []st
 var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
-	cli := mkClient()
-	parser := Parser(cli)
+	client := mkClient()
+	parser := Parser(client)
 	if osutil.GetenvBool("SNAPD_TRACE") {
 		parser.CommandHandler = makeCommandHandler(parser.Command.Commands())
 	}
@@ -672,7 +672,7 @@ fixed-width fonts, so it can be hard to tell.
 		return nil
 	}
 
-	maybePresentWarnings(cli.WarningsSummary())
+	maybePresentWarnings(client.WarningsSummary())
 
 	return nil
 }
