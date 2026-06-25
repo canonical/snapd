@@ -49,6 +49,7 @@ type SequenceState = sequenceState
 type DeviceMgmtState = deviceMgmtState
 
 type ResponseMessageSigner = responseMessageSigner
+type DeviceIdentityProvider = deviceIdentityProvider
 
 func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
 	ms, err := m.getState()
@@ -61,6 +62,10 @@ func (m *DeviceMgmtManager) SetState(ms *DeviceMgmtState) {
 
 func (m *DeviceMgmtManager) MockSigner(signer responseMessageSigner) {
 	m.signer = signer
+}
+
+func (m *DeviceMgmtManager) MockIdentity(identity deviceIdentityProvider) {
+	m.identity = identity
 }
 
 func (m *DeviceMgmtManager) ShouldExchangeMessages(ms *DeviceMgmtState) bool {

@@ -215,7 +215,7 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 	}
 	healthstate.Init(hookMgr)
 
-	o.addManager(devicemgmtstate.Manager(s, o.runner, deviceMgr))
+	o.addManager(devicemgmtstate.Manager(s, o.runner, deviceMgr, deviceMgr))
 
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
