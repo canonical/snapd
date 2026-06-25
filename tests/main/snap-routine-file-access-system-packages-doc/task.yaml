@@ -39,9 +39,13 @@ execute: |
     access /usr/share/libreoffice/help | MATCH hidden
     access /usr/share/sphinx_rtd_theme | MATCH hidden
     access /usr/share/xubuntu-docs | MATCH hidden
+    access /usr/share/home | MATCH hidden
+    access /usr/share/info | MATCH hidden
+    access /usr/share/man | MATCH hidden
 
     # With the interface connected, all doc paths should be read-only
     snap connect test-system-packages-doc:system-packages-doc
+    
     access /usr/share/doc | MATCH read-only
     access /usr/local/share/doc | MATCH read-only
     access /usr/share/cups/doc-root | MATCH read-only
@@ -51,6 +55,9 @@ execute: |
     access /usr/share/libreoffice/help | MATCH read-only
     access /usr/share/sphinx_rtd_theme | MATCH read-only
     access /usr/share/xubuntu-docs | MATCH read-only
+    access /usr/share/home | MATCH read-only
+    access /usr/share/info | MATCH read-only
+    access /usr/share/man | MATCH read-only
 
     # Other paths under /usr/share should still be hidden
     access /usr/share/other | MATCH hidden

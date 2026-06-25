@@ -165,6 +165,9 @@ var systemPackagesDocPaths = []string{
 	"/usr/share/libreoffice/help",
 	"/usr/share/sphinx_rtd_theme",
 	"/usr/share/xubuntu-docs",
+	"/usr/share/help",
+	"/usr/share/info",
+	"/usr/share/man",
 }
 
 func splitPathAbs(path string) ([]string, error) {
