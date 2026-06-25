@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package daemon
 
 import (
 	"io"
