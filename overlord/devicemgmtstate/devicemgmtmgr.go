@@ -61,6 +61,11 @@ var (
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
 
+// deviceIdentityProvider returns the device's serial assertion.
+type deviceIdentityProvider interface {
+	Serial() (*asserts.Serial, error)
+}
+
 // MessageHandler processes request messages of a specific kind.
 // Caller must hold state lock when using this interface.
 type MessageHandler interface {
@@ -74,6 +79,16 @@ type MessageHandler interface {
 
 	// ResultFromChange reads the completed change and returns the full result.
 	ResultFromChange(chg *state.Change) (body map[string]any, err error)
+}
+
+// UnauthorizedError is returned by MessageHandler.Validate when the operator
+// does not have permission to perform the requested operation.
+type UnauthorizedError struct {
+	Operator string
+}
+
+func (e *UnauthorizedError) Error() string {
+	return fmt.Sprintf("operator %q is not authorized to perform this operation", e.Operator)
 }
 
 // MarkChangeForMessage records the message ID on the change created by an Apply
@@ -101,6 +116,7 @@ type RequestMessage struct {
 	Devices     []string  `json:"devices"`
 	ValidSince  time.Time `json:"valid-since"`
 	ValidUntil  time.Time `json:"valid-until"`
+	Assumes     []string  `json:"assumes,omitempty"`
 	Body        string    `json:"body"`
 
 	ReceiveTime time.Time `json:"receive-time"`
@@ -122,6 +138,23 @@ func (msg *RequestMessage) ID() string {
 	}
 
 	return msg.BaseID
+}
+
+// ValidAt returns whether the request-message is valid at 'when' time.
+func (msg *RequestMessage) ValidAt(when time.Time) bool {
+	return (when.Equal(msg.ValidSince) || when.After(msg.ValidSince)) && when.Before(msg.ValidUntil)
+}
+
+// Targets returns whether the given device is listed in the message's devices header.
+func (msg *RequestMessage) Targets(devID asserts.DeviceID) bool {
+	target := devID.String()
+	for _, d := range msg.Devices {
+		if d == target {
+			return true
+		}
+	}
+
+	return false
 }
 
 // sequenceState holds the messages and progress for a single base ID,
@@ -240,14 +273,16 @@ func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
 	state    *state.State
+	identity deviceIdentityProvider
 	signer   responseMessageSigner
 	handlers map[string]MessageHandler
 }
 
 // Manager creates a new DeviceMgmtManager.
-func Manager(state *state.State, runner *state.TaskRunner, signer responseMessageSigner) *DeviceMgmtManager {
+func Manager(state *state.State, runner *state.TaskRunner, identity deviceIdentityProvider, signer responseMessageSigner) *DeviceMgmtManager {
 	m := &DeviceMgmtManager{
 		state:    state,
+		identity: identity,
 		signer:   signer,
 		handlers: make(map[string]MessageHandler),
 	}
@@ -528,7 +563,70 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Chang
 
 // doValidateMessage performs snapd-level and subsystem-level validation on a message.
 func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	var msgID string
+	err = t.Get("message-id", &msgID)
+	if err != nil {
+		return err
+	}
+
+	msg, err := ms.getRequestMessage(msgID)
+	if err != nil {
+		return err
+	}
+
+	if msg.ResponseStatus != "" {
+		return nil
+	}
+
+	defer m.setState(ms)
+
+	reject := func(reason string) error {
+		msg.ResponseStatus = asserts.MessageStatusRejected
+		msg.ResponseBody = map[string]any{"message": reason}
+		return nil
+	}
+
+	serial, err := m.identity.Serial()
+	if err != nil {
+		return err
+	}
+	devID := serial.DeviceID()
+	if !msg.Targets(devID) {
+		return reject(fmt.Sprintf("message not intended for device %s", devID))
+	}
+
+	now := timeNow()
+	if !msg.ValidAt(now) {
+		return reject(fmt.Sprintf("message not valid at %s", now.UTC().Format(time.RFC3339)))
+	}
+
+	// TODO: implement assumes checks.
+
+	handler, ok := m.handlers[msg.Kind]
+	if !ok {
+		return reject(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
+	}
+
+	err = handler.Validate(m.state, msg)
+	if err != nil {
+		var unauthorizedErr *UnauthorizedError
+		if errors.As(err, &unauthorizedErr) {
+			msg.ResponseStatus = asserts.MessageStatusUnauthorized
+			msg.ResponseBody = map[string]any{"message": err.Error()}
+			return nil
+		}
+
+		return reject(err.Error())
+	}
+
 	return nil
 }
 
@@ -623,6 +721,7 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 		Devices:     deviceIDs,
 		ValidSince:  reqAs.ValidSince(),
 		ValidUntil:  reqAs.ValidUntil(),
+		Assumes:     reqAs.Assumes(),
 		Body:        string(reqAs.Body()),
 		ReceiveTime: timeNow(),
 	}, nil
