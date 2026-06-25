@@ -50,6 +50,8 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
+var noopTask = func(*state.Task, *tomb.Tomb) error { return nil }
+
 type mockStore struct {
 	storetest.Store
 
@@ -423,7 +425,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -459,7 +461,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences:         make(map[string]*devicemgmtstate.SequenceState),
@@ -497,7 +499,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesSequenceLRU(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -527,7 +529,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -554,7 +556,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateMessage(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -616,7 +618,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesIdempotent(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -647,7 +649,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesUnsequenced(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -904,7 +906,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -951,7 +953,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -979,7 +981,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 		return &store.MessageExchangeResponse{}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
@@ -1126,7 +1128,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -1178,7 +1180,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 		},
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -1202,7 +1204,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageNoHandlerForMessageKind(c *C) {
 		}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -1233,7 +1235,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 		},
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -1264,7 +1266,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
 		},
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
