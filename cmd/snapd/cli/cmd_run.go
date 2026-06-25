@@ -1882,7 +1882,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.useGdbserver() {
 		if _, err := exec.LookPath("gdbserver"); err != nil {
-			// TODO: use xerrors.Is(err, exec.ErrNotFound) once
+			// TODO: use errors.Is(err, exec.ErrNotFound) once
 			// we moved off from go-1.9
 			if execErr, ok := err.(*exec.Error); ok {
 				if execErr.Err == exec.ErrNotFound {

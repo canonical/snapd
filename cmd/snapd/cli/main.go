@@ -36,7 +36,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -460,9 +459,9 @@ func exitCodeFromError(err error) int {
 		return 0
 	case client.IsRetryable(err):
 		return 10
-	case xerrors.As(err, &mksquashfsError):
+	case errors.As(err, &mksquashfsError):
 		return 20
-	case xerrors.As(err, &cmdlineFlagsError) || xerrors.As(err, &unknownCmdError):
+	case errors.As(err, &cmdlineFlagsError) || errors.As(err, &unknownCmdError):
 		// EX_USAGE, see sysexit.h
 		return 64
 	default:
