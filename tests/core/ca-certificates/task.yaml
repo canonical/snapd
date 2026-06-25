@@ -4,14 +4,55 @@ details: |
     Check that snapd correctly generates the ca-certificates database
     upon first run, the change should be scheduled after seeding.
 
+# skip on UC26 for now, as it only has the ca-certificates db and this 
+# kind of setup needs some changes
+systems: [-ubuntu-core-26-*]
+
 execute: |
     CA_CERTIFICATES_DB=/var/lib/snapd/pki/v1/merged/ca-certificates.crt
+    CA_CERTIFICATES_DIR=/var/lib/snapd/pki/v1/merged
+    PUBLISHED_CERTIFICATES_DIR=/var/lib/snapd/pki/v1/published
     
     # We want to verify that the ca-certificates database is created
     # after seeding, and that the contents match the ca-certificate file
     # created by the system.
     if ! [ -f "$CA_CERTIFICATES_DB" ]; then
         echo "CA certificates database not found at $CA_CERTIFICATES_DB"
+        exit 1
+    fi
+
+    # On first generation, snapd should publish the rendered tree under
+    # published/<generation> and expose it via the merged symlink.
+    if ! [ -L "$CA_CERTIFICATES_DIR" ]; then
+        echo "Merged certificates path is not a symlink: $CA_CERTIFICATES_DIR"
+        ls -ld "$CA_CERTIFICATES_DIR" || true
+        exit 1
+    fi
+
+    merged_target="$(readlink "$CA_CERTIFICATES_DIR")"
+    case "$merged_target" in
+        published/*) ;;
+        *)
+            echo "Merged certificates symlink does not point into published/: $merged_target"
+            exit 1
+            ;;
+    esac
+
+    if ! [ -d "/var/lib/snapd/pki/v1/$merged_target" ]; then
+        echo "Merged certificates symlink target does not exist: $merged_target"
+        exit 1
+    fi
+
+    published_generations="$(find "$PUBLISHED_CERTIFICATES_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)"
+    if [ "$published_generations" -ne 1 ]; then
+        echo "Expected exactly one published certificates generation, found $published_generations"
+        find "$PUBLISHED_CERTIFICATES_DIR" -mindepth 1 -maxdepth 1 -type d | sort
+        exit 1
+    fi
+
+    published_generation="$(basename "$(find "$PUBLISHED_CERTIFICATES_DIR" -mindepth 1 -maxdepth 1 -type d)")"
+    if [ "$merged_target" != "published/$published_generation" ]; then
+        echo "Merged certificates symlink points to $merged_target, expected published/$published_generation"
         exit 1
     fi
     
@@ -26,23 +67,143 @@ execute: |
         exit 1
     fi
 
+    cert_chain_digest() {
+        local cert_file="$1"
+        local digest_cmd="$2"
+        local splitdir derfile
+        splitdir="$(mktemp -d)"
+        derfile="$(mktemp)"
+        trap 'rm -rf "$splitdir" "$derfile"' RETURN
+
+        csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$cert_file" \
+            '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
+
+        for f in "$splitdir"/cert-*.pem; do
+            grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
+            openssl x509 -in "$f" -inform pem -outform der 2>/dev/null >> "$derfile"
+        done
+
+        if ! [ -s "$derfile" ]; then
+            echo "Failed to parse certificate data from $cert_file"
+            return 1
+        fi
+
+        "$digest_cmd" "$derfile" | awk '{print $1}'
+    }
+
+    cert_subject_hash() {
+        local cert_file="$1"
+        local splitdir cert_count hash
+        splitdir="$(mktemp -d)"
+        trap 'rm -rf "$splitdir"' RETURN
+
+        csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$cert_file" \
+            '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
+
+        cert_count=0
+        for f in "$splitdir"/cert-*.pem; do
+            grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
+            cert_count=$((cert_count + 1))
+            if [ "$cert_count" -gt 1 ]; then
+                echo ""
+                return 0
+            fi
+            if ! hash="$(openssl x509 -in "$f" -inform pem -noout -subject_hash 2>/dev/null)"; then
+                echo "Failed to compute subject hash for $cert_file" >&2
+                return 1
+            fi
+        done
+
+        if [ "$cert_count" -eq 0 ]; then
+            echo "Failed to parse certificate data from $cert_file"
+            return 1
+        fi
+
+        printf '%s\n' "$hash"
+    }
+
     # Emit one SHA256 digest per certificate in the PEM bundle, sorted.
     # We hash the DER form so differences in whitespace/wrapping don't matter.
     bundle_digests() {
         local bundle="$1"
-        local splitdir
+        local splitdir derfile
         splitdir="$(mktemp -d)"
-        trap 'rm -rf "$splitdir"' RETURN
+        derfile="$(mktemp)"
+        trap 'rm -rf "$splitdir" "$derfile"' RETURN
 
         # Split on BEGIN CERTIFICATE boundaries; the first chunk may be empty.
         csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$bundle" \
             '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
 
         for f in "$splitdir"/cert-*.pem; do
-            grep -q "-----BEGIN CERTIFICATE-----" "$f" || continue
-            openssl x509 -in "$f" -inform pem -outform der 2>/dev/null \
-                | sha256sum | awk '{print $1}'
+            grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
+            : > "$derfile"
+            if ! openssl x509 -in "$f" -inform pem -outform der > "$derfile" 2>/dev/null; then
+                echo "Failed to parse certificate chunk $f from $bundle" >&2
+                return 1
+            fi
+            sha256sum "$derfile" | awk '{print $1}'
         done | sort -u
+    }
+
+    verify_individual_certs_and_sha1_links() {
+        local cert_entry real_path cert_name cert_digest sha1_prefix hash_link
+        local expected_count=0
+        local matched_hash_link=false
+        declare -A seen_digests=()
+
+        while IFS= read -r cert_entry; do
+            real_path="$(readlink -f "$cert_entry")"
+
+            case "$real_path" in
+                *.crt|*.pem|*.cer) ;;
+                *) continue ;;
+            esac
+
+            cert_name="$(basename "$real_path")"
+            if [ "$cert_name" = "ca-certificates.crt" ]; then
+                continue
+            fi
+
+            cert_digest="$(cert_chain_digest "$real_path" sha224sum)"
+            if [ -n "${seen_digests[$cert_digest]:-}" ]; then
+                continue
+            fi
+            seen_digests["$cert_digest"]=1
+            expected_count=$((expected_count + 1))
+
+            if ! [ -f "$CA_CERTIFICATES_DIR/$cert_name" ]; then
+                echo "Expected individual certificate missing: $cert_name"
+                return 1
+            fi
+
+            if ! cmp -s "$real_path" "$CA_CERTIFICATES_DIR/$cert_name"; then
+                echo "Merged certificate content mismatch: $cert_name"
+                return 1
+            fi
+
+            sha1_prefix="$(cert_subject_hash "$real_path")"
+            if [ -z "$sha1_prefix" ]; then
+                continue
+            fi
+            matched_hash_link=false
+            for hash_link in "$CA_CERTIFICATES_DIR/$sha1_prefix".*; do
+                if ! [ -e "$hash_link" ]; then
+                    continue
+                fi
+                if cmp -s "$real_path" "$hash_link"; then
+                    matched_hash_link=true
+                    break
+                fi
+            done
+
+            if ! $matched_hash_link; then
+                echo "Expected SHA1 hash link missing for $cert_name ($sha1_prefix.*)"
+                return 1
+            fi
+        done < <(find /etc/ssl/certs -maxdepth 1 \( -type f -o -type l \) -name '*.crt' -o -name '*.pem' -o -name '*.cer' | sort)
+
+        echo "Verified $expected_count individual certificates and SHA1 hash links"
     }
 
     SYSTEM_CA_CERTS="/etc/ssl/certs/ca-certificates.crt"
@@ -53,5 +214,7 @@ execute: |
         echo "CA certificates database does not match system CA certificates"
         exit 1
     fi
+
+    verify_individual_certs_and_sha1_links
 
     echo "CA certificates database matches system CA certificates"

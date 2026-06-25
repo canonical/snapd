@@ -31,9 +31,13 @@ import (
 )
 
 type CertManager struct {
-	state                               *state.State
-	ensureEarlyCertificateGenerationRan bool
+	state            *state.State
+	oneTimeChecksRan bool
 }
+
+const previousGenerationTaskKey = "cert-db-prev-generation"
+
+var osutilBootID = osutil.BootID
 
 func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	m := &CertManager{
@@ -46,12 +50,42 @@ func Manager(st *state.State, runner *state.TaskRunner) *CertManager {
 	return m
 }
 
+// hasTaskInProgress is meant to be used from non-task contexts,
+// so it doesn't take the current task as an argument. It checks if
+// there is a task with the given name that is part of a change yet to
+// be completed, which will be interpreted as "in progress".
+func hasTaskInProgress(st *state.State, taskName string) bool {
+	for _, t := range st.Tasks() {
+		if t.Kind() != taskName {
+			continue
+		}
+		if chg := t.Change(); chg != nil && !chg.IsReady() {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *CertManager) ensureGarbageCollectionRun() error {
+	// Skip garbage collection if there is a "update-cert-db" change in flight
+	if hasTaskInProgress(m.state, "update-cert-db") {
+		logger.Debugf("skipping certificate database garbage collection as update-cert-db change is in flight")
+		return nil
+	}
+
+	bootID, err := osutilBootID()
+	if err != nil {
+		return err
+	}
+	return garbageCollectCertificateGenerations(bootID)
+}
+
 func (m *CertManager) Ensure() error {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
 
-	if m.ensureEarlyCertificateGenerationRan {
+	if m.oneTimeChecksRan {
 		return nil
 	}
 
@@ -64,14 +98,10 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	m.ensureEarlyCertificateGenerationRan = true
-
-	// If the CA certificate database is already present, nothing to do.
-	certDbPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged", "ca-certificates.crt")
-	if osutil.FileExists(certDbPath) {
-		logger.Debugf("ca-certificate database has already been generated, skipping generation")
-		return nil
-	}
+	// The reason we set it already, before any of the checks have actually run, is
+	// that in the case of errors we don't want to keep trying the below things. They are
+	// meant to run just once per boot (of snapd is fine too).
+	m.oneTimeChecksRan = true
 
 	// If the ssl certs directory is missing, nothing to do.
 	if !hasSystemCertsDir() {
@@ -79,34 +109,121 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
+	// Run garbage collection for the cert generations
+	if err := m.ensureGarbageCollectionRun(); err != nil {
+		return err
+	}
+
+	// If the CA certificate database is already present, nothing to do.
+	// Remove the old style merged folder if it exists. If the merged folder exists, and
+	// it's not a symlink, we remove the folder and regenerate the database
+	mergedDir := CurrentCertificateDir()
+	if osutil.IsSymlink(mergedDir) {
+		// The merged directory is already a symlink, we assume it's correctly set up and skip generation.
+		logger.Debugf("merged certificate database exists, skipping generation")
+		return nil
+	} else {
+		if err := os.RemoveAll(mergedDir); err != nil {
+			// In case of weird errors in this case, log it and skip generation. If it was
+			// a weird FS error, then we'll just retry again on next snapd startup.
+			logger.Noticef("error checking merged certificate database: %v", err)
+			return nil
+		}
+	}
+
 	// Create the update CA certificate database, this is likely a first
 	// run on a pre-existing system after this was introduced.
+	// TODO: The database will be generated with the lock being held here, which is not
+	// the best, as there is some overhead in file-generation and hashing.
 	logger.Noticef("No CA certificate database found, generating it now")
-	return GenerateCertificateDatabase()
+	return RefreshCertificateDatabase()
 }
 
-func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
+// recordCurrentCertificateGeneration is a helper function to make sure
+// the current certificate generation is recorded before updating.
+// OBS: This function will lock the state and commit to disk.
+func recordCurrentCertificateGeneration(t *state.Task, key string) (string, error) {
+	// Make sure we commit the changes here to disk immediately.
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
+	var current string
+	err := t.Get(key, &current)
+	if err != nil {
+		if !errors.Is(err, state.ErrNoState) {
+			return "", err
+		}
+		current, err = resolveCurrentCertificateTarget()
+		if err != nil {
+			return "", err
+		}
+		// Record the rollback target before publishing a new generation so a
+		// reboot during refresh does not lose the generation undo must return to.
+		t.Set(key, current)
+	}
+	return current, nil
+}
+
+func (m *CertManager) doUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
 	if !hasSystemCertsDir() {
+		st.Lock()
+		defer st.Unlock()
 		t.Logf("/etc/ssl/certs is not available on this system, skipping certificate database update")
 		return nil
 	}
 
-	return GenerateCertificateDatabase()
+	// Record the current generation before updating, so that
+	// if the system reboots during the update, we have a known
+	// generation to roll back to.
+	// The function will do it's own lock/unlock to force a commit to the underlying
+	// state to disk.
+	_, err := recordCurrentCertificateGeneration(t, previousGenerationTaskKey)
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	defer st.Unlock()
+	return RefreshCertificateDatabase()
 }
 
-func (m *CertManager) undoUpdateCertificateDatabase(_ *state.Task, _ *tomb.Tomb) error {
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+func (m *CertManager) undoUpdateCertificateDatabase(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
 
-	// create a copy of the current certificates in the snapd pki v1 dir
-	caCertificateDbPath := filepath.Join(mergedDir, "ca-certificates.crt")
-	caCertificateDbBackupPath := caCertificateDbPath + ".old"
-
-	if err := os.Rename(caCertificateDbBackupPath, caCertificateDbPath); err != nil && !os.IsNotExist(err) {
+	var previousTarget string
+	err := t.Get(previousGenerationTaskKey, &previousTarget)
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
 		return err
+	}
+
+	if previousTarget == "" {
+		mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+		// When there was no previously published generation, undo cannot point
+		// merged back anywhere. Cleanup the merged directory.
+		if err := os.RemoveAll(mergedDir); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	}
+
+	currentTarget, err := resolveCurrentCertificateTarget()
+	if err != nil {
+		return err
+	}
+	if currentTarget != previousTarget {
+		// Ordinary undo just moves merged back to the generation captured before
+		// the do-path ran.
+		if err := switchCurrentMergedCertificates(previousTarget); err != nil {
+			return err
+		}
 	}
 	return nil
 }
