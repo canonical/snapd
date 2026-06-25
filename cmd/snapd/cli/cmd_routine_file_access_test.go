@@ -251,16 +251,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterfaceHidden(
 	s.checkBasicAccess(c)
 
 	// Without the interface connected, all doc paths should be hidden
-	s.checkAccess(c, "/usr/share/doc", "hidden\n")
-	s.checkAccess(c, "/usr/share/doc/package/README", "hidden\n")
-	s.checkAccess(c, "/usr/local/share/doc", "hidden\n")
-	s.checkAccess(c, "/usr/share/cups/doc-root", "hidden\n")
-	s.checkAccess(c, "/usr/share/gimp/2.0/help", "hidden\n")
-	s.checkAccess(c, "/usr/share/gtk-doc", "hidden\n")
-	s.checkAccess(c, "/usr/share/javascript", "hidden\n")
-	s.checkAccess(c, "/usr/share/libreoffice/help", "hidden\n")
-	s.checkAccess(c, "/usr/share/sphinx_rtd_theme", "hidden\n")
-	s.checkAccess(c, "/usr/share/xubuntu-docs", "hidden\n")
+	s.testAccessSystemPackagesDocInterface(c, "hidden\n")
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterfaceReadOnly(c *C) {
@@ -268,17 +259,24 @@ func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterfaceReadOnl
 	s.checkBasicAccess(c)
 
 	// With the interface connected, all doc paths should be read-only
-	s.checkAccess(c, "/usr/share/doc", "read-only\n")
-	s.checkAccess(c, "/usr/share/doc/package/README", "read-only\n")
-	s.checkAccess(c, "/usr/local/share/doc", "read-only\n")
-	s.checkAccess(c, "/usr/share/cups/doc-root", "read-only\n")
-	s.checkAccess(c, "/usr/share/gimp/2.0/help", "read-only\n")
-	s.checkAccess(c, "/usr/share/gtk-doc", "read-only\n")
-	s.checkAccess(c, "/usr/share/javascript", "read-only\n")
-	s.checkAccess(c, "/usr/share/libreoffice/help", "read-only\n")
-	s.checkAccess(c, "/usr/share/sphinx_rtd_theme", "read-only\n")
-	s.checkAccess(c, "/usr/share/xubuntu-docs", "read-only\n")
+	s.testAccessSystemPackagesDocInterface(c, "read-only\n")
 
 	// Other paths under /usr/share should still be hidden
 	s.checkAccess(c, "/usr/share/other", "hidden\n")
+}
+
+func (s *SnapRoutineFileAccessSuite) testAccessSystemPackagesDocInterface(c *C, expectedAccess string) {
+	s.checkAccess(c, "/usr/share/doc", expectedAccess)
+	s.checkAccess(c, "/usr/share/doc/package/README", expectedAccess)
+	s.checkAccess(c, "/usr/local/share/doc", expectedAccess)
+	s.checkAccess(c, "/usr/share/cups/doc-root", expectedAccess)
+	s.checkAccess(c, "/usr/share/gimp/2.0/help", expectedAccess)
+	s.checkAccess(c, "/usr/share/gtk-doc", expectedAccess)
+	s.checkAccess(c, "/usr/share/javascript", expectedAccess)
+	s.checkAccess(c, "/usr/share/libreoffice/help", expectedAccess)
+	s.checkAccess(c, "/usr/share/sphinx_rtd_theme", expectedAccess)
+	s.checkAccess(c, "/usr/share/xubuntu-docs", expectedAccess)
+	s.checkAccess(c, "/usr/share/help", expectedAccess)
+	s.checkAccess(c, "/usr/share/info", expectedAccess)
+	s.checkAccess(c, "/usr/share/man", expectedAccess)
 }
