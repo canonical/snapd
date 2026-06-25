@@ -261,13 +261,13 @@ func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into notice instruction: %v", err)
 	}
 
-	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
-
 	if err := inst.validate(r); err != nil {
 		return err
 	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	noticeId, err := st.AddNotice(&requestUID, state.SnapRunInhibitNotice, inst.Key, nil)
 	if err != nil {
