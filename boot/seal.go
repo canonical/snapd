@@ -242,13 +242,23 @@ func sealKeyToModeenvForMethod(
 		}
 	}
 
+	// When installing or reprovsion, we expect there is no try system
 	includeTryModel := false
-	systems := []string{modeenv.RecoverySystem}
-	modes := map[string][]string{
-		// the system we are installing from is considered current and
-		// tested, hence allow both recover and factory reset modes
-		modeenv.RecoverySystem: {ModeRecover, ModeFactoryReset},
+	systems := modeenv.GoodRecoverySystems
+	if len(systems) == 0 {
+		systems = []string{modeenv.RecoverySystem}
 	}
+	modes := map[string][]string{}
+	for _, system := range systems {
+		logger.Debugf("sealing for system %q", system)
+		modes[system] = []string{ModeRecover, ModeFactoryReset}
+	}
+	for _, system := range modeenv.CurrentRecoverySystems {
+		if _, has := modes[system]; !has {
+			return fmt.Errorf("trying to install or reprovision with a try system %q", system)
+		}
+	}
+
 	var err error
 	params.RecoveryBootChains, err = recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, flags.SeedDir)
 	if err != nil {
