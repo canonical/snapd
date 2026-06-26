@@ -161,7 +161,7 @@ func (s *confdbHandlerSuite) TestUpdateEntireValidationSet(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, IsNil)
 
 	var tr assertstate.ValidationSetTracking
@@ -191,7 +191,7 @@ func (s *confdbHandlerSuite) TestCommitUpdatesOnlyMode(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, IsNil)
 
 	var tr assertstate.ValidationSetTracking
@@ -221,7 +221,7 @@ func (s *confdbHandlerSuite) TestCommitUnsetsPinnedSequence(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, IsNil)
 
 	var tr assertstate.ValidationSetTracking
@@ -268,7 +268,7 @@ func (s *confdbHandlerSuite) TestCommitForgetsDeletedValidationSet(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, IsNil)
 
 	// check it was deleted from state
@@ -299,7 +299,7 @@ func (s *confdbHandlerSuite) TestCommitRejectsUnsupportedStorageVersion(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, ErrorMatches, `internal error: cannot write to system/validation-sets: unsupported storage version "v2"`)
 }
 
@@ -318,7 +318,7 @@ func (s *confdbHandlerSuite) TestCommitRejectsShortPath(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, ErrorMatches, `internal error: unexpected storage path: v1.my-account`)
 }
 
@@ -359,7 +359,7 @@ func (s *confdbHandlerSuite) TestCommitDifferentAccounts(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, IsNil)
 
 	var tr1 assertstate.ValidationSetTracking
@@ -411,7 +411,7 @@ func (s *confdbHandlerSuite) TestCommitMultipleSetsUnderSameAccount(c *C) {
 	c.Assert(err, IsNil)
 
 	handler := &assertstate.ValsetsConfdbHandler{}
-	err = handler.Commit(s.st, tx)
+	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, IsNil)
 
 	for i, n := range []string{"first-set", "second-set", "third-set"} {

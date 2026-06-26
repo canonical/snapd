@@ -48,22 +48,22 @@ func (c *valsetsConfdbHandler) SchemaName() string {
 	return "validation-sets"
 }
 
-func (c *valsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transaction) error {
+func (c *valsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
 	view, err := confdbstate.GetView(st, "system", "validation-sets", "admin")
 	if err != nil {
-		return fmt.Errorf("internal error: unexpected confdb-schema in validation-sets handler: %v", err)
+		return nil, fmt.Errorf("internal error: unexpected confdb-schema in validation-sets handler: %v", err)
 	}
 
 	type vsKey struct{ account, name string }
 	valsets := make(map[vsKey][][]confdb.Accessor)
 	for _, path := range tx.AlteredPaths() {
 		if len(path) < 3 {
-			return fmt.Errorf("internal error: unexpected storage path: %v", confdb.JoinAccessors(path))
+			return nil, fmt.Errorf("internal error: unexpected storage path: %v", confdb.JoinAccessors(path))
 		}
 
 		// if we ever change the storage schema, we need to adjust this code so fail hard here
 		if path[0].Name() != "v1" {
-			return fmt.Errorf("internal error: cannot write to system/validation-sets: unsupported storage version %q", path[0].Name())
+			return nil, fmt.Errorf("internal error: cannot write to system/validation-sets: unsupported storage version %q", path[0].Name())
 		}
 
 		k := vsKey{account: path[1].Name(), name: path[2].Name()}
@@ -76,38 +76,38 @@ func (c *valsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transacti
 		if err != nil {
 			if errors.Is(err, &confdb.NoDataError{}) {
 				if err := ForgetValidationSet(st, k.account, k.name, ForgetValidationSetOpts{}); err != nil {
-					return fmt.Errorf("cannot forget validation set %s/%s: %v", k.account, k.name, err)
+					return nil, fmt.Errorf("cannot forget validation set %s/%s: %v", k.account, k.name, err)
 				}
 				continue
 			}
-			return fmt.Errorf("cannot read validation set %s/%s from confdb: %v", k.account, k.name, err)
+			return nil, fmt.Errorf("cannot read validation set %s/%s from confdb: %v", k.account, k.name, err)
 		}
 
 		// TODO: GetViaView returns value wrapped in map keyed by request. Maybe
 		// just use the confdb method directly? We don't really need this here
 		resultMap, ok := result.(map[string]any)
 		if !ok {
-			return fmt.Errorf("internal error: unexpected result type %T for validation set %s/%s", result, k.account, k.name)
+			return nil, fmt.Errorf("internal error: unexpected result type %T for validation set %s/%s", result, k.account, k.name)
 		}
 		val := resultMap[request]
 
 		tr := &ValidationSetTracking{}
 		err = GetValidationSet(st, k.account, k.name, tr)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
+			return nil, err
 		}
 		tr.AccountID = k.account
 		tr.Name = k.name
 
 		err = updateValSetTracking(k.account, k.name, tr, val)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		UpdateValidationSet(st, tr)
 	}
 
-	return nil
+	return nil, nil
 }
 
 // updateValSetTracking uses the values set through confdb to update the

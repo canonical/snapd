@@ -3462,3 +3462,152 @@ func (s *confdbTestSuite) setupSystemConfdbValidationSets(c *C) {
 		Current:   3,
 	})
 }
+
+type mockConfdbHandler struct {
+	c *C
+
+	commitFunc func(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error)
+}
+
+func (h *mockConfdbHandler) SchemaName() string {
+	return "validation-sets"
+}
+
+func (h *mockConfdbHandler) Commit(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+	if h.commitFunc != nil {
+		return h.commitFunc(st, tx)
+	}
+	return nil, nil
+}
+
+func (h *mockConfdbHandler) Databag(st *state.State) (confdb.JSONDatabag, error) {
+	bag := confdb.NewJSONDatabag()
+	bag.Set(parsePath(h.c, "v1.my-account.my-set.mode"), "enforce")
+	bag.Set(parsePath(h.c, "v1.my-account.my-set.sequence"), 3)
+	return bag, nil
+}
+
+func (s *confdbTestSuite) TestSystemConfdbAsyncCommit(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+
+	var asyncTaskRan bool
+	s.o.TaskRunner().AddHandler("mock-async-work", func(t *state.Task, _ *tomb.Tomb) error {
+		asyncTaskRan = true
+		return nil
+	}, nil)
+
+	handler := &mockConfdbHandler{
+		c: c,
+		commitFunc: func(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+			asyncTask := st.NewTask("mock-async-work", "async work from commit handler")
+			return []*state.TaskSet{state.NewTaskSet(asyncTask)}, nil
+		},
+	}
+
+	// overwrite validation-sets handler so we can "use" the validation-sets
+	//confdb-schema and not have to mock another one
+	confdbstate.RegisterConfdbHandler(handler)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "admin")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(nil, s.state, view, map[string]any{"my-account.my-set.pinned-sequence": 10})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+
+	// check commit scheduled the async tasks
+	c.Check(asyncTaskRan, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *confdbTestSuite) TestSystemConfdbAsyncCommitTaskError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+
+	s.o.TaskRunner().AddHandler("mock-async-fail", func(t *state.Task, _ *tomb.Tomb) error {
+		return fmt.Errorf("async task failed")
+	}, nil)
+
+	handler := &mockConfdbHandler{
+		c: c,
+		commitFunc: func(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+			asyncTask := st.NewTask("mock-async-fail", "async work that fails")
+			return []*state.TaskSet{state.NewTaskSet(asyncTask)}, nil
+		},
+	}
+	confdbstate.RegisterConfdbHandler(handler)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "admin")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(nil, s.state, view, map[string]any{"my-account.my-set.pinned-sequence": 10})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	var commitTask *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "commit-confdb-tx" {
+			commitTask = t
+			break
+		}
+	}
+	c.Assert(commitTask, NotNil)
+	c.Assert(commitTask.Status(), Equals, state.HoldStatus)
+}
+
+func (s *confdbTestSuite) TestSystemConfdbSyncCommit(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+
+	var commitCalled bool
+	handler := &mockConfdbHandler{
+		c: c,
+		commitFunc: func(*state.State, *confdbstate.Transaction) ([]*state.TaskSet, error) {
+			commitCalled = true
+			return nil, nil
+		},
+	}
+	confdbstate.RegisterConfdbHandler(handler)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "admin")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(nil, s.state, view, map[string]any{"my-account.my-set.pinned-sequence": 10})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+
+	c.Check(commitCalled, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}

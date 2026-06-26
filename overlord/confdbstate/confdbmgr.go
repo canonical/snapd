@@ -54,8 +54,10 @@ type SystemConfdbHandler interface {
 	SchemaName() string
 
 	// Commit takes a transaction holding the modified confdb data and makes those
-	// changes effective within the subsystem.
-	Commit(st *state.State, tx *Transaction) error
+	// changes effective within the subsystem. It may return task sets that need
+	// to be completed before the commit can be considered done. If no async work
+	// is needed, it returns nil task sets.
+	Commit(st *state.State, tx *Transaction) ([]*state.TaskSet, error)
 
 	// Databag returns a JSONDatabag holding a confdb-acceptable representation
 	// of the data this handler is responsible for.
@@ -130,7 +132,44 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 			// shouldn't happen; we check for this early
 			return fmt.Errorf("internal error: no system handler registered for confdb-schema %q", tx.ConfdbName)
 		}
-		return handler.Commit(st, tx)
+
+		var committed bool
+		if err := t.Get("scheduled-tasks", &committed); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		if committed {
+			// we've already scheduled commit tasks and, since this handler is running
+			// again, they've finished. There's nothing else to do
+			return nil
+		}
+
+		taskSets, err := handler.Commit(st, tx)
+		if err != nil {
+			return err
+		}
+
+		if len(taskSets) == 0 {
+			// synchronous commit, we're done
+			return nil
+		}
+
+		// this confdb handler needs to run tasks, so the commit task will wait for
+		// those and run when they're done
+		chg := t.Change()
+		for _, ts := range taskSets {
+			chg.AddAll(ts)
+			// NOTE: ideally we would just wait for the last one but can we be sure
+			// that the tasks in the taskset are a neat sequence of waiting tasks?
+			t.WaitAll(ts)
+		}
+		t.Set("scheduled-tasks", true)
+		t.SetStatus(state.DoStatus)
+
+		// ensure the new tasks are picked up by the task runner
+		st.EnsureBefore(0)
+
+		return &state.Retry{}
 	}
 
 	hasSaveViewHook := false
