@@ -1749,3 +1749,33 @@ func (s *daemonSuite) TestTryExtractJSONActionShortCircuits(c *check.C) {
 	req.Header.Set("Content-Type", "application/json")
 	c.Check(TryExtractJSONAction(req), check.Equals, "")
 }
+
+func (s *daemonSuite) TestServeHTTPTraceExtractsActionPreservesBody(c *check.C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	d := s.newTestDaemon(c)
+	body := `{"action":"install","snaps":["x"]}`
+
+	var gotBody string
+	cmd := &Command{
+		d:    d,
+		Path: "/v2/test",
+	}
+	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+		b, err := io.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		gotBody = string(b)
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = openAccess{}
+
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(gotBody, check.Equals, body)
+}
