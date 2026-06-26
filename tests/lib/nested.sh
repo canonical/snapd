@@ -683,6 +683,32 @@ nested_ensure_ubuntu_save() {
     fi
 }
 
+_add_nested_coverage_tweaks() {
+    local TARGET
+    TARGET="${1}"
+    if [ -z "$TAG_FEATURES" ]; then
+        return
+    fi
+
+    SNAP_CACHE="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
+
+    mkdir -p "${SNAP_CACHE}"
+
+    SNAP_PATH="$(ls "${TARGET}"/snapd_*.snap | head -1)"
+
+    mkdir -p "${SNAP_CACHE}/unpack"
+    unsquashfs -no-progress -f -d "${SNAP_CACHE}/unpack" "${SNAP_PATH}"
+
+    # add tweaks to install and run mode for spread tests
+    # shellcheck source=tests/lib/prepare.sh
+    . "$TESTSLIB"/prepare.sh
+    _add_coverage_tweaks "${SNAP_CACHE}/unpack"
+
+    snap pack "${SNAP_CACHE}/unpack" "${SNAP_CACHE}/"
+    cp "${SNAP_CACHE}"/snapd_*.snap "${SNAP_PATH}"
+    rm -rf "${SNAP_CACHE}"
+}
+
 nested_prepare_snapd() {
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         echo "Repacking snapd snap"
@@ -705,6 +731,7 @@ nested_prepare_snapd() {
                 # shellcheck source=tests/lib/prepare.sh
                 . "$TESTSLIB"/prepare.sh
                 build_snapd_snap "$NESTED_ASSETS_DIR"
+                _add_nested_coverage_tweaks "$NESTED_ASSETS_DIR"
                 for f in "${NESTED_ASSETS_DIR}"/snapd_*.snap; do
                     snap_name="$(basename "${f}")"
                     break
@@ -1797,6 +1824,7 @@ nested_start_classic_vm() {
     # Copy tools to be used on tests
     nested_wait_for_ssh
     nested_prepare_tools
+    nested_setup_feature_tagging
     nested_setup_vm
 }
 
@@ -1817,6 +1845,23 @@ remote.exec_as() {
     local PASSWD="$2"
     shift 2
     sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+}
+
+nested_setup_feature_tagging() {
+    if [ -n "$TAG_FEATURES" ]; then
+        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
+        CONF_FILE=99-generate-coverage.conf
+        while IFS= read -r line; do
+            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
+            remote.exec "mkdir -p $dir"
+            remote.exec "printf '[Service]\nEnvironment=SNAPD_TRACE=1\nEnvironment=SNAPD_JSON_LOGGING=1\n' | sudo tee $dir/$CONF_FILE"    
+        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
+        remote.exec "sudo systemctl daemon-reload"
+        remote.exec "sudo systemctl restart snapd"
+
+        remote.exec "sudo snap set system journal.persistent=true"
+        
+    fi
 }
 
 nested_prepare_tools() {
@@ -1867,20 +1912,8 @@ nested_prepare_tools() {
     fi
 
     if [ -n "$TAG_FEATURES" ]; then
-        # If feature tagging is enabled, then we need to enable debug logging
-        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
-        remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_TRACE=1 SNAPD_JSON_LOGGING=1\n' | sudo tee /etc/systemd/system/snapd.service.d/99-feature-tags.conf"
-        # Persist journal logs
+        # Persist journal logs if gadget snap wasn't repacked
         remote.exec "sudo snap set system journal.persistent=true"
-        # Add trace structured logging to journal for snap commands
-        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
-        # We changed the service configuration so we need to reload and restart
-        # the units to get them applied
-        remote.exec "sudo systemctl daemon-reload"
-        # stop the socket (it pulls down the service)
-        remote.exec "sudo systemctl stop snapd.socket"
-        # start the service (it pulls up the socket)
-        remote.exec "sudo systemctl start snapd.service"
     fi
 }
 

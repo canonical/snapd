@@ -773,6 +773,10 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    if [ -n "$TAG_FEATURES" ]; then
+        "$TESTSLIB"/collect-artifacts.sh features --after-suite
+    fi
 }
 
 restore_suite_each() {
@@ -867,6 +871,10 @@ restore_suite() {
             # A snap-confine package never existed on openSUSE or Arch
             distro_purge_package snap-confine
         fi
+    fi
+    if [ -n "$TAG_FEATURES" ]; then
+        journalctl --rotate || true
+        journalctl --vacuum-time=1s || true
     fi
 }
 
