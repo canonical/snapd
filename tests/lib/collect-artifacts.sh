@@ -21,7 +21,7 @@ _prepare_suite_artifacts_path() {
 _extract_trace_entries() {
     # On some systems, JSON log entries can be split across lines; join those
     # fragments before filtering for TRACE entries.
-    grep -oP 'snapd?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*"TRACE".*[^}]$/ { N; s/\n//; ba }' | grep '"TRACE"'
+    grep -oP 'snap(?:d|-bootstrap)?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*"TRACE".*[^}]$/ { N; s/\n//; ba }' | grep '"TRACE"'
 }
 
 features_after_non_nested_task() {
@@ -47,7 +47,7 @@ features_after_nested_task() {
     "$TESTSTOOLS"/remote.exec "journalctl --sync" || true
     "$TESTSTOOLS"/remote.exec "journalctl --flush" || true
     # Collect TRACE logs from all boots, appending each boot's logs to journal.txt
-    "$TESTSTOOLS"/remote.exec "journalctl --list-boots -q | awk '{print \$1}' | while read boot_id; do sudo journalctl -b \"\$boot_id\" --no-pager | grep -oP 'snapd?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*\\\"TRACE\\\".*[^}]$/ { N; s/\n//; ba }' | grep '\"TRACE\"'; done" > "$task_dir"/journal.txt || true
+    "$TESTSTOOLS"/remote.exec "journalctl --list-boots -q | awk '{print \$1}' | while read boot_id; do sudo journalctl -b \"\$boot_id\" --no-pager | grep -oP 'snap(?:d|-bootstrap)?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*\\\"TRACE\\\".*[^}]$/ { N; s/\n//; ba }' | grep '\"TRACE\"'; done" > "$task_dir"/journal.txt || true
 
     # install-mode.log.gz may exist on nested systems under /var/log; pull it, extract and append TRACE entries
     "$TESTSTOOLS"/remote.exec "if [ -f /var/log/install-mode.log.gz ]; then sudo chmod 644 /var/log/install-mode.log.gz; fi" || true
