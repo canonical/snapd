@@ -165,7 +165,10 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	traceSnapdAPI(c, w, r)
+	if osutil.GetenvBool("SNAPD_TRACE") {
+		action := tryExtractJSONAction(r)
+		traceSnapdAPI(c, r, action)
+	}
 
 	rsp := rspf(c, r, user)
 
@@ -187,30 +190,12 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
-func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		loggedWithAction := false
-		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
-			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err != nil {
-				logger.Trace("endpoint-error", "body-read", err)
-			}
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
-				}
-			}
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		}
-		if !loggedWithAction {
-			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
-		}
+func traceSnapdAPI(c *Command, r *http.Request, action string) {
+	if action != "" {
+		logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
+		return
 	}
+	logger.Trace("endpoint", "method", r.Method, "path", c.Path)
 }
 
 // actionPeekSize bounds how much of the request body we inspect when
