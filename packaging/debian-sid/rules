@@ -59,13 +59,11 @@ export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
-# TAGS are the go build tags for all binaries, SNAP_TAGS are for snap
+# TAGS are the go build tags for all binaries,  are for snap
 # build only.
 TAGS=nosecboot
-SNAP_TAGS=nosecboot nomanagers
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS+= withtestkeys
-	SNAP_TAGS+= withtestkeys
 endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
