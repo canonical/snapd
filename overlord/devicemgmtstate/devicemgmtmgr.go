@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -53,7 +54,8 @@ const (
 )
 
 var (
-	timeNow = time.Now
+	timeNow                     = time.Now
+	assertstateFetchAccountKeys = assertstate.FetchAccountKeys
 
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
@@ -125,6 +127,9 @@ type RequestMessage struct {
 	// A non-empty ResponseStatus means the message has been fully processed.
 	ResponseStatus asserts.MessageStatus `json:"response-status,omitempty"`
 	ResponseBody   map[string]any        `json:"response-body,omitempty"`
+
+	// RawAssertion holds the original encoded assertion bytes.
+	RawAssertion []byte `json:"raw-assertion"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -588,18 +593,38 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return nil
 	}
 
+	a, err := asserts.Decode(msg.RawAssertion)
+	if err != nil {
+		return reject(fmt.Sprintf("cannot decode message: %v", err))
+	}
+
+	m.state.Unlock()
+	err = assertstateFetchAccountKeys(m.state, 0, []string{a.SignKeyID()})
+	m.state.Lock()
+	if err != nil {
+		// TODO: need to distinguish between:
+		//  - transient errors (like store unreachable) - retry
+		//  - permanent errors - determine whether to fail the task or reject the message.
+		return err
+	}
+
+	err = assertstate.DB(m.state).Check(a)
+	if err != nil {
+		return reject(fmt.Sprintf("cannot verify message signature: %v", err))
+	}
+
 	serial, err := m.device.Serial()
 	if err != nil {
 		return err
 	}
 	devID := serial.DeviceID()
 	if !msg.Targets(devID) {
-		return reject(fmt.Sprintf("message not intended for device %s", devID))
+		return reject(fmt.Sprintf("cannot process message: not intended for device %s", devID))
 	}
 
 	now := timeNow()
 	if !msg.ValidAt(now) {
-		return reject(fmt.Sprintf("message not valid at %s", now.UTC().Format(time.RFC3339)))
+		return reject(fmt.Sprintf("cannot process message: not valid at %s", now.UTC().Format(time.RFC3339)))
 	}
 
 	// TODO: implement assumes checks (SD187, SD251). The design is somewhat in
@@ -711,17 +736,18 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 	}
 
 	return &RequestMessage{
-		AccountID:   reqAs.AccountID(),
-		AuthorityID: reqAs.AuthorityID(),
-		BaseID:      reqAs.ID(),
-		SeqNum:      reqAs.SeqNum(),
-		Kind:        reqAs.Kind(),
-		Devices:     deviceIDs,
-		ValidSince:  reqAs.ValidSince(),
-		ValidUntil:  reqAs.ValidUntil(),
-		Assumes:     reqAs.Assumes(),
-		Body:        string(reqAs.Body()),
-		ReceiveTime: timeNow(),
+		AccountID:    reqAs.AccountID(),
+		AuthorityID:  reqAs.AuthorityID(),
+		BaseID:       reqAs.ID(),
+		SeqNum:       reqAs.SeqNum(),
+		Kind:         reqAs.Kind(),
+		Devices:      deviceIDs,
+		ValidSince:   reqAs.ValidSince(),
+		ValidUntil:   reqAs.ValidUntil(),
+		Assumes:      reqAs.Assumes(),
+		Body:         string(reqAs.Body()),
+		ReceiveTime:  timeNow(),
+		RawAssertion: []byte(msg.Data),
 	}, nil
 }
 
