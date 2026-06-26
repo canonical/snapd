@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/osutil/mkfs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type MkfsParams = mkfsParams
@@ -70,11 +71,7 @@ func MockEnsureNodesExist(f func(nodes []string, timeout time.Duration) error) (
 }
 
 func MockMkfsMake(f func(ctx context.Context, typ, img string, opts *mkfs.MakeOptions) error) (restore func()) {
-	old := mkfsImpl
-	mkfsImpl = f
-	return func() {
-		mkfsImpl = old
-	}
+	return testutil.Mock(&mkfsImpl, f)
 }
 
 func MockKernelEnsureKernelDriversTree(f func(kMntPts kernel.MountPoints, compsMntPts []kernel.ModulesCompMountPoints, destDir string, opts *kernel.KernelDriversTreeOptions) (err error)) (restore func()) {
