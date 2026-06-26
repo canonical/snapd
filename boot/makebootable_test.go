@@ -1361,6 +1361,10 @@ version: 5.0
 }
 
 func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C, whichFile, content, errMsg string, cmdlines map[string]string) {
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, whichFile, content, "", errMsg, cmdlines)
+}
+
+func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c *C, whichFile, content, extraSnapdAppend, errMsg string, cmdlines map[string]string) {
 	if cmdlines == nil {
 		cmdlines = map[string]string{}
 	}
@@ -1420,7 +1424,9 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C,
 		{"grubx64.efi", "grub content"},
 		{"meta/snap.yaml", gadgetSnapYaml},
 		{"meta/gadget.yaml", gadgetYaml},
-		{whichFile, content},
+	}
+	if whichFile != "" {
+		gadgetFiles = append(gadgetFiles, []string{whichFile, content})
 	}
 	snaptest.PopulateDir(unpackedGadgetDir, gadgetFiles)
 	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
@@ -1466,6 +1472,8 @@ version: 5.0
 		Kernel:              kernelInfo,
 		Recovery:            false,
 		UnpackedGadgetDir:   unpackedGadgetDir,
+
+		ExtraSnapdKernelCommandLineAppend: extraSnapdAppend,
 	}
 
 	// set up observer state
@@ -1589,17 +1597,28 @@ version: 5.0
 			defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 			c.Assert(err, IsNil)
 			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
-			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content}, " "))
+			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content, extraSnapdAppend}, " "))
 		} else {
-			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
+			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{content, extraSnapdAppend}, " "))
 			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
 		}
 	case "cmdline.full":
 		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
-		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, content)
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{content, extraSnapdAppend}, " "))
+	case "":
+		blopts := &bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		}
+		bl, err := bootloader.Find(boot.InitramfsUbuntuBootDir, blopts)
+		c.Assert(err, IsNil)
+		tbl := bl.(bootloader.TrustedAssetsBootloader)
+		candidate := false
+		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
+		c.Assert(err, IsNil)
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, extraSnapdAppend}, " "))
 	}
-
-	// ensure modeenv looks correct
 	ubuntuDataModeEnvPath := filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, fmt.Sprintf(`mode=run
 recovery_system=20191216
@@ -1640,6 +1659,30 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelFullArgs(c
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelInvalidArgs(c *C) {
 	errMsg := `cannot compose the candidate command line: cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: disallowed kernel argument "snapd=unhappy"`
 	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar snapd=unhappy", errMsg, nil)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20WithExtraSnapdKernelCommandLineAppend(c *C) {
+	extraSnapdAppend := "snapd.xkb=eg,pc105,,grp:alt_shift_toggle"
+	cmdlines := map[string]string{
+		"run": "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 " + extraSnapdAppend,
+	}
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, "", "", extraSnapdAppend, "", cmdlines)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20WithExtraSnapdKernelCommandLineAppendAndCustomKernelExtraArgs(c *C) {
+	extraSnapdAppend := "snapd.xkb=eg,pc105,,grp:alt_shift_toggle"
+	cmdlines := map[string]string{
+		"run": "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz " + extraSnapdAppend,
+	}
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, "cmdline.extra", "foo bar baz", extraSnapdAppend, "", cmdlines)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20WithExtraSnapdKernelCommandLineAppendCustomKernelFullArgs(c *C) {
+	extraSnapdAppend := "snapd.xkb=eg,pc105,,grp:alt_shift_toggle"
+	cmdlines := map[string]string{
+		"run": "snapd_recovery_mode=run foo bar baz " + extraSnapdAppend,
+	}
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, "cmdline.full", "foo bar baz", extraSnapdAppend, "", cmdlines)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable(c *C) {

@@ -1443,7 +1443,7 @@ func (s *installSuite) testWriteContent(c *C, opts writeContentOpts) {
 				EncryptedDevice: "/dev/mapper/ubuntu-data",
 			},
 		}
-		esd = install.MockEncryptionSetupData(labelToEncData, nil, nil, nil)
+		esd = install.MockEncryptionSetupData(labelToEncData, nil, nil, nil, nil)
 	}
 	onDiskVols, err := install.WriteContent(ginfo.Volumes, allLaidOutVols, esd, nil, nil, timings.New(nil))
 	c.Assert(err, IsNil)
@@ -1490,8 +1490,9 @@ func (s *installSuite) TestInstallWriteContentDeviceNotFound(c *C) {
 }
 
 type encryptPartitionsOpts struct {
-	encryptType device.EncryptionType
-	volumesAuth *device.VolumesAuthOptions
+	encryptType                          device.EncryptionType
+	volumesAuth                          *device.VolumesAuthOptions
+	extraSnapdKernelCommandLineFragments map[string]string
 }
 
 func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
@@ -1534,11 +1535,15 @@ func (s *installSuite) testEncryptPartitions(c *C, opts encryptPartitionsOpts) {
 
 	checkContext := &secboot.PreinstallCheckContext{}
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, opts.volumesAuth, opts.encryptType, checkContext, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(
+		ginfo.Volumes, opts.volumesAuth, opts.encryptType, checkContext, model,
+		gadgetRoot, "", opts.extraSnapdKernelCommandLineFragments, timings.New(nil),
+	)
 	c.Assert(err, IsNil)
 	c.Assert(encryptSetup, NotNil)
 	c.Assert(encryptSetup.VolumesAuth(), Equals, opts.volumesAuth)
 	c.Assert(encryptSetup.PreinstallCheckContext(), Equals, checkContext)
+	c.Assert(encryptSetup.ExtraSnapdKernelCommandLineFragments(), DeepEquals, opts.extraSnapdKernelCommandLineFragments)
 	err = install.CheckEncryptionSetupData(encryptSetup, map[string]string{
 		"ubuntu-save": "/dev/mapper/ubuntu-save",
 		"ubuntu-data": "/dev/mapper/ubuntu-data",
@@ -1556,6 +1561,9 @@ func (s *installSuite) TestInstallEncryptPartitions(c *C) {
 	s.testEncryptPartitions(c, encryptPartitionsOpts{
 		encryptType: device.EncryptionTypeLUKS,
 		volumesAuth: &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"},
+		extraSnapdKernelCommandLineFragments: map[string]string{
+			"xkb": `snapd.xkb="us,pc105,,grp:alt_shift_toggle"`,
+		},
 	})
 }
 
@@ -1572,7 +1580,7 @@ func (s *installSuite) TestInstallEncryptPartitionsNoDeviceSet(c *C) {
 	c.Assert(err, IsNil)
 	defer restore()
 
-	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, nil, model, gadgetRoot, "", timings.New(nil))
+	encryptSetup, err := install.EncryptPartitions(ginfo.Volumes, nil, device.EncryptionTypeLUKS, nil, model, gadgetRoot, "", nil, timings.New(nil))
 
 	c.Check(err.Error(), Equals, `volume "pc" has no device assigned`)
 	c.Check(encryptSetup, IsNil)
@@ -1679,7 +1687,7 @@ func (s *installSuite) testMountVolumes(c *C, opts mountVolumesOpts) {
 				EncryptedDevice: "/dev/mapper/ubuntu-data",
 			},
 		}
-		esd = install.MockEncryptionSetupData(labelToEncData, nil, nil, nil)
+		esd = install.MockEncryptionSetupData(labelToEncData, nil, nil, nil, nil)
 	}
 
 	// 10 million mocks later ...

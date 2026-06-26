@@ -376,12 +376,21 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 
 	switch req.Step {
 	case client.InstallStepSetupStorageEncryption:
+		// TODO: require volumes-auth if HWROT is ignored.
 		if req.VolumesAuth != nil {
 			if err := req.VolumesAuth.Validate(); err != nil {
 				return BadRequest("invalid volume authentication options: %v", err)
 			}
+			if req.KeyboardConfig == nil {
+				return BadRequest("cannot use volumes authentication without a keyboard configuration")
+			}
 		}
-		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes, req.VolumesAuth)
+		if req.KeyboardConfig != nil {
+			if err := req.KeyboardConfig.Validate(); err != nil {
+				return BadRequest("invalid keyboard configuration: %v", err)
+			}
+		}
+		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes, req.VolumesAuth, req.KeyboardConfig)
 		if err != nil {
 			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)
 		}
