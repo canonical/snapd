@@ -227,7 +227,7 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
-    if os.query is-classic && [ -n "$TAG_FEATURES"] && [ "$SPREAD_REBOOT" = 0 ]; then
+    if os.query is-classic && [ -n "$TAG_FEATURES" ] && [ "$SPREAD_REBOOT" = 0 ]; then
         cat <<'EOF' | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
 GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} tag.features=1"
 EOF
