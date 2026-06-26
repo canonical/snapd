@@ -411,7 +411,7 @@ def install_busybox(dest_dir, sysroot):
         os.symlink("busybox", os.path.join(dest_dir, "usr/bin", c))
 
 
-def install_misc(dest_dir, sysroot, deb_arch):
+def install_misc(dest_dir, sysroot, deb_arch, ubuntu_release):
     # dmsetup rules
     rules = package_files(["dmsetup"], sysroot)
     to_include = re.compile(r".*rules.d/")
@@ -424,7 +424,6 @@ def install_misc(dest_dir, sysroot, deb_arch):
         "/usr/sbin/sulogin",
         "/usr/bin/tar",
         "/usr/lib/" + deb_arch + "/libbpf.so.1",
-        "/usr/lib/" + deb_arch + "/libcurl.so.4",
         "/usr/lib/" + deb_arch + "/libgcc_s.so.1",
         "/usr/lib/" + deb_arch + "/libkmod.so.2",
         "/usr/lib/" + deb_arch + "/libseccomp.so.2",
@@ -466,10 +465,14 @@ def install_misc(dest_dir, sysroot, deb_arch):
     ]
     files += glob.glob("/lib/" + deb_arch + "/libnss_compat.so.*")
     files += glob.glob("/lib/" + deb_arch + "/libnss_files.so.*")
-    files += glob.glob("/usr/lib/" + deb_arch + "/libtss2*.so.*")
     files += glob.glob("/usr/lib/" + deb_arch + "/plymouth/renderers/*.so")
     files += glob.glob("/usr/share/plymouth/themes/bgrt/*")
     files += glob.glob("/usr/share/plymouth/themes/spinner/*")
+
+    # needed by systemd for stonking
+    if release_higher_or_equal(ubuntu_release, (26, 10)):
+        files.append("/usr/lib/" + deb_arch + "/libcurl.so.4")
+        files += glob.glob("/usr/lib/" + deb_arch + "/libtss2*.so.*")
 
     # Include xkb-data layouts for plymouth
     files += glob.glob("/usr/share/X11/xkb/**/*", recursive=True)
@@ -820,7 +823,7 @@ def create_initrd(parser, args):
         # Copy systemd bits
         install_systemd_files(main, rootfs, ubuntu_release)
         # Other miscelanea stuff
-        install_misc(main, rootfs, deb_arch)
+        install_misc(main, rootfs, deb_arch, ubuntu_release)
         # Copy features
         for feature in args.features:
             # Add feature files
