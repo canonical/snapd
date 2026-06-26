@@ -9,8 +9,9 @@ for each executed task.
 
 For each test in the final composed feature files, this script finds the
 runtime from the most recent attempt that ran that test and adds it as a
-"runtime" field in seconds. Runtime is the sum of
+"runtime" field in seconds. Runtime for tasks is the sum of
 task-level preparing + executing + restoring durations.
+Runtime for suites is preparing + restoring durations.
 """
 
 import argparse
@@ -55,7 +56,7 @@ def build_runtime_lookup(results_dir: str) -> dict[tuple, float]:
     spread-results-<run_id>-<attempt>-<group>, and builds a lookup:
       (system, full_test_name, variant) -> runtime_seconds
 
-    When the same test appears in multiple attempts, only the latest attempt
+    When the same suite/test appears in multiple attempts, only the latest attempt
     is kept.
 
     :param results_dir: directory containing spread-results artifact subdirectories
@@ -103,7 +104,7 @@ def build_runtime_lookup(results_dir: str) -> dict[tuple, float]:
 def add_runtime_to_features(features_dir: str, runtime_lookup: dict[tuple, float]) -> None:
     """
     Reads each system feature JSON file in features_dir, adds a "runtime"
-    field (in seconds) to each test from the lookup, and writes the file back.
+    field (in seconds) to each suite/test from the lookup, and writes the file back.
 
     :param features_dir: directory containing composed feature JSON files
     :param runtime_lookup: dict from build_runtime_lookup
@@ -140,8 +141,8 @@ def main():
         description="""Adds runtime data from spread-results artifacts to composed feature files.
         
         Reads spread-results artifact directories (named spread-results-<run_id>-<attempt>-<group>)
-        from results-dir and uses them to populate the "runtime" field on each test entry in the
-        composed feature JSON files in features-dir. The most recent attempt wins when a test
+        from results-dir and uses them to populate the "runtime" field on each suite/test entry in the
+        composed feature JSON files in features-dir. The most recent attempt wins when a suite/test
         appears in multiple attempts."""
     )
     parser.add_argument(

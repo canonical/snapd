@@ -122,8 +122,6 @@ class TestCompose(unittest.TestCase):
                     if test['task_name'] == 'test1':
                         check_test_equal(sys1test1, test, False)
                     if test['task_name'] == 'test2':
-                        print(f'test is {test}')
-                        print(f'sys1test2 is {sys1test2}')
                         check_test_equal(sys1test2, test, False)
             with open(os.path.join(out, 'backend:system2_1.json'), mode='r', encoding='utf-8') as f:
                 sys1 = json.load(f)

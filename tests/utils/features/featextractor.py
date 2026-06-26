@@ -27,9 +27,7 @@ class CoverageFeature:
 
     @staticmethod
     def handle_feature(feature_dict: dict[str, list[Any]], json_entry: dict[str, Any], _):
-        coverage = Coverage(file=json_entry[CoverageLogLine.file], func=json_entry[CoverageLogLine.func])
-        if CoverageFeature.parent not in feature_dict or coverage not in feature_dict[CoverageFeature.parent]:
-            feature_dict[CoverageFeature.parent].append(coverage)
+        feature_dict[CoverageFeature.parent].append(Coverage(file=json_entry[CoverageLogLine.file], func=json_entry[CoverageLogLine.func]))
 
     @staticmethod
     def cleanup_dict(_):
