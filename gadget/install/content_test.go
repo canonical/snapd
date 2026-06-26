@@ -626,6 +626,7 @@ func (s *contentTestSuite) TestMakeFilesystem(c *C) {
 	defer mockUdevadm.Restore()
 
 	restore := install.MockMkfsMake(func(ctx context.Context, typ, img string, opts *mkfs.MakeOptions) error {
+		c.Assert(ctx, NotNil)
 		c.Assert(typ, Equals, "ext4")
 		c.Assert(img, Equals, "/dev/node3")
 		c.Assert(opts.Label, Equals, "ubuntu-data")
