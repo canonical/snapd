@@ -1572,13 +1572,6 @@ defaults:
     journal:
       persistent: true
 EOF
-            . "$TESTSLIB/nested.sh"
-            KEY_NAME=$(nested_get_snakeoil_key)
-
-            SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-            SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-            nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
             snap pack --filename=pc-repacked.snap pc-gadget 
             mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
             EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
