@@ -1556,7 +1556,7 @@ EOF
             EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
             chmod 0600 pc-kernel.snap
         fi
-        if [ -n "$TAG_FEATURES" ]; then
+        if [ -n "$TAG_FEATURES" ] && is_test_target_core 18; then
             snap download --basename=pc --channel="18/${GADGET_CHANNEL}" pc
             unsquashfs -d pc-gadget pc.snap
             # UC18 boot is still driven by grub config from the gadget, so
