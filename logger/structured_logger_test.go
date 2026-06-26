@@ -26,6 +26,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -275,6 +276,66 @@ func (s *LogStructuredSuite) TestIntegrationDebugFromKernelCmdlineStructured(c *
 	c.Check(data.Msg, Equals, "xyzzy")
 	c.Check(data.Level, Equals, "DEBUG")
 	c.Check(data.Attr, Equals, "")
+}
+
+func (s *LogStructuredSuite) TestIntegrationTraceFromKernelCmdlineStructured(c *C) {
+	// must enable actually checking the command line, because by default the
+	// logger package will skip checking for the kernel command line parameter
+	// if it detects it is in a test because otherwise we would have to mock the
+	// cmdline in many many many more tests that end up using a logger
+	restore := logger.ProcCmdlineMustMock(false)
+	defer restore()
+
+	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
+	err := os.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 snapd.debug=1 tag.features=1\n"), 0644)
+	c.Assert(err, IsNil)
+	restore = kcmdline.MockProcCmdline(mockProcCmdline)
+	defer restore()
+
+	var buf bytes.Buffer
+	l := logger.New(&buf, logger.DefaultFlags, nil)
+	l.Trace("xyzzy")
+	data := TestLogEntry{}
+	err = json.Unmarshal(buf.Bytes(), &data)
+	c.Check(err, IsNil)
+	c.Check(data.Msg, Equals, "xyzzy")
+	c.Check(data.Level, Equals, "TRACE")
+	c.Check(data.Attr, Equals, "")
+}
+
+func (s *LogSuite) TestBootSetupStructuredLogger(c *C) {
+	// env shenanigans
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	restoreProcCmdline := logger.ProcCmdlineMustMock(false)
+	defer restoreProcCmdline()
+
+	oldTerm, hadTerm := os.LookupEnv("TERM")
+	defer func() {
+		if hadTerm {
+			os.Setenv("TERM", oldTerm)
+		} else {
+			os.Unsetenv("TERM")
+		}
+	}()
+
+	if logger.GetLogger() != nil {
+		logger.SetLogger(nil)
+	}
+	c.Check(logger.GetLogger(), IsNil)
+
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	err := os.WriteFile(cmdlineFile, []byte("mocked panic=-1 tag.features=1"), 0644)
+	c.Assert(err, IsNil)
+	restore := kcmdline.MockProcCmdline(cmdlineFile)
+	defer restore()
+	os.Setenv("TERM", "dumb")
+	err = logger.BootSetup()
+	c.Assert(err, IsNil)
+	l := logger.GetLogger()
+	c.Check(l, NotNil)
+	_, ok := l.(*logger.StructuredLog)
+	c.Assert(ok, Equals, true)
 }
 
 func (s *LogStructuredSuite) TestStartupTimestampMsgStructured(c *C) {
