@@ -470,6 +470,8 @@ func exitCodeFromError(err error) int {
 	}
 }
 
+// Main is the entrypoint to the snap CLI tool. It is equivalent to a main()
+// function and should be used as such.
 func Main() {
 	loggerWithJournalMaybe()
 	snapdtool.ExecInSnapdOrCoreSnap()

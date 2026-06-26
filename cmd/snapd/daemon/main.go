@@ -55,6 +55,8 @@ func init() {
 	logger.SimpleSetup(nil)
 }
 
+// Main is the entyrpoint to the snapd daemon. It is equivalent to a main()
+// function and should be used as such.
 func Main() {
 	// When preseeding re-exec is not used
 	if snapdenv.Preseeding() {
