@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -210,6 +211,86 @@ func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
 			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
 		}
 	}
+}
+
+// actionPeekSize bounds how much of the request body we inspect when
+// looking for the top-level "action" key.
+const actionPeekSize = 4096
+
+// bodyWithCloser lets us replace r.Body with a buffered reader while
+// preserving the original Close so the http server can release the
+// underlying body normally.
+type bodyWithCloser struct {
+	io.Reader
+	io.Closer
+}
+
+// tryExtractJSONAction returns the top-level "action" field of a JSON
+// request body without consuming the body. It buffers at most
+// actionPeekSize bytes via bufio.Reader.Peek (which does not advance
+// the reader) and walks the prefix with a streaming JSON tokenizer.
+// On any failure (action beyond the peek window, malformed prefix,
+// preceding value too large) it returns an empty string.
+func tryExtractJSONAction(r *http.Request) string {
+	if (r.Method != "POST" && r.Method != "PUT") || r.Body == nil {
+		return ""
+	}
+	if ct := r.Header.Get("Content-Type"); ct != "" && ct != "application/json" {
+		return ""
+	}
+
+	// Wrap the body so Peek can inspect a bounded prefix without
+	// advancing the read position.
+	orig := r.Body
+	br := bufio.NewReaderSize(orig, actionPeekSize)
+	r.Body = bodyWithCloser{Reader: br, Closer: orig}
+
+	// Ignore the error: a short body (EOF) still yields the bytes we
+	// got, which is all we need. Any tokenize error below returns "".
+	peeked, _ := br.Peek(actionPeekSize)
+
+	dec := json.NewDecoder(bytes.NewReader(peeked))
+	t, err := dec.Token()
+	if err != nil || t != json.Delim('{') {
+		return ""
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return ""
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return ""
+		}
+		if key == "action" {
+			var v string
+			if dec.Decode(&v) != nil {
+				return ""
+			}
+			return v
+		}
+		// Skip this value (scalar, object or array) by depth counting.
+		depth := 0
+		for {
+			tok, err := dec.Token()
+			if err != nil {
+				return ""
+			}
+			if d, ok := tok.(json.Delim); ok {
+				switch d {
+				case '{', '[':
+					depth++
+				case '}', ']':
+					depth--
+				}
+			}
+			if depth == 0 {
+				break
+			}
+		}
+	}
+	return ""
 }
 
 type wrappedWriter struct {

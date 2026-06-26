@@ -370,6 +370,10 @@ type (
 	SnapInstruction = snapInstruction
 )
 
+var TryExtractJSONAction = tryExtractJSONAction
+
+const ActionPeekSize = actionPeekSize
+
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }

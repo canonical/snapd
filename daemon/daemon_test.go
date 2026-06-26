@@ -29,6 +29,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -1552,4 +1553,199 @@ func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 			"message": "request canceled",
 		},
 		"type": "error"})
+}
+
+// TestTryExtractJSONActionDirect exercises the extractor in isolation
+// from the daemon/seclog pipeline. It pins the two robustness
+// guarantees that motivated the rewrite:
+//   - the body is never consumed (the handler still sees every byte),
+//     regardless of Content-Length;
+//   - extraction is bounded to actionPeekSize and fails closed when
+//     the action key is not reachable within that window.
+func (s *daemonSuite) TestTryExtractJSONActionDirect(c *check.C) {
+	for _, tc := range []struct {
+		name          string
+		method        string
+		body          string
+		contentType   string // empty = application/json; "-" = omit header
+		contentLength int64  // 0 means: use the reader's length (default)
+		wantAction    string
+	}{
+		{
+			name:       "action first key",
+			body:       `{"action":"install","snaps":["x"]}`,
+			wantAction: "install",
+		},
+		{
+			name:       "PUT with action",
+			method:     "PUT",
+			body:       `{"action":"refresh"}`,
+			wantAction: "refresh",
+		},
+		{
+			name:       "action second key",
+			body:       `{"snaps":["x"],"action":"refresh"}`,
+			wantAction: "refresh",
+		},
+		{
+			name:          "unknown content length",
+			body:          `{"action":"install"}`,
+			contentLength: -1,
+			wantAction:    "install",
+		},
+		{
+			name:          "lying content length (too large) is ignored",
+			body:          `{"action":"install"}`,
+			contentLength: maxBodySize,
+			wantAction:    "install",
+		},
+		{
+			name:          "lying content length (too small) does not truncate extraction or body",
+			body:          `{"action":"install","snaps":["x"]}`,
+			contentLength: 5,
+			wantAction:    "install",
+		},
+		{
+			name:       "non-object top-level",
+			body:       `[{"action":"install"}]`,
+			wantAction: "",
+		},
+		{
+			name:       "action only nested",
+			body:       `{"nested":{"action":"install"}}`,
+			wantAction: "",
+		},
+		{
+			name:       "action absent",
+			body:       `{"snaps":["x"]}`,
+			wantAction: "",
+		},
+		{
+			name:       "malformed json prefix",
+			body:       `{not json`,
+			wantAction: "",
+		},
+		{
+			name:       "not json body",
+			body:       "not json",
+			wantAction: "",
+		},
+		{
+			name:       "action beyond peek window",
+			body:       `{"pad":"` + strings.Repeat("x", ActionPeekSize) + `","action":"install"}`,
+			wantAction: "",
+		},
+		{
+			name:       "preceding string straddles window boundary",
+			body:       `{"pad":"` + strings.Repeat("x", ActionPeekSize-10) + `","action":"install"}`,
+			wantAction: "",
+		},
+		{
+			name:       "tokenizer not fooled by quoted action inside preceding string",
+			body:       `{"desc":"\"action\":\"fake\"","action":"install"}`,
+			wantAction: "install",
+		},
+		{
+			name:       "deeply nested object precedes action",
+			body:       `{"foo":{"a":{"b":{"c":{"d":{"e":{"f":{"g":{"h":{"i":{}}}}}}}}}},"action":"install"}`,
+			wantAction: "install",
+		},
+		{
+			name:       "action value is an array",
+			body:       `{"foo":{"a":{"b":{"c":{"d":{"e":{}}}}}},"action":[]}`,
+			wantAction: "",
+		},
+		{
+			name:       "action value is an object",
+			body:       `{"foo":{"a":{"b":{}}},"action":{}}`,
+			wantAction: "",
+		},
+		{
+			name:        "no content-type treated as json",
+			body:        `{"action":"install"}`,
+			contentType: "-",
+			wantAction:  "install",
+		},
+		{
+			name:        "multipart content-type skipped",
+			body:        `{"action":"install"}`,
+			contentType: "multipart/form-data",
+			wantAction:  "",
+		},
+	} {
+		method := tc.method
+		if method == "" {
+			method = "POST"
+		}
+		var body io.Reader
+		if tc.body != "" {
+			body = strings.NewReader(tc.body)
+		}
+		req := httptest.NewRequest(method, "/", body)
+		switch tc.contentType {
+		case "-":
+		case "":
+			req.Header.Set("Content-Type", "application/json")
+		default:
+			req.Header.Set("Content-Type", tc.contentType)
+		}
+		if tc.contentLength != 0 {
+			req.ContentLength = tc.contentLength
+		}
+
+		got := TryExtractJSONAction(req)
+		c.Check(got, check.Equals, tc.wantAction, check.Commentf("case: %s", tc.name))
+
+		if tc.body == "" {
+			continue
+		}
+		// The body must be readable in full afterwards, regardless of
+		// the (possibly lying) Content-Length header.
+		gotBody, err := io.ReadAll(req.Body)
+		c.Assert(err, check.IsNil, check.Commentf("case: %s", tc.name))
+		c.Check(string(gotBody), check.Equals, tc.body, check.Commentf("case: %s", tc.name))
+	}
+}
+
+func (s *daemonSuite) TestTryExtractJSONActionPreservesLargeUnknownBody(c *check.C) {
+	// Body far exceeds the actionPeekSize window; the extractor only
+	// peeks the first 4 KiB but the handler must still read the full
+	// original body byte-for-byte.
+	padding := strings.Repeat("x", maxBodySize)
+	body := `{"action":"install","pad":"` + padding + `"}`
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.ContentLength = -1
+
+	c.Check(TryExtractJSONAction(req), check.Equals, "install")
+
+	gotBody, err := io.ReadAll(req.Body)
+	c.Assert(err, check.IsNil)
+	c.Check(string(gotBody), check.Equals, body)
+}
+
+// TestTryExtractJSONActionShortCircuits verifies the early-return paths.
+func (s *daemonSuite) TestTryExtractJSONActionShortCircuits(c *check.C) {
+	// GET with no body.
+	req := httptest.NewRequest("GET", "/", nil)
+	c.Check(TryExtractJSONAction(req), check.Equals, "")
+
+	// POST with non-JSON content type.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	c.Check(TryExtractJSONAction(req), check.Equals, "")
+	// Body is unconsumed.
+	gotBody, err := io.ReadAll(req.Body)
+	c.Assert(err, check.IsNil)
+	c.Check(string(gotBody), check.Equals, `{"action":"install"}`)
+
+	// POST with no Content-Type is treated as JSON.
+	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
+	req.Header.Del("Content-Type")
+	c.Check(TryExtractJSONAction(req), check.Equals, "install")
+
+	// DELETE is not considered.
+	req = httptest.NewRequest("DELETE", "/", strings.NewReader(`{"action":"install"}`))
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(TryExtractJSONAction(req), check.Equals, "")
 }
