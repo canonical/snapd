@@ -15,8 +15,11 @@ import (
 
 func main() {
 	root := "."
-	if len(os.Args) > 1 {
+	if len(os.Args) == 2 {
 		root = os.Args[1]
+	} else if len(os.Args) > 2 {
+		fmt.Fprint(os.Stderr, "Can only provide 0 or 1 args to function.")
+		os.Exit(1)
 	}
 
 	wd, _ := os.Getwd()
@@ -147,6 +150,8 @@ func runCmdOutput(name string, args ...string) (string, error) {
 	return string(out), nil
 }
 
+// instrumentFile adds logger.Trace lines to every func found in the file
+// and includes the logger import if not present
 func instrumentFile(path, wd string) error {
 	src, err := os.ReadFile(path)
 	if err != nil {
@@ -231,6 +236,7 @@ func hasLoggerImport(f *ast.File) bool {
 	return false
 }
 
+// addImportToSource adds a logger import to the source file
 func addImportToSource(src []byte, fset *token.FileSet, f *ast.File, importPath string) []byte {
 	importLine := "\n\t" + importPath
 	var lastImportEnd int
