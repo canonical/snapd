@@ -877,6 +877,25 @@ EOF
             # it is ignored
             "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
         fi
+        if [ -n "$TAG_FEATURES" ] && nested_is_core_le 18; then
+            snap download --basename=pc --channel="18/$(nested_get_gadget_channel)" pc
+            unsquashfs -d pc-gadget pc.snap
+            for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
+                if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
+                    sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
+                fi
+            done
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+
+            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
+        fi
     fi
 }
 
@@ -1081,7 +1100,7 @@ nested_create_core_vm() {
             # volumes must be manually added to the VM creation by the tests
             local BOOTVOLUME
             BOOTVOLUME=pc
-            if [ -e pc-gadget/meta/gadget.yaml ]; then
+            if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
                 BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
