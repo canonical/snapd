@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,19 +20,26 @@ func main() {
 	}
 
 	wd, _ := os.Getwd()
+	wd, _ = filepath.Abs(wd)
 
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	var excludedDirNames = map[string]bool{
+		"vendor": true,
+		".git":   true,
+		"tests":  true,
+	}
+
+	autoExcludedDirs, err := loggerDependencyDirs()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Could not calculate logger dependencies: %v\n", err)
+		os.Exit(1)
+	}
+
+	err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "skipping %s: %v\n", path, err)
 			os.Exit(1)
 		}
-		if d.IsDir() && (d.Name() == "vendor" || d.Name() == ".git" ||
-			d.Name() == "logger" || d.Name() == "osutil" ||
-			d.Name() == "randutil" || d.Name() == "strutil" ||
-			d.Name() == "testutil" || d.Name() == "dbusutil" ||
-			d.Name() == "tests" || d.Name() == "release" ||
-			d.Name() == "blkid" || d.Name() == "snap-seccomp" ||
-			d.Name() == "snap-update-ns" || d.Name() == "dirs") {
+		if d.IsDir() && shouldSkipDir(path, d.Name(), excludedDirNames, autoExcludedDirs) {
 			return filepath.SkipDir
 		}
 		if !strings.HasSuffix(path, ".go") || d.IsDir() || strings.HasSuffix(path, "_test.go") {
@@ -47,6 +55,96 @@ func main() {
 		fmt.Fprintf(os.Stderr, "walk error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func shouldSkipDir(path, dirName string, excludedDirNames, excludedAbsDirs map[string]bool) bool {
+	if excludedDirNames[dirName] {
+		return true
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+
+	for ex := range excludedAbsDirs {
+		if absPath == ex || strings.HasPrefix(absPath, ex+string(filepath.Separator)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func loggerDependencyDirs() (map[string]bool, error) {
+	outDefault, err := runCmdOutput("go", "list", "-e", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
+	if err != nil {
+		return nil, err
+	}
+	outStructured, err := runCmdOutput("go", "list", "-e", "-tags", "structuredlogging", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
+	if err != nil {
+		return nil, err
+	}
+	outDefaultTest, err := runCmdOutput("go", "list", "-e", "-test", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
+	if err != nil {
+		return nil, err
+	}
+	outStructuredTest, err := runCmdOutput("go", "list", "-e", "-test", "-tags", "structuredlogging", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
+	if err != nil {
+		return nil, err
+	}
+
+	dirs := map[string]bool{}
+	for _, line := range strings.Split(outDefault, "\n") {
+		d := strings.TrimSpace(line)
+		if d == "" {
+			continue
+		}
+		if abs, err := filepath.Abs(d); err == nil {
+			dirs[abs] = true
+		}
+	}
+	for _, line := range strings.Split(outStructured, "\n") {
+		d := strings.TrimSpace(line)
+		if d == "" {
+			continue
+		}
+		if abs, err := filepath.Abs(d); err == nil {
+			dirs[abs] = true
+		}
+	}
+	for _, line := range strings.Split(outDefaultTest, "\n") {
+		d := strings.TrimSpace(line)
+		if d == "" {
+			continue
+		}
+		if abs, err := filepath.Abs(d); err == nil {
+			dirs[abs] = true
+		}
+	}
+	for _, line := range strings.Split(outStructuredTest, "\n") {
+		d := strings.TrimSpace(line)
+		if d == "" {
+			continue
+		}
+		if abs, err := filepath.Abs(d); err == nil {
+			dirs[abs] = true
+		}
+	}
+
+	return dirs, nil
+}
+
+func runCmdOutput(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	out, err := cmd.Output()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("%s %s failed: %s", name, strings.Join(args, " "), strings.TrimSpace(string(ee.Stderr)))
+		}
+		return "", fmt.Errorf("%s %s failed: %v", name, strings.Join(args, " "), err)
+	}
+	return string(out), nil
 }
 
 func instrumentFile(path, wd string) error {
@@ -135,10 +233,23 @@ func hasLoggerImport(f *ast.File) bool {
 
 func addImportToSource(src []byte, fset *token.FileSet, f *ast.File, importPath string) []byte {
 	importLine := "\n\t" + importPath
+	var lastImportEnd int
 
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.IMPORT {
+			continue
+		}
+		lastImportEnd = fset.Position(genDecl.End()).Offset
+
+		hasC := false
+		for _, spec := range genDecl.Specs {
+			if ispec, ok := spec.(*ast.ImportSpec); ok && ispec.Path != nil && ispec.Path.Value == `"C"` {
+				hasC = true
+				break
+			}
+		}
+		if hasC {
 			continue
 		}
 
@@ -163,5 +274,11 @@ func addImportToSource(src []byte, fset *token.FileSet, f *ast.File, importPath 
 	pkgEnd := fset.Position(f.Name.End()).Offset
 	newImportBlock := "\nimport (" + importLine + "\n)\n"
 	src = append(src[:pkgEnd], append([]byte(newImportBlock), src[pkgEnd:]...)...)
+	if lastImportEnd > 0 {
+		newImportBlock := "\nimport (" + importLine + "\n)"
+		src = append(src[:lastImportEnd], append([]byte(newImportBlock), src[lastImportEnd:]...)...)
+		return src
+	}
+
 	return src
 }
