@@ -422,10 +422,6 @@ prepare_classic() {
     # Configure the proxy in the system when it is required
     setup_system_proxy
 
-    if ! tests.nested is-nested; then
-        prepare_tag_features
-    fi
-
     # Skip building snapd when REUSE_SNAPD is set to 1
     if [ "$REUSE_SNAPD" != 1 ]; then
         distro_install_build_snapd
@@ -737,113 +733,6 @@ slots:
 EOF
 }
 
-_add_coverage_tweaks() {
-    if [ -z "$TAG_FEATURES" ]; then
-        return
-    fi
-    local UNPACK_DIR
-    UNPACK_DIR="${1}"
-
-    cat > "${UNPACK_DIR}"/lib/systemd/system/snapd.spread-tests-coverage-tweaks.service <<'EOF'
-[Unit]
-Description=Tweaks to run mode for spread tests
-Before=snapd.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/lib/snapd/snapd.spread-tests-coverage-tweaks.sh
-RemainAfterExit=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    cat > "${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-coverage-tweaks.sh <<EOF
-#!/bin/sh
-set -ex
-if [ -f /var/lib/snapd/modeenv ]; then
-    if ! grep -E '^mode=(run|recover)$' /var/lib/snapd/modeenv; then
-        echo "not in run or recovery mode - script not running"
-        exit 0
-    fi
-elif ! grep -E 'snapd_recovery_mode=(run|recover)' /proc/cmdline; then
-    echo "not in run or recovery mode - script not running"
-    exit 0
-fi
-if [ -e /root/spread-coverage-setup-done ]; then
-    exit 0
-fi
-echo "SNAPD_TRACE=1" >> /etc/environment
-echo "SNAPD_JSON_LOGGING=1" >> /etc/environment
-EOF
-    CONF_FILE=99-generate-coverage.conf
-    while IFS= read -r line; do
-        dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
-        cat >> "${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-coverage-tweaks.sh <<EOF
-mkdir -p "$dir"
-cat <<EOF2 >"$dir/$CONF_FILE"
-[Service]
-Environment=SNAPD_TRACE=1
-Environment=SNAPD_JSON_LOGGING=1
-EOF2
-EOF
-    done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
-    cat >>"${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-coverage-tweaks.sh <<EOF
-systemctl daemon-reload
-touch /root/spread-coverage-setup-done
-EOF
-    chmod 0755 "${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-coverage-tweaks.sh
-
-    if os.query is-core26; then
-        return
-    fi
-
-    # Install mode tweaks for cores less than 26
-    # now install a unit that sets up enough so that we can connect
-    cat > "${UNPACK_DIR}"/lib/systemd/system/snapd.spread-tests-install-mode-tweaks.service <<'EOF'
-[Unit]
-Description=Tweaks to install mode for spread tests
-Before=snapd.service
-Documentation=man:snap(1)
-
-[Service]
-Type=oneshot
-ExecStart=/usr/lib/snapd/snapd.spread-tests-install-mode-tweaks.sh
-RemainAfterExit=true
-
-[Install]
-WantedBy=multi-user.target
-EOF
-    # XXX: this duplicates a lot of setup_test_user_by_modify_writable()
-    cat > "${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-install-mode-tweaks.sh <<EOF
-#!/bin/sh
-set -ex
-# We look at modeenv as that is authoritative if installing from the initramfs.
-if [ -f /var/lib/snapd/modeenv ]; then
-    if ! grep -E '^mode=install$' /var/lib/snapd/modeenv; then
-        echo "not in install mode - script not running"
-        exit 0
-    fi
-elif ! grep -E 'snapd_recovery_mode=install' /proc/cmdline; then
-    echo "not in install mode - script not running"
-    exit 0
-fi
-if [ -e /root/spread-install-setup-done ]; then
-    exit 0
-fi
-mkdir -p "/etc/systemd/system/snapd.service.d"
-# this will be gone after reboot
-cat <<EOF2 >/etc/systemd/system/snapd.service.d/45-generate-coverage.conf
-[Service]
-Environment=SNAPD_TRACE=1
-Environment=SNAPD_JSON_LOGGING=1
-EOF2
-systemctl daemon-reload
-touch /root/spread-install-setup-done
-EOF
-    chmod 0755 "${UNPACK_DIR}"/usr/lib/snapd/snapd.spread-tests-install-mode-tweaks.sh
-}
-
 _add_run_mode_tweaks() {
     local UNPACK_DIR
     UNPACK_DIR="${1}"
@@ -975,7 +864,6 @@ build_snapd_snap_with_run_mode_firstboot_tweaks() {
 
     # add tweaks to run mode for spread tests
     _add_run_mode_tweaks "${SNAP_CACHE}/unpack"
-    _add_coverage_tweaks "${SNAP_CACHE}/unpack"
 
     # add gpio and iio slots required for the tests
     _add_gpio_iio_slots "${SNAP_CACHE}/unpack"
@@ -1108,14 +996,6 @@ set -eux
 if [ "$1" != initramfs-mounts ]; then
     exec /usr/lib/snapd/snap-bootstrap.real "$@"
 fi
-EOF
-    if [ -n "$TAG_FEATURES" ]; then
-        cat <<'EOF' >>"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
-export SNAPD_TRACE=1
-export SNAPD_JSON_LOGGING=1
-EOF
-    fi
-    cat <<'EOF' >>"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
 beforeDate="$(date --utc '+%s')"
 /usr/lib/snapd/snap-bootstrap.real "$@"
 if [ -d /run/mnt/data/system-data ]; then
@@ -1676,6 +1556,26 @@ EOF
             EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
             chmod 0600 pc-kernel.snap
         fi
+        if [ -n "$TAG_FEATURES" ]; then
+            snap download --basename=pc --channel="18/${GADGET_CHANNEL}" pc
+            unsquashfs -d pc-gadget pc.snap
+            # UC18 boot is still driven by grub config from the gadget, so
+            # update linux cmdline entries there as well.
+            for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
+                if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
+                    sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
+                fi
+            done
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+            snap pack --filename=pc-repacked.snap pc-gadget 
+            mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
+            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
+        fi
     fi
 
     if is_test_target_core_ge 20; then
@@ -1723,27 +1623,30 @@ EOF
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
-        if [[ "$SPREAD_BACKEND" =~ google ]] || [[ "$SPREAD_BACKEND" =~ openstack ]]; then
-            # the default console settings for snapd aren't super useful in GCE,
-            # instead it's more useful to have all console go to ttyS0 which we 
-            # can read more easily than tty1 for example
-            for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1"; do
-                echo "$cmd" >> pc-gadget/cmdline.full
-            done
-        else
-            # but for other backends, just add the additional debugging things
-            # on top of whatever the gadget currently is configured to use
-            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1"; do
-                echo "$cmd" >> pc-gadget/cmdline.extra
-            done
-        fi
+        cmdlinefeat=""
         if [ -n "$TAG_FEATURES" ]; then
+            cmdlinefeat=" tag.features=1"
             cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
   system:
     journal:
       persistent: true
 EOF
+        fi
+
+        if [[ "$SPREAD_BACKEND" =~ google ]] || [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
+            # the default console settings for snapd aren't super useful in GCE,
+            # instead it's more useful to have all console go to ttyS0 which we 
+            # can read more easily than tty1 for example
+            for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1$cmdlinefeat"; do
+                echo "$cmd" >> pc-gadget/cmdline.full
+            done
+        else
+            # but for other backends, just add the additional debugging things
+            # on top of whatever the gadget currently is configured to use
+            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1$cmdlinefeat"; do
+                echo "$cmd" >> pc-gadget/cmdline.extra
+            done
         fi
 
         # TODO: this probably means it's time to move this helper out of 
@@ -2011,24 +1914,6 @@ EOF
     fi
 }
 
-prepare_tag_features(){
-    if [ -n "$TAG_FEATURES" ]; then
-        CONF_FILE="99-feature-coverage.conf"
-        while IFS= read -r line; do
-            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
-            mkdir -p "$dir"
-            if ! [ -f "$dir/$CONF_FILE" ]; then
-                cat <<EOF > "$dir/$CONF_FILE"
-[Service]
-Environment=SNAPD_TRACE=1
-Environment=SNAPD_JSON_LOGGING=1
-EOF
-            fi
-        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
-        systemctl daemon-reload
-    fi
-}
-
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # Configure the proxy in the system when it is required
@@ -2155,10 +2040,6 @@ prepare_ubuntu_core() {
         remove_disabled_snaps
         prepare_memory_limit_override
         prepare_state_lock "SNAPD PROJECT"
-        if [ -n "$TAG_FEATURES" ]; then
-            # ensure persistent journal is set
-            snap set system journal.persistent=true
-        fi
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state

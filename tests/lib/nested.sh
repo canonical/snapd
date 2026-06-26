@@ -683,32 +683,6 @@ nested_ensure_ubuntu_save() {
     fi
 }
 
-_add_nested_coverage_tweaks() {
-    local TARGET
-    TARGET="${1}"
-    if [ -z "$TAG_FEATURES" ]; then
-        return
-    fi
-
-    SNAP_CACHE="$SNAPD_WORK_DIR/snapd_snap_with_tweaks"
-
-    mkdir -p "${SNAP_CACHE}"
-
-    SNAP_PATH="$(ls "${TARGET}"/snapd_*.snap | head -1)"
-
-    mkdir -p "${SNAP_CACHE}/unpack"
-    unsquashfs -no-progress -f -d "${SNAP_CACHE}/unpack" "${SNAP_PATH}"
-
-    # add tweaks to install and run mode for spread tests
-    # shellcheck source=tests/lib/prepare.sh
-    . "$TESTSLIB"/prepare.sh
-    _add_coverage_tweaks "${SNAP_CACHE}/unpack"
-
-    snap pack "${SNAP_CACHE}/unpack" "${SNAP_CACHE}/"
-    cp "${SNAP_CACHE}"/snapd_*.snap "${SNAP_PATH}"
-    rm -rf "${SNAP_CACHE}"
-}
-
 nested_prepare_snapd() {
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
         echo "Repacking snapd snap"
@@ -731,7 +705,6 @@ nested_prepare_snapd() {
                 # shellcheck source=tests/lib/prepare.sh
                 . "$TESTSLIB"/prepare.sh
                 build_snapd_snap "$NESTED_ASSETS_DIR"
-                _add_nested_coverage_tweaks "$NESTED_ASSETS_DIR"
                 for f in "${NESTED_ASSETS_DIR}"/snapd_*.snap; do
                     snap_name="$(basename "${f}")"
                     break
@@ -864,6 +837,10 @@ EOF
                 GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
             fi
 
+            if [ -n "$TAG_FEATURES" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE tag.features=1"
+            fi
+
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
                 GADGET_EXTRA_CMDLINE="ds=nocloud $GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
             fi
@@ -899,6 +876,25 @@ EOF
             # that here, it could end up being empty in which case
             # it is ignored
             "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
+        fi
+        if [ -n "$TAG_FEATURES" ] && nested_is_core_18_system; then
+            snap download --basename=pc --channel="18/$(nested_get_gadget_channel)" pc
+            unsquashfs -d pc-gadget pc.snap
+            for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
+                if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
+                    sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
+                fi
+            done
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+
+            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
         fi
     fi
 }
@@ -1104,7 +1100,7 @@ nested_create_core_vm() {
             # volumes must be manually added to the VM creation by the tests
             local BOOTVOLUME
             BOOTVOLUME=pc
-            if [ -e pc-gadget/meta/gadget.yaml ]; then
+            if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
                 BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
@@ -1824,7 +1820,6 @@ nested_start_classic_vm() {
     # Copy tools to be used on tests
     nested_wait_for_ssh
     nested_prepare_tools
-    nested_setup_feature_tagging
     nested_setup_vm
 }
 
@@ -1845,23 +1840,6 @@ remote.exec_as() {
     local PASSWD="$2"
     shift 2
     sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
-}
-
-nested_setup_feature_tagging() {
-    if [ -n "$TAG_FEATURES" ]; then
-        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
-        CONF_FILE=99-generate-coverage.conf
-        while IFS= read -r line; do
-            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
-            remote.exec "mkdir -p $dir"
-            remote.exec "printf '[Service]\nEnvironment=SNAPD_TRACE=1\nEnvironment=SNAPD_JSON_LOGGING=1\n' | sudo tee $dir/$CONF_FILE"    
-        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
-        remote.exec "sudo systemctl daemon-reload"
-        remote.exec "sudo systemctl restart snapd"
-
-        remote.exec "sudo snap set system journal.persistent=true"
-        
-    fi
 }
 
 nested_prepare_tools() {
@@ -1912,7 +1890,16 @@ nested_prepare_tools() {
     fi
 
     if [ -n "$TAG_FEATURES" ]; then
-        # Persist journal logs if gadget snap wasn't repacked
+        # To cover also tests that don't repack the gadget snap, add feature tagging using env variable drop-ins
+        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
+        CONF_FILE=99-generate-coverage.conf
+        while IFS= read -r line; do
+            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
+            remote.exec "sudo mkdir -p $dir"
+            remote.exec "printf '[Service]\nEnvironment=SNAPD_TRACE=1\nEnvironment=SNAPD_JSON_LOGGING=1\n' | sudo tee $dir/$CONF_FILE"    
+        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
+        remote.exec "sudo systemctl daemon-reload"
+        remote.exec "sudo systemctl restart snapd"
         remote.exec "sudo snap set system journal.persistent=true"
     fi
 }
