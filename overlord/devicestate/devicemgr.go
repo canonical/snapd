@@ -397,9 +397,14 @@ func (m *DeviceManager) StartUp() error {
 			}
 		}
 
+		// ensure install-time kernel cmdline fragments are seeded into state.
+		if err := initExtraSnapdFragmentsFromInstallTime(m.state); err != nil {
+			logger.Noticef("cannot initialize install-time kernel cmdline fragments: %v", err)
+		}
+
 		// ensure /var/lib/snapd/void permissions are ok
 		if err := ensureFileDirPermissions(); err != nil {
-			logger.Noticef("%v", fmt.Errorf("cannot ensure device file/dir permissions: %v", err))
+			logger.Noticef("cannot ensure device file/dir permissions: %v", err)
 		}
 
 		// TODO: setup proper timings measurements for this

@@ -349,6 +349,9 @@ var (
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 
 	SetExtraSnapdKernelCommandLineFragment = setExtraSnapdKernelCommandLineFragment
+
+	RenderExtraSnapdKernelCommandLineFragments = renderExtraSnapdKernelCommandLineFragments
+	KernelCommandLineAppendArgsFromSnapd       = kernelCommandLineAppendArgsFromSnapd
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
@@ -457,6 +460,7 @@ func MockInstallEncryptPartitions(f func(
 	model *asserts.Model,
 	gadgetRoot,
 	kernelRoot string,
+	extraSnapdKernelCommandLineFragments map[string]string,
 	perfTimings timings.Measurer,
 ) (*install.EncryptionSetupData, error)) (restore func()) {
 	old := installEncryptPartitions
@@ -615,6 +619,7 @@ func MockEncryptionSetupDataInCache(
 	rkey *keys.RecoveryKey,
 	volumesAuth *device.VolumesAuthOptions,
 	checkContext *secboot.PreinstallCheckContext,
+	extraSnapdKernelCommandLineFragments map[string]string,
 ) (restore func()) {
 	st.Lock()
 	defer st.Unlock()
@@ -629,7 +634,7 @@ func MockEncryptionSetupDataInCache(
 			EncryptedDevice: "/dev/mapper/ubuntu-data",
 		},
 	}
-	esd = install.MockEncryptionSetupData(labelToEncData, rkey, volumesAuth, checkContext)
+	esd = install.MockEncryptionSetupData(labelToEncData, rkey, volumesAuth, checkContext, extraSnapdKernelCommandLineFragments)
 	st.Cache(encryptionSetupDataKey{label}, esd)
 	return func() { CleanUpEncryptionSetupDataInCache(st, label) }
 }

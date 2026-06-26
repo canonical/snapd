@@ -1331,10 +1331,12 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	var gotOnVolumes map[string]*gadget.Volume
 	var gotLabel string
 	var gotVolumesAuth *device.VolumesAuthOptions
-	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions) (*state.Change, error) {
+	var gotKeyboardConfig *client.KeyboardConfig
+	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, keyboardConfig *client.KeyboardConfig) (*state.Change, error) {
 		gotLabel = label
 		gotOnVolumes = onVolumes
 		gotVolumesAuth = volumesAuth
+		gotKeyboardConfig = keyboardConfig
 		nCalls++
 		return st.NewChange("foo", "..."), nil
 	})
@@ -1352,6 +1354,11 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 			"mode":       "passphrase",
 			"passphrase": "1234",
 			"kdf-type":   "argon2id",
+		},
+		"keyboard-config": map[string]any{
+			"model":   "pc105",
+			"layout":  "eg",
+			"options": []string{"grp:alt_shift_toggle"},
 		},
 	}
 	b, err := json.Marshal(body)
@@ -1379,8 +1386,77 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 		Passphrase: "1234",
 		KDFType:    "argon2id",
 	})
+	c.Check(gotKeyboardConfig, check.DeepEquals, &client.KeyboardConfig{
+		Model:   "pc105",
+		Layout:  "eg",
+		Options: []string{"grp:alt_shift_toggle"},
+	})
 
 	c.Check(soon, check.Equals, 1)
+}
+
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionMissingKeyboardConfig(c *check.C) {
+	s.daemon(c)
+
+	nCalls := 0
+	r := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, keyboardConfig *client.KeyboardConfig) (*state.Change, error) {
+		nCalls++
+		return st.NewChange("foo", "..."), nil
+	})
+	defer r()
+
+	body := map[string]any{
+		"action": "install",
+		"step":   "setup-storage-encryption",
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
+				"bootloader": "grub",
+			},
+		},
+		"volumes-auth": map[string]any{
+			"mode":       "passphrase",
+			"passphrase": "1234",
+			"kdf-type":   "argon2id",
+		},
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, "cannot use volumes authentication without a keyboard configuration")
+	c.Check(nCalls, check.Equals, 0)
+}
+
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionKeyboardConfigError(c *check.C) {
+	s.daemon(c)
+
+	body := map[string]any{
+		"action": "install",
+		"step":   "setup-storage-encryption",
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
+				"bootloader": "grub",
+			},
+		},
+		"keyboard-config": map[string]any{
+			"model":   "pc105,",
+			"layout":  "eg",
+			"options": []string{"grp:alt_shift_toggle"},
+		},
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, `invalid keyboard configuration: model cannot contain ',': found "pc105,"`)
 }
 
 func (s *systemsSuite) TestSystemInstallActionPreseedCallsDevicestate(c *check.C) {
