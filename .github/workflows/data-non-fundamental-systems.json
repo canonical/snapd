@@ -130,51 +130,131 @@
       },
       {
         "runs-on": "['ubuntu-latest']",
-        "group": "jammy (garden)",
+        "group": "ubuntu-xenial-bionic (garden)",
         "backend": "garden",
-        "systems": "ubuntu-22.04-64",
-        "tasks": "tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
-        "rules": ""
+        "systems": "ubuntu-16.04-64 ubuntu-18.04-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-focal-jammy (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-20.04-64 ubuntu-22.04-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-noble-resolute (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-24.04-64 ubuntu-26.04-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-interim-daily (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-25.10-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
       },
       {
         "runs-on": "['ubuntu-latest']",
         "group": "ubuntu-core-18 (garden)",
         "backend": "garden",
         "systems": "ubuntu-core-18-64",
-        "tasks": "tests/core/auto-refresh-backoff-after-reboot:kernel tests/core/failover:emptyinitrd tests/core/gadget-kernel-refs-update-pc tests/core/kernel-base-gadget-pair-single-reboot-failover tests/core/kernel-base-gadget-pair-single-reboot tests/core/kernel-base-gadget-single-reboot tests/core/kernel-base-gadget-single-reboot-failover tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
-        "rules": ""
+        "tasks": "tests/core/auto-refresh-backoff-after-reboot:kernel tests/core/failover:emptyinitrd tests/core/gadget-kernel-refs-update-pc tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-core-20 (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-core-20-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-core-22 (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-core-22-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
       },
       {
         "runs-on": "['ubuntu-latest']",
         "group": "ubuntu-core-24 (garden)",
         "backend": "garden",
         "systems": "ubuntu-core-24-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "ubuntu-core-26 (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-core-26-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-22.04-arm']",
+        "group": "ubuntu-arm (garden)",
+        "backend": "garden",
+        "systems": "ubuntu-24.04-arm-64 ubuntu-core-24-arm-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "debian (garden)",
+        "backend": "garden",
+        "systems": "debian-12-64 debian-sid-64",
         "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
         "rules": ""
       },
       {
         "runs-on": "['ubuntu-latest']",
-        "group": "focal (garden)",
+        "group": "arch (garden)",
         "backend": "garden",
-        "systems": "ubuntu-20.04-64",
+        "systems": "arch-linux-64",
         "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
-        "rules": ""
+        "rules": "main"
       },
       {
         "runs-on": "['ubuntu-latest']",
-        "group": "questing (garden)",
+        "group": "amazon (garden)",
         "backend": "garden",
-        "systems": "ubuntu-25.10-64",
+        "systems": "amazon-linux-2-64 amazon-linux-2023-64",
         "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
-        "rules": ""
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "centos (garden)",
+        "backend": "garden",
+        "systems": "centos-9-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": "main"
+      },
+      {
+        "runs-on": "['ubuntu-latest']",
+        "group": "opensuse (garden)",
+        "backend": "garden",
+        "systems": "opensuse-16.0-64 opensuse-tumbleweed-64 opensuse-tumbleweed-selinux-64",
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
+        "rules": "main"
       },
       {
         "runs-on": "['ubuntu-latest']",
         "group": "fedora-44 (garden)",
         "backend": "garden",
         "systems": "fedora-44-64",
-        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
-        "rules": ""
+        "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap tests/main/apparmor-prompting-support tests/main/proxy tests/main/auto-refresh-retry tests/main/network-retry",
+        "rules": "main"
       }
     ]
   }
