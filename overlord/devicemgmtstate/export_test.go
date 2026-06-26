@@ -37,6 +37,10 @@ var (
 	MgmtMessageIDKey = mgmtMessageIDKey
 )
 
+func MockFetchAccountKeys(f func(st *state.State, userID int, signKeyIDs []string) error) func() {
+	return testutil.Mock(&assertstateFetchAccountKeys, f)
+}
+
 func MockMaxSequences(n int) func() {
 	return testutil.Mock(&maxSequences, n)
 }

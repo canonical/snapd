@@ -6315,3 +6315,61 @@ func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoRevisionsFound(c *C) {
 		expErr:         regexp.QuoteMeta("no snap-revision assertion found that matches (snap-id=snap-id-1, snap-revision=10)."),
 	})
 }
+
+func (s *assertMgrSuite) TestFetchAccountKeysOK(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	assertstate.ReplaceDB(s.state, db)
+
+	keyID := s.dev1AcctKey.PublicKeyID()
+
+	// not found locally
+	_, err = assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": keyID,
+	})
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
+	err = assertstate.FetchAccountKeys(s.state, 0, []string{keyID})
+	c.Assert(err, IsNil)
+
+	// found
+	_, err = assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": keyID,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestFetchAccountKeysNotFound(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	assertstate.ReplaceDB(s.state, db)
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	err = assertstate.FetchAccountKeys(s.state, 0, []string{"no-such-key-id"})
+	c.Assert(err, IsNil)
+	c.Check(logbuf.String(), testutil.Contains, `cannot fetch account-key "no-such-key-id"`)
+}

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -135,6 +136,9 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.AddCleanup(devicemgmtstate.MockTimeNow(fixedTestTime))
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKeys(func(_ *state.State, _ int, _ []string) error {
+		return nil
+	}))
 
 	s.o = overlord.Mock()
 	s.st = s.o.State()
@@ -145,6 +149,14 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.mockModel()
 	s.storeStack = assertstest.NewStoreStack("my-brand", nil)
 
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeStack.Trusted,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(db.Add(s.storeStack.StoreAccountKey("")), IsNil)
+	assertstate.ReplaceDB(s.st, db)
+
 	s.runner = s.o.TaskRunner()
 	s.o.AddManager(s.runner)
 
@@ -153,7 +165,7 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 
 	s.mgr.MockBackend(&mockDeviceBackend{serial: s.makeSerial(c, "serial-1")})
 
-	err := s.o.StartUp()
+	err = s.o.StartUp()
 	c.Assert(err, IsNil)
 
 	var restoreLogger func()
@@ -1070,6 +1082,120 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageOK(c *C) {
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus("")) // message wasn't rejected
 }
 
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadRawAssertion(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{}, nil
+	})
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:    "my-brand",
+						AuthorityID:  "my-brand",
+						BaseID:       "msg1",
+						Kind:         "test-kind",
+						Devices:      []string{"serial-1.my-model.my-brand"},
+						ValidSince:   fixedTestTime.Add(-time.Hour),
+						ValidUntil:   fixedTestTime.Add(24 * time.Hour),
+						Body:         `{"action": "get"}`,
+						RawAssertion: []byte("not a valid assertion"),
+					},
+				},
+			},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("validate-mgmt-message", "validate msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals, "cannot decode message: assertion content/signature separator not found")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeysError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	fetchErr := fmt.Errorf("store unavailable")
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKeys(func(_ *state.State, _ int, _ []string) error {
+		return fetchErr
+	}))
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus(""))
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadSignature(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{}, nil
+	})
+
+	storeMsg := s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1")
+	reqMsg, err := devicemgmtstate.ParseRequestMessage(storeMsg.Message)
+	c.Assert(err, IsNil)
+
+	// tamper the raw assertion body
+	reqMsg.RawAssertion = bytes.Replace(reqMsg.RawAssertion, []byte("get"), []byte("set"), 1)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {Messages: []*devicemgmtstate.RequestMessage{reqMsg}},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("validate-mgmt-message", "validate msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals,
+		"cannot verify message signature: failed signature verification: openpgp: invalid signature: hash tag doesn't match")
+}
+
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageDeviceNotTargeted(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -1093,7 +1219,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageDeviceNotTargeted(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
-	c.Check(msg.ResponseBody["message"], Equals, "message not intended for device other-serial.my-model.my-brand")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: not intended for device other-serial.my-model.my-brand")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageExpired(c *C) {
@@ -1119,7 +1245,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageExpired(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
-	c.Check(msg.ResponseBody["message"], Equals, "message not valid at 2025-06-16T12:00:00Z")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: not valid at 2025-06-16T12:00:00Z")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnknownKind(c *C) {
@@ -1222,21 +1348,14 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
 		},
 	})
 
+	storeMsg := s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1")
+	reqMsg, err := devicemgmtstate.ParseRequestMessage(storeMsg.Message)
+	c.Assert(err, IsNil)
+
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
 			"msg1": {
-				Messages: []*devicemgmtstate.RequestMessage{
-					{
-						AccountID:   "my-brand",
-						AuthorityID: "my-brand",
-						BaseID:      "msg1",
-						Kind:        "test-kind",
-						Devices:     []string{"serial-1.my-model.my-brand"},
-						ValidSince:  fixedTestTime,
-						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
-						Body:        `{"action": "get"}`,
-					},
-				},
+				Messages: []*devicemgmtstate.RequestMessage{reqMsg},
 			},
 		},
 	}
@@ -1254,7 +1373,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(validateCalls, Equals, 1)
 
-	ms, err := s.mgr.GetState()
+	ms, err = s.mgr.GetState()
 	c.Assert(err, IsNil)
 
 	msg := ms.Sequences["msg1"].Messages[0]
