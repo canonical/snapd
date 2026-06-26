@@ -1741,22 +1741,22 @@ func SeedRefreshTasks(
 		return nil, nil, nil
 	}
 
-	triggers := seedRefreshTriggers(st, dctx)
+	filter := seedRefreshTriggers(st, dctx)
 
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
-		ok, err := triggers(candidate)
+		filteredCandidate, err := filter(candidate)
 		if err != nil {
 			return nil, nil, err
 		}
-		if !ok {
+		if filteredCandidate.InstanceName == "" {
 			continue
 		}
-		added[candidate.InstanceName] = true
+		added[filteredCandidate.InstanceName] = true
 
-		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
-		for _, tid := range candidate.ComponentSetupTaskIDs {
+		snapsups = append(snapsups, filteredCandidate.SnapSetupTaskIDs...)
+		for _, tid := range filteredCandidate.ComponentSetupTaskIDs {
 			compsups = append(compsups, tid)
 		}
 	}
@@ -1823,13 +1823,13 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 		return nil, nil
 	}
 
-	triggers := seedRefreshTriggers(chg.State(), dctx)
+	filter := seedRefreshTriggers(chg.State(), dctx)
 
-	ok, err := triggers(candidate)
+	filteredCandidate, err := filter(candidate)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
+	if filteredCandidate.InstanceName == "" {
 		return nil, nil
 	}
 
@@ -1838,7 +1838,7 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 		return nil, err
 	}
 
-	if err := appendSeedRefreshCandidate(seedTS.Create, candidate.SnapSetupTaskIDs, candidate.ComponentSetupTaskIDs); err != nil {
+	if err := appendSeedRefreshCandidate(seedTS.Create, filteredCandidate.SnapSetupTaskIDs, filteredCandidate.ComponentSetupTaskIDs); err != nil {
 		return nil, err
 	}
 
@@ -1867,16 +1867,15 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks []string, com
 // TODO:SEEDREFRESH: remove this once we support seed-refresh seeds
 // gaining/losing snaps
 func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
-	triggers := seedRefreshTriggers(st, dctx)
-	candidate := snapstate.SeedRefreshCandidate{
+	filter := seedRefreshTriggers(st, dctx)
+	filteredCandidate, err := filter(snapstate.SeedRefreshCandidate{
 		InstanceName: si.SnapName(),
-	}
-	ok, err := triggers(candidate)
+	})
 	if err != nil {
 		return err
 	}
 
-	if ok {
+	if filteredCandidate.InstanceName == si.SnapName() {
 		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
 	}
 	return nil
@@ -1885,97 +1884,118 @@ func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.Devic
 // seedRefreshTriggers returns a closure that reports whether the given snap
 // should trigger a seed refresh. The seed is lazily loaded, and only opened
 // when required.
-func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(snapstate.SeedRefreshCandidate) (bool, error) {
-	requiredSnap := make(map[string]bool)
-	optionalSnap := make(map[string]bool)
+func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, error) {
+	snaps := make(map[string]string)
+	components := make(map[string]string)
 
-	requiredSnapComps := make(map[string]map[string]bool)
-	optionalSnapComps := make(map[string]map[string]bool)
 	for _, sn := range dctx.Model().AllSnaps() {
-		if sn.Presence == "required" {
-			requiredSnap[sn.SnapName()] = true
-		} else {
-			optionalSnap[sn.SnapName()] = true
-		}
-
-		requiredComp := make(map[string]bool)
-		optionalComp := make(map[string]bool)
+		snaps[sn.SnapName()] = sn.Presence
 		for compName, comp := range sn.Components {
-			if comp.Presence == "required" {
-				requiredComp[compName] = true
-			} else {
-				optionalComp[compName] = true
-			}
+			components[snap.SnapComponentName(sn.SnapName(), compName)] = comp.Presence
 		}
-		requiredSnapComps[sn.SnapName()] = requiredComp
-		optionalSnapComps[sn.SnapName()] = optionalComp
 	}
 
 	// snapd should always be considered a part of the model. this is really a
 	// compatibility thing, and maybe should not be here since seed-refresh
 	// isn't gonna work on old models anyways.
-	requiredSnap["snapd"] = true
+	snaps["snapd"] = "required"
 
 	var optionalInSeed map[string]bool
-
-	return func(candidate snapstate.SeedRefreshCandidate) (bool, error) {
+	return func(candidate snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, error) {
 		// CheckSeedRefreshRemove has both candidate.SnapSetupTaskIDs and
 		// candidate.ComponentSetupTaskIDs empty. Make sure we don't
 		// enter the component exclusive path.
 		componentExclusive := len(candidate.SnapSetupTaskIDs) == 0 && len(candidate.ComponentSetupTaskIDs) > 0
-		if componentExclusive {
-			requiredComp := requiredSnapComps[candidate.InstanceName]
-			optionalComp := optionalSnapComps[candidate.InstanceName]
-			for component, _ := range candidate.ComponentSetupTaskIDs {
-				if requiredComp != nil && requiredComp[component] {
-					return true, nil
-				} else if optionalComp != nil && optionalComp[component] {
-					return true, nil
-				}
+		filteredCompSetupTaskIDs := make(map[string]string, len(candidate.ComponentSetupTaskIDs))
+		optionalComps := make([]string, 0, len(candidate.ComponentSetupTaskIDs))
+
+		for component := range candidate.ComponentSetupTaskIDs {
+			name := snap.SnapComponentName(candidate.InstanceName, component)
+			switch components[name] {
+			case "required":
+				filteredCompSetupTaskIDs[component] = candidate.ComponentSetupTaskIDs[component]
+			case "optional":
+				optionalComps = append(optionalComps, name)
 			}
-			return false, nil
 		}
+		if componentExclusive {
+			if len(filteredCompSetupTaskIDs) == 0 && len(optionalComps) == 0 {
+				return snapstate.SeedRefreshCandidate{}, nil
+			}
+		} else {
+			presence, inModel := snaps[candidate.InstanceName]
+			if !inModel {
+				// if not a component-exclusive refresh and the snap is not in
+				// the model, do not trigger a seed refresh.
+				return snapstate.SeedRefreshCandidate{}, nil
+			}
 
-		if requiredSnap[candidate.InstanceName] {
-			return true, nil
-		}
-
-		if !optionalSnap[candidate.InstanceName] {
-			return false, nil
+			if presence == "required" && len(optionalComps) == 0 {
+				return candidate, nil
+			}
 		}
 
 		if optionalInSeed == nil {
 			currentSystem, err := currentSeededSystem(st)
 			if err != nil {
-				return false, err
+				return snapstate.SeedRefreshCandidate{}, err
 			}
 
 			current, err := seedOpen(dirs.SnapSeedDir, currentSystem.System)
 			if err != nil {
-				return false, err
+				return snapstate.SeedRefreshCandidate{}, err
 			}
 			if err := current.LoadAssertions(nil, nil); err != nil {
-				return false, err
+				return snapstate.SeedRefreshCandidate{}, err
 			}
 
 			copier, ok := current.(seed.Copier)
 			if !ok {
 				// this would only happen if the seed is pre-core20
-				return false, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
+				return snapstate.SeedRefreshCandidate{}, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
 			}
 
 			oc, err := copier.OptionalContainers()
 			if err != nil {
-				return false, err
+				return snapstate.SeedRefreshCandidate{}, err
 			}
 
-			optionalInSeed = make(map[string]bool, len(oc.Snaps))
+			optionalInSeed = make(map[string]bool, len(oc.Snaps)+len(oc.Components))
 			for _, sn := range oc.Snaps {
 				optionalInSeed[sn] = true
 			}
+			for sn, comps := range oc.Components {
+				for _, comp := range comps {
+					optionalInSeed[snap.SnapComponentName(sn, comp)] = true
+				}
+			}
 		}
 
-		return optionalInSeed[candidate.InstanceName], nil
+		// filter the optional components
+		for _, comp := range optionalComps {
+			if optionalInSeed[comp] {
+				_, compName := snap.SplitSnapComponentInstanceName(comp)
+				filteredCompSetupTaskIDs[compName] = candidate.ComponentSetupTaskIDs[compName]
+			}
+		}
+
+		if componentExclusive {
+			if len(filteredCompSetupTaskIDs) == 0 {
+				return snapstate.SeedRefreshCandidate{}, nil
+			}
+		} else if snaps[candidate.InstanceName] != "required" && !optionalInSeed[candidate.InstanceName] {
+			return snapstate.SeedRefreshCandidate{}, nil
+		}
+
+		filteredCandidate := snapstate.SeedRefreshCandidate{
+			InstanceName:     candidate.InstanceName,
+			SnapSetupTaskIDs: candidate.SnapSetupTaskIDs,
+		}
+		if len(filteredCompSetupTaskIDs) > 0 {
+			filteredCandidate.ComponentSetupTaskIDs = filteredCompSetupTaskIDs
+		}
+		return filteredCandidate, nil
+
 	}
 }
 

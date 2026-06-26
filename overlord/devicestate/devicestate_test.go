@@ -2474,7 +2474,15 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1"},
 		{"name": "snap-2", "presence": "optional"},
-	}, nil, "snap-2", "snap-3")
+	}, map[string][]map[string]string{
+		"snap-1": {
+			{"name": "comp3", "presence": "required"},
+		},
+		"snap-2": {
+			{"name": "comp1", "presence": "optional"},
+			{"name": "comp2", "presence": "optional"},
+		},
+	}, "snap-2", "snap-3")
 	chg := s.state.NewChange("seed-refresh", "...")
 	snap1Task := s.state.NewTask("fake-download", "...")
 	snap2Task := s.state.NewTask("fake-download", "...")
@@ -2801,12 +2809,40 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 	s.AddCleanup(restore)
 	assertstest.AddMany(seed20.StoreSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
 
-	headers := make([]any, 0, len(snaps))
+	snapsInSeed := make([]map[string]string, 0, len(snaps)+len(optionals))
+	seen := make(map[string]bool, len(snaps)+len(optionals))
 	for _, sn := range snaps {
-		// create asserted snaps with components (if present)
-		if sn["presence"] == "optional" {
-			continue
+		if sn["presence"] != "optional" {
+			snapsInSeed = append(snapsInSeed, sn)
+			seen[sn["name"]] = true
 		}
+	}
+
+	var opts []*seedwriter.OptionsSnap
+	for _, name := range optionals {
+		if !seen[name] {
+			sn := map[string]string{
+				"name":     name,
+				"type":     "app",
+				"presence": "optional",
+			}
+			snapsInSeed = append(snapsInSeed, sn)
+		}
+		optSnap := &seedwriter.OptionsSnap{Name: name}
+		if comps := components[name]; len(comps) > 0 {
+			for _, comp := range comps {
+				if comp["optional"] == "not-in-seed" {
+					continue
+				}
+				optSnap.Components = append(optSnap.Components, seedwriter.OptionsComponent{Name: comp["name"]})
+			}
+		}
+		opts = append(opts, optSnap)
+	}
+
+	headers := make([]any, 0, len(snaps))
+	for _, sn := range snapsInSeed {
+		// create asserted snaps with components (if present)
 		var files [][]string
 		if sn["type"] == "gadget" {
 			files = [][]string{{"meta/gadget.yaml", mockGadgetUCYaml}}
@@ -2818,6 +2854,9 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 			b.WriteString(seedRefreshSnapYAML(sn["name"], sn["type"]))
 			b.WriteString("\ncomponents:")
 			for _, comp := range comps {
+				if comp["optional"] == "not-in-seed" {
+					continue
+				}
 				fmt.Fprintf(&b, "\n  %s:\n    type: standard", comp["name"])
 				compRevisions[comp["name"]] = snap.R(1)
 				cname := snap.SnapComponentName(sn["name"], comp["name"])
@@ -2845,12 +2884,6 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 			modelSnap["components"] = modelComps
 		}
 		headers = append(headers, modelSnap)
-	}
-
-	var opts []*seedwriter.OptionsSnap
-	for _, name := range optionals {
-		seed20.MakeAssertedSnap(c, seedRefreshSnapYAML(name, "app"), nil, snap.R(1), "my-brand", seed20.StoreSigning.Database)
-		opts = append(opts, &seedwriter.OptionsSnap{Name: name})
 	}
 
 	model := seed20.MakeSeed(c, "20260226", "my-brand", "seed-refresh-model", map[string]any{
