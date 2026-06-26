@@ -1779,14 +1779,16 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                distro_install_local_package qemu-efi-aarch64
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                if os.query is-arm; then
+                    distro_install_local_package qemu-efi-aarch64
+                fi
+
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
             fi
+
 
             # Install the snapd built
             dpkg -i "$GOHOME"/snapd_*.deb
@@ -1939,10 +1941,11 @@ suites:
                 # supported yet by the version of mkfs that shipped with Ubuntu 16.04
                 # also ubuntu-image binary is not prebuilt for arm instances
                 snap install ubuntu-image --channel="$OLD_UBUNTU_IMAGE_SNAP_CHANNEL" --classic
-            elif os.query is-arm; then
-                distro_install_local_package qemu-efi-aarch64
-                snap install ubuntu-image --channel="$UBUNTU_IMAGE_SNAP_CHANNEL" --classic
             else
+                if os.query is-arm; then
+                    distro_install_local_package qemu-efi-aarch64
+                fi
+
                 #shellcheck source=tests/lib/image.sh
                 . "$TESTSLIB"/image.sh
                 get_ubuntu_image
