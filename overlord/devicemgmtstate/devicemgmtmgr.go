@@ -61,9 +61,10 @@ var (
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
 
-// deviceIdentityProvider returns the device's serial assertion.
-type deviceIdentityProvider interface {
+// deviceBackend provides device identity and response message signing.
+type deviceBackend interface {
 	Serial() (*asserts.Serial, error)
+	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
 // MessageHandler processes request messages of a specific kind.
@@ -97,11 +98,6 @@ func (e *UnauthorizedError) Error() string {
 // and not call the handler's Apply again.
 func MarkChangeForMessage(chg *state.Change, msg *RequestMessage) {
 	chg.Set(mgmtMessageIDKey, msg.ID())
-}
-
-// responseMessageSigner can sign response-message assertions.
-type responseMessageSigner interface {
-	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
 // RequestMessage represents a request-message being processed.
@@ -273,17 +269,15 @@ func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
 	state    *state.State
-	identity deviceIdentityProvider
-	signer   responseMessageSigner
+	device   deviceBackend
 	handlers map[string]MessageHandler
 }
 
 // Manager creates a new DeviceMgmtManager.
-func Manager(state *state.State, runner *state.TaskRunner, identity deviceIdentityProvider, signer responseMessageSigner) *DeviceMgmtManager {
+func Manager(state *state.State, runner *state.TaskRunner, backend deviceBackend) *DeviceMgmtManager {
 	m := &DeviceMgmtManager{
 		state:    state,
-		identity: identity,
-		signer:   signer,
+		device:   backend,
 		handlers: make(map[string]MessageHandler),
 	}
 
@@ -594,7 +588,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return nil
 	}
 
-	serial, err := m.identity.Serial()
+	serial, err := m.device.Serial()
 	if err != nil {
 		return err
 	}
@@ -608,7 +602,11 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return reject(fmt.Sprintf("message not valid at %s", now.UTC().Format(time.RFC3339)))
 	}
 
-	// TODO: implement assumes checks.
+	// TODO: implement assumes checks (SD187, SD251). The design is somewhat in
+	// flux: SD251 "extends" messages to non-run-mode contexts (e.g. first boot,
+	// before the device has an identity), which will require assumes entries
+	// like "seeding". For now, only the confdb subsystem is supported and
+	// no specific features need to be declared.
 
 	handler, ok := m.handlers[msg.Kind]
 	if !ok {

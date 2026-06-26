@@ -62,12 +62,17 @@ func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExch
 	return s.exchangeMessages(ctx, req)
 }
 
-type mockIdentity struct {
+type mockDeviceBackend struct {
 	serial *asserts.Serial
+	sign   func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
-func (m *mockIdentity) Serial() (*asserts.Serial, error) {
+func (m *mockDeviceBackend) Serial() (*asserts.Serial, error) {
 	return m.serial, nil
+}
+
+func (m *mockDeviceBackend) SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+	return m.sign(accountID, messageID, status, body)
 }
 
 type mockMessageHandler struct {
@@ -143,10 +148,10 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.runner = s.o.TaskRunner()
 	s.o.AddManager(s.runner)
 
-	s.mgr = devicemgmtstate.Manager(s.st, s.runner, nil, nil)
+	s.mgr = devicemgmtstate.Manager(s.st, s.runner, nil)
 	s.o.AddManager(s.mgr)
 
-	s.mgr.MockIdentity(s.makeSerial(c, "serial-1"))
+	s.mgr.MockBackend(&mockDeviceBackend{serial: s.makeSerial(c, "serial-1")})
 
 	err := s.o.StartUp()
 	c.Assert(err, IsNil)
@@ -190,7 +195,7 @@ func (s *deviceMgmtMgrSuite) mockModel() {
 	s.st.Set("seeded", true)
 }
 
-func (s *deviceMgmtMgrSuite) makeSerial(c *C, serial string) *mockIdentity {
+func (s *deviceMgmtMgrSuite) makeSerial(c *C, serial string) *asserts.Serial {
 	devKey, _ := assertstest.GenerateKey(752)
 	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
 	c.Assert(err, IsNil)
@@ -206,7 +211,7 @@ func (s *deviceMgmtMgrSuite) makeSerial(c *C, serial string) *mockIdentity {
 	}, nil, "")
 	c.Assert(err, IsNil)
 
-	return &mockIdentity{serial: as.(*asserts.Serial)}
+	return as.(*asserts.Serial)
 }
 
 func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) {
@@ -1077,7 +1082,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageDeviceNotTargeted(c *C) {
 		}, nil
 	})
 
-	s.mgr.MockIdentity(s.makeSerial(c, "other-serial"))
+	s.mgr.MockBackend(&mockDeviceBackend{serial: s.makeSerial(c, "other-serial")})
 
 	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
