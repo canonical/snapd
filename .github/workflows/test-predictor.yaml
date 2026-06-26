@@ -1,0 +1,346 @@
+name: Test Predictor
+
+on:
+  push:
+    branches:
+      - static-analysis-workflow
+  workflow_run:
+    workflows: [Tests]
+    types:
+      - completed
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Workflow run ID to analyze (from a Tests workflow run)'
+        required: false
+        type: string
+      pr_number:
+        description: 'PR number to comment on (required if run_id is not from a PR)'
+        required: false
+        type: string
+
+jobs:
+  check-label:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request')
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.label-check.outputs.should_run }}
+    steps:
+      - name: Check for run-test-predictor label
+        id: label-check
+        uses: actions/github-script@v9
+        with:
+          script: |
+            if (context.eventName !== 'workflow_run') {
+              return core.setOutput('should_run', 'true');
+            }
+
+            const prs = context.payload.workflow_run.pull_requests || [];
+            if (prs.length === 0) {
+              return core.setOutput('should_run', 'false');
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prs[0].number,
+            });
+
+            core.setOutput('should_run', String(pr.labels.some(l => l.name === 'run-test-predictor')));
+
+  predict-failures:
+    needs: check-label
+    if: needs.check-label.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREDICTOR_URL: ${{ vars.TEST_PREDICTOR_URL || 'http://test-predictor.canonical.com:5000' }}
+      TARGET_RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id || '' }}
+      RERUN_THRESHOLD: '0.5'
+      SOURCE_OWNER: canonical
+      SOURCE_REPO: snapd
+    steps:
+      - name: Resolve target workflow run
+        id: resolve-run
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let runId = process.env.TARGET_RUN_ID;
+            let runAttempt = '1';
+
+            const owner = process.env.SOURCE_OWNER;
+            const repo = process.env.SOURCE_REPO;
+
+            if (context.eventName === 'workflow_run') {
+              runId = String(context.payload.workflow_run.id);
+              runAttempt = String(context.payload.workflow_run.run_attempt || 1);
+            } else if (runId) {
+              const run = await github.rest.actions.getWorkflowRun({
+                owner,
+                repo,
+                run_id: parseInt(runId),
+              });
+              runAttempt = String(run.data.run_attempt || 1);
+            } else {
+              const workflows = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: 'ci-test.yaml',
+                status: 'completed',
+                per_page: 1,
+              });
+              if (workflows.data.workflow_runs.length === 0) {
+                core.setFailed("No completed Tests workflow runs found");
+                return;
+              }
+              runId = String(workflows.data.workflow_runs[0].id);
+              runAttempt = String(workflows.data.workflow_runs[0].run_attempt || 1);
+            }
+
+            core.setOutput('run_id', runId);
+            core.setOutput('run_attempt', runAttempt);
+            core.info(`Resolved run_id=${runId}, run_attempt=${runAttempt}`);
+
+      - name: Get PR number
+        id: pr-number
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const owner = process.env.SOURCE_OWNER;
+            const repo = process.env.SOURCE_REPO;
+            const runId = '${{ steps.resolve-run.outputs.run_id }}';
+
+            if ('${{ inputs.pr_number }}') {
+              const fs = require('fs');
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number`, '${{ inputs.pr_number }}');
+              core.setOutput('has_pr', 'true');
+              return;
+            }
+
+            let page = 1;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner,
+                repo,
+                run_id: parseInt(runId),
+                per_page: 100,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (allArtifacts.length < response.data.total_count);
+
+            const matchArtifact = allArtifacts.find(a => a.name === 'pr_number');
+            if (!matchArtifact) {
+              core.info("No pr_number artifact found — skipping PR comment");
+              core.setOutput('has_pr', 'false');
+              return;
+            }
+
+            const download = await github.rest.actions.downloadArtifact({
+               owner,
+               repo,
+               artifact_id: matchArtifact.id,
+               archive_format: 'zip',
+            });
+            const fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
+            core.setOutput('has_pr', 'true');
+
+      - name: Unzip PR number
+        if: steps.pr-number.outputs.has_pr == 'true' && !inputs.pr_number
+        run: |
+          unzip pr_number.zip
+          cat pr_number
+
+      - name: Download spread results artifacts
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const owner = process.env.SOURCE_OWNER;
+            const repo = process.env.SOURCE_REPO;
+            const runId = parseInt('${{ steps.resolve-run.outputs.run_id }}');
+            const runAttempt = '${{ steps.resolve-run.outputs.run_attempt }}';
+
+            let page = 1;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner,
+                repo,
+                run_id: runId,
+                per_page: 100,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (allArtifacts.length < response.data.total_count);
+
+            const matchingArtifacts = allArtifacts.filter(a =>
+              a.name.startsWith(`spread-results-${runId}-${runAttempt}`)
+            );
+
+            if (matchingArtifacts.length === 0) {
+              core.info("No spread-results artifacts found");
+              return;
+            }
+
+            const fs = require('fs');
+            for (const artifact of matchingArtifacts) {
+              const download = await github.rest.actions.downloadArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+                archive_format: 'zip',
+              });
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
+              console.log(`Downloaded artifact: ${artifact.name}.zip`);
+            }
+
+      - name: Unzip spread results
+        run: |
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
+          find . -name "spread-results-${RUN_ID}*.zip" | while read filename; do
+            dir="${filename%.zip}"
+            mkdir -p "$dir"
+            unzip "$filename" -d "$dir"
+          done
+
+      - name: Consolidate spread results
+        id: consolidate
+        run: |
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
+          if ! ls spread-results-${RUN_ID}-*/*.json &> /dev/null; then
+            echo "has_results=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          jq -s '{items: (map(.items[]))}' spread-results-${RUN_ID}*/*.json > consolidated-results.json
+          echo "has_results=true" >> "$GITHUB_OUTPUT"
+
+      - name: Predict failure rates for failed tests
+        id: predict
+        if: steps.consolidate.outputs.has_results == 'true'
+        run: |
+          ATTEMPT="${{ steps.resolve-run.outputs.run_attempt }}"
+
+          # Extract failed tests from consolidated results and query the predictor
+          jq -r '.items[] | select(.success == false and .skipped != true and .verb != "checking" and .start != null and .end != null) |
+            [.name, .variant, .verb, .system, .scenario // "generic"] | @tsv' consolidated-results.json |
+          while IFS=$'\t' read -r name variant verb system scenario; do
+            [[ -z "$name" ]] && continue
+            full_name="${name}"
+            [[ -n "$variant" ]] && full_name="${name}:${variant}"
+
+            # Query the predictor REST API directly
+            RESPONSE=$(curl -sf -G "${PREDICTOR_URL}/predict" \
+              --data-urlencode "name=${full_name}" \
+              --data-urlencode "verb=${verb}" \
+              --data-urlencode "system=${system}" \
+              --data-urlencode "scenario=${scenario}" \
+              --data-urlencode "attempt=${ATTEMPT}" \
+              2>/dev/null) || continue
+
+            PROB=$(echo "$RESPONSE" | jq -r '.success_probability // 0')
+            echo "${full_name}|${verb}|${system}|${PROB}" >> predictions.txt
+          done
+
+          # Determine rerun recommendation: rerun if ALL failures look flaky
+          SHOULD_RERUN=false
+          FLAKY_COUNT=0
+          REAL_FAILURE_COUNT=0
+          if [[ -f predictions.txt ]]; then
+            FLAKY_COUNT=$(awk -F'|' -v t="$RERUN_THRESHOLD" '$4+0 > t+0' predictions.txt | wc -l)
+            REAL_FAILURE_COUNT=$(awk -F'|' -v t="$RERUN_THRESHOLD" '$4+0 <= t+0' predictions.txt | wc -l)
+            TOTAL=$((FLAKY_COUNT + REAL_FAILURE_COUNT))
+
+            echo "Predictions: ${TOTAL} failed tests — ${FLAKY_COUNT} likely flaky, ${REAL_FAILURE_COUNT} likely real failures"
+
+            if [[ "$REAL_FAILURE_COUNT" -eq 0 && "$FLAKY_COUNT" -gt 0 ]]; then
+              SHOULD_RERUN=true
+            fi
+          else
+            echo "No failed tests found or predictor unreachable"
+          fi
+
+          echo "should_rerun=${SHOULD_RERUN}" >> "$GITHUB_OUTPUT"
+          echo "flaky_count=${FLAKY_COUNT}" >> "$GITHUB_OUTPUT"
+          echo "real_failure_count=${REAL_FAILURE_COUNT}" >> "$GITHUB_OUTPUT"
+
+      - name: Rerun failed jobs
+        if: steps.predict.outputs.should_rerun == 'true'
+        run: |
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
+          echo "All ${flaky_count} failures appear flaky (success probability > ${RERUN_THRESHOLD}) — triggering rerun"
+          gh run rerun "$RUN_ID" --failed --repo "${SOURCE_OWNER}/${SOURCE_REPO}"
+        env:
+          flaky_count: ${{ steps.predict.outputs.flaky_count }}
+
+      - name: Comment prediction report to PR
+        if: steps.predict.outputs.should_rerun != '' && steps.pr-number.outputs.has_pr == 'true'
+        run: |
+          if [[ ! -f predictions.txt ]]; then
+            echo "No predictions generated, skipping comment"
+            exit 0
+          fi
+
+          PR_NUMBER="$(cat pr_number)"
+          RUN_ID="${{ steps.resolve-run.outputs.run_id }}"
+          COMMENT_TAG="<!-- test-predictor-report -->"
+          FLAKY="${{ steps.predict.outputs.flaky_count }}"
+          REAL="${{ steps.predict.outputs.real_failure_count }}"
+          SHOULD_RERUN="${{ steps.predict.outputs.should_rerun }}"
+
+          # Build markdown table from predictions
+          {
+            echo "${COMMENT_TAG}"
+            echo "## Test Predictor Analysis"
+            echo ""
+            echo "*Run ID: ${RUN_ID} • ${FLAKY} likely flaky, ${REAL} likely real failures*"
+            echo ""
+            if [[ "$SHOULD_RERUN" == "true" ]]; then
+              echo "> ✅ **All failures appear flaky — rerun triggered automatically.**"
+            else
+              echo "> ⚠️ **Some failures appear to be real — manual investigation recommended.**"
+            fi
+            echo ""
+            echo "| Test | Verb | System | Success Prob |"
+            echo "|------|------|--------|--------------|"
+            sort -t'|' -k4 -n predictions.txt | while IFS='|' read -r name verb system prob; do
+              pct=$(echo "$prob * 100" | bc -l | xargs printf "%.1f")
+              if (( $(echo "$prob > $RERUN_THRESHOLD" | bc -l) )); then
+                echo "| ${name} | ${verb} | ${system} | 🟡 ${pct}% |"
+              else
+                echo "| ${name} | ${verb} | ${system} | 🔴 ${pct}% |"
+              fi
+            done
+          } > report_body.md
+
+          # Find and update or create PR comment
+          COMMENT_ID=$(gh api \
+            "/repos/${SOURCE_OWNER}/${SOURCE_REPO}/issues/${PR_NUMBER}/comments" \
+            --jq ".[] | select(.body | contains(\"${COMMENT_TAG}\")) | .id" \
+            2>/dev/null | head -1)
+
+          if [[ -n "$COMMENT_ID" ]]; then
+            gh api --method PATCH \
+              "/repos/${SOURCE_OWNER}/${SOURCE_REPO}/issues/comments/${COMMENT_ID}" \
+              -F body=@report_body.md
+          else
+            gh api --method POST \
+              "/repos/${SOURCE_OWNER}/${SOURCE_REPO}/issues/${PR_NUMBER}/comments" \
+              -F body=@report_body.md
+          fi
