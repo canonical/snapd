@@ -1621,6 +1621,11 @@ func (s *daemonSuite) TestTryExtractJSONActionDirect(c *check.C) {
 			wantAction: "",
 		},
 		{
+			name:       "empty action string",
+			body:       `{"action":""}`,
+			wantAction: "",
+		},
+		{
 			name:       "malformed json prefix",
 			body:       `{not json`,
 			wantAction: "",
@@ -1670,6 +1675,12 @@ func (s *daemonSuite) TestTryExtractJSONActionDirect(c *check.C) {
 			name:        "multipart content-type skipped",
 			body:        `{"action":"install"}`,
 			contentType: "multipart/form-data",
+			wantAction:  "",
+		},
+		{
+			name:        "application/json with charset not supported",
+			body:        `{"action":"install"}`,
+			contentType: "application/json; charset=utf-8",
 			wantAction:  "",
 		},
 	} {
@@ -1730,6 +1741,12 @@ func (s *daemonSuite) TestTryExtractJSONActionShortCircuits(c *check.C) {
 	req := httptest.NewRequest("GET", "/", nil)
 	c.Check(TryExtractJSONAction(req), check.Equals, "")
 
+	// POST with nil body.
+	req = httptest.NewRequest("POST", "/", nil)
+	req.Body = nil
+	req.Header.Set("Content-Type", "application/json")
+	c.Check(TryExtractJSONAction(req), check.Equals, "")
+
 	// POST with non-JSON content type.
 	req = httptest.NewRequest("POST", "/", strings.NewReader(`{"action":"install"}`))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -1778,4 +1795,24 @@ func (s *daemonSuite) TestServeHTTPTraceExtractsActionPreservesBody(c *check.C) 
 
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(gotBody, check.Equals, body)
+}
+
+func (s *daemonSuite) TestTryExtractJSONActionAfterByActionAccess(c *check.C) {
+	// byActionAccess fully reads and re-buffers the body before the
+	// handler runs; extraction must still work on the replaced body.
+	body := `{"action":"install","snaps":["x"]}`
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+
+	ac := byActionAccess{Default: rootAccess{}}
+	ucred, err := ucrednetGet(req.RemoteAddr)
+	c.Assert(err, check.IsNil)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil), check.IsNil)
+
+	c.Check(TryExtractJSONAction(req), check.Equals, "install")
+
+	gotBody, err := io.ReadAll(req.Body)
+	c.Assert(err, check.IsNil)
+	c.Check(string(gotBody), check.Equals, body)
 }

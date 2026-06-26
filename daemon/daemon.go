@@ -202,19 +202,28 @@ func traceSnapdAPI(c *Command, r *http.Request, action string) {
 // looking for the top-level "action" key.
 const actionPeekSize = 4096
 
-// bodyWithCloser lets us replace r.Body with a buffered reader while
-// preserving the original Close so the http server can release the
-// underlying body normally.
-type bodyWithCloser struct {
+// peekableBody wraps a buffered reader as an http.Request body so the
+// prefix can be inspected via Peek without advancing the read position.
+// Close is delegated to the original body so the server can release it.
+type peekableBody struct {
 	io.Reader
 	io.Closer
 }
 
-// tryExtractJSONAction returns the top-level "action" field of a JSON
-// request body without consuming the body. It buffers at most
-// actionPeekSize bytes via bufio.Reader.Peek (which does not advance
-// the reader) and walks the prefix with a streaming JSON tokenizer.
-// On any failure (action beyond the peek window, malformed prefix,
+// tryExtractJSONAction returns the top-level "action" string field of a JSON
+// request body. It must be called at most once per request.
+//
+// The function replaces r.Body with a buffered wrapper (peekableBody) that
+// preserves the original body's Close while allowing a prefix peek without
+// advancing the read position. Subsequent handlers still read the full body.
+//
+// Only POST and PUT requests are considered. Content-Type must be absent or
+// exactly "application/json"; other types are ignored and the body is left
+// unchanged.
+//
+// Extraction inspects at most actionPeekSize (4 KiB) via bufio.Reader.Peek
+// and a streaming JSON tokenizer. It fails closed: on any error (action
+// beyond the peek window, malformed prefix, non-string action value,
 // preceding value too large) it returns an empty string.
 func tryExtractJSONAction(r *http.Request) string {
 	if (r.Method != "POST" && r.Method != "PUT") || r.Body == nil {
@@ -228,7 +237,7 @@ func tryExtractJSONAction(r *http.Request) string {
 	// advancing the read position.
 	orig := r.Body
 	br := bufio.NewReaderSize(orig, actionPeekSize)
-	r.Body = bodyWithCloser{Reader: br, Closer: orig}
+	r.Body = peekableBody{Reader: br, Closer: orig}
 
 	// Ignore the error: a short body (EOF) still yields the bytes we
 	// got, which is all we need. Any tokenize error below returns "".
