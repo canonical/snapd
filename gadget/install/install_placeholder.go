@@ -58,6 +58,7 @@ func EncryptPartitions(
 	model *asserts.Model,
 	gadgetRoot,
 	kernelRoot string,
+	extraSnapdKernelCommandLineFragments map[string]string,
 	perfTimings timings.Measurer,
 ) (*EncryptionSetupData, error) {
 	return nil, fmt.Errorf("build without secboot support")

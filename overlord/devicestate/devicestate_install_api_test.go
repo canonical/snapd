@@ -21,6 +21,7 @@
 package devicestate_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -86,14 +88,15 @@ func unpackSnap(snapBlob, targetDir string) error {
 }
 
 type finishStepOpts struct {
-	encrypted          bool
-	installClassic     bool
-	hasPartial         bool
-	hasSystemSeed      bool
-	hasKernelModsComps bool
-	hasRecoveryKey     bool
-	optionalContainers *seed.OptionalContainers
-	volumesAuth        *device.VolumesAuthOptions
+	encrypted              bool
+	installClassic         bool
+	hasPartial             bool
+	hasSystemSeed          bool
+	hasKernelModsComps     bool
+	hasRecoveryKey         bool
+	optionalContainers     *seed.OptionalContainers
+	volumesAuth            *device.VolumesAuthOptions
+	extraSnapdKCmdlineArgs map[string]string
 }
 
 func mockDiskVolume(opts finishStepOpts) *gadget.OnDiskVolume {
@@ -523,6 +526,11 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			// exact cmdline depends on arch, see
 			// bootloader/assets/grub.go:init()
 			c.Check(modeenv.CurrentKernelCommandLines[0], testutil.Contains, "snapd_recovery_mode=run")
+			// install-time extra snapd kernel command line fragments are
+			// rendered into the run mode command line
+			if rendered := devicestate.RenderExtraSnapdKernelCommandLineFragments(opts.extraSnapdKCmdlineArgs); rendered != "" {
+				c.Check(modeenv.CurrentKernelCommandLines[0], testutil.Contains, rendered)
+			}
 			// Check that volume authentication options where propagated
 			c.Check(volumesAuth, Equals, opts.volumesAuth)
 
@@ -566,7 +574,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			})
 			s.AddCleanup(restore)
 		}
-		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, rkey, opts.volumesAuth, checkContext)
+		restore = devicestate.MockEncryptionSetupDataInCache(s.state, label, rkey, opts.volumesAuth, checkContext, opts.extraSnapdKCmdlineArgs)
 		s.AddCleanup(restore)
 
 		// Write expected boot assets needed when creating bootchain
@@ -739,6 +747,20 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		saveBootstrappedContainer := bootstrappedContainersForRole[gadget.SystemSave].(*secboot.MockBootstrappedContainer)
 		c.Check(saveBootstrappedContainer.Slots["default-recovery"], DeepEquals, []byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '7', 0, 0, 0, 0, 0, 0})
 	}
+
+	// install-time extra snapd kernel command line fragments are persisted to
+	// the installed system's ubuntu-save device dir
+	fragmentsFile := filepath.Join(boot.InstallHostDeviceSaveDir, "kcmdline-extra-snapd-fragments.json")
+	if len(opts.extraSnapdKCmdlineArgs) > 0 {
+		c.Check(fragmentsFile, testutil.FilePresent)
+		var written map[string]string
+		data, err := os.ReadFile(fragmentsFile)
+		c.Assert(err, IsNil)
+		c.Assert(json.Unmarshal(data, &written), IsNil)
+		c.Check(written, DeepEquals, opts.extraSnapdKCmdlineArgs)
+	} else {
+		c.Check(fragmentsFile, testutil.FileAbsent)
+	}
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionHappy(c *C) {
@@ -747,6 +769,16 @@ func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionHappy(c *
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: true})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishEncryptionWithExtraSnapdKernelCommandLineArgs(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted:      true,
+		installClassic: true,
+		extraSnapdKCmdlineArgs: map[string]string{
+			"xkb": "snapd.xkb=eg,pc105,,grp:alt_shift_toggle",
+		},
+	})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallClassicFinishNoEncryptionWithKModsHappy(c *C) {
@@ -777,6 +809,16 @@ func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishNoEncryptionHappy(c *C) 
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionHappy(c *C) {
 	s.testInstallFinishStep(c, finishStepOpts{encrypted: true, installClassic: false})
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionWithExtraSnapdKernelCommandLineArgs(c *C) {
+	s.testInstallFinishStep(c, finishStepOpts{
+		encrypted:      true,
+		installClassic: false,
+		extraSnapdKCmdlineArgs: map[string]string{
+			"xkb": "snapd.xkb=eg,pc105,,grp:alt_shift_toggle",
+		},
+	})
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallCoreFinishEncryptionWithPassphraseAuthHappy(c *C) {
@@ -833,7 +875,7 @@ func (s *deviceMgrInstallAPISuite) TestInstallFinishNoLabel(c *C) {
 - install API finish step \(cannot load assertions for label "classic": no seed assertions\)`)
 }
 
-func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSupportedHybrid, hasTPM bool, mockVolumesAuth *device.VolumesAuthOptions) {
+func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSupportedHybrid, hasTPM bool, mockVolumesAuth *device.VolumesAuthOptions, withKeyboardConfig bool) {
 	// Mock label
 	label := "classic"
 	isClassic := true
@@ -876,6 +918,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 		model *asserts.Model,
 		gadgetRoot,
 		kernelRoot string,
+		extraSnapdKernelCommandLineFragments map[string]string,
 		perfTimings timings.Measurer,
 	) (*install.EncryptionSetupData, error) {
 		encrytpPartCalls++
@@ -898,6 +941,13 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 		c.Check(volumesAuth, Equals, mockVolumesAuth)
 		c.Check(saveFound, Equals, true)
 		c.Check(dataFound, Equals, true)
+		if withKeyboardConfig {
+			c.Check(extraSnapdKernelCommandLineFragments, DeepEquals, map[string]string{
+				"xkb": `snapd.xkb="eg,pc105,,grp:alt_shift_toggle"`,
+			})
+		} else {
+			c.Check(extraSnapdKernelCommandLineFragments, HasLen, 0)
+		}
 		return &install.EncryptionSetupData{}, nil
 	})
 	s.AddCleanup(restore)
@@ -915,6 +965,15 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryption(c *C, isSup
 	if mockVolumesAuth != nil {
 		encryptTask.Set("volumes-auth-required", true)
 		s.state.Cache(devicestate.VolumesAuthOptionsKeyByLabel(label), mockVolumesAuth)
+	}
+	if withKeyboardConfig {
+		kbConfig := &client.KeyboardConfig{
+			Model:   "pc105",
+			Layout:  "eg",
+			Variant: "",
+			Options: []string{"grp:alt_shift_toggle"},
+		}
+		encryptTask.Set("keyboard-config", kbConfig)
 	}
 	chg.AddTask(encryptTask)
 
@@ -979,16 +1038,27 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHyb
 	// supported hybrid system uses specialized encryption availability check
 	const hasTPM = true
 	const isSupportedHybrid = true
+	const withKeyboardConfig = false
 	var volumesAuth *device.VolumesAuthOptions = nil
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappy(c *C) {
 	// unsupported hybrid system uses general encryption availability check
 	const hasTPM = true
 	const isSupportedHybrid = false
+	const withKeyboardConfig = false
 	var volumesAuth *device.VolumesAuthOptions = nil
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
+}
+
+func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithKeyboardConfig(c *C) {
+	// supported hybrid system uses specialized encryption availability check
+	const hasTPM = true
+	const isSupportedHybrid = true
+	const withKeyboardConfig = true
+	var volumesAuth *device.VolumesAuthOptions = nil
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithPassphrase(c *C) {
@@ -996,7 +1066,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHyb
 	const hasTPM = true
 	const isSupportedHybrid = true
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+	const withKeyboardConfig = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridHappyWithPIN(c *C) {
@@ -1004,7 +1075,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHyb
 	const hasTPM = true
 	const isSupportedHybrid = true
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePIN, PIN: "1234"}
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+	const withKeyboardConfig = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridHappyWithVolumesAuth(c *C) {
@@ -1012,7 +1084,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupported
 	const hasTPM = true
 	const isSupportedHybrid = false
 	volumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+	const withKeyboardConfig = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHybridNoCrypto(c *C) {
@@ -1020,7 +1093,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionSupportedHyb
 	const hasTPM = false
 	const isSupportedHybrid = true
 	var volumesAuth *device.VolumesAuthOptions = nil
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+	const withKeyboardConfig = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupportedHybridNoCrypto(c *C) {
@@ -1028,7 +1102,8 @@ func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNotSupported
 	const hasTPM = false
 	const isSupportedHybrid = false
 	var volumesAuth *device.VolumesAuthOptions = nil
-	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth)
+	const withKeyboardConfig = false
+	s.testInstallSetupStorageEncryption(c, isSupportedHybrid, hasTPM, volumesAuth, withKeyboardConfig)
 }
 
 func (s *deviceMgrInstallAPISuite) TestInstallSetupStorageEncryptionNoLabel(c *C) {
@@ -1180,6 +1255,7 @@ func (s *deviceMgrInstallAPISuite) testInstallSetupStorageEncryptionPassphraseAu
 		model *asserts.Model,
 		gadgetRoot,
 		kernelRoot string,
+		extraSnapdKernelCommandLineFragments map[string]string,
 		perfTimings timings.Measurer,
 	) (*install.EncryptionSetupData, error) {
 		return &install.EncryptionSetupData{}, nil

@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -1755,6 +1756,65 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupUC20NoUbuntuSave(c *C) {
 
 	// known as available
 	c.Check(devicestate.SaveAvailable(mgr), Equals, true)
+}
+
+func setupInstallTimeExtraSnapdFragments(c *C, fragments map[string]string) {
+	data, err := json.Marshal(fragments)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapDeviceSaveDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(filepath.Join(dirs.SnapDeviceSaveDir, "kcmdline-extra-snapd-fragments.json"), data, 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupInitializesInstallTimeExtraSnapdFragments(c *C) {
+	setupInstallTimeExtraSnapdFragments(c, map[string]string{
+		"xkb":         `snapd.xkb="us,pc105"`,
+		"unsupported": "ignored-fragment",
+	})
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	checkExtraSnapdFragments(c, s.state, map[string]string{
+		"xkb": `snapd.xkb="us,pc105"`,
+	})
+
+	// File is kept as a record of the install-time choices.
+	c.Check(filepath.Join(dirs.SnapDeviceSaveDir, "kcmdline-extra-snapd-fragments.json"), testutil.FilePresent)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerStartupInitializesInstallTimeExtraSnapdFragmentsNoop(c *C) {
+	setupInstallTimeExtraSnapdFragments(c, map[string]string{
+		"xkb":         `snapd.xkb="us,pc105"`,
+		"unsupported": "ignored-fragment",
+	})
+
+	s.state.Lock()
+	s.state.Set("kcmdline-extra-snapd-fragments", map[string]string{
+		"xkb": `snapd.xkb="existing"`,
+	})
+	s.state.Unlock()
+
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, s.o.TaskRunner(), s.newStore)
+	c.Assert(err, IsNil)
+
+	err = mgr.StartUp()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	checkExtraSnapdFragments(c, s.state, map[string]string{
+		"xkb": `snapd.xkb="existing"`,
+	})
+
+	// File is kept as a record of the install-time choices.
+	c.Check(filepath.Join(dirs.SnapDeviceSaveDir, "kcmdline-extra-snapd-fragments.json"), testutil.FilePresent)
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerStartupUC20UbuntuSaveErr(c *C) {
