@@ -988,6 +988,7 @@ fi
 
 	mkfsCall := 0
 	restore = install.MockMkfsMake(func(ctx context.Context, typ, img string, mkfsOpts *mkfs.MakeOptions) error {
+		c.Assert(ctx, NotNil)
 		mkfsCall++
 		switch mkfsCall {
 		case 1:
