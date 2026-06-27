@@ -153,6 +153,34 @@ func LogLoginFailure(user SnapdUser, reason Reason) {
 	)
 }
 
+// LogTokenCreated logs a local snapd macaroon creation event using the
+// global security logger.
+func LogTokenCreated(user SnapdUser, tokenID int) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHN", Name: "authn_token_created", Level: LevelInfo},
+		fmt.Sprintf("Token created for user %s", user.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "token_id", Value: tokenID},
+	)
+}
+
+// LogTokenDeleted logs a local snapd macaroon deletion event using the
+// global security logger.
+func LogTokenDeleted(user SnapdUser, tokenID int) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHN", Name: "authn_token_delete", Level: LevelInfo},
+		fmt.Sprintf("Token deleted for user %s", user.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "token_id", Value: tokenID},
+	)
+}
+
 // LogUserCreated logs a user creation event using the global security logger.
 func LogUserCreated(user SnapdUser) {
 	lock.Lock()

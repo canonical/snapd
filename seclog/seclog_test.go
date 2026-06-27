@@ -129,6 +129,32 @@ func (s *SecLogSuite) TestLogLoginFailure(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "invalid-credentials")
 }
 
+func (s *SecLogSuite) TestLogTokenCreated(c *C) {
+	user := seclog.SnapdUser{
+		ID:             7,
+		StoreUserEmail: "user@example.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogTokenCreated(user, 99)
+
+	c.Check(s.buf.String(), testutil.Contains, "authn_token_created")
+	c.Check(s.buf.String(), testutil.Contains, "Token created for user 7:user@example.com:jdoe")
+	c.Check(s.buf.String(), testutil.Contains, "[token_id=99]")
+}
+
+func (s *SecLogSuite) TestLogTokenDeleted(c *C) {
+	user := seclog.SnapdUser{
+		ID:             7,
+		StoreUserEmail: "user@example.com",
+		StoreUserName:  "jdoe",
+	}
+	seclog.LogTokenDeleted(user, 99)
+
+	c.Check(s.buf.String(), testutil.Contains, "authn_token_delete")
+	c.Check(s.buf.String(), testutil.Contains, "Token deleted for user 7:user@example.com:jdoe")
+	c.Check(s.buf.String(), testutil.Contains, "[token_id=99]")
+}
+
 func (s *SecLogSuite) TestLogLoggerEnabledLogsEvent(c *C) {
 	seclog.LogLoggerEnabled()
 

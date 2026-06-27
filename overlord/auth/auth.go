@@ -205,8 +205,46 @@ func generateMacaroonKey() ([]byte, error) {
 
 const snapdMacaroonLocation = "snapd"
 
-// newUserMacaroon returns a snapd macaroon for the given username
-func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
+// isSnapdMacaroon reports whether serializedMacaroon is a snapd
+// macaroon (location "snapd").
+func isSnapdMacaroon(serializedMacaroon string) bool {
+	if serializedMacaroon == "" {
+		return false
+	}
+	m, err := MacaroonDeserialize(serializedMacaroon)
+	if err != nil {
+		// Unparseable data is not treated as a snapd macaroon; token audit
+		// events are omitted rather than guessed.
+		return false
+	}
+	return m.Location() == snapdMacaroonLocation
+}
+
+// logTokenMacaroonChanges emits token lifecycle events when a user's local
+// macaroon changes between prev and user.
+func logTokenMacaroonChanges(prev, user *UserState) {
+	if prev.Macaroon == user.Macaroon {
+		return
+	}
+
+	su := user.snapdUser()
+	tokenID := user.ID
+	prevSnapd := isSnapdMacaroon(prev.Macaroon)
+	newSnapd := isSnapdMacaroon(user.Macaroon)
+
+	switch {
+	case prevSnapd && !newSnapd:
+		seclog.LogTokenDeleted(su, tokenID)
+	case !prevSnapd && newSnapd:
+		seclog.LogTokenCreated(su, tokenID)
+	case prevSnapd && newSnapd:
+		seclog.LogTokenDeleted(su, tokenID)
+		seclog.LogTokenCreated(su, tokenID)
+	}
+}
+
+// newUserMacaroonImpl returns a snapd macaroon for the given username.
+func newUserMacaroonImpl(macaroonKey []byte, userID int) (string, error) {
 	userMacaroon, err := macaroon.New(macaroonKey, strconv.Itoa(userID), snapdMacaroonLocation)
 	if err != nil {
 		return "", fmt.Errorf("cannot create macaroon for snapd user: %s", err)
@@ -219,6 +257,8 @@ func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
 
 	return serializedMacaroon, nil
 }
+
+var newUserMacaroon = newUserMacaroonImpl
 
 // TODO: possibly move users' related functions to a userstate package
 
@@ -236,8 +276,8 @@ type NewUserParams struct {
 	Expiration time.Time
 }
 
-// NewUser tracks a new authenticated user and saves its details in the state
-// Note that this logs a security event via the security logger.
+// NewUser tracks a new authenticated user and saves its details in the state.
+// Note that this logs security events via the security logger.
 func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	var authStateData AuthState
 
@@ -276,7 +316,9 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 
 	st.Set("auth", authStateData)
 
-	seclog.LogUserCreated(authenticatedUser.snapdUser())
+	su := authenticatedUser.snapdUser()
+	seclog.LogTokenCreated(su, authenticatedUser.ID)
+	seclog.LogUserCreated(su)
 
 	return &authenticatedUser, nil
 }
@@ -284,13 +326,13 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 var ErrInvalidUser = errors.New("invalid user")
 
 // RemoveUser removes a user from the state given its ID.
-// Note that this logs a security event via the security logger.
+// Note that this logs security events via the security logger.
 func RemoveUser(st *state.State, userID int) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
 }
 
 // RemoveUserByUsername removes a user from the state given its username. Returns a *UserState with the identification information for them.
-// Note that this logs a security event via the security logger.
+// Note that this logs security events via the security logger.
 func RemoveUserByUsername(st *state.State, username string) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.Username == username })
 }
@@ -311,6 +353,8 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 		u := &authStateData.Users[i]
 		if p(u) {
 			su := u.snapdUser()
+			tokenID := u.ID
+			hadSnapdMacaroon := isSnapdMacaroon(u.Macaroon)
 			removed := u.identificationOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
@@ -319,6 +363,9 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 			authStateData.Users = authStateData.Users[:n]
 			st.Set("auth", authStateData)
 
+			if hadSnapdMacaroon {
+				seclog.LogTokenDeleted(su, tokenID)
+			}
 			seclog.LogUserRemoved(su)
 
 			return removed, nil
@@ -377,8 +424,8 @@ func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	return nil, ErrInvalidUser
 }
 
-// UpdateUser updates user in state
-// Note that this logs a security event via the security logger.
+// UpdateUser updates user in state.
+// Note that this logs security events via the security logger.
 func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
@@ -395,6 +442,8 @@ func UpdateUser(st *state.State, user *UserState) error {
 			prev := authStateData.Users[i]
 			authStateData.Users[i] = *user
 			st.Set("auth", authStateData)
+
+			logTokenMacaroonChanges(&prev, user)
 
 			changed := prev.changedFields(user)
 			if len(changed) > 0 {
