@@ -160,13 +160,21 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+	action := tryExtractJSONAction(r)
+
+	authzRec := NewAuthzRecorder().
+		WithUser(seclogSnapdUserFromAuth(user)).
+		WithPeer(seclogPeerFromUcred(ucred)).
+		WithEndpoint(seclogEndpointFromRequest(c.Path, r.Method, action))
+
+	rspe := access.CheckAccess(c.d, r, ucred, user, authzRec)
+	authzRec.Emit()
+	if rspe != nil {
 		rspe.ServeHTTP(w, r)
 		return
 	}
 
 	if osutil.GetenvBool("SNAPD_TRACE") {
-		action := tryExtractJSONAction(r)
 		traceSnapdAPI(c, r, action)
 	}
 

@@ -103,6 +103,16 @@ func snapAppFromLabel(label string) (snap, app string) {
 	return "", ""
 }
 
+// seclogEndpointFromRequest builds a [seclog.Endpoint] for AUTHZ audit events.
+// action is typically obtained via [tryExtractJSONAction].
+func seclogEndpointFromRequest(path, method, action string) seclog.Endpoint {
+	return seclog.Endpoint{
+		Method: method,
+		Path:   path,
+		Action: action,
+	}
+}
+
 // AuthzRecorder accumulates one AUTHZ audit event during an access check.
 // Populate [seclog.SnapdUser], [seclog.Peer], and [seclog.Endpoint] via the
 // With* methods, record the outcome via Record*, then call [AuthzRecorder.Emit].

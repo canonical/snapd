@@ -371,10 +371,10 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError
 
-func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
-	return f(d, r, ucred, user)
+func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
+	return f(d, r, ucred, user, rec)
 }
 
 func (s *daemonSuite) TestReadAccess(c *check.C) {
@@ -383,7 +383,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -394,7 +394,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(user, check.IsNil)
 		return nil
 	})
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
@@ -415,12 +415,12 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -468,12 +468,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 		accessCalled = true
 		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
@@ -1808,7 +1808,7 @@ func (s *daemonSuite) TestTryExtractJSONActionAfterByActionAccess(c *check.C) {
 	ac := byActionAccess{Default: rootAccess{}}
 	ucred, err := ucrednetGet(req.RemoteAddr)
 	c.Assert(err, check.IsNil)
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), check.IsNil)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, NewNopAuthzRecorder()), check.IsNil)
 
 	c.Check(TryExtractJSONAction(req), check.Equals, "install")
 
