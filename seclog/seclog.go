@@ -218,6 +218,36 @@ func LogUserRemoved(user SnapdUser) {
 	)
 }
 
+// LogSystemUserCreated logs creation of a Linux system account using the
+// global security logger. This is distinct from [LogUserCreated], which
+// records snapd user state.
+func LogSystemUserCreated(systemUser string, opts AddOptions) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "USER", Name: "user_created_system", Level: LevelInfo},
+		fmt.Sprintf("Created system user %s", systemUser),
+		Attr{Key: "system_user", Value: systemUser},
+		Attr{Key: "add_options", Value: opts},
+	)
+}
+
+// LogSystemUserRemoved logs removal of a Linux system account using the
+// global security logger. This is distinct from [LogUserRemoved], which
+// records snapd user state.
+func LogSystemUserRemoved(systemUser string, opts RemoveOptions) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "USER", Name: "user_removed_system", Level: LevelInfo},
+		fmt.Sprintf("Removed system user %s", systemUser),
+		Attr{Key: "system_user", Value: systemUser},
+		Attr{Key: "remove_options", Value: opts},
+	)
+}
+
 // LogAdminActivity logs an administrative API access event using the
 // global security logger. It is emitted when authorization succeeds (the
 // access gate passed), not when the API operation or handler succeeds.

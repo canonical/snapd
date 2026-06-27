@@ -222,3 +222,19 @@ func (u SnapdUser) String() string {
 
 	return id + ":" + email + ":" + name
 }
+
+// AddOptions holds the options recorded for a system user creation event.
+// JSON tags match the security audit specification field names.
+type AddOptions struct {
+	RealUserName        string `json:"real_user_name"`
+	Sudoer              bool   `json:"sudoer"`
+	ExtraUsers          bool   `json:"extra_users"`
+	ForcePasswordChange bool   `json:"force_password_change"`
+	Known               bool   `json:"known"`
+}
+
+// RemoveOptions holds the options recorded for a system user removal event.
+// JSON tags match the security audit specification field names.
+type RemoveOptions struct {
+	Force bool `json:"force"`
+}

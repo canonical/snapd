@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -78,7 +80,7 @@ func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time
 	}
 
 	opts.Sudoer = sudoer
-	return addUser(st, username, email, expiration, opts)
+	return addUser(st, username, email, expiration, opts, false)
 }
 
 // CreateKnownUsers creates known users. The user details are fetched
@@ -107,7 +109,7 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 	}
 
 	opts.Sudoer = sudoer
-	createdUser, err := addUser(st, username, email, expiration, opts)
+	createdUser, err := addUser(st, username, email, expiration, opts, true)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +145,8 @@ func RemoveUser(st *state.State, username string, opts *RemoveUserOptions) (*aut
 	if err := osutilDelUser(username, delUseropts); err != nil {
 		return nil, err
 	}
+
+	seclog.LogSystemUserRemoved(username, seclog.RemoveOptions{Force: opts.Force})
 
 	// then the UserState
 	u, err := auth.RemoveUserByUsername(st, username)
@@ -199,7 +203,7 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	}
 
 	addUserOpts.Sudoer = sudoer
-	return addUser(state, username, email, expiration, addUserOpts)
+	return addUser(state, username, email, expiration, addUserOpts, true)
 }
 
 var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error) {
@@ -334,11 +338,31 @@ func setupLocalUser(state *state.State, username, email string, expiration time.
 	return nil
 }
 
-func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions) (*CreatedUser, error) {
+func seclogAddOptions(opts *osutil.AddUserOptions, known bool) seclog.AddOptions {
+	// RealUserName is taken from the portion of Gecos after the first comma
+	// (assertion display name or store OpenID identifier).
+	addOpts := seclog.AddOptions{
+		Known:               known,
+		Sudoer:              opts.Sudoer,
+		ExtraUsers:          opts.ExtraUsers,
+		ForcePasswordChange: opts.ForcePasswordChange,
+	}
+	if _, realUserName, ok := strings.Cut(opts.Gecos, ","); ok {
+		addOpts.RealUserName = realUserName
+	}
+	return addOpts
+}
+
+func addUser(state *state.State, username string, email string, expiration time.Time, opts *osutil.AddUserOptions, known bool) (*CreatedUser, error) {
 	opts.ExtraUsers = !release.OnClassic
 	if err := osutilAddUser(username, opts); err != nil {
 		return nil, fmt.Errorf("cannot add user %q: %s", username, err)
 	}
+
+	// user_created_system records the Linux account, which exists even if
+	// setupLocalUser fails below.
+	seclog.LogSystemUserCreated(username, seclogAddOptions(opts, known))
+
 	if err := setupLocalUser(state, username, email, expiration); err != nil {
 		return nil, err
 	}

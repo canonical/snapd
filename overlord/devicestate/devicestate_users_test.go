@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -40,6 +41,8 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -60,6 +63,8 @@ type usersSuite struct {
 	trivialUserLookup func(username string) (*user.User, error)
 
 	StoreSigning *assertstest.StoreStack
+
+	seclogBuf *bytes.Buffer
 }
 
 func (s *usersSuite) UserInfo(email string) (userinfo *store.User, err error) {
@@ -105,6 +110,10 @@ func (s *usersSuite) SetUpTest(c *check.C) {
 
 	s.userInfoResult = nil
 	s.userInfoExpectedEmail = ""
+
+	s.seclogBuf = &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(s.seclogBuf))
+	s.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
 }
 
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
@@ -186,6 +195,11 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	c.Check(outfile, testutil.FileEquals,
 		fmt.Sprintf(`{"id":%d,"username":"%s","email":"%s","macaroon":"%s"}`,
 			1, expectedUsername, s.userInfoExpectedEmail, user.Macaroon))
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Created system user karl")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "xxyyzz")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Known:false")
 }
 
 func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
@@ -206,14 +220,16 @@ func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 		return fmt.Errorf("wat")
 	})()
 
+	s.seclogBuf.Reset()
 	s.state.Lock()
 	userState, userErr := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{})
 	s.state.Unlock()
 	c.Check(userErr, check.NotNil)
-	c.Check(s.errorIsInternal(err), check.Equals, true)
+	c.Check(s.errorIsInternal(userErr), check.Equals, true)
 	c.Check(userErr.Error(), check.Matches, "wat")
 	c.Assert(userState, check.IsNil)
 	c.Check(called, check.Equals, 1)
+	c.Check(s.seclogBuf.String(), check.Equals, "")
 }
 
 func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
@@ -240,6 +256,10 @@ func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(calls, check.Equals, 1)
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "user_removed_system")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Removed system user some-user")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Force:true")
 }
 
 func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
@@ -316,6 +336,10 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	_, err = auth.User(s.state, user.ID)
 	s.state.Unlock()
 	c.Check(err, check.Equals, auth.ErrInvalidUser)
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "user_removed_system")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Removed system user some-user")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Force:false")
 }
 
 func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
@@ -403,8 +427,8 @@ var goodUser = map[string]any{
 	"email":        "foo@bar.com",
 	"series":       []any{"16", "18"},
 	"models":       []any{"my-model", "other-model"},
-	"name":         "Boring Guy",
-	"username":     "guy",
+	"name":         "Example User",
+	"username":     "example-user",
 	"password":     "$6$salt$hash",
 	"since":        time.Now().Format(time.RFC3339),
 	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
@@ -487,8 +511,8 @@ var expireUser = map[string]any{
 	"email":         "foo@bar.com",
 	"series":        []any{"16", "18"},
 	"models":        []any{"my-model", "other-model"},
-	"name":          "Boring Guy",
-	"username":      "guy",
+	"name":          "Example User",
+	"username":      "example-user",
 	"password":      "$6$salt$hash",
 	"user-presence": "until-expiration",
 	"since":         time.Now().Format(time.RFC3339),
@@ -508,9 +532,9 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	// the expected user
 	username, expiration, opts, err := devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com")
 	c.Assert(err, check.IsNil)
-	c.Check(username, check.Equals, "guy")
+	c.Check(username, check.Equals, "example-user")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
-		Gecos:    "foo@bar.com,Boring Guy",
+		Gecos:    "foo@bar.com,Example User",
 		Password: "$6$salt$hash",
 	})
 	c.Check(expiration.IsZero(), check.Equals, true)
@@ -546,8 +570,8 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 	// mock the calls that create the user
 	var addUserCalled bool
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(username, check.Equals, "example-user")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Example User")
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		c.Check(opts.ForcePasswordChange, check.Equals, forcePasswordChange)
@@ -562,7 +586,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 
 	expected := []*devicestate.CreatedUser{
 		{
-			Username: "guy",
+			Username: "example-user",
 		},
 	}
 	c.Assert(err, check.IsNil)
@@ -570,6 +594,16 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 	c.Check(createdUsers, check.FitsTypeOf, expected)
 	c.Check(createdUsers, check.DeepEquals, expected)
 	c.Check(addUserCalled, check.Equals, true)
+
+	c.Check(s.seclogBuf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Created system user example-user")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Example User")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "Known:true")
+	if forcePasswordChange {
+		c.Check(s.seclogBuf.String(), testutil.Contains, "ForcePasswordChange:true")
+	} else {
+		c.Check(s.seclogBuf.String(), testutil.Contains, "ForcePasswordChange:false")
+	}
 
 	// ensure the user was added to the state
 	s.state.Lock()
@@ -600,8 +634,8 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 	// mock the calls that create the user
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
 		switch username {
-		case "guy":
-			c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		case "example-user":
+			c.Check(opts.Gecos, check.Equals, "foo@bar.com,Example User")
 		case "partnerguy":
 			c.Check(opts.Gecos, check.Equals, "p@partner.com,Partner Guy")
 		case "goodserialguy":
@@ -638,14 +672,14 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 	s.state.Unlock()
 
 	c.Check(created, check.DeepEquals, map[string]bool{
-		"guy":           true,
+		"example-user":  true,
 		"partnerguy":    true,
 		"goodserialguy": true,
 	})
 
 	expected := []*devicestate.CreatedUser{
 		{
-			Username: "guy",
+			Username: "example-user",
 		},
 		{
 			Username: "partnerguy",
@@ -682,7 +716,7 @@ func (s *usersSuite) TestCreateAllKnownUsersWithExpiration(c *check.C) {
 
 	// mock the calls that create the user
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Example User")
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		created[username] = true
@@ -704,8 +738,8 @@ func (s *usersSuite) TestCreateAllKnownUsersWithExpiration(c *check.C) {
 	createdUsers, err = devicestate.CreateKnownUsers(s.state, false, "")
 	s.state.Unlock()
 
-	c.Check(created, check.DeepEquals, map[string]bool{"guy": true})
-	expected := []*devicestate.CreatedUser{{Username: "guy"}}
+	c.Check(created, check.DeepEquals, map[string]bool{"example-user": true})
+	expected := []*devicestate.CreatedUser{{Username: "example-user"}}
 	c.Assert(err, check.IsNil)
 	c.Check(len(createdUsers), check.Equals, 1)
 	c.Check(createdUsers, check.FitsTypeOf, expected)
@@ -905,8 +939,8 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	// mock the calls that create the user
 	created := map[string]bool{}
 	defer devicestate.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
-		c.Check(username, check.Equals, "guy")
-		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(username, check.Equals, "example-user")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Example User")
 		c.Check(opts.Sudoer, check.Equals, false)
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		created[username] = true
@@ -926,11 +960,11 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(created, check.DeepEquals, map[string]bool{
-		"guy": true,
+		"example-user": true,
 	})
 	expected := []*devicestate.CreatedUser{
 		{
-			Username: "guy",
+			Username: "example-user",
 		},
 	}
 	c.Check(len(createdUsers), check.Equals, 1)
