@@ -303,9 +303,14 @@ func (s *SlogSuite) TestReasonLogValue(c *C) {
 func (s *SlogSuite) TestPeerLogValue(c *C) {
 	type peerRecord struct {
 		Peer struct {
-			Socket string `json:"socket"`
-			UID    int64  `json:"uid"`
-			PID    int64  `json:"pid"`
+			Socket        string `json:"socket"`
+			UID           int64  `json:"uid"`
+			PID           int64  `json:"pid"`
+			Exe           string `json:"exe"`
+			SecurityLabel string `json:"security_label"`
+			CgroupLabel   string `json:"cgroup_label"`
+			Snap          string `json:"snap"`
+			App           string `json:"app"`
 		} `json:"peer"`
 	}
 
@@ -315,6 +320,8 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 		"test",
 		seclog.Attr{Key: "peer", Value: seclog.Peer{
 			Socket: "/run/snapd.socket", UID: 0, PID: 4242,
+			Exe: "/usr/bin/snap", Snap: "<unknown>", App: "<unknown>",
+			SecurityLabel: "unconfined", CgroupLabel: "<unknown>",
 		}},
 	)
 
@@ -324,16 +331,19 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 	c.Check(obtained.Peer.Socket, Equals, "/run/snapd.socket")
 	c.Check(obtained.Peer.UID, Equals, int64(0))
 	c.Check(obtained.Peer.PID, Equals, int64(4242))
+	c.Check(obtained.Peer.Exe, Equals, "/usr/bin/snap")
+	c.Check(obtained.Peer.Snap, Equals, "<unknown>")
+	c.Check(obtained.Peer.App, Equals, "<unknown>")
+	c.Check(obtained.Peer.SecurityLabel, Equals, "unconfined")
+	c.Check(obtained.Peer.CgroupLabel, Equals, "<unknown>")
 }
 
 func (s *SlogSuite) TestEndpointLogValue(c *C) {
 	type endpointRecord struct {
 		Endpoint struct {
-			Method        string `json:"method"`
-			Path          string `json:"path"`
-			Action        string `json:"action"`
-			AccessChecker string `json:"access_checker"`
-			AccessLevel   string `json:"access_level"`
+			Method string `json:"method"`
+			Path   string `json:"path"`
+			Action string `json:"action"`
 		} `json:"endpoint"`
 	}
 
@@ -342,11 +352,9 @@ func (s *SlogSuite) TestEndpointLogValue(c *C) {
 		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
 		"test",
 		seclog.Attr{Key: "endpoint", Value: seclog.Endpoint{
-			Method:        "POST",
-			Path:          "/v2/snaps",
-			Action:        "install",
-			AccessChecker: "authenticated",
-			AccessLevel:   "authenticated",
+			Method: "POST",
+			Path:   "/v2/snaps",
+			Action: "install",
 		}},
 	)
 
@@ -356,8 +364,6 @@ func (s *SlogSuite) TestEndpointLogValue(c *C) {
 	c.Check(obtained.Endpoint.Method, Equals, "POST")
 	c.Check(obtained.Endpoint.Path, Equals, "/v2/snaps")
 	c.Check(obtained.Endpoint.Action, Equals, "install")
-	c.Check(obtained.Endpoint.AccessChecker, Equals, "authenticated")
-	c.Check(obtained.Endpoint.AccessLevel, Equals, "authenticated")
 }
 
 func (s *SlogSuite) TestAuthzChecksLogValue(c *C) {

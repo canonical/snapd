@@ -224,25 +224,21 @@ func (s *SecLogSuite) TestLogAdminActivity(c *C) {
 	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
 	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 0, PID: 4242}
 	endpoint := seclog.Endpoint{
-		Method:        "POST",
-		Path:          "/v2/snaps",
-		Action:        "install",
-		AccessChecker: "authenticated",
-		AccessLevel:   "authenticated",
+		Method: "POST",
+		Path:   "/v2/snaps",
+		Action: "install",
 	}
-	checks := seclog.NewAuthzChecks()
-
-	seclog.LogAdminActivity(user, peer, endpoint, checks)
+	seclog.LogAdminActivity(user, peer, endpoint, seclog.ReasonGrantedRootAuth)
 
 	c.Check(s.buf.String(), testutil.Contains, "authz_admin")
 	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
-	c.Check(s.buf.String(), testutil.Contains, "accessed POST:/v2/snaps:install")
+	c.Check(s.buf.String(), testutil.Contains, "granted access to POST:/v2/snaps:install (root-auth)")
 	c.Check(s.buf.String(), testutil.Contains, "admin@example.com")
 	c.Check(s.buf.String(), testutil.Contains, "/run/snapd.socket")
 	c.Check(s.buf.String(), testutil.Contains, "4242")
 	c.Check(s.buf.String(), testutil.Contains, "[peer=")
 	c.Check(s.buf.String(), testutil.Contains, "[endpoint=")
-	c.Check(s.buf.String(), testutil.Contains, "[authz_checks=")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_granted=\"root-auth\"]")
 	c.Check(s.buf.String(), testutil.Contains, "[user=")
 }
 

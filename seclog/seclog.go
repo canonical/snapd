@@ -193,17 +193,22 @@ func LogUserRemoved(user SnapdUser) {
 // LogAdminActivity logs an administrative API access event using the
 // global security logger. It is emitted when authorization succeeds (the
 // access gate passed), not when the API operation or handler succeeds.
-func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks) {
+//
+// reasonGranted identifies why access was granted; see [ReasonGrantedUserAuth],
+// [ReasonGrantedRootAuth], and [ReasonGrantedPolkitAuth], optionally expanded
+// with an interface plug/slot postfix when applicable.
+func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, reasonGranted string) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_admin", Level: LevelInfo},
-		fmt.Sprintf("User %s from %s accessed %s", user.String(), peer.String(), endpoint.String()),
+		fmt.Sprintf("User %s from %s granted access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), reasonGranted),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
+		Attr{Key: "reason_granted", Value: reasonGranted},
 	)
 }
 

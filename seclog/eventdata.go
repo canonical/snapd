@@ -87,19 +87,39 @@ type SnapdUser struct {
 	Expiration     time.Time `json:"expiration"`
 }
 
-// Peer describes the Unix-domain peer of an API request (Socket, UID, PID).
+// Peer describes the Unix-domain peer of an API request.
+//
+// Socket, UID, and PID come from peer credentials and are expected to be
+// set when emitting AUTHZ events (the access gate is not reached without
+// them). The remaining fields are best-effort enrichment and should use
+// "<unknown>" when unavailable.
 //
 // Callers may signal "unknown" by setting UID to [peerNobody] and/or PID to
-// [peerNoProcess]. These mirror the daemon ucrednetNobody and ucrednetNoProcess
-// sentinels (see daemon/ucrednet.go).
+// [peerNoProcess] for display via [Peer.String]; these mirror the daemon
+// `ucrednetNobody` and `ucrednetNoProcess` sentinels (see daemon/ucrednet.go).
 type Peer struct {
 	Socket string `json:"socket"`
 	UID    uint32 `json:"uid"`
 	PID    int32  `json:"pid"`
+	// Exe is the executable path of the peer process, read from
+	// /proc/<pid>/exe. "<unknown>" when not available.
+	Exe string `json:"exe"`
+	// SecurityLabel is the AppArmor or SELinux LSM label of the peer
+	// process. "<unknown>" when not available.
+	SecurityLabel string `json:"security_label"`
+	// CgroupLabel is the snap cgroup label of the peer process (e.g.
+	// snap.<instance>.<app>). "<unknown>" when not available.
+	CgroupLabel string `json:"cgroup_label"`
+	// Snap is the snap instance name of the peer process, derived from
+	// [Peer.SecurityLabel]. "<unknown>" when not available.
+	Snap string `json:"snap"`
+	// App is the snap application or service name of the peer process,
+	// derived from [Peer.SecurityLabel]. "<unknown>" when not available.
+	App string `json:"app"`
 }
 
-// [peerNobody] and [peerNoProcess] mirror the daemon ucrednetNobody and
-// ucrednetNoProcess sentinels. They are duplicated here to keep seclog
+// [peerNobody] and [peerNoProcess] mirror the daemon `ucrednetNobody` and
+// `ucrednetNoProcess` sentinels. They are duplicated here to keep seclog
 // free of snapd package imports.
 const (
 	peerNobody    = ^uint32(0)
@@ -132,11 +152,9 @@ func (p Peer) String() string {
 
 // Endpoint describes an API endpoint involved in an authorization event.
 type Endpoint struct {
-	Method        string `json:"method"`
-	Path          string `json:"path"`
-	Action        string `json:"action"`
-	AccessChecker string `json:"access_checker"`
-	AccessLevel   string `json:"access_level"`
+	Method string `json:"method"`
+	Path   string `json:"path"`
+	Action string `json:"action"`
 }
 
 // String returns a colon-separated representation in the form
@@ -160,6 +178,21 @@ func (e Endpoint) String() string {
 
 	return method + ":" + path + ":" + action
 }
+
+// ReasonGranted values identify the mechanism that granted access for
+// authz_admin events. They are passed to [LogAdminActivity] as the
+// reasonGranted argument and emitted as reason_granted.
+//
+// When access was granted via a snap interface connection, the value is
+// expanded by appending the interface name and plug or slot side, in the
+// form " <interface>+<plug|slot>" (e.g. "root-auth desktop-launch+plug").
+// The same postfix may apply to any of the base values when an interface
+// also contributed to the grant.
+const (
+	ReasonGrantedUserAuth   = "user-auth"
+	ReasonGrantedRootAuth   = "root-auth"
+	ReasonGrantedPolkitAuth = "polkit-auth"
+)
 
 // AuthzCheck represents the outcome of a single authorization check.
 type AuthzCheck string
