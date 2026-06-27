@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -34,14 +35,14 @@ func MockHasUserAdmin(mockHasUserAdmin bool) (restore func()) {
 	return restore
 }
 
-func MockDeviceStateCreateUser(createUser func(st *state.State, sudoer bool, email string, expiration time.Time) (*devicestate.CreatedUser, error)) (restore func()) {
+func MockDeviceStateCreateUser(createUser func(st *state.State, sudoer bool, email string, expiration time.Time, addReason seclog.SystemUserAddReason) (*devicestate.CreatedUser, error)) (restore func()) {
 	restore = testutil.Backup(&deviceStateCreateUser)
 	deviceStateCreateUser = createUser
 	return restore
 }
 
-func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, sudoer bool, email string) ([]*devicestate.CreatedUser, error)) (restore func()) {
-	restore = testutil.Backup(&deviceStateCreateUser)
+func MockDeviceStateCreateKnownUsers(createKnownUser func(st *state.State, sudoer bool, email string, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error)) (restore func()) {
+	restore = testutil.Backup(&deviceStateCreateKnownUsers)
 	deviceStateCreateKnownUsers = createKnownUser
 	return restore
 }
