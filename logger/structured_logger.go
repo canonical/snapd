@@ -22,22 +22,28 @@ package logger
 
 import (
 	"context"
+	"crypto/md5"
+	"fmt"
 	"io"
 	"log"
 	"log/slog"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/kcmdline"
 )
 
 type StructuredLog struct {
-	log   *slog.Logger
-	debug bool
-	trace bool
-	quiet bool
-	flags int
+	log      *slog.Logger
+	debug    bool
+	trace    bool
+	quiet    bool
+	flags    int
+	seenMu   sync.RWMutex
+	seenLogs map[string]bool
 }
 
 const (
@@ -94,14 +100,41 @@ func (l *StructuredLog) traceEnabled() bool {
 	return false
 }
 
-// Trace only prints if SNAPD_TRACE is set and structured logging is active
+// logKeyHash generates a unique hash for a message and its attributes
+// to use for deduplication purposes.
+func (l *StructuredLog) logKeyHash(msg string, attrs ...any) string {
+	h := md5.New()
+	fmt.Fprintf(h, "%s", msg)
+	for _, attr := range attrs {
+		fmt.Fprintf(h, "%v", attr)
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// alreadyLogged checks if the given message+attrs combination has been logged before
+func (l *StructuredLog) alreadyLogged(msg string, attrs ...any) bool {
+	key := l.logKeyHash(msg, attrs...)
+	l.seenMu.RLock()
+	defer l.seenMu.RUnlock()
+	return l.seenLogs[key]
+}
+
+// markLogged records that a message+attrs combination has been logged
+func (l *StructuredLog) markLogged(msg string, attrs ...any) {
+	key := l.logKeyHash(msg, attrs...)
+	l.seenMu.Lock()
+	defer l.seenMu.Unlock()
+	l.seenLogs[key] = true
+}
+
 func (l *StructuredLog) Trace(msg string, attrs ...any) {
-	if l.traceEnabled() {
+	if l.traceEnabled() && !l.alreadyLogged(msg, attrs...) {
 		var pcs [1]uintptr
 		runtime.Callers(3, pcs[:])
 		r := slog.NewRecord(time.Now(), levelTrace, msg, pcs[0])
 		r.Add(attrs...)
 		l.log.Handler().Handle(context.Background(), r)
+		l.markLogged(msg, attrs...)
 	}
 }
 
@@ -111,7 +144,7 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 	if opts == nil {
 		opts = &LoggerOptions{}
 	}
-	if !osutil.GetenvBool("SNAPD_JSON_LOGGING") {
+	if !osutil.GetenvBool("SNAPD_JSON_LOGGING") && !jsonLoggingEnabledOnKernelCmdline() {
 		return newLog(w, flag, opts)
 	}
 	options := &slog.HandlerOptions{
@@ -153,10 +186,31 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 		},
 	}
 	logger := &StructuredLog{
-		log:   slog.New(slog.NewJSONHandler(w, options)),
-		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
-		flags: flag,
-		trace: false,
+		log:      slog.New(slog.NewJSONHandler(w, options)),
+		debug:    opts.ForceDebug || debugEnabledOnKernelCmdline(),
+		flags:    flag,
+		trace:    traceEnabledOnKernelCmdline(),
+		seenLogs: make(map[string]bool),
 	}
 	return logger
+}
+
+func traceEnabledOnKernelCmdline() bool {
+	// if this is called during tests, always ignore it so we don't have to mock
+	// the /proc/cmdline for every test that ends up using a logger
+	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
+		return false
+	}
+	m, _ := kcmdline.KeyValues("tag.features")
+	return m["tag.features"] == "1"
+}
+
+func jsonLoggingEnabledOnKernelCmdline() bool {
+	// if this is called during tests, always ignore it so we don't have to mock
+	// the /proc/cmdline for every test that ends up using a logger
+	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
+		return false
+	}
+	m, _ := kcmdline.KeyValues("tag.features")
+	return m["tag.features"] == "1"
 }

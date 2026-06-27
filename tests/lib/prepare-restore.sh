@@ -92,6 +92,7 @@ build_deb(){
             FIPS_BUILD_OPTION=fips
             ;;
     esac
+
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$newver" "testing build"
 
@@ -227,6 +228,13 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if os.query is-classic && [ -n "$TAG_FEATURES"] && [ "$SPREAD_REBOOT" = 0 ]; then
+        cat <<'EOF' | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
+GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} snapd.trace=1 snapd.jsonlog=1"
+EOF
+sudo update-grub
+REBOOT
+    fi
     if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
         "$TESTSTOOLS"/snapd-state cancel-autorefresh
 
@@ -569,6 +577,17 @@ prepare_project() {
             ;;
     esac
 
+    if [ "$TAG_FEATURES" = "true" ]; then
+        go_version="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
+        if [ -n "$go_version" ] && [ "$(printf '%s\n' "$go_version" "1.21" | sort -V | head -n1)" = "1.21" ]; then
+            # slog requires go 1.21, so only add it if go >= 1.21
+            sed -i 's/withtestkeys,/withtestkeys,structuredlogging,/g' packaging/ubuntu*/rules
+        fi
+        pushd "$SPREAD_PATH"
+        go run ./tests/utils/features/instrument-funcs
+        popd
+    fi
+
     # Retry go mod vendor to minimize the number of connection errors during the sync
     # It is required in any case because the testing tools like the fakestore are always compiled
     retry -n 10 go mod vendor
@@ -773,6 +792,10 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    if [ -n "$TAG_FEATURES" ]; then
+        "$TESTSLIB"/collect-artifacts.sh features --after-suite
+    fi
 }
 
 restore_suite_each() {
@@ -867,6 +890,10 @@ restore_suite() {
             # A snap-confine package never existed on openSUSE or Arch
             distro_purge_package snap-confine
         fi
+    fi
+    if [ -n "$TAG_FEATURES" ]; then
+        journalctl --rotate || true
+        journalctl --vacuum-time=1s || true
     fi
 }
 

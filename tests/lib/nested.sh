@@ -837,6 +837,10 @@ EOF
                 GADGET_EXTRA_CMDLINE="console=ttyAMA0 snapd.debug=1 systemd.journald.forward_to_console=1"
             fi
 
+            if [ -n "$TAG_FEATURES" ]; then
+                GADGET_EXTRA_CMDLINE="$GADGET_EXTRA_CMDLINE tag.features=1"
+            fi
+
             if [ -n "$NESTED_EXTRA_CMDLINE" ]; then
                 GADGET_EXTRA_CMDLINE="ds=nocloud $GADGET_EXTRA_CMDLINE $NESTED_EXTRA_CMDLINE"
             fi
@@ -872,6 +876,25 @@ EOF
             # that here, it could end up being empty in which case
             # it is ignored
             "$TESTSTOOLS"/store-state make-snap-installable --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$(nested_get_extra_snaps_path)/pc.snap" "$snap_id"
+        fi
+        if [ -n "$TAG_FEATURES" ] && nested_is_core_le 18; then
+            snap download --basename=pc --channel="18/$(nested_get_gadget_channel)" pc
+            unsquashfs -d pc-gadget pc.snap
+            for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
+                if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
+                    sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
+                fi
+            done
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+            snap pack pc-gadget/ "$NESTED_ASSETS_DIR"
+
+            gadget_snap=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap)
+            cp "$gadget_snap" "$(nested_get_extra_snaps_path)/pc.snap"
         fi
     fi
 }
@@ -1077,7 +1100,7 @@ nested_create_core_vm() {
             # volumes must be manually added to the VM creation by the tests
             local BOOTVOLUME
             BOOTVOLUME=pc
-            if [ -e pc-gadget/meta/gadget.yaml ]; then
+            if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
                 # shellcheck disable=SC2016
                 BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
@@ -1867,20 +1890,17 @@ nested_prepare_tools() {
     fi
 
     if [ -n "$TAG_FEATURES" ]; then
-        # If feature tagging is enabled, then we need to enable debug logging
-        remote.exec "sudo mkdir -p /etc/systemd/system/snapd.service.d"
-        remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG=1 SNAPPY_TESTING=1 SNAPD_TRACE=1 SNAPD_JSON_LOGGING=1\n' | sudo tee /etc/systemd/system/snapd.service.d/99-feature-tags.conf"
-        # Persist journal logs
-        remote.exec "sudo snap set system journal.persistent=true"
-        # Add trace structured logging to journal for snap commands
+        # To cover also tests that don't repack the gadget snap, add feature tagging using env variable drop-ins
         remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
-        # We changed the service configuration so we need to reload and restart
-        # the units to get them applied
+        CONF_FILE=99-generate-coverage.conf
+        while IFS= read -r line; do
+            dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
+            remote.exec "sudo mkdir -p $dir"
+            remote.exec "printf '[Service]\nEnvironment=SNAPD_TRACE=1\nEnvironment=SNAPD_JSON_LOGGING=1\n' | sudo tee $dir/$CONF_FILE"    
+        done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
         remote.exec "sudo systemctl daemon-reload"
-        # stop the socket (it pulls down the service)
-        remote.exec "sudo systemctl stop snapd.socket"
-        # start the service (it pulls up the socket)
-        remote.exec "sudo systemctl start snapd.service"
+        remote.exec "sudo systemctl restart snapd"
+        remote.exec "sudo snap set system journal.persistent=true"
     fi
 }
 

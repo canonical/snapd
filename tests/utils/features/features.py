@@ -7,6 +7,11 @@ from enum import Enum
 from typing import TypedDict
 
 
+class Coverage(TypedDict):
+    file: str
+    func: str
+
+
 class Cmd(TypedDict):
     cmd: str
 
@@ -60,6 +65,7 @@ class TaskFeatures(TypedDict):
     tasks: list[Task]
     changes: list[Change]
     ensures: list[Ensure]
+    coverages: list[Coverage]
     runtime: float
 
 
@@ -69,6 +75,11 @@ class SystemFeatures(TypedDict):
     scenarios: list[str]
     env_variables: list[EnvVariables]
     tests: list[TaskFeatures]
+
+
+class CoverageLogLine:
+    file = 'file'
+    func = 'func'
 
 
 class CmdLogLine:

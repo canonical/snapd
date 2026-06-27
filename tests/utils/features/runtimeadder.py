@@ -80,7 +80,7 @@ def build_runtime_lookup(results_dir: str) -> dict[tuple, float]:
 
         per_attempt_totals: dict[tuple, float] = {}
         for item in data.get("items", []):
-            if item.get("level") != "task" or item.get("verb") not in phases:
+            if (item.get("level") != "task" and item.get("level") != "suite") or item.get("verb") not in phases:
                 continue
             try:
                 system = f"{item['backend']}:{item['system']}"
@@ -120,7 +120,14 @@ def add_runtime_to_features(features_dir: str, runtime_lookup: dict[tuple, float
             suite = test.get("suite", "")
             task_name = test.get("task_name", "")
             variant = test.get("variant") or ""
-            full_name = f"{suite}/{task_name}" if suite else task_name
+            if suite and task_name:
+                full_name = f"{suite}/{task_name}"
+            elif task_name:
+                full_name = task_name
+            elif suite:
+                full_name = suite
+            else:
+                raise RuntimeError(f"No suite nor task for {test}")
             key = (system, full_name, variant)
             test["runtime"] = runtime_lookup[key]
 
