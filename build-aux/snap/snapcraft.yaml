@@ -11,7 +11,7 @@ description: |
 adopt-info: snapd
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core22
+build-base: core26
 package-repositories:
   - type: apt
     ppa: snappy-dev/image
@@ -52,7 +52,7 @@ parts:
       - python3-pyelftools
       - xz-utils
     source: https://git.launchpad.net/ubuntu/+source/glibc
-    source-branch: ubuntu/jammy-updates
+    source-branch: ubuntu/resolute
     source-type: git
     <<:
       - &dynamic-linker
@@ -108,6 +108,7 @@ parts:
       - libseccomp2
       - libudev1
       - libzstd1
+      - squashfs-tools
       - xdelta3
       - zlib1g
       - on armhf:
@@ -127,9 +128,6 @@ parts:
       - -usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/libnss_*.so.2
     override-build: |
       craftctl default
-      cp -avT "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" "${CRAFT_PART_INSTALL}/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
-      rm -rf "${CRAFT_PART_INSTALL}/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}"
-      rm -f "${CRAFT_PART_INSTALL}/lib/${DYNAMIC_LINKER}"
       find "${CRAFT_PART_INSTALL}/usr/share/doc" \( -not -type d -not -name "copyright" -delete \) -o \( -type d -empty -delete \)
     <<:
       - *dynamic-linker
@@ -617,30 +615,3 @@ parts:
       craftctl default
       "${CRAFT_PROJECT_DIR}/build-aux/snap/local/verify-dl.py" \
           "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
-
-  # TODO This is needed due to an unsquashfs crash on big pseudo-files in older
-  # squashfs-tools. Revert to pulling the deb when snapd is moved to the core26
-  # base.
-  squashfs-tools:
-    plugin: make
-    after:
-      - dynamic-linker
-    <<:
-      - *dynamic-linker
-    source: https://github.com/plougher/squashfs-tools.git
-    source-type: git
-    source-tag: "4.7.4"
-    override-build: |
-      cd squashfs-tools
-      make -j${CRAFT_PARALLEL_BUILD_COUNT}
-      install -Dm755 --strip --target-directory="${CRAFT_PART_INSTALL}/usr/bin" "${CRAFT_PART_BUILD}/squashfs-tools/mksquashfs"
-      install -Dm755 --strip --target-directory="${CRAFT_PART_INSTALL}/usr/bin" "${CRAFT_PART_BUILD}/squashfs-tools/unsquashfs"
-    override-prime: |
-      craftctl default
-      python3 "${CRAFT_PROJECT_DIR}/build-aux/snap/local/patch-dl.py" "/snap/snapd/current/usr/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}/${DYNAMIC_LINKER}"
-    build-packages:
-      - liblz4-dev
-      - liblzma-dev
-      - liblzo2-dev
-      - libzstd-dev
-      - zlib1g-dev
