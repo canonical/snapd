@@ -216,18 +216,22 @@ func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, reasonGrante
 // global security logger. It is emitted when authorization fails (the
 // access gate denied the request), not when the API operation or handler
 // fails after access was granted.
-func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks, reason Reason) {
+//
+// reasonDenied identifies why access was denied; see [ReasonDeniedNoPeerCredentials],
+// [ReasonDeniedSocketNotPermitted], [ReasonDeniedMissingInterfacePlug],
+// [ReasonDeniedMissingInterfaceSlot], [ReasonDeniedUserAuthDenied],
+// [ReasonDeniedRootAuthDenied], and [ReasonDeniedPolkitAuthDenied].
+func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, reasonDenied string) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_fail", Level: LevelCritical},
-		fmt.Sprintf("User %s from %s attempted to access %s without authorization: %s",
-			user.String(), peer.String(), endpoint.String(), reason.String()),
+		fmt.Sprintf("User %s from %s denied access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), reasonDenied),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
-		Attr{Key: "error", Value: reason},
+		Attr{Key: "reason_denied", Value: reasonDenied},
 	)
 }

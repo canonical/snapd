@@ -27,7 +27,6 @@
 //   Reason.LogValue                     → TestReasonLogValue
 //   Peer.LogValue                       → TestPeerLogValue
 //   Endpoint.LogValue                   → TestEndpointLogValue
-//   AuthzChecks.LogValue                → TestAuthzChecksLogValue
 
 package seclog_test
 
@@ -173,11 +172,22 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 			attrs: []seclog.Attr{
 				{Key: "peer", Value: seclog.Peer{Socket: "/run/snapd.socket"}},
 				{Key: "endpoint", Value: seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}},
-				{Key: "authz_checks", Value: seclog.NewAuthzChecks()},
+				{Key: "reason_granted", Value: seclog.ReasonGrantedRootAuth},
 			},
 			wantKeys: []string{
 				"datetime", "level", "description",
-				"app_id", "type", "category", "event", "peer", "endpoint", "authz_checks",
+				"app_id", "type", "category", "event", "peer", "endpoint", "reason_granted",
+			},
+		},
+		{
+			attrs: []seclog.Attr{
+				{Key: "peer", Value: seclog.Peer{Socket: "/run/snapd.socket"}},
+				{Key: "endpoint", Value: seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}},
+				{Key: "reason_denied", Value: seclog.ReasonDeniedUserAuthDenied},
+			},
+			wantKeys: []string{
+				"datetime", "level", "description",
+				"app_id", "type", "category", "event", "peer", "endpoint", "reason_denied",
 			},
 		},
 	}
@@ -364,43 +374,6 @@ func (s *SlogSuite) TestEndpointLogValue(c *C) {
 	c.Check(obtained.Endpoint.Method, Equals, "POST")
 	c.Check(obtained.Endpoint.Path, Equals, "/v2/snaps")
 	c.Check(obtained.Endpoint.Action, Equals, "install")
-}
-
-func (s *SlogSuite) TestAuthzChecksLogValue(c *C) {
-	type authzChecksRecord struct {
-		AuthzChecks struct {
-			AccessOptions string `json:"access_options"`
-			PeerCreds     string `json:"peer_credentials"`
-			Socket        string `json:"socket"`
-			Interface     string `json:"interface_requirements"`
-			OpenAccess    string `json:"open_access"`
-			UserAuth      string `json:"user_authentication"`
-			Root          string `json:"root"`
-			Polkit        string `json:"polkit"`
-		} `json:"authz_checks"`
-	}
-
-	checks := seclog.NewAuthzChecks()
-	checks.PeerCreds = seclog.AuthzPass
-
-	logger := s.newLogger(c)
-	logger.LogEvent(
-		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
-		"test",
-		seclog.Attr{Key: "authz_checks", Value: checks},
-	)
-
-	var obtained authzChecksRecord
-	err := json.Unmarshal(s.buf.Bytes(), &obtained)
-	c.Assert(err, IsNil)
-	c.Check(obtained.AuthzChecks.AccessOptions, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.PeerCreds, Equals, string(seclog.AuthzPass))
-	c.Check(obtained.AuthzChecks.Socket, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.Interface, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.OpenAccess, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.UserAuth, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.Root, Equals, string(seclog.AuthzNotApplicable))
-	c.Check(obtained.AuthzChecks.Polkit, Equals, string(seclog.AuthzNotApplicable))
 }
 
 func (s *SlogSuite) TestLevelFiltering(c *C) {
