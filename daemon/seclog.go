@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/lsm"
 	"github.com/snapcore/snapd/seclog"
@@ -100,4 +101,128 @@ func snapAppFromLabel(label string) (snap, app string) {
 		return tag.InstanceName(), tag.HookName()
 	}
 	return "", ""
+}
+
+// AuthzRecorder accumulates one AUTHZ audit event during an access check.
+// Populate [seclog.SnapdUser], [seclog.Peer], and [seclog.Endpoint] via the
+// With* methods, record the outcome via Record*, then call [AuthzRecorder.Emit].
+type AuthzRecorder interface {
+	WithUser(user seclog.SnapdUser) AuthzRecorder
+	WithPeer(peer seclog.Peer) AuthzRecorder
+	WithEndpoint(endpoint seclog.Endpoint) AuthzRecorder
+
+	// RecordGranted records access granted. reason is one of [seclog.ReasonGranted*].
+	// When a snap interface connection also contributed, pass iface and set plug
+	// for the plug side or clear plug for the slot side.
+	RecordGranted(reason string, iface string, plug bool)
+
+	// RecordDenied records access denied. reason is one of [seclog.ReasonDenied*].
+	RecordDenied(reason string)
+
+	// Emit writes the accumulated event. It is a no-op when no outcome was
+	// recorded.
+	Emit()
+}
+
+// authzRecorder holds the seclog payload for a single authorization decision.
+type authzRecorder struct {
+	user          seclog.SnapdUser
+	peer          seclog.Peer
+	endpoint      seclog.Endpoint
+	reasonGranted string
+	reasonDenied  string
+}
+
+// Ensure [authzRecorder] implements [AuthzRecorder].
+var _ AuthzRecorder = (*authzRecorder)(nil)
+
+// NewAuthzRecorder returns an empty [AuthzRecorder].
+func NewAuthzRecorder() AuthzRecorder {
+	return &authzRecorder{}
+}
+
+// nopAuthzRecorder discards all recordings.
+type nopAuthzRecorder struct{}
+
+// Ensure [nopAuthzRecorder] implements [AuthzRecorder].
+var _ AuthzRecorder = nopAuthzRecorder{}
+
+// NewNopAuthzRecorder returns an [AuthzRecorder] that discards all recordings.
+func NewNopAuthzRecorder() AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) WithUser(seclog.SnapdUser) AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) WithPeer(seclog.Peer) AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) WithEndpoint(seclog.Endpoint) AuthzRecorder {
+	return nopAuthzRecorder{}
+}
+
+func (nopAuthzRecorder) RecordGranted(string, string, bool) {}
+
+func (nopAuthzRecorder) RecordDenied(string) {}
+
+func (nopAuthzRecorder) Emit() {}
+
+func (rec *authzRecorder) WithUser(user seclog.SnapdUser) AuthzRecorder {
+	rec.user = user
+	return rec
+}
+
+func (rec *authzRecorder) WithPeer(peer seclog.Peer) AuthzRecorder {
+	rec.peer = peer
+	return rec
+}
+
+func (rec *authzRecorder) WithEndpoint(endpoint seclog.Endpoint) AuthzRecorder {
+	rec.endpoint = endpoint
+	return rec
+}
+
+func (rec *authzRecorder) RecordGranted(reason, iface string, plug bool) {
+	rec.reasonDenied = ""
+	rec.reasonGranted = reasonGrantedWithInterface(reason, iface, plug)
+}
+
+func (rec *authzRecorder) RecordDenied(reason string) {
+	rec.reasonGranted = ""
+	rec.reasonDenied = reason
+}
+
+func (rec *authzRecorder) Emit() {
+	switch {
+	case rec.reasonDenied != "":
+		seclog.LogUnauthorizedAccess(rec.user, rec.peer, rec.endpoint, rec.reasonDenied)
+	case rec.reasonGranted != "":
+		seclog.LogAdminActivity(rec.user, rec.peer, rec.endpoint, rec.reasonGranted)
+	}
+}
+
+func seclogSnapdUserFromAuth(user *auth.UserState) seclog.SnapdUser {
+	if user == nil {
+		return seclog.SnapdUser{}
+	}
+	return seclog.SnapdUser{
+		ID:             int64(user.ID),
+		StoreUserName:  user.Username,
+		StoreUserEmail: user.Email,
+		Expiration:     user.Expiration,
+	}
+}
+
+func reasonGrantedWithInterface(reason, iface string, plug bool) string {
+	if iface == "" {
+		return reason
+	}
+	side := "slot"
+	if plug {
+		side = "plug"
+	}
+	return fmt.Sprintf("%s %s+%s", reason, iface, side)
 }
