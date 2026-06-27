@@ -195,8 +195,6 @@ func (e Endpoint) LogValue() slog.Value {
 		slog.String("method", e.Method),
 		slog.String("path", e.Path),
 		slog.String("action", e.Action),
-		slog.String("access_checker", e.AccessChecker),
-		slog.String("access_level", e.AccessLevel),
 	)
 }
 
@@ -207,6 +205,11 @@ func (p Peer) LogValue() slog.Value {
 		slog.String("socket", p.Socket),
 		slog.Int64("uid", int64(p.UID)),
 		slog.Int64("pid", int64(p.PID)),
+		slog.String("exe", p.Exe),
+		slog.String("security_label", p.SecurityLabel),
+		slog.String("cgroup_label", p.CgroupLabel),
+		slog.String("snap", p.Snap),
+		slog.String("app", p.App),
 	)
 }
 
