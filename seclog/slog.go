@@ -212,18 +212,3 @@ func (p Peer) LogValue() slog.Value {
 		slog.String("app", p.App),
 	)
 }
-
-// LogValue implements [slog.LogValuer], allowing [AuthzChecks] to be
-// used directly as a structured log attribute value.
-func (a AuthzChecks) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("access_options", string(a.AccessOptions)),
-		slog.String("peer_credentials", string(a.PeerCreds)),
-		slog.String("socket", string(a.Socket)),
-		slog.String("interface_requirements", string(a.Interface)),
-		slog.String("open_access", string(a.OpenAccess)),
-		slog.String("user_authentication", string(a.UserAuth)),
-		slog.String("root", string(a.Root)),
-		slog.String("polkit", string(a.Polkit)),
-	)
-}

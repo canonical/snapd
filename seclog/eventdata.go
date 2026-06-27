@@ -194,45 +194,18 @@ const (
 	ReasonGrantedPolkitAuth = "polkit-auth"
 )
 
-// AuthzCheck represents the outcome of a single authorization check.
-type AuthzCheck string
-
-// AuthzCheck outcome values for a single authorization stage.
-// The default for a new [AuthzChecks] is [AuthzNotApplicable].
+// ReasonDenied values identify why access was denied for authz_fail events.
+// They are passed to [LogUnauthorizedAccess] as the reasonDenied argument
+// and emitted as reason_denied.
 const (
-	AuthzNotApplicable AuthzCheck = "not-applicable" // stage not used for this request
-	AuthzNotReached    AuthzCheck = "not-reached"    // applicable but not evaluated yet
-	AuthzFail          AuthzCheck = "fail"
-	AuthzPass          AuthzCheck = "pass"
+	ReasonDeniedNoPeerCredentials    = "no-peer-credentials"
+	ReasonDeniedSocketNotPermitted   = "socket-not-permitted"
+	ReasonDeniedMissingInterfacePlug = "missing-interface-plug"
+	ReasonDeniedMissingInterfaceSlot = "missing-interface-slot"
+	ReasonDeniedUserAuthDenied       = "user-auth-denied"
+	ReasonDeniedRootAuthDenied       = "root-auth-denied"
+	ReasonDeniedPolkitAuthDenied     = "polkit-auth-denied"
 )
-
-// AuthzChecks captures the outcome of each authorization stage evaluated
-// during an access check. Each field records whether that stage passed,
-// failed, or was not applicable to the request.
-type AuthzChecks struct {
-	AccessOptions AuthzCheck `json:"access_options"`
-	PeerCreds     AuthzCheck `json:"peer_credentials"`
-	Socket        AuthzCheck `json:"socket"`
-	Interface     AuthzCheck `json:"interface_requirements"`
-	OpenAccess    AuthzCheck `json:"open_access"`
-	UserAuth      AuthzCheck `json:"user_authentication"`
-	Root          AuthzCheck `json:"root"`
-	Polkit        AuthzCheck `json:"polkit"`
-}
-
-// NewAuthzChecks returns an [AuthzChecks] with all fields set to [AuthzNotApplicable].
-func NewAuthzChecks() AuthzChecks {
-	return AuthzChecks{
-		AccessOptions: AuthzNotApplicable,
-		PeerCreds:     AuthzNotApplicable,
-		Socket:        AuthzNotApplicable,
-		Interface:     AuthzNotApplicable,
-		OpenAccess:    AuthzNotApplicable,
-		UserAuth:      AuthzNotApplicable,
-		Root:          AuthzNotApplicable,
-		Polkit:        AuthzNotApplicable,
-	}
-}
 
 // String returns a colon-separated description of the user in the form
 // "<ID>:<StoreUserEmail>:<StoreUserName>". Fields that are unset use
