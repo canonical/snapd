@@ -219,6 +219,34 @@ func (s *SecLogSuite) TestLogUserRemoved(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "jdoe@test.com")
 }
 
+func (s *SecLogSuite) TestLogSystemUserCreated(c *C) {
+	opts := seclog.AddOptions{
+		RealUserName:        "Karl Popper",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: false,
+		Known:               false,
+	}
+	seclog.LogSystemUserCreated("karl", opts)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.buf.String(), testutil.Contains, "Created system user karl")
+	c.Check(s.buf.String(), testutil.Contains, "karl")
+	c.Check(s.buf.String(), testutil.Contains, "Karl Popper")
+	c.Check(s.buf.String(), testutil.Contains, "Sudoer:true")
+	c.Check(s.buf.String(), testutil.Contains, "Known:false")
+}
+
+func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
+	opts := seclog.RemoveOptions{Force: true}
+	seclog.LogSystemUserRemoved("some-user", opts)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_removed_system")
+	c.Check(s.buf.String(), testutil.Contains, "Removed system user some-user")
+	c.Check(s.buf.String(), testutil.Contains, "some-user")
+	c.Check(s.buf.String(), testutil.Contains, "Force:true")
+}
+
 // TestLogAdminActivity verifies that LogAdminActivity emits the expected event and attributes.
 func (s *SecLogSuite) TestLogAdminActivity(c *C) {
 	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}

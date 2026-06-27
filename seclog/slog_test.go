@@ -28,6 +28,8 @@
 //   Peer.LogValue                       → TestPeerLogValue
 //   Endpoint.LogValue                   → TestEndpointLogValue
 //   AuthzChecks.LogValue                → TestAuthzChecksLogValue
+//   AddOptions.LogValue                 → TestAddOptionsLogValue
+//   RemoveOptions.LogValue              → TestRemoveOptionsLogValue
 
 package seclog_test
 
@@ -358,6 +360,60 @@ func (s *SlogSuite) TestEndpointLogValue(c *C) {
 	c.Check(obtained.Endpoint.Action, Equals, "install")
 	c.Check(obtained.Endpoint.AccessChecker, Equals, "authenticated")
 	c.Check(obtained.Endpoint.AccessLevel, Equals, "authenticated")
+}
+
+func (s *SlogSuite) TestAddOptionsLogValue(c *C) {
+	type addOptionsRecord struct {
+		AddOptions struct {
+			RealUserName        string `json:"real_user_name"`
+			Sudoer              bool   `json:"sudoer"`
+			ExtraUsers          bool   `json:"extra_users"`
+			ForcePasswordChange bool   `json:"force_password_change"`
+			Known               bool   `json:"known"`
+		} `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "add_options", Value: seclog.AddOptions{
+			RealUserName:        "Karl Popper",
+			Sudoer:              true,
+			ExtraUsers:          true,
+			ForcePasswordChange: true,
+			Known:               false,
+		}},
+	)
+
+	var obtained addOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.AddOptions.RealUserName, Equals, "Karl Popper")
+	c.Check(obtained.AddOptions.Sudoer, Equals, true)
+	c.Check(obtained.AddOptions.ExtraUsers, Equals, true)
+	c.Check(obtained.AddOptions.ForcePasswordChange, Equals, true)
+	c.Check(obtained.AddOptions.Known, Equals, false)
+}
+
+func (s *SlogSuite) TestRemoveOptionsLogValue(c *C) {
+	type removeOptionsRecord struct {
+		RemoveOptions struct {
+			Force bool `json:"force"`
+		} `json:"remove_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "remove_options", Value: seclog.RemoveOptions{Force: true}},
+	)
+
+	var obtained removeOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.RemoveOptions.Force, Equals, true)
 }
 
 func (s *SlogSuite) TestAuthzChecksLogValue(c *C) {
