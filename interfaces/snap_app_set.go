@@ -183,6 +183,58 @@ func (a *SnapAppSet) SecurityTagsForSlot(slot *snap.SlotInfo) ([]string, error) 
 	return tags, nil
 }
 
+// SystemServicesForConnectedPlug returns the system services attached
+// to the given plug.  These are derived from the the apps that are
+// associated with the plug.
+func (a *SnapAppSet) SystemServicesForConnectedPlug(plug *ConnectedPlug) ([]string, error) {
+	return a.SystemServicesForPlug(plug.plugInfo)
+}
+
+// SystemServicesForPlug returns the system services attached to the
+// given plug.  These are derived from the the apps that are
+// associated with the plug.
+func (a *SnapAppSet) SystemServicesForPlug(plug *snap.PlugInfo) ([]string, error) {
+	if plug.Snap.InstanceName() != a.info.InstanceName() {
+		return nil, fmt.Errorf("internal error: plug %q is from snap %q, security tags can only be computed for processed target snap: %q", plug.Name, plug.Snap.InstanceName(), a.info.InstanceName())
+	}
+
+	apps := a.info.AppsForPlug(plug)
+	services := make([]string, 0, len(apps))
+	for _, app := range apps {
+		if !app.IsService() || app.DaemonScope != snap.SystemDaemon {
+			continue
+		}
+		services = append(services, app.ServiceName())
+	}
+	return services, nil
+}
+
+// SystemServicesForConnectedPlug returns the system services attached
+// to the given plug.  These are derived from the the apps that are
+// associated with the plug.
+func (a *SnapAppSet) SystemServicesForConnectedSlot(slot *ConnectedSlot) ([]string, error) {
+	return a.SystemServicesForSlot(slot.slotInfo)
+}
+
+// SystemServicesForPlug returns the system services attached to the
+// given plug.  These are derived from the the apps that are
+// associated with the plug.
+func (a *SnapAppSet) SystemServicesForSlot(slot *snap.SlotInfo) ([]string, error) {
+	if slot.Snap.InstanceName() != a.info.InstanceName() {
+		return nil, fmt.Errorf("internal error: slot %q is from snap %q, security tags can only be computed for processed target snap: %q", slot.Name, slot.Snap.InstanceName(), a.info.InstanceName())
+	}
+
+	apps := a.info.AppsForSlot(slot)
+	services := make([]string, 0, len(apps))
+	for _, app := range apps {
+		if !app.IsService() || app.DaemonScope != snap.SystemDaemon {
+			continue
+		}
+		services = append(services, app.ServiceName())
+	}
+	return services, nil
+}
+
 // Runnables returns a list of all runnables known by the app set.
 func (a *SnapAppSet) Runnables() []snap.Runnable {
 	var runnables []snap.Runnable

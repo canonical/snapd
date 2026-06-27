@@ -140,7 +140,7 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
-	spec := &systemd.Specification{}
+	spec := systemd.NewSpecification(s.gadgetGpioSlot.AppSet())
 	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{

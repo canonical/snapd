@@ -208,7 +208,7 @@ func (s *GpioChardevInterfaceSuite) TestBeforeConnectPlug(c *C) {
 }
 
 func (s *GpioChardevInterfaceSuite) TestSystemdConnectedSlot(c *C) {
-	spec := &systemd.Specification{}
+	spec := systemd.NewSpecification(s.slot.AppSet())
 	err := spec.AddConnectedSlot(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
@@ -224,7 +224,7 @@ func (s *GpioChardevInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 }
 
 func (s *GpioChardevInterfaceSuite) TestSystemdConnectedPlug(c *C) {
-	spec := &systemd.Specification{}
+	spec := systemd.NewSpecification(s.plug.AppSet())
 	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 
