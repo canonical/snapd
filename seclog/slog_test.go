@@ -25,7 +25,9 @@
 //   Write failure handling              → TestWriteFailure*
 //   SnapdUser.LogValue                  → TestSnapdUserLogValue
 //   Reason.LogValue                     → TestReasonLogValue
-//   Peer.LogValue                       → TestPeerLogValue
+//   Peer.LogValue                       → TestPeerLogValue,
+//                                         TestPeerLogValueSecurityLabelsKeyOrder,
+//                                         TestPeerLogValueEmptySecurityLabels
 //   Endpoint.LogValue                   → TestEndpointLogValue
 
 package seclog_test
@@ -313,14 +315,14 @@ func (s *SlogSuite) TestReasonLogValue(c *C) {
 func (s *SlogSuite) TestPeerLogValue(c *C) {
 	type peerRecord struct {
 		Peer struct {
-			Socket        string `json:"socket"`
-			UID           int64  `json:"uid"`
-			PID           int64  `json:"pid"`
-			Exe           string `json:"exe"`
-			SecurityLabel string `json:"security_label"`
-			CgroupLabel   string `json:"cgroup_label"`
-			Snap          string `json:"snap"`
-			App           string `json:"app"`
+			Socket         string            `json:"socket"`
+			UID            int64             `json:"uid"`
+			PID            int64             `json:"pid"`
+			Exe            string            `json:"exe"`
+			SecurityLabels map[string]string `json:"security_labels"`
+			CgroupLabel    string            `json:"cgroup_label"`
+			Snap           string            `json:"snap"`
+			App            string            `json:"app"`
 		} `json:"peer"`
 	}
 
@@ -331,7 +333,10 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 		seclog.Attr{Key: "peer", Value: seclog.Peer{
 			Socket: "/run/snapd.socket", UID: 0, PID: 4242,
 			Exe: "/usr/bin/snap", Snap: "<unknown>", App: "<unknown>",
-			SecurityLabel: "unconfined", CgroupLabel: "<unknown>",
+			SecurityLabels: map[string]string{
+				seclog.PeerSecurityLabelAppArmor: "unconfined",
+			},
+			CgroupLabel: "<unknown>",
 		}},
 	)
 
@@ -344,8 +349,49 @@ func (s *SlogSuite) TestPeerLogValue(c *C) {
 	c.Check(obtained.Peer.Exe, Equals, "/usr/bin/snap")
 	c.Check(obtained.Peer.Snap, Equals, "<unknown>")
 	c.Check(obtained.Peer.App, Equals, "<unknown>")
-	c.Check(obtained.Peer.SecurityLabel, Equals, "unconfined")
+	c.Check(obtained.Peer.SecurityLabels, DeepEquals, map[string]string{
+		seclog.PeerSecurityLabelAppArmor: "unconfined",
+	})
 	c.Check(obtained.Peer.CgroupLabel, Equals, "<unknown>")
+}
+
+func (s *SlogSuite) TestPeerLogValueSecurityLabelsKeyOrder(c *C) {
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "peer", Value: seclog.Peer{
+			Socket: "/run/snapd.socket", UID: 1000, PID: 4242,
+			SecurityLabels: map[string]string{
+				seclog.PeerSecurityLabelSELinux:  "system_u:system_r:snappy_t:s0",
+				seclog.PeerSecurityLabelAppArmor: "snap.snapd.snapd",
+			},
+		}},
+	)
+
+	// Keys are emitted in alphabetical order: AppArmor before SELinux.
+	c.Check(s.buf.String(), testutil.Contains, `"security_labels":{"AppArmor":"snap.snapd.snapd","SELinux":"system_u:system_r:snappy_t:s0"}`)
+	c.Check(s.buf.String(), testutil.Contains, `"exe":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"cgroup_label":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"snap":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"app":"<unknown>"`)
+}
+
+func (s *SlogSuite) TestPeerLogValueEmptySecurityLabels(c *C) {
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "peer", Value: seclog.Peer{
+			Socket: "/run/snapd.socket", UID: 1000, PID: 4242,
+		}},
+	)
+
+	c.Check(s.buf.String(), testutil.Contains, `"security_labels":{}`)
+	c.Check(s.buf.String(), testutil.Contains, `"exe":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"cgroup_label":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"snap":"<unknown>"`)
+	c.Check(s.buf.String(), testutil.Contains, `"app":"<unknown>"`)
 }
 
 func (s *SlogSuite) TestEndpointLogValue(c *C) {
@@ -357,23 +403,49 @@ func (s *SlogSuite) TestEndpointLogValue(c *C) {
 		} `json:"endpoint"`
 	}
 
-	logger := s.newLogger(c)
-	logger.LogEvent(
-		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
-		"test",
-		seclog.Attr{Key: "endpoint", Value: seclog.Endpoint{
-			Method: "POST",
-			Path:   "/v2/snaps",
-			Action: "install",
-		}},
-	)
+	cases := []struct {
+		endpoint   seclog.Endpoint
+		wantMethod string
+		wantPath   string
+		wantAction string
+	}{
+		{
+			endpoint: seclog.Endpoint{
+				Method: "POST",
+				Path:   "/v2/snaps",
+				Action: "install",
+			},
+			wantMethod: "POST",
+			wantPath:   "/v2/snaps",
+			wantAction: "install",
+		},
+		{
+			endpoint: seclog.Endpoint{
+				Method: "DELETE",
+				Path:   "/v2/snaps/core",
+			},
+			wantMethod: "DELETE",
+			wantPath:   "/v2/snaps/core",
+			wantAction: "<none>",
+		},
+	}
 
-	var obtained endpointRecord
-	err := json.Unmarshal(s.buf.Bytes(), &obtained)
-	c.Assert(err, IsNil)
-	c.Check(obtained.Endpoint.Method, Equals, "POST")
-	c.Check(obtained.Endpoint.Path, Equals, "/v2/snaps")
-	c.Check(obtained.Endpoint.Action, Equals, "install")
+	for _, tc := range cases {
+		s.buf.Reset()
+		logger := s.newLogger(c)
+		logger.LogEvent(
+			seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+			"test",
+			seclog.Attr{Key: "endpoint", Value: tc.endpoint},
+		)
+
+		var obtained endpointRecord
+		err := json.Unmarshal(s.buf.Bytes(), &obtained)
+		c.Assert(err, IsNil)
+		c.Check(obtained.Endpoint.Method, Equals, tc.wantMethod)
+		c.Check(obtained.Endpoint.Path, Equals, tc.wantPath)
+		c.Check(obtained.Endpoint.Action, Equals, tc.wantAction)
+	}
 }
 
 func (s *SlogSuite) TestLevelFiltering(c *C) {

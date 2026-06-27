@@ -87,12 +87,24 @@ type SnapdUser struct {
 	Expiration     time.Time `json:"expiration"`
 }
 
+// LSM security label keys for [Peer.SecurityLabels].
+const (
+	PeerSecurityLabelAppArmor = "AppArmor"
+	PeerSecurityLabelSELinux  = "SELinux"
+)
+
 // Peer describes the Unix-domain peer of an API request.
 //
 // Socket, UID, and PID come from peer credentials and are expected to be
 // set when emitting AUTHZ events (the access gate is not reached without
-// them). The remaining fields are best-effort enrichment and should use
-// "<unknown>" when unavailable.
+// them). Exe, CgroupLabel, Snap, and App are best-effort enrichment fields.
+// When unavailable, leave them empty or set them to [unknown]; [Peer.LogValue]
+// logs empty values as [unknown].
+//
+// [Peer.SecurityLabels] is also best-effort enrichment: include only the LSM
+// keys that were obtained. Do not use [unknown] as a map value; omit unavailable
+// keys instead. An empty or nil map is logged as an empty JSON object. Keys are
+// emitted in alphabetical order.
 //
 // Callers may signal "unknown" by setting UID to [peerNobody] and/or PID to
 // [peerNoProcess] for display via [Peer.String]; these mirror the daemon
@@ -102,19 +114,20 @@ type Peer struct {
 	UID    uint32 `json:"uid"`
 	PID    int32  `json:"pid"`
 	// Exe is the executable path of the peer process, read from
-	// /proc/<pid>/exe. "<unknown>" when not available.
+	// /proc/<pid>/exe. [unknown] when unavailable.
 	Exe string `json:"exe"`
-	// SecurityLabel is the AppArmor or SELinux LSM label of the peer
-	// process. "<unknown>" when not available.
-	SecurityLabel string `json:"security_label"`
+	// SecurityLabels holds LSM security labels keyed by [PeerSecurityLabelAppArmor]
+	// and [PeerSecurityLabelSELinux]. Omit unavailable keys.
+	SecurityLabels map[string]string `json:"security_labels"`
 	// CgroupLabel is the snap cgroup label of the peer process (e.g.
-	// snap.<instance>.<app>). "<unknown>" when not available.
+	// snap.<instance>.<app>). [unknown] when unavailable.
 	CgroupLabel string `json:"cgroup_label"`
-	// Snap is the snap instance name of the peer process, derived from
-	// [Peer.SecurityLabel]. "<unknown>" when not available.
+	// Snap is the snap instance name of the peer process, typically derived
+	// from the AppArmor entry in [Peer.SecurityLabels]. [unknown] when unavailable.
 	Snap string `json:"snap"`
 	// App is the snap application or service name of the peer process,
-	// derived from [Peer.SecurityLabel]. "<unknown>" when not available.
+	// typically derived from the AppArmor entry in [Peer.SecurityLabels].
+	// [unknown] when unavailable.
 	App string `json:"app"`
 }
 
@@ -151,6 +164,9 @@ func (p Peer) String() string {
 }
 
 // Endpoint describes an API endpoint involved in an authorization event.
+// When unavailable, leave Method and Path empty or set them to [unknown], and
+// leave Action empty or set it to [none]; [Endpoint.LogValue] logs empty
+// method and path as [unknown] and an empty action as [none].
 type Endpoint struct {
 	Method string `json:"method"`
 	Path   string `json:"path"`
