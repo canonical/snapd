@@ -91,8 +91,7 @@ type EncryptionSupportInfo struct {
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails
 
 	// seenAvailabilityCheckErrorKinds holds a sticky list of all seen preinstall
-	// check error kinds. This needs persistent state of already seen errors so it
-	// should be managed and set externally by SetSeenAvailabilityCheckErrorKinds.
+	// check error kinds.
 	seenAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool
 
 	// availabilityCheckContext holds the configuration and state captured during
@@ -114,11 +113,9 @@ func (esi *EncryptionSupportInfo) CheckContext() *secboot.PreinstallCheckContext
 	return esi.availabilityCheckContext
 }
 
-// SetSeenAvailabilityCheckErrorKinds sets the seen preinstall check error kinds.
-// This should only be used by devicestate which maintains the persistent state of
-// already seen errors.
-func (esi *EncryptionSupportInfo) SetSeenAvailabilityCheckErrorKinds(kinds map[secboot.PreinstallCheckErrorKind]bool) {
-	esi.seenAvailabilityCheckErrorKinds = kinds
+// SeenAvailabilityCheckErrorKinds returns the set of accumulated seen preinstall check error kinds.
+func (esi *EncryptionSupportInfo) SeenAvailabilityCheckErrorKinds() map[secboot.PreinstallCheckErrorKind]bool {
+	return esi.seenAvailabilityCheckErrorKinds
 }
 
 type EncryptionSupportRequirement string
@@ -225,6 +222,12 @@ func (esi *EncryptionSupportInfo) SetAvailabilityCheckContext(checkContext *secb
 	esi.availabilityCheckContext = checkContext
 }
 
+// SetSeenAvailabilityCheckErrorKinds is a test only helper for populating EncryptionSupportInfo field seenAvailabilityCheckErrorKinds.
+func (esi *EncryptionSupportInfo) SetSeenAvailabilityCheckErrorKinds(kinds map[secboot.PreinstallCheckErrorKind]bool) {
+	osutil.MustBeTestBinary("SetSeenAvailabilityCheckErrorKinds can only be used in tests")
+	esi.seenAvailabilityCheckErrorKinds = kinds
+}
+
 // MockSecbootCheckTPMKeySealingSupported mocks secbootCheckTPMKeySealingSupported usage by the package for testing.
 func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
 	osutil.MustBeTestBinary("secbootCheckTPMKeySealingSupported can only be mocked in tests")
@@ -318,13 +321,18 @@ type EncryptionConstraints struct {
 // for the given model, TPM provision mode, kernel and gadget information and
 // system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
 // any is available, leaving the caller to decide how, based on the environment.
-func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+func GetEncryptionSupportInfo(
+	constraints EncryptionConstraints,
+	runSetupHook fde.RunSetupHookFunc,
+	prevAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool,
+) (EncryptionSupportInfo, error) {
 	secured := constraints.Model.Grade() == asserts.ModelSecured
 	dangerous := constraints.Model.Grade() == asserts.ModelDangerous
 	encrypted := constraints.Model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	res := EncryptionSupportInfo{
-		StorageSafety: constraints.Model.StorageSafety(),
+		StorageSafety:                   constraints.Model.StorageSafety(),
+		seenAvailabilityCheckErrorKinds: prevAvailabilityCheckErrorKinds,
 	}
 
 	// check if we should disable encryption non-secured devices
@@ -374,6 +382,14 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		} else {
 			checkEncryptionErr = errors.New(unavailableReason)
 			res.AvailabilityCheckErrors = preinstallErrorDetails
+			if len(preinstallErrorDetails) > 0 {
+				if res.seenAvailabilityCheckErrorKinds == nil {
+					res.seenAvailabilityCheckErrorKinds = make(map[secboot.PreinstallCheckErrorKind]bool, len(preinstallErrorDetails))
+				}
+				for _, errDetails := range preinstallErrorDetails {
+					res.seenAvailabilityCheckErrorKinds[errDetails.Kind] = true
+				}
+			}
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
@@ -591,7 +607,7 @@ func CheckEncryptionSupport(
 	constraints EncryptionConstraints,
 	runSetupHook fde.RunSetupHookFunc,
 ) (device.EncryptionType, error) {
-	res, err := GetEncryptionSupportInfo(constraints, runSetupHook)
+	res, err := GetEncryptionSupportInfo(constraints, runSetupHook, nil)
 	if err != nil {
 		return "", err
 	}

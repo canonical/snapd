@@ -3581,6 +3581,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 	}
 
 	cachedEncryptionSupportInfo := readCache(systemLabel)
+	var prevAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool
 
 	if constraints.CheckAction != nil {
 		// a check action requires only the check context from the cache
@@ -3593,6 +3594,9 @@ func (m *DeviceManager) encryptionSupportInfo(
 			return nil, errors.New("cannot use check action without cached check context")
 		}
 		constraints.CheckContext = checkContext
+		// accumlate seen errors from previous checks even if they were cleared
+		// with a "proceed" action.
+		prevAvailabilityCheckErrorKinds = cachedEncryptionSupportInfo.SeenAvailabilityCheckErrorKinds()
 	} else if encInfoFromCache && cachedEncryptionSupportInfo != nil {
 		// in case of no check action use encryption support info from the
 		// cache when requested and available
@@ -3602,7 +3606,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 	// GetEncryptionSupportInfo expects and uses constraints.CheckContext when
 	// constraints.CheckAction != nil, otherwise it is ignored. See
 	// install.encryptionAvailabilityCheck.
-	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
+	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook, prevAvailabilityCheckErrorKinds)
 	if err == nil {
 		refreshCache(systemLabel, &encInfo)
 	}
@@ -3610,7 +3614,6 @@ func (m *DeviceManager) encryptionSupportInfo(
 }
 
 type encryptionSupportInfoKey struct{ systemLabel string }
-type seenAvailabilityCheckErrorKindsKey struct{ systemLabel string }
 
 // SetEncryptionSupportInfoInCacheUnlocked is a test only helper for populating EncryptionSupportInfo in cache.
 func (m *DeviceManager) SetEncryptionSupportInfoInCacheUnlocked(systemLabel string, encryptionInfo *install.EncryptionSupportInfo) {
@@ -3627,19 +3630,6 @@ func (m *DeviceManager) refreshCacheEncryptionSupportInfoUnlocked(systemLabel st
 
 // refreshCacheEncryptionSupportLocked is the refreshCacheEncryptionSupport variant to use when the state is locked.
 func (m *DeviceManager) refreshCacheEncryptionSupportInfoLocked(systemLabel string, encryptionInfo *install.EncryptionSupportInfo) {
-	seenAvailabilityCheckErrorKinds, _ := m.state.Cached(seenAvailabilityCheckErrorKindsKey{systemLabel}).(map[secboot.PreinstallCheckErrorKind]bool)
-	if seenAvailabilityCheckErrorKinds == nil {
-		seenAvailabilityCheckErrorKinds = make(map[secboot.PreinstallCheckErrorKind]bool, len(encryptionInfo.AvailabilityCheckErrors))
-	}
-	for _, e := range encryptionInfo.AvailabilityCheckErrors {
-		seenAvailabilityCheckErrorKinds[e.Kind] = true
-	}
-
-	if len(seenAvailabilityCheckErrorKinds) > 0 {
-		encryptionInfo.SetSeenAvailabilityCheckErrorKinds(seenAvailabilityCheckErrorKinds)
-		m.state.Cache(seenAvailabilityCheckErrorKindsKey{systemLabel}, seenAvailabilityCheckErrorKinds)
-	}
-
 	m.state.Cache(encryptionSupportInfoKey{systemLabel}, encryptionInfo)
 }
 

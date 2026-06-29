@@ -3641,9 +3641,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 
 	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false, "")
 
-	seenAvailabilityCheckErrorKinds := devicestate.CachedSeenAvailabilityCheckErrorKinds(s.mgr, "some-label")
-	c.Check(seenAvailabilityCheckErrorKinds, IsNil)
-
 	// comprehensive preinstall check - fill empty info cache
 	encInfoFromCache := false
 	system, gadgetInfo, encInfo, err := s.mgr.SystemAndGadgetAndEncryptionInfo("some-label", encInfoFromCache)
@@ -3662,7 +3659,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
 	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
 	c.Check(encInfo.Requirements(), HasLen, 0)
-	seenAvailabilityCheckErrorKinds = devicestate.CachedSeenAvailabilityCheckErrorKinds(s.mgr, "some-label")
+	seenAvailabilityCheckErrorKinds := encInfo.SeenAvailabilityCheckErrorKinds()
 	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
 		"tpm-hierarchies-owned": true,
 	})
@@ -3685,7 +3682,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
 	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
 	c.Check(encInfo.Requirements(), HasLen, 0)
-	seenAvailabilityCheckErrorKinds = devicestate.CachedSeenAvailabilityCheckErrorKinds(s.mgr, "some-label")
+	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
 	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
 		"tpm-hierarchies-owned": true,
 	})
@@ -3718,7 +3715,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
 	// "no-hardware-root-of-trust" error, so volumes-auth is required
 	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
-	seenAvailabilityCheckErrorKinds = devicestate.CachedSeenAvailabilityCheckErrorKinds(s.mgr, "some-label")
+	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
 	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
 		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
 		secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
@@ -3750,7 +3747,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	// because the "no-hardware-root-of-trust" error was seen in a previous check
 	// and is sticky in the cache
 	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
-	seenAvailabilityCheckErrorKinds = devicestate.CachedSeenAvailabilityCheckErrorKinds(s.mgr, "some-label")
+	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
 	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
 		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
 		secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
