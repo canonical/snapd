@@ -1741,7 +1741,7 @@ func SeedRefreshTasks(
 		return nil, nil, nil
 	}
 
-	filter := seedRefreshTriggers(st, dctx)
+	filter := seedRefreshFilter(st, dctx)
 
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
@@ -1750,7 +1750,7 @@ func SeedRefreshTasks(
 		if err != nil {
 			return nil, nil, err
 		}
-		if filteredCandidate.InstanceName == "" {
+		if seedRefreshCandidateEmpty(filteredCandidate) {
 			continue
 		}
 		added[filteredCandidate.InstanceName] = true
@@ -1823,13 +1823,13 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 		return nil, nil
 	}
 
-	filter := seedRefreshTriggers(chg.State(), dctx)
+	filter := seedRefreshFilter(chg.State(), dctx)
 
 	filteredCandidate, err := filter(candidate)
 	if err != nil {
 		return nil, err
 	}
-	if filteredCandidate.InstanceName == "" {
+	if seedRefreshCandidateEmpty(filteredCandidate) {
 		return nil, nil
 	}
 
@@ -1867,7 +1867,7 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks []string, com
 // TODO:SEEDREFRESH: remove this once we support seed-refresh seeds
 // gaining/losing snaps
 func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
-	filter := seedRefreshTriggers(st, dctx)
+	filter := seedRefreshFilter(st, dctx)
 	filteredCandidate, err := filter(snapstate.SeedRefreshCandidate{
 		InstanceName: si.SnapName(),
 	})
@@ -1875,16 +1875,29 @@ func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.Devic
 		return err
 	}
 
-	if filteredCandidate.InstanceName == si.SnapName() {
+	if !seedRefreshCandidateEmpty(filteredCandidate) {
 		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
 	}
 	return nil
 }
 
-// seedRefreshTriggers returns a closure that reports whether the given snap
-// should trigger a seed refresh. The seed is lazily loaded, and only opened
-// when required.
-func seedRefreshTriggers(st *state.State, dctx snapstate.DeviceContext) func(snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, error) {
+func seedRefreshCandidateEmpty(candidate snapstate.SeedRefreshCandidate) bool {
+	return (candidate.InstanceName == "" &&
+		len(candidate.SnapSetupTaskIDs) == 0 &&
+		len(candidate.ComponentSetupTaskIDs) == 0)
+}
+
+// seedRefreshFilter returns a closure that filters the given
+// SeedRefreshCandidate so that it only contains the tasks
+// of the snaps and components that can trigger a seed refresh.
+// The returned SeedRefreshCandidate will have all fields empty
+// if a seed refresh should not be triggered. The cases that trigger
+// a seed refresh are:
+//   - a required snap/component being refreshed,
+//   - an optional snap/component that is in the seed being refreshed.
+//
+// The seed is lazily loaded, and only opened when required.
+func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, error) {
 	snaps := make(map[string]string)
 	components := make(map[string]string)
 
