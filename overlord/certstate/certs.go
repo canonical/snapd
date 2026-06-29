@@ -603,8 +603,13 @@ type certificates struct {
 	BlockedDigests     []string
 }
 
-// loadCertificates retrieves the system certificates, user added certificates
-// and blocked certificate digests, and returns as a convenient structure.
+// loadCertificates builds the certificate view snapd will publish.
+//
+// System certificates are loaded from /etc/ssl/certs by preferring
+// individually discoverable certificate files and falling back to parsing the
+// ca-certificates.crt bundle only when the directory does not expose usable
+// per-certificate entries. User-added certificates and blocked digests are
+// then considered on top.
 func loadCertificates() (*certificates, error) {
 	certs := &certificates{}
 
