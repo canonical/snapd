@@ -7,8 +7,7 @@ details: |
   symlink.
 
 systems:
-  - ubuntu-core-20-*
-  - ubuntu-core-22-*
+  - ubuntu-core-2*
 
 restore: |
   current_rev="$(readlink /snap/snapd/current)"
