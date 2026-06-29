@@ -289,6 +289,24 @@ func (s *ntpSuite) TestNTPSetValidateValues(c *C) {
 			},
 			expectedError: "invalid NTP configuration: min-poll-interval: contains leading or trailing whitespace",
 		},
+		// 17: negative duration value
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"max-root-time-distance": "-5s",
+				},
+			},
+			expectedError: `invalid NTP configuration: max-root-time-distance: duration "-5s" cannot be negative`,
+		},
+		// 18: negative duration takes precedence over the min-poll-interval 16s lower bound
+		{
+			newConfig: map[string]any{
+				"system.ntp": map[string]any{
+					"min-poll-interval": "-1h",
+				},
+			},
+			expectedError: `invalid NTP configuration: min-poll-interval: duration "-1h" cannot be negative`,
+		},
 	}
 
 	for i, test := range getConfigurationTests {

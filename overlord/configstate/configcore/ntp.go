@@ -146,6 +146,10 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 			return fmt.Errorf("%v: %v", key, err)
 		}
 
+		if duration < 0 {
+			return fmt.Errorf("%v: duration %q cannot be negative", key, valueStr)
+		}
+
 		// systemd's minimum resolution is 1µs; nanosecond values would be silently
 		// rounded or rejected by timesyncd.
 		if duration != 0 && duration < time.Microsecond {
