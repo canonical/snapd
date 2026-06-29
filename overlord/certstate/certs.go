@@ -429,11 +429,12 @@ func writeUniqueCACertificates(certs *certificates, certsDir string, bundle io.W
 	// certificates layout, but fall back to a digest-derived name when a
 	// distinct certificate would otherwise overwrite an existing copy.
 	outputNameFor := func(cert certificate) string {
-		base := filepath.Base(cert.RealPath)
-		if base == "." {
+		if cert.RealPath == "" {
+			// individual certificate from a bundle file
 			return ""
 		}
 
+		base := filepath.Base(cert.RealPath)
 		if ownerDigest, ok := usedOutputNames[base]; !ok || ownerDigest == cert.Sha256 {
 			usedOutputNames[base] = cert.Sha256
 			return base
