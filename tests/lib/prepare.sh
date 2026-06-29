@@ -206,6 +206,20 @@ save_installed_core_snap() {
     fi
 }
 
+add_to_kernel_cmdline() {
+    params=$1
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        if [ -f "/etc/default/grub.d/99-spread-kcmdline.cfg" ]; then
+            echo "/etc/default/grub.d/99-spread-kcmdline.cfg already exists" >& 2
+            exit 1
+        fi
+        cat <<EOF | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
+GRUB_CMDLINE_LINUX_DEFAULT="\${GRUB_CMDLINE_LINUX_DEFAULT} $params"
+EOF
+        sudo update-grub
+        REBOOT
+    fi
+}
 
 # update_core_snap_for_classic_reexec modifies the core snap for snapd re-exec
 # by injecting binaries from the installed snapd deb built from our modified code.
@@ -1379,6 +1393,29 @@ EOF
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 }
 
+repack_gadget_w_feature_tagging_core_18() {
+    channel=$1
+    repack_dir=$2
+    snap download --basename=pc --channel="18/${channel}" pc
+    unsquashfs -d pc-gadget pc.snap
+    # UC18 boot is still driven by grub config from the gadget, so
+    # update linux cmdline entries there as well.
+    for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
+        if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
+            sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
+        fi
+    done
+    cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+system:
+journal:
+persistent: true
+EOF
+    snap pack --filename=pc-repacked.snap pc-gadget 
+    mv pc-repacked.snap $repack_dir/pc-repacked.snap
+    echo "$repack_dir/pc-repacked.snap"
+}
+
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
@@ -1557,24 +1594,8 @@ EOF
             chmod 0600 pc-kernel.snap
         fi
         if [ -n "$TAG_FEATURES" ] && is_test_target_core 18; then
-            snap download --basename=pc --channel="18/${GADGET_CHANNEL}" pc
-            unsquashfs -d pc-gadget pc.snap
-            # UC18 boot is still driven by grub config from the gadget, so
-            # update linux cmdline entries there as well.
-            for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
-                if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
-                    sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
-                fi
-            done
-            cat >> pc-gadget/meta/gadget.yaml << EOF
-defaults:
-  system:
-    journal:
-      persistent: true
-EOF
-            snap pack --filename=pc-repacked.snap pc-gadget 
-            mv pc-repacked.snap $IMAGE_HOME/pc-repacked.snap
-            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/pc-repacked.snap"
+            snap="$(repack_gadget_w_feature_tagging_core_18 "$GADGET_CHANNEL" "$IMAGE_HOME")"
+            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $snap"
         fi
     fi
 

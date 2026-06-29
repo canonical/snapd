@@ -227,12 +227,10 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
-    if os.query is-classic && [ -n "$TAG_FEATURES" ] && [ "$SPREAD_REBOOT" = 0 ]; then
-        cat <<'EOF' | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
-GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} tag.features=1"
-EOF
-sudo update-grub
-REBOOT
+    if os.query is-classic && [ -n "$TAG_FEATURES" ]; then
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        add_to_kernel_cmdline "tag.features=1"
     fi
     if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
         "$TESTSTOOLS"/snapd-state cancel-autorefresh
