@@ -1943,7 +1943,7 @@ func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snaps
 				return snapstate.SeedRefreshCandidate{}, nil
 			}
 
-			if presence == "required" && len(optionalComps) == 0 {
+			if presence == "required" && len(candidate.ComponentSetupTaskIDs) == len(filteredCompSetupTaskIDs) {
 				return candidate, nil
 			}
 		}

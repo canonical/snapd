@@ -2203,7 +2203,11 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1"},
 		{"name": "snap-2", "presence": "optional"},
-	}, nil, "snap-2")
+	}, map[string][]map[string]string{
+		"snap-1": {
+			{"name": "comp1", "presence": "optional"},
+		},
+	}, "snap-2")
 
 	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
 		{
@@ -2246,48 +2250,10 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 	c.Check(boundary, Equals, restart.RestartBoundaryDirectionDo)
 }
 
-func (s *deviceMgrSuite) TestCreateSeedRefreshTasksModelComponentExclusive(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	restore := devicestate.MockTimeNow(func() time.Time {
-		return time.Date(2026, 2, 27, 8, 45, 0, 0, time.UTC)
-	})
-	defer restore()
-
-	compTask1 := s.state.NewTask("fake-download-component", "...")
-	compTask2 := s.state.NewTask("fake-download-component", "...")
-
-	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
-		{"name": "snapd", "type": "snapd"},
-		{"name": "core24", "type": "base", "default-channel": "24"},
-		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
-		{"name": "pc", "type": "gadget", "default-channel": "24"},
-		{"name": "snap-1"},
-	}, map[string][]map[string]string{
-		"snap-1": {
-			{"name": "comp1", "presence": "required"},
-			{"name": "comp2", "presence": "required"},
-		},
-	})
-
-	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
-		{
-			InstanceName:          "snap-1",
-			ComponentSetupTaskIDs: map[string]string{"comp1": compTask1.ID(), "comp2": compTask2.ID()},
-		},
-	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
-	c.Assert(err, IsNil)
-	c.Assert(seedTS, NotNil)
-	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
-
-	var setup devicestate.RecoverySystemSetup
-	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
-	c.Check(setup.SnapSetupTasks, HasLen, 0)
-	c.Check(setup.ComponentSetupTasks, testutil.DeepUnsortedMatches, []string{compTask1.ID(), compTask2.ID()})
-}
-
-func (s *deviceMgrSuite) TestCreateSeedRefreshTasksNonModelComponentExclusive(c *C) {
+// Test case of seed refresh for a required snap in the seed with
+// components that are not in the model for both component exclusive
+// and non-component-exclusive refreshes.
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksNonModelComponents(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2307,6 +2273,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksNonModelComponentExclusive(c 
 		{"name": "snap-1"},
 	}, nil)
 
+	// component-exclusive case
 	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
 		{
 			InstanceName:          "snap-1",
@@ -2316,6 +2283,170 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksNonModelComponentExclusive(c 
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, IsNil)
 	c.Assert(added, IsNil)
+
+	// non-component-exclusive case
+	tSnap := s.state.NewTask("fake-download", "...")
+	seedTS, added, err = devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName:          "snap-1",
+			SnapSetupTaskIDs:      []string{tSnap.ID()},
+			ComponentSetupTaskIDs: map[string]string{"comp1": compTask1.ID(), "comp2": compTask2.ID()},
+		},
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
+	c.Assert(err, IsNil)
+	c.Assert(seedTS, NotNil)
+	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
+
+	var setup devicestate.RecoverySystemSetup
+	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
+	c.Check(setup.SnapSetupTasks, DeepEquals, []string{tSnap.ID()})
+	c.Check(setup.ComponentSetupTasks, HasLen, 0)
+}
+
+// Seed refresh test case for model optional snap in the seed with
+// a required component, an optional component in the seed, and an optional
+// component not in the seed for both component exclusive
+// and non-component-exclusive refreshes.
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksOptionalSnapInSeedWithComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 8, 45, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	compTask1 := s.state.NewTask("fake-download-component", "...")
+	compTask2 := s.state.NewTask("fake-download-component", "...")
+	compTask3 := s.state.NewTask("fake-download-component", "...")
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-1", "presence": "optional"},
+	}, map[string][]map[string]string{
+		"snap-1": {
+			{"name": "comp1", "presence": "optional"},
+			{"name": "comp2", "presence": "optional", "optional": "not-in-seed"},
+			{"name": "comp3", "presence": "required"},
+		},
+	}, "snap-1")
+
+	// component exclusive case
+	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName: "snap-1",
+			ComponentSetupTaskIDs: map[string]string{
+				"comp1": compTask1.ID(),
+				"comp2": compTask2.ID(),
+				"comp3": compTask3.ID(),
+			},
+		},
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
+	c.Assert(err, IsNil)
+	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
+	c.Assert(seedTS, NotNil)
+
+	var setup devicestate.RecoverySystemSetup
+	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
+	c.Check(setup.SnapSetupTasks, HasLen, 0)
+	c.Check(setup.ComponentSetupTasks, testutil.DeepUnsortedMatches, []string{compTask1.ID(), compTask3.ID()})
+
+	// non-component-exclusive case
+	tSnap := s.state.NewTask("fake-download", "...")
+	seedTS, added, err = devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName:     "snap-1",
+			SnapSetupTaskIDs: []string{tSnap.ID()},
+			ComponentSetupTaskIDs: map[string]string{
+				"comp1": compTask1.ID(),
+				"comp2": compTask2.ID(),
+				"comp3": compTask3.ID(),
+			},
+		},
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
+	c.Assert(err, IsNil)
+	c.Assert(seedTS, NotNil)
+	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
+
+	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
+	c.Check(setup.SnapSetupTasks, DeepEquals, []string{tSnap.ID()})
+	c.Check(setup.ComponentSetupTasks, testutil.DeepUnsortedMatches, []string{compTask1.ID(), compTask3.ID()})
+}
+
+// Test case of seed refresh for a required snap in the seed with
+// a required component, an optional component in the seed, and an optional
+// component not in the seed for both component exclusive
+// and non-component-exclusive refreshes.
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksRequiredSnapWithComponents(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := devicestate.MockTimeNow(func() time.Time {
+		return time.Date(2026, 2, 27, 8, 45, 0, 0, time.UTC)
+	})
+	defer restore()
+
+	compTask1 := s.state.NewTask("fake-download-component", "...")
+	compTask2 := s.state.NewTask("fake-download-component", "...")
+	compTask3 := s.state.NewTask("fake-download-component", "...")
+
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-1"},
+	}, map[string][]map[string]string{
+		"snap-1": {
+			{"name": "comp1", "presence": "optional"},
+			{"name": "comp2", "presence": "optional", "optional": "not-in-seed"},
+			{"name": "comp3", "presence": "required"},
+		},
+	})
+
+	// component-exclusive case
+	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName: "snap-1",
+			ComponentSetupTaskIDs: map[string]string{
+				"comp1": compTask1.ID(),
+				"comp2": compTask2.ID(),
+				"comp3": compTask3.ID(),
+			},
+		},
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
+	c.Assert(err, IsNil)
+	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
+	c.Assert(seedTS, NotNil)
+
+	var setup devicestate.RecoverySystemSetup
+	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
+	c.Check(setup.SnapSetupTasks, HasLen, 0)
+	c.Check(setup.ComponentSetupTasks, testutil.DeepUnsortedMatches, []string{compTask1.ID(), compTask3.ID()})
+
+	// non-component-exclusive case
+	tSnap := s.state.NewTask("fake-download", "...")
+	seedTS, added, err = devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName:     "snap-1",
+			SnapSetupTaskIDs: []string{tSnap.ID()},
+			ComponentSetupTaskIDs: map[string]string{
+				"comp1": compTask1.ID(),
+				"comp2": compTask2.ID(),
+				"comp3": compTask3.ID(),
+			},
+		},
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
+	c.Assert(err, IsNil)
+	c.Assert(seedTS, NotNil)
+	c.Assert(added, DeepEquals, map[string]bool{"snap-1": true})
+
+	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
+	c.Check(setup.SnapSetupTasks, DeepEquals, []string{tSnap.ID()})
+	c.Check(setup.ComponentSetupTasks, testutil.DeepUnsortedMatches, []string{compTask1.ID(), compTask3.ID()})
 }
 
 func (s *deviceMgrSuite) TestCreateSeedRefreshTasksUsesNextAvailableLabel(c *C) {
@@ -2818,7 +2949,6 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 		}
 	}
 
-	var opts []*seedwriter.OptionsSnap
 	for _, name := range optionals {
 		if !seen[name] {
 			sn := map[string]string{
@@ -2828,18 +2958,9 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 			}
 			snapsInSeed = append(snapsInSeed, sn)
 		}
-		optSnap := &seedwriter.OptionsSnap{Name: name}
-		if comps := components[name]; len(comps) > 0 {
-			for _, comp := range comps {
-				if comp["optional"] == "not-in-seed" {
-					continue
-				}
-				optSnap.Components = append(optSnap.Components, seedwriter.OptionsComponent{Name: comp["name"]})
-			}
-		}
-		opts = append(opts, optSnap)
 	}
 
+	var opts []*seedwriter.OptionsSnap
 	headers := make([]any, 0, len(snaps))
 	for _, sn := range snapsInSeed {
 		// create asserted snaps with components (if present)
@@ -2847,13 +2968,30 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 		if sn["type"] == "gadget" {
 			files = [][]string{{"meta/gadget.yaml", mockGadgetUCYaml}}
 		}
+
+		optSnap := &seedwriter.OptionsSnap{Name: sn["name"]}
+		optionalInSeed := sn["presence"] == "optional"
+
 		comps := components[sn["name"]]
-		if len(comps) > 0 {
-			compRevisions := make(map[string]snap.Revision, len(comps))
+		compsInSeed := make([]map[string]string, 0, len(comps))
+
+		for _, comp := range comps {
+			if comp["presence"] == "optional" && comp["optional"] != "not-in-seed" {
+				optSnap.Components = append(optSnap.Components,
+					seedwriter.OptionsComponent{Name: comp["name"]})
+				optionalInSeed = true
+			}
+			if comp["optional"] == "not-in-seed" {
+				continue
+			}
+			compsInSeed = append(compsInSeed, comp)
+		}
+		if len(compsInSeed) > 0 {
+			compRevisions := make(map[string]snap.Revision, len(compsInSeed))
 			var b strings.Builder
 			b.WriteString(seedRefreshSnapYAML(sn["name"], sn["type"]))
 			b.WriteString("\ncomponents:")
-			for _, comp := range comps {
+			for _, comp := range compsInSeed {
 				if comp["optional"] == "not-in-seed" {
 					continue
 				}
@@ -2865,6 +3003,10 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 			seed20.MakeAssertedSnapWithComps(c, b.String(), files, snap.R(1), compRevisions, "my-brand", seed20.StoreSigning.Database)
 		} else {
 			seed20.MakeAssertedSnap(c, seedRefreshSnapYAML(sn["name"], sn["type"]), files, snap.R(1), "my-brand", seed20.StoreSigning.Database)
+		}
+
+		if optionalInSeed {
+			opts = append(opts, optSnap)
 		}
 	}
 
