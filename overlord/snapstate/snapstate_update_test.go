@@ -1110,7 +1110,7 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisitesSyncTask(c *C) {
 	chg := s.state.NewChange("refresh-snap", "test: update snap")
 	chg.AddAll(ts)
 
-	earlyPrereq, syncPrereq := findPrereqTasks(c, chg)
+	earlyPrereq, syncPrereq := findPrereqTasksForSnap(c, chg, "some-snap")
 
 	c.Check(earlyPrereq.Has("snap-setup"), Equals, true)
 	c.Check(earlyPrereq.Has("snap-setup-task"), Equals, false)
@@ -7557,7 +7557,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqDetectConflictWithPrereq(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	prereqTask, _ := findPrereqTasks(c, updateChg)
+	prereqTask, _ := findPrereqTasksForSnap(c, updateChg, "outdated-consumer")
 
 	// check that it's not done and that it was scheduled for a specific time
 	// (only done when retrying). This doesn't test that it's scheduled for
@@ -7610,7 +7610,7 @@ func (s *snapmgrTestSuite) TestUpdatePrereqWithConflictingTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	prereqTask, _ := findPrereqTasks(c, updateChg)
+	prereqTask, _ := findPrereqTasksForSnap(c, updateChg, "outdated-consumer")
 
 	// check that it's not done and that it was scheduled for a specific time
 	// (only done when retrying). This doesn't test that it's scheduled for
@@ -7653,7 +7653,7 @@ func (s *snapmgrTestSuite) TestUpdateNoRetryIfPrereqTaskFails(c *C) {
 
 	s.settle(c)
 
-	prereqTask, _ := findPrereqTasks(c, updateChg)
+	prereqTask, _ := findPrereqTasksForSnap(c, updateChg, "outdated-consumer")
 
 	// check that the task is done and that it wasn't ever rescheduled for a
 	// specific time (only done when retrying)
@@ -7707,23 +7707,129 @@ func (s *snapmgrTestSuite) TestUpdatePrereqIgnoreDuplOpInSameChange(c *C) {
 	defer s.state.Unlock()
 
 	// check that the prereq task wasn't retried
-	prereqTask, _ := findPrereqTasks(c, chg)
+	prereqTask, _ := findPrereqTasksForSnap(c, chg, "outdated-consumer")
 	c.Check(prereqTask.Status(), Equals, state.DoneStatus)
 	c.Assert(prereqTask.AtTime().IsZero(), Equals, true)
 }
 
-// findPrereqTasks looks for the early and sync prerequisites tasks in the
-// change and fails if either is missing or duplicated.
-func findPrereqTasks(c *C, chg *state.Change) (earlyPrereq, syncPrereq *state.Task) {
+func (s *snapmgrTestSuite) TestUpdateSyncPrereqRetriesForSameChangeBase(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := snapstate.MockPrerequisitesRetryTimeout(time.Millisecond)
+	s.AddCleanup(restore)
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snapd",
+			SnapID:   "snapd-snap-id",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "latest/stable",
+		SnapType:        "snapd",
+	})
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "core18",
+			SnapID:   "core18-snap-id",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "latest/stable",
+		SnapType:        "base",
+	})
+	snapstate.Set(s.state, "some-snap-with-core18-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "some-snap-with-core18-base",
+			SnapID:   "some-snap-with-core18-base",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "latest/stable",
+		SnapType:        "app",
+		Base:            "core18",
+	})
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: "some-snap-with-core18-base",
+	})
+	appTasks, err := snapstate.UpdateOne(context.Background(), s.state, goal, nil, snapstate.Options{
+		Flags: snapstate.Flags{
+			Transaction: client.TransactionPerSnap,
+		},
+		UserID: s.user.ID,
+	})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh some-snap-with-core18-base")
+	chg.AddAll(appTasks)
+
+	// this uses a real task graph for the app, but injects in-flight same-change
+	// base work so that the generated sync prerequisites task has to poll for
+	// the base's link-snap to finish.
+	baseLink := s.state.NewTask("link-snap", "pretend core18 gets linked")
+	baseLink.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "core18",
+			SnapID:   "core18-snap-id",
+			Revision: snap.R(11),
+		},
+		Type: snap.TypeBase,
+	})
+	baseLink.At(time.Now().Add(time.Hour))
+	chg.AddTask(baseLink)
+
+	earlyPrereq, syncPrereq := findPrereqTasksForSnap(c, chg, "some-snap-with-core18-base")
+
+	s.state.Unlock()
+	err = s.o.SettleWithBreakCondition(testutil.HostScaledTimeout(10*time.Second), func() bool {
+		s.state.Lock()
+		defer s.state.Unlock()
+		return syncPrereq.Status() == state.DoingStatus && !syncPrereq.AtTime().IsZero()
+	})
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	// first prereq task is done
+	c.Check(earlyPrereq.Status(), Equals, state.DoneStatus)
+	c.Check(earlyPrereq.AtTime().IsZero(), Equals, true)
+
+	// sync prereq task has been attempted and is going to be retried
+	c.Check(syncPrereq.Status(), Equals, state.DoingStatus)
+	c.Check(syncPrereq.AtTime().IsZero(), Equals, false)
+	c.Check(baseLink.Status(), Equals, state.DoStatus)
+
+	baseLink.SetStatus(state.DoneStatus)
+
+	s.settle(c)
+
+	c.Check(syncPrereq.Status(), Equals, state.DoneStatus)
+	c.Check(baseLink.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+// findPrereqTasksForSnap looks for the early and sync prerequisites tasks for
+// the given snap and fails if either is missing or duplicated.
+func findPrereqTasksForSnap(c *C, chg *state.Change, snapName string) (earlyPrereq, syncPrereq *state.Task) {
 	checkDuplicate := func(kind string, task, existing *state.Task) {
 		if existing != nil {
-			c.Fatalf("encountered two %s prerequisites tasks in the change but only expected one: \n%s\n%s\n",
-				kind, task.Summary(), existing.Summary())
+			c.Fatalf("encountered two %s prerequisites tasks for %q in the change but only expected one: \n%s\n%s\n",
+				kind, snapName, task.Summary(), existing.Summary())
 		}
 	}
 
 	for _, task := range chg.Tasks() {
 		if task.Kind() != "prerequisites" {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		if snapsup.InstanceName() != snapName {
 			continue
 		}
 
@@ -8823,7 +8929,7 @@ func (s *snapmgrTestSuite) TestUpdatePrerequisiteBackwardsCompat(c *C) {
 	chg := s.state.NewChange("update", "test: update snap")
 	chg.AddAll(tasks)
 
-	earlyPrereq, syncPrereq := findPrereqTasks(c, chg)
+	earlyPrereq, syncPrereq := findPrereqTasksForSnap(c, chg, "outdated-consumer")
 
 	// mimic tasks serialized by an "old" snapd without PrereqContentAttrs.
 	// The new code shouldn't update the prereq since it doesn't have the content attrs.
