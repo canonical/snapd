@@ -28,7 +28,7 @@ jobs:
       go-channels: ${{ steps.resolve-go-channels.outputs.go-channels }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Resolve Go snap channels
         id: resolve-go-channels
@@ -80,7 +80,7 @@ jobs:
     name: Create go vendor
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: vendor
         run: |
@@ -175,7 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Download Debian dependencies
       run: |
@@ -225,7 +225,7 @@ jobs:
     if: github.ref != 'refs/heads/master'
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         # needed for git commit history
         fetch-depth: 0
@@ -277,7 +277,7 @@ jobs:
         shell: bash
 
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Confirm required static checks passed
         uses: ./.github/actions/combine-results
@@ -409,7 +409,7 @@ jobs:
   unit-tests-python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '>=3.9'
@@ -422,7 +422,7 @@ jobs:
   unit-tests-fuzzing:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Fuzz go unit tests
       uses: ./.github/actions/go-fuzz
       with:
@@ -442,7 +442,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Confirm required unit tests passed
         uses: ./.github/actions/combine-results
@@ -469,7 +469,7 @@ jobs:
         merge-multiple: true
 
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v6
+      uses: codecov/codecov-action@v7
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
@@ -499,7 +499,7 @@ jobs:
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Read matrix file
         id: read-systems

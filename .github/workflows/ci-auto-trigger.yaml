@@ -20,7 +20,7 @@ jobs:
       MAX_FAILED_TASKS: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Scan open PRs and trigger reruns
         run: |
