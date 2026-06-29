@@ -531,16 +531,6 @@ func defaultProviderContentAttrs(st *state.State, info *snap.Info, prqt PrereqTr
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
-	if len(info.Layout) > 0 {
-		flag, err := features.Flag(tr, features.Layouts)
-		if err != nil {
-			return err
-		}
-		if !flag {
-			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.layouts' to true")
-		}
-	}
-
 	if info.InstanceKey != "" {
 		flag, err := features.Flag(tr, features.ParallelInstances)
 		if err != nil {
