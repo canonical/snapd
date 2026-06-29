@@ -122,28 +122,29 @@ views:
         storage: v1.{account}.{set-name}.pinned-sequence
         access: read-write
 `),
+			// NOTE: JSON needs to be sorted, otherwise decoding validation would fail
 			"body": []byte(`{
   "storage": {
     "aliases": {
       "account-id": {
-        "type": "string",
-        "pattern": "^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$"
-      },
-      "set-name": {
-        "type": "string",
-        "pattern": "^[a-z0-9](?:-?[a-z0-9])*$"
+        "pattern": "^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28})$",
+        "type": "string"
       },
       "natural-number": {
-        "type": "int",
-        "min": 1
+        "min": 1,
+        "type": "int"
       },
       "presence": {
-        "type": "string",
         "choices": [
           "required",
           "optional",
           "invalid"
-        ]
+        ],
+        "type": "string"
+      },
+      "set-name": {
+        "pattern": "^[a-z0-9](?:-?[a-z0-9])*$",
+        "type": "string"
       }
     },
     "schema": {
@@ -157,11 +158,11 @@ views:
             ],
             "schema": {
               "mode": {
-                "type": "string",
                 "choices": [
                   "monitor",
                   "enforce"
-                ]
+                ],
+                "type": "string"
               },
               "pinned-sequence": "${natural-number}",
               "revision": "${natural-number}",
@@ -171,10 +172,6 @@ views:
                 "unique": true,
                 "values": {
                   "schema": {
-                    "id": "string",
-                    "name": "string",
-                    "presence": "${presence}",
-                    "revision": "${natural-number}",
                     "components": {
                       "values": {
                         "schema": {
@@ -182,16 +179,20 @@ views:
                           "revision": "${natural-number}"
                         }
                       }
-                    }
+                    },
+                    "id": "string",
+                    "name": "string",
+                    "presence": "${presence}",
+                    "revision": "${natural-number}"
                   }
                 }
               },
               "status": {
-                "type": "string",
                 "choices": [
                   "valid",
                   "invalid"
-                ]
+                ],
+                "type": "string"
               }
             }
           }
