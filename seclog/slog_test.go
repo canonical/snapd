@@ -364,13 +364,7 @@ func (s *SlogSuite) TestEndpointLogValue(c *C) {
 
 func (s *SlogSuite) TestAddOptionsLogValue(c *C) {
 	type addOptionsRecord struct {
-		AddOptions struct {
-			RealUserName        string `json:"real_user_name"`
-			Sudoer              bool   `json:"sudoer"`
-			ExtraUsers          bool   `json:"extra_users"`
-			ForcePasswordChange bool   `json:"force_password_change"`
-			Known               bool   `json:"known"`
-		} `json:"add_options"`
+		seclog.AddOptions `json:"add_options"`
 	}
 
 	logger := s.newLogger(c)
@@ -398,9 +392,7 @@ func (s *SlogSuite) TestAddOptionsLogValue(c *C) {
 
 func (s *SlogSuite) TestRemoveOptionsLogValue(c *C) {
 	type removeOptionsRecord struct {
-		RemoveOptions struct {
-			Force bool `json:"force"`
-		} `json:"remove_options"`
+		seclog.RemoveOptions `json:"remove_options"`
 	}
 
 	logger := s.newLogger(c)
