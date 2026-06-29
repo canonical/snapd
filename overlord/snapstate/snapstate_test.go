@@ -6955,16 +6955,20 @@ func (s *snapmgrTestSuite) TestConflictSeedRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg := s.state.NewChange("refresh-snap", "...")
-	chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
-	chg.SetStatus(state.DoingStatus)
+	for _, kind := range []string{"refresh-snap", "revert-snap", "install-snap"} {
+		chg := s.state.NewChange(kind, "...")
+		chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
+		chg.SetStatus(state.DoingStatus)
 
-	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+		err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+		c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{}, Commentf("change kind: %s", kind))
+		c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`, Commentf("change kind: %s", kind))
 
-	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
-	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+		err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+		c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`, Commentf("change kind: %s", kind))
+
+		chg.SetStatus(state.DoneStatus)
+	}
 }
 
 func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
@@ -11393,7 +11397,7 @@ version: 1.0
 
 	// For snaps that skip configure, we expect the end-edge to be set to either of
 	// cleanup task, or start snap services
-	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(8),
@@ -11433,7 +11437,7 @@ epoch: 1
 
 	// For snaps that skip configure, we expect the end-edge to be set to either of
 	// cleanup task, or start snap services
-	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{SkipConfigure: true}, nil)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{SkipConfigure: true}, nil)
 	c.Assert(err, IsNil)
 
 	var t *state.Task
