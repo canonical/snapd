@@ -910,6 +910,14 @@ func (s *certsTestSuite) TestRefreshCertificateDatabasePublishesImmutableGenerat
 	mergedBundle, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
 	c.Check(mergedBundle, DeepEquals, secondBundle)
+
+	firstInfo, err := os.Stat(filepath.Join(dirs.SnapdPKIV1Dir, firstTarget))
+	c.Assert(err, IsNil)
+	c.Check(firstInfo.Mode().Perm(), Equals, os.FileMode(0o755))
+
+	secondInfo, err := os.Stat(filepath.Join(dirs.SnapdPKIV1Dir, secondTarget))
+	c.Assert(err, IsNil)
+	c.Check(secondInfo.Mode().Perm(), Equals, os.FileMode(0o755))
 }
 
 func (s *certsTestSuite) TestRefreshCertificateDatabaseRenamedAcceptedCertificateGetsNewGeneration(c *C) {
