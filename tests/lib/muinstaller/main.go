@@ -190,15 +190,38 @@ func runMntFor(label string) string {
 }
 
 type volumeAuthOptions struct {
+	pin        string
 	passphrase string
 	kdfType    string
 	kdfTime    time.Duration
 }
 
+func parseKeyboardConfig(s string) *client.KeyboardConfig {
+	if s == "" {
+		return nil
+	}
+	parts := strings.SplitN(s, ",", 4)
+	kc := &client.KeyboardConfig{}
+	if len(parts) > 0 {
+		kc.Layout = parts[0]
+	}
+	if len(parts) > 1 {
+		kc.Model = parts[1]
+	}
+	if len(parts) > 2 {
+		kc.Variant = parts[2]
+	}
+	if len(parts) > 3 && parts[3] != "" {
+		kc.Options = strings.Split(parts[3], ",")
+	}
+	return kc
+}
+
 func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 	details *client.SystemDetails, bootDevice string,
 	dgpairs []*gadget.OnDiskAndGadgetStructurePair,
-	volumesAuth volumeAuthOptions) (map[string]string, error) {
+	volumesAuth volumeAuthOptions,
+	keyboardConfig *client.KeyboardConfig) (map[string]string, error) {
 
 	// We are modifiying the details struct here
 	for _, gadgetVol := range details.Volumes {
@@ -215,8 +238,9 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 
 	// Storage encryption makes specified partitions encrypted
 	opts := &client.InstallSystemOptions{
-		Step:      client.InstallStepSetupStorageEncryption,
-		OnVolumes: details.Volumes,
+		Step:           client.InstallStepSetupStorageEncryption,
+		OnVolumes:      details.Volumes,
+		KeyboardConfig: keyboardConfig,
 	}
 	if volumesAuth.passphrase != "" {
 		opts.VolumesAuth = &device.VolumesAuthOptions{
@@ -224,6 +248,13 @@ func postSystemsInstallSetupStorageEncryption(cli *client.Client,
 			Passphrase: volumesAuth.passphrase,
 			KDFType:    volumesAuth.kdfType,
 			KDFTime:    volumesAuth.kdfTime,
+		}
+	}
+	if volumesAuth.pin != "" {
+		opts.VolumesAuth = &device.VolumesAuthOptions{
+			Mode:    device.AuthModePIN,
+			PIN:     volumesAuth.pin,
+			KDFTime: volumesAuth.kdfTime,
 		}
 	}
 	chgId, err := cli.InstallSystem(details.Label, opts)
@@ -524,7 +555,20 @@ func detectStorageEncryption(seedLabel string, volumesAuth volumeAuthOptions) (b
 			}
 		}
 		if !passphraseAuthAvailable {
-			return false, errors.New("--passphrase specified but snapd support for passphrases is missing")
+			return false, errors.New("-passphrase specified but snapd support for passphrases is missing")
+		}
+	}
+
+	if volumesAuth.pin != "" {
+		pinAuthAvailable := false
+		for _, feat := range details.StorageEncryption.Features {
+			if feat == client.StorageEncryptionFeaturePINAuth {
+				pinAuthAvailable = true
+				break
+			}
+		}
+		if !pinAuthAvailable {
+			return false, errors.New("-pin specified but snapd support for PIN authentication is missing")
 		}
 	}
 
@@ -612,7 +656,7 @@ func fillPartiallyDefinedVolume(vol *gadget.Volume, bootDevice string) error {
 	return nil
 }
 
-func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyOut string, preseedRootfs bool, volumesAuth volumeAuthOptions) error {
+func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyOut string, preseedRootfs bool, volumesAuth volumeAuthOptions, keyboardConfig *client.KeyboardConfig) error {
 	logger.Noticef("installing on %q", bootDevice)
 
 	cli := client.New(nil)
@@ -641,7 +685,7 @@ func run(seedLabel, bootDevice, rootfsCreator, optionalInstallPath, recoveryKeyO
 	}
 	var encryptedDevices = make(map[string]string)
 	if shouldEncrypt {
-		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs, volumesAuth)
+		encryptedDevices, err = postSystemsInstallSetupStorageEncryption(cli, details, bootDevice, dgpairs, volumesAuth, keyboardConfig)
 		if err != nil {
 			return fmt.Errorf("cannot setup storage encryption: %v", err)
 		}
@@ -718,10 +762,12 @@ func main() {
 	rootfsCreator := flag.String("rootfs-creator", "", "rootfs creator (optional). If specified, classic Ubuntu with core boot will be installed.\nOtherwise, Ubuntu Core will be installed")
 	optionalInstallPath := flag.String("optional", "", "path to optional snaps and components JSON file (optional)")
 	passphrase := flag.String("passphrase", "", "encryption passphrase (optional). If specified and encryption is suppported, passphrase authentication will be enabled")
+	pin := flag.String("pin", "", "encryption PIN (optional). If specified and encryption is supported, PIN authentication will be enabled")
 	kdfType := flag.String("kdf-type", "", "KDF type for passphrase [\"argon2id\", \"argon2i\" or \"pbkdf2\"] (optional)")
 	kdfTime := flag.Duration("kdf-time", 0, "length of time to run the KDF (optional)")
 	recoveryKeyOut := flag.String("recovery-key-out", "", "indicate that a recovery key should be created and stored at given path (optional)")
 	preseedRootfs := flag.Bool("preseed-rootfs", false, "Preseed rootfs")
+	keyboardConfigRaw := flag.String("keyboard-config", "", "keyboard configuration as a comma-separated string: <layout>,<model>,<variant>,<opt1>,<opt2> (optional)")
 
 	flag.Parse()
 
@@ -735,6 +781,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if *passphrase != "" && *pin != "" {
+		fmt.Fprintf(os.Stderr, "cannot use -passphrase and -pin at the same time\n")
+		os.Exit(1)
+	}
+
 	logger.SimpleSetup(nil)
 
 	if *bootDevice == "auto" {
@@ -742,12 +793,15 @@ func main() {
 	}
 
 	volumesAuth := volumeAuthOptions{
+		pin:        *pin,
 		passphrase: *passphrase,
 		kdfType:    *kdfType,
 		kdfTime:    *kdfTime,
 	}
 
-	if err := run(*seedLabel, *bootDevice, *rootfsCreator, *optionalInstallPath, *recoveryKeyOut, *preseedRootfs, volumesAuth); err != nil {
+	keyboardConfig := parseKeyboardConfig(*keyboardConfigRaw)
+
+	if err := run(*seedLabel, *bootDevice, *rootfsCreator, *optionalInstallPath, *recoveryKeyOut, *preseedRootfs, volumesAuth, keyboardConfig); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}

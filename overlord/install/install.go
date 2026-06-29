@@ -246,6 +246,32 @@ func MockSecbootCheckResult(f func(pcc *secboot.PreinstallCheckContext) (*secboo
 	}
 }
 
+func checkVolumesAuthSupportedByTargetSystem(sysVer SystemSnapdVersions) (bool, error) {
+	const minSnapdVersion = "2.74"
+	if sysVer.SnapdVersion == "" || sysVer.SnapdInitramfsVersion == "" {
+		return false, nil
+	}
+
+	// snapd snap must support passphrase/PINs
+	cmp, err := strutil.VersionCompare(sysVer.SnapdVersion, minSnapdVersion)
+	if err != nil {
+		return false, fmt.Errorf("invalid snapd version in info file from snapd snap: %v", err)
+	}
+	if cmp < 0 {
+		return false, nil
+	}
+	// snap-bootstrap inside the kernel must support passphrase/PINs
+	cmp, err = strutil.VersionCompare(sysVer.SnapdInitramfsVersion, minSnapdVersion)
+	if err != nil {
+		return false, fmt.Errorf("invalid snapd version in info file from kernel snap: %v", err)
+	}
+	if cmp < 0 {
+		return false, nil
+	}
+
+	return true, nil
+}
+
 // EncryptionConstraints is the set of constraints that
 // [GetEncryptionSupportInfo] must consider when deciding how to encrypt the
 // system.
@@ -343,16 +369,17 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 	// If encryption is available check if the gadget is
 	// compatible with encryption.
 	if res.Available {
-		// Passphrase support is only available for TPM based encryption for now.
+		// Passphrase/PIN support is only available for TPM based encryption for now.
 		// Hook based setup support does not make sense (at least for now) because
-		// it is usually in the context of embedded systems where passphrase
+		// it is usually in the context of embedded systems where passphrase/PIN
 		// authentication is not practical.
 		if checkSecbootEncryption {
-			// TODO:FDEM: re-enable PIN and passphrase support during install
-			// after we figure out how to properly obtain the keyboard layout
-			// during install-time for plymouth.
-			res.PassphraseAuthAvailable = false
-			res.PINAuthAvailable = false
+			volumesAuthAvailable, err := checkVolumesAuthSupportedByTargetSystem(constraints.SnapdVersions)
+			if err != nil {
+				return res, fmt.Errorf("cannot check volumes authentication support: %v", err)
+			}
+			res.PassphraseAuthAvailable = volumesAuthAvailable
+			res.PINAuthAvailable = volumesAuthAvailable
 		}
 		opts := &gadget.ValidationConstraints{
 			EncryptedData: true,
