@@ -18,7 +18,7 @@
  *
  */
 
-package main
+package cli
 
 import (
 	"fmt"
