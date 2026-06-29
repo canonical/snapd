@@ -22,6 +22,7 @@ package features
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -162,6 +163,12 @@ var featuresExported = map[SnapdFeature]bool{
 	AppArmorPrompting:     true,
 }
 
+// featuresGraduated contains features that used to be guarded by an
+// experimental flag but are now always enabled.
+var featuresGraduated = map[string]bool{
+	"robust-mount-namespace-updates": true,
+}
+
 var (
 	releaseSystemctlSupportsUserUnits = release.SystemctlSupportsUserUnits
 )
@@ -214,6 +221,23 @@ func (f SnapdFeature) IsEnabledWhenUnset() bool {
 // of snapd.
 func (f SnapdFeature) IsExported() bool {
 	return featuresExported[f]
+}
+
+// IsGraduated returns true if feature was previously experimental and is now
+// always enabled.
+func IsGraduated(feature string) bool {
+	return featuresGraduated[feature]
+}
+
+// Graduated returns the list of features that used to be experimental and are
+// now always enabled.
+func Graduated() []string {
+	graduated := make([]string, 0, len(featuresGraduated))
+	for feature := range featuresGraduated {
+		graduated = append(graduated, feature)
+	}
+	sort.Strings(graduated)
+	return graduated
 }
 
 // ControlFile returns the path of the file controlling the exported feature.

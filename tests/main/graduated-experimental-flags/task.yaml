@@ -1,0 +1,27 @@
+summary: Ensure graduated experimental flags are accepted as no-ops
+
+details: |
+    Check that setting an experimental flag for a feature that has graduated
+    succeeds, logs that the feature is always enabled, and does not persist the
+    flag in state.
+
+prepare: |
+    snap install --devmode jq
+
+execute: |
+    feature=robust-mount-namespace-updates
+    message="feature ${feature} is no longer experimental and is always enabled"
+
+    echo "Check that setting a graduated experimental feature to true succeeds"
+    snap set system experimental."${feature}"=true
+    snap tasks --last=configure-snap | MATCH "${message}"
+
+    echo "Check that setting a graduated experimental feature to false succeeds"
+    snap set system experimental."${feature}"=false
+    snap tasks --last=configure-snap | MATCH "${message}"
+
+    echo "Check that the message is logged by snapd"
+    journalctl -b -u snapd | MATCH "${message}"
+
+    echo "Check that the graduated flag is not persisted"
+    jq '.data.config.core.experimental."robust-mount-namespace-updates"' /var/lib/snapd/state.json | MATCH "null"
