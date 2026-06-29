@@ -260,6 +260,14 @@ func EnsureBootOk(m *DeviceManager) error {
 	return m.ensureBootOk()
 }
 
+func CachedSeenAvailabilityCheckErrorKinds(m *DeviceManager, systemLabel string) map[secboot.PreinstallCheckErrorKind]bool {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	seen, _ := m.state.Cached(seenAvailabilityCheckErrorKindsKey{systemLabel}).(map[secboot.PreinstallCheckErrorKind]bool)
+	return seen
+}
+
 func SetBootOkRanForCurrentBootID(m *DeviceManager, b bool) (restore func()) {
 	f := func(st *state.State, currentBootID string) (bool, error) {
 		return b, nil

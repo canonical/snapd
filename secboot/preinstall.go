@@ -22,11 +22,13 @@ import (
 	"encoding/json"
 )
 
+type PreinstallCheckErrorKind string
+
 // PreinstallErrorDetails describes an individual error detected during a
 // preinstall check. It includes the error kind, a human-readable message,
 // and optional structured arguments and suggested recovery actions.
 type PreinstallErrorDetails struct {
-	Kind    string                     `json:"kind"`
+	Kind    PreinstallCheckErrorKind   `json:"kind"`
 	Message string                     `json:"message"`
 	Args    map[string]json.RawMessage `json:"args,omitempty"`
 	Actions []string                   `json:"actions,omitempty"`

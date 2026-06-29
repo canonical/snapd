@@ -29,6 +29,10 @@ import (
 type PreinstallCheckContext struct{}
 type PreinstallCheckResult struct{}
 
+const (
+	ErrorKindNoHardwareRootOfTrust = PreinstallCheckErrorKind("nosecboot")
+)
+
 const ActionNone = ""
 
 func PreinstallCheck(ctx context.Context, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {

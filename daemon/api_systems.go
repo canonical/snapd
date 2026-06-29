@@ -182,6 +182,7 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	storageEnc := &client.StorageEncryption{
 		StorageSafety: string(encInfo.StorageSafety),
 		Type:          encInfo.Type,
+		Requirements:  encInfo.Requirements(),
 	}
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
@@ -399,6 +400,31 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 	return SyncResponse(nil)
 }
 
+func volumesAuthRequiredLocked(c *Command, systemLabel string) (bool, error) {
+	st := c.d.overlord.State()
+	st.Unlock()
+	defer st.Lock()
+
+	// use cached encryption information when available; skips the expensive
+	// availability check
+	const encInfoFromCache = true
+
+	deviceMgr := c.d.overlord.DeviceManager()
+	_, _, encInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(
+		deviceMgr, systemLabel, encInfoFromCache)
+	if err != nil {
+		return false, err
+	}
+
+	for _, req := range encInfo.Requirements() {
+		if req == install.EncryptionSupportRequirementVolumesAuth {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRequest) Response {
 	st := c.d.overlord.State()
 	st.Lock()
@@ -406,7 +432,6 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 
 	switch req.Step {
 	case client.InstallStepSetupStorageEncryption:
-		// TODO: require volumes-auth if HWROT is ignored.
 		if req.VolumesAuth != nil {
 			if err := req.VolumesAuth.Validate(); err != nil {
 				return BadRequest("invalid volume authentication options: %v", err)
@@ -415,6 +440,17 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 				return BadRequest("cannot use volumes authentication without a keyboard configuration")
 			}
 		}
+
+		if req.VolumesAuth == nil || req.VolumesAuth.Mode == device.AuthModeNone {
+			volumesAuthRequired, err := volumesAuthRequiredLocked(c, systemLabel)
+			if err != nil {
+				return InternalError("cannot determine if volume authentication is required for install from %q: %v", systemLabel, err)
+			}
+			if volumesAuthRequired {
+				return BadRequest("cannot setup storage encryption for install from %q: volumes-auth is required", systemLabel)
+			}
+		}
+
 		if req.KeyboardConfig != nil {
 			if err := req.KeyboardConfig.Validate(); err != nil {
 				return BadRequest("invalid keyboard configuration: %v", err)

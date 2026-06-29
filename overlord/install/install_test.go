@@ -412,6 +412,27 @@ func (s *installSuite) TestCheckContext(c *C) {
 	c.Assert(checkContext, Equals, expectedCheckContext)
 }
 
+func (s *installSuite) TestEncryptionSupportRequirements(c *C) {
+	encSupportInfo := install.EncryptionSupportInfo{}
+
+	// nil seen-error kinds map should not require volumes auth
+	c.Assert(encSupportInfo.Requirements(), HasLen, 0)
+
+	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{})
+	c.Assert(encSupportInfo.Requirements(), HasLen, 0)
+
+	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
+		secboot.PreinstallCheckErrorKind("some-other-kind"): true,
+	})
+	c.Assert(encSupportInfo.Requirements(), HasLen, 0)
+
+	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
+		secboot.ErrorKindNoHardwareRootOfTrust: true,
+	})
+	c.Assert(encSupportInfo.Requirements(), HasLen, 1)
+	c.Assert(encSupportInfo.Requirements()[0], Equals, install.EncryptionSupportRequirementVolumesAuth)
+}
+
 func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 	logbuf, restore := logger.MockLogger()
 	s.AddCleanup(restore)

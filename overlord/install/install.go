@@ -90,6 +90,11 @@ type EncryptionSupportInfo struct {
 	// availability errors identified during preinstall check.
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails
 
+	// seenAvailabilityCheckErrorKinds holds a sticky list of all seen preinstall
+	// check error kinds. This needs persistent state of already seen errors so it
+	// should be managed and set externally by SetSeenAvailabilityCheckErrorKinds.
+	seenAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool
+
 	// availabilityCheckContext holds the configuration and state captured during
 	// the preinstall check. It is required for performing follow-up checks with
 	// actions to resolve identified errors. It is also an indicator that the
@@ -107,6 +112,29 @@ type EncryptionSupportInfo struct {
 // CheckContext returns the underlying preinstall check context.
 func (esi *EncryptionSupportInfo) CheckContext() *secboot.PreinstallCheckContext {
 	return esi.availabilityCheckContext
+}
+
+// SetSeenAvailabilityCheckErrorKinds sets the seen preinstall check error kinds.
+// This should only be used by devicestate which maintains the persistent state of
+// already seen errors.
+func (esi *EncryptionSupportInfo) SetSeenAvailabilityCheckErrorKinds(kinds map[secboot.PreinstallCheckErrorKind]bool) {
+	esi.seenAvailabilityCheckErrorKinds = kinds
+}
+
+type EncryptionSupportRequirement string
+
+const (
+	// Indicates that the system requires authentication (e.g. PIN, passphrase).
+	EncryptionSupportRequirementVolumesAuth EncryptionSupportRequirement = "volumes-auth"
+)
+
+// Requirements returns the list of encryption support requirements.
+func (esi *EncryptionSupportInfo) Requirements() []EncryptionSupportRequirement {
+	var requirements []EncryptionSupportRequirement
+	if esi.seenAvailabilityCheckErrorKinds[secboot.ErrorKindNoHardwareRootOfTrust] {
+		requirements = append(requirements, EncryptionSupportRequirementVolumesAuth)
+	}
+	return requirements
 }
 
 // ComponentSeedInfo contains information for a component from the seed and

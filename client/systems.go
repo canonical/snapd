@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/osutil/keyboard"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
@@ -188,6 +189,9 @@ type StorageEncryption struct {
 
 	// AvailabilityCheckErrors reports errors detected during preinstall check.
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails `json:"availability-check-errors,omitempty"`
+
+	// Requirements is a list of requirements that must be met for storage encryption to be supported.
+	Requirements []install.EncryptionSupportRequirement `json:"requirements,omitempty"`
 }
 
 type SystemDetails struct {
