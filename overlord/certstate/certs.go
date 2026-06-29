@@ -798,6 +798,10 @@ func refreshCertificateDatabaseImpl() error {
 	if exists, isDir, err := osutil.DirExists(nextPath); err != nil {
 		return err
 	} else if !exists {
+		// ensure proper permissions on the directory before moving it into place
+		if err := os.Chmod(stagedDir, 0o755); err != nil {
+			return fmt.Errorf("cannot set published certificates staging directory permissions: %v", err)
+		}
 		if err := os.Rename(stagedDir, nextPath); err != nil {
 			return fmt.Errorf("cannot publish certificates generation %q: %v", hash, err)
 		}
