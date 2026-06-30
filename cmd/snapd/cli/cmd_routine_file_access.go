@@ -128,7 +128,7 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 		promptingRunning = ok && promptingFeatureInfo.Supported && promptingFeatureInfo.Enabled
 	}
 
-	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, promptingRunning, hasSystemPackagesDoc, path)
+	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, hasSystemPackagesDoc, promptingRunning, path)
 	if err != nil {
 		return err
 	}
@@ -155,19 +155,19 @@ const (
 
 // systemPackagesDocPaths lists the file system locations accessible via the
 // system-packages-doc interface.
-var systemPackagesDocPaths = []string{
-	"/usr/share/doc",
-	"/usr/local/share/doc",
-	"/usr/share/cups/doc-root",
-	"/usr/share/gimp/2.0/help",
-	"/usr/share/gtk-doc",
-	"/usr/share/javascript",
-	"/usr/share/libreoffice/help",
-	"/usr/share/sphinx_rtd_theme",
-	"/usr/share/xubuntu-docs",
-	"/usr/share/help",
-	"/usr/share/info",
-	"/usr/share/man",
+var systemPackagesDocPathParts = [][]string{
+	{"usr", "share", "doc"},
+	{"usr", "local", "share", "doc"},
+	{"usr", "share", "cups", "doc-root"},
+	{"usr", "share", "gimp", "2.0", "help"},
+	{"usr", "share", "gtk-doc"},
+	{"usr", "share", "javascript"},
+	{"usr", "share", "libreoffice", "help"},
+	{"usr", "share", "sphinx_rtd_theme"},
+	{"usr", "share", "xubuntu-docs"},
+	{"usr", "share", "man"},
+	{"usr", "share", "help"},
+	{"usr", "share", "info"},
 }
 
 func splitPathAbs(path string) ([]string, error) {
@@ -192,7 +192,7 @@ func pathHasPrefix(path, prefix []string) bool {
 	return true
 }
 
-func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, promptingRunning, hasSystemPackagesDoc bool, path string) (FileAccess, error) {
+func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, hasSystemPackagesDoc, promptingRunning bool, path string) (FileAccess, error) {
 	// Classic confinement snaps run in the host system namespace,
 	// so can see everything.
 	if snap.Confinement == client.ClassicConfinement {
@@ -228,12 +228,8 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 	// Snaps with system-packages-doc plugged can access system
 	// documentation directories.
 	if hasSystemPackagesDoc {
-		for _, docPath := range systemPackagesDocPaths {
-			docParts, err := splitPathAbs(docPath)
-			if err != nil {
-				return "", err
-			}
-			if pathHasPrefix(pathParts, docParts) {
+		for _, docPart := range systemPackagesDocPathParts {
+			if pathHasPrefix(pathParts, docPart) {
 				return FileAccessReadOnly, nil
 			}
 		}
