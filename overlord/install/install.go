@@ -92,7 +92,7 @@ type EncryptionSupportInfo struct {
 
 	// seenAvailabilityCheckErrorKinds holds a sticky list of all seen preinstall
 	// check error kinds.
-	seenAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool
+	seenAvailabilityCheckErrorKinds map[string]bool
 
 	// availabilityCheckContext holds the configuration and state captured during
 	// the preinstall check. It is required for performing follow-up checks with
@@ -114,7 +114,7 @@ func (esi *EncryptionSupportInfo) CheckContext() *secboot.PreinstallCheckContext
 }
 
 // SeenAvailabilityCheckErrorKinds returns the set of accumulated seen preinstall check error kinds.
-func (esi *EncryptionSupportInfo) SeenAvailabilityCheckErrorKinds() map[secboot.PreinstallCheckErrorKind]bool {
+func (esi *EncryptionSupportInfo) SeenAvailabilityCheckErrorKinds() map[string]bool {
 	return esi.seenAvailabilityCheckErrorKinds
 }
 
@@ -223,7 +223,7 @@ func (esi *EncryptionSupportInfo) SetAvailabilityCheckContext(checkContext *secb
 }
 
 // SetSeenAvailabilityCheckErrorKinds is a test only helper for populating EncryptionSupportInfo field seenAvailabilityCheckErrorKinds.
-func (esi *EncryptionSupportInfo) SetSeenAvailabilityCheckErrorKinds(kinds map[secboot.PreinstallCheckErrorKind]bool) {
+func (esi *EncryptionSupportInfo) SetSeenAvailabilityCheckErrorKinds(kinds map[string]bool) {
 	osutil.MustBeTestBinary("SetSeenAvailabilityCheckErrorKinds can only be used in tests")
 	esi.seenAvailabilityCheckErrorKinds = kinds
 }
@@ -324,7 +324,7 @@ type EncryptionConstraints struct {
 func GetEncryptionSupportInfo(
 	constraints EncryptionConstraints,
 	runSetupHook fde.RunSetupHookFunc,
-	prevAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool,
+	prevAvailabilityCheckErrorKinds map[string]bool,
 ) (EncryptionSupportInfo, error) {
 	secured := constraints.Model.Grade() == asserts.ModelSecured
 	dangerous := constraints.Model.Grade() == asserts.ModelDangerous
@@ -384,7 +384,7 @@ func GetEncryptionSupportInfo(
 			res.AvailabilityCheckErrors = preinstallErrorDetails
 			if len(preinstallErrorDetails) > 0 {
 				if res.seenAvailabilityCheckErrorKinds == nil {
-					res.seenAvailabilityCheckErrorKinds = make(map[secboot.PreinstallCheckErrorKind]bool, len(preinstallErrorDetails))
+					res.seenAvailabilityCheckErrorKinds = make(map[string]bool, len(preinstallErrorDetails))
 				}
 				for _, errDetails := range preinstallErrorDetails {
 					res.seenAvailabilityCheckErrorKinds[errDetails.Kind] = true

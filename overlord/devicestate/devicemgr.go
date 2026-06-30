@@ -3581,7 +3581,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 	}
 
 	cachedEncryptionSupportInfo := readCache(systemLabel)
-	var prevAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool
+	var prevAvailabilityCheckErrorKinds map[string]bool
 
 	if constraints.CheckAction != nil {
 		// a check action requires only the check context from the cache

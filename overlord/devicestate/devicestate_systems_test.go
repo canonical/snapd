@@ -3635,8 +3635,8 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 		AvailabilityCheckErrors: preinstallErrorDetails[:1],
 	}
 	expectedEncInfo.SetAvailabilityCheckContext(preinstallCheckContext)
-	expectedEncInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
-		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
+	expectedEncInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
+		"tpm-hierarchies-owned": true,
 	})
 
 	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false, "")
@@ -3660,7 +3660,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
 	c.Check(encInfo.Requirements(), HasLen, 0)
 	seenAvailabilityCheckErrorKinds := encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
+	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
 		"tpm-hierarchies-owned": true,
 	})
 
@@ -3683,7 +3683,7 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
 	c.Check(encInfo.Requirements(), HasLen, 0)
 	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
+	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
 		"tpm-hierarchies-owned": true,
 	})
 
@@ -3693,10 +3693,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	expectedEncInfo.AvailabilityCheckErrors = preinstallErrorDetails[1:]
 	expectedEncInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors"
 	// but seen errors are sticky and accumulated in cache
-	expectedEncInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
-		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-		secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
-		secboot.ErrorKindNoHardwareRootOfTrust:                    true,
+	expectedEncInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
+		"tpm-hierarchies-owned":     true,
+		"tpm-device-lockout":        true,
+		"no-hardware-root-of-trust": true,
 	})
 
 	system, gadgetInfo, encInfo, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", preinstallAction)
@@ -3716,10 +3716,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	// "no-hardware-root-of-trust" error, so volumes-auth is required
 	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
 	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
-		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-		secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
-		secboot.ErrorKindNoHardwareRootOfTrust:                    true,
+	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
+		"tpm-hierarchies-owned":     true,
+		"tpm-device-lockout":        true,
+		"no-hardware-root-of-trust": true,
 	})
 
 	// clear errors with one more action
@@ -3748,10 +3748,10 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	// and is sticky in the cache
 	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
 	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
-		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-		secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
-		secboot.ErrorKindNoHardwareRootOfTrust:                    true,
+	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
+		"tpm-hierarchies-owned":     true,
+		"tpm-device-lockout":        true,
+		"no-hardware-root-of-trust": true,
 	})
 }
 

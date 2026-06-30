@@ -182,7 +182,6 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	storageEnc := &client.StorageEncryption{
 		StorageSafety: string(encInfo.StorageSafety),
 		Type:          encInfo.Type,
-		Requirements:  encInfo.Requirements(),
 	}
 	required := (encInfo.StorageSafety == asserts.StorageSafetyEncrypted)
 	switch {
@@ -205,6 +204,14 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 	}
 	if encInfo.PINAuthAvailable {
 		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePINAuth)
+	}
+
+	encRequirements := encInfo.Requirements()
+	if len(encRequirements) > 0 {
+		storageEnc.Requirements = make([]string, len(encRequirements))
+		for i, req := range encRequirements {
+			storageEnc.Requirements[i] = string(req)
+		}
 	}
 
 	return storageEnc

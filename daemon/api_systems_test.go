@@ -919,13 +919,13 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 		typ                                       device.EncryptionType
 		unavailableErr, unavailableWarning        string
 		availabilityCheckErrs                     []secboot.PreinstallErrorDetails
-		seenAvailabilityCheckErrorKinds           map[secboot.PreinstallCheckErrorKind]bool
+		seenAvailabilityCheckErrorKinds           map[string]bool
 
 		expectedSupport                                  client.StorageEncryptionSupport
 		expectedStorageSafety, expectedUnavailableReason string
 		expectedAvailabilityCheckErrs                    []secboot.PreinstallErrorDetails
 		expectedEncryptionFeatures                       []client.StorageEncryptionFeature
-		expectedRequirements                             []install.EncryptionSupportRequirement
+		expectedRequirements                             []string
 	}{
 		{
 			disabled:      true,
@@ -1001,8 +1001,8 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 		{
 			available:     true,
 			storageSafety: asserts.StorageSafetyEncrypted,
-			seenAvailabilityCheckErrorKinds: map[secboot.PreinstallCheckErrorKind]bool{
-				secboot.PreinstallCheckErrorKind("some-error"): true,
+			seenAvailabilityCheckErrorKinds: map[string]bool{
+				"some-error": true,
 			},
 
 			expectedSupport:       client.StorageEncryptionSupportAvailable,
@@ -1011,14 +1011,14 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 		{
 			available:     true,
 			storageSafety: asserts.StorageSafetyEncrypted,
-			seenAvailabilityCheckErrorKinds: map[secboot.PreinstallCheckErrorKind]bool{
+			seenAvailabilityCheckErrorKinds: map[string]bool{
 				secboot.ErrorKindNoHardwareRootOfTrust: true,
 			},
 
 			expectedSupport:       client.StorageEncryptionSupportAvailable,
 			expectedStorageSafety: "encrypted",
-			expectedRequirements: []install.EncryptionSupportRequirement{
-				install.EncryptionSupportRequirementVolumesAuth,
+			expectedRequirements: []string{
+				string(install.EncryptionSupportRequirementVolumesAuth),
 			},
 		},
 	} {
@@ -1498,7 +1498,7 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionRequiresVolu
 		c.Check(encInfoFromCache, check.Equals, true)
 
 		encInfo := &install.EncryptionSupportInfo{}
-		encInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
+		encInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
 			secboot.ErrorKindNoHardwareRootOfTrust: true,
 		})
 

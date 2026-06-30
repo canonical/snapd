@@ -30,7 +30,7 @@ type PreinstallCheckContext struct{}
 type PreinstallCheckResult struct{}
 
 const (
-	ErrorKindNoHardwareRootOfTrust = PreinstallCheckErrorKind("")
+	ErrorKindNoHardwareRootOfTrust = ""
 )
 
 const ActionNone = ""

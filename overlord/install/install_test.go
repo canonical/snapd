@@ -418,15 +418,15 @@ func (s *installSuite) TestEncryptionSupportRequirements(c *C) {
 	// nil seen-error kinds map should not require volumes auth
 	c.Assert(encSupportInfo.Requirements(), HasLen, 0)
 
-	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{})
+	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{})
 	c.Assert(encSupportInfo.Requirements(), HasLen, 0)
 
-	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
-		secboot.PreinstallCheckErrorKind("some-other-kind"): true,
+	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
+		"some-other-kind": true,
 	})
 	c.Assert(encSupportInfo.Requirements(), HasLen, 0)
 
-	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
+	encSupportInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
 		secboot.ErrorKindNoHardwareRootOfTrust: true,
 	})
 	c.Assert(encSupportInfo.Requirements(), HasLen, 1)
@@ -872,7 +872,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 
 		expected                                install.EncryptionSupportInfo
 		expectedCheckContext                    *secboot.PreinstallCheckContext
-		expectedSeenAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool
+		expectedSeenAvailabilityCheckErrorKinds map[string]bool
 	}{
 		{
 			"dangerous", "", "", "", false, ErrorNone,
@@ -909,8 +909,8 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				AvailabilityCheckErrors: preinstallErrorDetails[:1],
 			},
 			preinstallCheckContext,
-			map[secboot.PreinstallCheckErrorKind]bool{
-				secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
+			map[string]bool{
+				"tpm-hierarchies-owned": true,
 			},
 		}, {
 			"dangerous", "prefer-unencrypted", "", "", false, ErrorNone,
@@ -939,9 +939,9 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				AvailabilityCheckErrors: preinstallErrorDetails,
 			},
 			preinstallCheckContext,
-			map[secboot.PreinstallCheckErrorKind]bool{
-				secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-				secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
+			map[string]bool{
+				"tpm-hierarchies-owned": true,
+				"tpm-device-lockout":    true,
 			},
 		}, {
 			"signed", "encrypted", "", "", false, ErrorNone,
@@ -987,8 +987,8 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 				AvailabilityCheckErrors: preinstallErrorDetails[:1],
 			},
 			preinstallCheckContext,
-			map[secboot.PreinstallCheckErrorKind]bool{
-				secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
+			map[string]bool{
+				"tpm-hierarchies-owned": true,
 			},
 		}, {
 			"secured", "", "", "", false, ErrorNone,
@@ -1118,24 +1118,24 @@ func (s *installSuite) TestEncryptionSupportInfoAccumlatesSeenErrors(c *C) {
 		UnavailableWarning:      "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors",
 		AvailabilityCheckErrors: preinstallErrorDetails,
 	}
-	expected.SetSeenAvailabilityCheckErrorKinds(map[secboot.PreinstallCheckErrorKind]bool{
-		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-		secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
-		secboot.ErrorKindNoHardwareRootOfTrust:                    true,
+	expected.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
+		"tpm-hierarchies-owned":     true,
+		"tpm-device-lockout":        true,
+		"no-hardware-root-of-trust": true,
 	})
 	preinstallCheckContext := &secboot.PreinstallCheckContext{}
 	expected.SetAvailabilityCheckContext(preinstallCheckContext)
 
-	prevErrors := map[secboot.PreinstallCheckErrorKind]bool{
+	prevErrors := map[string]bool{
 		secboot.ErrorKindNoHardwareRootOfTrust: true,
 	}
 	res, err := install.GetEncryptionSupportInfo(constraints, nil, prevErrors)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, expected)
-	c.Check(res.SeenAvailabilityCheckErrorKinds(), DeepEquals, map[secboot.PreinstallCheckErrorKind]bool{
-		secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-		secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
-		secboot.ErrorKindNoHardwareRootOfTrust:                    true,
+	c.Check(res.SeenAvailabilityCheckErrorKinds(), DeepEquals, map[string]bool{
+		"tpm-hierarchies-owned":                true,
+		"tpm-device-lockout":                   true,
+		secboot.ErrorKindNoHardwareRootOfTrust: true,
 	})
 }
 
@@ -1263,7 +1263,7 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 
 		expected                                install.EncryptionSupportInfo
 		expectedCheckContext                    *secboot.PreinstallCheckContext
-		expectedSeenAvailabilityCheckErrorKinds map[secboot.PreinstallCheckErrorKind]bool
+		expectedSeenAvailabilityCheckErrorKinds map[string]bool
 	}{
 		{
 			"dangerous", "", "", false, ErrorNone,
@@ -1342,9 +1342,9 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				AvailabilityCheckErrors: preinstallErrorDetails,
 			},
 			preinstallCheckContext,
-			map[secboot.PreinstallCheckErrorKind]bool{
-				secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-				secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
+			map[string]bool{
+				"tpm-hierarchies-owned": true,
+				"tpm-device-lockout":    true,
 			},
 		}, {
 			"secured", "", "", true, ErrorNone,
@@ -1381,9 +1381,9 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 				AvailabilityCheckErrors: preinstallErrorDetails,
 			},
 			preinstallCheckContext,
-			map[secboot.PreinstallCheckErrorKind]bool{
-				secboot.PreinstallCheckErrorKind("tpm-hierarchies-owned"): true,
-				secboot.PreinstallCheckErrorKind("tpm-device-lockout"):    true,
+			map[string]bool{
+				"tpm-hierarchies-owned": true,
+				"tpm-device-lockout":    true,
 			},
 		},
 	}
