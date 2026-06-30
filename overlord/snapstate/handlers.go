@@ -916,20 +916,18 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
+	defer st.Unlock()
+
+	perfTimings.Save(st)
 
 	// nothing else should use SnapPath anymore, since that path might not even
 	// exist, in the case that the file was removed above. to prevent this, we
 	// clear it out
 	snapsup.SnapPath = ""
 	if err := SetTaskSnapSetup(t, snapsup); err != nil {
-		st.Unlock()
 		return err
 	}
 	t.SetStatus(state.DoneStatus)
-
-	perfTimings.Save(st)
-
-	st.Unlock()
 
 	return nil
 }
