@@ -1271,6 +1271,8 @@ profile "snap.samba.smbd" flags=(attach_disconnected,mediate_deleted) {
   # Same as above but accounting for the case when the
   # snapd snap is installed and executes the snap application.
   @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec rm,
+  # Support for merged snapctl and snap-exec binaries
+  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snapctl rm,
 
 ` + mountInfoSnippet + `
 snippet
