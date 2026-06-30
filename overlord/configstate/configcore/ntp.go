@@ -112,7 +112,6 @@ func validateNTPSettings(tr ConfGetter) error {
 	if pollIntervalMin > pollIntervalMax {
 		return fmt.Errorf("invalid NTP configuration: min-poll-interval (%q) cannot be greater than max-poll-interval (%q)", pollIntervalMinString, pollIntervalMaxString)
 	}
-
 	return nil
 }
 
@@ -123,7 +122,6 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 		if !ok {
 			return fmt.Errorf("%v is not a list of server names", key)
 		}
-
 		return validateNTPServers(servers)
 
 	case "max-root-time-distance", "min-poll-interval", "max-poll-interval", "connection-retry-interval", "save-interval":
@@ -134,7 +132,6 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 
 		// The value that the user inputs should be parsed as a Go duration string for consistency
 		// with other configuration options
-
 		if strings.TrimSpace(valueStr) != valueStr {
 			return fmt.Errorf("%v: contains leading or trailing whitespace", key)
 		}
@@ -160,7 +157,6 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 		if key == "connection-retry-interval" && duration < 1*time.Second {
 			return fmt.Errorf("connection-retry-interval: cannot be smaller than 1s")
 		}
-
 		return nil
 
 	default:
@@ -178,7 +174,6 @@ func validateNTPServers(servers []any) error {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -356,6 +351,10 @@ func serializeNTPConfiguration(config map[string]any) (result []byte) {
 	return byteStream
 }
 
+// getNTPFromSystemHelper is the callback registered for the "system.ntp" key.
+// The key argument is ignored because getNTPFromSystem returns the full configuration
+// map and the relevant subkeys are selected by other components before being shown
+// to the user
 func getNTPFromSystemHelper(key string) (result any, err error) {
 	return getNTPFromSystem()
 }
@@ -395,7 +394,6 @@ func mapOptionValueSnapToTimesyncd(option any) (string, error) {
 			}
 			builder = append(builder, s)
 		}
-
 		return strings.Join(builder, " "), nil
 
 	case string:
@@ -421,6 +419,12 @@ func mapOptionNameSnapToTimesyncd(snapOption string) string {
 	return ""
 }
 
+// getNTPFromSystem reads /etc/systemd/timesyncd.conf and returns its contents as a map.
+// Keys are translated from timesyncd names (e.g. "NTP", "RootDistanceMaxSec") to snapd-style
+// names (e.g. "servers", "max-root-time-distance"). Space-separated server lists become string
+// slices, and systemd.time duration values are converted to Go duration strings.
+// Returns nil (no error) on classic systems, when the file is absent (default timesyncd
+// settings apply), or when no recognised options are present.
 func getNTPFromSystem() (result map[string]any, err error) {
 	if release.OnClassic {
 		return nil, nil
