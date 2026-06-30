@@ -3555,9 +3555,9 @@ func (m *DeviceManager) encryptionSupportInfoLocked(systemLabel string, constrai
 //
 // Cache behavior is implicit and depends on the combination of arguments:
 //   - With a CheckAction: the cache must provide a valid CheckContext. In this
-//     mode, only the CheckContext is used, and the rest of the cached
-//     EncryptionSupportInfo is ignored. This implies that any call with
-//     CheckAction must be preceded by a call without that populates the cache.
+//     mode, the cached CheckContext and the set of internally accumulated errors
+//     are implicitly used by GetEncryptionSupportInfo. This implies that any call
+//     with CheckAction must be preceded by a call without that populates the cache.
 //   - Without a CheckAction and encInfoFromCache set to true: the function
 //     returns the cached EncryptionSupportInfo directly, if available. This
 //     provides a way to skip the expensive encryption availability check in
@@ -3600,8 +3600,9 @@ func (m *DeviceManager) encryptionSupportInfo(
 	}
 
 	// GetEncryptionSupportInfo expects and uses constraints.PrevInfo.CheckContext when
-	// constraints.CheckAction != nil, otherwise it is ignored. See
-	// install.encryptionAvailabilityCheck.
+	// constraints.CheckAction != nil, otherwise it is ignored (check install.encryptionAvailabilityCheck).
+	// It also accumulates seen errors given constraints.PrevInfo even if some error was
+	// cleared by a "proceed" action.
 	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
 	if err == nil {
 		refreshCache(systemLabel, &encInfo)
