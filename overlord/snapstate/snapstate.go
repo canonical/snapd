@@ -551,13 +551,10 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 	}
 
-	var hasUserService, usesDbusActivation bool
+	var hasUserService bool
 	for _, app := range info.Apps {
 		if app.IsService() && app.DaemonScope == snap.UserDaemon {
 			hasUserService = true
-		}
-		if len(app.ActivatesOn) != 0 {
-			usesDbusActivation = true
 		}
 	}
 
@@ -576,16 +573,6 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 		}
 		if !release.SystemctlSupportsUserUnits() {
 			return fmt.Errorf("user session daemons are not supported on this release")
-		}
-	}
-
-	if usesDbusActivation {
-		flag, err := features.Flag(tr, features.DbusActivation)
-		if err != nil {
-			return err
-		}
-		if !flag {
-			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
 		}
 	}
 

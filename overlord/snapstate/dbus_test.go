@@ -25,7 +25,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
@@ -246,10 +245,6 @@ func (s *snapmgrTestSuite) TestInstallDBusActivationConflicts(c *C) {
 		SnapType: "app",
 	})
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", true)
-	tr.Commit()
-
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Check(err, ErrorMatches, `snap "some-snap" requesting to activate on system bus name "org.example.Foo" conflicts with snap "other-snap" use`)
@@ -275,10 +270,6 @@ func (s *snapmgrTestSuite) TestInstallManyDBusActivationConflicts(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.dbus-activation", true)
-	tr.Commit()
 
 	snapNames := []string{"some-snap", "other-snap"}
 	_, tss, err := snapstate.InstallMany(s.state, snapNames, nil, s.user.ID, nil)
