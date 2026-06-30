@@ -1308,13 +1308,12 @@ nested_create_vm_service() {
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [[ "$SPREAD_BACKEND" = openstack* ]]; then
-        PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
         PARAM_MEM="-m ${NESTED_MEM:-8192}"
         PARAM_SMP="-smp ${NESTED_CPUS:-6}"
-
+    elif [[ "$SPREAD_BACKEND" = openstack* ]]; then
+        PARAM_MEM="-m ${NESTED_MEM:-4096}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-4}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
