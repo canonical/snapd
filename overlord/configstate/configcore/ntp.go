@@ -97,19 +97,17 @@ func validateNTPSettings(tr ConfGetter) error {
 	// The "*String" variables are used for error messages to show the user the exact
 	// input they provided in case of an error, instead of a serialized Duration, which might be different
 	// (e.g. printing "1m0s" when the user input "1m").
-	pollIntervalMin := 32 * time.Second
-	pollIntervalMax := 2048 * time.Second
-	pollIntervalMinString := "32s"
-	pollIntervalMaxString := "2048s"
-	// Validation for user submitted values has already been done, so ParseDuration cannot fail here.
-	if minVal, exists := ntpCfg["min-poll-interval"]; exists {
-		pollIntervalMinString = minVal.(string)
-		pollIntervalMin, _ = time.ParseDuration(pollIntervalMinString)
+	ntpCfgTimeWithDefault := func(cfgName, defString string) (time.Duration, string) {
+		valString := defString
+		if v, exists := ntpCfg[cfgName]; exists {
+			valString = v.(string)
+		}
+		retVal, _ := time.ParseDuration(valString)
+		return retVal, valString
 	}
-	if maxVal, exists := ntpCfg["max-poll-interval"]; exists {
-		pollIntervalMaxString = maxVal.(string)
-		pollIntervalMax, _ = time.ParseDuration(pollIntervalMaxString)
-	}
+
+	pollIntervalMin, pollIntervalMinString := ntpCfgTimeWithDefault("min-poll-interval", "32s")
+	pollIntervalMax, pollIntervalMaxString := ntpCfgTimeWithDefault("max-poll-interval", "2048s")
 
 	if pollIntervalMin > pollIntervalMax {
 		return fmt.Errorf("invalid NTP configuration: min-poll-interval (%q) cannot be greater than max-poll-interval (%q)", pollIntervalMinString, pollIntervalMaxString)
