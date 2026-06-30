@@ -227,7 +227,7 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 
 	// Snaps with system-packages-doc plugged can access system
 	// documentation directories.
-	if hasSystemPackagesDoc {
+	if hasSystemPackagesDoc && path != "/usr/share/javascript" && path != "/usr/share/javascript/" {
 		for _, docPart := range systemPackagesDocPathParts {
 			if pathHasPrefix(pathParts, docPart) {
 				return FileAccessReadOnly, nil
