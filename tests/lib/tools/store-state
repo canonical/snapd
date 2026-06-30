@@ -3,6 +3,7 @@
 set -e
 
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
+ENTERPRISE_STORE_ID=tNHLyNjAZfQIxZGNtWQ7rXTlCWLvmwa6
 
 show_help() {
     echo "usage: store-state setup-fake-store <DIR>"
@@ -232,6 +233,10 @@ setup_fake_store(){
 
     # Wait until fake store is ready
     if "$TESTSTOOLS"/network-state wait-listen-port "$port"; then
+        if [ "$REMOTE_STORE" = "enterprise" ]; then
+            disable_enterprise_store
+        fi
+        
         return 0
     fi
 
@@ -254,12 +259,16 @@ teardown_fake_store(){
     systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
-        setup_staging_store
+        setup_staging_store    
     else
         systemctl stop snapd.service snapd.socket
         rm -rf "$STORE_CONFIG" "$top_dir"
         systemctl daemon-reload
         systemctl start snapd.socket
+
+        if [ "$REMOTE_STORE" = "enterprise" ]; then
+            enable_enterprise_store
+        fi
     fi
 }
 
@@ -270,6 +279,22 @@ add_to_channel() {
     SUM="$(snap info --verbose "$(realpath "${FILENAME}")" | sed '/^sha3-384: */{;s///;q;};d')"
     mkdir -p "${BLOB_DIR}/channels"
     echo "${CHANNEL}" >>"${BLOB_DIR}/channels/${SUM}"
+}
+
+disable_enterprise_store() {
+    snap unset core proxy.store
+}
+
+enable_enterprise_store() {
+    snap set core proxy.store="$ENTERPRISE_STORE_ID"
+}
+
+setup_enterprise_store() {
+    if [ "$REMOTE_STORE" = "enterprise" ]; then
+        snap ack "$TESTSLIB"/assertions/snapd-enterprise-store.assert
+        snap set core proxy.store="$ENTERPRISE_STORE_ID"
+        snap set system store-certs.cert1="$(cat "$TESTSLIB"/certs/snapd-enterprise-store.crt)"
+    fi
 }
 
 main() {
