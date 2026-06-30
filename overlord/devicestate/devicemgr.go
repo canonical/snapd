@@ -3581,7 +3581,6 @@ func (m *DeviceManager) encryptionSupportInfo(
 	}
 
 	cachedEncryptionSupportInfo := readCache(systemLabel)
-	var prevAvailabilityCheckErrorKinds map[string]bool
 
 	if constraints.CheckAction != nil {
 		// a check action requires only the check context from the cache
@@ -3593,10 +3592,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 		if checkContext == nil {
 			return nil, errors.New("cannot use check action without cached check context")
 		}
-		constraints.CheckContext = checkContext
-		// accumlate seen errors from previous checks even if they were cleared
-		// with a "proceed" action.
-		prevAvailabilityCheckErrorKinds = cachedEncryptionSupportInfo.SeenAvailabilityCheckErrorKinds()
+		constraints.PrevInfo = cachedEncryptionSupportInfo
 	} else if encInfoFromCache && cachedEncryptionSupportInfo != nil {
 		// in case of no check action use encryption support info from the
 		// cache when requested and available
@@ -3606,7 +3602,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 	// GetEncryptionSupportInfo expects and uses constraints.CheckContext when
 	// constraints.CheckAction != nil, otherwise it is ignored. See
 	// install.encryptionAvailabilityCheck.
-	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook, prevAvailabilityCheckErrorKinds)
+	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
 	if err == nil {
 		refreshCache(systemLabel, &encInfo)
 	}

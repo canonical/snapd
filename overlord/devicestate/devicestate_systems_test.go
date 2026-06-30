@@ -3659,10 +3659,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
 	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
 	c.Check(encInfo.Requirements(), HasLen, 0)
-	seenAvailabilityCheckErrorKinds := encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
-		"tpm-hierarchies-owned": true,
-	})
 
 	// comprehensive preinstall check - get info from cache
 	encInfoFromCache = true
@@ -3682,10 +3678,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
 	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
 	c.Check(encInfo.Requirements(), HasLen, 0)
-	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
-		"tpm-hierarchies-owned": true,
-	})
 
 	// comprehensive preinstall check with action - not allowed to get info from cache
 
@@ -3715,12 +3707,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
 	// "no-hardware-root-of-trust" error, so volumes-auth is required
 	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
-	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
-		"tpm-hierarchies-owned":     true,
-		"tpm-device-lockout":        true,
-		"no-hardware-root-of-trust": true,
-	})
 
 	// clear errors with one more action
 
@@ -3747,12 +3733,6 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	// because the "no-hardware-root-of-trust" error was seen in a previous check
 	// and is sticky in the cache
 	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
-	seenAvailabilityCheckErrorKinds = encInfo.SeenAvailabilityCheckErrorKinds()
-	c.Check(seenAvailabilityCheckErrorKinds, DeepEquals, map[string]bool{
-		"tpm-hierarchies-owned":     true,
-		"tpm-device-lockout":        true,
-		"no-hardware-root-of-trust": true,
-	})
 }
 
 func (s *modelAndGadgetInfoSuite) TestLoadSeedSetsRevisionForLocalContainers(c *C) {

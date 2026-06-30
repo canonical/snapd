@@ -91,7 +91,7 @@ type EncryptionSupportInfo struct {
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails
 
 	// seenAvailabilityCheckErrorKinds holds a sticky list of all seen preinstall
-	// check error kinds.
+	// check error kinds for the lifetime of the check context.
 	seenAvailabilityCheckErrorKinds map[string]bool
 
 	// availabilityCheckContext holds the configuration and state captured during
@@ -111,11 +111,6 @@ type EncryptionSupportInfo struct {
 // CheckContext returns the underlying preinstall check context.
 func (esi *EncryptionSupportInfo) CheckContext() *secboot.PreinstallCheckContext {
 	return esi.availabilityCheckContext
-}
-
-// SeenAvailabilityCheckErrorKinds returns the set of accumulated seen preinstall check error kinds.
-func (esi *EncryptionSupportInfo) SeenAvailabilityCheckErrorKinds() map[string]bool {
-	return esi.seenAvailabilityCheckErrorKinds
 }
 
 type EncryptionSupportRequirement string
@@ -313,8 +308,8 @@ type EncryptionConstraints struct {
 	Gadget        *gadget.Info
 	TPMMode       secboot.TPMProvisionMode
 	SnapdVersions SystemSnapdVersions
-	CheckContext  *secboot.PreinstallCheckContext
 	CheckAction   *secboot.PreinstallAction
+	PrevInfo      *EncryptionSupportInfo
 }
 
 // GetEncryptionSupportInfo returns the encryption support information
@@ -324,15 +319,18 @@ type EncryptionConstraints struct {
 func GetEncryptionSupportInfo(
 	constraints EncryptionConstraints,
 	runSetupHook fde.RunSetupHookFunc,
-	prevAvailabilityCheckErrorKinds map[string]bool,
 ) (EncryptionSupportInfo, error) {
 	secured := constraints.Model.Grade() == asserts.ModelSecured
 	dangerous := constraints.Model.Grade() == asserts.ModelDangerous
 	encrypted := constraints.Model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	res := EncryptionSupportInfo{
-		StorageSafety:                   constraints.Model.StorageSafety(),
-		seenAvailabilityCheckErrorKinds: prevAvailabilityCheckErrorKinds,
+		StorageSafety: constraints.Model.StorageSafety(),
+	}
+	if constraints.PrevInfo != nil {
+		// accumlate seen errors from previous checks even if they were cleared
+		// with a "proceed" action.
+		res.seenAvailabilityCheckErrorKinds = constraints.PrevInfo.seenAvailabilityCheckErrorKinds
 	}
 
 	// check if we should disable encryption non-secured devices
@@ -366,8 +364,12 @@ func GetEncryptionSupportInfo(
 	case checkOPTEEEncryption:
 		res.Type = device.EncryptionTypeLUKS
 	case checkSecbootEncryption:
+		var prevCheckContext *secboot.PreinstallCheckContext
+		if constraints.PrevInfo != nil {
+			prevCheckContext = constraints.PrevInfo.availabilityCheckContext
+		}
 		preinstallCheckContext, unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(
-			constraints.CheckContext,
+			prevCheckContext,
 			constraints.CheckAction,
 			constraints.Model,
 			constraints.TPMMode,
@@ -607,7 +609,7 @@ func CheckEncryptionSupport(
 	constraints EncryptionConstraints,
 	runSetupHook fde.RunSetupHookFunc,
 ) (device.EncryptionType, error) {
-	res, err := GetEncryptionSupportInfo(constraints, runSetupHook, nil)
+	res, err := GetEncryptionSupportInfo(constraints, runSetupHook)
 	if err != nil {
 		return "", err
 	}

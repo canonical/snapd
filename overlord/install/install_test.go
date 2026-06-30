@@ -1068,22 +1068,23 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			Gadget:        gadgetInfo,
 			TPMMode:       secboot.TPMProvisionFull,
 			SnapdVersions: mockSystemSnapdVersions,
-			CheckContext:  nil,
 			CheckAction:   nil,
+			PrevInfo:      nil,
 		}
 
 		// exercise secboot.PreinstallCheck
-		res, err := install.GetEncryptionSupportInfo(constraints, nil, nil)
+		res, err := install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		tc.expected.SetAvailabilityCheckContext(tc.expectedCheckContext)
 		tc.expected.SetSeenAvailabilityCheckErrorKinds(tc.expectedSeenAvailabilityCheckErrorKinds)
 		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 
-		constraints.CheckContext = preinstallCheckContext
+		constraints.PrevInfo = &install.EncryptionSupportInfo{}
+		constraints.PrevInfo.SetAvailabilityCheckContext(preinstallCheckContext)
 		constraints.CheckAction = preinstallAction
 
 		// exercise secboot.PreinstallCheckAction
-		res, err = install.GetEncryptionSupportInfo(constraints, nil, nil)
+		res, err = install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 	}
@@ -1107,8 +1108,8 @@ func (s *installSuite) TestEncryptionSupportInfoAccumlatesSeenErrors(c *C) {
 			SnapdVersion:          "2.76",
 			SnapdInitramfsVersion: "2.76",
 		},
-		CheckContext: nil,
-		CheckAction:  nil,
+		CheckAction: nil,
+		PrevInfo:    nil,
 	}
 
 	expected := install.EncryptionSupportInfo{
@@ -1129,14 +1130,12 @@ func (s *installSuite) TestEncryptionSupportInfoAccumlatesSeenErrors(c *C) {
 	prevErrors := map[string]bool{
 		secboot.ErrorKindNoHardwareRootOfTrust: true,
 	}
-	res, err := install.GetEncryptionSupportInfo(constraints, nil, prevErrors)
+	constraints.PrevInfo = &install.EncryptionSupportInfo{}
+	constraints.PrevInfo.SetSeenAvailabilityCheckErrorKinds(prevErrors)
+
+	res, err := install.GetEncryptionSupportInfo(constraints, nil)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, expected)
-	c.Check(res.SeenAvailabilityCheckErrorKinds(), DeepEquals, map[string]bool{
-		"tpm-hierarchies-owned":                true,
-		"tpm-device-lockout":                   true,
-		secboot.ErrorKindNoHardwareRootOfTrust: true,
-	})
 }
 
 func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
@@ -1240,7 +1239,7 @@ func (s *installSuite) TestEncryptionSupportInfoFallbacks(c *C) {
 			TPMMode: secboot.TPMProvisionFull,
 		}
 
-		res, err := install.GetEncryptionSupportInfo(constraints, runHook, nil)
+		res, err := install.GetEncryptionSupportInfo(constraints, runHook)
 		c.Assert(err, IsNil)
 
 		comment := Commentf("test case: %d", i)
@@ -1412,17 +1411,18 @@ func (s *installSuite) TestEncryptionSupportInfoForceUnencrypted(c *C) {
 		}
 
 		// exercise secboot.PreinstallCheck
-		res, err := install.GetEncryptionSupportInfo(constraints, nil, nil)
+		res, err := install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		tc.expected.SetAvailabilityCheckContext(tc.expectedCheckContext)
 		tc.expected.SetSeenAvailabilityCheckErrorKinds(tc.expectedSeenAvailabilityCheckErrorKinds)
 		c.Assert(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 
-		constraints.CheckContext = preinstallCheckContext
+		constraints.PrevInfo = &install.EncryptionSupportInfo{}
+		constraints.PrevInfo.SetAvailabilityCheckContext(preinstallCheckContext)
 		constraints.CheckAction = preinstallAction
 
 		// exercise secboot.PreinstallCheckAction
-		res, err = install.GetEncryptionSupportInfo(constraints, nil, nil)
+		res, err = install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("test index: %d | %v", i, tc))
 	}
@@ -1549,7 +1549,7 @@ func (s *installSuite) TestEncryptionSupportInfoGadgetIncompatibleWithEncryption
 			TPMMode: secboot.TPMProvisionFull,
 		}
 
-		res, err := install.GetEncryptionSupportInfo(constraints, nil, nil)
+		res, err := install.GetEncryptionSupportInfo(constraints, nil)
 		c.Assert(err, IsNil)
 		c.Check(res, DeepEquals, tc.expected, Commentf("%v", tc))
 	}
@@ -1636,7 +1636,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportTPM(c *C) {
 		}
 		logbuf.Reset()
 
-		constraints.CheckContext = preinstallCheckContext
+		constraints.PrevInfo = &install.EncryptionSupportInfo{}
+		constraints.PrevInfo.SetAvailabilityCheckContext(preinstallCheckContext)
 		constraints.CheckAction = preinstallAction
 
 		// exercise secboot.PreinstallCheckAction
@@ -1783,7 +1784,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrors(c *C) {
 		_, err := install.CheckEncryptionSupport(constraints, nil)
 		c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%s %s", tc.grade, tc.storageSafety))
 
-		constraints.CheckContext = preinstallCheckContext
+		constraints.PrevInfo = &install.EncryptionSupportInfo{}
+		constraints.PrevInfo.SetAvailabilityCheckContext(preinstallCheckContext)
 		constraints.CheckAction = preinstallAction
 
 		// exercise secboot.PreinstallCheckAction
@@ -1824,7 +1826,8 @@ func (s *installSuite) TestInstallCheckEncryptionSupportErrorsLogsTPM(c *C) {
 		c.Check(err, IsNil)
 		c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as checking TPM gave: .+\n")
 
-		constraints.CheckContext = preinstallCheckContext
+		constraints.PrevInfo = &install.EncryptionSupportInfo{}
+		constraints.PrevInfo.SetAvailabilityCheckContext(preinstallCheckContext)
 		constraints.CheckAction = preinstallAction
 
 		// exercise secboot.PreinstallCheckAction
