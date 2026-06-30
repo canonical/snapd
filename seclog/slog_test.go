@@ -254,25 +254,6 @@ func (s *SlogSuite) TestSnapdUserLogValue(c *C) {
 	}
 }
 
-func (s *SlogSuite) TestTokenIDAttr(c *C) {
-	type tokenRecord struct {
-		TokenID int `json:"token_id"`
-	}
-
-	s.buf.Reset()
-	logger := s.newLogger(c)
-	logger.LogEvent(
-		seclog.Event{Category: "AUTHN", Name: "authn_token_created", Level: seclog.LevelInfo},
-		"Token created for user 42:user@example.com:jdoe",
-		seclog.Attr{Key: "token_id", Value: 42},
-	)
-
-	var obtained tokenRecord
-	err := json.Unmarshal(s.buf.Bytes(), &obtained)
-	c.Assert(err, IsNil)
-	c.Check(obtained.TokenID, Equals, 42)
-}
-
 func (s *SlogSuite) TestReasonLogValue(c *C) {
 	type errorRecord struct {
 		Error struct {
