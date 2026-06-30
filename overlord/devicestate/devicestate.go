@@ -1746,11 +1746,11 @@ func SeedRefreshTasks(
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
-		filteredCandidate, err := filter(candidate)
+		filteredCandidate, seedRefreshTriggered, err := filter(candidate)
 		if err != nil {
 			return nil, nil, err
 		}
-		if seedRefreshCandidateEmpty(filteredCandidate) {
+		if !seedRefreshTriggered {
 			continue
 		}
 		added[filteredCandidate.InstanceName] = true
@@ -1825,11 +1825,11 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 
 	filter := seedRefreshFilter(chg.State(), dctx)
 
-	filteredCandidate, err := filter(candidate)
+	filteredCandidate, seedRefreshTriggered, err := filter(candidate)
 	if err != nil {
 		return nil, err
 	}
-	if seedRefreshCandidateEmpty(filteredCandidate) {
+	if !seedRefreshTriggered {
 		return nil, nil
 	}
 
@@ -1868,36 +1868,30 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks []string, com
 // gaining/losing snaps
 func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
 	filter := seedRefreshFilter(st, dctx)
-	filteredCandidate, err := filter(snapstate.SeedRefreshCandidate{
+	_, seedRefreshTriggered, err := filter(snapstate.SeedRefreshCandidate{
 		InstanceName: si.SnapName(),
 	})
 	if err != nil {
 		return err
 	}
 
-	if !seedRefreshCandidateEmpty(filteredCandidate) {
+	if seedRefreshTriggered {
 		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
 	}
 	return nil
 }
 
-func seedRefreshCandidateEmpty(candidate snapstate.SeedRefreshCandidate) bool {
-	return (candidate.InstanceName == "" &&
-		len(candidate.SnapSetupTaskIDs) == 0 &&
-		len(candidate.ComponentSetupTaskIDs) == 0)
-}
-
 // seedRefreshFilter returns a closure that filters the given
 // SeedRefreshCandidate so that it only contains the tasks
-// of the snaps and components that can trigger a seed refresh.
-// The returned SeedRefreshCandidate will have all fields empty
-// if a seed refresh should not be triggered. The cases that trigger
-// a seed refresh are:
+// of the snaps and components that can trigger a seed refresh
+// and true when a seed refresh can be triggered.
+//
+// The cases that trigger a seed refresh are:
 //   - a required snap/component being refreshed,
 //   - an optional snap/component that is in the seed being refreshed.
 //
 // The seed is lazily loaded, and only opened when required.
-func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, error) {
+func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, bool, error) {
 	snaps := make(map[string]string)
 	components := make(map[string]string)
 
@@ -1914,7 +1908,7 @@ func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snaps
 	snaps["snapd"] = "required"
 
 	var optionalInSeed map[string]bool
-	return func(candidate snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, error) {
+	return func(candidate snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, bool, error) {
 		// CheckSeedRefreshRemove has both candidate.SnapSetupTaskIDs and
 		// candidate.ComponentSetupTaskIDs empty. Make sure we don't
 		// enter the component exclusive path.
@@ -1931,46 +1925,46 @@ func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snaps
 				optionalComps = append(optionalComps, name)
 			}
 		}
-		if componentExclusive {
-			if len(filteredCompSetupTaskIDs) == 0 && len(optionalComps) == 0 {
-				return snapstate.SeedRefreshCandidate{}, nil
-			}
-		} else {
+		if componentExclusive && len(filteredCompSetupTaskIDs)+len(optionalComps) == 0 {
+			return snapstate.SeedRefreshCandidate{}, false, nil
+		}
+
+		if !componentExclusive {
 			presence, inModel := snaps[candidate.InstanceName]
 			if !inModel {
 				// if not a component-exclusive refresh and the snap is not in
 				// the model, do not trigger a seed refresh.
-				return snapstate.SeedRefreshCandidate{}, nil
+				return snapstate.SeedRefreshCandidate{}, false, nil
 			}
 
 			if presence == "required" && len(candidate.ComponentSetupTaskIDs) == len(filteredCompSetupTaskIDs) {
-				return candidate, nil
+				return candidate, true, nil
 			}
 		}
 
 		if optionalInSeed == nil {
 			currentSystem, err := currentSeededSystem(st)
 			if err != nil {
-				return snapstate.SeedRefreshCandidate{}, err
+				return snapstate.SeedRefreshCandidate{}, false, err
 			}
 
 			current, err := seedOpen(dirs.SnapSeedDir, currentSystem.System)
 			if err != nil {
-				return snapstate.SeedRefreshCandidate{}, err
+				return snapstate.SeedRefreshCandidate{}, false, err
 			}
 			if err := current.LoadAssertions(nil, nil); err != nil {
-				return snapstate.SeedRefreshCandidate{}, err
+				return snapstate.SeedRefreshCandidate{}, false, err
 			}
 
 			copier, ok := current.(seed.Copier)
 			if !ok {
 				// this would only happen if the seed is pre-core20
-				return snapstate.SeedRefreshCandidate{}, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
+				return snapstate.SeedRefreshCandidate{}, false, fmt.Errorf("internal error: seed %q does not support listing optional containers", currentSystem.System)
 			}
 
 			oc, err := copier.OptionalContainers()
 			if err != nil {
-				return snapstate.SeedRefreshCandidate{}, err
+				return snapstate.SeedRefreshCandidate{}, false, err
 			}
 
 			optionalInSeed = make(map[string]bool, len(oc.Snaps)+len(oc.Components))
@@ -1992,12 +1986,12 @@ func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snaps
 			}
 		}
 
-		if componentExclusive {
-			if len(filteredCompSetupTaskIDs) == 0 {
-				return snapstate.SeedRefreshCandidate{}, nil
-			}
-		} else if snaps[candidate.InstanceName] != "required" && !optionalInSeed[candidate.InstanceName] {
-			return snapstate.SeedRefreshCandidate{}, nil
+		if componentExclusive && len(filteredCompSetupTaskIDs) == 0 {
+			return snapstate.SeedRefreshCandidate{}, false, nil
+		}
+
+		if !componentExclusive && snaps[candidate.InstanceName] != "required" && !optionalInSeed[candidate.InstanceName] {
+			return snapstate.SeedRefreshCandidate{}, false, nil
 		}
 
 		filteredCandidate := snapstate.SeedRefreshCandidate{
@@ -2007,7 +2001,7 @@ func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snaps
 		if len(filteredCompSetupTaskIDs) > 0 {
 			filteredCandidate.ComponentSetupTaskIDs = filteredCompSetupTaskIDs
 		}
-		return filteredCandidate, nil
+		return filteredCandidate, true, nil
 
 	}
 }
