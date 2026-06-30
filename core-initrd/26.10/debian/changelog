@@ -1,3 +1,10 @@
+ubuntu-core-initramfs (74+2.76+g12249.4c97667+26.10) stonking; urgency=medium
+
+  * core-initrd: add additional dlopen dependencies pulled in by systemd (#17244) 
+  * Update to snapd version 2.76+g12249.4c97667
+
+ -- Philip Meulengracht <philip.meulengracht@canonical.com>  Tue, 30 Jun 2026 07:25:42 +0000
+
 ubuntu-core-initramfs (74+2.75.2+g295.cef124a+26.10) stonking; urgency=medium
 
   * Release for stonking
