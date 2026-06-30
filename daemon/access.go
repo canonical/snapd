@@ -27,9 +27,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -480,43 +478,4 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 	}
 
 	return checker.CheckAccess(d, r, ucred, user)
-}
-
-// isRequestFromSnapCmd checks that the request is coming from snap command.
-//
-// It checks that the request process "/proc/PID/exe" points to one of the
-// known locations of the snap command. This not a security-oriented check.
-func isRequestFromSnapCmd(r *http.Request) (bool, error) {
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil {
-		return false, err
-	}
-	exe, err := osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
-	if err != nil {
-		return false, err
-	}
-
-	// There aren't too many options, but overall possibilities are:
-	// - we are re-executed and the client isn't
-	// - the client re-executed but we did not
-	// - TODO the client could be a merged snapd-snap binary
-
-	switch filepath.Base(exe) {
-	case "snap", "snap-fips": // the standalone snap binary, or its FIPS build variant
-	default:
-		return false, nil
-	}
-
-	if strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
-		strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "core")+"/") {
-		// client with expected name from snap or core snap
-		return true, nil
-	}
-
-	if strings.HasPrefix(exe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") {
-		// client with expected name from one of the system locations
-		return true, nil
-	}
-
-	return false, nil
 }

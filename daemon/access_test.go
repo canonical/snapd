@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -1070,40 +1069,4 @@ func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
 	err = ac.CheckAccess(nil, req, &ucred, nil)
 	c.Assert(err, DeepEquals, daemon.BadRequest("unexpected data after request body"))
-}
-
-func (s *accessSuite) TestIsFromSnapCmd(c *C) {
-	req, err := http.NewRequest("GET", "/v2/system-volumes", nil)
-	c.Assert(err, IsNil)
-
-	restore := daemon.MockUcrednetGet(func(remoteAddr string) (ucred *daemon.Ucrednet, err error) {
-		return &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}, nil
-	})
-	defer restore()
-
-	for _, tc := range []struct {
-		exe string
-		res bool
-	}{
-		{filepath.Join(dirs.SnapMountDir, "core/123/usr/bin/snap"), true},
-		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/bin/snap"), true},
-		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/bin/snap-fips"), true},
-		{filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), true},
-
-		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/snap"), false},
-		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/not-a-snap"), false},
-	} {
-		c.Logf("tc: %+v", tc)
-		func() {
-			restore = daemon.MockOsReadlink(func(p string) (string, error) {
-				c.Check(p, Equals, "/proc/100/exe")
-				return tc.exe, nil
-			})
-			defer restore()
-
-			res, err := daemon.IsRequestFromSnapCmd(req)
-			c.Check(err, IsNil)
-			c.Check(res, Equals, tc.res)
-		}()
-	}
 }
