@@ -3623,6 +3623,11 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupport
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedHybridHappy(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for the correct HWROT error kind
+		c.Skip("secboot is not available")
+	}
+
 	const isSupportedHybrid = true
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isSupportedHybrid, nil)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)

@@ -1091,6 +1091,10 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 }
 
 func (s *installSuite) TestEncryptionSupportInfoAccumulatesSeenErrors(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for the correct HWROT error kind
+		c.Skip("secboot is not available")
+	}
 
 	const isSupportedUbuntuHybrid = true
 	model := s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedUbuntuHybrid, ErrorsDetectedCompound, ErrorNone, map[string]any{
