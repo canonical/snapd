@@ -374,46 +374,6 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C
 
 }
 
-// Test that if gate-auto-refresh hook errors out, the hook handler
-// assumes --hold.
-func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(c *C) {
-	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
-		// refresh is inhibited while the gate-auto-refresh hook is running.
-		checkRunInhibit(c, "snap-a", runinhibit.HintInhibitedGateRefresh, runinhibit.InhibitInfo{Previous: snap.R(1)})
-
-		// this hook does nothing (action not set to proceed/hold).
-		c.Check(ctx.HookName(), Equals, "gate-auto-refresh")
-		c.Check(ctx.InstanceName(), Equals, "snap-a")
-		return []byte("fail"), fmt.Errorf("boom")
-	}
-	restore := hookstate.MockRunHook(hookInvoke)
-	defer restore()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	candidates := map[string]any{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
-	st.Set("refresh-candidates", candidates)
-
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
-	change := st.NewChange("kind", "summary")
-	change.AddTask(task)
-
-	st.Unlock()
-	s.settle(c)
-	st.Lock()
-
-	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
-	c.Assert(change.Status(), Equals, state.DoneStatus)
-
-	// and snap-a is now held.
-	checkIsHeld(c, st, "snap-a", "snap-a")
-
-	// inhibit lock is unlocked
-	checkRunInhibit(c, "snap-a", runinhibit.HintNotInhibited, runinhibit.InhibitInfo{})
-}
-
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		checkRunInhibit(c, "snap-a", runinhibit.HintInhibitedGateRefresh, runinhibit.InhibitInfo{Previous: snap.R(1)})

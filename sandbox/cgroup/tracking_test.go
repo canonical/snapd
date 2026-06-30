@@ -51,17 +51,6 @@ func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-func (s *trackingSuite) TestCreateTransientScopeForTrackingNoDBus(c *C) {
-	noDBus := func() (*dbus.Conn, error) {
-		return nil, fmt.Errorf("dbus not available")
-	}
-	restore := dbusutil.MockConnections(noDBus, noDBus)
-	defer restore()
-
-	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
-	c.Assert(err, ErrorMatches, "cannot track application process")
-}
-
 // TestCreateTransientScopeForTrackingUUIDFailure tests the UUID error path
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUUIDFailure(c *C) {
 	// Hand out stub connections to both the system and session bus.
@@ -125,8 +114,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTracking(c *C) {
 }
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric(c *C) {
-	// Pretend that refresh app awareness is enabled
-
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
 	restore := dbusutil.MockConnections(dbustest.StubConnection, dbustest.StubConnection)
@@ -183,8 +170,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNotRootGeneric
 }
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c *C) {
-	// Pretend that refresh app awareness is enabled
-
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
 	restore := dbusutil.MockConnections(dbustest.StubConnection, dbustest.StubConnection)
@@ -236,8 +221,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFallback(c
 }
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFallback(c *C) {
-	// Pretend that refresh app awareness is enabled
-
 	// Make it appear that session bus is there but system bus is not.
 	noSystemBus := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("system bus is not available for testing")
@@ -278,8 +261,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyRootFailedFall
 }
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
-	// Pretend that refresh app awareness is enabled
-
 	// Make it appear that DBus is entirely unavailable.
 	noBus := func() (*dbus.Conn, error) {
 		return nil, fmt.Errorf("dbus is not available for testing")
@@ -322,8 +303,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingUnhappyNoDBus(c *C) {
 }
 
 func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
-	// Pretend that refresh app awareness is enabled
-
 	// Hand out stub connections to both the system and session bus.
 	// Neither is really used here but they must appear to be available.
 	restore := dbusutil.MockConnections(dbustest.StubConnection, dbustest.StubConnection)
@@ -368,8 +347,6 @@ func (s *trackingSuite) TestCreateTransientScopeForTrackingSilentlyFails(c *C) {
 }
 
 func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
-	// Pretend that refresh app awareness is enabled
-
 	// Hand out stub connections to both the system and session bus. Remember
 	// the identity of the system bus to that we can verify access later.
 	// Neither is really used here but they must appear to be available.
