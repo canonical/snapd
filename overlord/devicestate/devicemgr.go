@@ -3599,7 +3599,7 @@ func (m *DeviceManager) encryptionSupportInfo(
 		return cachedEncryptionSupportInfo, nil
 	}
 
-	// GetEncryptionSupportInfo expects and uses constraints.CheckContext when
+	// GetEncryptionSupportInfo expects and uses constraints.PrevInfo.CheckContext when
 	// constraints.CheckAction != nil, otherwise it is ignored. See
 	// install.encryptionAvailabilityCheck.
 	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)

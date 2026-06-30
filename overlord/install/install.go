@@ -328,7 +328,7 @@ func GetEncryptionSupportInfo(
 		StorageSafety: constraints.Model.StorageSafety(),
 	}
 	if constraints.PrevInfo != nil {
-		// accumlate seen errors from previous checks even if they were cleared
+		// accumulate seen errors from previous checks even if they were cleared
 		// with a "proceed" action.
 		res.seenAvailabilityCheckErrorKinds = constraints.PrevInfo.seenAvailabilityCheckErrorKinds
 	}

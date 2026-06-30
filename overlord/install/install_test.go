@@ -1090,7 +1090,7 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 	}
 }
 
-func (s *installSuite) TestEncryptionSupportInfoAccumlatesSeenErrors(c *C) {
+func (s *installSuite) TestEncryptionSupportInfoAccumulatesSeenErrors(c *C) {
 
 	const isSupportedUbuntuHybrid = true
 	model := s.mockHelperForEncryptionAvailabilityCheck(c, isSupportedUbuntuHybrid, ErrorsDetectedCompound, ErrorNone, map[string]any{
