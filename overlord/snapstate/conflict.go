@@ -200,7 +200,7 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 				ChangeKind: "remove-recovery-system",
 				ChangeID:   chg.ID(),
 			}
-		case "revert-snap", "refresh-snap":
+		case "revert-snap", "refresh-snap", "install-snap":
 			downgrading, err := changeIsSnapdDowngrade(st, chg)
 			if err != nil {
 				return err

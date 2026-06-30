@@ -142,7 +142,7 @@ type: base
 	} {
 		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
 		s.st.Set("seeded", true)
-		ts, _, err := snapstate.InstallPath(s.st, &snap.SideInfo{
+		ts, err := snapstate.InstallPath(s.st, &snap.SideInfo{
 			RealName: sn.name,
 		}, path, "", "", snapstate.Flags{}, nil)
 		c.Assert(err, IsNil)

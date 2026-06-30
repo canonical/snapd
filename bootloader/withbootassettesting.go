@@ -50,7 +50,7 @@ func MaybeInjectTestingBootloaderAssets() {
 	}
 
 	// log an info level message, it is a testing build of snapd anyway
-	logger.Noticef("maybe inject boot assets?")
+	logger.Debugf("maybe inject boot assets?")
 
 	// is there a marker file at /usr/lib/snapd/ in the snap?
 	selfExe, err := maybeInjectOsReadlink("/proc/self/exe")
@@ -60,7 +60,7 @@ func MaybeInjectTestingBootloaderAssets() {
 
 	injectPieceRaw, err := os.ReadFile(filepath.Join(filepath.Dir(selfExe), "bootassetstesting"))
 	if os.IsNotExist(err) {
-		logger.Noticef("no boot asset testing marker")
+		logger.Debugf("no boot asset testing marker")
 		return
 	}
 	if len(injectPieceRaw) == 0 {
