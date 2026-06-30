@@ -107,7 +107,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/system-info", nil)
 	c.Assert(err, check.IsNil)
 
-	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "14.04"})
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
@@ -137,6 +137,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	tr.Set("core", "refresh.schedule", "00:00-9:00/12:00-13:00")
 	tr.Set("core", "refresh.timer", "8:00~9:00/2")
 	tr.Set("core", "experimental.parallel-instances", "false")
+	tr.Set("core", "experimental.user-daemons", "true")
 	tr.Commit()
 	st.Unlock()
 
@@ -151,8 +152,8 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 		"series":  "16",
 		"version": "42b1",
 		"os-release": map[string]any{
-			"id":         "distro-id",
-			"version-id": "1.2",
+			"id":         "ubuntu",
+			"version-id": "14.04",
 		},
 		"build-id":   buildID,
 		"on-classic": true,
@@ -211,6 +212,17 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	_, exists = parallelInstancesInfo["unsupported-reason"]
 	c.Check(exists, check.Equals, false)
 	c.Check(parallelInstancesInfo["enabled"], check.Equals, false)
+	// Ensure that UserDaemons exists and is a feature.FeatureInfo.
+	userDaemonsInfoRaw, exists := featuresAll[features.UserDaemons.String()]
+	c.Assert(exists, check.Equals, true)
+	userDaemonsInfo, ok := userDaemonsInfoRaw.(map[string]any)
+	c.Assert(ok, check.Equals, true)
+	// Ensure that UserDaemons is unsupported but enabled.
+	c.Check(userDaemonsInfo["supported"], check.Equals, false)
+	unsupportedReason, exists := userDaemonsInfo["unsupported-reason"]
+	c.Check(exists, check.Equals, true)
+	c.Check(unsupportedReason, check.Not(check.Equals), "")
+	c.Check(userDaemonsInfo["enabled"], check.Equals, true)
 }
 
 func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
