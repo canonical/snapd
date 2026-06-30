@@ -272,7 +272,9 @@ func (s *SnapRoutineFileAccessSuite) checkSystemPackagesDocInterface(c *C, expec
 	s.checkAccess(c, "/usr/share/cups/doc-root", expectedAccess)
 	s.checkAccess(c, "/usr/share/gimp/2.0/help", expectedAccess)
 	s.checkAccess(c, "/usr/share/gtk-doc", expectedAccess)
-	s.checkAccess(c, "/usr/share/javascript", expectedAccess)
+	s.checkAccess(c, "/usr/share/javascript", "hidden\n") // This path is always hidden, even with the interface connected
+	s.checkAccess(c, "/usr/share/javascript/", "hidden\n") // This path is always hidden, even with the interface connected
+	s.checkAccess(c, "/usr/share/javascript/foo", expectedAccess)
 	s.checkAccess(c, "/usr/share/libreoffice/help", expectedAccess)
 	s.checkAccess(c, "/usr/share/sphinx_rtd_theme", expectedAccess)
 	s.checkAccess(c, "/usr/share/xubuntu-docs", expectedAccess)

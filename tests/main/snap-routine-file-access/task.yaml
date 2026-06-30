@@ -87,6 +87,8 @@ execute: |
     access /usr/share/gimp/2.0/help | MATCH hidden
     access /usr/share/gtk-doc | MATCH hidden
     access /usr/share/javascript | MATCH hidden
+    access /usr/share/javascript/ | MATCH hidden
+    access /usr/share/javascript/foo | MATCH hidden
     access /usr/share/libreoffice/help | MATCH hidden
     access /usr/share/sphinx_rtd_theme | MATCH hidden
     access /usr/share/xubuntu-docs | MATCH hidden
@@ -102,7 +104,9 @@ execute: |
     access /usr/share/cups/doc-root | MATCH read-only
     access /usr/share/gimp/2.0/help | MATCH read-only
     access /usr/share/gtk-doc | MATCH read-only
-    access /usr/share/javascript | MATCH read-only
+    access /usr/share/javascript | MATCH hidden # This path is always hidden, even with the interface connected
+    access /usr/share/javascript/ | MATCH hidden # This path is always hidden, even with the interface connected
+    access /usr/share/javascript/foo | MATCH read-only
     access /usr/share/libreoffice/help | MATCH read-only
     access /usr/share/sphinx_rtd_theme | MATCH read-only
     access /usr/share/xubuntu-docs | MATCH read-only
