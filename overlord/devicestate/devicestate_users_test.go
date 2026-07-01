@@ -134,7 +134,7 @@ func (s *usersSuite) TestCreateUserNoSSHKeys(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUser, err := devicestate.CreateUser(s.state, true, "popper@lse.ac.uk", time.Time{}, seclog.AddReasonAdminStore)
+	createdUser, err := devicestate.CreateUser(s.state, true, "popper@lse.ac.uk", time.Time{}, seclog.AddReasonAPICreateUserFromStoreCredentials)
 	s.state.Unlock()
 
 	c.Assert(err, check.NotNil)
@@ -169,7 +169,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	// user was setup in state
 	// create user
 	s.state.Lock()
-	createdUser, userErr := devicestate.CreateUser(s.state, false, "popper@lse.ac.uk", expectedExpiration, seclog.AddReasonAdminStore)
+	createdUser, userErr := devicestate.CreateUser(s.state, false, "popper@lse.ac.uk", expectedExpiration, seclog.AddReasonAPICreateUserFromStoreCredentials)
 	s.state.Unlock()
 
 	c.Assert(userErr, check.IsNil)
@@ -200,7 +200,7 @@ func (s *usersSuite) TestCreateUser(c *check.C) {
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Created system user karl")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "xxyyzz")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Known:false")
-	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="admin-store"`)
+	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="api-create-user-from-store-credentials"`)
 }
 
 func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
@@ -223,7 +223,7 @@ func (s *usersSuite) TestUserActionRemoveDelUserErr(c *check.C) {
 
 	s.seclogBuf.Reset()
 	s.state.Lock()
-	userState, userErr := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAdminRemove})
+	userState, userErr := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAPIRemoveUser})
 	s.state.Unlock()
 	c.Check(userErr, check.NotNil)
 	c.Check(s.errorIsInternal(userErr), check.Equals, true)
@@ -253,7 +253,7 @@ func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
 	})()
 
 	s.state.Lock()
-	_, err = devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{Force: true, RemoveReason: seclog.RemoveReasonAdminRemove})
+	_, err = devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{Force: true, RemoveReason: seclog.RemoveReasonAPIRemoveUser})
 	s.state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(calls, check.Equals, 1)
@@ -261,7 +261,7 @@ func (s *usersSuite) TestUserActionRemoveDelUserForce(c *check.C) {
 	c.Check(s.seclogBuf.String(), testutil.Contains, "user_removed_system")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Removed system user some-user")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Force:true")
-	c.Check(s.seclogBuf.String(), testutil.Contains, `remove_reason="admin-remove"`)
+	c.Check(s.seclogBuf.String(), testutil.Contains, `remove_reason="api-remove-user"`)
 }
 
 func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
@@ -276,7 +276,7 @@ func (s *usersSuite) TestUserActionRemoveStateErr(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAdminRemove})
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAPIRemoveUser})
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -295,7 +295,7 @@ func (s *usersSuite) TestUserActionRemoveNoUserInState(c *check.C) {
 	})
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAdminRemove})
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAPIRemoveUser})
 	s.state.Unlock()
 
 	c.Check(err, check.NotNil)
@@ -324,7 +324,7 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	})()
 
 	s.state.Lock()
-	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAdminRemove})
+	userState, err := devicestate.RemoveUser(s.state, "some-user", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAPIRemoveUser})
 	s.state.Unlock()
 
 	c.Check(err, check.IsNil)
@@ -342,12 +342,12 @@ func (s *usersSuite) TestUserActionRemove(c *check.C) {
 	c.Check(s.seclogBuf.String(), testutil.Contains, "user_removed_system")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Removed system user some-user")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Force:false")
-	c.Check(s.seclogBuf.String(), testutil.Contains, `remove_reason="admin-remove"`)
+	c.Check(s.seclogBuf.String(), testutil.Contains, `remove_reason="api-remove-user"`)
 }
 
 func (s *usersSuite) TestUserActionRemoveNoUsername(c *check.C) {
 
-	userState, err := devicestate.RemoveUser(s.state, "", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAdminRemove})
+	userState, err := devicestate.RemoveUser(s.state, "", &devicestate.RemoveUserOptions{RemoveReason: seclog.RemoveReasonAPIRemoveUser})
 	c.Check(err, check.NotNil)
 	c.Check(err.Error(), check.Matches, "need a username to remove")
 	c.Check(s.errorIsInternal(err), check.Equals, false)
@@ -584,7 +584,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "foo@bar.com", seclog.AddReasonAdminAssertion)
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "foo@bar.com", seclog.AddReasonAPICreateUserFromAssertion)
 	s.state.Unlock()
 
 	expected := []*devicestate.CreatedUser{
@@ -602,7 +602,7 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Created system user example-user")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Example User")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Known:true")
-	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="admin-assertion"`)
+	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="api-create-user-from-assertion"`)
 	c.Check(s.seclogBuf.String(), testutil.Contains, "my-brand")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "foo@bar.com")
 	if forcePasswordChange {
@@ -621,11 +621,11 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllKnown(c *check.C) {
-	s.testCreateUserFromAssertion(c, true, false, seclog.AddReasonAdminKnownAll)
+	s.testCreateUserFromAssertion(c, true, false, seclog.AddReasonAPICreateUserFromAllAssertions)
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllAutomatic(c *check.C) {
-	s.testCreateUserFromAssertion(c, true, true, seclog.AddReasonAutoProvision)
+	s.testCreateUserFromAssertion(c, true, true, seclog.AddReasonAPICreateUserFromAllAssertionsAutomatic)
 }
 
 func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, expectSudoer bool, addReason seclog.SystemUserAddReason) {
@@ -667,7 +667,7 @@ func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, e
 		createdUsers, err = devicestate.CreateKnownUsers(s.state, expectSudoer, "", addReason)
 	} else {
 		var createdUser *devicestate.CreatedUser
-		createdUser, err = devicestate.CreateUser(s.state, expectSudoer, "", time.Time{}, seclog.AddReasonAdminStore)
+		createdUser, err = devicestate.CreateUser(s.state, expectSudoer, "", time.Time{}, seclog.AddReasonAPICreateUserFromStoreCredentials)
 		createdUsers = append(createdUsers, createdUser)
 	}
 	s.state.Unlock()
@@ -737,7 +737,7 @@ func (s *usersSuite) TestCreateAllKnownUsersWithExpiration(c *check.C) {
 	var createdUsers []*devicestate.CreatedUser
 	var err error
 	s.state.Lock()
-	createdUsers, err = devicestate.CreateKnownUsers(s.state, false, "", seclog.AddReasonAdminKnownAll)
+	createdUsers, err = devicestate.CreateKnownUsers(s.state, false, "", seclog.AddReasonAPICreateUserFromAllAssertions)
 	s.state.Unlock()
 
 	c.Check(created, check.DeepEquals, map[string]bool{"example-user": true})
@@ -772,7 +772,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownNoModelError(c *check.C)
 
 	// create user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "", seclog.AddReasonAdminKnownAll)
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "", seclog.AddReasonAPICreateUserFromAllAssertions)
 	s.state.Unlock()
 
 	c.Assert(userErr, check.NotNil)
@@ -797,7 +797,7 @@ func (s *usersSuite) TestCreateUserFromAssertionNoSerial(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "serial@bar.com", seclog.AddReasonAdminAssertion)
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "serial@bar.com", seclog.AddReasonAPICreateUserFromAssertion)
 	s.state.Unlock()
 
 	c.Check(userErr, check.NotNil)
@@ -842,7 +842,7 @@ func (s *usersSuite) TestCreateUserFromAssertionDelayedAfterSerialAcquisition(c 
 
 	// try creating user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "", seclog.AddReasonAdminKnownAll)
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "", seclog.AddReasonAPICreateUserFromAllAssertions)
 	s.state.Unlock()
 
 	// make sure that no users were created
@@ -895,7 +895,7 @@ func (s *usersSuite) TestCreateUserFromAssertionDelayedAfterSerialAcquisition(c 
 	c.Check(len(users), check.Equals, 1)
 	c.Check(users[0].Email, check.Equals, serialUser["email"])
 	c.Check(users[0].Username, check.Equals, serialUser["username"])
-	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="serial-bound"`)
+	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="ensure-create-user-from-serial-bound-assertion"`)
 }
 
 func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
@@ -917,7 +917,7 @@ func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "", seclog.AddReasonAdminKnownAll)
+	createdUsers, userErr := devicestate.CreateKnownUsers(s.state, true, "", seclog.AddReasonAPICreateUserFromAllAssertions)
 	s.state.Unlock()
 
 	c.Check(userErr, check.IsNil)
@@ -959,7 +959,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "", seclog.AddReasonAdminKnownAll)
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "", seclog.AddReasonAPICreateUserFromAllAssertions)
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(created, check.DeepEquals, map[string]bool{
@@ -1005,7 +1005,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnownButSkipExists(c *check.C
 
 	// create user
 	s.state.Lock()
-	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "", seclog.AddReasonAdminKnownAll)
+	createdUsers, err := devicestate.CreateKnownUsers(s.state, false, "", seclog.AddReasonAPICreateUserFromAllAssertions)
 	s.state.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(len(createdUsers), check.Equals, 0)
@@ -1019,7 +1019,7 @@ func (s *usersSuite) TestCreateUserMissingEmail(c *check.C) {
 
 	// create user
 	s.state.Lock()
-	createdUser, err := devicestate.CreateUser(s.state, true, "", time.Time{}, seclog.AddReasonAdminStore)
+	createdUser, err := devicestate.CreateUser(s.state, true, "", time.Time{}, seclog.AddReasonAPICreateUserFromStoreCredentials)
 	s.state.Unlock()
 
 	c.Assert(err, check.NotNil)

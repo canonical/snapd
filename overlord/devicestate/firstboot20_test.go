@@ -830,7 +830,7 @@ func (s *firstBoot20Suite) TestLoadDeviceSeedCore20DangerousAutoImport(c *C) {
 	var calledcreateAllUsers = false
 	r := devicestate.MockCreateAllKnownSystemUsers(func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error) {
 		calledcreateAllUsers = true
-		c.Check(addReason, Equals, seclog.AddReasonSeedFirstboot)
+		c.Check(addReason, Equals, seclog.AddReasonFirstbootCreateUserFromSeedAutoImport)
 		var createdUsers []*devicestate.CreatedUser
 		return createdUsers, nil
 	})
