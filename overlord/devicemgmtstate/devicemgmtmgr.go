@@ -687,7 +687,7 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) er
 	body, err := handler.ResultFromChange(change)
 	if err != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": err.Error()}
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
 	} else {
 		msg.ResponseStatus = asserts.MessageStatusSuccess
 		msg.ResponseBody = body

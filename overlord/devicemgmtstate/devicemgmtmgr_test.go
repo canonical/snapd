@@ -1623,7 +1623,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
 			c.Check(messageID, Equals, "mesg-1")
 			c.Check(status, Equals, asserts.MessageStatusError)
-			c.Check(string(body), Equals, `{"message":"operation failed"}`)
+			c.Check(string(body), Equals, `{"message":"cannot process message: operation failed"}`)
 
 			return assertstest.FakeAssertionWithBody(body, map[string]any{
 				"type":        "response-message",
