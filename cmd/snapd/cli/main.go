@@ -168,7 +168,8 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		// decode the first rune instead of converting all of desc into []rune
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
-		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
+		// Note: exclude Georgian text which doesn't start sentences with uppercase
+		if unicode.IsLower(r) && !unicode.Is(unicode.Georgian, r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
 			panicOnDebug("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
 		}
 	}
