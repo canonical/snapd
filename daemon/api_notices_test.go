@@ -919,15 +919,18 @@ func (s *noticesSuite) TestAddNoticeInvalidAction(c *C) {
 }
 
 func (s *noticesSuite) TestAddNoticeInvalidTypeUnkown(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "foo"}`, `cannot add notice with invalid type "foo"`)
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "foo"}`,
+		`cannot add notice with invalid type "foo" .*`)
 }
 
 func (s *noticesSuite) TestAddNoticeInvalidTypeKnown(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "change-update", "key": "test"}`, "cannot add notice with invalid type.*")
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "change-update", "key": "test"}`,
+		`cannot add notice with invalid type.*`)
 }
 
 func (s *noticesSuite) TestAddNoticeEmptyKey(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": ""}`, `cannot add snap-run-inhibit notice with invalid key ""`)
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": ""}`,
+		`cannot add snap-run-inhibit notice with invalid key "" \(can only record notices from the "snap" command\)`)
 }
 
 func (s *noticesSuite) TestAddNoticeKeyTooLong(c *C) {
@@ -937,11 +940,13 @@ func (s *noticesSuite) TestAddNoticeKeyTooLong(c *C) {
 		"key":    strings.Repeat("x", 257),
 	})
 	c.Assert(err, IsNil)
-	s.testAddNoticeBadRequest(c, string(request), "cannot add snap-run-inhibit notice with invalid key: key must be 256 bytes or less")
+	s.testAddNoticeBadRequest(c, string(request),
+		`cannot add snap-run-inhibit notice with invalid key: key must be 256 bytes or less \(can only record notices from the "snap" command\)`)
 }
 
 func (s *noticesSuite) TestAddNoticeInvalidSnapName(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": "Snap-Name"}`, `invalid key: invalid snap name: "Snap-Name"`)
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": "Snap-Name"}`,
+		`invalid snap name: "Snap-Name" \(can only record notices from the "snap" command\)`)
 }
 
 func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
@@ -1012,8 +1017,8 @@ func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bo
 
 	if shouldFail {
 		rsp := s.errorReq(c, req, nil, actionIsExpected)
-		c.Check(rsp.Status, Equals, 403)
-		c.Assert(rsp.Message, Matches, "only snap command can record notices")
+		c.Check(rsp.Status, Equals, 400)
+		c.Assert(rsp.Message, Matches, `unexpected command of the calling process \(can only record notices from the "snap" command\)`)
 	} else {
 		rsp := s.syncReq(c, req, nil, actionIsExpected)
 		c.Assert(rsp.Status, Equals, 200)
@@ -1219,4 +1224,40 @@ func noticeToMap(c *C, notice *state.Notice) map[string]any {
 func addNotice(c *C, st *state.State, userID *uint32, noticeType state.NoticeType, key string, options *state.AddNoticeOptions) {
 	_, err := st.AddNotice(userID, noticeType, key, options)
 	c.Assert(err, IsNil)
+}
+
+func (s *noticesSuite) TestIsFromSnapCmd(c *C) {
+	req, err := http.NewRequest("GET", "/v2/system-volumes", nil)
+	c.Assert(err, IsNil)
+
+	restore := daemon.MockUcrednetGet(func(remoteAddr string) (ucred *daemon.Ucrednet, err error) {
+		return &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}, nil
+	})
+	defer restore()
+
+	for _, tc := range []struct {
+		exe string
+		res bool
+	}{
+		{filepath.Join(dirs.SnapMountDir, "core/123/usr/bin/snap"), true},
+		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/bin/snap"), true},
+		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/bin/snap-fips"), true},
+		{filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), true},
+
+		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/snap"), false},
+		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/not-a-snap"), false},
+	} {
+		c.Logf("tc: %+v", tc)
+		func() {
+			restore = daemon.MockOsReadlink(func(p string) (string, error) {
+				c.Check(p, Equals, "/proc/100/exe")
+				return tc.exe, nil
+			})
+			defer restore()
+
+			res, err := daemon.IsRequestFromSnapCmd(req)
+			c.Check(err, IsNil)
+			c.Check(res, Equals, tc.res)
+		}()
+	}
 }

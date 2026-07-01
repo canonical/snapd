@@ -398,6 +398,8 @@ var (
 	ErrToResponse      = errToResponse
 
 	MaxReadBuflen = maxReadBuflen
+
+	IsRequestFromSnapCmd = isRequestFromSnapCmd
 )
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
