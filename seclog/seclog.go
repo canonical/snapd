@@ -193,7 +193,7 @@ func LogUserRemoved(user SnapdUser) {
 // LogSystemUserCreated logs creation of a Linux system account using the
 // global security logger. This is distinct from [LogUserCreated], which
 // records snapd user state.
-func LogSystemUserCreated(systemUser string, opts AddOptions) {
+func LogSystemUserCreated(systemUser string, opts AddOptions, addReason SystemUserAddReason) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -202,13 +202,14 @@ func LogSystemUserCreated(systemUser string, opts AddOptions) {
 		fmt.Sprintf("Created system user %s", systemUser),
 		Attr{Key: "system_user", Value: systemUser},
 		Attr{Key: "add_options", Value: opts},
+		Attr{Key: "add_reason", Value: string(addReason)},
 	)
 }
 
 // LogSystemUserRemoved logs removal of a Linux system account using the
 // global security logger. This is distinct from [LogUserRemoved], which
 // records snapd user state.
-func LogSystemUserRemoved(systemUser string, opts RemoveOptions) {
+func LogSystemUserRemoved(systemUser string, opts RemoveOptions, removeReason SystemUserRemoveReason) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -217,6 +218,7 @@ func LogSystemUserRemoved(systemUser string, opts RemoveOptions) {
 		fmt.Sprintf("Removed system user %s", systemUser),
 		Attr{Key: "system_user", Value: systemUser},
 		Attr{Key: "remove_options", Value: opts},
+		Attr{Key: "remove_reason", Value: string(removeReason)},
 	)
 }
 

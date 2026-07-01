@@ -262,7 +262,9 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	st.Lock()
 	defer st.Unlock()
 
-	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{})
+	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{
+		RemoveReason: seclog.RemoveReasonAdminRemove,
+	})
 	if err != nil {
 		if _, ok := err.(*devicestate.UserError); ok {
 			return BadRequest(err.Error())
@@ -389,10 +391,19 @@ func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestat
 	defer st.Unlock()
 
 	if createData.Known {
-		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email)
+		var addReason seclog.SystemUserAddReason
+		switch {
+		case createData.Email != "":
+			addReason = seclog.AddReasonAdminAssertion
+		case createData.Automatic:
+			addReason = seclog.AddReasonAutoProvision
+		default:
+			addReason = seclog.AddReasonAdminKnownAll
+		}
+		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email, addReason)
 	}
 
-	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration)
+	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration, seclog.AddReasonAdminStore)
 	return []*devicestate.CreatedUser{user}, err
 }
 
