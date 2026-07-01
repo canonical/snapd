@@ -80,7 +80,8 @@ func CreateUser(st *state.State, sudoer bool, email string, expiration time.Time
 	}
 
 	opts.Sudoer = sudoer
-	return addUser(st, username, email, expiration, opts, false)
+	const known = false
+	return addUser(st, username, email, expiration, opts, known)
 }
 
 // CreateKnownUsers creates known users. The user details are fetched
@@ -109,7 +110,8 @@ func CreateKnownUsers(st *state.State, sudoer bool, email string) ([]*CreatedUse
 	}
 
 	opts.Sudoer = sudoer
-	createdUser, err := addUser(st, username, email, expiration, opts, true)
+	const known = true
+	createdUser, err := addUser(st, username, email, expiration, opts, known)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +205,8 @@ func createKnownSystemUser(state *state.State, userAssertion *asserts.SystemUser
 	}
 
 	addUserOpts.Sudoer = sudoer
-	return addUser(state, username, email, expiration, addUserOpts, true)
+	const known = true
+	return addUser(state, username, email, expiration, addUserOpts, known)
 }
 
 var createAllKnownSystemUsers = func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error) {
