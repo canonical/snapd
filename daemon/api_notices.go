@@ -268,7 +268,7 @@ func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	defer st.Unlock()
 
 	if err := inst.validate(r); err != nil {
-		return err
+		return BadRequest(`%v (can only record notices from the "snap" command)`, err)
 	}
 
 	noticeId, err := st.AddNotice(&requestUID, state.SnapRunInhibitNotice, inst.Key, nil)
@@ -286,19 +286,19 @@ type noticeInstruction struct {
 	// NOTE: Data and RepeatAfter fields are not needed for snap-run-inhibit notices.
 }
 
-func (inst *noticeInstruction) validate(r *http.Request) *apiError {
+func (inst *noticeInstruction) validate(r *http.Request) error {
 	if inst.Action != "add" {
-		return BadRequest("invalid action %q", inst.Action)
+		return fmt.Errorf("invalid action %q", inst.Action)
 	}
 	if err := state.ValidateNotice(inst.Type, inst.Key, nil); err != nil {
-		return BadRequest("%s", err)
+		return err
 	}
 
 	switch inst.Type {
 	case state.SnapRunInhibitNotice:
 		return inst.validateSnapRunInhibitNotice(r)
 	default:
-		return BadRequest(`cannot add notice with invalid type %q (can only add "snap-run-inhibit" notices)`, inst.Type)
+		return fmt.Errorf(`cannot add notice with invalid type %q`, inst.Type)
 	}
 }
 
@@ -341,19 +341,19 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 	return false, nil
 }
 
-func (inst *noticeInstruction) validateSnapRunInhibitNotice(r *http.Request) *apiError {
+func (inst *noticeInstruction) validateSnapRunInhibitNotice(r *http.Request) error {
 	// double check that the request comes from snap so we can produce a
 	// reasonable error for misguided requests to this currently non-public API.
 	// Note this is not a security check, but merely a low key effort to prevent
 	// misuse of the API.
 	if fromSnapCmd, err := isRequestFromSnapCmd(r); err != nil {
-		return InternalError("cannot check request source: %v", err)
+		return fmt.Errorf("internal error: cannot check request source: %v", err)
 	} else if !fromSnapCmd {
-		return Forbidden(`cannot add notice (can only record %q notices from the "snap" command)`, state.SnapRunInhibitNotice)
+		return fmt.Errorf(`unexpected command of the calling process`)
 	}
 
 	if err := naming.ValidateInstance(inst.Key); err != nil {
-		return BadRequest("invalid key: %v", err)
+		return err
 	}
 
 	return nil

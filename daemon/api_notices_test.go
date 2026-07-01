@@ -919,15 +919,18 @@ func (s *noticesSuite) TestAddNoticeInvalidAction(c *C) {
 }
 
 func (s *noticesSuite) TestAddNoticeInvalidTypeUnkown(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "foo"}`, `cannot add notice with invalid type "foo"`)
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "foo"}`,
+		`cannot add notice with invalid type "foo" .*`)
 }
 
 func (s *noticesSuite) TestAddNoticeInvalidTypeKnown(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "change-update", "key": "test"}`, "cannot add notice with invalid type.*")
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "change-update", "key": "test"}`,
+		`cannot add notice with invalid type.*`)
 }
 
 func (s *noticesSuite) TestAddNoticeEmptyKey(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": ""}`, `cannot add snap-run-inhibit notice with invalid key ""`)
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": ""}`,
+		`cannot add snap-run-inhibit notice with invalid key "" \(can only record notices from the "snap" command\)`)
 }
 
 func (s *noticesSuite) TestAddNoticeKeyTooLong(c *C) {
@@ -937,11 +940,13 @@ func (s *noticesSuite) TestAddNoticeKeyTooLong(c *C) {
 		"key":    strings.Repeat("x", 257),
 	})
 	c.Assert(err, IsNil)
-	s.testAddNoticeBadRequest(c, string(request), "cannot add snap-run-inhibit notice with invalid key: key must be 256 bytes or less")
+	s.testAddNoticeBadRequest(c, string(request),
+		`cannot add snap-run-inhibit notice with invalid key: key must be 256 bytes or less \(can only record notices from the "snap" command\)`)
 }
 
 func (s *noticesSuite) TestAddNoticeInvalidSnapName(c *C) {
-	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": "Snap-Name"}`, `invalid key: invalid snap name: "Snap-Name"`)
+	s.testAddNoticeBadRequest(c, `{"action": "add", "type": "snap-run-inhibit", "key": "Snap-Name"}`,
+		`invalid snap name: "Snap-Name" \(can only record notices from the "snap" command\)`)
 }
 
 func (s *noticesSuite) testAddNoticeBadRequest(c *C, body, errorMatch string) {
@@ -1012,8 +1017,8 @@ func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bo
 
 	if shouldFail {
 		rsp := s.errorReq(c, req, nil, actionIsExpected)
-		c.Check(rsp.Status, Equals, 403)
-		c.Assert(rsp.Message, Matches, `cannot add notice \(can only record "snap-run-inhibit" notices from the "snap" command\)`)
+		c.Check(rsp.Status, Equals, 400)
+		c.Assert(rsp.Message, Matches, `unexpected command of the calling process \(can only record notices from the "snap" command\)`)
 	} else {
 		rsp := s.syncReq(c, req, nil, actionIsExpected)
 		c.Assert(rsp.Status, Equals, 200)
