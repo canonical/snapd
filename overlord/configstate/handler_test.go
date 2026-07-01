@@ -164,6 +164,7 @@ func (s *configureHandlerSuite) TestBeforeDropsGraduatedCoreFeatures(c *C) {
 		// make sure we logged warnings
 		c.Check(logbuf.String(), testutil.Contains, msg)
 		c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
+		c.Check(warningsStrings(context.State().AllWarnings()), testutil.Contains, msg)
 	}
 }
 
@@ -209,6 +210,7 @@ func (s *configureHandlerSuite) TestBeforeDropsNestedGraduatedCoreFeature(c *C) 
 		// make sure we logged warnings
 		c.Check(logbuf.String(), testutil.Contains, msg)
 		c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
+		c.Check(warningsStrings(context.State().AllWarnings()), testutil.Contains, msg)
 	}
 
 	// make sure supported feature did get set
@@ -222,6 +224,14 @@ func (s *configureHandlerSuite) TestBeforeDropsNestedGraduatedCoreFeature(c *C) 
 	err = tr.Get("core", "proxy.http", &proxy)
 	c.Assert(err, IsNil)
 	c.Check(proxy, Equals, "http://proxy.example.com")
+}
+
+func warningsStrings(warnings []*state.Warning) []string {
+	messages := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		messages = append(messages, warning.String())
+	}
+	return messages
 }
 
 func makeModel(override map[string]any) *asserts.Model {

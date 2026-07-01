@@ -15,6 +15,7 @@ execute: |
     echo "Check that setting a graduated experimental feature to true succeeds"
     snap set system experimental."${feature}"=true
     snap tasks --last=configure-snap | MATCH "${message}"
+    snap warnings | MATCH "${message}"
 
     echo "Check that setting a graduated experimental feature to false succeeds"
     snap set system experimental."${feature}"=false
