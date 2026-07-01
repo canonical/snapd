@@ -1,0 +1,66 @@
+summary: Verify interaction with content created in slot prepare hook
+
+details: |
+    Verify that the content created by slot prepare hook is visible in the slot
+    consumer.
+
+environment:
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    STORE_ADDR: localhost:11028
+
+skip:
+    - reason: "Test keys need to be trusted"
+      if: |
+          [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+    snap install core24
+
+    "$TESTSTOOLS"/store-state setup-fake-store "$STORE_DIR"
+    tests.cleanup defer "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
+
+    snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
+    snap ack "$TESTSLIB/assertions/developer1.account"
+    snap ack "$TESTSLIB/assertions/developer1.account-key"
+
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+
+    # provider snaps
+    snap pack test-snapd-content-provider
+
+    "$TESTSTOOLS"/store-state make-snap-installable --revision 1 "$STORE_DIR" \
+        test-snapd-content-provider_1*.snap provider-id
+
+    # consumer snap
+    snap pack test-snapd-content-consumer
+    "$TESTSTOOLS"/store-state make-snap-installable --revision 1 "$STORE_DIR" \
+        test-snapd-content-consumer_1.*.snap consumer-id
+
+debug: |
+    cat /var/snap/test-snapd-content-provider/common/hook.log || true
+    cat /var/snap/test-snapd-content-consumer/common/hook.log || true
+
+execute: |
+    snap install test-snapd-content-provider
+    # no connection established yet, the cotnent directory does not exist
+    not test -e /var/snap/test-snapd-content-provider/common/basic/content
+
+    # install the consumer
+    snap install test-snapd-content-consumer
+    # the connection was established
+    snap connections test-snapd-content-consumer | MATCH "test-snapd-content-provider:content-basic"
+    # and the prepare slot hook created the target
+    test -e /var/snap/test-snapd-content-provider/common/basic/content
+    MATCH "content slot prepare hook" < /var/snap/test-snapd-content-provider/common/hook.log
+
+    test-snapd-content-consumer.app |& tee output.log
+    MATCH 'app running' < output.log
+    MATCH 'content basic' < output.log
+
+    MATCH 'content basic' < /var/snap/test-snapd-content-provider/common/basic/content
+
+    # shellcheck disable=SC2016
+    snap run --shell test-snapd-content-consumer.app -c 'echo foo > $SNAP_COMMON/content-basic/bar'
+    MATCH 'foo' < /var/snap/test-snapd-content-provider/common/basic/bar
