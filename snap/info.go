@@ -1392,9 +1392,18 @@ type AppInfo struct {
 	After  []string
 	Before []string
 
+	PartOf    []string
+	Requisite []string
+
 	Timer *TimerInfo
 
 	Autostart string
+}
+
+// HasPlug returns true if this AppInfo has the requested plug.
+func (app *AppInfo) HasPlug(plug string) bool {
+	_, ok := app.Plugs[plug]
+	return ok
 }
 
 // Runnable returns a Runnable for this app.
