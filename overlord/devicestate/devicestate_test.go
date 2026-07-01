@@ -3227,7 +3227,7 @@ func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extra
 	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(delUserCalled, Equals, true)
-	c.Check(seclogBuf.String(), testutil.Contains, `remove_reason="expired"`)
+	c.Check(seclogBuf.String(), testutil.Contains, `remove_reason="ensure-remove-expired-user"`)
 }
 
 func (s *deviceMgrSuite) testExpiredUserNotRemoved(c *C) {

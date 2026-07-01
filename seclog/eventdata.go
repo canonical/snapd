@@ -224,36 +224,57 @@ func (u SnapdUser) String() string {
 }
 
 // SystemUserAddReason identifies why a system user account was created.
-// Values are logged as add_reason on user_created_system events.
+// Values follow {trigger}-create-user-from-{source} (with optional modifiers)
+// and describe where account details came from, not who invoked the operation.
+// They are logged as add_reason on user_created_system events.
 type SystemUserAddReason string
 
 // SystemUserAddReason values for user_created_system events.
 const (
-	// AddReasonAdminStore is set when an operator requested a user from store email lookup.
-	AddReasonAdminStore SystemUserAddReason = "admin-store"
-	// AddReasonAdminAssertion is set when an operator requested one assertion-backed user by email.
-	AddReasonAdminAssertion SystemUserAddReason = "admin-assertion"
-	// AddReasonAdminKnownAll is set when an operator requested all valid assertion users.
-	AddReasonAdminKnownAll SystemUserAddReason = "admin-known-all"
-	// AddReasonAutoProvision is set for unattended automatic provisioning via the
-	// user-admin API (automatic: true), e.g. snap auto-import.
-	AddReasonAutoProvision SystemUserAddReason = "admin-auto-provision"
-	// AddReasonSeedFirstboot is set when users are created from seed auto-import on dangerous models.
-	AddReasonSeedFirstboot SystemUserAddReason = "seed-firstboot"
-	// AddReasonSerialBound is set when a serial-bound assertion is applied after registration.
-	AddReasonSerialBound SystemUserAddReason = "serial-bound"
+	// AddReasonAPICreateUserFromStoreCredentials is set when POST /v2/users or
+	// POST /v2/create-user creates a system user with known: false; account
+	// details are looked up from the Snap Store by email.
+	AddReasonAPICreateUserFromStoreCredentials SystemUserAddReason = "api-create-user-from-store-credentials"
+	// AddReasonAPICreateUserFromAssertion is set when POST /v2/users or
+	// POST /v2/create-user creates one user with known: true and an email;
+	// details come from a pre-imported system-user assertion selected by
+	// brand-id and email.
+	AddReasonAPICreateUserFromAssertion SystemUserAddReason = "api-create-user-from-assertion"
+	// AddReasonAPICreateUserFromAllAssertions is set when POST /v2/users or
+	// POST /v2/create-user creates every applicable system user with known: true
+	// and no email; details come from all valid pre-imported system-user
+	// assertions for the device model.
+	AddReasonAPICreateUserFromAllAssertions SystemUserAddReason = "api-create-user-from-all-assertions"
+	// AddReasonAPICreateUserFromAllAssertionsAutomatic is set when POST /v2/users
+	// or POST /v2/create-user is called with automatic: true (e.g. snap
+	// auto-import); all applicable assertion-backed users are created on an
+	// unmanaged device.
+	AddReasonAPICreateUserFromAllAssertionsAutomatic SystemUserAddReason = "api-create-user-from-all-assertions-automatic"
+	// AddReasonFirstbootCreateUserFromSeedAutoImport is set during first boot on
+	// dangerous models when system-user assertions from the seed are
+	// auto-imported and applied (not via the user-admin API).
+	AddReasonFirstbootCreateUserFromSeedAutoImport SystemUserAddReason = "firstboot-create-user-from-seed-auto-import"
+	// AddReasonEnsureCreateUserFromSerialBoundAssertion is set when the device
+	// manager ensure loop creates users from serial-bound system-user assertions
+	// that could not be applied until after device registration.
+	AddReasonEnsureCreateUserFromSerialBoundAssertion SystemUserAddReason = "ensure-create-user-from-serial-bound-assertion"
 )
 
 // SystemUserRemoveReason identifies why a system user account was removed.
-// Values are logged as remove_reason on user_removed_system events.
+// Values follow {trigger}-remove-{cause} and describe the trigger, not who
+// invoked the operation. They are logged as remove_reason on
+// user_removed_system events.
 type SystemUserRemoveReason string
 
 // SystemUserRemoveReason values for user_removed_system events.
 const (
-	// RemoveReasonAdminRemove is set when an operator explicitly removed the account.
-	RemoveReasonAdminRemove SystemUserRemoveReason = "admin-remove"
-	// RemoveReasonExpired is set when an expired account was removed by the ensure loop.
-	RemoveReasonExpired SystemUserRemoveReason = "expired"
+	// RemoveReasonAPIRemoveUser is set when POST /v2/users (DELETE) or
+	// POST /v2/create-user remove-user removes the account explicitly.
+	RemoveReasonAPIRemoveUser SystemUserRemoveReason = "api-remove-user"
+	// RemoveReasonEnsureRemoveExpiredUser is set when the device manager ensure
+	// loop removes an account whose assertion or API-provided expiration time
+	// has passed.
+	RemoveReasonEnsureRemoveExpiredUser SystemUserRemoveReason = "ensure-remove-expired-user"
 )
 
 // Ref identifies an assertion by type and primary key. It mirrors asserts.Ref

@@ -1248,7 +1248,7 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	db := assertstate.DB(m.state)
 
 	const sudoer = true
-	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer, seclog.AddReasonSerialBound)
+	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer, seclog.AddReasonEnsureCreateUserFromSerialBoundAssertion)
 	if err != nil {
 		return err
 	}
@@ -1977,7 +1977,7 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 		// otherwise by the user having left a process or service running.
 		if _, err := RemoveUser(st, user.Username, &RemoveUserOptions{
 			Force:        true,
-			RemoveReason: seclog.RemoveReasonExpired,
+			RemoveReason: seclog.RemoveReasonEnsureRemoveExpiredUser,
 		}); err != nil {
 			return err
 		}

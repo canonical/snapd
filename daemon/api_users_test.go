@@ -570,7 +570,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
 		c.Check(expiration, check.Equals, time.Time{})
-		c.Check(addReason, check.Equals, seclog.AddReasonAdminStore)
+		c.Check(addReason, check.Equals, seclog.AddReasonAPICreateUserFromStoreCredentials)
 		expected := &devicestate.CreatedUser{
 			Username: expectedUsername,
 			SSHKeys: []string{
@@ -624,7 +624,7 @@ func (s *userSuite) testCreateUserErr(c *check.C, internalErr bool) {
 	called := 0
 	defer daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, sudoer bool, email string, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error) {
 		called++
-		c.Check(addReason, check.Equals, seclog.AddReasonAdminAssertion)
+		c.Check(addReason, check.Equals, seclog.AddReasonAPICreateUserFromAssertion)
 		if internalErr {
 			return nil, fmt.Errorf("internal error: wat-internal")
 		} else {
@@ -760,7 +760,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	called := 0
 	defer daemon.MockDeviceStateRemoveUser(func(st *state.State, username string, opts *devicestate.RemoveUserOptions) (*auth.UserState, error) {
 		called++
-		c.Check(opts.RemoveReason, check.Equals, seclog.RemoveReasonAdminRemove)
+		c.Check(opts.RemoveReason, check.Equals, seclog.RemoveReasonAPIRemoveUser)
 		removedUser := &auth.UserState{ID: expectedID, Username: expectedUsername, Email: expectedEmail}
 
 		return removedUser, nil
@@ -1045,7 +1045,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
 		c.Check(expiration.Equal(expectedTime), check.Equals, true)
-		c.Check(addReason, check.Equals, seclog.AddReasonAdminStore)
+		c.Check(addReason, check.Equals, seclog.AddReasonAPICreateUserFromStoreCredentials)
 		expected := &devicestate.CreatedUser{
 			Username: expectedUsername,
 			SSHKeys: []string{
@@ -1190,9 +1190,9 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
-	s.testPostCreateUserFromAssertion(c, `{"known":true}`, false, seclog.AddReasonAdminKnownAll)
+	s.testPostCreateUserFromAssertion(c, `{"known":true}`, false, seclog.AddReasonAPICreateUserFromAllAssertions)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllAutomatic(c *check.C) {
-	s.testPostCreateUserFromAssertion(c, `{"automatic":true}`, true, seclog.AddReasonAutoProvision)
+	s.testPostCreateUserFromAssertion(c, `{"automatic":true}`, true, seclog.AddReasonAPICreateUserFromAllAssertionsAutomatic)
 }

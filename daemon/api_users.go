@@ -263,7 +263,7 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 	defer st.Unlock()
 
 	u, err := deviceStateRemoveUser(st, username, &devicestate.RemoveUserOptions{
-		RemoveReason: seclog.RemoveReasonAdminRemove,
+		RemoveReason: seclog.RemoveReasonAPIRemoveUser,
 	})
 	if err != nil {
 		if _, ok := err.(*devicestate.UserError); ok {
@@ -394,16 +394,16 @@ func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestat
 		var addReason seclog.SystemUserAddReason
 		switch {
 		case createData.Email != "":
-			addReason = seclog.AddReasonAdminAssertion
+			addReason = seclog.AddReasonAPICreateUserFromAssertion
 		case createData.Automatic:
-			addReason = seclog.AddReasonAutoProvision
+			addReason = seclog.AddReasonAPICreateUserFromAllAssertionsAutomatic
 		default:
-			addReason = seclog.AddReasonAdminKnownAll
+			addReason = seclog.AddReasonAPICreateUserFromAllAssertions
 		}
 		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email, addReason)
 	}
 
-	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration, seclog.AddReasonAdminStore)
+	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration, seclog.AddReasonAPICreateUserFromStoreCredentials)
 	return []*devicestate.CreatedUser{user}, err
 }
 

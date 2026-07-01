@@ -187,7 +187,7 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 			attrs: []seclog.Attr{
 				{Key: "system_user", Value: "karl"},
 				{Key: "add_options", Value: seclog.AddOptions{Known: false}},
-				{Key: "add_reason", Value: string(seclog.AddReasonAdminStore)},
+				{Key: "add_reason", Value: string(seclog.AddReasonAPICreateUserFromStoreCredentials)},
 			},
 			wantKeys: []string{
 				"datetime", "level", "description",
@@ -198,7 +198,7 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 			attrs: []seclog.Attr{
 				{Key: "system_user", Value: "karl"},
 				{Key: "remove_options", Value: seclog.RemoveOptions{Force: true}},
-				{Key: "remove_reason", Value: string(seclog.RemoveReasonExpired)},
+				{Key: "remove_reason", Value: string(seclog.RemoveReasonEnsureRemoveExpiredUser)},
 			},
 			wantKeys: []string{
 				"datetime", "level", "description",
@@ -497,14 +497,14 @@ func (s *SlogSuite) TestSystemUserAddReasonLogValue(c *C) {
 		"test",
 		seclog.Attr{Key: "system_user", Value: "foo"},
 		seclog.Attr{Key: "add_options", Value: seclog.AddOptions{Known: true}},
-		seclog.Attr{Key: "add_reason", Value: string(seclog.AddReasonAdminAssertion)},
+		seclog.Attr{Key: "add_reason", Value: string(seclog.AddReasonAPICreateUserFromAssertion)},
 	)
 
 	var obtained record
 	err := json.Unmarshal(s.buf.Bytes(), &obtained)
 	c.Assert(err, IsNil)
 	c.Check(obtained.SystemUser, Equals, "foo")
-	c.Check(obtained.AddReason, Equals, "admin-assertion")
+	c.Check(obtained.AddReason, Equals, "api-create-user-from-assertion")
 	c.Check(obtained.AddOptions.Known, Equals, true)
 }
 
@@ -521,14 +521,14 @@ func (s *SlogSuite) TestSystemUserRemoveReasonLogValue(c *C) {
 		"test",
 		seclog.Attr{Key: "system_user", Value: "foo"},
 		seclog.Attr{Key: "remove_options", Value: seclog.RemoveOptions{Force: true}},
-		seclog.Attr{Key: "remove_reason", Value: string(seclog.RemoveReasonExpired)},
+		seclog.Attr{Key: "remove_reason", Value: string(seclog.RemoveReasonEnsureRemoveExpiredUser)},
 	)
 
 	var obtained record
 	err := json.Unmarshal(s.buf.Bytes(), &obtained)
 	c.Assert(err, IsNil)
 	c.Check(obtained.SystemUser, Equals, "foo")
-	c.Check(obtained.RemoveReason, Equals, "expired")
+	c.Check(obtained.RemoveReason, Equals, "ensure-remove-expired-user")
 	c.Check(obtained.RemoveOptions.Force, Equals, true)
 }
 
