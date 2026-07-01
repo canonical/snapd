@@ -263,6 +263,24 @@ func (s *SecLogSuite) TestLogSystemUserCreated(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "Known:false")
 }
 
+func (s *SecLogSuite) TestLogSystemUserCreatedWithAssertion(c *C) {
+	opts := seclog.AddOptions{
+		Known: true,
+		Assertion: &seclog.Ref{
+			Type:       "system-user",
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   0,
+		},
+	}
+	seclog.LogSystemUserCreated("example-user", opts)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.buf.String(), testutil.Contains, "system-user")
+	c.Check(s.buf.String(), testutil.Contains, "my-brand")
+	c.Check(s.buf.String(), testutil.Contains, "foo@bar.com")
+	c.Check(s.buf.String(), testutil.Contains, "Known:true")
+}
+
 func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
 	opts := seclog.RemoveOptions{Force: true}
 	seclog.LogSystemUserRemoved("some-user", opts)
