@@ -164,7 +164,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	traceSnapdAPI(c, w, r)
+	traceSnapdAPI(c, r)
 
 	rsp := rspf(c, r, user)
 
@@ -186,30 +186,123 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
-func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		loggedWithAction := false
-		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
-			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err != nil {
-				logger.Trace("endpoint-error", "body-read", err)
-			}
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
-				}
-			}
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+const maxBodySize = 4 * 1024 * 1024 // 4MiB
+
+type actionRequest struct {
+	Action string `json:"action"`
+}
+
+// jsonActionBody wraps a buffered request body with the result of a prior
+// parseJSONActionBody call. The stored parseErr is returned on later calls without
+// re-reading or re-decoding the body.
+type jsonActionBody struct {
+	io.ReadCloser
+	action   string
+	parseErr error
+}
+
+// chainedReadCloser presents several readers as one stream and closes orig.
+type chainedReadCloser struct {
+	io.Reader
+	orig io.Closer
+}
+
+func (c *chainedReadCloser) Close() error {
+	return c.orig.Close()
+}
+
+// parseJSONActionBody decodes the top-level "action" field from a POST
+// request's JSON body and replaces r.Body with a buffered copy so
+// downstream handlers can still consume the request body after the
+// action has been extracted. Safe to call more than once per request;
+// later calls return the cached action and error from jsonActionBody.
+//
+// The returned error reports why the action could not be extracted.
+//
+// Limitations:
+//   - PUT is not supported (no snapd API uses action on PUT today).
+//   - multipart/form-data is not supported.
+//   - Only requests with Content-Type application/json, or with no
+//     Content-Type (assumed to be JSON), are parsed; callers needing a
+//     strict application/json check must enforce that before calling.
+func parseJSONActionBody(r *http.Request) (string, error) {
+	if ab, ok := r.Body.(*jsonActionBody); ok {
+		return ab.action, ab.parseErr
+	}
+	ct := r.Header.Get("Content-Type")
+	if r.Method != "POST" || r.Body == nil || (ct != "" && ct != "application/json") {
+		return "", nil
+	}
+
+	orig := r.Body
+	prefix, readErr := io.ReadAll(io.LimitReader(orig, maxBodySize+1))
+
+	// chainAndCache wraps r.Body so downstream handlers still see the
+	// buffered prefix followed by whatever the original stream yields
+	// next.
+	chainAndCache := func(err error) (string, error) {
+		r.Body = &jsonActionBody{
+			ReadCloser: &chainedReadCloser{
+				Reader: io.MultiReader(bytes.NewReader(prefix), orig),
+				orig:   orig,
+			},
+			parseErr: err,
 		}
-		if !loggedWithAction {
-			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
+		return "", err
+	}
+
+	var action string
+	var parseErr error
+
+	switch {
+	case len(prefix) > maxBodySize:
+		return chainAndCache(errors.New("body size limit exceeded"))
+
+	case readErr != nil:
+		return chainAndCache(readErr)
+
+	case len(prefix) == 0:
+		parseErr = io.EOF
+
+	default:
+		var req actionRequest
+		dec := json.NewDecoder(bytes.NewReader(prefix))
+		if err := dec.Decode(&req); err != nil {
+			parseErr = err
+		} else {
+			// Ensure the body contains exactly one JSON value (no trailing data).
+			var extra any
+			if err := dec.Decode(&extra); err != io.EOF {
+				parseErr = errors.New("unexpected data after request body")
+			} else {
+				action = req.Action
+			}
 		}
 	}
+
+	// Success / decode failure / empty body: prefix contains the entire
+	// body.
+	_ = orig.Close()
+	r.Body = &jsonActionBody{
+		ReadCloser: io.NopCloser(bytes.NewReader(prefix)),
+		action:     action,
+		parseErr:   parseErr,
+	}
+	return action, parseErr
+}
+
+func traceSnapdAPI(c *Command, r *http.Request) {
+	if !osutil.GetenvBool("SNAPD_TRACE") {
+		return
+	}
+	action, err := parseJSONActionBody(r)
+	if err != nil && !errors.Is(err, io.EOF) {
+		logger.Trace("endpoint-error", "body-read", err)
+	} else if action != "" {
+		logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
+		return
+	}
+	logger.Trace("endpoint", "method", r.Method, "path", c.Path)
 }
 
 type wrappedWriter struct {
