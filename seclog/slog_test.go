@@ -29,6 +29,7 @@
 //   Endpoint.LogValue                   → TestEndpointLogValue
 //   AuthzChecks.LogValue                → TestAuthzChecksLogValue
 //   AddOptions.LogValue                 → TestAddOptionsLogValue
+//   Ref.LogValue                        → TestRefLogValue
 //   RemoveOptions.LogValue              → TestRemoveOptionsLogValue
 
 package seclog_test
@@ -388,6 +389,59 @@ func (s *SlogSuite) TestAddOptionsLogValue(c *C) {
 	c.Check(obtained.AddOptions.ExtraUsers, Equals, true)
 	c.Check(obtained.AddOptions.ForcePasswordChange, Equals, true)
 	c.Check(obtained.AddOptions.Known, Equals, false)
+}
+
+func (s *SlogSuite) TestRefLogValue(c *C) {
+	type refRecord struct {
+		Ref seclog.Ref `json:"ref"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "ref", Value: seclog.Ref{
+			Type:       "system-user",
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   2,
+		}},
+	)
+
+	var obtained refRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.Ref.Type, Equals, "system-user")
+	c.Check(obtained.Ref.PrimaryKey, DeepEquals, []string{"my-brand", "foo@bar.com"})
+	c.Check(obtained.Ref.Revision, Equals, 2)
+}
+
+func (s *SlogSuite) TestAddOptionsWithAssertionLogValue(c *C) {
+	type addOptionsRecord struct {
+		seclog.AddOptions `json:"add_options"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "add_options", Value: seclog.AddOptions{
+			Known: true,
+			Assertion: &seclog.Ref{
+				Type:       "system-user",
+				PrimaryKey: []string{"my-brand", "foo@bar.com"},
+				Revision:   1,
+			},
+		}},
+	)
+
+	var obtained addOptionsRecord
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.AddOptions.Known, Equals, true)
+	c.Assert(obtained.AddOptions.Assertion, NotNil)
+	c.Check(obtained.AddOptions.Assertion.Type, Equals, "system-user")
+	c.Check(obtained.AddOptions.Assertion.PrimaryKey, DeepEquals, []string{"my-brand", "foo@bar.com"})
+	c.Check(obtained.AddOptions.Assertion.Revision, Equals, 1)
 }
 
 func (s *SlogSuite) TestRemoveOptionsLogValue(c *C) {

@@ -530,7 +530,7 @@ func (s *usersSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
-	username, expiration, opts, err := devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com")
+	username, expiration, opts, _, err := devicestate.GetUserDetailsFromAssertion(db, model, nil, "foo@bar.com")
 	c.Assert(err, check.IsNil)
 	c.Check(username, check.Equals, "example-user")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
@@ -599,6 +599,9 @@ func (s *usersSuite) createUserFromAssertion(c *check.C, forcePasswordChange boo
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Created system user example-user")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Example User")
 	c.Check(s.seclogBuf.String(), testutil.Contains, "Known:true")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "system-user")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "my-brand")
+	c.Check(s.seclogBuf.String(), testutil.Contains, "foo@bar.com")
 	if forcePasswordChange {
 		c.Check(s.seclogBuf.String(), testutil.Contains, "ForcePasswordChange:true")
 	} else {

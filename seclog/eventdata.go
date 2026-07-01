@@ -223,6 +223,16 @@ func (u SnapdUser) String() string {
 	return id + ":" + email + ":" + name
 }
 
+// Ref identifies an assertion by type and primary key. It mirrors asserts.Ref
+// but uses plain strings so seclog stays import-free.
+type Ref struct {
+	Type       string   `json:"type"`
+	PrimaryKey []string `json:"primary_key"`
+	// Revision is the assertion revision applied when the user was created.
+	// It supplements the ref; the ref itself is the store-shared identity.
+	Revision int `json:"revision,omitempty"`
+}
+
 // AddOptions holds the options recorded for a system user creation event.
 // JSON tags match the security audit specification field names.
 type AddOptions struct {
@@ -241,6 +251,8 @@ type AddOptions struct {
 	// Known is true when the account was created from a system-user assertion
 	// rather than from a store email lookup.
 	Known bool `json:"known"`
+	// Assertion is set when Known is true; identifies the system-user assertion used.
+	Assertion *Ref `json:"assertion,omitempty"`
 }
 
 // RemoveOptions holds the options recorded for a system user removal event.
