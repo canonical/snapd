@@ -223,6 +223,39 @@ func (u SnapdUser) String() string {
 	return id + ":" + email + ":" + name
 }
 
+// SystemUserAddReason identifies why a system user account was created.
+// Values are logged as add_reason on user_created_system events.
+type SystemUserAddReason string
+
+// SystemUserAddReason values for user_created_system events.
+const (
+	// AddReasonAdminStore is set when an operator requested a user from store email lookup.
+	AddReasonAdminStore SystemUserAddReason = "admin-store"
+	// AddReasonAdminAssertion is set when an operator requested one assertion-backed user by email.
+	AddReasonAdminAssertion SystemUserAddReason = "admin-assertion"
+	// AddReasonAdminKnownAll is set when an operator requested all valid assertion users.
+	AddReasonAdminKnownAll SystemUserAddReason = "admin-known-all"
+	// AddReasonAutoProvision is set for unattended automatic provisioning via the
+	// user-admin API (automatic: true), e.g. snap auto-import.
+	AddReasonAutoProvision SystemUserAddReason = "admin-auto-provision"
+	// AddReasonSeedFirstboot is set when users are created from seed auto-import on dangerous models.
+	AddReasonSeedFirstboot SystemUserAddReason = "seed-firstboot"
+	// AddReasonSerialBound is set when a serial-bound assertion is applied after registration.
+	AddReasonSerialBound SystemUserAddReason = "serial-bound"
+)
+
+// SystemUserRemoveReason identifies why a system user account was removed.
+// Values are logged as remove_reason on user_removed_system events.
+type SystemUserRemoveReason string
+
+// SystemUserRemoveReason values for user_removed_system events.
+const (
+	// RemoveReasonAdminRemove is set when an operator explicitly removed the account.
+	RemoveReasonAdminRemove SystemUserRemoveReason = "admin-remove"
+	// RemoveReasonExpired is set when an expired account was removed by the ensure loop.
+	RemoveReasonExpired SystemUserRemoveReason = "expired"
+)
+
 // Ref identifies an assertion by type and primary key. It mirrors asserts.Ref
 // but uses plain strings so seclog stays import-free.
 type Ref struct {

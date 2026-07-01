@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
@@ -608,7 +609,7 @@ func EnsureExtraSnapdKernelCommandLineFragmentsApplied(m *DeviceManager) error {
 
 var ProcessAutoImportAssertions = processAutoImportAssertions
 
-func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool) ([]*CreatedUser, error)) (restore func()) {
+func MockCreateAllKnownSystemUsers(createAllUsers func(state *state.State, assertDb asserts.RODatabase, model *asserts.Model, serial *asserts.Serial, sudoer bool, addReason seclog.SystemUserAddReason) ([]*CreatedUser, error)) (restore func()) {
 	restore = testutil.Backup(&createAllKnownSystemUsers)
 	createAllKnownSystemUsers = createAllUsers
 	return restore

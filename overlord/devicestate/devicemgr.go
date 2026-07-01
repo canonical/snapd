@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -1247,7 +1248,7 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	db := assertstate.DB(m.state)
 
 	const sudoer = true
-	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer)
+	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer, seclog.AddReasonSerialBound)
 	if err != nil {
 		return err
 	}
@@ -1974,7 +1975,10 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 		}
 		// Force the removal of the user as it's possible to block this expiration
 		// otherwise by the user having left a process or service running.
-		if _, err := RemoveUser(st, user.Username, &RemoveUserOptions{Force: true}); err != nil {
+		if _, err := RemoveUser(st, user.Username, &RemoveUserOptions{
+			Force:        true,
+			RemoveReason: seclog.RemoveReasonExpired,
+		}); err != nil {
 			return err
 		}
 	}
