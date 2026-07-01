@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -47,6 +48,7 @@ type certMgrTestSuite struct {
 func (s *certMgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(release.MockOnClassic(false))
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
@@ -133,6 +135,35 @@ func (s *certMgrTestSuite) TestEnsureDoesNothingWhenNotSeeded(c *C) {
 		return nil
 	})
 	defer restore()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
+}
+
+func (s *certMgrTestSuite) TestEnsureSkipsOnClassic(c *C) {
+	defer release.MockOnClassic(true)()
+
+	var called bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "", errors.New("boot id should not be queried on classic")
+	})
+	defer restoreBootID()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+
+	s.state.Unlock()
+	defer s.state.Lock()
 
 	err := s.mgr.Ensure()
 	c.Assert(err, IsNil)
