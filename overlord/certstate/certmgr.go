@@ -86,6 +86,8 @@ func (m *CertManager) Ensure() error {
 	st.Lock()
 	defer st.Unlock()
 
+	// Do not perform automatic db generation on classic, or if ensure
+	// has already run
 	if m.oneTimeChecksRan || release.OnClassic {
 		return nil
 	}

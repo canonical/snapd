@@ -48,7 +48,9 @@ type certMgrTestSuite struct {
 func (s *certMgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(release.MockOnClassic(false))
+
+	restore := release.MockOnClassic(false)
+	s.AddCleanup(restore)
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
@@ -142,10 +144,11 @@ func (s *certMgrTestSuite) TestEnsureDoesNothingWhenNotSeeded(c *C) {
 }
 
 func (s *certMgrTestSuite) TestEnsureSkipsOnClassic(c *C) {
-	defer release.MockOnClassic(true)()
+	restore := release.MockOnClassic(true)
+	defer restore()
 
 	var called bool
-	restore := certstate.MockRefreshCertificateDatabase(func() error {
+	restore = certstate.MockRefreshCertificateDatabase(func() error {
 		called = true
 		return nil
 	})
