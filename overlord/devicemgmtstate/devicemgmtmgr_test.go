@@ -1306,7 +1306,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnauthorized(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusUnauthorized)
-	c.Check(msg.ResponseBody["message"], Equals, `operator "alice" is not authorized to perform this operation`)
+	c.Check(msg.ResponseBody["message"], Equals, `cannot process message: cannot perform action: operator "alice" is not authorized`)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
@@ -1336,7 +1336,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
-	c.Check(msg.ResponseBody["message"], Equals, "invalid payload")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: invalid payload")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
@@ -1530,7 +1530,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Equals, "")
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
-	c.Check(msg.ResponseBody["message"], Equals, "system in inconsistent state")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: system in inconsistent state")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {

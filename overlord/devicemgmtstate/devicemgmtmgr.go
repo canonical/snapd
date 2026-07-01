@@ -85,13 +85,13 @@ type MessageHandler interface {
 }
 
 // UnauthorizedError is returned by MessageHandler.Validate when the operator
-// does not have permission to perform the requested operation.
+// does not have permission to perform the requested action.
 type UnauthorizedError struct {
 	Operator string
 }
 
 func (e *UnauthorizedError) Error() string {
-	return fmt.Sprintf("operator %q is not authorized to perform this operation", e.Operator)
+	return fmt.Sprintf("cannot perform action: operator %q is not authorized", e.Operator)
 }
 
 // MarkChangeForMessage records the message ID on the change created by an Apply
@@ -641,11 +641,11 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		var unauthorizedErr *UnauthorizedError
 		if errors.As(err, &unauthorizedErr) {
 			msg.ResponseStatus = asserts.MessageStatusUnauthorized
-			msg.ResponseBody = map[string]any{"message": err.Error()}
+			msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
 			return nil
 		}
 
-		return reject(err.Error())
+		return reject(fmt.Sprintf("cannot process message: %v", err))
 	}
 
 	return nil
@@ -696,7 +696,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 	chgID, err := handler.Apply(m.state, msg)
 	if err != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": err.Error()}
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
 	} else {
 		msg.ApplyChangeID = chgID
 	}
