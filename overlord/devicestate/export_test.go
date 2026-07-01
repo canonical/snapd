@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
@@ -349,6 +350,9 @@ var (
 	CreateRecoverySystemTasks              = createRecoverySystemTasks
 
 	SetExtraSnapdKernelCommandLineFragment = setExtraSnapdKernelCommandLineFragment
+
+	RenderExtraSnapdKernelCommandLineFragments = renderExtraSnapdKernelCommandLineFragments
+	KernelCommandLineAppendArgsFromSnapd       = kernelCommandLineAppendArgsFromSnapd
 )
 
 func MockApplyPreseededData(f func(deviceSeed seed.PreseedCapable, writableDir string) error) (restore func()) {
@@ -457,6 +461,7 @@ func MockInstallEncryptPartitions(f func(
 	model *asserts.Model,
 	gadgetRoot,
 	kernelRoot string,
+	extraSnapdKernelCommandLineFragments map[string]string,
 	perfTimings timings.Measurer,
 ) (*install.EncryptionSetupData, error)) (restore func()) {
 	old := installEncryptPartitions
@@ -615,6 +620,7 @@ func MockEncryptionSetupDataInCache(
 	rkey *keys.RecoveryKey,
 	volumesAuth *device.VolumesAuthOptions,
 	checkContext *secboot.PreinstallCheckContext,
+	extraSnapdKernelCommandLineFragments map[string]string,
 ) (restore func()) {
 	st.Lock()
 	defer st.Unlock()
@@ -629,7 +635,7 @@ func MockEncryptionSetupDataInCache(
 			EncryptedDevice: "/dev/mapper/ubuntu-data",
 		},
 	}
-	esd = install.MockEncryptionSetupData(labelToEncData, rkey, volumesAuth, checkContext)
+	esd = install.MockEncryptionSetupData(labelToEncData, rkey, volumesAuth, checkContext, extraSnapdKernelCommandLineFragments)
 	st.Cache(encryptionSetupDataKey{label}, esd)
 	return func() { CleanUpEncryptionSetupDataInCache(st, label) }
 }
@@ -741,4 +747,24 @@ func MockOsutilBootID(bootID string) (restore func()) {
 
 func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error, runPostInstallChecks bool) error) (restore func()) {
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
+}
+
+func MockSecbootPostinstallCheck(f func(ctx context.Context, bootChain []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+	old := secbootPostinstallCheck
+	secbootPostinstallCheck = f
+	return func() { secbootPostinstallCheck = old }
+}
+
+func MockFdestateGetRunBootChain(f func() ([]bootloader.BootFile, error)) (restore func()) {
+	old := fdestateGetRunBootChain
+	fdestateGetRunBootChain = f
+	return func() { fdestateGetRunBootChain = old }
+}
+
+func MockSecbootPreinstallCheckAction(f func(pcc *secboot.PreinstallCheckContext, ctx context.Context, action *secboot.PreinstallAction) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
+	old := secbootPreinstallCheckAction
+	secbootPreinstallCheckAction = f
+	return func() {
+		secbootPreinstallCheckAction = old
+	}
 }

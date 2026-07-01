@@ -163,7 +163,7 @@ func waitForIfNeeded(waiter, target *state.Task) {
 // addEarlyDownloadDeps sets up dependencies so that all early-download snaps'
 // beforeLocalSystemModificationsTasks complete before any snap's first local
 // system modification begins. The first local-modification task is the
-// prerequisites sync task.
+// prerequisites synchronization task.
 func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]bool) error {
 	if len(earlyDownloads) == 0 {
 		return nil

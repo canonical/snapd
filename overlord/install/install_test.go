@@ -976,61 +976,43 @@ func (s *installSuite) TestEncryptionSupportInfoWithTPM(c *C) {
 			},
 			nil,
 		},
-		// Passphrase support requires snapd 2.68+
+		// Passphrase/PIN support requires snapd 2.74+
 		{
-			"secured", "encrypted", "2.68", "2.68", false, ErrorNone,
+			"secured", "encrypted", "2.74", "2.74", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          device.EncryptionTypeLUKS,
-				// TODO:FDEM: passphrase support is temporarily disabled
-				// during install even with supported snapd versions.
-				// PassphraseAuthAvailable: true,
-				PassphraseAuthAvailable: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+				PINAuthAvailable:        true,
 			},
 			nil,
 		}, {
-			"secured", "encrypted", "2.69", "2.69", true, ErrorNone,
+			"secured", "encrypted", "2.75", "2.75", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          device.EncryptionTypeLUKS,
-				// TODO:FDEM: passphrase support is temporarily disabled
-				// during install even with supported snapd versions.
-				// PassphraseAuthAvailable: true,
-				PassphraseAuthAvailable: false,
+				StorageSafety:           asserts.StorageSafetyEncrypted,
+				Type:                    device.EncryptionTypeLUKS,
+				PassphraseAuthAvailable: true,
+				PINAuthAvailable:        true,
 			},
 			preinstallCheckContext,
 		}, {
-			"secured", "encrypted", "2.67", "2.68", false, ErrorNone,
+			"secured", "encrypted", "2.73", "2.74", false, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
 				PassphraseAuthAvailable: false,
+				PINAuthAvailable:        false,
 			},
 			nil,
 		}, {
-			"secured", "encrypted", "2.68", "2.67", true, ErrorNone,
+			"secured", "encrypted", "2.74", "2.73", true, ErrorNone,
 			install.EncryptionSupportInfo{
 				Available: true, Disabled: false,
 				StorageSafety:           asserts.StorageSafetyEncrypted,
 				Type:                    device.EncryptionTypeLUKS,
-				PassphraseAuthAvailable: false,
-			},
-			preinstallCheckContext,
-		},
-		// PIN support smoke test
-		{
-			"secured", "encrypted", "2.99", "2.99", true, ErrorNone,
-			install.EncryptionSupportInfo{
-				Available: true, Disabled: false,
-				StorageSafety: asserts.StorageSafetyEncrypted,
-				Type:          device.EncryptionTypeLUKS,
-				// TODO:FDEM: PIN and passphrase support is temporarily disabled
-				// during install even with supported snapd versions.
-				// PassphraseAuthAvailable: true,
-				// PINAuthAvailable:        true,
 				PassphraseAuthAvailable: false,
 				PINAuthAvailable:        false,
 			},

@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
@@ -252,6 +253,37 @@ const (
 	InstallStepPreseed InstallStep = "preseed"
 )
 
+// KeyboardConfig carries the keyboard layout selected at install-time so it can
+// be propagated to the first-boot kernel command line (e.g. for plymouth to use
+// the correct keymap at the passphrase/PIN prompt).
+type KeyboardConfig struct {
+	Model   string   `json:"model,omitempty"`
+	Layout  string   `json:"layout,omitempty"`
+	Variant string   `json:"variant,omitempty"`
+	Options []string `json:"options,omitempty"`
+}
+
+// XKBConfig converts the KeyboardConfig to simplified keyboard.XKBConfig struct.
+func (c *KeyboardConfig) XKBConfig() keyboard.XKBConfig {
+	xkb := keyboard.XKBConfig{
+		Model:   c.Model,
+		Options: c.Options,
+	}
+	if c.Layout != "" {
+		xkb.Layouts = []string{c.Layout}
+	}
+	if c.Variant != "" {
+		xkb.Variants = []string{c.Variant}
+	}
+	return xkb
+}
+
+// Validate the keyboard configuration.
+func (c *KeyboardConfig) Validate() error {
+	xkb := c.XKBConfig()
+	return xkb.Validate()
+}
+
 type InstallSystemOptions struct {
 	// Step is the install step, either "setup-storage-encryption"
 	// or "finish", or "preseed".
@@ -270,6 +302,8 @@ type InstallSystemOptions struct {
 	// authentication). If VolumesAuth is nil, the default is to have no
 	// authentication.
 	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
+	// KeyboardConfig contains the selected keyboard layout.
+	KeyboardConfig *KeyboardConfig `json:"keyboard-config,omitempty"`
 
 	// TargetRoot is a path to the rootfs of a mounted target system for the
 	// "preseed" step.

@@ -164,10 +164,6 @@ prepare: |
 
     gojq '.["nfs-home"]' < /var/lib/snapd/system-key | MATCH false
 
-restore: |
-    # Run cleanup handlers registered earlier.
-    tests.cleanup restore
-
 debug: |
     set +e
     uname -a

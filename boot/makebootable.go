@@ -65,6 +65,11 @@ type BootableSet struct {
 
 	// KernelMods contains kernel-modules components in the system.
 	KernelMods []BootableKModsComponents
+
+	// ExtraSnapdKernelCommandLineAppend holds extra snapd kernel command line
+	// arguments to append to the kernel command line which is only applied to
+	// runnable systems.
+	ExtraSnapdKernelCommandLineAppend string
 }
 
 // BootableComponent represents kernel-modules components, which are
@@ -627,6 +632,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 		if err != nil {
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
+
+		cmdlineAppend = strutil.JoinNonEmpty(
+			[]string{bootWith.ExtraSnapdKernelCommandLineAppend, cmdlineAppend}, " ")
 
 		modeenv.CurrentKernelCommandLines = bootCommandLines{
 			strutil.JoinNonEmpty([]string{cmdline, cmdlineAppend}, " ")}

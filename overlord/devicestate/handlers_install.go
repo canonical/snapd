@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -1207,6 +1208,21 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// Carry any install-time extra snapd kernel command line fragments
+	// (e.g. keyboard configuration) into the boot configuration.
+	var extraSnapdKernelCommandLineFragments map[string]string
+	if encryptSetupData != nil {
+		extraSnapdKernelCommandLineFragments = encryptSetupData.ExtraSnapdKernelCommandLineFragments()
+	}
+	// Persist the install-time extra snapd kernel command line fragments to
+	// the installed system's ubuntu-save device dir so they can be lazily loaded
+	// into state at runtime and kept as a record of the install-time choices.
+	if len(extraSnapdKernelCommandLineFragments) > 0 {
+		if err := writeInstallTimeExtraSnapdFragments(boot.InstallHostDeviceSaveDir, extraSnapdKernelCommandLineFragments); err != nil {
+			return err
+		}
+	}
+
 	bootWith := &boot.BootableSet{
 		Base:              snapInfos[snap.TypeBase],
 		BasePath:          snapSeeds[snap.TypeBase].Path,
@@ -1218,6 +1234,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 
 		RecoverySystemLabel: systemLabel,
 		KernelMods:          kBootInfo.BootableKMods,
+
+		ExtraSnapdKernelCommandLineAppend: renderExtraSnapdKernelCommandLineFragments(extraSnapdKernelCommandLineFragments),
 	}
 
 	// installs in system-seed{,-null} partition: grub.cfg, grubenv
@@ -1370,6 +1388,21 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		}
 	}
 
+	extraSnapdKernelCommandLineFragments := make(map[string]string)
+
+	// Convert the install-time keyboard configuration (if any) into extra
+	// snapd kernel command line fragments to be carried through encryption
+	// setup data.
+	var keyboardConfig *client.KeyboardConfig
+	if err := t.Get("keyboard-config", &keyboardConfig); err != nil && !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+	if keyboardConfig != nil {
+		xkbConfig := keyboardConfig.XKBConfig()
+		fragmentID := string(extraSnapdKernelCommandLineFragmentXKB)
+		extraSnapdKernelCommandLineFragments[fragmentID] = xkbConfig.KernelCommandLineFragment()
+	}
+
 	systemAndSeeds, mntPtForType, _, unmount, err := m.loadAndMountSystemLabelSnapsUnlock(
 		st, systemLabel, []snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget})
 	if err != nil {
@@ -1437,6 +1470,7 @@ func (m *DeviceManager) doInstallSetupStorageEncryption(t *state.Task, _ *tomb.T
 		systemAndSeeds.Model,
 		mntPtForType[snap.TypeGadget],
 		mntPtForType[snap.TypeKernel],
+		extraSnapdKernelCommandLineFragments,
 		perfTimings,
 	)
 	if err != nil {
