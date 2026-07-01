@@ -24,7 +24,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -33,8 +32,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -120,118 +117,6 @@ func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 	var value string
 	c.Check(tr.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "bar")
-}
-
-func (s *configureHandlerSuite) TestBeforeDropsGraduatedCoreFeatures(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	patch := make(map[string]any)
-	for _, feature := range features.Graduated() {
-		patch["experimental."+feature] = true
-	}
-
-	s.state.Lock()
-	task := s.state.NewTask("test-task", "test task")
-	s.state.Unlock()
-	setup := &hookstate.HookSetup{Snap: "core", Revision: snap.R(1), Hook: "configure"}
-	context, err := hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
-	c.Assert(err, IsNil)
-	handler := configstate.NewConfigureHandler(context)
-
-	context.Lock()
-	context.Set("patch", patch)
-	context.Unlock()
-
-	c.Assert(handler.Before(), IsNil)
-
-	context.Lock()
-	defer context.Unlock()
-
-	tr := configstate.ContextTransaction(context)
-
-	changes := tr.Changes()
-	c.Check(changes, HasLen, 0)
-
-	for _, feature := range features.Graduated() {
-		msg := "feature " + feature + " is no longer experimental and is always enabled"
-
-		// make sure nothing was set
-		var value any
-		err := tr.Get("core", "experimental."+feature, &value)
-		c.Check(config.IsNoOption(err), Equals, true)
-
-		// make sure we logged warnings
-		c.Check(logbuf.String(), testutil.Contains, msg)
-		c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
-		c.Check(warningsStrings(context.State().AllWarnings()), testutil.Contains, msg)
-	}
-}
-
-func (s *configureHandlerSuite) TestBeforeDropsNestedGraduatedCoreFeature(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	experimental := map[string]any{"supported-feature": true}
-	for _, feature := range features.Graduated() {
-		experimental[feature] = false
-	}
-
-	s.state.Lock()
-	task := s.state.NewTask("test-task", "test task")
-	s.state.Unlock()
-	setup := &hookstate.HookSetup{Snap: "core", Revision: snap.R(1), Hook: "configure"}
-	context, err := hookstate.NewContext(task, task.State(), setup, hooktest.NewMockHandler(), "")
-	c.Assert(err, IsNil)
-	handler := configstate.NewConfigureHandler(context)
-
-	context.Lock()
-	context.Set("patch", map[string]any{
-		"experimental": experimental,
-		"proxy.http":   "http://proxy.example.com",
-	})
-	context.Unlock()
-
-	c.Assert(handler.Before(), IsNil)
-
-	context.Lock()
-	defer context.Unlock()
-
-	tr := configstate.ContextTransaction(context)
-
-	for _, feature := range features.Graduated() {
-		msg := "feature " + feature + " is no longer experimental and is always enabled"
-
-		// make sure we didn't set the graduated features
-		var value any
-		err := tr.Get("core", "experimental."+feature, &value)
-		c.Check(config.IsNoOption(err), Equals, true)
-
-		// make sure we logged warnings
-		c.Check(logbuf.String(), testutil.Contains, msg)
-		c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
-		c.Check(warningsStrings(context.State().AllWarnings()), testutil.Contains, msg)
-	}
-
-	// make sure supported feature did get set
-	var supported bool
-	err = tr.Get("core", "experimental.supported-feature", &supported)
-	c.Check(err, IsNil)
-	c.Check(supported, Equals, true)
-
-	// make sure other config was not impacted
-	var proxy string
-	err = tr.Get("core", "proxy.http", &proxy)
-	c.Assert(err, IsNil)
-	c.Check(proxy, Equals, "http://proxy.example.com")
-}
-
-func warningsStrings(warnings []*state.Warning) []string {
-	messages := make([]string, 0, len(warnings))
-	for _, warning := range warnings {
-		messages = append(messages, warning.String())
-	}
-	return messages
 }
 
 func makeModel(override map[string]any) *asserts.Model {

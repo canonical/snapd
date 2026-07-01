@@ -22,10 +22,7 @@ package configstate
 import (
 	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/snapcore/snapd/features"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -93,70 +90,11 @@ func (h *configureHandler) Before() error {
 		}
 	}
 
-	if instanceName == "core" {
-		filterOutGraduatedFeatures(h.context, patch)
-	}
-
 	if err := config.Patch(tr, instanceName, patch); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-// filterOutGraduatedFeatures removes any graduated experimental features from
-// the given patch and logs warnings to indicate that these features are now
-// always enabled.
-func filterOutGraduatedFeatures(ctx *hookstate.Context, patch map[string]any) {
-	if len(patch) == 0 {
-		return
-	}
-
-	logged := make(map[string]bool)
-	warn := func(feature string) {
-		if logged[feature] {
-			return
-		}
-		logged[feature] = true
-		msg := fmt.Sprintf("feature %s is no longer experimental and is always enabled", feature)
-		logger.Noticef("%s", msg)
-		ctx.Logf("%s", msg)
-		ctx.State().Warnf("%s", msg)
-	}
-
-	// handle the command line case: "snap set system experimental.feature=true"
-	for key := range patch {
-		if !strings.HasPrefix(key, "experimental.") {
-			continue
-		}
-		feature := strings.TrimPrefix(key, "experimental.")
-		if !features.IsGraduated(feature) {
-			continue
-		}
-		delete(patch, key)
-		warn(feature)
-	}
-
-	// handle API usage, and the CLI case:
-	// "snap set system 'experimental={\"feature\": true, \"other-feature\": true}'",
-	// which can result in a patch in the format:
-	// { "experimental": { "feature": true, "other-feature": true } }
-	experimental, ok := patch["experimental"].(map[string]any)
-	if !ok {
-		return
-	}
-
-	for feature := range experimental {
-		if !features.IsGraduated(feature) {
-			continue
-		}
-		delete(experimental, feature)
-		warn(feature)
-	}
-
-	if len(experimental) == 0 {
-		delete(patch, "experimental")
-	}
 }
 
 // Done is called by the HookManager after the configure hook has exited
