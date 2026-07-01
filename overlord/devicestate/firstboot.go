@@ -516,7 +516,7 @@ func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asser
 	}
 	// automatic user creation is meant to imply sudoers
 	const sudoer = true
-	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer, seclog.AddReasonFirstbootCreateUserFromSeedAutoImport)
+	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer, seclog.AddReasonFirstbootSeedAutoImport)
 	return err
 }
 

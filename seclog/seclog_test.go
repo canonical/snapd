@@ -253,15 +253,15 @@ func (s *SecLogSuite) TestLogSystemUserCreated(c *C) {
 		ForcePasswordChange: false,
 		Known:               false,
 	}
-	seclog.LogSystemUserCreated("karl", opts, seclog.AddReasonAPICreateUserFromStoreCredentials)
+	seclog.LogSystemUserCreated("karl", opts, seclog.AddReasonAPIStoreEmail)
 
 	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
-	c.Check(s.buf.String(), testutil.Contains, "Created system user karl")
+	c.Check(s.buf.String(), testutil.Contains, "Created system user karl (api-store-email)")
 	c.Check(s.buf.String(), testutil.Contains, "karl")
 	c.Check(s.buf.String(), testutil.Contains, "Karl Popper")
 	c.Check(s.buf.String(), testutil.Contains, "Sudoer:true")
 	c.Check(s.buf.String(), testutil.Contains, "Known:false")
-	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-create-user-from-store-credentials"`)
+	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-store-email"`)
 }
 
 func (s *SecLogSuite) TestLogSystemUserCreatedWithAssertion(c *C) {
@@ -273,14 +273,14 @@ func (s *SecLogSuite) TestLogSystemUserCreatedWithAssertion(c *C) {
 			Revision:   0,
 		},
 	}
-	seclog.LogSystemUserCreated("example-user", opts, seclog.AddReasonAPICreateUserFromAssertion)
+	seclog.LogSystemUserCreated("example-user", opts, seclog.AddReasonAPIAssertion)
 
 	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
 	c.Check(s.buf.String(), testutil.Contains, "system-user")
 	c.Check(s.buf.String(), testutil.Contains, "my-brand")
 	c.Check(s.buf.String(), testutil.Contains, "foo@bar.com")
 	c.Check(s.buf.String(), testutil.Contains, "Known:true")
-	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-create-user-from-assertion"`)
+	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-assertion"`)
 }
 
 func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
@@ -288,7 +288,7 @@ func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
 	seclog.LogSystemUserRemoved("some-user", opts, seclog.RemoveReasonEnsureRemoveExpiredUser)
 
 	c.Check(s.buf.String(), testutil.Contains, "user_removed_system")
-	c.Check(s.buf.String(), testutil.Contains, "Removed system user some-user")
+	c.Check(s.buf.String(), testutil.Contains, "Removed system user some-user (ensure-remove-expired-user)")
 	c.Check(s.buf.String(), testutil.Contains, "some-user")
 	c.Check(s.buf.String(), testutil.Contains, "Force:true")
 	c.Check(s.buf.String(), testutil.Contains, `remove_reason="ensure-remove-expired-user"`)

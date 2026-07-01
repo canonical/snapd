@@ -394,16 +394,16 @@ func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestat
 		var addReason seclog.SystemUserAddReason
 		switch {
 		case createData.Email != "":
-			addReason = seclog.AddReasonAPICreateUserFromAssertion
+			addReason = seclog.AddReasonAPIAssertion
 		case createData.Automatic:
 			addReason = seclog.AddReasonAPICreateUserFromAllAssertionsAutomatic
 		default:
-			addReason = seclog.AddReasonAPICreateUserFromAllAssertions
+			addReason = seclog.AddReasonAPIAssertionAll
 		}
 		return deviceStateCreateKnownUsers(st, createData.Sudoer, createData.Email, addReason)
 	}
 
-	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration, seclog.AddReasonAPICreateUserFromStoreCredentials)
+	user, err := deviceStateCreateUser(st, createData.Sudoer, createData.Email, createData.Expiration, seclog.AddReasonAPIStoreEmail)
 	return []*devicestate.CreatedUser{user}, err
 }
 

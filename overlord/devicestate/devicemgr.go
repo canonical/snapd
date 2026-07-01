@@ -1248,7 +1248,7 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	db := assertstate.DB(m.state)
 
 	const sudoer = true
-	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer, seclog.AddReasonEnsureCreateUserFromSerialBoundAssertion)
+	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer, seclog.AddReasonDeferredSerialBoundAssertion)
 	if err != nil {
 		return err
 	}

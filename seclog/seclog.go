@@ -227,7 +227,7 @@ func LogSystemUserCreated(systemUser string, opts AddOptions, addReason SystemUs
 
 	globalLogger.LogEvent(
 		Event{Category: "USER", Name: "user_created_system", Level: LevelInfo},
-		fmt.Sprintf("Created system user %s", systemUser),
+		fmt.Sprintf("Created system user %s (%s)", systemUser, addReason),
 		Attr{Key: "system_user", Value: systemUser},
 		Attr{Key: "add_options", Value: opts},
 		Attr{Key: "add_reason", Value: string(addReason)},
@@ -243,7 +243,7 @@ func LogSystemUserRemoved(systemUser string, opts RemoveOptions, removeReason Sy
 
 	globalLogger.LogEvent(
 		Event{Category: "USER", Name: "user_removed_system", Level: LevelInfo},
-		fmt.Sprintf("Removed system user %s", systemUser),
+		fmt.Sprintf("Removed system user %s (%s)", systemUser, removeReason),
 		Attr{Key: "system_user", Value: systemUser},
 		Attr{Key: "remove_options", Value: opts},
 		Attr{Key: "remove_reason", Value: string(removeReason)},
