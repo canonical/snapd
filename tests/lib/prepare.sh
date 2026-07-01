@@ -316,7 +316,11 @@ update_core_snap_for_classic_reexec() {
     else
         # on SELinux enabled systems /usr/bin/snap is a thin wrapper which
         # serves as an policy attachment point
-        not check_file "/usr/bin/snap" "${core}/usr/bin/snap"
+        check_file "/usr/bin/snap" "${core}/usr/bin/snap" && exit 1
+        if [ -L /usr/bin/snap ]; then
+            echo "/usr/bin/snap is a symbolic link"
+            exit 1
+        fi
     fi
 }
 
