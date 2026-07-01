@@ -580,6 +580,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 type testMakeSystemRunnable20Opts struct {
 	standalone           bool
 	factoryReset         bool
+	reprovision          bool
 	classic              bool
 	fromInitrd           bool
 	withKComps           bool
@@ -821,7 +822,8 @@ version: 5.0
 		c.Assert(recoveryGrub.Hashes, HasLen, 1)
 		c.Check(recoveryGrub.Hashes[0], Equals, "aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5")
 
-		c.Check(params.FactoryReset, Equals, opts.factoryReset)
+		c.Check(params.Reprovision, Equals, opts.reprovision || opts.factoryReset)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, opts.factoryReset)
 		if opts.classic {
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
 		} else {
@@ -868,6 +870,8 @@ version: 5.0
 		c.Check(u.unlocked, Equals, 1)
 	case opts.factoryReset && !opts.fromInitrd:
 		err = boot.MakeRunnableSystemAfterDataReset(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
+	case opts.reprovision && !opts.fromInitrd:
+		err = boot.MakeRunnableSystemReprovision(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
 	default:
 		err = boot.MakeRunnableSystem(model, bootWith, obs.BootAssets(), obs.EncryptionSetup())
 	}
@@ -991,18 +995,16 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   false,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   false,
-		withKComps:   false,
+		standalone: false,
+		classic:    false,
+		fromInitrd: false,
+		withKComps: false,
 	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKernelArgs(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
 		standalone:           false,
-		factoryReset:         false,
 		classic:              false,
 		fromInitrd:           false,
 		withKComps:           false,
@@ -1012,21 +1014,19 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKernelArgs(c *C
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKComps(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   false,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: false,
+		classic:    false,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   false,
-		factoryReset: false,
-		classic:      true,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: false,
+		classic:    true,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 
@@ -1050,13 +1050,22 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C
 	})
 }
 
+func (s *makeBootable20Suite) TestMakeSystemRunnable20Reprovision(c *C) {
+	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
+		standalone:  false,
+		reprovision: true,
+		classic:     false,
+		fromInitrd:  false,
+		withKComps:  true,
+	})
+}
+
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   true,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   true,
-		withKComps:   true,
+		standalone: true,
+		classic:    false,
+		fromInitrd: true,
+		withKComps: true,
 	})
 }
 
@@ -1347,7 +1356,8 @@ version: 5.0
 		c.Assert(recoveryGrub.Hashes, HasLen, 1)
 		c.Check(recoveryGrub.Hashes[0], Equals, "aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5")
 
-		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.Reprovision, Equals, false)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, false)
 		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 
 		return fmt.Errorf("seal error")
@@ -1550,7 +1560,8 @@ version: 5.0
 		c.Assert(recoveryGrub.Hashes, HasLen, 1)
 		c.Check(recoveryGrub.Hashes[0], Equals, "aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5")
 
-		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.Reprovision, Equals, false)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, false)
 		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 
 		return nil
@@ -2463,21 +2474,19 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   true,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: true,
+		classic:    false,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   true,
-		factoryReset: false,
-		classic:      true,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: true,
+		classic:    true,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 

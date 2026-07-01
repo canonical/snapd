@@ -88,9 +88,12 @@ type sealKeyToModeenvFlags struct {
 	// HookKeyProtectorFactory will be used to create a [secboot.KeyProtector].
 	// If nil, it is assumed that TPM sealing should be used.
 	HookKeyProtectorFactory secboot.KeyProtectorFactory
-	// FactoryReset indicates that the sealing is happening during factory
-	// reset.
-	FactoryReset bool
+	// LegacyFactoryResetKeyPath tells whether the path to legacy
+	// key file for save partition should use the name expected
+	// for factory reset.
+	LegacyFactoryResetKeyPath bool
+	// Reprovision affects how we provision the TPM if we do.
+	Reprovision bool
 	// SnapsDir is set to provide a non-default directory to find
 	// run mode snaps in.
 	SnapsDir string
@@ -161,8 +164,12 @@ type BootChains struct {
 
 type SealKeyForBootChainsParams struct {
 	BootChains
-	// FactoryReset...
-	FactoryReset bool
+	// LegacyFactoryResetKeyPath tells whether the path to legacy
+	// key file for save partition should use the name expected
+	// for factory reset.
+	LegacyFactoryResetKeyPath bool
+	// Reprovision affects how we provision the TPM if we do.
+	Reprovision bool
 	// UseTokens indicates that key data should be saved to the
 	// tokens of key slots. If not, they will be saved to key
 	// files.
@@ -200,11 +207,12 @@ func sealKeyToModeenvForMethod(
 	flags sealKeyToModeenvFlags,
 ) error {
 	params := &SealKeyForBootChainsParams{
-		FactoryReset:           flags.FactoryReset,
-		UseTokens:              flags.UseTokens,
-		InstallHostWritableDir: InstallHostWritableDir(model),
-		PrimaryKey:             primaryKey,
-		KeyProtectorFactory:    flags.HookKeyProtectorFactory,
+		LegacyFactoryResetKeyPath: flags.LegacyFactoryResetKeyPath,
+		Reprovision:               flags.Reprovision,
+		UseTokens:                 flags.UseTokens,
+		InstallHostWritableDir:    InstallHostWritableDir(model),
+		PrimaryKey:                primaryKey,
+		KeyProtectorFactory:       flags.HookKeyProtectorFactory,
 	}
 
 	var tbl bootloader.TrustedAssetsBootloader
