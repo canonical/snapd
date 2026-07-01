@@ -226,15 +226,26 @@ func (u SnapdUser) String() string {
 // AddOptions holds the options recorded for a system user creation event.
 // JSON tags match the security audit specification field names.
 type AddOptions struct {
-	RealUserName        string `json:"real_user_name"`
-	Sudoer              bool   `json:"sudoer"`
-	ExtraUsers          bool   `json:"extra_users"`
-	ForcePasswordChange bool   `json:"force_password_change"`
-	Known               bool   `json:"known"`
+	// RealUserName is the display name from the GECOS field of the created
+	// account. devicestate populates Gecos as "email,display-name" for
+	// osutil.AddUser; this field is the portion after the comma.
+	RealUserName string `json:"real_user_name"`
+	// Sudoer is true when the account was created with sudo privileges.
+	Sudoer bool `json:"sudoer"`
+	// ExtraUsers is true when the account was created in the extrausers
+	// database (Ubuntu Core) rather than /etc/passwd.
+	ExtraUsers bool `json:"extra_users"`
+	// ForcePasswordChange is true when the user must change their password
+	// on first login.
+	ForcePasswordChange bool `json:"force_password_change"`
+	// Known is true when the account was created from a system-user assertion
+	// rather than from a store email lookup.
+	Known bool `json:"known"`
 }
 
 // RemoveOptions holds the options recorded for a system user removal event.
 // JSON tags match the security audit specification field names.
 type RemoveOptions struct {
+	// Force is true when the account was removed even if it was logged in.
 	Force bool `json:"force"`
 }
