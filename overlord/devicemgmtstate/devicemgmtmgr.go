@@ -598,9 +598,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return reject(fmt.Sprintf("cannot decode message: %v", err))
 	}
 
-	m.state.Unlock()
 	err = assertstateFetchAccountKeys(m.state, 0, []string{a.SignKeyID()})
-	m.state.Lock()
 	if err != nil {
 		// TODO: need to distinguish between:
 		//  - transient errors (like store unreachable) - retry

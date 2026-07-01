@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -56,7 +57,13 @@ var noopTask = func(*state.Task, *tomb.Tomb) error { return nil }
 type mockStore struct {
 	storetest.Store
 
+	assertionDB      *asserts.Database
 	exchangeMessages func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
+}
+
+func (s *mockStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
+	return ref.Resolve(s.assertionDB.Find)
 }
 
 func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
@@ -136,9 +143,6 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.AddCleanup(devicemgmtstate.MockTimeNow(fixedTestTime))
-	s.AddCleanup(devicemgmtstate.MockFetchAccountKeys(func(_ *state.State, _ int, _ []string) error {
-		return nil
-	}))
 
 	s.o = overlord.Mock()
 	s.st = s.o.State()
@@ -227,7 +231,10 @@ func (s *deviceMgmtMgrSuite) makeSerial(c *C, serial string) *asserts.Serial {
 }
 
 func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) {
-	snapstate.ReplaceStore(s.st, &mockStore{exchangeMessages: exchangeMessages})
+	snapstate.ReplaceStore(s.st, &mockStore{
+		assertionDB:      s.storeStack.Database,
+		exchangeMessages: exchangeMessages,
+	})
 }
 
 func (s *deviceMgmtMgrSuite) makeStoreRequestMessage(c *C, messageID, kind, token string) store.MessageWithToken {
@@ -1352,6 +1359,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
 	reqMsg, err := devicemgmtstate.ParseRequestMessage(storeMsg.Message)
 	c.Assert(err, IsNil)
 
+	reqMsg.Dispatched = true
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
 			"msg1": {
