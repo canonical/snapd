@@ -40,6 +40,7 @@ require (
 require (
 	github.com/cilium/ebpf v0.9.1
 	go.etcd.io/bbolt v1.3.9
+	gopkg.in/ini.v1 v1.67.3
 )
 
 require (
@@ -54,6 +55,5 @@ require (
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
 	golang.org/x/term v0.20.0 // indirect
-	gopkg.in/ini.v1 v1.67.3 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
