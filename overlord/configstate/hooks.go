@@ -121,6 +121,7 @@ func filterOutGraduatedFeatures(ctx *hookstate.Context, patch map[string]any) {
 		msg := fmt.Sprintf("feature %s is no longer experimental and is always enabled", feature)
 		logger.Noticef("%s", msg)
 		ctx.Logf("%s", msg)
+		ctx.State().Warnf("%s", msg)
 	}
 
 	// handle the command line case: "snap set system experimental.feature=true"
