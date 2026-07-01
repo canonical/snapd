@@ -269,11 +269,14 @@ func parseJSONActionBody(r *http.Request) (string, error) {
 		dec := json.NewDecoder(bytes.NewReader(prefix))
 		if err := dec.Decode(&req); err != nil {
 			parseErr = err
-		} else if dec.More() {
-			// The body must contain a single JSON value.
-			parseErr = errors.New("unexpected data after request body")
 		} else {
-			action = req.Action
+			// Ensure the body contains exactly one JSON value (no trailing data).
+			var extra any
+			if err := dec.Decode(&extra); err != io.EOF {
+				parseErr = errors.New("unexpected data after request body")
+			} else {
+				action = req.Action
+			}
 		}
 	}
 

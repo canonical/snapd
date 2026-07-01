@@ -1614,6 +1614,16 @@ func (s *daemonSuite) TestParseJSONActionBody(c *check.C) {
 			wantErr: "unexpected data after request body",
 		},
 		{
+			name:    "data after json starting with brace",
+			body:    `{"action":"install"} }morestuff`,
+			wantErr: "unexpected data after request body",
+		},
+		{
+			name:    "data after json starting with bracket",
+			body:    `{"action":"install"} ]morestuff`,
+			wantErr: "unexpected data after request body",
+		},
+		{
 			name:    "body size limit exceeded",
 			body:    strings.Repeat("x", maxBodySize+1),
 			wantErr: "body size limit exceeded",
