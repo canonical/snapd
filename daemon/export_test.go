@@ -400,7 +400,22 @@ var (
 	MaxReadBuflen = maxReadBuflen
 
 	IsRequestFromSnapCmd = isRequestFromSnapCmd
+
+	// Together these reproduce what Command.ServeHTTP does to a request
+	// before access checking.
+	ReadRequestBody   = readRequestBody
+	WithRequestAction = withRequestAction
+	IsBodyUnusable    = isBodyUnusable
+
+	// The rules Command.ServeHTTP uses to find a request's action, shared
+	// with the action coverage check in api_base_test.go.
+	DecodeAction = decodeAction
 )
+
+func RequestDecodesAction(r *http.Request) bool {
+	_, wantAction := requestBodyPolicy(r)
+	return wantAction
+}
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
 	restore = testutil.Backup(&rebootNoticeWait)
