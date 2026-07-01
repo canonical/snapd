@@ -20,8 +20,10 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -29,9 +31,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -1552,4 +1556,273 @@ func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 			"message": "request canceled",
 		},
 		"type": "error"})
+}
+
+func (s *daemonSuite) TestParseJSONActionBody(c *check.C) {
+	type testCase struct {
+		name          string
+		method        string
+		body          string
+		contentType   string // "" sets application/json; "none" omits the header
+		contentLength int64
+		nilBody       bool
+		wantAction    string
+		wantErr       string
+	}
+
+	for _, tc := range []testCase{
+		{
+			name:       "extracts action",
+			body:       `{"snaps":["x"],"action":"refresh"}`,
+			wantAction: "refresh",
+		},
+		{
+			name:       "action absent",
+			body:       `{"snaps":["x"]}`,
+			wantAction: "",
+		},
+		{
+			name:       "empty action",
+			body:       `{"action":""}`,
+			wantAction: "",
+		},
+		{
+			name:          "content length ignored",
+			body:          `{"action":"install","snaps":["x"]}`,
+			contentLength: 5,
+			wantAction:    "install",
+		},
+		{
+			name:          "content length unknown",
+			body:          `{"action":"install","snaps":["x"]}`,
+			contentLength: -1,
+			wantAction:    "install",
+		},
+		{
+			name:    "non-object top-level",
+			body:    `[{"action":"install"}]`,
+			wantErr: "json: cannot unmarshal array",
+		},
+		{
+			name:    "malformed json",
+			body:    `{not json`,
+			wantErr: "invalid character",
+		},
+		{
+			name:    "data after json",
+			body:    `{"action":"install"} trailing`,
+			wantErr: "unexpected data after request body",
+		},
+		{
+			name:    "body size limit exceeded",
+			body:    strings.Repeat("x", maxBodySize+1),
+			wantErr: "body size limit exceeded",
+		},
+		{
+			name:    "nil body",
+			method:  "POST",
+			nilBody: true,
+		},
+		{
+			name:    "empty body EOF",
+			body:    "",
+			wantErr: "EOF",
+		},
+		{
+			name:        "multipart skipped",
+			body:        `{"action":"install"}`,
+			contentType: "multipart/form-data",
+		},
+	} {
+		method := tc.method
+		if method == "" {
+			method = "POST"
+		}
+		var req *http.Request
+		if tc.nilBody {
+			req = httptest.NewRequest(method, "/", nil)
+			req.Body = nil
+		} else {
+			req = httptest.NewRequest(method, "/", strings.NewReader(tc.body))
+		}
+		switch tc.contentType {
+		case "none":
+		case "":
+			req.Header.Set("Content-Type", "application/json")
+		default:
+			req.Header.Set("Content-Type", tc.contentType)
+		}
+		if tc.contentLength != 0 {
+			req.ContentLength = tc.contentLength
+		}
+
+		got, err := parseJSONActionBody(req)
+		cmt := check.Commentf("case: %s", tc.name)
+		if tc.wantErr != "" {
+			c.Assert(err, check.ErrorMatches, tc.wantErr+".*", cmt)
+		} else {
+			c.Assert(err, check.IsNil, cmt)
+			c.Check(got, check.Equals, tc.wantAction, cmt)
+		}
+
+		if tc.nilBody {
+			continue
+		}
+		gotBody, readErr := io.ReadAll(req.Body)
+		c.Assert(readErr, check.IsNil, cmt)
+		c.Check(string(gotBody), check.Equals, tc.body, cmt)
+	}
+
+	for _, method := range []string{"GET", "PUT", "DELETE", "PATCH"} {
+		req := httptest.NewRequest(method, "/", strings.NewReader(`{"action":"install"}`))
+		got, err := parseJSONActionBody(req)
+		c.Assert(err, check.IsNil, check.Commentf("method: %s", method))
+		c.Check(got, check.Equals, "", check.Commentf("method: %s", method))
+	}
+}
+
+func (s *daemonSuite) TestParseJSONActionBodyIdempotent(c *check.C) {
+	body := `{"action":"install","snaps":["x"]}`
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	action, err := parseJSONActionBody(req)
+	c.Assert(err, check.IsNil)
+	c.Check(action, check.Equals, "install")
+	_, ok := req.Body.(*jsonActionBody)
+	c.Assert(ok, check.Equals, true)
+
+	action, err = parseJSONActionBody(req)
+	c.Assert(err, check.IsNil)
+	c.Check(action, check.Equals, "install")
+
+	gotBody, readErr := io.ReadAll(req.Body)
+	c.Assert(readErr, check.IsNil)
+	c.Check(string(gotBody), check.Equals, body)
+}
+
+// TestParseJSONActionBodyReadErrorPreservesBody pins the readErr branch of
+// parseJSONActionBody: when the request body Read fails partway through,
+// the successfully-buffered prefix is chained back to the underlying
+// stream so downstream handlers still get an honest opportunity to read
+// what was received.
+func (s *daemonSuite) TestParseJSONActionBodyReadErrorPreservesBody(c *check.C) {
+	prefix := []byte(`{"action":"install"`)
+	simulatedErr := errors.New("simulated transient read error")
+	// Compose a body that yields the prefix once then errors on every
+	// subsequent Read — a stdlib-only equivalent of a stream that
+	// broke partway through (client disconnect, TLS error, reset).
+	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req.Body = io.NopCloser(io.MultiReader(
+		bytes.NewReader(prefix),
+		iotest.ErrReader(simulatedErr),
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	action, err := parseJSONActionBody(req)
+	c.Check(action, check.Equals, "")
+	c.Assert(err, check.NotNil)
+	c.Check(err, check.Equals, simulatedErr)
+
+	// The prefix that was successfully consumed before the error must
+	// still be readable via r.Body.
+	buf := make([]byte, len(prefix))
+	n, readErr := io.ReadFull(req.Body, buf)
+	c.Check(n, check.Equals, len(prefix))
+	c.Check(readErr, check.IsNil)
+	c.Check(buf, check.DeepEquals, prefix)
+
+	// A subsequent read must surface the original error — the point of
+	// chaining is to let downstream try, not to hide the truncation
+	// behind a silent EOF from an in-memory buffer.
+	_, nextErr := req.Body.Read(make([]byte, 1))
+	c.Check(nextErr, check.Equals, simulatedErr)
+}
+
+func (s *daemonSuite) TestServeHTTPTraceExtractsActionPreservesBody(c *check.C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	d := s.newTestDaemon(c)
+	body := `{"action":"install","snaps":["x"]}`
+
+	var gotBody string
+	cmd := &Command{d: d, Path: "/v2/test"}
+	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+		b, err := io.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		gotBody = string(b)
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = openAccess{}
+
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(gotBody, check.Equals, body)
+}
+
+// TestServeHTTPTraceOversizeBodyStillServed verifies that when SNAPD_TRACE
+// is enabled and the request body exceeds maxBodySize, the tracer records
+// the parse failure but the downstream handler still receives the full,
+// untruncated body via the chained reader.
+func (s *daemonSuite) TestServeHTTPTraceOversizeBodyStillServed(c *check.C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	d := s.newTestDaemon(c)
+	body := strings.Repeat("x", maxBodySize+128)
+
+	var gotLen int
+	cmd := &Command{d: d, Path: "/v2/test"}
+	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+		b, err := io.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		gotLen = len(b)
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = openAccess{}
+
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(gotLen, check.Equals, len(body))
+}
+
+// TestServeHTTPTraceInvalidJSONStillServed verifies that a parse failure in
+// the tracer (invalid JSON body) does not cause the request to be rejected
+// and that the handler still sees the original body.
+func (s *daemonSuite) TestServeHTTPTraceInvalidJSONStillServed(c *check.C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	d := s.newTestDaemon(c)
+	body := `{not json`
+
+	var gotBody string
+	cmd := &Command{d: d, Path: "/v2/test"}
+	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+		b, err := io.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		gotBody = string(b)
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = openAccess{}
+
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(gotBody, check.Equals, body)
 }
