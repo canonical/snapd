@@ -23,16 +23,11 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/testutil"
 )
 
-type DependenciesSuite struct{}
+type dependenciesSuite struct{}
 
-var _ = Suite(&DependenciesSuite{})
-
-type dependenciesSuite struct {
-	testutil.BaseTest
-}
+var _ = Suite(&dependenciesSuite{})
 
 func (s *dependenciesSuite) TestBasicDependencies(c *C) {
 	plugs := []string{"desktop-legacy"}
