@@ -67,6 +67,8 @@ github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066 h1:InG0E
 github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066/go.mod h1:VuAdaITF1MrGzxPU+8GxagM1HW2vg7QhEFEeGHbmEMU=
 github.com/snapcore/secboot v0.0.0-20260410084611-3f8b98c2db70 h1:EewX3F1DSpJz8wPZxFxC3MdOnFiFVAazbOIv1OQNDME=
 github.com/snapcore/secboot v0.0.0-20260410084611-3f8b98c2db70/go.mod h1:+qs2Juv0XZeTmQHJgFTtAd9520h7QUWRDyvSwbJ3xEU=
+github.com/snapcore/secboot v0.0.0-20260623135244-457b03a16d19 h1:nVT7EXqb2qUXWG94woDaS5IrWEy87pgj8esfvVFiZx0=
+github.com/snapcore/secboot v0.0.0-20260623135244-457b03a16d19/go.mod h1:/J5bNHw8HkyxuUZRrk2LUzkne3zO/kEwJlm+/oB16SE=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
