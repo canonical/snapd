@@ -20,6 +20,7 @@
 package devicestate_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -65,6 +66,8 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
@@ -3203,6 +3206,10 @@ func (s *deviceMgrSuite) mockSystemMode(c *C, mode string) {
 }
 
 func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extraUsers bool) {
+	seclogBuf := &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(seclogBuf))
+	defer seclog.Setup(seclog.NewNopLogger())
+
 	// Mock the delete user callback to verify it's correctly called. On ubuntu core
 	// systems ExtraUsers should be set, where on classic systems ExtraUsers should not
 	// be set
@@ -3220,6 +3227,7 @@ func (s *deviceMgrSuite) testExpiredUserRemoved(c *C, userToRemove string, extra
 	err := devicestate.EnsureExpiredUsersRemoved(s.mgr)
 	c.Assert(err, IsNil)
 	c.Assert(delUserCalled, Equals, true)
+	c.Check(seclogBuf.String(), testutil.Contains, `remove_reason="ensure-remove-expired-user"`)
 }
 
 func (s *deviceMgrSuite) testExpiredUserNotRemoved(c *C) {

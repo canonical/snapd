@@ -8,7 +8,10 @@ details: |
     an "authn_login_success" event in the audit log. It also checks that
     user lifecycle events (user_created, user_updated, user_removed) are
     recorded when users are created via login, updated on re-login, and
-    removed via logout.
+    removed via logout. System account events (user_created_system,
+    user_removed_system) are recorded when a local system user is created
+    via create-user and removed via remove-user, including add_reason and
+    remove_reason fields.
 
 # Amazon Linux 2: systemd-journald-audit.socket is not available
 systems: [ -amazon-linux-2-64 ]
@@ -32,6 +35,11 @@ restore: |
     fi
 
     snap logout || true
+
+    if [ -f system-user-name ]; then
+        snap remove-user "$(cat system-user-name)" || true
+        rm -f system-user-name
+    fi
 
 execute: |
     # auditd holds the netlink audit socket exclusively; if it is running,
@@ -128,4 +136,21 @@ execute: |
         snap logout
 
         journal_match '"category":"USER","event":"user_removed","user":\{"snapd_user_id":[0-9]+,"store_user_name":"[^"]*","store_user_email":"[^"]*","expiration":"[^"]*"\}'
+
+        echo "Checking that create-user produces a system user creation audit event"
+        journal_pin
+        create_user_output=$(snap create-user --json "$SPREAD_STORE_USER")
+        system_username=$(echo "$create_user_output" | python3 -c 'import json,sys; print(json.load(sys.stdin)["username"])')
+        echo "$system_username" > system-user-name
+
+        journal_match '"category":"USER","event":"user_created_system".*"description":"Created system user '"$system_username"' \(api-store-email\)"'
+        journal_match '"category":"USER","event":"user_created_system".*"system_user":"'"$system_username"'".*"known":false.*"add_reason":"api-store-email"'
+
+        echo "Checking that remove-user produces a system user removal audit event"
+        journal_pin
+        snap remove-user "$system_username"
+        rm -f system-user-name
+
+        journal_match '"category":"USER","event":"user_removed_system".*"description":"Removed system user '"$system_username"' \(api-remove-user\)"'
+        journal_match '"category":"USER","event":"user_removed_system".*"system_user":"'"$system_username"'".*"force":false.*"remove_reason":"api-remove-user"'
     fi
