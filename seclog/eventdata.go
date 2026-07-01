@@ -231,33 +231,31 @@ type SystemUserAddReason string
 
 // SystemUserAddReason values for user_created_system events.
 const (
-	// AddReasonAPICreateUserFromStoreCredentials is set when POST /v2/users or
-	// POST /v2/create-user creates a system user with known: false; account
-	// details are looked up from the Snap Store by email.
-	AddReasonAPICreateUserFromStoreCredentials SystemUserAddReason = "api-create-user-from-store-credentials"
-	// AddReasonAPICreateUserFromAssertion is set when POST /v2/users or
-	// POST /v2/create-user creates one user with known: true and an email;
-	// details come from a pre-imported system-user assertion selected by
-	// brand-id and email.
-	AddReasonAPICreateUserFromAssertion SystemUserAddReason = "api-create-user-from-assertion"
-	// AddReasonAPICreateUserFromAllAssertions is set when POST /v2/users or
-	// POST /v2/create-user creates every applicable system user with known: true
-	// and no email; details come from all valid pre-imported system-user
-	// assertions for the device model.
-	AddReasonAPICreateUserFromAllAssertions SystemUserAddReason = "api-create-user-from-all-assertions"
+	// AddReasonAPIStoreEmail is set when POST /v2/users or POST /v2/create-user
+	// creates a system user with known: false; account details are looked up
+	// from the Snap Store by email.
+	AddReasonAPIStoreEmail SystemUserAddReason = "api-store-email"
+	// AddReasonAPIAssertion is set when POST /v2/users or POST /v2/create-user
+	// creates one user with known: true and an email; details come from a
+	// pre-imported system-user assertion selected by brand-id and email.
+	AddReasonAPIAssertion SystemUserAddReason = "api-assertion"
+	// AddReasonAPIAssertionAll is set when POST /v2/users or POST /v2/create-user
+	// creates every applicable system user with known: true and no email; details
+	// come from all valid pre-imported system-user assertions for the device model.
+	AddReasonAPIAssertionAll SystemUserAddReason = "api-assertion-all"
 	// AddReasonAPICreateUserFromAllAssertionsAutomatic is set when POST /v2/users
 	// or POST /v2/create-user is called with automatic: true (e.g. snap
 	// auto-import); all applicable assertion-backed users are created on an
 	// unmanaged device.
 	AddReasonAPICreateUserFromAllAssertionsAutomatic SystemUserAddReason = "api-create-user-from-all-assertions-automatic"
-	// AddReasonFirstbootCreateUserFromSeedAutoImport is set during first boot on
-	// dangerous models when system-user assertions from the seed are
-	// auto-imported and applied (not via the user-admin API).
-	AddReasonFirstbootCreateUserFromSeedAutoImport SystemUserAddReason = "firstboot-create-user-from-seed-auto-import"
-	// AddReasonEnsureCreateUserFromSerialBoundAssertion is set when the device
-	// manager ensure loop creates users from serial-bound system-user assertions
-	// that could not be applied until after device registration.
-	AddReasonEnsureCreateUserFromSerialBoundAssertion SystemUserAddReason = "ensure-create-user-from-serial-bound-assertion"
+	// AddReasonFirstbootSeedAutoImport is set during first boot on dangerous
+	// models when system-user assertions from the seed are auto-imported and
+	// applied (not via the user-admin API).
+	AddReasonFirstbootSeedAutoImport SystemUserAddReason = "firstboot-seed-auto-import"
+	// AddReasonDeferredSerialBoundAssertion is set when the device manager
+	// ensure loop creates users from serial-bound system-user assertions that
+	// could not be applied until after device registration.
+	AddReasonDeferredSerialBoundAssertion SystemUserAddReason = "deferred-serial-bound-assertion"
 )
 
 // SystemUserRemoveReason identifies why a system user account was removed.

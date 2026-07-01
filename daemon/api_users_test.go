@@ -570,7 +570,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
 		c.Check(expiration, check.Equals, time.Time{})
-		c.Check(addReason, check.Equals, seclog.AddReasonAPICreateUserFromStoreCredentials)
+		c.Check(addReason, check.Equals, seclog.AddReasonAPIStoreEmail)
 		expected := &devicestate.CreatedUser{
 			Username: expectedUsername,
 			SSHKeys: []string{
@@ -624,7 +624,7 @@ func (s *userSuite) testCreateUserErr(c *check.C, internalErr bool) {
 	called := 0
 	defer daemon.MockDeviceStateCreateKnownUsers(func(st *state.State, sudoer bool, email string, addReason seclog.SystemUserAddReason) ([]*devicestate.CreatedUser, error) {
 		called++
-		c.Check(addReason, check.Equals, seclog.AddReasonAPICreateUserFromAssertion)
+		c.Check(addReason, check.Equals, seclog.AddReasonAPIAssertion)
 		if internalErr {
 			return nil, fmt.Errorf("internal error: wat-internal")
 		} else {
@@ -1045,7 +1045,7 @@ func (s *userSuite) TestPostCreateUserExpirationHappy(c *check.C) {
 		c.Check(email, check.Equals, expectedEmail)
 		c.Check(sudoer, check.Equals, false)
 		c.Check(expiration.Equal(expectedTime), check.Equals, true)
-		c.Check(addReason, check.Equals, seclog.AddReasonAPICreateUserFromStoreCredentials)
+		c.Check(addReason, check.Equals, seclog.AddReasonAPIStoreEmail)
 		expected := &devicestate.CreatedUser{
 			Username: expectedUsername,
 			SSHKeys: []string{
@@ -1190,7 +1190,7 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
-	s.testPostCreateUserFromAssertion(c, `{"known":true}`, false, seclog.AddReasonAPICreateUserFromAllAssertions)
+	s.testPostCreateUserFromAssertion(c, `{"known":true}`, false, seclog.AddReasonAPIAssertionAll)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllAutomatic(c *check.C) {

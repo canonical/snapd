@@ -187,7 +187,7 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 			attrs: []seclog.Attr{
 				{Key: "system_user", Value: "karl"},
 				{Key: "add_options", Value: seclog.AddOptions{Known: false}},
-				{Key: "add_reason", Value: string(seclog.AddReasonAPICreateUserFromStoreCredentials)},
+				{Key: "add_reason", Value: string(seclog.AddReasonAPIStoreEmail)},
 			},
 			wantKeys: []string{
 				"datetime", "level", "description",
@@ -497,14 +497,14 @@ func (s *SlogSuite) TestSystemUserAddReasonLogValue(c *C) {
 		"test",
 		seclog.Attr{Key: "system_user", Value: "foo"},
 		seclog.Attr{Key: "add_options", Value: seclog.AddOptions{Known: true}},
-		seclog.Attr{Key: "add_reason", Value: string(seclog.AddReasonAPICreateUserFromAssertion)},
+		seclog.Attr{Key: "add_reason", Value: string(seclog.AddReasonAPIAssertion)},
 	)
 
 	var obtained record
 	err := json.Unmarshal(s.buf.Bytes(), &obtained)
 	c.Assert(err, IsNil)
 	c.Check(obtained.SystemUser, Equals, "foo")
-	c.Check(obtained.AddReason, Equals, "api-create-user-from-assertion")
+	c.Check(obtained.AddReason, Equals, "api-assertion")
 	c.Check(obtained.AddOptions.Known, Equals, true)
 }
 
