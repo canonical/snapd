@@ -325,6 +325,7 @@ func setupConfCacheDirs(newrootdir string) {
 	CacheDir = filepath.Join(newrootdir, "/var/cache/apparmor")
 	hostAbi30File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/3.0")
 	hostAbi40File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/4.0")
+	hostAbi50File = filepath.Join(newrootdir, "/etc/apparmor.d/abi/5.0")
 
 	SystemCacheDir = filepath.Join(ConfDir, "cache")
 	exists, isDir, _ := osutil.DirExists(SystemCacheDir)
@@ -562,6 +563,8 @@ var (
 	hostAbi30File = ""
 	// hostAbi40File is like hostAbi30File but for ABI 4.0
 	hostAbi40File = ""
+	// hostAbi50File is like hostAbi30File but for ABI 5.0
+	hostAbi50File = ""
 )
 
 // Each apparmor feature is manifested as a directory entry.
@@ -948,6 +951,14 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
 			logger.Debugf("checking distro apparmor_parser at %v", path)
+
+			// Detect bug ignore apparmor 5.0 ABI support.
+			// There's no known, diagnosed issue with ABI 5 yet but given that
+			// we also ignore host ABI 4.0, it's sensible to ignore this one explicitly too.
+			if fi, err := os.Lstat(hostAbi50File); err == nil && !fi.IsDir() {
+				logger.Debugf("apparmor 5.0 ABI detected but ignored")
+			}
+
 			// Detect but ignore apparmor 4.0 ABI support.
 			//
 			// At present this causes some bugs with mqueue mediation that can
