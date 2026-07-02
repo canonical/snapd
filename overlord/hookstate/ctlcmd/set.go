@@ -266,6 +266,10 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, values map[string]
 	ctx.Lock()
 	defer ctx.Unlock()
 
+	if confdbstate.IsConfdbHookCtx(ctx) && !confdbstate.CanHookSetConfdb(ctx) {
+		return fmt.Errorf("cannot modify confdb in %q hook", ctx.HookName())
+	}
+
 	plug, err := checkConfdbPlugConnection(ctx, plugName)
 	if err != nil {
 		return err
@@ -279,10 +283,6 @@ func setConfdbValues(ctx *hookstate.Context, plugName string, values map[string]
 	view, err := confdbstateGetView(ctx.State(), account, dbSchemaName, viewName)
 	if err != nil {
 		return err
-	}
-
-	if confdbstate.IsConfdbHookCtx(ctx) && !confdbstate.CanHookSetConfdb(ctx) {
-		return fmt.Errorf("cannot modify confdb in %q hook", ctx.HookName())
 	}
 
 	return confdbstateWriteConfdb(ctx, view, values, opts)
