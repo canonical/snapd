@@ -562,16 +562,10 @@ prepare_project() {
                 quiet apt install -y "$best_golang"
                 best_golang_path="/usr/lib/${best_golang/lang/}/bin/go"
                 test -e "$best_golang_path"
+                ln -s "$best_golang_path" /usr/local/bin/go
                 apt build-dep -y ./ # we don't run this for 14.04
                 # We need to ensure the correct version of golang is used.
-                go_path="$(command -v go)" || true
-                if [ -n "$go_path" ]; then
-                    # Ignore existing go so we ensure the desired one is used
-                    mv "$go_path" "$go_path"-orig
-                else
-                    go_path="/usr/bin/go"
-                fi
-                ln -s "$best_golang_path" "$go_path"
+                command -v go | MATCH '/usr/local/bin/go'
             }
 
             if ! os.query is-trusty; then
