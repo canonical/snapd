@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionReplacePlatformKey
+description: Payload to replace platform keys in one or more key slots.
+required:
+  - action
+  - auth-mode
+properties:
+  action:
+    type: string
+    enum:
+      - replace-platform-key
+  keyslots:
+    type: array
+    description: Key slots targeted by the action. If omitted, all applicable platform key slots are targeted.
+    items:
+      $ref: './SystemVolumesKeyslotRef.yaml'
+  auth-mode:
+    type: string
+    description: New authentication mode for the platform key.
+    enum:
+      - none
+      - passphrase
+      - pin
+  passphrase:
+    type: string
+    format: password
+    description: Required when `auth-mode` is `passphrase`.
+  pin:
+    type: string
+    format: password
+    description: Required when `auth-mode` is `pin`.
+  kdf-type:
+    type: string
+    description: Optional KDF type for passphrase authentication.
+    enum:
+      - argon2i
+      - argon2id
+      - pbkdf2
+  kdf-time:
+    type: integer
+    description: Reserved; non-zero values are rejected.
+    format: int64

@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesGetResponse
+description: The complete synchronous response for system volume information.
+properties:
+  type:
+    type: string
+    enum:
+      - sync
+  status-code:
+    type: integer
+    enum:
+      - 200
+  status:
+    type: string
+    enum:
+      - OK
+  result:
+    $ref: './SystemVolumesResult.yaml'

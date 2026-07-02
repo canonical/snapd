@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionChangePin
+description: Payload to change the PIN for system volume authentication.
+required:
+  - action
+  - old-pin
+  - new-pin
+properties:
+  action:
+    type: string
+    enum:
+      - change-pin
+  old-pin:
+    type: string
+    format: password
+  new-pin:
+    type: string
+    format: password
+  keyslots:
+    type: array
+    description: Key slots targeted by the action. If omitted, all applicable PIN key slots are targeted.
+    items:
+      $ref: './SystemVolumesKeyslotRef.yaml'

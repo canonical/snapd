@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionChangePassphrase
+description: Payload to change the passphrase for system volume authentication.
+required:
+  - action
+  - old-passphrase
+  - new-passphrase
+properties:
+  action:
+    type: string
+    enum:
+      - change-passphrase
+  old-passphrase:
+    type: string
+    format: password
+  new-passphrase:
+    type: string
+    format: password
+  keyslots:
+    type: array
+    description: Key slots targeted by the action. If omitted, all applicable passphrase key slots are targeted.
+    items:
+      $ref: './SystemVolumesKeyslotRef.yaml'

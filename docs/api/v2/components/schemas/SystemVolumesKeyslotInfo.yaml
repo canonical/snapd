@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesKeyslotInfo
+description: Information about an encryption key slot on a system volume structure.
+required:
+  - type
+properties:
+  type:
+    type: string
+    description: The key slot type.
+    enum:
+      - platform
+      - recovery
+  roles:
+    type: array
+    description: Roles associated with a platform key slot.
+    items:
+      type: string
+    example:
+      - run+recover
+  platform-name:
+    type: string
+    description: The platform name for a platform key slot.
+    example: tpm2
+  auth-mode:
+    type: string
+    description: Authentication mode for a platform key slot.
+    enum:
+      - none
+      - passphrase
+      - pin

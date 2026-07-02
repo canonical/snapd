@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+title: SystemVolumesAction
+description: Payload for a system volume action. The required fields depend on the selected action.
+oneOf:
+  - $ref: './SystemVolumesActionGenerateRecoveryKey.yaml'
+  - $ref: './SystemVolumesActionCheckRecoveryKey.yaml'
+  - $ref: './SystemVolumesActionAddRecoveryKey.yaml'
+  - $ref: './SystemVolumesActionReplaceRecoveryKey.yaml'
+  - $ref: './SystemVolumesActionReplacePlatformKey.yaml'
+  - $ref: './SystemVolumesActionCheckPassphraseQuality.yaml'
+  - $ref: './SystemVolumesActionCheckPinQuality.yaml'
+  - $ref: './SystemVolumesActionChangePassphrase.yaml'
+  - $ref: './SystemVolumesActionChangePin.yaml'

@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionCheckPassphraseQuality
+description: Payload to check the quality of a passphrase for system volume authentication.
+required:
+  - action
+  - passphrase
+properties:
+  action:
+    type: string
+    enum:
+      - check-passphrase-quality
+  passphrase:
+    type: string
+    format: password
+    description: The passphrase to check.

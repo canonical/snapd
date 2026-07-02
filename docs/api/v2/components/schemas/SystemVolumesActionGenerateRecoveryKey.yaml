@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesActionGenerateRecoveryKey
+description: Payload to generate a recovery key for later use with system volumes.
+required:
+  - action
+properties:
+  action:
+    type: string
+    enum:
+      - generate-recovery-key

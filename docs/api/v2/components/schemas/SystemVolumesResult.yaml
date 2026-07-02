@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2025 Canonical Ltd
+# SPDX-License-Identifier: GPL-3.0-only
+
+type: object
+title: SystemVolumesResult
+description: System volume information grouped by supported grouping keys.
+properties:
+  by-container-role:
+    type: object
+    description: Volume structures keyed by container role.
+    additionalProperties:
+      $ref: './SystemVolumesStructureInfo.yaml'
+example:
+  by-container-role:
+    system-data:
+      volume-name: pc
+      name: ubuntu-data
+      encrypted: true
+      keyslots:
+        default:
+          type: platform
+          roles:
+            - run+recover
+          platform-name: tpm2
+          auth-mode: pin
+        default-recovery:
+          type: recovery
+    system-save:
+      volume-name: pc
+      name: ubuntu-save
+      encrypted: true
+      keyslots:
+        default-fallback:
+          type: platform
+          roles:
+            - recover
+          platform-name: tpm2
+          auth-mode: none
+        default-recovery:
+          type: recovery
