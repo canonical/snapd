@@ -78,6 +78,97 @@ func (*apparmorSuite) TestAppArmorParser(c *C) {
 	c.Check(err, Equals, nil)
 }
 
+func (s *apparmorSuite) TestAppArmorParserDistroAbiIgnored(c *C) {
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+
+	type abiCase struct {
+		name     string
+		abi30    string
+		abi40    string
+		abi50    string
+		expected []string
+		logMatch string
+	}
+
+	cases := []abiCase{
+		{
+			name:     "no abi files",
+			expected: []string{mockParserCmd.Exe()},
+		},
+		{
+			name:     "only abi 3.0",
+			abi30:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0"),
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0")},
+		},
+		{
+			name:     "only abi 5.0 ignored",
+			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
+			expected: []string{mockParserCmd.Exe()},
+			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected but ignored`,
+		},
+		{
+			name:     "abi 4.0 and 5.0 ignored",
+			abi40:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/4.0"),
+			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
+			expected: []string{mockParserCmd.Exe()},
+			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected but ignored.* DEBUG: apparmor 4.0 ABI detected but ignored`,
+		},
+		{
+			name:     "all three abis - pins to 3.0, ignores 4 and 5",
+			abi30:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0"),
+			abi40:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/4.0"),
+			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0")},
+			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected but ignored.* DEBUG: apparmor 4.0 ABI detected but ignored`,
+		},
+	}
+
+	for _, tc := range cases {
+		c.Logf("case: %s", tc.name)
+
+		if tc.abi30 != "" {
+			c.Assert(os.MkdirAll(filepath.Dir(tc.abi30), 0755), IsNil)
+			c.Assert(os.WriteFile(tc.abi30, nil, 0644), IsNil)
+		}
+		if tc.abi40 != "" {
+			c.Assert(os.MkdirAll(filepath.Dir(tc.abi40), 0755), IsNil)
+			c.Assert(os.WriteFile(tc.abi40, nil, 0644), IsNil)
+		}
+		if tc.abi50 != "" {
+			c.Assert(os.MkdirAll(filepath.Dir(tc.abi50), 0755), IsNil)
+			c.Assert(os.WriteFile(tc.abi50, nil, 0644), IsNil)
+		}
+
+		restore30 := apparmor.MockHostAbi30File(tc.abi30)
+		restore40 := apparmor.MockHostAbi40File(tc.abi40)
+		restore50 := apparmor.MockHostAbi50File(tc.abi50)
+		log, restoreLogger := logger.MockLogger()
+
+		os.Setenv("SNAPD_DEBUG", "1")
+		cmd, internal, err := apparmor.AppArmorParser()
+		c.Assert(err, IsNil)
+		c.Check(cmd.Path, Equals, mockParserCmd.Exe())
+		c.Check(cmd.Args, DeepEquals, tc.expected)
+		c.Check(internal, Equals, false)
+		if tc.logMatch != "" {
+			c.Check(log.String(), Matches, tc.logMatch)
+		} else if tc.name == "no abi files" || tc.name == "only abi 3.0" {
+			// No ABI-5/ABI-4 ignore messages expected; the generic
+			// "checking distro apparmor_parser" message is still present.
+			c.Check(log.String(), Matches, `(?ms).* DEBUG: checking distro apparmor_parser .*\n`)
+		}
+
+		restoreLogger()
+		os.Unsetenv("SNAPD_DEBUG")
+		restore30()
+		restore40()
+		restore50()
+	}
+}
+
 func setupInternalAppArmorParserEnv(c *C, abiVersions ...string) (parser, libSnapdDir string, restore func()) {
 	fakeroot := c.MkDir()
 	dirs.SetRootDir(fakeroot)
