@@ -20,12 +20,9 @@
  * (e.g. snap-preseed, snapd-apparmor). It is hardlinked under each tool name
  * in /usr/lib/snapd/<tool-name>.
  *
- * At runtime, it uses basename(argv[0]) to determine the tool name, preserves
- * it as argv[0] for display (ps, top), inserts it at argv[1] as the dispatch
- * signal, and execv()s into the snapd multi-call binary.
- *
- * Go dispatch in cmd/snapd/main.go checks argv[1] for known tool names before
- * falling through to the argv[0]-based daemon/CLI dispatch.
+ * At runtime, it uses basename(argv[0]) to determine the tool name, sets
+ * argv[0]="snapd" (unambiguous dispatch), places the tool name at argv[1], and
+ * execv()s into the snapd multi-call binary.
  */
 
 #include <libgen.h>
@@ -40,9 +37,9 @@ int main(int argc, char **argv) {
     char *new_argv[argc + 2];
     int i;
 
-    /* argv[0] = tool name (for display in ps/top) */
-    /* argv[1] = tool name (dispatch signal for Go code) */
-    new_argv[0] = tool;
+    /* argv[0] = "snapd" — unambiguous dispatch */
+    /* argv[1] = tool name — identifies the tool to the Go dispatch */
+    new_argv[0] = "snapd";
     new_argv[1] = tool;
     for (i = 1; i < argc; i++) {
         new_argv[i + 1] = argv[i];

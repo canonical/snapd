@@ -470,10 +470,7 @@ endif
 ## snapd-tool-wrap
 ##
 ## A generic multi-call wrapper for internal snapd tools (e.g. snap-preseed).
-## Hardlinked under each tool name in /usr/lib/snapd/<tool-name>. Uses
-## basename(argv[0]) to determine the tool name, preserves it as argv[0] for
-## display, inserts it at argv[1] as the dispatch signal, and execv()s into
-## the snapd multi-call binary.
+## Hardlinked under each tool name in /usr/lib/snapd/<tool-name>.
 ##
 
 libexec_PROGRAMS += snapd-tool-wrap/snapd-tool-wrap
