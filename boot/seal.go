@@ -242,10 +242,15 @@ func sealKeyToModeenvForMethod(
 		}
 	}
 
-	// When installing or reprovsion, we expect there is no try system
+	// When installing or reprovsioning, we expect there is no try
+	// system.
 	includeTryModel := false
+	// When provisioning we keep all good recovery systems.
 	systems := modeenv.GoodRecoverySystems
 	if len(systems) == 0 {
+		// The main recovery system is set only when installing.
+		// And there is no system marked as good.
+		// We use that installation recovery system.
 		systems = []string{modeenv.RecoverySystem}
 	}
 	modes := map[string][]string{}
