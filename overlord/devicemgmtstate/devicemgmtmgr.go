@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -53,13 +54,20 @@ const (
 )
 
 var (
-	timeNow = time.Now
+	timeNow                     = time.Now
+	assertstateFetchAccountKeys = assertstate.FetchAccountKeys
 
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
 
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
+
+// deviceBackend provides device identity and response message signing.
+type deviceBackend interface {
+	Serial() (*asserts.Serial, error)
+	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
+}
 
 // MessageHandler processes request messages of a specific kind.
 // Caller must hold state lock when using this interface.
@@ -76,17 +84,22 @@ type MessageHandler interface {
 	ResultFromChange(chg *state.Change) (body map[string]any, err error)
 }
 
+// UnauthorizedError is returned by MessageHandler.Validate when the operator
+// does not have permission to perform the requested action.
+type UnauthorizedError struct {
+	Operator string
+}
+
+func (e *UnauthorizedError) Error() string {
+	return fmt.Sprintf("cannot perform action: operator %q is not authorized", e.Operator)
+}
+
 // MarkChangeForMessage records the message ID on the change created by an Apply
 // implementation. It must be called after change creation and before releasing
 // the state lock, so that doApplyMessage can recover the change ID on retry
 // and not call the handler's Apply again.
 func MarkChangeForMessage(chg *state.Change, msg *RequestMessage) {
 	chg.Set(mgmtMessageIDKey, msg.ID())
-}
-
-// responseMessageSigner can sign response-message assertions.
-type responseMessageSigner interface {
-	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
 // RequestMessage represents a request-message being processed.
@@ -101,6 +114,7 @@ type RequestMessage struct {
 	Devices     []string  `json:"devices"`
 	ValidSince  time.Time `json:"valid-since"`
 	ValidUntil  time.Time `json:"valid-until"`
+	Assumes     []string  `json:"assumes,omitempty"`
 	Body        string    `json:"body"`
 
 	ReceiveTime time.Time `json:"receive-time"`
@@ -113,6 +127,9 @@ type RequestMessage struct {
 	// A non-empty ResponseStatus means the message has been fully processed.
 	ResponseStatus asserts.MessageStatus `json:"response-status,omitempty"`
 	ResponseBody   map[string]any        `json:"response-body,omitempty"`
+
+	// RawAssertion holds the original encoded assertion bytes.
+	RawAssertion []byte `json:"raw-assertion"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -122,6 +139,23 @@ func (msg *RequestMessage) ID() string {
 	}
 
 	return msg.BaseID
+}
+
+// ValidAt returns whether the request-message is valid at 'when' time.
+func (msg *RequestMessage) ValidAt(when time.Time) bool {
+	return (when.Equal(msg.ValidSince) || when.After(msg.ValidSince)) && when.Before(msg.ValidUntil)
+}
+
+// Targets returns whether the given device is listed in the message's devices header.
+func (msg *RequestMessage) Targets(devID asserts.DeviceID) bool {
+	target := devID.String()
+	for _, d := range msg.Devices {
+		if d == target {
+			return true
+		}
+	}
+
+	return false
 }
 
 // sequenceState holds the messages and progress for a single base ID,
@@ -240,15 +274,15 @@ func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
 	state    *state.State
-	signer   responseMessageSigner
+	device   deviceBackend
 	handlers map[string]MessageHandler
 }
 
 // Manager creates a new DeviceMgmtManager.
-func Manager(state *state.State, runner *state.TaskRunner, signer responseMessageSigner) *DeviceMgmtManager {
+func Manager(state *state.State, runner *state.TaskRunner, backend deviceBackend) *DeviceMgmtManager {
 	m := &DeviceMgmtManager{
 		state:    state,
-		signer:   signer,
+		device:   backend,
 		handlers: make(map[string]MessageHandler),
 	}
 
@@ -528,7 +562,92 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Chang
 
 // doValidateMessage performs snapd-level and subsystem-level validation on a message.
 func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	var msgID string
+	err = t.Get("message-id", &msgID)
+	if err != nil {
+		return err
+	}
+
+	msg, err := ms.getRequestMessage(msgID)
+	if err != nil {
+		return err
+	}
+
+	if msg.ResponseStatus != "" {
+		return nil
+	}
+
+	defer m.setState(ms)
+
+	reject := func(reason string) error {
+		msg.ResponseStatus = asserts.MessageStatusRejected
+		msg.ResponseBody = map[string]any{"message": reason}
+		return nil
+	}
+
+	a, err := asserts.Decode(msg.RawAssertion)
+	if err != nil {
+		return reject(fmt.Sprintf("cannot decode message: %v", err))
+	}
+
+	err = assertstateFetchAccountKeys(m.state, 0, []string{a.SignKeyID()})
+	if err != nil {
+		// TODO: need to distinguish between:
+		//  - transient errors (like store unreachable) - retry
+		//  - permanent errors - determine whether to fail the task or reject the message.
+		return err
+	}
+
+	err = assertstate.DB(m.state).Check(a)
+	if err != nil {
+		return reject(fmt.Sprintf("cannot verify message signature: %v", err))
+	}
+
+	serial, err := m.device.Serial()
+	if err != nil {
+		return err
+	}
+	devID := serial.DeviceID()
+	if !msg.Targets(devID) {
+		return reject(fmt.Sprintf("cannot process message: not intended for device %s", devID))
+	}
+
+	now := timeNow()
+	if !msg.ValidAt(now) {
+		return reject(fmt.Sprintf("cannot process message: not valid at %s", now.UTC().Format(time.RFC3339)))
+	}
+
+	// TODO: implement assumes checks (SD187, SD251). The design is somewhat in
+	// flux: SD251 "extends" messages to non-run-mode contexts (e.g. first boot,
+	// before the device has an identity), which will require assumes entries
+	// like "seeding". For now, only the confdb subsystem is supported and
+	// no specific features need to be declared.
+
+	handler, ok := m.handlers[msg.Kind]
+	if !ok {
+		return reject(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
+	}
+
+	err = handler.Validate(m.state, msg)
+	if err != nil {
+		var unauthorizedErr *UnauthorizedError
+		if errors.As(err, &unauthorizedErr) {
+			msg.ResponseStatus = asserts.MessageStatusUnauthorized
+			msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
+			return nil
+		}
+
+		return reject(fmt.Sprintf("cannot process message: %v", err))
+	}
+
 	return nil
 }
 
@@ -577,7 +696,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 	chgID, err := handler.Apply(m.state, msg)
 	if err != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": err.Error()}
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
 	} else {
 		msg.ApplyChangeID = chgID
 	}
@@ -615,16 +734,18 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 	}
 
 	return &RequestMessage{
-		AccountID:   reqAs.AccountID(),
-		AuthorityID: reqAs.AuthorityID(),
-		BaseID:      reqAs.ID(),
-		SeqNum:      reqAs.SeqNum(),
-		Kind:        reqAs.Kind(),
-		Devices:     deviceIDs,
-		ValidSince:  reqAs.ValidSince(),
-		ValidUntil:  reqAs.ValidUntil(),
-		Body:        string(reqAs.Body()),
-		ReceiveTime: timeNow(),
+		AccountID:    reqAs.AccountID(),
+		AuthorityID:  reqAs.AuthorityID(),
+		BaseID:       reqAs.ID(),
+		SeqNum:       reqAs.SeqNum(),
+		Kind:         reqAs.Kind(),
+		Devices:      deviceIDs,
+		ValidSince:   reqAs.ValidSince(),
+		ValidUntil:   reqAs.ValidUntil(),
+		Assumes:      reqAs.Assumes(),
+		Body:         string(reqAs.Body()),
+		ReceiveTime:  timeNow(),
+		RawAssertion: []byte(msg.Data),
 	}, nil
 }
 
