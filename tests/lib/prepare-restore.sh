@@ -569,6 +569,17 @@ prepare_project() {
             ;;
     esac
 
+    if [ "$TAG_FEATURES" = "true" ]; then
+        go_version="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
+        if [ -n "$go_version" ] && [ "$(printf '%s\n' "$go_version" "1.21" | sort -V | head -n1)" = "1.21" ]; then
+            # slog requires go 1.21, so only add it if go >= 1.21
+            sed -i 's/withtestkeys,/withtestkeys,structuredlogging,/g' packaging/ubuntu*/rules
+        fi
+        pushd "$SPREAD_PATH"
+        go run ./tests/utils/features/instrument-funcs
+        popd
+    fi
+
     # Retry go mod vendor to minimize the number of connection errors during the sync
     # It is required in any case because the testing tools like the fakestore are always compiled
     retry -n 10 go mod vendor
