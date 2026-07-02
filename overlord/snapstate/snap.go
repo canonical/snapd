@@ -55,15 +55,12 @@ type snapInstallTaskSet struct {
 	ts      *state.TaskSet
 	snapsup *SnapSetup
 
+	prerequisites                       *state.Task
 	beforeLocalSystemModificationsTasks []*state.Task
 	prerequisitesSync                   *state.Task
 	mountSnap                           *state.Task
 	upToLinkSnapAndBeforeReboot         []*state.Task
 	afterLinkSnapAndPostReboot          []*state.Task
-}
-
-func (sts snapInstallTaskSet) firstLocalMod() *state.Task {
-	return sts.prerequisitesSync
 }
 
 // snapInstallChoreographer orchestrates the construction of a task graph for
@@ -115,12 +112,6 @@ func (sc *snapInstallChoreographer) runRefreshHooks() bool {
 }
 
 func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
-	prereq := st.NewTask("prerequisites", fmt.Sprintf(
-		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
-	prereq.Set("snap-setup", sc.snapsup)
-	s.AppendWithoutData(prereq)
-	s.UpdateEdge(prereq, BeginEdge)
-
 	var prepare *state.Task
 	// if we have a local revision here we go back to that
 	if sc.snapsup.SnapPath != "" || sc.revisionIsPresent() {
@@ -132,7 +123,6 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 			sc.snapsup.InstanceName(), sc.revisionString(), sc.snapsup.Channel))
 	}
 	prepare.Set("snap-setup", sc.snapsup)
-	prepare.WaitFor(prereq)
 	s.AppendWithoutData(prepare)
 	s.UpdateEdge(prepare, SnapSetupEdge)
 	s.UpdateEdge(prepare, LastBeforeLocalModificationsEdge)
@@ -640,6 +630,13 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installContext) (snapInstallTaskSet, error) {
 	b := newTaskChainBuilder()
 
+	prerequisites := st.NewTask("prerequisites", fmt.Sprintf(
+		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
+	prerequisites.Set("snap-setup", sc.snapsup)
+	b.Append(prerequisites)
+	b.UpdateEdge(prerequisites, BeginEdge)
+
+	// the builder chains this phase after the initial prerequisites task.
 	beforeLocalSystemMods, err := sc.BeforeLocalSystemMod(st, b.OpenSpan(), ic)
 	if err != nil {
 		return snapInstallTaskSet{}, err
@@ -683,6 +680,7 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 		ts:      b.TaskSet(),
 		snapsup: sc.snapsup,
 
+		prerequisites:                       prerequisites,
 		beforeLocalSystemModificationsTasks: beforeLocalSystemMods,
 		prerequisitesSync:                   prerequisitesSync,
 		mountSnap:                           mountSnap,
