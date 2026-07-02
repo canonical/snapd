@@ -10,7 +10,7 @@ plugs:
             - what: /usr/**
               where: $SNAP_COMMON/**
               options: [rw, bind]
-            - what: /var/tmp/**
+            - what: /var/log/**
               where: /media/../**
               options: [rw, bind]
 
