@@ -543,9 +543,17 @@ prepare_project() {
                         # currently expects 1.23, see:
                         # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
                         best_golang=golang-1.23
-                        quiet apt install -y golang-1.23
+                        ;;
+                    ubuntu-core-20-*)
+                        # On core20, reboot during spread prepare fails when
+                        # using any go version newer than 1.18. So stick to 1.18.
+                        best_golang=golang-1.18
                         ;;
                 esac
+                # Ensure the desired go is installed instead of the first dep match
+                quiet apt install -y "$best_golang"
+                best_golang_path="/usr/lib/${best_golang/lang/}/bin/go"
+                test -e "$best_golang_path"
                 apt build-dep -y ./ # we don't run this for 14.04
                 # We need to ensure the correct version of golang is used.
                 go_path="$(command -v go)" || true
@@ -555,18 +563,7 @@ prepare_project() {
                 else
                     go_path="/usr/bin/go"
                 fi
-                for real_golang in "$best_golang" golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
-                    real_golang_path="/usr/lib/${real_golang/lang/}/bin/go"
-                    if [ -e "$real_golang_path" ]; then
-                        ln -s "$real_golang_path" "$go_path"
-                        break
-                    fi
-                done
-                if [ ! -e "$go_path" ]; then
-                    # We didn't see any versioned go, so use the original go
-                    # from the path, or fail if it doesn't exist
-                    mv "$go_path"-orig "$go_path"
-                fi
+                ln -s "$best_golang_path" "$go_path"
             }
 
             if ! os.query is-trusty; then
