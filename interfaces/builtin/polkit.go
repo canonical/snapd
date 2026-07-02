@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/polkit/validate"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -345,7 +346,7 @@ func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
 	info := iface.commonInterface.StaticInfo()
 	// We must have the polkit daemon present on the system and be able to write
 	// to either the polkit actions directory or the polkit rules directory.
-	info.ImplicitOnCore = hasPolkitDaemonExecutableOnCore() && (canWriteToDir(dirs.SnapPolkitPolicyDir) || canWriteToDir(dirs.SnapPolkitRuleDir))
+	info.ImplicitOnCore = !release.OnClassic && hasPolkitDaemonExecutableOnCore() && (canWriteToDir(dirs.SnapPolkitPolicyDir) || canWriteToDir(dirs.SnapPolkitRuleDir))
 	return info
 }
 
