@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/polkit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/polkit/validate"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -345,14 +346,7 @@ func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
 	info := iface.commonInterface.StaticInfo()
 	// We must have the polkit daemon present on the system and be able to write
 	// to either the polkit actions directory or the polkit rules directory.
-	//
-	// TODO: these filesystem probes are called during init() via
-	// interfaces/policy/basedeclaration.go's composeBaseDeclaration(),
-	// causing filesystem access on every snap CLI invocation. This should
-	// be made lazy and only evaluated when actually needed (e.g., when
-	// setting up implicit slots). See also the SELinux policy workaround
-	// in data/selinux/snappy.te.
-	info.ImplicitOnCore = hasPolkitDaemonExecutableOnCore() && (canWriteToDir(dirs.SnapPolkitPolicyDir) || canWriteToDir(dirs.SnapPolkitRuleDir))
+	info.ImplicitOnCore = !release.OnClassic && hasPolkitDaemonExecutableOnCore() && (canWriteToDir(dirs.SnapPolkitPolicyDir) || canWriteToDir(dirs.SnapPolkitRuleDir))
 	return info
 }
 

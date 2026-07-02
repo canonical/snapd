@@ -311,12 +311,21 @@ update_core_snap_for_classic_reexec() {
     done
     check_file /usr/bin/snapctl "${core}/usr/bin/snapctl"
     if ! command -v selinuxenabled ; then
-        # systems without SELinux have the exact same binary in the core snap and on the host
+        # systems without SELinux have or point to the exact same binary in the
+        # core snap and on the host
         check_file "/usr/bin/snap" "${core}/usr/bin/snap"
     else
         # on SELinux enabled systems /usr/bin/snap is a thin wrapper which
-        # serves as an policy attachment point
-        not check_file "/usr/bin/snap" "${core}/usr/bin/snap"
+        # serves as an policy attachment point, and is not the same binary as in
+        # the core/snapd snap
+        if cmp  "/usr/bin/snap" "${core}/usr/bin/snap"; then
+            echo "host /usr/bin/snap is unexpectedly the same as one from ${core}"
+            exit 1
+        fi
+        if [ -L /usr/bin/snap ]; then
+            echo "/usr/bin/snap is a symbolic link"
+            exit 1
+        fi
     fi
 }
 

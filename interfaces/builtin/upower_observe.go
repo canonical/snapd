@@ -20,13 +20,16 @@
 package builtin
 
 import (
+	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -223,14 +226,8 @@ func (iface *upowerObserveInterface) Name() string {
 
 func (iface *upowerObserveInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary: upowerObserveSummary,
-		// TODO: this check is called during init() via
-		// interfaces/policy/basedeclaration.go's composeBaseDeclaration(),
-		// causing a filesystem probe on every snap CLI invocation. This
-		// should be made lazy and only evaluated when actually needed
-		// (e.g., when setting up implicit slots). See also the SELinux
-		// policy workaround in data/selinux/snappy.te.
-		ImplicitOnCore:       osutil.IsExecutable("/usr/libexec/upowerd"),
+		Summary:              upowerObserveSummary,
+		ImplicitOnCore:       !release.OnClassic && osutil.IsExecutable(filepath.Join(dirs.GlobalRootDir, "/usr/libexec/upowerd")),
 		ImplicitOnClassic:    true,
 		BaseDeclarationSlots: upowerObserveBaseDeclarationSlots,
 	}
