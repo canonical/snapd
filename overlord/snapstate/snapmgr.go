@@ -1692,6 +1692,107 @@ func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
 	return nil
 }
 
+func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, error) {
+	if changeInFlight(m.state) {
+		return nil, nil, nil
+	}
+
+	snapList, _, err := InstalledSnaps(m.state)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var removeList []string
+
+	deviceCtx, err := DeviceCtxFromState(m.state, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, installedSnap := range snapList {
+		var snapst SnapState
+		err = Get(m.state, installedSnap.SnapName(), &snapst)
+
+		if err != nil {
+			// If the snap has already been removed, don't add it to the list
+			if errors.Is(err, state.ErrNoState) {
+				continue
+			}
+			return nil, nil, err
+		}
+
+		if !snapst.ImplicitlyInstalled {
+			continue
+		}
+
+		snapInfo, err := Info(m.state, installedSnap.SnapName(), installedSnap.Revision)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		snapType, err := snapst.Type()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// We need logic which checks the slot information of a snap to see if it can
+		// be potentially connected to a snap installed or being installed on a system. For
+		// now, bail if the snap isn't a base.
+		if snapType != snap.TypeBase {
+			continue
+		}
+
+		removeAll := true
+		err = canRemove(m.state, snapInfo, &snapst, removeAll, deviceCtx)
+		if err != nil {
+			logger.Debugf("cannot auto-remove implicitly installed snap %q: %v", installedSnap.SnapName(), err)
+			continue
+		}
+
+		removeList = append(removeList, installedSnap.SnapName())
+	}
+
+	if len(removeList) == 0 {
+		return nil, nil, nil
+	}
+
+	snapNames, taskSetList, err := RemoveMany(m.state, removeList, &RemoveFlags{})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if len(taskSetList) == 0 {
+		return nil, nil, nil
+	}
+
+	return snapNames, taskSetList, nil
+}
+
+func (m *SnapManager) ensureDependencyRemoval() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	snapNames, taskSetList, err := CreateDependencyRemovalTasks(m)
+	if err != nil {
+		return err
+	}
+
+	// Do not create a task if there's nothing to do
+	if len(taskSetList) == 0 {
+		return nil
+	}
+
+	change := m.state.NewChange("orphan-removal", "Remove implicitly installed snaps that are no longer required")
+	for _, taskSet := range taskSetList {
+		change.AddAll(taskSet)
+	}
+	if len(snapNames) != 0 {
+		change.Set("snap-names", snapNames)
+	}
+
+	return nil
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
 	if m.preseed {
@@ -1715,6 +1816,7 @@ func (m *SnapManager) Ensure() error {
 		m.ensureDesktopFilesUpdated(),
 		m.ensureDownloadsCleaned(),
 		m.ensureStoreDownloadsCacheCleaned(),
+		m.ensureDependencyRemoval(),
 	}
 
 	//FIXME: use firstErr helper
