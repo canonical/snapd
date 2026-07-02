@@ -112,6 +112,22 @@ slots:
 	c.Assert(slot.Attrs["content"], IsNil)
 }
 
+func (s *ContentSuite) TestSanitizeSlotBadCompatibilityType(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  compatibility: 1
+  read:
+   - shared/read
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	slot := info.Slots["content-slot"]
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches,
+		`compatibility label must be a string`)
+}
+
 func (s *ContentSuite) TestSanitizeSlotBothContentAndCompatLabels(c *C) {
 	const mockSnapYaml = `name: content-slot-snap
 version: 1.0
@@ -250,6 +266,21 @@ plugs:
 	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
 		`compatibility label "foo@-0": while parsing: unexpected rune: @`)
 	c.Assert(plug.Attrs["content"], IsNil)
+}
+
+func (s *ContentSuite) TestSanitizePlugBadCompatibilityType(c *C) {
+	const mockSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  compatibility: 1
+  target: import
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["content-plug"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches,
+		`compatibility label must be a string`)
 }
 
 func (s *ContentSuite) TestSanitizePlugBothContentAndCompatLabels(c *C) {
