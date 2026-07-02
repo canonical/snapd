@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package ctl
 
 import (
 	"bytes"
