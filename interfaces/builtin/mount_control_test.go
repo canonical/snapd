@@ -521,3 +521,17 @@ deny @{PROC}/@{pid}/mountinfo r,
 	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/@{pid}/mountinfo r,")
 	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/self/mountinfo r,")
 }
+
+func (s *MountControlInterfaceSuite) TestZfsLegacyMount(c *C) {
+	plugYaml := `
+  mount:
+  - what: zfs/volume
+    where: /mnt/zfs
+    type: [zfs]
+    options: [rw]
+`
+	snapYaml := fmt.Sprintf(mountControlYaml, plugYaml)
+	plug, _ := MockConnectedPlug(c, snapYaml, nil, "mntctl")
+	err := interfaces.BeforeConnectPlug(s.iface, plug)
+	c.Check(err, IsNil)
+}
