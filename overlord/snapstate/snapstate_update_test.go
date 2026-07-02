@@ -20282,7 +20282,7 @@ func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshBeforeLocalModifications
 		seedRefreshSnap{name: "some-other-snap", snapID: "some-other-snap-id", snapType: "app", base: "core18"},
 	)
 
-	uts, _ := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
+	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
 		{InstanceName: "kernel"},
 		{InstanceName: "core18"},
 		{InstanceName: "some-app"},
@@ -20325,18 +20325,17 @@ func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshBeforeLocalModifications
 
 	lastEssentialSnapTask, err := kernelTS.Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
-	nonSeedAppBegin, err := nonSeedAppTS.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	nonSeedAppFirstPrereq, _ := findPrereqTasksForSnap(c, chg, "some-other-snap")
 	lastBeforeLocalModelApp, err := appTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 	lastBeforeLocalNonSeedApp, err := nonSeedAppTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 	c.Check(waitsOnTransitively(seedCreate, lastBeforeLocalModelApp), Equals, true)
-	c.Check(waitsOnTransitively(seedCreate, nonSeedAppBegin), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, nonSeedAppFirstPrereq), Equals, true)
 	c.Check(waitsOnTransitively(seedCreate, lastBeforeLocalNonSeedApp), Equals, false)
 
 	for _, lane := range seedCreate.Lanes() {
-		c.Check(nonSeedAppBegin.Lanes(), testutil.Contains, lane)
+		c.Check(nonSeedAppFirstPrereq.Lanes(), testutil.Contains, lane)
 		c.Check(lastBeforeLocalNonSeedApp.Lanes(), Not(testutil.Contains), lane)
 	}
 
@@ -20708,7 +20707,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBeforeLocalModifications
 		seedRefreshSnap{name: "some-other-snap", snapID: "some-other-snap-id", snapType: "app", base: "core18"},
 	)
 
-	uts, _ := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
+	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
 		{InstanceName: "snapd"},
 		{InstanceName: "kernel"},
 		{InstanceName: "core18"},
@@ -20769,16 +20768,15 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBeforeLocalModifications
 		c.Check(waitsOnTransitively(seedCreate, lastBeforeLocal), Equals, true)
 	}
 
-	nonSeedAppBegin, err := nonSeedAppTS.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	nonSeedAppFirstPrereq, _ := findPrereqTasksForSnap(c, chg, "some-other-snap")
 	nonSeedAppLastBefore, err := nonSeedAppTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 
 	// assert seed creation waits only on initial prerequisites tasks of non-seed snaps.
-	c.Check(waitsOnTransitively(seedCreate, nonSeedAppBegin), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, nonSeedAppFirstPrereq), Equals, true)
 	c.Check(waitsOnTransitively(seedCreate, nonSeedAppLastBefore), Equals, false)
 	for _, lane := range seedCreate.Lanes() {
-		c.Check(nonSeedAppBegin.Lanes(), testutil.Contains, lane)
+		c.Check(nonSeedAppFirstPrereq.Lanes(), testutil.Contains, lane)
 		c.Check(nonSeedAppLastBefore.Lanes(), Not(testutil.Contains), lane)
 	}
 
@@ -20922,14 +20920,13 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshWithSnapdAndNonSeedSnapR
 		c.Check(waitsOnTransitively(seedCreate, lastBeforeLocal), Equals, true)
 	}
 
-	nonSeedAppBegin, err := nonSeedAppTS.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
+	nonSeedAppFirstPrereq, _ := findPrereqTasksForSnap(c, chg, "some-other-snap")
 	nonSeedAppLastBefore, err := nonSeedAppTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
-	c.Check(waitsOnTransitively(seedCreate, nonSeedAppBegin), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, nonSeedAppFirstPrereq), Equals, true)
 	c.Check(waitsOnTransitively(seedCreate, nonSeedAppLastBefore), Equals, false)
 	for _, lane := range seedCreate.Lanes() {
-		c.Check(nonSeedAppBegin.Lanes(), testutil.Contains, lane)
+		c.Check(nonSeedAppFirstPrereq.Lanes(), testutil.Contains, lane)
 		c.Check(nonSeedAppLastBefore.Lanes(), Not(testutil.Contains), lane)
 	}
 
