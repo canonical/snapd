@@ -1746,6 +1746,7 @@ func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 		removals := map[string]bool{snapst.InstanceName(): true}
 		err = canRemove(m.state, snapInfo, &snapst, removeAll, deviceCtx, removals)
 		if err != nil {
+			logger.Debugf("cannot auto-remove implicitly installed snap %q: %v", installedSnap.SnapName(), err)
 			continue
 		}
 
