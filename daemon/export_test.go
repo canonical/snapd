@@ -45,8 +45,9 @@ import (
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues   = createQuotaValues
+	ParseOptionalTime   = parseOptionalTime
+	SeclogPeerFromUcred = seclogPeerFromUcred
 )
 
 func APICommands() []*Command {
@@ -370,6 +371,10 @@ type (
 	SnapInstruction = snapInstruction
 )
 
+var TryExtractJSONAction = tryExtractJSONAction
+
+const ActionPeekSize = actionPeekSize
+
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }
@@ -417,6 +422,22 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	osReadlink = f
 	return func() {
 		osReadlink = old
+	}
+}
+
+func MockSecurityLabelsFromPid(f func(int) (map[string]string, error)) func() {
+	old := securityLabelsFromPid
+	securityLabelsFromPid = f
+	return func() {
+		securityLabelsFromPid = old
+	}
+}
+
+func MockCgroupPathFromPid(f func(int) (string, error)) func() {
+	old := cgroupPathFromPid
+	cgroupPathFromPid = f
+	return func() {
+		cgroupPathFromPid = old
 	}
 }
 

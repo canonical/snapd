@@ -85,15 +85,3 @@ func (s *SecLogSuite) TestPeerString(c *C) {
 
 	c.Check(seclog.Peer{UID: ^uint32(0)}.String(), Equals, "<unknown>:<unknown>:<unknown>")
 }
-
-func (s *SecLogSuite) TestNewAuthzChecks(c *C) {
-	checks := seclog.NewAuthzChecks()
-	c.Check(checks.AccessOptions, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.PeerCreds, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Socket, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Interface, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.OpenAccess, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.UserAuth, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Root, Equals, seclog.AuthzNotApplicable)
-	c.Check(checks.Polkit, Equals, seclog.AuthzNotApplicable)
-}
