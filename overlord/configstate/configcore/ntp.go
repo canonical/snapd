@@ -129,28 +129,24 @@ func validateSingleNTPSetting(key string, value any) (err error) {
 		if !ok {
 			return fmt.Errorf("%v is not a string", key)
 		}
-
-		// The value that the user inputs should be parsed as a Go duration string for consistency
-		// with other configuration options
 		if strings.TrimSpace(valueStr) != valueStr {
 			return fmt.Errorf("%v: contains leading or trailing whitespace", key)
 		}
 
+		// The value that the user inputs should be parsed as a Go duration string for consistency
+		// with other configuration options
 		duration, err := time.ParseDuration(valueStr)
 		if err != nil {
 			return fmt.Errorf("%v: %v", key, err)
 		}
-
 		if duration < 0 {
 			return fmt.Errorf("%v: duration %q cannot be negative", key, valueStr)
 		}
-
 		// systemd's minimum resolution is 1µs; nanosecond values would be silently
 		// rounded or rejected by timesyncd.
 		if duration != 0 && duration < time.Microsecond {
 			return fmt.Errorf("%v: duration %q is below systemd's minimum resolution of 1µs", key, valueStr)
 		}
-
 		if key == "min-poll-interval" && duration < 16*time.Second {
 			return fmt.Errorf("min-poll-interval: cannot be smaller than 16s")
 		}
@@ -188,7 +184,6 @@ func convertSystemdTimespanToUs(span string) (timeSpanUs int64, err error) {
 	// The most reliable way to parse the timespans appears to be having
 	// systemd-analyze do it
 	cmd := exec.Command("systemd-analyze", "timespan", span)
-
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return 0, fmt.Errorf("%q is not a valid systemd.time timespan", span)
@@ -196,7 +191,6 @@ func convertSystemdTimespanToUs(span string) (timeSpanUs int64, err error) {
 
 	// Look for the line containing "μs:" or "us:" and capture the following digits
 	matches := timespanUsRegexp.FindStringSubmatch(string(output))
-
 	// We did not capture the two parts of the line ("us:" and the digits)
 	if len(matches) < 2 {
 		return 0, fmt.Errorf("%q is not a valid systemd.time timespan", span)
@@ -207,7 +201,6 @@ func convertSystemdTimespanToUs(span string) (timeSpanUs int64, err error) {
 	if err != nil {
 		return 0, fmt.Errorf("%q is not a valid systemd.time timespan", span)
 	}
-
 	return us, nil
 }
 
@@ -221,7 +214,6 @@ func convertSystemdTimespanToGoDurationString(span string) (string, error) {
 	if us > maxDurationUs {
 		return "", fmt.Errorf("%q is too large for a Go duration", span)
 	}
-
 	return (time.Duration(us) * time.Microsecond).String(), nil
 }
 
@@ -272,7 +264,6 @@ func ntpConfigurationDeepEqual(oldConfig, newConfig map[string]any) bool {
 			return false
 		}
 	}
-
 	return true
 }
 
@@ -308,6 +299,12 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 	}
 
 	// Configuration file path
+	// We write the main configuration file directly and not use drop-ins
+	// to make the reading operation simpler, and to avoid discrepancies
+	// between `snap get` and `snap set` when other drop-in files are installed
+	// on the system, though the result might be be imprecise compared to which
+	// configuration values are read by timesyncd. More explanation is found in the
+	// docstring for getNTPFromSystem.
 	ntpConfigPath := filepath.Join(systemdConfigFolder, "timesyncd.conf")
 
 	if len(cfg) == 0 {
@@ -329,13 +326,11 @@ func handleNTPConfiguration(_ sysconfig.Device, tr ConfGetter, opts *fsOnlyConte
 			return fmt.Errorf("cannot restart timesyncd daemon after configuration change: %v", err)
 		}
 	}
-
 	return nil
 }
 
 func serializeNTPConfiguration(config map[string]any) (result []byte) {
 	unitOptions := []*unit.UnitOption{}
-
 	for k, v := range config {
 		unitOptionKey := mapOptionNameSnapToTimesyncd(k)
 		unitOptionValue, _ := mapOptionValueSnapToTimesyncd(v)
@@ -347,6 +342,7 @@ func serializeNTPConfiguration(config map[string]any) (result []byte) {
 		unitOptions = append(unitOptions, &unitOption)
 	}
 
+	// unit.Serialize should not meet I/O errors as it's reading from memory
 	byteStream, _ := io.ReadAll(unit.Serialize(unitOptions))
 	return byteStream
 }
@@ -425,6 +421,17 @@ func mapOptionNameSnapToTimesyncd(snapOption string) string {
 // slices, and systemd.time duration values are converted to Go duration strings.
 // Returns nil (no error) on classic systems, when the file is absent (default timesyncd
 // settings apply), or when no recognised options are present.
+// The configuration is read from and written to the main file ignoring drop-ins that might be
+// present on the system. This should be rare on Ubuntu Core. This is a deliberate choice, that
+// simplifies the reading process and avoids merging of the drop-ins in the code.
+// The limitation is that the output of this function is not correct if drop-ins are installed
+// inside /etc/systemd/timesyncd.conf.d/.
+// Compared to the return value of getNTPFromSystem, the values set to timesyncd will have
+// the server lists in the drop-ins appended to the one from the main file, and the duration values
+// overwritten by the ones in the drop-ins.
+// This cannot be avoided by writing the snapd configuration to a drop-in file, as it is always
+// possible for the users and applications to install a configuration file that comes later in
+// alphabetical order.
 func getNTPFromSystem() (result map[string]any, err error) {
 	if release.OnClassic {
 		return nil, nil
@@ -449,7 +456,6 @@ func getNTPFromSystem() (result map[string]any, err error) {
 	val := map[string]any{}
 	for _, option := range unitOptions {
 		snapOptionName := mapOptionNameTimesyncdToSnap(option.Name)
-
 		if snapOptionName == "" {
 			// If the option name is empty, it means the option is not supported, so we skip it
 			continue
@@ -466,6 +472,5 @@ func getNTPFromSystem() (result map[string]any, err error) {
 	if len(val) == 0 {
 		return nil, nil
 	}
-
 	return val, nil
 }
