@@ -163,6 +163,35 @@ func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
 	c.Check(called, Equals, false)
 }
 
+func (s *certMgrTestSuite) TestEnsureRegeneratesWhenMergedIsPlainDirectory(c *C) {
+	var called bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(mergedDir, "leftover"), []byte("stale"), 0o644), IsNil)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+
+	_, err = os.Stat(mergedDir)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
 func (s *certMgrTestSuite) TestEnsureSkipsWhenNoBaseCertsDir(c *C) {
 	var called bool
 	restore := certstate.MockRefreshCertificateDatabase(func() error {
