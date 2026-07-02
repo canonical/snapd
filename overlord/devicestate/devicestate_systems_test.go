@@ -3356,6 +3356,10 @@ var preinstallErrorDetails = []secboot.PreinstallErrorDetails{
 		},
 		Actions: []string{"reboot-to-fw-settings"},
 	},
+	{
+		Kind:    "no-hardware-root-of-trust",
+		Message: "no hardware root of trust available",
+	},
 }
 
 // preinstall check context returned by preinstall check
@@ -3471,7 +3475,14 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		if hasTPM {
 			return nil, nil
 		} else {
-			return preinstallErrorDetails[:1], nil
+			switch callCnt.checkActionCnt {
+			case 1:
+				// next set of errors
+				return preinstallErrorDetails[1:], nil
+			default:
+				// no more errors
+				return nil, nil
+			}
 		}
 	})
 	s.AddCleanup(restore)
@@ -3612,6 +3623,11 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoNotSupport
 }
 
 func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedHybridHappy(c *C) {
+	if !secboot.WithSecbootSupport {
+		// needed for the correct HWROT error kind
+		c.Skip("secboot is not available")
+	}
+
 	const isSupportedHybrid = true
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, isSupportedHybrid, nil)
 	expectedGadgetInfo, err := gadget.InfoFromGadgetYaml([]byte(mockGadgetUCYaml), fakeModel)
@@ -3624,6 +3640,9 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 		AvailabilityCheckErrors: preinstallErrorDetails[:1],
 	}
 	expectedEncInfo.SetAvailabilityCheckContext(preinstallCheckContext)
+	expectedEncInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
+		"tpm-hierarchies-owned": true,
+	})
 
 	callCnt := mockHelperForEncryptionAvailabilityCheck(s, c, isSupportedHybrid, false, "")
 
@@ -3643,6 +3662,8 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
+	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
+	c.Check(encInfo.Requirements(), HasLen, 0)
 
 	// comprehensive preinstall check - get info from cache
 	encInfoFromCache = true
@@ -3660,8 +3681,21 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
+	// no "no-hardware-root-of-trust" error, so volumes-auth is not required
+	c.Check(encInfo.Requirements(), HasLen, 0)
 
 	// comprehensive preinstall check with action - not allowed to get info from cache
+
+	// applying action will show a different error
+	expectedEncInfo.AvailabilityCheckErrors = preinstallErrorDetails[1:]
+	expectedEncInfo.UnavailableWarning = "not encrypting device storage as checking TPM gave: preinstall check identified 2 errors"
+	// but seen errors are sticky and accumulated in cache
+	expectedEncInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
+		"tpm-hierarchies-owned":     true,
+		"tpm-device-lockout":        true,
+		"no-hardware-root-of-trust": true,
+	})
+
 	system, gadgetInfo, encInfo, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", preinstallAction)
 	c.Assert(err, IsNil)
 	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 1, sealingSupportedCnt: 0})
@@ -3676,6 +3710,34 @@ func (s *modelAndGadgetInfoSuite) TestSystemAndGadgetAndEncryptionInfoSupportedH
 	})
 	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
 	c.Check(encInfo, DeepEquals, expectedEncInfo)
+	// "no-hardware-root-of-trust" error, so volumes-auth is required
+	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
+
+	// clear errors with one more action
+
+	expectedEncInfo.Available = true
+	expectedEncInfo.Type = "cryptsetup"
+	expectedEncInfo.AvailabilityCheckErrors = nil
+	expectedEncInfo.UnavailableWarning = ""
+
+	system, gadgetInfo, encInfo, err = s.mgr.ApplyActionOnSystemAndGadgetAndEncryptionInfo("some-label", preinstallAction)
+	c.Assert(err, IsNil)
+	c.Assert(callCnt, DeepEquals, &callCounter{checkCnt: 1, checkActionCnt: 2, sealingSupportedCnt: 0})
+	c.Check(system, DeepEquals, &devicestate.System{
+		Label:   "some-label",
+		Model:   fakeModel,
+		Brand:   s.brands.Account("my-brand"),
+		Actions: defaultSystemActions,
+		OptionalContainers: devicestate.OptionalContainers{
+			Snaps: []string{"optional-snap"},
+		},
+	})
+	c.Check(gadgetInfo.Volumes, DeepEquals, expectedGadgetInfo.Volumes)
+	c.Check(encInfo, DeepEquals, expectedEncInfo)
+	// even when errors are cleared with actions, volumes-auth is still required
+	// because the "no-hardware-root-of-trust" error was seen in a previous check
+	// and is sticky in the cache
+	c.Check(encInfo.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{install.EncryptionSupportRequirementVolumesAuth})
 }
 
 func (s *modelAndGadgetInfoSuite) TestLoadSeedSetsRevisionForLocalContainers(c *C) {

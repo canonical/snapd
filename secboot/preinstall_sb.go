@@ -65,6 +65,13 @@ var (
 
 const ActionNone = string(sb_preinstall.ActionNone)
 
+const (
+	// ErrorKindNoHardwareRootOfTrust indicates that the platform's UEFI firmware is not
+	// verified nor measured by a hardware root of trust (typically Boot Guard Authenticated Code
+	// Module (ACM) on Intel systems and Platform Secure Boot (PSB) enabled on AMD systems.
+	ErrorKindNoHardwareRootOfTrust = string(sb_preinstall.ErrorKindNoHardwareRootOfTrust)
+)
+
 func preinstallCheck(ctx context.Context, postInstall bool, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
 	// allow value-added-retailer drivers that are:
 	//  - listed as Driver#### load options
