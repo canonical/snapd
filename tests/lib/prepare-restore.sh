@@ -544,9 +544,17 @@ prepare_project() {
                         # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
                         best_golang=golang-1.23
                         ;;
+                    ubuntu-20.04-*)
+                        # On 20.04, the newest available go version is 1.22.
+                        best_golang=golang-1.22
+                        ;;
                     ubuntu-core-20-*)
                         # On core20, reboot during spread prepare fails when
                         # using any go version newer than 1.18. So stick to 1.18.
+                        best_golang=golang-1.18
+                        ;;
+                    ubuntu-core-1* | ubuntu-1*)
+                        # On <20.04, use 1.18
                         best_golang=golang-1.18
                         ;;
                 esac
