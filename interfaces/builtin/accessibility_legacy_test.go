@@ -49,20 +49,20 @@ version: 0
 type: os
 slots:
   desktop-legacy:
-  accessibility:
+  accessibility-legacy:
 `
 
 var _ = Suite(&AccessibilityLegacyInterfaceSuite{
-	iface: builtin.MustInterface("accessibility"),
+	iface: builtin.MustInterface("accessibility-legacy"),
 })
 
 func (s *AccessibilityLegacyInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, accessibilityLegacyConsumerYaml, nil, "accessibility")
-	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, accessibilityLegacyCoreYaml, nil, "accessibility")
+	s.plug, s.plugInfo = MockConnectedPlug(c, accessibilityLegacyConsumerYaml, nil, "accessibility-legacy")
+	s.coreSlot, s.coreSlotInfo = MockConnectedSlot(c, accessibilityLegacyCoreYaml, nil, "accessibility-legacy")
 }
 
 func (s *AccessibilityLegacyInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "accessibility")
+	c.Assert(s.iface.Name(), Equals, "accessibility-legacy")
 }
 
 func (s *AccessibilityLegacyInterfaceSuite) TestAppArmorSpecForConnectedPlug(c *C) {

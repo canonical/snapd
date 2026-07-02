@@ -34,11 +34,11 @@ func (s *dependenciesSuite) TestBasicDependencies(c *C) {
 	slots := []string{}
 	deps, err := snap.GetDependenciesFor(plugs, slots, "core24")
 	c.Assert(err, IsNil)
-	c.Assert(deps, DeepEquals, []string{"accessibility"})
+	c.Assert(deps, DeepEquals, []string{"accessibility-legacy"})
 }
 
 func (s *dependenciesSuite) TestForbiddenDependencies(c *C) {
-	plugs := []string{"desktop-legacy", "accessibility"}
+	plugs := []string{"desktop-legacy", "accessibility-legacy"}
 	slots := []string{}
 	deps, err := snap.GetDependenciesFor(plugs, slots, "core24")
 	c.Assert(err, NotNil)
@@ -47,7 +47,7 @@ func (s *dependenciesSuite) TestForbiddenDependencies(c *C) {
 
 func (s *dependenciesSuite) TestSlotDependencies(c *C) {
 	plugs := []string{"desktop-legacy"}
-	slots := []string{"accessibility"}
+	slots := []string{"accessibility-legacy"}
 	deps, err := snap.GetDependenciesFor(plugs, slots, "core24")
 	c.Assert(err, IsNil)
 	c.Assert(deps, DeepEquals, []string{})

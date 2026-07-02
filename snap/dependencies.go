@@ -33,13 +33,13 @@ type dependency struct {
 
 // This is the list of interfaces to add for each interface available
 var dependencies = map[string][]dependency{
-	"desktop-legacy": {{Name: "accessibility"}},
+	"desktop-legacy": {{Name: "accessibility-legacy"}},
 }
 
 // This is the list of interfaces that can't be manually defined in the
 // snapcraft.yaml file.
 var forbiddenInterfaces = []string{
-	"accessibility",
+	"accessibility-legacy",
 }
 
 func GetDependenciesFor(plugs []string, slots []string, base string) ([]string, error) {

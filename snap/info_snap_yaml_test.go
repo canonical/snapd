@@ -105,7 +105,7 @@ apps:
 	c.Check(len(plugs), Equals, 2)
 	_, plug1 := plugs["desktop-legacy"]
 	c.Check(plug1, Equals, true)
-	_, plug2 := plugs["accessibility"]
+	_, plug2 := plugs["accessibility-legacy"]
 	c.Check(plug2, Equals, true)
 }
 
@@ -125,14 +125,14 @@ apps:
 	c.Check(len(plugs), Equals, 2)
 	_, plug1 := plugs["desktop-legacy"]
 	c.Check(plug1, Equals, true)
-	_, plug2 := plugs["accessibility"]
+	_, plug2 := plugs["accessibility-legacy"]
 	c.Check(plug2, Equals, true)
 
 	plugs = info.Apps["app2"].Plugs
 	c.Check(len(plugs), Equals, 2)
 	_, plug1 = plugs["desktop-legacy"]
 	c.Check(plug1, Equals, true)
-	_, plug2 = plugs["accessibility"]
+	_, plug2 = plugs["accessibility-legacy"]
 	c.Check(plug2, Equals, true)
 }
 
@@ -153,14 +153,14 @@ apps:
 	c.Check(len(plugs), Equals, 2)
 	_, plug1 := plugs["desktop-legacy"]
 	c.Check(plug1, Equals, true)
-	_, plug2 := plugs["accessibility"]
+	_, plug2 := plugs["accessibility-legacy"]
 	c.Check(plug2, Equals, true)
 
 	plugs = info.Apps["app2"].Plugs
 	c.Check(len(plugs), Equals, 2)
 	_, plug1 = plugs["desktop-legacy"]
 	c.Check(plug1, Equals, true)
-	_, plug2 = plugs["accessibility"]
+	_, plug2 = plugs["accessibility-legacy"]
 	c.Check(plug2, Equals, true)
 }
 
@@ -169,7 +169,7 @@ func (s *InfoSnapYamlTestSuite) TestDependencies4(c *C) {
 
 apps:
   app1:
-    plugs: [ desktop-legacy, accessibility ]
+    plugs: [ desktop-legacy, accessibility-legacy ]
 `))
 	c.Assert(err, NotNil)
 }
