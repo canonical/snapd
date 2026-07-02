@@ -1349,10 +1349,10 @@ func (s *backendSuite) TestCoreRuntimeExtraRulesPerBase(c *C) {
 	pythonMarker := "#include <abstractions/python>"
 
 	type scenario struct {
-		base         string
-		wantPerl     bool
-		wantPython   bool
-		comment      string
+		base       string
+		wantPerl   bool
+		wantPython bool
+		comment    string
 	}
 	scenarios := []scenario{
 		// empty base = implicit core → perl + python

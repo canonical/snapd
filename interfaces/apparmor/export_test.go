@@ -28,16 +28,16 @@ import (
 )
 
 var (
-	NsProfile                            = nsProfile
-	ProfileGlobs                         = profileGlobs
-	SnapConfineFromSnapProfile           = snapConfineFromSnapProfile
-	DefaultCoreRuntimeTemplateRules      = defaultCoreRuntimeTemplateRules
-	DefaultOtherBaseTemplateRules        = defaultOtherBaseTemplateRules
-	DefaultPerlTemplateRules             = defaultPerlTemplateRules
-	DefaultCoreRuntimePerlTemplateRules  = defaultCoreRuntimePerlTemplateRules
-	DefaultPythonTemplateRules           = defaultPythonTemplateRules
+	NsProfile                             = nsProfile
+	ProfileGlobs                          = profileGlobs
+	SnapConfineFromSnapProfile            = snapConfineFromSnapProfile
+	DefaultCoreRuntimeTemplateRules       = defaultCoreRuntimeTemplateRules
+	DefaultOtherBaseTemplateRules         = defaultOtherBaseTemplateRules
+	DefaultPerlTemplateRules              = defaultPerlTemplateRules
+	DefaultCoreRuntimePerlTemplateRules   = defaultCoreRuntimePerlTemplateRules
+	DefaultPythonTemplateRules            = defaultPythonTemplateRules
 	DefaultCoreRuntimePythonTemplateRules = defaultCoreRuntimePythonTemplateRules
-	TemplateFooter                       = templateFooter
+	TemplateFooter                        = templateFooter
 )
 
 func MockLoadProfiles(f func(fnames []string, cacheDir string, flags apparmor_sandbox.AaParserFlags) error) (restore func()) {
