@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
