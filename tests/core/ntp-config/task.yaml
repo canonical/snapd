@@ -100,6 +100,7 @@ execute: |
     snap set system system.ntp.min-poll-interval=1m
     MATCH '^PollIntervalMinSec=1m$' < "$NTP_CONF"
     MATCH '^NTP=192.168.1.1 ntp.ubuntu.com$' < "$NTP_CONF"
+    MATCH '^FallbackNTP=pool.ntp.org$' < "$NTP_CONF"
     MATCH '^SaveIntervalSec=20s$' < "$NTP_CONF"
     [ "$ts_before" != "$(get_restart_ts)" ]
 
