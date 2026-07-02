@@ -116,6 +116,16 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(tested, Equals, features.NumberOfFeatures())
 }
 
+func (*featureSuite) TestIsGraduated(c *C) {
+	graduated := features.Graduated()
+	c.Assert(graduated, Not(HasLen), 0)
+
+	for _, feature := range graduated {
+		c.Check(features.IsGraduated(feature), Equals, true)
+	}
+	c.Check(features.IsGraduated("other-feature"), Equals, false)
+}
+
 func (*featureSuite) TestQuotaGroupsSupportedCallback(c *C) {
 	callback, exists := features.FeaturesSupportedCallbacks[features.QuotaGroups]
 	c.Assert(exists, Equals, true)
