@@ -1142,6 +1142,10 @@ func releasePCRResourceHandles(handles ...uint32) error {
 	return nil
 }
 
+func ReleasePCRResourceHandle(handle uint32) error {
+	return releasePCRResourceHandles(handle)
+}
+
 func resetLockoutCounter(lockoutAuthFile string) error {
 	auth, isValue, err := readLockoutAuth(lockoutAuthFile)
 	if err != nil {
@@ -1233,6 +1237,25 @@ func mockableReadKeyFileImpl(keyFile string, keyLoader *mockableKeyLoader, hintE
 }
 
 var mockableReadKeyFile = mockableReadKeyFileImpl
+
+func GetPCRHandleFromToken(node, keySlot string) (uint32, error) {
+	reader, err := sbNewLUKS2KeyDataReader(node, keySlot)
+	if err != nil {
+		return 0, err
+	}
+	keyData, err := mockableReadKeyData(reader)
+	if err != nil {
+		return 0, fmt.Errorf("cannot read key data for slot '%s': %w", keySlot, err)
+	}
+	if keyData.PlatformName() != platformTpm2 {
+		return 0, nil
+	}
+	sealedKeyData, err := keyData.GetTPMSealedKeyData()
+	if err != nil {
+		return 0, fmt.Errorf("cannot read sealed key data for slot '%s': %w", keySlot, err)
+	}
+	return uint32(sealedKeyData.PCRPolicyCounterHandle()), nil
+}
 
 // GetPCRHandle returns the handle used by a key. The key will be
 // searched on the token of the keySlot from the node. If that keySlot
