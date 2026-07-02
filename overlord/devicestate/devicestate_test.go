@@ -2250,6 +2250,38 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 	c.Check(boundary, Equals, restart.RestartBoundaryDirectionDo)
 }
 
+func (s *deviceMgrSuite) TestCreateSeedRefreshTasksSkipsComponentExclusiveOptionalSnapNotInCurrentSeed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	compTask := s.state.NewTask("fake-download-component", "...")
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+		{"name": "snapd", "type": "snapd"},
+		{"name": "core24", "type": "base", "default-channel": "24"},
+		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
+		{"name": "pc", "type": "gadget", "default-channel": "24"},
+		{"name": "snap-1", "presence": "optional"},
+	}, map[string][]map[string]string{
+		"snap-1": {
+			{"name": "comp1", "presence": "required"},
+		},
+	})
+
+	// snap and component are not in the seed, this should not trigger a seed
+	// refresh
+	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{
+		{
+			InstanceName:          "snap-1",
+			ComponentSetupTaskIDs: map[string]string{"comp1": compTask.ID()},
+		},
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
+	c.Assert(err, IsNil)
+
+	// should not trigger a seed refresh
+	c.Check(seedTS, IsNil)
+	c.Check(added, IsNil)
+}
+
 // Test case of seed refresh for a required snap in the seed with
 // components that are not in the model for both component exclusive
 // and non-component-exclusive refreshes.
@@ -2963,6 +2995,7 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 	var opts []*seedwriter.OptionsSnap
 	headers := make([]any, 0, len(snaps))
 	for _, sn := range snapsInSeed {
+		c.Logf("snap in seed %q", sn["name"])
 		// create asserted snaps with components (if present)
 		var files [][]string
 		if sn["type"] == "gadget" {
@@ -2984,6 +3017,7 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 			if comp["optional"] == "not-in-seed" {
 				continue
 			}
+			c.Logf("component in seed %q", snap.SnapComponentName(sn["name"], comp["name"]))
 			compsInSeed = append(compsInSeed, comp)
 		}
 		if len(compsInSeed) > 0 {

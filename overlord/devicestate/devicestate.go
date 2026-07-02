@@ -1986,11 +1986,11 @@ func seedRefreshFilter(st *state.State, dctx snapstate.DeviceContext) func(snaps
 			}
 		}
 
-		if componentExclusive && len(filteredCompSetupTaskIDs) == 0 {
+		if snaps[candidate.InstanceName] != "required" && !optionalInSeed[candidate.InstanceName] {
 			return snapstate.SeedRefreshCandidate{}, false, nil
 		}
 
-		if !componentExclusive && snaps[candidate.InstanceName] != "required" && !optionalInSeed[candidate.InstanceName] {
+		if componentExclusive && len(filteredCompSetupTaskIDs) == 0 {
 			return snapstate.SeedRefreshCandidate{}, false, nil
 		}
 
