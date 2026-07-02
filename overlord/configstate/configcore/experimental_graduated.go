@@ -27,11 +27,38 @@ import (
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 )
 
 func isGraduatedExperimentalChange(k string) bool {
 	feature, ok := strings.CutPrefix(k, "core.experimental.")
 	return ok && features.IsGraduated(feature)
+}
+
+func isDefaultEnabledExperimentalChange(k string) bool {
+	featureName, ok := strings.CutPrefix(k, "core.experimental.")
+	if !ok {
+		return false
+	}
+
+	for _, feature := range features.KnownFeatures() {
+		if feature.String() == featureName {
+			return feature.IsEnabledWhenUnset()
+		}
+	}
+	return false
+}
+
+func warnDefaultEnabledExperimentalChange(cfg RunTransaction, k string) error {
+	feature, ok := strings.CutPrefix(k, "core.experimental.")
+	if !ok {
+		return errors.New("internal error: change is not an experimental feature")
+	}
+
+	msg := fmt.Sprintf("feature %s is enabled by default and will be permanently enabled in a future release", feature)
+	warnExperimentalChange(cfg, msg)
+
+	return nil
 }
 
 func dropGraduatedExperimentalChange(cfg RunTransaction, k string) error {
@@ -40,11 +67,38 @@ func dropGraduatedExperimentalChange(cfg RunTransaction, k string) error {
 		return errors.New("internal error: change is not an experimental feature")
 	}
 
+	// setting to nil here drops the flag from the state. it should have already
+	// been cleared out by configstate.Init, but doing it here should not hurt.
 	if err := cfg.Set("core", "experimental."+feature, nil); err != nil {
 		return err
 	}
 
 	msg := fmt.Sprintf("feature %s is no longer experimental and is always enabled", feature)
+	warnExperimentalChange(cfg, msg)
+
+	return nil
+}
+
+// PruneGraduatedExperimentalConfig removes persisted experimental settings for
+// features that graduated and are now always enabled.
+func PruneGraduatedExperimentalConfig(cfg RunTransaction) error {
+	for _, feature := range features.Graduated() {
+		var value any
+		err := cfg.Get("core", "experimental."+feature, &value)
+		if config.IsNoOption(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if err := cfg.Set("core", "experimental."+feature, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func warnExperimentalChange(cfg RunTransaction, msg string) {
 	logger.Noticef("%s", msg)
 
 	st := cfg.State()
@@ -55,6 +109,4 @@ func dropGraduatedExperimentalChange(cfg RunTransaction, k string) error {
 		task.Logf("%s", msg)
 	}
 	st.Warnf("%s", msg)
-
-	return nil
 }

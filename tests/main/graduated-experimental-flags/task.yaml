@@ -3,26 +3,66 @@ summary: Ensure graduated experimental flags are accepted as no-ops
 details: |
     Check that setting an experimental flag for a feature that has graduated
     succeeds, logs that the feature is always enabled, and does not persist the
-    flag in state.
+    flag in state. Also check that stale graduated flags are pruned from state
+    on snapd startup.
 
 prepare: |
     snap install --devmode jq
 
 execute: |
+    default_enabled_feature=layouts
+    default_enabled_message="feature ${default_enabled_feature} is enabled by default and will be permanently enabled in a future release"
+
+    echo "Check that setting a default-enabled experimental feature succeeds"
+    snap set system experimental."${default_enabled_feature}"=true
+    snap tasks --last=configure-snap | MATCH "${default_enabled_message}"
+    snap warnings | MATCH "${default_enabled_message}"
+
+    echo "Check that the default-enabled flag is still persisted"
+    jq '.data.config.core.experimental.layouts' /var/lib/snapd/state.json | MATCH "true"
+
+    snap okay
+
+    echo "Check that setting a default-enabled experimental feature to false succeeds"
+    snap set system experimental."${default_enabled_feature}"=false
+    snap tasks --last=configure-snap | MATCH "${default_enabled_message}"
+    snap warnings | MATCH "${default_enabled_message}"
+
+    echo "Check that the default-enabled false value is still persisted"
+    jq '.data.config.core.experimental.layouts' /var/lib/snapd/state.json | MATCH "false"
+
     feature=robust-mount-namespace-updates
     message="feature ${feature} is no longer experimental and is always enabled"
+
+    echo "Check that stale graduated flags are pruned from state on startup"
+    systemctl stop snapd.service snapd.socket
+    jq '.data.config.core.experimental."robust-mount-namespace-updates" = true' \
+        /var/lib/snapd/state.json > state.json.new
+    mv state.json.new /var/lib/snapd/state.json
+
+    systemctl start snapd.socket snapd.service
+
+    # snap version waits for snapd to answer on the socket, so the next direct
+    # read from the state is safe, since the mutation should happen before
+    # snapd will respond to a client.
+    snap version
+
+    jq '(.data.config.core.experimental // {}) | has("robust-mount-namespace-updates")' /var/lib/snapd/state.json | MATCH "false"
 
     echo "Check that setting a graduated experimental feature to true succeeds"
     snap set system experimental."${feature}"=true
     snap tasks --last=configure-snap | MATCH "${message}"
     snap warnings | MATCH "${message}"
 
+    snap okay
+
     echo "Check that setting a graduated experimental feature to false succeeds"
     snap set system experimental."${feature}"=false
     snap tasks --last=configure-snap | MATCH "${message}"
+    snap warnings | MATCH "${message}"
 
     echo "Check that the message is logged by snapd"
     journalctl -b -u snapd | MATCH "${message}"
 
     echo "Check that the graduated flag is not persisted"
-    jq '.data.config.core.experimental."robust-mount-namespace-updates"' /var/lib/snapd/state.json | MATCH "null"
+    jq '(.data.config.core.experimental // {}) | has("robust-mount-namespace-updates")' /var/lib/snapd/state.json | MATCH "false"
