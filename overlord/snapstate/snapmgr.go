@@ -1715,6 +1715,11 @@ func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 
 	var removeList []string
 
+	deviceCtx, err := DeviceCtxFromState(m.state, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	for _, installedSnap := range snapList {
 		var snapst SnapState
 		err = Get(m.state, installedSnap.SnapName(), &snapst)
@@ -1729,11 +1734,6 @@ func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 
 		if !snapst.ImplicitlyInstalled {
 			continue
-		}
-
-		deviceCtx, err := DeviceCtxFromState(m.state, nil)
-		if err != nil {
-			return nil, nil, err
 		}
 
 		snapInfo, err := Info(m.state, installedSnap.SnapName(), installedSnap.Revision)
