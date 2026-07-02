@@ -258,7 +258,7 @@ func (s *UPowerObserveInterfaceSuite) TestStaticInfoCoreWithUpower(c *C) {
 func (s *UPowerObserveInterfaceSuite) TestStaticInfoCoreWithoutUpower(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-	// no mocked usr/libexec/upower
+	// no mocked usr/libexec/upowerd
 
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Check(si.ImplicitOnCore, Equals, false)
