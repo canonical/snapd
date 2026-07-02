@@ -20,89 +20,21 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"os"
+	"path/filepath"
 
-	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/usersession/xdgopenproxy"
+	"github.com/snapcore/snapd/cmd/snapctl/ctl"
+	"github.com/snapcore/snapd/cmd/snapctl/snapexec"
 )
 
-var clientConfig = client.Config{
-	// snapctl should not try to read $HOME/.snap/auth.json, this will
-	// result in apparmor denials and configure task failures
-	// (LP: #1660941)
-	DisableAuth: true,
-
-	// we need the less privileged snap socket in snapctl
-	Socket: dirs.SnapSocket,
-}
-
 func main() {
-	// check for internal commands
-	if len(os.Args) > 2 && os.Args[1] == "internal" {
-		switch os.Args[2] {
-		case "configure-core":
-			fmt.Fprintf(os.Stderr, "no internal core configuration anymore")
-			os.Exit(1)
-		}
-	}
-	if len(os.Args) == 3 && os.Args[1] == "user-open" {
-		if err := xdgopenproxy.Run(os.Args[2]); err != nil {
-			fmt.Fprintf(os.Stderr, "user-open error: %v\n", err)
-			os.Exit(1)
-		}
-		os.Exit(0)
-	}
+	argv0 := filepath.Base(os.Args[0])
 
-	var stdin io.Reader
-	if len(os.Args) > 1 && client.InternalSnapctlCmdNeedsStdin(os.Args[1]) {
-		stdin = os.Stdin
+	// dispatch the binary multi entry point
+	switch argv0 {
+	case "snap-exec":
+		snapexec.Main()
+	default: // "snapctl"
+		ctl.Main()
 	}
-
-	// no internal command, route via snapd
-	stdout, stderr, err := run(stdin)
-	if err != nil {
-		if e, ok := err.(*client.Error); ok {
-			switch e.Kind {
-			case client.ErrorKindUnsuccessful:
-				if errRes, ok := e.Value.(map[string]any); ok {
-					if stdout, ok := errRes["stdout"].(string); ok {
-						os.Stdout.Write([]byte(stdout))
-					}
-					if stderr, ok := errRes["stderr"].(string); ok {
-						os.Stderr.Write([]byte(stderr))
-					}
-					if errCode, ok := errRes["exit-code"].(float64); ok {
-						os.Exit(int(errCode))
-					}
-				}
-			}
-		}
-		fmt.Fprintf(os.Stderr, "error: %s\n", err)
-		os.Exit(1)
-	}
-
-	if stdout != nil {
-		os.Stdout.Write(stdout)
-	}
-
-	if stderr != nil {
-		os.Stderr.Write(stderr)
-	}
-}
-
-func run(stdin io.Reader) (stdout, stderr []byte, err error) {
-	cli := client.New(&clientConfig)
-
-	cookie := os.Getenv("SNAP_COOKIE")
-	// for compatibility, if re-exec is not enabled and facing older snapd.
-	if cookie == "" {
-		cookie = os.Getenv("SNAP_CONTEXT")
-	}
-	return cli.RunSnapctl(&client.SnapCtlOptions{
-		ContextID: cookie,
-		Args:      os.Args[1:],
-	}, stdin)
 }

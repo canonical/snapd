@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,10 @@
  *
  */
 
-package main
+// Package preseedtool implements the snap-preseed command entry point.
+// It is used by cmd/snapd when invoked via the C tool wrapper with
+// argv[1]="snap-preseed".
+package preseedtool
 
 import (
 	"fmt"
@@ -28,8 +31,6 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/image/preseed"
-
-	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -46,7 +47,8 @@ security profiles. The image is updated and consequently optimised to reduce
 first-boot startup time`
 )
 
-type options struct {
+// Options holds the command line options for snap-preseed.
+type Options struct {
 	Reset               bool   `long:"reset"`
 	ResetChroot         bool   `long:"reset-chroot" hidden:"1"`
 	Hybrid              bool   `long:"hybrid"`
@@ -58,8 +60,7 @@ type options struct {
 
 var (
 	osGetuid = os.Getuid
-	// unused currently, left in place for consistency for when it is needed
-	// Stdout   io.Writer = os.Stdout
+	// Stderr is the writer for error output, exported for testing.
 	Stderr io.Writer = os.Stderr
 
 	preseedCore20               = preseed.Core20
@@ -69,11 +70,12 @@ var (
 	preseedHybridReset          = preseed.HybridReset
 	preseedResetPreseededChroot = preseed.ResetPreseededChroot
 
-	opts options
+	opts Options
 )
 
+// Parser creates and returns a go-flags parser for snap-preseed.
 func Parser() *flags.Parser {
-	opts = options{}
+	opts = Options{}
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = shortHelp
 	parser.LongDescription = longHelp
@@ -86,15 +88,8 @@ func probeCore20ImageDir(dir string) bool {
 	return isDir
 }
 
-func main() {
-	parser := Parser()
-	if err := run(parser, os.Args[1:]); err != nil {
-		fmt.Fprintf(Stderr, "error: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func run(parser *flags.Parser, args []string) (err error) {
+// Run executes the snap-preseed logic with the given parser and args.
+func Run(parser *flags.Parser, args []string) (err error) {
 	// real validation of plugs and slots; needs to be set
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
@@ -161,4 +156,13 @@ func run(parser *flags.Parser, args []string) (err error) {
 		return preseedClassicReset(chrootDir)
 	}
 	return preseedClassic(chrootDir)
+}
+
+// Main is the entry point for snap-preseed. It exits the process on error.
+func Main() {
+	parser := Parser()
+	if err := Run(parser, os.Args[1:]); err != nil {
+		fmt.Fprintf(Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
 }

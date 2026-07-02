@@ -352,12 +352,11 @@ Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/client/clientutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-failure) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap-preseed) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/preseedtool) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-recovery-chooser) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-repair) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-seccomp) = %{version}-%{release}
@@ -367,6 +366,7 @@ Provides:      golang(%{import_path}/cmd/snapctl) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/cli) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/daemon) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/preseedtool) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock/runinhibit) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
@@ -718,6 +718,14 @@ popd
             SNAPD_DEFINES_DIR=$PWD \
             install
 
+%if 0%{?with_selinux}
+# Install the CLI wrapper as /usr/bin/snap, replacing the symlink installed by
+# snapd.mk. The wrapper is a real binary carrying snappy_cli_exec_t so that
+# the SELinux domain transition to snappy_cli_t fires correctly on exec.
+rm -f %{buildroot}%{_bindir}/snap
+install -m 0755 cmd/snap-cli-wrap/snap-cli-wrap %{buildroot}%{_bindir}/snap
+%endif
+
 %if 0%{?rhel} == 7
 # Install kernel tweaks
 # See: https://access.redhat.com/articles/3128691
@@ -786,7 +794,7 @@ sort -u -o devel.file-list devel.file-list
 %endif
 
 %check
-for binary in snap-exec snap-update-ns snapctl; do
+for binary in snap-update-ns snapctl; do
     ldd %{_builddir}/$binary 2>&1 | grep 'not a dynamic executable'
 done
 

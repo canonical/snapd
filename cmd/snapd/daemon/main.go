@@ -29,11 +29,13 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/syscheck"
@@ -51,13 +53,11 @@ const (
 	secLogMinLevel seclog.Level = seclog.LevelInfo
 )
 
-func init() {
-	logger.SimpleSetup(nil)
-}
-
 // Main is the entyrpoint to the snapd daemon. It is equivalent to a main()
 // function and should be used as such.
 func Main() {
+	logger.SimpleSetup(nil)
+
 	// When preseeding re-exec is not used
 	if snapdenv.Preseeding() {
 		logger.Noticef("running for preseeding")
@@ -71,7 +71,6 @@ func Main() {
 	secboot.HijackAndRunArgon2OutOfProcessHandlerOnArg([]string{"argon2-proc"})
 
 	snapdtool.MaybeCompleteFIPSSetup()
-
 	// TODO look into signal.NotifyContext
 	ch := make(chan os.Signal, 2)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -151,6 +150,9 @@ var checkRunningConditionsRetryDelay = 300 * time.Second
 
 func run(ch chan os.Signal) error {
 	ctx := context.Background()
+
+	// ensure plug and slot checks are enforced
+	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
 	t0 := time.Now().Truncate(time.Millisecond)
 	snapdenv.SetUserAgentFromVersion(snapdtool.Version, sandbox.ForceDevMode)

@@ -238,8 +238,8 @@ update_core_snap_for_classic_reexec() {
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
     cp -a "$LIBEXEC_DIR"/snapd/* squashfs-root/usr/lib/snapd/
-    # also the binaries themselves
-    cp -a /usr/bin/snap squashfs-root/usr/bin/
+    # also the binaries themselves; snap is now a symlink to usr/lib/snapd/snapd
+    ln -s -r squashfs-root/usr/lib/snapd/snapd squashfs-root/usr/bin/snap
     # make sure bin/snapctl is a symlink to lib/
     if [ ! -L squashfs-root/usr/bin/snapctl ]; then
         rm -f squashfs-root/usr/bin/snapctl
@@ -309,9 +309,24 @@ update_core_snap_for_classic_reexec() {
     for p in "$LIBEXEC_DIR/snapd/snap-exec" "$LIBEXEC_DIR/snapd/snap-confine" "$LIBEXEC_DIR/snapd/snap-discard-ns" "$LIBEXEC_DIR/snapd/snapd" "$LIBEXEC_DIR/snapd/snap-update-ns"; do
         check_file "$p" "$core/usr/lib/snapd/$(basename "$p")"
     done
-    for p in /usr/bin/snapctl /usr/bin/snap; do
-        check_file "$p" "$core$p"
-    done
+    check_file /usr/bin/snapctl "${core}/usr/bin/snapctl"
+    if ! command -v selinuxenabled ; then
+        # systems without SELinux have or point to the exact same binary in the
+        # core snap and on the host
+        check_file "/usr/bin/snap" "${core}/usr/bin/snap"
+    else
+        # on SELinux enabled systems /usr/bin/snap is a thin wrapper which
+        # serves as an policy attachment point, and is not the same binary as in
+        # the core/snapd snap
+        if cmp  "/usr/bin/snap" "${core}/usr/bin/snap"; then
+            echo "host /usr/bin/snap is unexpectedly the same as one from ${core}"
+            exit 1
+        fi
+        if [ -L /usr/bin/snap ]; then
+            echo "/usr/bin/snap is a symbolic link"
+            exit 1
+        fi
+    fi
 }
 
 prepare_memory_limit_override() {

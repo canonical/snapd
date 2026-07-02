@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snapexec
 
 import (
 	"syscall"
@@ -26,12 +26,9 @@ import (
 )
 
 var (
-	ExpandEnvCmdArgs = expandEnvCmdArgs
-	FindCommand      = findCommand
-	ParseArgs        = parseArgs
-	Run              = run
-	ExecApp          = execApp
-	ExecHook         = execHook
+	ParseArgs   = parseArgs
+	FindCommand = findCommand
+	LazyInit    = lazyInit
 )
 
 func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {

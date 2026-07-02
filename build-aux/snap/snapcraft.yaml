@@ -332,16 +332,13 @@ parts:
       #    the main directory, and it fails.
       EXTRA_GO_FLAGS="-buildvcs=false"
 
-      CMDS=(bin/snap
-            lib/snapd/snapd
+      CMDS=(lib/snapd/snapd
             # core-initrd for UC20 still depends on snap-bootstrap
             # being started from snap because of broken re-execution
             # and fixes that were not yet backported
             lib/snapd/snap-bootstrap
-            lib/snapd/snap-exec
             lib/snapd/snap-failure
             lib/snapd/snap-fde-keymgr
-            lib/snapd/snap-preseed
             lib/snapd/snap-recovery-chooser
             lib/snapd/snap-repair
             lib/snapd/snap-seccomp
@@ -359,7 +356,7 @@ parts:
            # FIXME: some binaries need to be run confined in apps. But
            # instead we should allow apps to access dynamic linkers
            # and libraries from snapd.
-           lib/snapd/snap-exec|lib/snapd/snapctl)
+           lib/snapd/snapctl)
              export CGO_ENABLED=0
              GO_LD_FLAGS=()
              CHECK_STATIC=1
@@ -397,21 +394,14 @@ parts:
         # triggers testing specific build tags which produce binaries that are
         # insecure for use in production systems
         case "${cmd}" in
-          bin/snap|lib/snapd/snap-bootstrap)
+          lib/snapd/snap-bootstrap)
             TAGS+=(nomanagers)
             ;;
         esac
 
         case "${VERSION}" in
           1337.*)
-            case "${cmd}" in
-              bin/snap)
-                TAGS+=(withtestkeys faultinject statelocktrace structuredlogging)
-                ;;
-              *)
-                TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace structuredlogging)
-                ;;
-            esac
+            TAGS+=(withtestkeys withbootassetstesting faultinject statelocktrace structuredlogging)
             ;;
         esac
 
@@ -433,7 +423,7 @@ parts:
             # snap, snap-repair and snap-bootstrap, tags:
             # - goexperiment.opensslcrypto - enable openssl crypto backend
             # - snapdfips - enable additional FIPS support (enforce FIPS compliant TLS)
-            bin/snap|lib/snapd/snapd|lib/snapd/snap-repair|lib/snapd/snap-bootstrap)
+            lib/snapd/snapd|lib/snapd/snap-repair|lib/snapd/snap-bootstrap)
               TAGS+=(goexperiment.opensslcrypto snapdfips)
               ;;
           esac
@@ -464,21 +454,36 @@ parts:
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/lib/snapd" data/completion/bash/complete.sh data/completion/bash/etelpmoc.sh
       install -Dm644 -t "${CRAFT_PART_INSTALL}/usr/share/bash-completion/completions" ./data/completion/bash/snap
 
+      # link usr/bin/snap -> usr/lib/snapd/snapd
+      mkdir -p "${CRAFT_PART_INSTALL}/usr/bin"
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/bin/snap"
+
+      # link snapd-tool-wrap -> snap-preseed (C tool wrapper multi-call)
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
+         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
+
+      # link usr/lib/snapd/snap-exec -> usr/lib/snapd/snapctl (multi-call binary)
+      ln -v -s snapctl "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-exec"
+
       if [ -f fips-build ]; then
         # Set up FIPS dispatch: replace each original binary with a symlink
         # to snap-fips-dispatch, and rename the original to a -fips suffix.
         #
-        # Symlink (original path)               Dispatch target (renamed binary)
-        # <root>/usr/bin/snap                -> <root>/usr/bin/snap-fips
-        # <root>/usr/lib/snapd/snapd         -> <root>/usr/lib/snapd/snapd-fips
-        # <root>/usr/lib/snapd/snap-repair   -> <root>/usr/lib/snapd/snap-repair-fips
-        # <root>/usr/lib/snapd/snap-bootstrap -> <root>/usr/lib/snapd/snap-bootstrap-fips
+        # Real binary (renamed)                       Dispatch symlink (original path)
+        # <root>/usr/lib/snapd/snapd-fips          <- <root>/usr/lib/snapd/snapd
+        # <root>/usr/lib/snapd/snap-repair-fips    <- <root>/usr/lib/snapd/snap-repair
+        # <root>/usr/lib/snapd/snap-bootstrap-fips <- <root>/usr/lib/snapd/snap-bootstrap
+        #
+        # usr/bin/snap is a symlink to usr/lib/snapd/snapd (now the dispatch symlink),
+        # so the dispatcher sees argv[0]="snap" and resolves to usr/bin/snap-fips.
+        # Create that symlink pointing at the renamed FIPS binary.
+
         for cmd in lib/snapd/snapd lib/snapd/snap-repair lib/snapd/snap-bootstrap; do
           mv -v "${CRAFT_PART_INSTALL}/usr/${cmd}" "${CRAFT_PART_INSTALL}/usr/lib/snapd/$(basename $cmd)-fips"
           ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/${cmd}"
         done
-        mv -v "${CRAFT_PART_INSTALL}/usr/bin/snap" "${CRAFT_PART_INSTALL}/usr/bin/snap-fips"
-        ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-fips-dispatch" "${CRAFT_PART_INSTALL}/usr/bin/snap"
+        # usr/bin/snap-fips is the dispatch target when argv[0]="snap"; point it at snapd-fips.
+        ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-fips" "${CRAFT_PART_INSTALL}/usr/bin/snap-fips"
       fi
 
       # TODO: For now snapd expects a renamed apparmor profile to

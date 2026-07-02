@@ -1,14 +1,11 @@
-usr/bin/snap
+usr/bin/snapd /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
 usr/lib/snapd/system-shutdown
-usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/
 usr/bin/snap-failure /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
-usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-bootstrap /usr/lib/snapd/
-usr/bin/snap-preseed /usr/lib/snapd/
 usr/bin/snap-recovery-chooser /usr/lib/snapd/
 usr/bin/snap-fde-keymgr /usr/lib/snapd/
 usr/bin/snapd-apparmor /usr/lib/snapd/
