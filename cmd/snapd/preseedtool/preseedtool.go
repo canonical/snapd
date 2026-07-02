@@ -18,7 +18,8 @@
  */
 
 // Package preseedtool implements the snap-preseed command entry point.
-// It is used by cmd/snap when invoked as "snap-preseed".
+// It is used by cmd/snapd when invoked via the C tool wrapper with
+// argv[1]="snap-preseed".
 package preseedtool
 
 import (

@@ -31,14 +31,25 @@ import (
 )
 
 func main() {
+	// Busybox like Tool dispatch: when invoked via a C tool wrapper, argv[0] is the tool
+	// name (for display) and argv[1] is the tool name (dispatch signal).
+	// Check argv[1] for known tool names before falling through.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "snap-preseed":
+			// Strip argv[1] (the tool name) so the tool sees its own args
+			os.Args = append(os.Args[:1], os.Args[2:]...)
+			preseedtool.Main()
+			return
+		}
+	}
+
 	argv0 := filepath.Base(os.Args[0])
 
 	// dispatch the binary multi entry point
 	switch argv0 {
 	case "snapd":
 		daemon.Main()
-	case "snap-preseed":
-		preseedtool.Main()
 	default:
 		// "snap" needs to be handled last, as it's a special entrypoint for
 		// snap application execution through symlinks at /snap/bin/<name>
