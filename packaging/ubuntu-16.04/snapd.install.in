@@ -32,6 +32,7 @@ usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-confine.caps
 usr/lib/snapd/snap-confine.v2-only.caps
 usr/lib/snapd/snap-discard-ns
+usr/lib/snapd/snapd-tool-wrap
 usr/share/man/
 
 # gdb helper
