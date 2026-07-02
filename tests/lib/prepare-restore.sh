@@ -534,7 +534,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             do_depinstall() {
-                best_golang=golang-1.18
+                best_golang=golang-1.23
                 case "$SPREAD_SYSTEM" in
                     ubuntu-fips-*)
                         # we are limited by the FIPS variants of go toolchain
@@ -543,18 +543,29 @@ prepare_project() {
                         # currently expects 1.23, see:
                         # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
                         best_golang=golang-1.23
-                        quiet apt install -y golang-1.23
+                        ;;
+                    ubuntu-20.04-*)
+                        # On 20.04, the newest available go version is 1.22.
+                        best_golang=golang-1.22
+                        ;;
+                    ubuntu-core-20-*)
+                        # On core20, reboot during spread prepare fails when
+                        # using any go version newer than 1.18. So stick to 1.18.
+                        best_golang=golang-1.18
+                        ;;
+                    ubuntu-core-1* | ubuntu-1*)
+                        # On <20.04, use 1.18
+                        best_golang=golang-1.18
                         ;;
                 esac
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                # The go 1.18 backport is not using alternatives or anything else so
-                # we need to get it on path somehow. This is not perfect but simple.
-                if [ -z "$(command -v go)" ]; then
-                    # the path filesystem path is: /usr/lib/go-1.18/bin
-                    ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
-                fi
+                # Ensure the desired go is installed instead of the first dep match
+                quiet apt install -y "$best_golang"
+                best_golang_path="/usr/lib/${best_golang/lang/}/bin/go"
+                test -e "$best_golang_path"
+                ln -s "$best_golang_path" /usr/local/bin/go
+                apt build-dep -y ./ # we don't run this for 14.04
+                # We need to ensure the correct version of golang is used.
+                command -v go | MATCH '/usr/local/bin/go'
             }
 
             if ! os.query is-trusty; then
@@ -618,10 +629,8 @@ prepare_project() {
                 exit 1
                 ;;
             ubuntu-*|debian-*)
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                
+                apt-get build-dep -y ./ # 14.04 is handled above
+
                 build_deb
                 ;;
             fedora-*|opensuse-*|amazon-*|centos-*)
