@@ -1703,7 +1703,7 @@ func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
 	return nil
 }
 
-func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, error) {
+func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, error) {
 	if changeInFlight(m.state) {
 		return nil, nil, nil
 	}
@@ -1784,7 +1784,7 @@ func (m *SnapManager) ensureDependencyRemoval() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	snapNames, taskSetList, err := CreateDependencyRemovalTasks(m)
+	snapNames, taskSetList, err := createDependencyRemovalTasks(m)
 	if err != nil {
 		return err
 	}
