@@ -598,7 +598,7 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 		return fmt.Errorf(i18n.G("cannot run %q, snap is disabled"), snap.JoinSnapApp(snapName, app.Name))
 	}
 
-	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() {
+	if app.IsService() {
 		// Skip check
 		return nil
 	}
@@ -632,9 +632,6 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		}
 
 		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, snapName, appName)
-		if errors.Is(err, errOngoingSnapRefresh) {
-			return fmt.Errorf(i18n.G("cannot run %q, snap is being refreshed"), snapApp)
-		}
 		if errors.Is(err, errInhibitedForRemove) {
 			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapApp)
 		}

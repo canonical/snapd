@@ -40,8 +40,6 @@ const (
 	ParallelInstances
 	// Hotplug controls availability of dynamically creating slots based on system hardware.
 	Hotplug
-	// RefreshAppAwareness controls refresh being aware of running applications.
-	RefreshAppAwareness
 	// ClassicPreservesXdgRuntimeDir controls $XDG_RUNTIME_DIR in snaps with classic confinement.
 	ClassicPreservesXdgRuntimeDir
 	// UserDaemons controls availability of user mode service support.
@@ -103,10 +101,9 @@ func KnownFeatures() []SnapdFeature {
 // featureNames maps feature constant to stable string representation.
 // The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
 var featureNames = map[SnapdFeature]string{
-	Layouts:             "layouts",
-	ParallelInstances:   "parallel-instances",
-	Hotplug:             "hotplug",
-	RefreshAppAwareness: "refresh-app-awareness",
+	Layouts:           "layouts",
+	ParallelInstances: "parallel-instances",
+	Hotplug:           "hotplug",
 
 	ClassicPreservesXdgRuntimeDir: "classic-preserves-xdg-runtime-dir",
 
@@ -143,15 +140,13 @@ var featureNames = map[SnapdFeature]string{
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	Layouts:                       true,
-	RefreshAppAwareness:           true,
 	ClassicPreservesXdgRuntimeDir: true,
 	DbusActivation:                true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
 var featuresExported = map[SnapdFeature]bool{
-	RefreshAppAwareness: true,
-	ParallelInstances:   true,
+	ParallelInstances: true,
 
 	ClassicPreservesXdgRuntimeDir: true,
 	HiddenSnapDataHomeDir:         true,
