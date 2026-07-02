@@ -163,6 +163,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		return false
 	})
 
+	runner.AddHandler("check-reseal", m.doCheckReseal, nil)
+
 	return m, nil
 }
 

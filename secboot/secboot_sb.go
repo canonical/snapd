@@ -944,12 +944,13 @@ func ResealKey(key KeyDataLocation, params *ResealKeyParams) (UpdatedKeys, error
 			PCRProfile: pcrProfile,
 			Keys:       []KeyDataLocation{key},
 			PrimaryKey: primaryKey,
+			DryRun:     params.DryRun,
 		}
 
 		return resealKeysWithTPM(keyParams, params.NewPCRPolicyVersion)
 
 	case hookResealKind:
-		err = resealKeysWithFDESetupHook([]KeyDataLocation{key}, params.PrimaryKeyDevices, params.FallbackPrimaryKeyFiles, params.VerifyPrimaryKey, params.Models, params.BootModes)
+		err = resealKeysWithFDESetupHook([]KeyDataLocation{key}, params.PrimaryKeyDevices, params.FallbackPrimaryKeyFiles, params.VerifyPrimaryKey, params.Models, params.BootModes, params.DryRun)
 		return nil, err
 
 	case noResealKind:
