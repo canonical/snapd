@@ -652,6 +652,7 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 	b.Append(prerequisites)
 	b.UpdateEdge(prerequisites, BeginEdge)
 
+	// the builder chains this phase after the initial prerequisites task.
 	beforeLocalSystemMods, err := sc.BeforeLocalSystemMod(st, b.OpenSpan(), ic)
 	if err != nil {
 		return snapInstallTaskSet{}, err
