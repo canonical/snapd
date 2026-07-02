@@ -1348,7 +1348,6 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 		Channel: "channel-for-components",
 		UserID:  s.user.ID,
 
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-kernel_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -1630,7 +1629,6 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 		CohortKey: "some-cohort",
 		UserID:    s.user.ID,
 
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -2022,7 +2020,6 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 		Channel: "some-channel",
 		UserID:  s.user.ID,
 
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "services-snap_instance_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -2383,7 +2380,6 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 		Channel: "18/edge",
 		UserID:  s.user.ID,
 
-		SnapPath: filepath.Join(dirs.SnapBlobDir, "kernel_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
@@ -17807,7 +17803,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 		Channel: channel,
 		UserID:  s.user.ID,
 
-		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      opts.snapType,
 		Version:   snapName + "Ver",
@@ -17824,6 +17819,8 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThrough(c *C, opts updateW
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Sha3_384:    "<some-hash>",
 		}
+	} else {
+		expectedSnapsup.SnapPath = filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, newSnapRev))
 	}
 
 	c.Assert(snapsup, DeepEquals, expectedSnapsup)
@@ -18304,7 +18301,6 @@ func (s *snapmgrTestSuite) testUpdateWithComponentsRunThroughShareComponents(c *
 		Channel: channel,
 		UserID:  s.user.ID,
 
-		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", snapName, newSnapRev)),
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeKernel,
 		Version:   "kernelVer",
@@ -19015,7 +19011,6 @@ components:
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
 		Channel:   channel,
-		SnapPath:  snapPath,
 		SideInfo:  snapsup.SideInfo,
 		Type:      snapType,
 		Version:   "some-snapVer",
