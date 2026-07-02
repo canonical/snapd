@@ -352,7 +352,6 @@ Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/client/clientutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
@@ -717,6 +716,14 @@ popd
 %make_install -f packaging/snapd.mk \
             SNAPD_DEFINES_DIR=$PWD \
             install
+
+%if 0%{?with_selinux}
+# Install the CLI wrapper as /usr/bin/snap, replacing the symlink installed by
+# snapd.mk. The wrapper is a real binary carrying snappy_cli_exec_t so that
+# the SELinux domain transition to snappy_cli_t fires correctly on exec.
+rm -f %{buildroot}%{_bindir}/snap
+install -m 0755 cmd/snap-cli-wrap/snap-cli-wrap %{buildroot}%{_bindir}/snap
+%endif
 
 %if 0%{?rhel} == 7
 # Install kernel tweaks
