@@ -53,7 +53,7 @@ func (s *SnapRoutineFileAccessSuite) SetUpTest(c *C) {
 	}))
 }
 
-func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRemovableMedia, promptingSupported, promptingEnabled bool) {
+func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRemovableMedia, hasSystemPackagesDoc, promptingSupported, promptingEnabled bool) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/snaps/hello":
@@ -95,6 +95,19 @@ func (s *SnapRoutineFileAccessSuite) setUpClient(c *C, isClassic, hasHome, hasRe
 						Name: "removable-media",
 					},
 					Interface: "removable-media",
+				})
+			}
+			if hasSystemPackagesDoc {
+				connections = append(connections, client.Connection{
+					Slot: client.SlotRef{
+						Snap: "core",
+						Name: "system-packages-doc",
+					},
+					Plug: client.PlugRef{
+						Snap: "hello",
+						Name: "system-packages-doc",
+					},
+					Interface: "system-packages-doc",
 				})
 			}
 			result := client.Connections{Established: connections}
@@ -152,7 +165,7 @@ func (s *SnapRoutineFileAccessSuite) checkBasicAccess(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessDefault(c *C) {
-	s.setUpClient(c, false, false, false, false, false)
+	s.setUpClient(c, false, false, false, false, false, false)
 	s.checkBasicAccess(c)
 
 	// No access to root
@@ -166,7 +179,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessDefault(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessClassicConfinement(c *C) {
-	s.setUpClient(c, true, false, false, false, false)
+	s.setUpClient(c, true, false, false, false, false, false)
 
 	// Classic confinement snaps run in the host file system
 	// namespace, so have access to everything.
@@ -178,7 +191,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessClassicConfinement(c *C) {
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterface(c *C) {
-	s.setUpClient(c, false, true, false, false, false)
+	s.setUpClient(c, false, true, false, false, false, false)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -190,7 +203,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterface(c *C) {
 
 func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingUnsupportedOrDisabled(c *C) {
 	// Prompting supported but not enabled
-	s.setUpClient(c, false, true, false, true, false)
+	s.setUpClient(c, false, true, false, false, true, false)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -200,7 +213,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingUns
 	s.checkAccess(c, filepath.Join(s.fakeHome, ".config"), "hidden\n")
 
 	// Prompting enabled but not supported
-	s.setUpClient(c, false, true, false, false, true)
+	s.setUpClient(c, false, true, false, false, false, true)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -211,7 +224,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingUns
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingSupportedAndEnabled(c *C) {
-	s.setUpClient(c, false, true, false, true, true)
+	s.setUpClient(c, false, true, false, false, true, true)
 	s.checkBasicAccess(c)
 
 	// Access to non-hidden files in the home directory
@@ -222,7 +235,7 @@ func (s *SnapRoutineFileAccessSuite) TestAccessHomeInterfaceAppArmorPromptingSup
 }
 
 func (s *SnapRoutineFileAccessSuite) TestAccessRemovableMedia(c *C) {
-	s.setUpClient(c, false, false, true, false, false)
+	s.setUpClient(c, false, false, true, false, false, false)
 	s.checkBasicAccess(c)
 
 	s.checkAccess(c, "/mnt", "read-write\n")
@@ -231,4 +244,41 @@ func (s *SnapRoutineFileAccessSuite) TestAccessRemovableMedia(c *C) {
 	s.checkAccess(c, "/media/path/file.txt", "read-write\n")
 	s.checkAccess(c, "/run/media", "read-write\n")
 	s.checkAccess(c, "/run/media/path/file.txt", "read-write\n")
+}
+
+func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterfaceHidden(c *C) {
+	s.setUpClient(c, false, false, false, false, false, false)
+	s.checkBasicAccess(c)
+
+	// Without the interface connected, all doc paths should be hidden
+	s.checkSystemPackagesDocInterface(c, "hidden\n")
+}
+
+func (s *SnapRoutineFileAccessSuite) TestAccessSystemPackagesDocInterfaceReadOnly(c *C) {
+	s.setUpClient(c, false, false, false, true, false, false)
+	s.checkBasicAccess(c)
+
+	// With the interface connected, all doc paths should be read-only
+	s.checkSystemPackagesDocInterface(c, "read-only\n")
+
+	// Other paths under /usr/share should still be hidden
+	s.checkAccess(c, "/usr/share/other", "hidden\n")
+}
+
+func (s *SnapRoutineFileAccessSuite) checkSystemPackagesDocInterface(c *C, expectedAccess string) {
+	s.checkAccess(c, "/usr/share/doc", expectedAccess)
+	s.checkAccess(c, "/usr/share/doc/package/README", expectedAccess)
+	s.checkAccess(c, "/usr/local/share/doc", expectedAccess)
+	s.checkAccess(c, "/usr/share/cups/doc-root", expectedAccess)
+	s.checkAccess(c, "/usr/share/gimp/2.0/help", expectedAccess)
+	s.checkAccess(c, "/usr/share/gtk-doc", expectedAccess)
+	s.checkAccess(c, "/usr/share/javascript", "hidden\n") // This path is always hidden, even with the interface connected
+	s.checkAccess(c, "/usr/share/javascript/", "hidden\n") // This path is always hidden, even with the interface connected
+	s.checkAccess(c, "/usr/share/javascript/foo", expectedAccess)
+	s.checkAccess(c, "/usr/share/libreoffice/help", expectedAccess)
+	s.checkAccess(c, "/usr/share/sphinx_rtd_theme", expectedAccess)
+	s.checkAccess(c, "/usr/share/xubuntu-docs", expectedAccess)
+	s.checkAccess(c, "/usr/share/man", expectedAccess)
+	s.checkAccess(c, "/usr/share/help", expectedAccess)
+	s.checkAccess(c, "/usr/share/info", expectedAccess)
 }
