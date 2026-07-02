@@ -427,6 +427,9 @@ prepare_classic() {
         distro_install_build_snapd
     fi
 
+    # Configure enterprise store in the system when it is required
+    "$TESTSTOOLS"/store-state setup-enterprise-store
+
     case "$SPREAD_SYSTEM" in
         opensuse-*-selinux-*)
             # openSUSE SELinux variant may have restorecond installed, which
@@ -1395,6 +1398,8 @@ setup_reflash_magic() {
 
     distro_install_local_package "$GOHOME"/snapd_*.deb
     distro_clean_package_cache
+    
+    "$TESTSTOOLS"/store-state setup-enterprise-store
 
     # need to be seeded to proceed with snap install
     snap wait system seed.loaded
@@ -1931,6 +1936,7 @@ prepare_ubuntu_core() {
     retry -n 10 --wait 1 sh -c 'systemctl is-active snapd snapd.socket'
 
     setup_snapd_proxy true
+    "$TESTSTOOLS"/store-state setup-enterprise-store
 
     disable_journald_rate_limiting
     disable_journald_start_limiting

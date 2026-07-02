@@ -382,8 +382,8 @@ backends:
             HTTPS_PROXY: 'http://egress.ps7.internal:3128'
             http_proxy: 'http://egress.ps7.internal:3128'
             https_proxy: 'http://egress.ps7.internal:3128'
-            no_proxy: '127.0.0.1,127.0.0.53,localhost'
-            NO_PROXY: '127.0.0.1,127.0.0.53,localhost'
+            no_proxy: '127.0.0.1,127.0.0.53,localhost,snapd-enterprise-store.canonical.com'
+            NO_PROXY: '127.0.0.1,127.0.0.53,localhost,snapd-enterprise-store.canonical.com'
             NTP_SERVER: 'ntp.ps7.internal'
         systems: &openstack-systems
             - ubuntu-16.04-64:
