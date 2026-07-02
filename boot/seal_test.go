@@ -81,19 +81,39 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	defer boot.MockSealModeenvLocked()()
 
 	for idx, tc := range []struct {
-		sealErr       error
-		provisionErr  error
-		factoryReset  bool
-		reprovision   bool
-		shimId        string
-		grubId        string
-		runGrubId     string
-		expErr        string
-		expSealCalls  int
-		disableTokens bool
+		sealErr                error
+		provisionErr           error
+		factoryReset           bool
+		reprovision            bool
+		shimId                 string
+		grubId                 string
+		runGrubId              string
+		goodRecoverySystems    []string
+		currentRecoverySystems []string
+		expErr                 string
+		expSealCalls           int
+		disableTokens          bool
 	}{
 		{
 			expSealCalls: 1,
+		},
+		{
+			currentRecoverySystems: []string{"20200825"},
+			expSealCalls:           1,
+		},
+		{
+			currentRecoverySystems: []string{"20200825"},
+			goodRecoverySystems:    []string{"20200825"},
+			expSealCalls:           1,
+		},
+		{
+			currentRecoverySystems: []string{"20260702"},
+			expErr:                 `trying to install or reprovision with a try system "20260702"`,
+		},
+		{
+			currentRecoverySystems: []string{"20260702"},
+			goodRecoverySystems:    []string{"20200825"},
+			expErr:                 `trying to install or reprovision with a try system "20260702"`,
 		},
 		{
 			expSealCalls:  1,
@@ -160,6 +180,13 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			BrandID:        model.BrandID(),
 			Grade:          string(model.Grade()),
 			ModelSignKeyID: model.SignKeyID(),
+		}
+
+		if tc.currentRecoverySystems != nil {
+			modeenv.CurrentRecoverySystems = tc.currentRecoverySystems
+		}
+		if tc.goodRecoverySystems != nil {
+			modeenv.GoodRecoverySystems = tc.goodRecoverySystems
 		}
 
 		// mock asset cache
