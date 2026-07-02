@@ -216,9 +216,9 @@ install:: | $(DESTDIR)$(bindir)
 install:: | $(DESTDIR)$(bindir)
 	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd $|/snap
 
-# Ensure $(libexecdir)/snapd/snap-preseed is a symlink to $(libexecdir)/snapd/snap-preseed
+# Ensure $(libexecdir)/snapd/snap-preseed is a symlink to $(libexecdir)/snapd/snapd-tool-wrap
 install:: | $(DESTDIR)$(libexecdir)/snapd
-	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd $|/snap-preseed
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $|/snap-preseed
 
 # Generate and install man page for snap command.
 # The binary dispatches on argv[0]; invoke it as "snap" to get the CLI help.

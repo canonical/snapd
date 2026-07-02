@@ -457,8 +457,11 @@ parts:
       # link usr/bin/snap -> usr/lib/snapd/snapd
       mkdir -p "${CRAFT_PART_INSTALL}/usr/bin"
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/bin/snap"
-      # link usr/lib/snapd/snap-preseed -> snapd
-      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
+
+      # link snapd-tool-wrap -> snap-preseed (C tool wrapper multi-call)
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
+         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
+
       # link usr/lib/snapd/snap-exec -> usr/lib/snapd/snapctl (multi-call binary)
       ln -v -s snapctl "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-exec"
 

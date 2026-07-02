@@ -389,9 +389,6 @@ export SNAPD_SKIP_SLOW_TESTS=1
             GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
             install
 
-# Drop snap-preseed
-rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
-
 %if %{with selinux}
 # Install the CLI wrapper as /usr/bin/snap, replacing the symlink installed by
 # snapd.mk. The wrapper is a real binary carrying snappy_cli_exec_t so that

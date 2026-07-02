@@ -744,9 +744,6 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 # Remove gpio-chardev ordering target
 rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
 
-# Drop snap-preseed
-rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
-
 # Disable re-exec by default
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
 cat <<'EOF' > %{buildroot}%{_sysconfdir}/sysconfig/snapd
