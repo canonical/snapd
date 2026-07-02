@@ -105,6 +105,36 @@ func (r *graduatedSuite) TestConfigureGraduatedExperimentalFeature(c *C) {
 
 }
 
+func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	r.state.Lock()
+	defer r.state.Unlock()
+
+	task := r.state.NewTask("configure", "configure")
+	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), task)
+
+	c.Assert(tr.Set("core", "experimental.layouts", true), IsNil)
+
+	r.state.Unlock()
+	c.Assert(configcore.Run(coreDev, tr), IsNil)
+	r.state.Lock()
+
+	tr.Commit()
+
+	msg := "feature layouts is enabled by default and will be permanently enabled in a future release"
+
+	var layouts bool
+	err := tr.Get("core", "experimental.layouts", &layouts)
+	c.Check(err, IsNil)
+	c.Check(layouts, Equals, true)
+
+	c.Check(logbuf.String(), testutil.Contains, msg)
+	c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
+	c.Check(warningsStrings(r.state.AllWarnings()), testutil.Contains, msg)
+}
+
 func (r *graduatedSuite) TestConfigureGraduatedExperimentalFeatureDeletesExistingConfig(c *C) {
 	r.state.Lock()
 	defer r.state.Unlock()
@@ -131,6 +161,46 @@ func (r *graduatedSuite) TestConfigureGraduatedExperimentalFeatureDeletesExistin
 		err := tr.Get("core", "experimental."+feature, &value)
 		c.Check(config.IsNoOption(err), Equals, true)
 	}
+}
+
+func (r *graduatedSuite) TestPruneGraduatedExperimentalConfig(c *C) {
+	r.state.Lock()
+	defer r.state.Unlock()
+
+	setupTr := config.NewTransaction(r.state)
+	for _, feature := range features.Graduated() {
+		c.Assert(setupTr.Set("core", "experimental."+feature, true), IsNil)
+	}
+	c.Assert(setupTr.Set("core", "experimental.layouts", true), IsNil)
+	setupTr.Commit()
+
+	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), nil)
+	c.Assert(configcore.PruneGraduatedExperimentalConfig(tr), IsNil)
+	tr.Commit()
+
+	for _, feature := range features.Graduated() {
+		var value any
+		err := tr.Get("core", "experimental."+feature, &value)
+		c.Check(config.IsNoOption(err), Equals, true)
+	}
+
+	var layouts bool
+	err := tr.Get("core", "experimental.layouts", &layouts)
+	c.Check(err, IsNil)
+	c.Check(layouts, Equals, true)
+}
+
+func (r *graduatedSuite) TestPruneGraduatedExperimentalConfigDoesNotCreateConfig(c *C) {
+	r.state.Lock()
+	defer r.state.Unlock()
+
+	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), nil)
+	c.Assert(configcore.PruneGraduatedExperimentalConfig(tr), IsNil)
+	tr.Commit()
+
+	rawCfg, err := config.GetSnapConfig(r.state, "core")
+	c.Check(err, IsNil)
+	c.Check(rawCfg, IsNil)
 }
 
 func (r *graduatedSuite) TestConfigureUnknownExperimentalFeatureError(c *C) {

@@ -49,6 +49,14 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	st.Lock()
 	defer st.Unlock()
 	tr := config.NewTransaction(st)
+
+	// ensure that graduated features are cleared from the state
+	rt := configcore.NewRunTransaction(tr, nil)
+	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
+		return err
+	}
+	rt.Commit()
+
 	var homedirs string
 	if err := tr.GetMaybe("core", "homedirs", &homedirs); err != nil {
 		return err
