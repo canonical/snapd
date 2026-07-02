@@ -27,10 +27,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const accessibilitySummary = `special permissions for accessibility server`
+const accessibilityLegacySummary = `special permissions for accessibility server`
 
-const accessibilityBaseDeclarationSlots = `
-  accessibility:
+const accessibilityLegacyBaseDeclarationSlots = `
+  accessibility-legacy:
     allow-installation:
       slot-snap-type:
         - app
@@ -39,7 +39,7 @@ const accessibilityBaseDeclarationSlots = `
       on-classic: false
 `
 
-const accessibilityPlugAppArmor = `
+const accessibilityLegacyPlugAppArmor = `
 #include <abstractions/dbus-session-strict>
 #include <abstractions/dbus-accessibility-strict>
 
@@ -118,7 +118,7 @@ dbus (send)
     peer=(name=org.freedesktop.DBus, label=###SLOT_SECURITY_TAGS###),
 `
 
-const accessibilitySlotAppArmor = `
+const accessibilityLegacySlotAppArmor = `
 #include <abstractions/dbus-session-strict>
 #include <abstractions/dbus-accessibility-strict>
 
@@ -148,45 +148,45 @@ owner /run/user/[0-9]*/ rw,
 owner /run/user/[0-9]*/speech-dispatcher/** rwk,
 `
 
-type accessibilityInterface struct{}
+type accessibilityLegacyInterface struct{}
 
-func (iface *accessibilityInterface) Name() string {
-	return "accessibility"
+func (iface *accessibilityLegacyInterface) Name() string {
+	return "accessibility-legacy"
 }
 
-func (iface *accessibilityInterface) StaticInfo() interfaces.StaticInfo {
+func (iface *accessibilityLegacyInterface) StaticInfo() interfaces.StaticInfo {
 	return interfaces.StaticInfo{
-		Summary:              accessibilitySummary,
-		BaseDeclarationSlots: accessibilityBaseDeclarationSlots,
+		Summary:              accessibilityLegacySummary,
+		BaseDeclarationSlots: accessibilityLegacyBaseDeclarationSlots,
 	}
 }
 
-func (iface *accessibilityInterface) AppArmorPermanentPlug(spec *apparmor.Specification, plug *snap.PlugInfo) error {
+func (iface *accessibilityLegacyInterface) AppArmorPermanentPlug(spec *apparmor.Specification, plug *snap.PlugInfo) error {
 	// give access to the unconfined screen reader
 	old := "###SLOT_SECURITY_TAGS###"
 	new := "unconfined"
-	snippet := strings.Replace(accessibilityPlugAppArmor, old, new, -1)
+	snippet := strings.Replace(accessibilityLegacyPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *accessibilityInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+func (iface *accessibilityLegacyInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
-	snippet := strings.Replace(accessibilityPlugAppArmor, old, new, -1)
+	snippet := strings.Replace(accessibilityLegacyPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
 }
 
-func (iface *accessibilityInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
-	spec.AddSnippet(accessibilitySlotAppArmor)
+func (iface *accessibilityLegacyInterface) AppArmorPermanentSlot(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+	spec.AddSnippet(accessibilityLegacySlotAppArmor)
 	return nil
 }
 
-func (iface *accessibilityInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
+func (iface *accessibilityLegacyInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 	return true
 }
 
 func init() {
-	registerIface(&accessibilityInterface{})
+	registerIface(&accessibilityLegacyInterface{})
 }
