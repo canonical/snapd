@@ -1692,7 +1692,7 @@ func (m *SnapManager) ensureStoreDownloadsCacheCleaned() error {
 	return nil
 }
 
-func CreateDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, error) {
+func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, error) {
 	if changeInFlight(m.state) {
 		return nil, nil, nil
 	}
