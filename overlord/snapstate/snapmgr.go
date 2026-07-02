@@ -1776,11 +1776,16 @@ func (m *SnapManager) ensureDependencyRemoval() error {
 		return err
 	}
 
+	// Do not create a task if there's nothing to do
+	if len(taskSetList) == 0 {
+		return nil
+	}
+
 	change := m.state.NewChange("orphan-removal", "Remove implicitly installed snaps that are no longer required")
 	for _, taskSet := range taskSetList {
 		change.AddAll(taskSet)
 	}
-	if snapNames != nil {
+	if len(snapNames) != 0 {
 		change.Set("snap-names", snapNames)
 	}
 
