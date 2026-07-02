@@ -221,17 +221,22 @@ func LogUserRemoved(user SnapdUser) {
 // LogAdminActivity logs an administrative API access event using the
 // global security logger. It is emitted when authorization succeeds (the
 // access gate passed), not when the API operation or handler succeeds.
-func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks) {
+//
+// reasonGranted identifies why access was granted; see [ReasonGrantedUserAuth],
+// [ReasonGrantedRootAuth], and [ReasonGrantedPolkitAuth], optionally expanded
+// with an interface plug/slot postfix when applicable.
+func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, reasonGranted string) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_admin", Level: LevelInfo},
-		fmt.Sprintf("User %s from %s accessed %s", user.String(), peer.String(), endpoint.String()),
+		fmt.Sprintf("User %s from %s granted access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), reasonGranted),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
+		Attr{Key: "reason_granted", Value: reasonGranted},
 	)
 }
 
@@ -239,18 +244,22 @@ func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks Authz
 // global security logger. It is emitted when authorization fails (the
 // access gate denied the request), not when the API operation or handler
 // fails after access was granted.
-func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks, reason Reason) {
+//
+// reasonDenied identifies why access was denied; see [ReasonDeniedNoPeerCredentials],
+// [ReasonDeniedSocketNotPermitted], [ReasonDeniedMissingInterfacePlug],
+// [ReasonDeniedMissingInterfaceSlot], [ReasonDeniedUserAuthDenied],
+// [ReasonDeniedRootAuthDenied], and [ReasonDeniedPolkitAuthDenied].
+func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, reasonDenied string) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_fail", Level: LevelCritical},
-		fmt.Sprintf("User %s from %s attempted to access %s without authorization: %s",
-			user.String(), peer.String(), endpoint.String(), reason.String()),
+		fmt.Sprintf("User %s from %s denied access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), reasonDenied),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
-		Attr{Key: "error", Value: reason},
+		Attr{Key: "reason_denied", Value: reasonDenied},
 	)
 }

@@ -29,22 +29,49 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func labelFromPid(pid int) (string, error) {
-	// first check new kernel path, /proc/<pid>/attr/apparmor/current, falling
-	// back to the old path if that doesn't exist
-	procFile := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/attr/apparmor/current", pid))
-	if !osutil.FileExists(procFile) {
-		// fallback
-		procFile = filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/attr/current", pid))
-	}
-	contents, err := os.ReadFile(procFile)
-	if os.IsNotExist(err) {
+var securityLabelProbeLevel = ProbedLevel
+
+// SecurityLabelFromPid returns the AppArmor security label of the process with
+// the given pid. When AppArmor is not in use on the system, "unconfined" is
+// returned.
+func SecurityLabelFromPid(pid int) (string, error) {
+	if securityLabelProbeLevel() == Unsupported {
 		return "unconfined", nil
-	} else if err != nil {
+	}
+
+	candidates := []string{
+		fmt.Sprintf("proc/%d/attr/apparmor/current", pid),
+	}
+	apparmorAttrDir := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%d/attr/apparmor", pid))
+	if !osutil.FileExists(apparmorAttrDir) {
+		// Legacy AppArmor kernels expose the profile via attr/current.
+		candidates = append(candidates, fmt.Sprintf("proc/%d/attr/current", pid))
+	}
+
+	for _, candidate := range candidates {
+		procFile := filepath.Join(dirs.GlobalRootDir, candidate)
+		if !osutil.FileExists(procFile) {
+			continue
+		}
+		label, err := readAppArmorSecurityLabel(procFile)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return "", err
+		}
+		return label, nil
+	}
+	return "unconfined", nil
+}
+
+func readAppArmorSecurityLabel(procFile string) (string, error) {
+	contents, err := os.ReadFile(procFile)
+	if err != nil {
 		return "", err
 	}
 	label := strings.TrimRight(string(contents), "\n")
-	// Trim off the mode
+	// Trim off the AppArmor mode suffix.
 	if strings.HasSuffix(label, ")") {
 		if pos := strings.LastIndex(label, " ("); pos != -1 {
 			label = label[:pos]
@@ -68,7 +95,7 @@ func DecodeLabel(label string) (snap, app, hook string, err error) {
 }
 
 func SnapAppFromPid(pid int) (snap, app, hook string, err error) {
-	label, err := labelFromPid(pid)
+	label, err := SecurityLabelFromPid(pid)
 	if err != nil {
 		return "", "", "", err
 	}
