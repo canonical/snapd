@@ -1,6 +1,6 @@
 module github.com/snapcore/snapd
 
-go 1.18
+go 1.25.0
 
 // maze.io/x/crypto/afis imported by github.com/snapcore/secboot/tpm2
 replace maze.io/x/crypto => github.com/snapcore/maze.io-x-crypto v0.0.0-20190131090603-9b94c9afe066
@@ -22,11 +22,11 @@ require (
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb // old trusty builds only
 	github.com/seccomp/libseccomp-golang v0.9.2-0.20220502024300-f57e1d55ea18
 	github.com/snapcore/secboot v0.0.0-20260623135244-457b03a16d19
-	golang.org/x/crypto v0.23.0
-	golang.org/x/net v0.21.0 // indirect
-	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.21.0
-	golang.org/x/text v0.15.0
+	golang.org/x/crypto v0.51.0
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.45.0
+	golang.org/x/text v0.37.0
 	golang.org/x/time v0.10.0
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
@@ -53,6 +53,6 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
-	golang.org/x/term v0.20.0 // indirect
+	golang.org/x/term v0.43.0 // indirect
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
