@@ -40,11 +40,10 @@ prepare: |
 
 debug: |
     cat /var/snap/test-snapd-content-provider/common/hook.log || true
-    cat /var/snap/test-snapd-content-consumer/common/hook.log || true
 
 execute: |
     snap install test-snapd-content-provider
-    # no connection established yet, the cotnent directory does not exist
+    # no connection established yet, the content directory does not exist
     not test -e /var/snap/test-snapd-content-provider/common/basic/content
 
     # install the consumer
