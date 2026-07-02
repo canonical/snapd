@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/systemd"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -58,7 +57,6 @@ func (*featureSuite) TestName(c *C) {
 	check(features.CheckDiskSpaceRefresh, "check-disk-space-refresh")
 	check(features.CheckDiskSpaceRemove, "check-disk-space-remove")
 	check(features.GateAutoRefreshHook, "gate-auto-refresh-hook")
-	check(features.QuotaGroups, "quota-groups")
 	check(features.RefreshAppAwarenessUX, "refresh-app-awareness-ux")
 	check(features.Confdb, "confdb")
 	check(features.ConfdbControl, "confdb-control")
@@ -102,7 +100,6 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
-	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, true)
 	check(features.Confdb, true)
 	check(features.ConfdbControl, false)
@@ -114,23 +111,6 @@ func (*featureSuite) TestIsExported(c *C) {
 	check(features.SnapDeltaFormat, false)
 
 	c.Check(tested, Equals, features.NumberOfFeatures())
-}
-
-func (*featureSuite) TestQuotaGroupsSupportedCallback(c *C) {
-	callback, exists := features.FeaturesSupportedCallbacks[features.QuotaGroups]
-	c.Assert(exists, Equals, true)
-
-	restore1 := systemd.MockSystemdVersion(229, nil)
-	defer restore1()
-	supported, reason := callback()
-	c.Check(supported, Equals, false)
-	c.Check(reason, Matches, "systemd version 229 is too old.*")
-
-	restore2 := systemd.MockSystemdVersion(230, nil)
-	defer restore2()
-	supported, reason = callback()
-	c.Check(supported, Equals, true)
-	c.Check(reason, Equals, "")
 }
 
 func (*featureSuite) TestUserDaemonsSupportedCallback(c *C) {
@@ -231,7 +211,6 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
-	check(features.QuotaGroups, false)
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
