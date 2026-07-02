@@ -110,12 +110,6 @@ func MockRemoveStaleConnections(f func(st *state.State) error) (restore func()) 
 	return func() { removeStaleConnections = old }
 }
 
-func MockSnapdAppArmorServiceIsDisabled(f func() bool) (restore func()) {
-	r := testutil.Backup(&snapdAppArmorServiceIsDisabled)
-	snapdAppArmorServiceIsDisabled = f
-	return r
-}
-
 func MockContentLinkRetryTimeout(d time.Duration) (restore func()) {
 	old := contentLinkRetryTimeout
 	contentLinkRetryTimeout = d
