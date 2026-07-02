@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -84,7 +85,7 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	s.o.AddManager(hookMgr)
 
 	// to test the confdbManager
-	mgr := confdbstate.Manager(s.state, hookMgr, runner)
+	mgr := confdbstate.Manager(s.state, hookMgr, runner, devicemgmtstate.Manager(s.state, runner, nil), nil)
 	s.o.AddManager(mgr)
 
 	storeSigning := assertstest.NewStoreStack("can0nical", nil)
