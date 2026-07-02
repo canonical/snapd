@@ -34,8 +34,13 @@ def _parse_file_name(file_name: str) -> SpreadTaskNames:
     file_name = _remove_json_extension(file_name)
     original_name = file_name.replace('--', '/')
     task = ':'.join(original_name.split(':')[2:])
-    suite_name = '/'.join(task.split('/')[:-1])
-    task_name = task.split('/')[-1]
+    if task.endswith('/'):
+        suite_name = task
+        task_name = ''
+    else:
+        task_split=task.split('/')
+        suite_name = '/'.join(task_split[:-1])
+        task_name = task_split[-1]
     variant_name = ''
     if task_name.count(':') == 1:
         variant_name = task_name.split(':')[1]
