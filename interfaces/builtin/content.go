@@ -97,6 +97,9 @@ func checkLabelAttributes(attrs map[string]any, nameDef string) error {
 	// has no further side effect.
 	content, okContent := attrs["content"].(string)
 	compat, okCompat := attrs["compatibility"].(string)
+	if _, ok := attrs["compatibility"]; ok && !okCompat {
+		return errors.New("compatibility label must be a string")
+	}
 	hasContent := okContent && len(content) > 0
 	hasCompat := okCompat && len(compat) > 0
 	if hasCompat && hasContent {
