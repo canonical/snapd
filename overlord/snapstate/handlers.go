@@ -426,10 +426,10 @@ func (m *SnapManager) installOneBaseOrRequired(t *state.Task, snapName string, c
 
 	// not installed, nor queued for install -> install it
 	ts, err := InstallWithDeviceContext(context.TODO(), st, snapName, &RevisionOptions{Channel: channel}, userID, Flags{
-		RequireTypeBase: requireTypeBase,
-		Transaction:     flags.Transaction,
-		Lane:            flags.Lane,
-		ImplicitlyInstalled: true,
+		RequireTypeBase:     requireTypeBase,
+		Transaction:         flags.Transaction,
+		Lane:                flags.Lane,
+		ImplicitlyInstalled: flags.ImplicitlyInstalled,
 	}, nil, deviceCtx, "")
 
 	// something might have triggered an explicit install while
@@ -621,7 +621,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 			tsBase, err = m.installOneBaseOrRequired(t, base, nil, requireTypeBase, defaultBaseSnapsChannel(), onInFlightErr, userID, Flags{
 				Transaction:         flags.Transaction,
 				Lane:                flags.Lane,
-				ImplicitlyInstalled: true,
+				ImplicitlyInstalled: flags.ImplicitlyInstalled,
 			})
 		})
 		if err != nil {
@@ -651,7 +651,7 @@ func (m *SnapManager) installPrereqs(t *state.Task, base string, prereq map[stri
 			tsSnapd, err = m.installOneBaseOrRequired(t, "snapd", nil, noTypeBaseCheck, defaultSnapdSnapsChannel(), onInFlightErr, userID, Flags{
 				Transaction:         flags.Transaction,
 				Lane:                flags.Lane,
-				ImplicitlyInstalled: true,
+				ImplicitlyInstalled: flags.ImplicitlyInstalled,
 			})
 		})
 		if err != nil {
