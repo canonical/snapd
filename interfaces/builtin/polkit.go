@@ -335,7 +335,8 @@ var (
 // the polkit daemon executable. This function can be shortened but keep it like
 // this for readability.
 func hasPolkitDaemonExecutableOnCore() bool {
-	return osutil.IsExecutable(polkitDaemonPath1) || osutil.IsExecutable(polkitDaemonPath2)
+	return osutil.IsExecutable(filepath.Join(dirs.GlobalRootDir, polkitDaemonPath1)) ||
+		osutil.IsExecutable(filepath.Join(dirs.GlobalRootDir, polkitDaemonPath2))
 }
 
 func canWriteToDir(dir string) bool {
@@ -346,7 +347,9 @@ func (iface *polkitInterface) StaticInfo() interfaces.StaticInfo {
 	info := iface.commonInterface.StaticInfo()
 	// We must have the polkit daemon present on the system and be able to write
 	// to either the polkit actions directory or the polkit rules directory.
-	info.ImplicitOnCore = !release.OnClassic && hasPolkitDaemonExecutableOnCore() && (canWriteToDir(dirs.SnapPolkitPolicyDir) || canWriteToDir(dirs.SnapPolkitRuleDir))
+	info.ImplicitOnCore = !release.OnClassic &&
+		hasPolkitDaemonExecutableOnCore() &&
+		(canWriteToDir(dirs.SnapPolkitPolicyDir) || canWriteToDir(dirs.SnapPolkitRuleDir))
 	return info
 }
 
