@@ -17,7 +17,9 @@
  *
  */
 
-// Package snap_preseed implements the snap-preseed command entry point.
+// Package snap_preseed implements the snap-preseed command entry point. It is
+// used by cmd/snapd when invoked via the C tool wrapper with
+// argv[1]="snap-preseed".
 package snap_preseed
 
 import (
