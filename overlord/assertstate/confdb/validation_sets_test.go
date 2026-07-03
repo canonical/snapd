@@ -276,3 +276,225 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 		},
 	})
 }
+
+func (s *confdbHandlerSuite) TestUpdateEntireValidationSet(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account",
+		Name:      "my-set",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	})
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// set the entire validation set map
+	err = s.view.Set(tx, "my-account.my-set", map[string]any{"mode": "enforce", "pinned-sequence": 5})
+	c.Assert(err, IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, IsNil)
+
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr.Mode, Equals, assertstate.Enforce)
+	c.Check(tr.PinnedAt, Equals, 5)
+}
+
+func (s *confdbHandlerSuite) TestCommitUpdatesOnlyMode(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account",
+		Name:      "my-set",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  3,
+		Current:   1,
+	})
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// set specific path
+	err = s.view.Set(tx, "my-account.my-set.mode", "monitor")
+	c.Assert(err, IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, IsNil)
+
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr.Mode, Equals, assertstate.Monitor)
+	c.Check(tr.PinnedAt, Equals, 3)
+}
+
+func (s *confdbHandlerSuite) TestCommitUnsetsPinnedSequence(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account",
+		Name:      "my-set",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  7,
+		Current:   1,
+	})
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// unset part of the data
+	err = s.view.Unset(tx, "my-account.my-set.pinned-sequence")
+	c.Assert(err, IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, IsNil)
+
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr.Mode, Equals, assertstate.Enforce)
+	c.Check(tr.PinnedAt, Equals, 0)
+}
+
+func (s *confdbHandlerSuite) TestCannotUnsetMode(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	err = s.view.Set(tx, "my-account.my-set", map[string]any{
+		"mode":            "enforce",
+		"pinned-sequence": 5,
+	})
+	c.Assert(err, IsNil)
+
+	// unsetting mode fails because the storage schema marks it as required
+	err = s.view.Unset(tx, "my-account.my-set.mode")
+	c.Assert(err, ErrorMatches, `.*cannot find required combinations of keys`)
+}
+
+func (s *confdbHandlerSuite) TestCommitForgetsDeletedValidationSet(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account",
+		Name:      "my-set",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	})
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// unset through confdb
+	err = s.view.Unset(tx, "my-account.my-set")
+	c.Assert(err, IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, IsNil)
+
+	// check it was deleted from state
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+}
+
+func (s *confdbHandlerSuite) TestCommitRejectsUnsupportedStorageVersion(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	path, err := confdb.ParsePathIntoAccessors("v2.my-account.my-set.mode", confdb.ParseOptions{})
+	c.Assert(err, IsNil)
+	err = tx.Set(path, "enforce")
+	c.Assert(err, IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, ErrorMatches, `internal error: cannot write to system/validation-sets: unsupported storage version "v2"`)
+}
+
+func (s *confdbHandlerSuite) TestCommitMultipleSetsAcrossAccounts(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.addValidationSetAssert(c, "acct1", "set-a", 1, nil)
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "acct1",
+		Name:      "set-a",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	})
+	s.addValidationSetAssert(c, "acct1", "set-b", 1, nil)
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "acct1",
+		Name:      "set-b",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  1,
+		Current:   1,
+	})
+	s.addValidationSetAssert(c, "acct2", "set-c", 1, nil)
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "acct2",
+		Name:      "set-c",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  2,
+		Current:   1,
+	})
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	err = s.view.Set(tx, "acct1.set-a", map[string]any{
+		"mode":            "enforce",
+		"pinned-sequence": 10,
+	})
+	c.Assert(err, IsNil)
+	err = s.view.Set(tx, "acct1.set-b", map[string]any{
+		"mode":            "monitor",
+		"pinned-sequence": 1,
+	})
+	c.Assert(err, IsNil)
+	err = s.view.Set(tx, "acct2.set-c", map[string]any{
+		"mode":            "monitor",
+		"pinned-sequence": 2,
+	})
+	c.Assert(err, IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, IsNil)
+
+	for _, tc := range []struct {
+		account string
+		name    string
+		mode    assertstate.ValidationSetMode
+		pin     int
+	}{
+		{account: "acct1", name: "set-a", mode: assertstate.Enforce, pin: 10},
+		{account: "acct1", name: "set-b", mode: assertstate.Monitor, pin: 1},
+		{account: "acct2", name: "set-c", mode: assertstate.Monitor, pin: 2},
+	} {
+		var tr assertstate.ValidationSetTracking
+		err = assertstate.GetValidationSet(s.st, tc.account, tc.name, &tr)
+		c.Assert(err, IsNil)
+		c.Check(tr.Mode, Equals, tc.mode)
+		c.Check(tr.Current, Equals, 1)
+		c.Check(tr.PinnedAt, Equals, tc.pin)
+	}
+}
