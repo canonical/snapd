@@ -919,11 +919,13 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 		typ                                       device.EncryptionType
 		unavailableErr, unavailableWarning        string
 		availabilityCheckErrs                     []secboot.PreinstallErrorDetails
+		seenAvailabilityCheckErrorKinds           map[string]bool
 
 		expectedSupport                                  client.StorageEncryptionSupport
 		expectedStorageSafety, expectedUnavailableReason string
 		expectedAvailabilityCheckErrs                    []secboot.PreinstallErrorDetails
 		expectedEncryptionFeatures                       []client.StorageEncryptionFeature
+		expectedRequirements                             []string
 	}{
 		{
 			disabled:      true,
@@ -996,6 +998,29 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 				client.StorageEncryptionFeaturePINAuth,
 			},
 		},
+		{
+			available:     true,
+			storageSafety: asserts.StorageSafetyEncrypted,
+			seenAvailabilityCheckErrorKinds: map[string]bool{
+				"some-error": true,
+			},
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "encrypted",
+		},
+		{
+			available:     true,
+			storageSafety: asserts.StorageSafetyEncrypted,
+			seenAvailabilityCheckErrorKinds: map[string]bool{
+				secboot.ErrorKindNoHardwareRootOfTrust: true,
+			},
+
+			expectedSupport:       client.StorageEncryptionSupportAvailable,
+			expectedStorageSafety: "encrypted",
+			expectedRequirements: []string{
+				string(install.EncryptionSupportRequirementVolumesAuth),
+			},
+		},
 	} {
 		mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
 			Available:               tc.available,
@@ -1006,6 +1031,9 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 			AvailabilityCheckErrors: tc.availabilityCheckErrs,
 			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
 			PINAuthAvailable:        tc.pinAuthAvailable,
+		}
+		if tc.seenAvailabilityCheckErrorKinds != nil {
+			mockEncryptionSupportInfo.SetSeenAvailabilityCheckErrorKinds(tc.seenAvailabilityCheckErrorKinds)
 		}
 
 		r := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
@@ -1049,6 +1077,7 @@ func (s *systemsSuite) TestSystemsGetSystemDetailsForLabel(c *check.C) {
 				StorageSafety:           tc.expectedStorageSafety,
 				UnavailableReason:       tc.expectedUnavailableReason,
 				AvailabilityCheckErrors: tc.availabilityCheckErrs,
+				Requirements:            tc.expectedRequirements,
 			},
 			Volumes: mockGadgetInfo.Volumes,
 			AvailableOptional: client.AvailableForInstall{
@@ -1450,6 +1479,54 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionCallsDevices
 	c.Check(soon, check.Equals, 1)
 }
 
+func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionRequiresVolumesAuth(c *check.C) {
+	s.daemon(c)
+
+	var setupStorageEncryptionCalls int
+	restore := daemon.MockDevicestateInstallSetupStorageEncryption(func(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, keyboardConfig *client.KeyboardConfig) (*state.Change, error) {
+		setupStorageEncryptionCalls++
+		return st.NewChange("foo", "..."), nil
+	})
+	defer restore()
+
+	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		dm *devicestate.DeviceManager,
+		label string,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Check(label, check.Equals, "20191119")
+		c.Check(encInfoFromCache, check.Equals, true)
+
+		encInfo := &install.EncryptionSupportInfo{}
+		encInfo.SetSeenAvailabilityCheckErrorKinds(map[string]bool{
+			secboot.ErrorKindNoHardwareRootOfTrust: true,
+		})
+
+		return nil, nil, encInfo, nil
+	})
+	defer restore()
+
+	body := map[string]any{
+		"action": "install",
+		"step":   "setup-storage-encryption",
+		"on-volumes": map[string]any{
+			"pc": map[string]any{
+				"bootloader": "grub",
+			},
+		},
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", bytes.NewReader(b))
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals,
+		`cannot setup storage encryption for install from "20191119": volumes-auth is required`)
+	c.Check(setupStorageEncryptionCalls, check.Equals, 0)
+}
+
 func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionMissingKeyboardConfig(c *check.C) {
 	s.daemon(c)
 
@@ -1488,6 +1565,15 @@ func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionMissingKeybo
 
 func (s *systemsSuite) TestSystemInstallActionSetupStorageEncryptionKeyboardConfigError(c *check.C) {
 	s.daemon(c)
+
+	restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		dm *devicestate.DeviceManager, s string,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Assert(encInfoFromCache, check.Equals, true)
+		return nil, nil, &install.EncryptionSupportInfo{}, nil
+	})
+	defer restore()
 
 	body := map[string]any{
 		"action": "install",
@@ -1667,6 +1753,15 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 	})
 	defer restore()
 
+	restore = daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		dm *devicestate.DeviceManager, s string,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Assert(encInfoFromCache, check.Equals, true)
+		return nil, nil, &install.EncryptionSupportInfo{}, nil
+	})
+	defer restore()
+
 	for _, tc := range []struct {
 		installStep      string
 		expectedNumTasks int
@@ -1707,6 +1802,15 @@ func (s *systemsSuite) TestSystemInstallActionGeneratesTasks(c *check.C) {
 
 func (s *systemsSuite) TestSystemInstallActionErrorMissingVolumes(c *check.C) {
 	s.daemon(c)
+
+	restore := daemon.MockDeviceManagerSystemAndGadgetAndEncryptionInfo(func(
+		dm *devicestate.DeviceManager, s string,
+		encInfoFromCache bool,
+	) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		c.Assert(encInfoFromCache, check.Equals, true)
+		return nil, nil, &install.EncryptionSupportInfo{}, nil
+	})
+	defer restore()
 
 	for _, tc := range []struct {
 		installStep string
