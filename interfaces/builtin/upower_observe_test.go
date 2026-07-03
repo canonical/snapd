@@ -244,10 +244,10 @@ func (s *UPowerObserveInterfaceSuite) TestStaticInfoCoreWithUpower(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	cmd := testutil.MockCommand(c, filepath.Join(s.rootdir, "usr/libexec/upower"), "")
+	cmd := testutil.MockCommand(c, filepath.Join(s.rootdir, "usr/libexec/upowerd"), "")
 	defer cmd.Restore()
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, false)
+	c.Check(si.ImplicitOnCore, Equals, true)
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "upower-observe")
 
