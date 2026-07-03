@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"gopkg.in/tomb.v2"
 )
 
@@ -85,7 +86,9 @@ func (m *CertManager) Ensure() error {
 	st.Lock()
 	defer st.Unlock()
 
-	if m.oneTimeChecksRan {
+	// Do not perform automatic db generation on classic, or if ensure
+	// has already run
+	if m.oneTimeChecksRan || release.OnClassic {
 		return nil
 	}
 
