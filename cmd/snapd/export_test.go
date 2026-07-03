@@ -1,5 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+//go:build linux
+
 /*
  * Copyright (C) 2026 Canonical Ltd
  *
@@ -19,10 +21,22 @@
 
 package main
 
-import (
-	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
-)
+import "github.com/snapcore/snapd/testutil"
 
-func main() {
-	snapd_apparmor.Main()
+// Main exposes the unexported main() for testing.
+var Main = main
+
+// MockToolMains replaces the toolMains dispatch map for the duration of a test.
+func MockToolMains(m map[string]func()) (restore func()) {
+	return testutil.Mock(&toolMains, m)
+}
+
+// MockDaemonMain replaces the daemon entry point for the duration of a test.
+func MockDaemonMain(f func()) (restore func()) {
+	return testutil.Mock(&daemonMain, f)
+}
+
+// MockCLIMain replaces the CLI entry point for the duration of a test.
+func MockCLIMain(f func()) (restore func()) {
+	return testutil.Mock(&cliMain, f)
 }
