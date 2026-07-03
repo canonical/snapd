@@ -625,7 +625,7 @@ func (s *usersSuite) TestCreateUserFromAssertionAllKnown(c *check.C) {
 }
 
 func (s *usersSuite) TestCreateUserFromAssertionAllAutomatic(c *check.C) {
-	s.testCreateUserFromAssertion(c, true, true, seclog.AddReasonAPICreateUserFromAllAssertionsAutomatic)
+	s.testCreateUserFromAssertion(c, true, true, seclog.AddReasonAPIAssertionAllAutomatic)
 }
 
 func (s *usersSuite) testCreateUserFromAssertion(c *check.C, createKnown bool, expectSudoer bool, addReason seclog.SystemUserAddReason) {
@@ -895,7 +895,7 @@ func (s *usersSuite) TestCreateUserFromAssertionDelayedAfterSerialAcquisition(c 
 	c.Check(len(users), check.Equals, 1)
 	c.Check(users[0].Email, check.Equals, serialUser["email"])
 	c.Check(users[0].Username, check.Equals, serialUser["username"])
-	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="deferred-serial-bound-assertion"`)
+	c.Check(s.seclogBuf.String(), testutil.Contains, `add_reason="ensure-serial-bound-assertion"`)
 }
 
 func (s *usersSuite) TestCreateAllKnownUsersFromAssertionNoSerial(c *check.C) {

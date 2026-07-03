@@ -69,7 +69,7 @@ func attrValueString(v any) string {
 }
 
 func formatRef(r seclog.Ref) string {
-	return fmt.Sprintf("{type:%q primary_key:%v revision:%d}", r.Type, r.PrimaryKey, r.Revision)
+	return fmt.Sprintf("{primary_key:%v revision:%d}", r.PrimaryKey, r.Revision)
 }
 
 func formatAddOptions(o seclog.AddOptions) string {

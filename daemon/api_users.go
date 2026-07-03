@@ -396,7 +396,7 @@ func doCreateUser(st *state.State, createData postUserCreateData) ([]*devicestat
 		case createData.Email != "":
 			addReason = seclog.AddReasonAPIAssertion
 		case createData.Automatic:
-			addReason = seclog.AddReasonAPICreateUserFromAllAssertionsAutomatic
+			addReason = seclog.AddReasonAPIAssertionAllAutomatic
 		default:
 			addReason = seclog.AddReasonAPIAssertionAll
 		}

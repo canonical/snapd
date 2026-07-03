@@ -241,21 +241,28 @@ const (
 	AddReasonAPIAssertion SystemUserAddReason = "api-assertion"
 	// AddReasonAPIAssertionAll is set when POST /v2/users or POST /v2/create-user
 	// creates every applicable system user with known: true and no email; details
-	// come from all valid pre-imported system-user assertions for the device model.
+	// come from all valid pre-imported system-user assertions for the device
+	// model. This is the explicit admin path (e.g. snap create-user --known):
+	// sudoer is optional, and the request fails if the device is already managed.
 	AddReasonAPIAssertionAll SystemUserAddReason = "api-assertion-all"
-	// AddReasonAPICreateUserFromAllAssertionsAutomatic is set when POST /v2/users
-	// or POST /v2/create-user is called with automatic: true (e.g. snap
-	// auto-import); all applicable assertion-backed users are created on an
-	// unmanaged device.
-	AddReasonAPICreateUserFromAllAssertionsAutomatic SystemUserAddReason = "api-create-user-from-all-assertions-automatic"
+	// AddReasonAPIAssertionAllAutomatic is set when POST /v2/users
+	// or POST /v2/create-user is called with automatic: true. Like
+	// [AddReasonAPIAssertionAll], all applicable assertion-backed users are
+	// created, but this is the automation path: callers are typically
+	// background machinery (e.g. snap auto-import after a USB hardware event)
+	// rather than an operator. The API forces sudoer, respects
+	// core.users.create.automatic, and treats an already-managed device as a
+	// silent no-op instead of an error so repeated or late triggers do not
+	// fail noisily when provisioning has already succeeded.
+	AddReasonAPIAssertionAllAutomatic SystemUserAddReason = "api-assertion-all-automatic"
 	// AddReasonFirstbootSeedAutoImport is set during first boot on dangerous
 	// models when system-user assertions from the seed are auto-imported and
 	// applied (not via the user-admin API).
 	AddReasonFirstbootSeedAutoImport SystemUserAddReason = "firstboot-seed-auto-import"
-	// AddReasonDeferredSerialBoundAssertion is set when the device manager
+	// AddReasonEnsureSerialBoundAssertion is set when the device manager
 	// ensure loop creates users from serial-bound system-user assertions that
 	// could not be applied until after device registration.
-	AddReasonDeferredSerialBoundAssertion SystemUserAddReason = "deferred-serial-bound-assertion"
+	AddReasonEnsureSerialBoundAssertion SystemUserAddReason = "ensure-serial-bound-assertion"
 )
 
 // SystemUserRemoveReason identifies why a system user account was removed.
@@ -275,10 +282,9 @@ const (
 	RemoveReasonEnsureRemoveExpiredUser SystemUserRemoveReason = "ensure-remove-expired-user"
 )
 
-// Ref identifies an assertion by type and primary key. It mirrors asserts.Ref
-// but uses plain strings so seclog stays import-free.
+// Ref identifies an assertion by primary key. It mirrors the primary-key
+// portion of asserts.Ref but uses plain strings so seclog stays import-free.
 type Ref struct {
-	Type       string   `json:"type"`
 	PrimaryKey []string `json:"primary_key"`
 	// Revision is the assertion revision applied when the user was created.
 	// It supplements the ref; the ref itself is the store-shared identity.

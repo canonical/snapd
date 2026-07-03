@@ -268,7 +268,6 @@ func (s *SecLogSuite) TestLogSystemUserCreatedWithAssertion(c *C) {
 	opts := seclog.AddOptions{
 		Known: true,
 		Assertion: &seclog.Ref{
-			Type:       "system-user",
 			PrimaryKey: []string{"my-brand", "foo@bar.com"},
 			Revision:   0,
 		},
@@ -276,7 +275,6 @@ func (s *SecLogSuite) TestLogSystemUserCreatedWithAssertion(c *C) {
 	seclog.LogSystemUserCreated("example-user", opts, seclog.AddReasonAPIAssertion)
 
 	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
-	c.Check(s.buf.String(), testutil.Contains, "system-user")
 	c.Check(s.buf.String(), testutil.Contains, "my-brand")
 	c.Check(s.buf.String(), testutil.Contains, "foo@bar.com")
 	c.Check(s.buf.String(), testutil.Contains, "Known:true")

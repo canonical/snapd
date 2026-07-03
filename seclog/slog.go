@@ -214,7 +214,6 @@ func (p Peer) LogValue() slog.Value {
 // as a structured log attribute value.
 func (r Ref) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("type", r.Type),
 		slog.Any("primary_key", r.PrimaryKey),
 		slog.Int("revision", r.Revision),
 	)

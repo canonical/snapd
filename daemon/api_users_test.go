@@ -1194,5 +1194,5 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllAutomatic(c *check.C) {
-	s.testPostCreateUserFromAssertion(c, `{"automatic":true}`, true, seclog.AddReasonAPICreateUserFromAllAssertionsAutomatic)
+	s.testPostCreateUserFromAssertion(c, `{"automatic":true}`, true, seclog.AddReasonAPIAssertionAllAutomatic)
 }

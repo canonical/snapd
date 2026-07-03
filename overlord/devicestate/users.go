@@ -360,10 +360,8 @@ func seclogAddOptions(opts *osutil.AddUserOptions, known bool) seclog.AddOptions
 }
 
 func seclogAssertionRef(a asserts.Assertion) *seclog.Ref {
-	ref := a.Ref()
 	return &seclog.Ref{
-		Type:       ref.Type.Name,
-		PrimaryKey: ref.PrimaryKey,
+		PrimaryKey: a.Ref().PrimaryKey,
 		Revision:   a.Revision(),
 	}
 }
