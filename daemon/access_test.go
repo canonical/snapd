@@ -1050,7 +1050,7 @@ func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
 
 // TestByActionAccessLargeJSON pins down that byActionAccess still surfaces
 // the body-size-limit error at the access-checker boundary (parsing is
-// delegated to parseJSONActionBody, but the wire-level BadRequest response
+// delegated to parseRequestAction, but the wire-level BadRequest response
 // is byActionAccess's contract).
 func (s *accessSuite) TestByActionAccessLargeJSON(c *C) {
 	body := strings.NewReader(fmt.Sprintf(`{"action": "%s"}`, strings.Repeat("a", 4*1024*1024)))

@@ -192,11 +192,12 @@ type actionRequest struct {
 	Action string `json:"action"`
 }
 
-// jsonActionBody wraps a buffered request body with the result of a prior
-// parseJSONActionBody call. The stored parseErr is returned on later calls without
-// re-reading or re-decoding the body.
-type jsonActionBody struct {
-	io.ReadCloser
+// actionContextKey is the context key for a cached actionResult.
+type actionContextKey struct{}
+
+// actionResult holds the cached outcome of a parseRequestAction call.
+
+type actionResult struct {
 	action   string
 	parseErr error
 }
@@ -211,11 +212,11 @@ func (c *chainedReadCloser) Close() error {
 	return c.orig.Close()
 }
 
-// parseJSONActionBody decodes the top-level "action" field from a POST
+// parseRequestAction decodes the top-level "action" field from a POST
 // request's JSON body and replaces r.Body with a buffered copy so
 // downstream handlers can still consume the request body after the
 // action has been extracted. Safe to call more than once per request;
-// later calls return the cached action and error from jsonActionBody.
+// later calls return the result cached in r's context.
 //
 // The returned error reports why the action could not be extracted.
 //
@@ -225,9 +226,9 @@ func (c *chainedReadCloser) Close() error {
 //   - Only requests with Content-Type application/json, or with no
 //     Content-Type (assumed to be JSON), are parsed; callers needing a
 //     strict application/json check must enforce that before calling.
-func parseJSONActionBody(r *http.Request) (string, error) {
-	if ab, ok := r.Body.(*jsonActionBody); ok {
-		return ab.action, ab.parseErr
+func parseRequestAction(r *http.Request) (string, error) {
+	if cached, ok := r.Context().Value(actionContextKey{}).(actionResult); ok {
+		return cached.action, cached.parseErr
 	}
 	ct := r.Header.Get("Content-Type")
 	if r.Method != "POST" || r.Body == nil || (ct != "" && ct != "application/json") {
@@ -237,17 +238,11 @@ func parseJSONActionBody(r *http.Request) (string, error) {
 	orig := r.Body
 	prefix, readErr := io.ReadAll(io.LimitReader(orig, maxBodySize+1))
 
-	// chainAndCache wraps r.Body so downstream handlers still see the
-	// buffered prefix followed by whatever the original stream yields
-	// next.
+	// chainAndCache is used when the body cannot be fully buffered: it chains
+	// the already-read prefix back to the original stream and caches the error.
 	chainAndCache := func(err error) (string, error) {
-		r.Body = &jsonActionBody{
-			ReadCloser: &chainedReadCloser{
-				Reader: io.MultiReader(bytes.NewReader(prefix), orig),
-				orig:   orig,
-			},
-			parseErr: err,
-		}
+		*r = *r.WithContext(context.WithValue(r.Context(), actionContextKey{}, actionResult{parseErr: err}))
+		r.Body = &chainedReadCloser{Reader: io.MultiReader(bytes.NewReader(prefix), orig), orig: orig}
 		return "", err
 	}
 
@@ -257,13 +252,10 @@ func parseJSONActionBody(r *http.Request) (string, error) {
 	switch {
 	case len(prefix) > maxBodySize:
 		return chainAndCache(errors.New("body size limit exceeded"))
-
 	case readErr != nil:
 		return chainAndCache(readErr)
-
 	case len(prefix) == 0:
 		parseErr = io.EOF
-
 	default:
 		var req actionRequest
 		dec := json.NewDecoder(bytes.NewReader(prefix))
@@ -280,14 +272,10 @@ func parseJSONActionBody(r *http.Request) (string, error) {
 		}
 	}
 
-	// Success / decode failure / empty body: prefix contains the entire
-	// body.
+	// Success / decode failure / empty body: prefix contains the entire body.
 	_ = orig.Close()
-	r.Body = &jsonActionBody{
-		ReadCloser: io.NopCloser(bytes.NewReader(prefix)),
-		action:     action,
-		parseErr:   parseErr,
-	}
+	*r = *r.WithContext(context.WithValue(r.Context(), actionContextKey{}, actionResult{action: action, parseErr: parseErr}))
+	r.Body = io.NopCloser(bytes.NewReader(prefix))
 	return action, parseErr
 }
 
@@ -295,7 +283,7 @@ func traceSnapdAPI(c *Command, r *http.Request) {
 	if !osutil.GetenvBool("SNAPD_TRACE") {
 		return
 	}
-	action, err := parseJSONActionBody(r)
+	action, err := parseRequestAction(r)
 	if err != nil && !errors.Is(err, io.EOF) {
 		logger.Trace("endpoint-error", "body-read", err)
 	} else if action != "" {

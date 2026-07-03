@@ -437,7 +437,7 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 		return BadRequest("unexpected content type: %q", contentType)
 	}
 
-	action, err := parseJSONActionBody(r)
+	action, err := parseRequestAction(r)
 	if err != nil {
 		// Content type is JSON, but it's invalid
 		return BadRequest(err.Error())

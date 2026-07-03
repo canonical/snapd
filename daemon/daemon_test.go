@@ -1558,7 +1558,7 @@ func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 		"type": "error"})
 }
 
-func (s *daemonSuite) TestParseJSONActionBody(c *check.C) {
+func (s *daemonSuite) TestParseRequestAction(c *check.C) {
 	type testCase struct {
 		name          string
 		method        string
@@ -1666,7 +1666,7 @@ func (s *daemonSuite) TestParseJSONActionBody(c *check.C) {
 			req.ContentLength = tc.contentLength
 		}
 
-		got, err := parseJSONActionBody(req)
+		got, err := parseRequestAction(req)
 		cmt := check.Commentf("case: %s", tc.name)
 		if tc.wantErr != "" {
 			c.Assert(err, check.ErrorMatches, tc.wantErr+".*", cmt)
@@ -1685,24 +1685,24 @@ func (s *daemonSuite) TestParseJSONActionBody(c *check.C) {
 
 	for _, method := range []string{"GET", "PUT", "DELETE", "PATCH"} {
 		req := httptest.NewRequest(method, "/", strings.NewReader(`{"action":"install"}`))
-		got, err := parseJSONActionBody(req)
+		got, err := parseRequestAction(req)
 		c.Assert(err, check.IsNil, check.Commentf("method: %s", method))
 		c.Check(got, check.Equals, "", check.Commentf("method: %s", method))
 	}
 }
 
-func (s *daemonSuite) TestParseJSONActionBodyIdempotent(c *check.C) {
+func (s *daemonSuite) TestParseRequestActionIdempotent(c *check.C) {
 	body := `{"action":"install","snaps":["x"]}`
 	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	action, err := parseJSONActionBody(req)
+	action, err := parseRequestAction(req)
 	c.Assert(err, check.IsNil)
 	c.Check(action, check.Equals, "install")
-	_, ok := req.Body.(*jsonActionBody)
+	_, ok := req.Context().Value(actionContextKey{}).(actionResult)
 	c.Assert(ok, check.Equals, true)
 
-	action, err = parseJSONActionBody(req)
+	action, err = parseRequestAction(req)
 	c.Assert(err, check.IsNil)
 	c.Check(action, check.Equals, "install")
 
@@ -1711,12 +1711,12 @@ func (s *daemonSuite) TestParseJSONActionBodyIdempotent(c *check.C) {
 	c.Check(string(gotBody), check.Equals, body)
 }
 
-// TestParseJSONActionBodyReadErrorPreservesBody pins the readErr branch of
-// parseJSONActionBody: when the request body Read fails partway through,
+// TestParseRequestActionReadErrorPreservesBody pins the readErr branch of
+// parseRequestAction: when the request body Read fails partway through,
 // the successfully-buffered prefix is chained back to the underlying
 // stream so downstream handlers still get an honest opportunity to read
 // what was received.
-func (s *daemonSuite) TestParseJSONActionBodyReadErrorPreservesBody(c *check.C) {
+func (s *daemonSuite) TestParseRequestActionReadErrorPreservesBody(c *check.C) {
 	prefix := []byte(`{"action":"install"`)
 	simulatedErr := errors.New("simulated transient read error")
 	// Compose a body that yields the prefix once then errors on every
@@ -1729,7 +1729,7 @@ func (s *daemonSuite) TestParseJSONActionBodyReadErrorPreservesBody(c *check.C) 
 	))
 	req.Header.Set("Content-Type", "application/json")
 
-	action, err := parseJSONActionBody(req)
+	action, err := parseRequestAction(req)
 	c.Check(action, check.Equals, "")
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.Equals, simulatedErr)
