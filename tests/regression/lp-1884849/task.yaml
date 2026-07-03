@@ -19,9 +19,9 @@ prepare: |
   sed -i -e 's@^/var/lib/snapd/hostfs/var/cache/fontconfig@#/var/lib/snapd/hostfs/var/cache/fontconfig@' /var/lib/snapd/mount/snap.test-snapd-desktop.fstab
   # Having manually altered the mount namespace, so that fontconfig cache is not mounted
   touch /var/cache/fontconfig/.canary
-  snap debug mount-namespace shell test-snapd-desktop -- test -e /var/cache/fontconfig/.canary
-  snap debug mount-namespace shell test-snapd-desktop -- umount /var/cache/fontconfig
-  snap debug mount-namespace shell test-snapd-desktop -- test ! -e /var/cache/fontconfig/.canary
+  snap debug mount-namespace test-snapd-desktop -- test -e /var/cache/fontconfig/.canary
+  snap debug mount-namespace test-snapd-desktop -- umount /var/cache/fontconfig
+  snap debug mount-namespace test-snapd-desktop -- test ! -e /var/cache/fontconfig/.canary
   # Having confirmed that snap-update-ns manifest assumes it still is.
   grep -qFx '/var/lib/snapd/hostfs/var/cache/fontconfig /var/cache/fontconfig none bind,ro 0 0' < /run/snapd/ns/snap.test-snapd-desktop.fstab
 
@@ -35,4 +35,4 @@ execute: |
   MATCH 'DEBUG:?.*ignoring EINVAL from unmount, [\]?"/var/cache/fontconfig[\]?" is not mounted' <snap-update-ns.log
   # And confirm snap-update-ns fixed the situation
   not grep -qF '/var/lib/snapd/hostfs/var/cache/fontconfig /var/cache/fontconfig none bind,ro 0 0' < /run/snapd/ns/snap.test-snapd-desktop.fstab
-  snap debug mount-namespace shell test-snapd-desktop -- test ! -e /var/cache/fontconfig/.canary
+  snap debug mount-namespace test-snapd-desktop -- test ! -e /var/cache/fontconfig/.canary
