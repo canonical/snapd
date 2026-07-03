@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snapd_apparmor
 
 var (
 	Run                           = run
