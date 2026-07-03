@@ -115,7 +115,7 @@ for rel; do
         dch --newversion "$next_ver" "Update to snapd version $SNAPD_VERSION"
     fi
     dch --distribution "$series" -r ""
-    if [ -n "${SKIP_TESTS-}" ]; then
+    if [ -n "${UNSIGNED-}" ]; then
         dpkg-buildpackage -S -sa -d  -us -uc
     else
         dpkg-buildpackage -S -sa -d
