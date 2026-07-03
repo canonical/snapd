@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -402,6 +403,11 @@ func delayedCrossMgrInit() {
 	snapstate.EnforceLocalValidationSets = ApplyLocalEnforcedValidationSets
 	// hook helper for getting validated integrity data
 	snapstate.ValidatedIntegrityData = ValidatedIntegrityData
+	// wire confdbstate helpers that look up confdb-schema assertions
+	confdbstate.AssertstateFetchConfdbSchemaAssertion = FetchConfdbSchemaAssertion
+	confdbstate.AssertstateConfdbSchema = ConfdbSchema
+	// register the system custodian for the "validation-sets" confdb-schema
+	confdbstate.RegisterConfdbHandler(&valsetsConfdbHandler{})
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
