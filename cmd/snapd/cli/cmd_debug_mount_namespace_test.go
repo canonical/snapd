@@ -65,8 +65,12 @@ func (s *SnapSuite) TestDebugMountNamespaceShellDefaultBash(c *C) {
 	defer restoreExec()
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--shell", "test-snap"})
+	c.Assert(err, IsNil)
 	c.Assert(execArgv, DeepEquals, []string{"nsenter", "-m" + mntFile, "/bin/bash"})
-	c.Assert(execEnv, DeepEquals, []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"})
+	c.Assert(execEnv, DeepEquals, []string{
+		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+		"PS1=(test-snap) [\\u@\\h \\W]\\$ ",
+	})
 }
 
 func (s *SnapSuite) TestDebugMountNamespaceShellWithCommand(c *C) {
@@ -166,7 +170,7 @@ func (s *SnapSuite) TestDebugMountNamespaceInfoMessageFound(c *C) {
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "test-snap"})
 	c.Assert(err, IsNil)
-	c.Assert(s.Stdout(), Equals, "mount namespace of snap \"test-snap\" bound to "+mntFile+"\n")
+	c.Assert(s.Stdout(), Equals, "mount namespace of snap \"test-snap\" bound to "+mntFile+", use --shell to enter\n")
 	c.Assert(s.Stderr(), Equals, "")
 }
 

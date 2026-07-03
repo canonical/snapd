@@ -95,7 +95,7 @@ func (x *cmdDebugMountNamespace) Execute(args []string) error {
 		return err
 	}
 	if mntPath != "" {
-		fmt.Fprintf(Stdout, "mount namespace of snap %q bound to %s\n",
+		fmt.Fprintf(Stdout, "mount namespace of snap %q bound to %s, use --shell to enter\n",
 			x.Positional.Snap, mntPath)
 	} else {
 		fmt.Fprintf(Stdout, "no mount namespace of snap %q found\n",
@@ -144,5 +144,10 @@ func (x *cmdDebugMountNamespace) shell(snapName string, args []string) error {
 	}
 
 	env := []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"}
+
+	if len(args) == 0 {
+		env = append(env, fmt.Sprintf("PS1=(%s) [\\u@\\h \\W]\\$ ", snapName))
+	}
+
 	return syscallExec(nsenterPath, argv, env)
 }
