@@ -94,7 +94,7 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `path="/org/freedesktop/resolve1/link/*"`)
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface="org.freedesktop.resolve1.Link"`)
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `member="Set{DefaultRoute,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,DNSOverTLS,Domains,LLMNR,MulticastDNS}"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `member="Set*"`)
 	// No "xdp" feature is available, so this rule should not be added
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "network xdp,")
 	c.Assert(spec.UpdateNS(), DeepEquals, []string{`
