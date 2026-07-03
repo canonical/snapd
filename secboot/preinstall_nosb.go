@@ -27,6 +27,10 @@ import (
 type PreinstallCheckContext struct{}
 type PreinstallCheckResult struct{}
 
+const (
+	ErrorKindNoHardwareRootOfTrust = ""
+)
+
 const ActionNone = ""
 
 func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {

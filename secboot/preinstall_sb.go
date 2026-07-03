@@ -64,6 +64,13 @@ var (
 
 const ActionNone = string(sb_preinstall.ActionNone)
 
+const (
+	// ErrorKindNoHardwareRootOfTrust indicates that the platform's UEFI firmware is not
+	// verified nor measured by a hardware root of trust (typically Boot Guard Authenticated Code
+	// Module (ACM) on Intel systems and Platform Secure Boot (PSB) enabled on AMD systems.
+	ErrorKindNoHardwareRootOfTrust = string(sb_preinstall.ErrorKindNoHardwareRootOfTrust)
+)
+
 // PreinstallCheck runs preinstall checks using default check configuration and
 // TCG-compliant PCR profile generation options to evaluate whether the host
 // environment is an EFI system suitable for TPM-based Full Disk Encryption. The
