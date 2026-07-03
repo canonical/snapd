@@ -47,3 +47,5 @@ NEWS.md /usr/share/doc/snapd/
 usr/lib/systemd/system-environment-generators
 # system generators use <systemdutildir>/system-generators (resolved via pkg-config)
 @systemd-lib@/system-generators
+
+usr/lib/snapd/snap-user-exec-condition

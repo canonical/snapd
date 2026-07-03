@@ -83,6 +83,7 @@ X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+ExecCondition=/usr/lib/snapd/snap-user-exec-condition
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
