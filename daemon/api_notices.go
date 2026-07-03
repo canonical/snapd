@@ -21,7 +21,9 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -262,7 +264,7 @@ func postNotices(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	if err := inst.validate(r); err != nil {
-		return err
+		return BadRequest(`%v (can only record notices from the "snap" command)`, err)
 	}
 
 	st := c.d.overlord.State()
@@ -284,31 +286,74 @@ type noticeInstruction struct {
 	// NOTE: Data and RepeatAfter fields are not needed for snap-run-inhibit notices.
 }
 
-func (inst *noticeInstruction) validate(r *http.Request) *apiError {
+func (inst *noticeInstruction) validate(r *http.Request) error {
 	if inst.Action != "add" {
-		return BadRequest("invalid action %q", inst.Action)
+		return fmt.Errorf("invalid action %q", inst.Action)
 	}
 	if err := state.ValidateNotice(inst.Type, inst.Key, nil); err != nil {
-		return BadRequest("%s", err)
+		return err
 	}
 
 	switch inst.Type {
 	case state.SnapRunInhibitNotice:
 		return inst.validateSnapRunInhibitNotice(r)
 	default:
-		return BadRequest(`cannot add notice with invalid type %q (can only add "snap-run-inhibit" notices)`, inst.Type)
+		return fmt.Errorf(`cannot add notice with invalid type %q`, inst.Type)
 	}
 }
 
-func (inst *noticeInstruction) validateSnapRunInhibitNotice(r *http.Request) *apiError {
+// isRequestFromSnapCmd checks that the request is coming from snap command.
+//
+// It checks that the request process "/proc/PID/exe" points to one of the
+// known locations of the snap command. This not a security-oriented check.
+func isRequestFromSnapCmd(r *http.Request) (bool, error) {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil {
+		return false, err
+	}
+	exe, err := osReadlink(fmt.Sprintf("/proc/%d/exe", ucred.Pid))
+	if err != nil {
+		return false, err
+	}
+
+	// There aren't too many options, but overall possibilities are:
+	// - we are re-executed and the client isn't
+	// - the client re-executed but we did not
+	// - TODO the client could be a merged snapd-snap binary
+
+	switch filepath.Base(exe) {
+	case "snap", "snap-fips": // the standalone snap binary, or its FIPS build variant
+	default:
+		return false, nil
+	}
+
+	if strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "snapd")+"/") ||
+		strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "core")+"/") {
+		// client with expected name from snap or core snap
+		return true, nil
+	}
+
+	if strings.HasPrefix(exe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") {
+		// client with expected name from one of the system locations
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (inst *noticeInstruction) validateSnapRunInhibitNotice(r *http.Request) error {
+	// double check that the request comes from snap so we can produce a
+	// reasonable error for misguided requests to this currently non-public API.
+	// Note this is not a security check, but merely a low key effort to prevent
+	// misuse of the API.
 	if fromSnapCmd, err := isRequestFromSnapCmd(r); err != nil {
-		return InternalError("cannot check request source: %v", err)
+		return fmt.Errorf("internal error: cannot check request source: %v", err)
 	} else if !fromSnapCmd {
-		return Forbidden("only snap command can record notices")
+		return fmt.Errorf(`unexpected command of the calling process`)
 	}
 
 	if err := naming.ValidateInstance(inst.Key); err != nil {
-		return BadRequest("invalid key: %v", err)
+		return err
 	}
 
 	return nil
