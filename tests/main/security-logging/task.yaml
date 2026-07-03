@@ -8,7 +8,9 @@ details: |
     an "authn_login_success" event in the audit log. It also checks that
     user lifecycle events (user_created, user_updated, user_removed) are
     recorded when users are created via login, updated on re-login, and
-    removed via logout.
+    removed via logout. Token lifecycle events (authn_token_created,
+    authn_token_delete) are recorded when a local snapd macaroon is
+    created on first login and removed on logout.
 
 # Amazon Linux 2: systemd-journald-audit.socket is not available
 systems: [ -amazon-linux-2-64 ]
@@ -113,6 +115,9 @@ execute: |
         echo "Checking that user creation produces an audit event"
         journal_match '"category":"USER","event":"user_created","user":\{"snapd_user_id":[0-9]+,"store_user_name":"[^"]*","store_user_email":"[^"]*","expiration":"[^"]*"\}'
 
+        echo "Checking that first login creates a local snapd macaroon audit event"
+        journal_match '"category":"AUTHN","event":"authn_token_created".*"token_id":[0-9]+'
+
         echo "Checking that a second login produces a user_updated audit event"
         # A second login refreshes the store macaroon and discharges, so the
         # store always returns new tokens and changed_fields will be non-empty.
@@ -128,4 +133,7 @@ execute: |
         snap logout
 
         journal_match '"category":"USER","event":"user_removed","user":\{"snapd_user_id":[0-9]+,"store_user_name":"[^"]*","store_user_email":"[^"]*","expiration":"[^"]*"\}'
+
+        echo "Checking that logout removes the local snapd macaroon audit event"
+        journal_match '"category":"AUTHN","event":"authn_token_delete".*"token_id":[0-9]+'
     fi

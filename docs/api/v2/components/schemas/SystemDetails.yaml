@@ -100,4 +100,12 @@ properties:
           type: string
           enum:
             - passphrase-auth
+            - pin-auth
         description: A list of supported encryption features.
+      requirements:
+        type: array
+        items:
+          type: string
+          enum:
+            - volumes-auth
+        description: A list of requirements that must be met for storage encryption to be supported.

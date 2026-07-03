@@ -22,10 +22,18 @@ package asserts
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"time"
 )
 
 var builtinAssertions []Assertion
+
+// builtinSignature is the special signature marker used for builtin assertions.
+var builtinSignature = []byte("$builtin")
+
+func isBuiltinSignature(sig []byte) bool {
+	return bytes.Equal(bytes.TrimRight(sig, "\n"), builtinSignature)
+}
 
 // Builtin returns a copy of the list of builtin assertions which is assembled
 // at init-time.
@@ -49,8 +57,8 @@ type builtinCheckParams struct {
 // expected headers in checkParams. The assembled assertion carries a special
 // "$builtin" signature marker and is not subject to normal trust verification.
 func assembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byte, checkParams builtinCheckParams) (Assertion, error) {
-	trimmed := bytes.TrimSpace(headerBytes)
-	h, err := parseHeaders(trimmed)
+	content := bytes.TrimSpace(headerBytes)
+	h, err := parseHeaders(content)
 	if err != nil {
 		return nil, err
 	}
@@ -73,18 +81,35 @@ func assembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byt
 		}
 	}
 
+	if _, ok := h["sign-key-sha3-384"]; ok {
+		return nil, fmt.Errorf(`cannot assemble builtin %s with "sign-key-sha3-384": cannot be signed`, assertType.Name)
+	}
+
 	revision, err := checkRevision(h)
 	if err != nil {
 		return nil, fmt.Errorf("cannot assemble the builtin %s: %v", assertType.Name, err)
 	}
 
-	h["timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	// inject headers required for encode/decode roundtrip, if any are missing
+	if _, ok := h["timestamp"]; !ok {
+		ts := time.Now().UTC().Format(time.RFC3339)
+		h["timestamp"] = ts
+		content = append(content, []byte("\ntimestamp: "+ts)...)
+	}
+
+	if _, ok := h["body-length"]; !ok && len(body) > 0 {
+		h["body-length"] = strconv.Itoa(len(body))
+		content = append(content, []byte(fmt.Sprintf("\nbody-length: %d", len(body)))...)
+		content = append(content, nlnl...)
+		content = append(content, body...)
+	}
+
 	a, err := assertType.assembler(assertionBase{
 		headers:   h,
 		body:      body,
 		revision:  revision,
-		content:   trimmed,
-		signature: []byte("$builtin"),
+		content:   content,
+		signature: builtinSignature,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot assemble the builtin %s: %v", assertType.Name, err)

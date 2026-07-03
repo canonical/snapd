@@ -1561,6 +1561,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 	for idx, tc := range []struct {
 		tpmErr                 error
 		tpmEnabled             bool
+		dryRun                 bool
 		usePrimaryKeyFile      bool
 		keyDataInFile          bool
 		missingFile            bool
@@ -1584,6 +1585,8 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 	}{
 		// happy case
 		{tpmEnabled: true, resealCalls: 1},
+		// happy case, dry-run skips persisting rewritten key data
+		{tpmEnabled: true, resealCalls: 1, dryRun: true},
 		// happy case with AllowInsufficientDmaProtection
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true},
 		// happy case with check result available on disk and AllowInsufficientDmaProtection true
@@ -1773,6 +1776,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		keyFile2 := filepath.Join(tmpdir, "keyfile2")
 		myParams := &secboot.ResealKeysWithTPMParams{
 			PCRProfile: pcrProfile,
+			DryRun:     tc.dryRun,
 			Keys: []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/somedevice",
@@ -1947,6 +1951,9 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 				c.Check(keyFile2, Not(testutil.FilePresent))
 			}
 			if tc.oldKeyFiles {
+				c.Check(sealedKeysRequested, Equals, 0)
+				c.Check(updatedKeys, IsNil)
+			} else if tc.dryRun {
 				c.Check(sealedKeysRequested, Equals, 0)
 				c.Check(updatedKeys, IsNil)
 			} else {
@@ -3889,7 +3896,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		return nil, fmt.Errorf("unexpected call")
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"}, false)
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -3899,7 +3906,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 	c.Check(key, DeepEquals, key1)
 }
 
-func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+func (s *secbootSuite) testResealKeysWithFDESetupHookV2(c *C, dryRun bool) {
 	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	key1 := []byte(`{"platform_name":"fde-hook-v2","platform_handle":{"handle-for":"key1"},"encrypted_payload":"U0VBTEVEOgAEAQIDBAAgAQIDBAUGBwgJCgsMDQ4PEAECAwQFBgcICQoLDA0ODxA=","authorized_snap_models":{"alg":"sha256","key_digest":"KTj3yfwaA090S9iS3TuTqEdU8+taRAUy/PVbJAhoqpI=","hmacs":["O8n/7j4ZT12hBjbF4rzPHpSUna69e7I43a90oZaB3HY="]}}`)
 
@@ -3932,7 +3939,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		return auxKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"}, dryRun)
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -3942,7 +3949,21 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 
 	afterAuthorized, err := afterKeyData.IsSnapModelAuthorized(auxKey, m)
 	c.Assert(err, IsNil)
-	c.Check(afterAuthorized, Equals, true)
+	if dryRun {
+		c.Check(afterAuthorized, Equals, false)
+	} else {
+		c.Check(afterAuthorized, Equals, true)
+	}
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+	const dryRun = false
+	s.testResealKeysWithFDESetupHookV2(c, dryRun)
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2DryRun(c *C) {
+	const dryRun = true
+	s.testResealKeysWithFDESetupHookV2(c, dryRun)
 }
 
 type fakeKeyProtector struct{}
@@ -4023,7 +4044,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"}, false)
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -4099,7 +4120,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"}, false)
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -5514,7 +5535,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string, dryRun bool) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
@@ -5522,6 +5543,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
 		c.Check(keys[0].SlotName, Equals, "key1")
 		c.Check(bootModes, DeepEquals, []string{"foo", "bar"})
+		c.Check(dryRun, Equals, false)
 		c.Assert(models, HasLen, 1)
 		c.Check(models[0].Model(), Equals, "mytest")
 		return nil
@@ -5578,7 +5600,7 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string, dryRun bool) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
@@ -5587,6 +5609,7 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
 		c.Check(keys[0].SlotName, Equals, "key1")
 		c.Check(bootModes, DeepEquals, []string{"foo", "bar"})
+		c.Check(dryRun, Equals, false)
 		c.Assert(models, HasLen, 1)
 		c.Check(models[0].Model(), Equals, "mytest")
 		return nil

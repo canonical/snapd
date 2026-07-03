@@ -242,13 +242,28 @@ func sealKeyToModeenvForMethod(
 		}
 	}
 
+	// When installing or reprovsioning, we expect there is no try
+	// system.
 	includeTryModel := false
-	systems := []string{modeenv.RecoverySystem}
-	modes := map[string][]string{
-		// the system we are installing from is considered current and
-		// tested, hence allow both recover and factory reset modes
-		modeenv.RecoverySystem: {ModeRecover, ModeFactoryReset},
+	// When provisioning we keep all good recovery systems.
+	systems := modeenv.GoodRecoverySystems
+	if len(systems) == 0 {
+		// The main recovery system is set only when installing.
+		// And there is no system marked as good.
+		// We use that installation recovery system.
+		systems = []string{modeenv.RecoverySystem}
 	}
+	modes := map[string][]string{}
+	for _, system := range systems {
+		logger.Debugf("sealing for system %q", system)
+		modes[system] = []string{ModeRecover, ModeFactoryReset}
+	}
+	for _, system := range modeenv.CurrentRecoverySystems {
+		if _, has := modes[system]; !has {
+			return fmt.Errorf("trying to install or reprovision with a try system %q", system)
+		}
+	}
+
 	var err error
 	params.RecoveryBootChains, err = recoveryBootChainsForSystems(systems, modes, tbl, modeenv, includeTryModel, flags.SeedDir)
 	if err != nil {
@@ -285,6 +300,9 @@ type ResealKeyToModeenvOptions struct {
 	// uses it to disambiguate cases where it cannot be fully
 	// determined if measurements have changed
 	ExpectReseal bool
+	// DryRun validates that resealing would succeed without persisting updated
+	// key material.
+	DryRun bool
 	// When Force is true, resealing must happen even if no change
 	// is detected.
 	Force bool
@@ -447,6 +465,21 @@ func resealKeyToModeenvForMethod(unlocker Unlocker, method device.SealingMethod,
 	}
 
 	return ResealKeyForBootChains(unlocker, method, rootdir, &ResealKeyForBootChainsParams{BootChains: bootChains, Options: options})
+}
+
+// CheckResealKeyToModeenv validates that the current modeenv can be resealed
+// without persisting updated key material.
+func CheckResealKeyToModeenv(rootdir string, unlocker Unlocker) error {
+	modeenvLock()
+	defer modeenvUnlock()
+
+	modeenv, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	opts := ResealKeyToModeenvOptions{DryRun: true, Force: true}
+	return resealKeyToModeenv(rootdir, modeenv, opts, unlocker)
 }
 
 func resealKeyForBootChainsImpl(unlocker Unlocker, method device.SealingMethod, rootdir string, params *ResealKeyForBootChainsParams) error {

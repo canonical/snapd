@@ -36,7 +36,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -165,7 +164,8 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		// decode the first rune instead of converting all of desc into []rune
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
-		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
+		// Note: exclude Georgian text which doesn't start sentences with uppercase
+		if unicode.IsLower(r) && !unicode.Is(unicode.Georgian, r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
 			panicOnDebug("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
 		}
 	}
@@ -457,9 +457,9 @@ func exitCodeFromError(err error) int {
 		return 0
 	case client.IsRetryable(err):
 		return 10
-	case xerrors.As(err, &mksquashfsError):
+	case errors.As(err, &mksquashfsError):
 		return 20
-	case xerrors.As(err, &cmdlineFlagsError) || xerrors.As(err, &unknownCmdError):
+	case errors.As(err, &cmdlineFlagsError) || errors.As(err, &unknownCmdError):
 		// EX_USAGE, see sysexit.h
 		return 64
 	default:

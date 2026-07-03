@@ -248,7 +248,8 @@ slots:
 	c.Assert(baseDecl, NotNil)
 
 	cont, _ := baseDecl.Signature()
-	c.Check(string(cont), Equals, strings.TrimSpace(headers))
+	c.Check(strings.HasPrefix(string(cont), strings.TrimSpace(headers)), Equals, true)
+	c.Check(strings.Contains(string(cont), "timestamp:"), Equals, true)
 
 	c.Check(baseDecl.AuthorityID(), Equals, "canonical")
 	c.Check(baseDecl.Series(), Equals, "16")
@@ -256,9 +257,9 @@ slots:
 	c.Check(baseDecl.SlotRule("network").AllowInstallation[0].SlotSnapTypes, DeepEquals, []string{"core"})
 
 	enc := asserts.Encode(baseDecl)
-	// it's expected that it cannot be decoded
-	_, err = asserts.Decode(enc)
-	c.Check(err, NotNil)
+	decoded, err := asserts.Decode(enc)
+	c.Assert(err, IsNil)
+	c.Check(decoded.Type(), Equals, asserts.BaseDeclarationType)
 }
 
 func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {

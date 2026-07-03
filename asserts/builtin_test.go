@@ -20,6 +20,9 @@
 package asserts_test
 
 import (
+	"bytes"
+	"io"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -30,27 +33,29 @@ type builtinSuite struct{}
 var _ = Suite(&builtinSuite{})
 
 func (s *builtinSuite) TestAssembleBuiltinAssertionChecks(c *C) {
-	headers := []byte(`type: test-only
-authority-id: canonical
-`)
+	basicHeaders := []byte("type: test-only\nauthority-id: canonical")
+	body := []byte(`{}`)
 
 	tests := []struct {
 		name            string
 		order           []string
 		expectedHeaders map[string]any
+		headers         []byte
 		error           string
 	}{
 		{
-			name:  "order/expectedHeaders length mismatch",
-			order: []string{"authority-id", "series"},
+			name:    "order/expectedHeaders length mismatch",
+			order:   []string{"authority-id", "series"},
+			headers: basicHeaders,
 			expectedHeaders: map[string]any{
 				"authority-id": "canonical",
 			},
 			error: `internal error: inconsistent length of order checking list \(2\) and expected values map \(1\)`,
 		},
 		{
-			name:  "field in order missing from expectedHeaders",
-			order: []string{"authority-id", "series"},
+			name:    "field in order missing from expectedHeaders",
+			order:   []string{"authority-id", "series"},
+			headers: basicHeaders,
 			expectedHeaders: map[string]any{
 				"authority-id": "canonical",
 				"other-field":  "bar",
@@ -58,19 +63,22 @@ authority-id: canonical
 			error: `the builtin test-only "series" header is missing an expected value`,
 		},
 		{
-			name:  "header value does not match expected",
-			order: []string{"authority-id"},
+			name:    "header value does not match expected",
+			order:   []string{"authority-id"},
+			headers: basicHeaders,
 			expectedHeaders: map[string]any{
 				"authority-id": "other-authority",
 			},
 			error: `the builtin test-only "authority-id" header is not set to expected value "other-authority"`,
 		},
 		{
-			name:  "happy",
-			order: []string{"authority-id"},
+			name:    "sign-key-sha3-384 header present",
+			order:   []string{"authority-id"},
+			headers: []byte("type: test-only\nauthority-id: canonical\nsign-key-sha3-384: abc\n"),
 			expectedHeaders: map[string]any{
 				"authority-id": "canonical",
 			},
+			error: `cannot assemble builtin test-only with "sign-key-sha3-384": cannot be signed`,
 		},
 	}
 
@@ -81,7 +89,7 @@ authority-id: canonical
 			ExpectedHeaders: t.expectedHeaders,
 		}
 
-		as, err := asserts.AssembleBuiltinAssertion(asserts.TestOnlyType, headers, nil, checkParams)
+		as, err := asserts.AssembleBuiltinAssertion(asserts.TestOnlyType, t.headers, body, checkParams)
 		if t.error != "" {
 			c.Check(err, ErrorMatches, t.error, cmt)
 			c.Check(as, IsNil, cmt)
@@ -89,6 +97,68 @@ authority-id: canonical
 			c.Assert(err, IsNil, cmt)
 			c.Check(as.Type(), Equals, asserts.TestOnlyType, cmt)
 			c.Check(as.HeaderString("authority-id"), Equals, "canonical", cmt)
+			// injects timestamp and body-length if none is provided
+			c.Check(as.HeaderString("timestamp"), Not(Equals), "")
+			c.Check(as.HeaderString("body-length"), Not(Equals), "")
 		}
 	}
+}
+
+func (s *builtinSuite) TestBuiltinAssertionEncodeDecodeRoundTrip(c *C) {
+	headers := []byte(`type: test-only
+authority-id: canonical
+primary-key: primary-key-val
+`)
+	checkParams := asserts.BuiltinCheckParams{
+		Order:           []string{"authority-id"},
+		ExpectedHeaders: map[string]any{"authority-id": "canonical"},
+	}
+
+	original, err := asserts.AssembleBuiltinAssertion(asserts.TestOnlyType, headers, nil, checkParams)
+	c.Assert(err, IsNil)
+
+	encoded := asserts.Encode(original)
+	decoded, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+	c.Check(decoded.Type(), Equals, asserts.TestOnlyType)
+	c.Check(decoded.HeaderString("authority-id"), Equals, "canonical")
+	c.Check(decoded.HeaderString("primary-key"), Equals, "primary-key-val")
+
+	_, signature := decoded.Signature()
+	c.Check(string(signature), Equals, "$builtin")
+}
+
+func (s *builtinSuite) TestBuiltinAssertionStreamDecodeRoundTrip(c *C) {
+	headers := []byte(`type: test-only
+authority-id: canonical
+primary-key: primary-key-val
+`)
+	checkParams := asserts.BuiltinCheckParams{
+		Order:           []string{"authority-id"},
+		ExpectedHeaders: map[string]any{"authority-id": "canonical"},
+	}
+
+	original, err := asserts.AssembleBuiltinAssertion(asserts.TestOnlyType, headers, nil, checkParams)
+	c.Assert(err, IsNil)
+
+	// encode two copies into a stream
+	var buf bytes.Buffer
+	enc := asserts.NewEncoder(&buf)
+	c.Assert(enc.Encode(original), IsNil)
+	c.Assert(enc.Encode(original), IsNil)
+
+	// decode them back
+	dec := asserts.NewDecoder(&buf)
+	for i := 0; i < 2; i++ {
+		decoded, err := dec.Decode()
+		c.Assert(err, IsNil, Commentf("assertion %d", i))
+		c.Check(decoded.Type(), Equals, asserts.TestOnlyType)
+		c.Check(decoded.HeaderString("primary-key"), Equals, "primary-key-val")
+
+		_, signature := decoded.Signature()
+		c.Check(string(bytes.TrimRight(signature, "\n")), Equals, "$builtin")
+	}
+
+	_, err = dec.Decode()
+	c.Check(err, Equals, io.EOF)
 }

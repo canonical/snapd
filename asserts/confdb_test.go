@@ -271,6 +271,26 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	c.Assert(err, ErrorMatches, `assertion confdb-schema: JSON in body must be indented with 2 spaces and sort object entries by key`)
 }
 
+func (s *confdbSuite) TestBuiltinConfdbSchemaDecodeRoundTrip(c *C) {
+	var systemConfdbs []asserts.Assertion
+	for _, builtin := range asserts.Builtin() {
+		if builtin.Type() != asserts.ConfdbSchemaType {
+			continue
+		}
+		systemConfdbs = append(systemConfdbs, builtin)
+	}
+	c.Assert(systemConfdbs, Not(HasLen), 0)
+
+	for _, builtin := range systemConfdbs {
+		encoded := asserts.Encode(builtin)
+		decoded, err := asserts.Decode(encoded)
+		c.Assert(err, IsNil, Commentf("failed to decode builtin confdb-schema %q", builtin.HeaderString("name")))
+		c.Check(decoded.Type(), Equals, asserts.ConfdbSchemaType)
+		c.Check(decoded.HeaderString("name"), Equals, builtin.HeaderString("name"))
+		c.Check(decoded.HeaderString("account-id"), Equals, builtin.HeaderString("account-id"))
+	}
+}
+
 type confdbCtrlSuite struct {
 	db *asserts.Database
 }
