@@ -35,9 +35,10 @@ import (
 var shortDebugMountNamespaceHelp = i18n.G("Debug and inspect snap mount namespaces")
 
 var longDebugMountNamespaceHelp = i18n.G(`
-Run a command or start a shell inside the mount namespace of the given snap.
-
-When used with --discard, discard the mount namespace of a snap if one exists.
+The debug mount-namespace command displays information about the mount namespace
+of a given snap when invoked with no flags. Use --shell to start a shell or run
+a command inside the mount namespace. Use --discard to discard the mount
+namespace of a snap if one exists.
 
 The command may require root privileges.
 `)
@@ -65,6 +66,17 @@ func init() {
 	)
 }
 
+func snapMountNamespacePath(snapName string) (string, error) {
+	mntPath := filepath.Join(dirs.SnapRunNsDir, snapName+".mnt")
+	if _, err := os.Stat(mntPath); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("cannot stat mount namespace file: %w", err)
+	}
+	return mntPath, nil
+}
+
 func (x *cmdDebugMountNamespace) Execute(args []string) error {
 	if x.Shell && x.Discard {
 		return fmt.Errorf("--shell and --discard cannot be used together")
@@ -74,8 +86,22 @@ func (x *cmdDebugMountNamespace) Execute(args []string) error {
 		return x.discard(x.Positional.Snap)
 	}
 
-	// --shell is default
-	return x.shell(x.Positional.Snap, args)
+	if x.Shell {
+		return x.shell(x.Positional.Snap, args)
+	}
+
+	mntPath, err := snapMountNamespacePath(x.Positional.Snap)
+	if err != nil {
+		return err
+	}
+	if mntPath != "" {
+		fmt.Fprintf(Stdout, "mount namespace of snap %q bound to %s\n",
+			x.Positional.Snap, mntPath)
+	} else {
+		fmt.Fprintf(Stdout, "no mount namespace of snap %q found\n",
+			x.Positional.Snap)
+	}
+	return nil
 }
 
 func (x *cmdDebugMountNamespace) discard(snapName string) error {
@@ -95,14 +121,14 @@ func (x *cmdDebugMountNamespace) discard(snapName string) error {
 }
 
 func (x *cmdDebugMountNamespace) shell(snapName string, args []string) error {
-	mntPath := filepath.Join(dirs.SnapRunNsDir, snapName+".mnt")
-	if _, err := os.Stat(mntPath); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("cannot enter mount namespace of snap %q: "+
-				"the mount namespace is not bound to a file (%s does not exist)",
-				snapName, mntPath)
-		}
-		return fmt.Errorf("cannot stat mount namespace file: %w", err)
+	mntPath, err := snapMountNamespacePath(snapName)
+	if err != nil {
+		return err
+	}
+	if mntPath == "" {
+		return fmt.Errorf("cannot enter mount namespace of snap %q: "+
+			"the mount namespace is not bound to a file (%s does not exist)",
+			snapName, filepath.Join(dirs.SnapRunNsDir, snapName+".mnt"))
 	}
 
 	nsenterPath, err := exec.LookPath("nsenter")
@@ -114,12 +140,9 @@ func (x *cmdDebugMountNamespace) shell(snapName string, args []string) error {
 	if len(args) > 0 {
 		argv = append(argv, args...)
 	} else {
-		// We know that /bin/bash is in the core* snaps. If a given uses
-		// bare, then the user can always invoke '/bin/busybox sh'.
 		argv = append(argv, "/bin/bash")
 	}
 
-	// Override the environment and set a safe PATH.
 	env := []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"}
 	return syscallExec(nsenterPath, argv, env)
 }
