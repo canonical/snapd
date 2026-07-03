@@ -188,6 +188,9 @@ type StorageEncryption struct {
 
 	// AvailabilityCheckErrors reports errors detected during preinstall check.
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails `json:"availability-check-errors,omitempty"`
+
+	// Requirements is a list of requirements that must be met for storage encryption to be supported.
+	Requirements []string `json:"requirements,omitempty"`
 }
 
 type SystemDetails struct {

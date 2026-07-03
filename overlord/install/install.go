@@ -89,6 +89,10 @@ type EncryptionSupportInfo struct {
 	// availability errors identified during preinstall check.
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails
 
+	// seenAvailabilityCheckErrorKinds holds a sticky list of all seen preinstall
+	// check error kinds for the lifetime of the check context.
+	seenAvailabilityCheckErrorKinds map[string]bool
+
 	// availabilityCheckContext holds the configuration and state captured during
 	// the preinstall check. It is required for performing follow-up checks with
 	// actions to resolve identified errors. It is also an indicator that the
@@ -106,6 +110,22 @@ type EncryptionSupportInfo struct {
 // CheckContext returns the underlying preinstall check context.
 func (esi *EncryptionSupportInfo) CheckContext() *secboot.PreinstallCheckContext {
 	return esi.availabilityCheckContext
+}
+
+type EncryptionSupportRequirement string
+
+const (
+	// Indicates that the system requires authentication (e.g. PIN, passphrase).
+	EncryptionSupportRequirementVolumesAuth EncryptionSupportRequirement = "volumes-auth"
+)
+
+// Requirements returns the list of encryption support requirements.
+func (esi *EncryptionSupportInfo) Requirements() []EncryptionSupportRequirement {
+	var requirements []EncryptionSupportRequirement
+	if esi.seenAvailabilityCheckErrorKinds[secboot.ErrorKindNoHardwareRootOfTrust] {
+		requirements = append(requirements, EncryptionSupportRequirementVolumesAuth)
+	}
+	return requirements
 }
 
 // ComponentSeedInfo contains information for a component from the seed and
@@ -196,6 +216,12 @@ func (esi *EncryptionSupportInfo) SetAvailabilityCheckContext(checkContext *secb
 	esi.availabilityCheckContext = checkContext
 }
 
+// SetSeenAvailabilityCheckErrorKinds is a test only helper for populating EncryptionSupportInfo field seenAvailabilityCheckErrorKinds.
+func (esi *EncryptionSupportInfo) SetSeenAvailabilityCheckErrorKinds(kinds map[string]bool) {
+	osutil.MustBeTestBinary("SetSeenAvailabilityCheckErrorKinds can only be used in tests")
+	esi.seenAvailabilityCheckErrorKinds = kinds
+}
+
 // MockSecbootCheckTPMKeySealingSupported mocks secbootCheckTPMKeySealingSupported usage by the package for testing.
 func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionMode) error) (restore func()) {
 	osutil.MustBeTestBinary("secbootCheckTPMKeySealingSupported can only be mocked in tests")
@@ -281,21 +307,29 @@ type EncryptionConstraints struct {
 	Gadget        *gadget.Info
 	TPMMode       secboot.TPMProvisionMode
 	SnapdVersions SystemSnapdVersions
-	CheckContext  *secboot.PreinstallCheckContext
 	CheckAction   *secboot.PreinstallAction
+	PrevInfo      *EncryptionSupportInfo
 }
 
 // GetEncryptionSupportInfo returns the encryption support information
 // for the given model, TPM provision mode, kernel and gadget information and
 // system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
 // any is available, leaving the caller to decide how, based on the environment.
-func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+func GetEncryptionSupportInfo(
+	constraints EncryptionConstraints,
+	runSetupHook fde.RunSetupHookFunc,
+) (EncryptionSupportInfo, error) {
 	secured := constraints.Model.Grade() == asserts.ModelSecured
 	dangerous := constraints.Model.Grade() == asserts.ModelDangerous
 	encrypted := constraints.Model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	res := EncryptionSupportInfo{
 		StorageSafety: constraints.Model.StorageSafety(),
+	}
+	if constraints.PrevInfo != nil {
+		// accumulate seen errors from previous checks even if they were cleared
+		// with a "proceed" action.
+		res.seenAvailabilityCheckErrorKinds = constraints.PrevInfo.seenAvailabilityCheckErrorKinds
 	}
 
 	// check if we should disable encryption non-secured devices
@@ -329,8 +363,12 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 	case checkOPTEEEncryption:
 		res.Type = device.EncryptionTypeLUKS
 	case checkSecbootEncryption:
+		var prevCheckContext *secboot.PreinstallCheckContext
+		if constraints.PrevInfo != nil {
+			prevCheckContext = constraints.PrevInfo.availabilityCheckContext
+		}
 		preinstallCheckContext, unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(
-			constraints.CheckContext,
+			prevCheckContext,
 			constraints.CheckAction,
 			constraints.Model,
 			constraints.TPMMode,
@@ -345,6 +383,14 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		} else {
 			checkEncryptionErr = errors.New(unavailableReason)
 			res.AvailabilityCheckErrors = preinstallErrorDetails
+			if len(preinstallErrorDetails) > 0 {
+				if res.seenAvailabilityCheckErrorKinds == nil {
+					res.seenAvailabilityCheckErrorKinds = make(map[string]bool, len(preinstallErrorDetails))
+				}
+				for _, errDetails := range preinstallErrorDetails {
+					res.seenAvailabilityCheckErrorKinds[errDetails.Kind] = true
+				}
+			}
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
