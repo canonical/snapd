@@ -952,7 +952,7 @@ func AppArmorParser() (cmd *exec.Cmd, internal bool, err error) {
 		if _, err := os.Stat(path); err == nil {
 			logger.Debugf("checking distro apparmor_parser at %v", path)
 
-			// Detect bug ignore apparmor 5.0 ABI support.
+			// Detect but ignore apparmor 5.0 ABI support.
 			// There's no known, diagnosed issue with ABI 5 yet but given that
 			// we also ignore host ABI 4.0, it's sensible to ignore this one explicitly too.
 			if fi, err := os.Lstat(hostAbi50File); err == nil && !fi.IsDir() {
