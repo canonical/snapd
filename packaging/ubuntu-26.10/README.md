@@ -1,4 +1,4 @@
-# Ubuntu 26.04 Packaging
+# Ubuntu 26.10 Packaging
 
 This directory contains packaging for the Ubuntu distribution.
 
@@ -73,7 +73,7 @@ mkdir -p .build
 ## Container Script
 
 The build script has several sections. The source tree is copied to a writable
-location, the `debian/` directory is populated from `packaging/ubuntu-26.04/`,
+location, the `debian/` directory is populated from `packaging/ubuntu-26.10/`,
 Go modules are vendored, and then `dpkg-buildpackage` is invoked.
 
 This is a native package (`3.0 (native)` format), so the version has no
@@ -101,7 +101,7 @@ DEBIAN_FRONTEND=noninteractive apt-get --yes install --no-install-recommends \
 
 # Determine the version of the package.
 # Native package: no upstream/revision split, use the full version as-is.
-version=$(dpkg-parsechangelog --file /src/packaging/ubuntu-26.04/changelog --show-field Version)
+version=$(dpkg-parsechangelog --file /src/packaging/ubuntu-26.10/changelog --show-field Version)
 
 # Copy the source tree to a temporary location, so that we can call go mod vendor.
 mkdir -p /src-rw
@@ -131,9 +131,9 @@ tar -C /src -c \
 # Unpack the source archive and install the packaging directory.
 tar -Jxf /build/snapd_"$version".no-vendor.tar.xz -C /build
 tar -Jxf /build/snapd_"$version".only-vendor.tar.xz -C /build
-# The ubuntu-26.04 directory contains .build/ which would be copied recursively, exclude it by using a glob.
+# The ubuntu-26.10 directory contains .build/ which would be copied recursively, exclude it by using a glob.
 mkdir /build/snapd-"$version"/debian
-cp -a /src/packaging/ubuntu-26.04/* /build/snapd-"$version"/debian
+cp -a /src/packaging/ubuntu-26.10/* /build/snapd-"$version"/debian
 
 # Discover and install build dependencies.
 DEBIAN_FRONTEND=noninteractive apt-get --yes build-dep /build/snapd-"$version"
