@@ -48,6 +48,8 @@ import (
 
 type sealSuite struct {
 	testutil.BaseTest
+
+	rootdir string
 }
 
 var _ = Suite(&sealSuite{})
@@ -55,8 +57,8 @@ var _ = Suite(&sealSuite{})
 func (s *sealSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	rootdir := c.MkDir()
-	dirs.SetRootDir(rootdir)
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
 	s.AddCleanup(efi.MockVars(nil, nil))
@@ -2164,4 +2166,22 @@ func (s *sealSuite) TestWithBootChainsFDEHook(c *C) {
 	}
 
 	c.Check(chains, DeepEquals, expected)
+}
+
+func (s *sealSuite) TestCheckResealKeyToModeenvUsesDryRun(c *C) {
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(s.rootdir)
+	c.Assert(err, IsNil)
+
+	resealCalls := 0
+	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealCalls++
+		c.Check(rootdir, Equals, s.rootdir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts, DeepEquals, boot.ResealKeyToModeenvOptions{DryRun: true, Force: true})
+		return nil
+	})()
+
+	err = boot.CheckResealKeyToModeenv(s.rootdir, nil)
+	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 1)
 }
