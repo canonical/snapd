@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package snap_gpio_helper_test
 
 import (
 	"testing"
