@@ -1558,6 +1558,27 @@ func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 		"type": "error"})
 }
 
+func (s *daemonSuite) TestIsJSONContentType(c *check.C) {
+	for _, tc := range []struct {
+		ct   string
+		want bool
+	}{
+		{"", true},
+		{"application/json", true},
+		{"APPLICATION/JSON", true},
+		{"Application/Json", true},
+		{"application/json; charset=utf-8", true},
+		{"application/json; charset=windows-1252", true},
+		{"application/json; boundary=foo", true},
+		{"text/plain", false},
+		{"multipart/form-data", false},
+		{"application/json-patch+json", false},
+		{"notvalid", false},
+	} {
+		c.Check(isJSONContentType(tc.ct), check.Equals, tc.want, check.Commentf("ct: %q", tc.ct))
+	}
+}
+
 func (s *daemonSuite) TestParseRequestAction(c *check.C) {
 	type testCase struct {
 		name          string

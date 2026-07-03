@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -212,6 +213,16 @@ func (c *chainedReadCloser) Close() error {
 	return c.orig.Close()
 }
 
+// isJSONContentType reports whether ct is acceptable for a JSON request body.
+// An empty ct is accepted as assumed JSON; any parameters are ignored.
+func isJSONContentType(ct string) bool {
+	if ct == "" {
+		return true
+	}
+	mediaType, _, err := mime.ParseMediaType(ct)
+	return err == nil && mediaType == "application/json"
+}
+
 // parseRequestAction decodes the top-level "action" field from a POST
 // request's JSON body and replaces r.Body with a buffered copy so
 // downstream handlers can still consume the request body after the
@@ -230,8 +241,7 @@ func parseRequestAction(r *http.Request) (string, error) {
 	if cached, ok := r.Context().Value(actionContextKey{}).(actionResult); ok {
 		return cached.action, cached.parseErr
 	}
-	ct := r.Header.Get("Content-Type")
-	if r.Method != "POST" || r.Body == nil || (ct != "" && ct != "application/json") {
+	if r.Method != "POST" || r.Body == nil || !isJSONContentType(r.Header.Get("Content-Type")) {
 		return "", nil
 	}
 
