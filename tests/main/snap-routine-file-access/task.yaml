@@ -25,7 +25,9 @@ prepare: |
     # Ensure interfaces are disconnected
     snap disconnect test-snapd-file-access:home
     snap disconnect test-snapd-file-access:removable-media
-    snap disconnect test-snapd-file-access:system-packages-doc
+    if ! os.query is-core; then
+        snap disconnect test-snapd-file-access:system-packages-doc
+    fi
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
@@ -96,23 +98,26 @@ execute: |
     access /usr/share/info | MATCH hidden
     access /usr/share/man | MATCH hidden
 
-    # With the interface connected, all doc paths should be read-only
-    snap connect test-snapd-file-access:system-packages-doc
-    
-    access /usr/share/doc | MATCH read-only
-    access /usr/local/share/doc | MATCH read-only
-    access /usr/share/cups/doc-root | MATCH read-only
-    access /usr/share/gimp/2.0/help | MATCH read-only
-    access /usr/share/gtk-doc | MATCH read-only
-    access /usr/share/javascript | MATCH hidden # This path is always hidden, even with the interface connected
-    access /usr/share/javascript/ | MATCH hidden # This path is always hidden, even with the interface connected
-    access /usr/share/javascript/foo | MATCH read-only
-    access /usr/share/libreoffice/help | MATCH read-only
-    access /usr/share/sphinx_rtd_theme | MATCH read-only
-    access /usr/share/xubuntu-docs | MATCH read-only
-    access /usr/share/help | MATCH read-only
-    access /usr/share/info | MATCH read-only
-    access /usr/share/man | MATCH read-only
+    # system-packages-doc interface doesn't exist on core
+    if ! os.query is-core; then
+        # With the interface connected, all doc paths should be read-only
+        snap connect test-snapd-file-access:system-packages-doc
+
+        access /usr/share/doc | MATCH read-only
+        access /usr/local/share/doc | MATCH read-only
+        access /usr/share/cups/doc-root | MATCH read-only
+        access /usr/share/gimp/2.0/help | MATCH read-only
+        access /usr/share/gtk-doc | MATCH read-only
+        access /usr/share/javascript | MATCH hidden # This path is always hidden, even with the interface connected
+        access /usr/share/javascript/ | MATCH hidden # This path is always hidden, even with the interface connected
+        access /usr/share/javascript/foo | MATCH read-only
+        access /usr/share/libreoffice/help | MATCH read-only
+        access /usr/share/sphinx_rtd_theme | MATCH read-only
+        access /usr/share/xubuntu-docs | MATCH read-only
+        access /usr/share/help | MATCH read-only
+        access /usr/share/info | MATCH read-only
+        access /usr/share/man | MATCH read-only
+    fi
 
     # Other paths under /usr/share should still be hidden
     access /usr/share/other | MATCH hidden
