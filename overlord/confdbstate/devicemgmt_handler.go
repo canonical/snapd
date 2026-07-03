@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/confdb"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -116,18 +115,31 @@ func (h *confdbMessageHandler) Apply(st *state.State, msg *devicemgmtstate.Reque
 		return "", err
 	}
 
+	var chgID string
 	switch payload.Action {
 	case "get":
-		return confdbstateReadConfdb(context.Background(), st, view, payload.Keys, nil, confdb.AdminAccess)
+		chgID, err = confdbstateReadConfdb(context.Background(), st, view, payload.Keys, nil, confdb.AdminAccess)
 	case "set":
 		if len(payload.Values) == 0 {
 			return "", fmt.Errorf("cannot apply message: body contains no values to write")
 		}
 
-		return confdbstateWriteConfdb(context.Background(), st, view, payload.Values)
+		chgID, err = confdbstateWriteConfdb(context.Background(), st, view, payload.Values)
 	default:
 		return "", fmt.Errorf("cannot apply message: unknown action %q", payload.Action)
 	}
+	if err != nil {
+		return "", err
+	}
+
+	chg := st.Change(chgID)
+	if chg == nil {
+		return "", fmt.Errorf("internal: cannot find change %q after applying confdb message", chgID)
+	}
+
+	devicemgmtstate.MarkChangeForMessage(chg, msg)
+
+	return chgID, nil
 }
 
 // ResultFromChange returns the result of a completed confdb action.
@@ -136,7 +148,6 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 		return nil, chg.Err()
 	}
 	if chg.Status() != state.DoneStatus {
-		logger.Noticef("internal: ResultFromChange called on change in unexpected status %s", chg.Status())
 		return nil, fmt.Errorf("internal: unexpected change status %s", chg.Status())
 	}
 
@@ -147,7 +158,6 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 			return map[string]any{}, nil
 		}
 
-		logger.Noticef("internal: change %q done with no api-data", chg.Kind())
 		return nil, fmt.Errorf("internal: change %q done with no api-data", chg.Kind())
 	}
 	if err != nil {
@@ -161,7 +171,6 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 
 	errMap, ok := errData.(map[string]any)
 	if !ok {
-		logger.Noticef("internal: api-data error field is not a map")
 		return nil, fmt.Errorf("internal: api-data error field is not a map")
 	}
 

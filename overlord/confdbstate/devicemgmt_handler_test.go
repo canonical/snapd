@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/confdb"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -208,21 +207,32 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	})
 	defer restore()
 
-	restore = confdbstate.MockConfdbstateReadConfdb(func(_ context.Context, _ *state.State, view *confdb.View, requests []string, _ map[string]any, _ confdb.Access) (string, error) {
+	restore = confdbstate.MockConfdbstateReadConfdb(func(_ context.Context, st *state.State, view *confdb.View, requests []string, _ map[string]any, _ confdb.Access) (string, error) {
 		c.Check(view.Name, Equals, "wifi-admin")
 		c.Check(requests, DeepEquals, []string{"ssid"})
 
-		return "16384", nil
+		chg := st.NewChange("get-confdb", "test change")
+		return chg.ID(), nil
 	})
 	defer restore()
 
 	msg := &devicemgmtstate.RequestMessage{
-		Kind: "confdb",
-		Body: `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"]}`,
+		BaseID: "msg-1",
+		Kind:   "confdb",
+		Body:   `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"]}`,
 	}
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	chgID, err := handler.Apply(s.st, msg)
 	c.Assert(err, IsNil)
-	c.Check(chgID, Equals, "16384")
+	c.Check(chgID, Not(Equals), "")
+
+	chg := s.st.Change(chgID)
+	c.Assert(chg, NotNil)
+	var markedID string
+	c.Assert(chg.Get("mgmt-message-id", &markedID), IsNil)
+	c.Check(markedID, Equals, "msg-1")
 }
 
 func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
@@ -233,21 +243,32 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 	})
 	defer restore()
 
-	restore = confdbstate.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, view *confdb.View, values map[string]any) (string, error) {
+	restore = confdbstate.MockConfdbstateWriteConfdb(func(_ context.Context, st *state.State, view *confdb.View, values map[string]any) (string, error) {
 		c.Check(view.Name, Equals, "wifi-admin")
 		c.Check(values, DeepEquals, map[string]any{"ssid": "my-network"})
 
-		return "16384", nil
+		chg := st.NewChange("set-confdb", "test change")
+		return chg.ID(), nil
 	})
 	defer restore()
 
 	msg := &devicemgmtstate.RequestMessage{
-		Kind: "confdb",
-		Body: `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
+		BaseID: "msg-2",
+		Kind:   "confdb",
+		Body:   `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
 	}
+	s.st.Lock()
+	defer s.st.Unlock()
+
 	chgID, err := handler.Apply(s.st, msg)
 	c.Assert(err, IsNil)
-	c.Check(chgID, Equals, "16384")
+	c.Check(chgID, Not(Equals), "")
+
+	chg := s.st.Change(chgID)
+	c.Assert(chg, NotNil)
+	var markedID string
+	c.Assert(chg.Get("mgmt-message-id", &markedID), IsNil)
+	c.Check(markedID, Equals, "msg-2")
 }
 
 func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {
@@ -391,9 +412,6 @@ func (s *confdbHandlerSuite) TestResultFromChangeNotDone(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	chg := s.st.NewChange("get-confdb", "test change")
@@ -403,7 +421,6 @@ func (s *confdbHandlerSuite) TestResultFromChangeNotDone(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `internal: unexpected change status Doing`)
 	c.Check(body, IsNil)
-	c.Check(logbuf.String(), testutil.Contains, "internal: ResultFromChange called on change in unexpected status Doing")
 }
 
 func (s *confdbHandlerSuite) TestResultFromChangeNoApiData(c *C) {
@@ -424,9 +441,6 @@ func (s *confdbHandlerSuite) TestResultFromChangeNoApiDataOnGetChange(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	chg := s.st.NewChange("get-confdb", "test change")
@@ -436,7 +450,6 @@ func (s *confdbHandlerSuite) TestResultFromChangeNoApiDataOnGetChange(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `internal: change "get-confdb" done with no api-data`)
 	c.Check(body, IsNil)
-	c.Check(logbuf.String(), testutil.Contains, `internal: change "get-confdb" done with no api-data`)
 }
 
 func (s *confdbHandlerSuite) TestResultFromChangeConfdbError(c *C) {
@@ -481,9 +494,6 @@ func (s *confdbHandlerSuite) TestResultFromChangeApiDataErrorFieldNotAMap(c *C) 
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	handler := &confdbstate.ConfdbMessageHandler{}
 
 	chg := s.st.NewChange("get-confdb", "test change")
@@ -495,5 +505,4 @@ func (s *confdbHandlerSuite) TestResultFromChangeApiDataErrorFieldNotAMap(c *C) 
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "internal: api-data error field is not a map")
 	c.Check(body, IsNil)
-	c.Check(logbuf.String(), testutil.Contains, "internal: api-data error field is not a map")
 }
