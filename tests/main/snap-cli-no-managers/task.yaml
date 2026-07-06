@@ -6,6 +6,10 @@ details: |
 
 systems: [-ubuntu-core-*]
 
+skip:
+    - reason: needs snapd package built in tests
+      if: tests.info is-snapd-from-archive
+
 execute: |
   check_imports() {
     local BINFILE="$1"
