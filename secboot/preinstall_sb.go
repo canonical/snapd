@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
@@ -208,6 +209,19 @@ func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) 
 	pcrProfileOpts := cc.sbRunChecksContext.ProfileOpts()
 
 	return &PreinstallCheckResult{sbCheckResult: result, sbPCRProfileOpts: pcrProfileOpts}, nil
+}
+
+func (cr *PreinstallCheckResult) AcceptedErrors() []string {
+	if cr.sbCheckResult == nil || len(cr.sbCheckResult.AcceptedErrors) == 0 {
+		return nil
+	}
+
+	acceptedErrors := make([]string, 0, len(cr.sbCheckResult.AcceptedErrors))
+	for err := range cr.sbCheckResult.AcceptedErrors {
+		acceptedErrors = append(acceptedErrors, string(err))
+	}
+	sort.Strings(acceptedErrors)
+	return acceptedErrors
 }
 
 func (cr *PreinstallCheckResult) save(filename string) error {

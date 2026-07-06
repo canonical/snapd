@@ -433,6 +433,78 @@ func (s *installSuite) TestEncryptionSupportRequirements(c *C) {
 	c.Assert(encSupportInfo.Requirements()[0], Equals, install.EncryptionSupportRequirementVolumesAuth)
 }
 
+func (s *installSuite) TestPreinstallInfoRequirements(c *C) {
+	preinstallInfo := install.PreinstallInfo{}
+
+	// nil accepted-errors list should not require volumes auth
+	c.Assert(preinstallInfo.Requirements(), HasLen, 0)
+
+	preinstallInfo.AcceptedErrors = []string{}
+	c.Assert(preinstallInfo.Requirements(), HasLen, 0)
+
+	preinstallInfo.AcceptedErrors = []string{"some-other-kind"}
+	c.Assert(preinstallInfo.Requirements(), HasLen, 0)
+
+	preinstallInfo.AcceptedErrors = []string{secboot.ErrorKindNoHardwareRootOfTrust}
+	c.Assert(preinstallInfo.Requirements(), HasLen, 1)
+	c.Assert(preinstallInfo.Requirements()[0], Equals, install.EncryptionSupportRequirementVolumesAuth)
+}
+
+func (s *installSuite) TestLoadPreinstallInfo(c *C) {
+	restore := install.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
+		checkResultJSON := `{
+			"result": {
+				"accepted-errors": {
+					"no-hardware-root-of-trust": null,
+					"running-in-vm": null
+				}
+			}
+		}`
+		var checkResult secboot.PreinstallCheckResult
+		err := json.Unmarshal([]byte(checkResultJSON), &checkResult)
+		c.Assert(err, IsNil)
+		return &checkResult, nil
+	})
+	defer restore()
+
+	info, err := install.LoadPreinstallInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info, DeepEquals, &install.PreinstallInfo{
+		AcceptedErrors: []string{
+			secboot.ErrorKindNoHardwareRootOfTrust,
+			"running-in-vm",
+		},
+	})
+	c.Assert(info.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{"volumes-auth"})
+}
+
+func (s *installSuite) TestLoadPreinstallInfoNotExist(c *C) {
+	checkResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
+
+	restore := install.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
+		c.Check(filename, Equals, checkResultPath)
+		return nil, os.ErrNotExist
+	})
+	defer restore()
+
+	info, err := install.LoadPreinstallInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info, DeepEquals, &install.PreinstallInfo{})
+}
+
+func (s *installSuite) TestLoadPreinstallInfoLoadError(c *C) {
+	expectedErr := errors.New("boom")
+
+	restore := install.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
+		return nil, expectedErr
+	})
+	defer restore()
+
+	info, err := install.LoadPreinstallInfo()
+	c.Assert(info, IsNil)
+	c.Assert(err, Equals, expectedErr)
+}
+
 func (s *installSuite) TestPreinstallCheckSupported(c *C) {
 	logbuf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
