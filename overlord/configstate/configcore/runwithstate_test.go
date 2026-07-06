@@ -106,9 +106,6 @@ func (r *graduatedSuite) TestConfigureGraduatedExperimentalFeature(c *C) {
 }
 
 func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	r.state.Lock()
 	defer r.state.Unlock()
 
@@ -130,7 +127,6 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 	c.Check(err, IsNil)
 	c.Check(layouts, Equals, true)
 
-	c.Check(logbuf.String(), testutil.Contains, msg)
 	c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
 	c.Check(warningsStrings(r.state.AllWarnings()), testutil.Contains, msg)
 }

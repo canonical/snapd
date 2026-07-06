@@ -55,6 +55,7 @@ func warnDefaultEnabledExperimentalChange(cfg RunTransaction, k string) error {
 		return errors.New("internal error: change is not an experimental feature")
 	}
 
+	// send log to the task logs and and the warnings system
 	msg := fmt.Sprintf("feature %s is enabled by default and will be permanently enabled in a future release", feature)
 	warnExperimentalChange(cfg, msg)
 
@@ -73,7 +74,10 @@ func dropGraduatedExperimentalChange(cfg RunTransaction, k string) error {
 		return err
 	}
 
+	// send log to the journal, task logs, and and the warnings system
 	msg := fmt.Sprintf("feature %s is no longer experimental and is always enabled", feature)
+
+	logger.Noticef("%s", msg)
 	warnExperimentalChange(cfg, msg)
 
 	return nil
@@ -99,8 +103,6 @@ func PruneGraduatedExperimentalConfig(cfg RunTransaction) error {
 }
 
 func warnExperimentalChange(cfg RunTransaction, msg string) {
-	logger.Noticef("%s", msg)
-
 	st := cfg.State()
 	st.Lock()
 	defer st.Unlock()
