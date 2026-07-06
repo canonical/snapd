@@ -90,7 +90,7 @@ type InterfacesRequestsManager struct {
 	// InterfacesRequestsManager needs to stop receiving requests and
 	// finish handling existing requests.
 	snapdShuttingDown chan struct{}
-	shutdown          bool
+	shutDownOnce      sync.Once
 
 	askRequests chan *prompting.Request
 }
@@ -222,6 +222,9 @@ run_loop:
 			if err := m.handleRequest(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
+		case <-m.snapdShuttingDown:
+			logger.Debugf("InterfacesRequestsManager is shutting down")
+			break run_loop
 		case <-m.tomb.Dying():
 			logger.Debugf("InterfacesRequestsManager tomb is dying with error %v, disconnecting", m.tomb.Err())
 			break run_loop
@@ -394,11 +397,10 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int3
 // ShutDown stops the listener, prompt DB, and rule DB from receiving new
 // requests.
 func (m *InterfacesRequestsManager) ShutDown() {
-	if m.shutdown {
-		return
-	}
-	close(m.snapdShuttingDown)
-	m.shutdown = true
+	m.shutDownOnce.Do(func() {
+		close(m.snapdShuttingDown)
+	})
+
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and
