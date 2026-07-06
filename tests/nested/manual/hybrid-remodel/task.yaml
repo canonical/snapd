@@ -20,24 +20,11 @@ prepare: |
 
   snap install --edge test-snapd-swtpm
 
-  # The rev1 model used by this test adds one application snap. Keep the
-  # selected snap name/id in sync with developer1-${VERSION}-classic-dangerous-rev1.json.
-  #
-  # On 22 we use jq-core22 (existing store snap), while on 24 we use the
-  # test-owned core24 equivalent test-snapd-jq-core24.
-  case "${VERSION}" in
-    22)
-      snap_app_name=jq-core22
-      snap_app_id="vFTrGWyktbEDwuYJjdsZykV270mqcNz8"
-      app_channel="latest/edge"
-    ;;
-    24)
-      snap_app_name=test-snapd-jq-core24
-      snap_app_id="zBAzEImJzOAoGxmoG5o6Tl6ELZXMeUlt"
-      app_channel="latest/stable"
-    ;;
-  esac
-  snap download --channel="${app_channel}" "${snap_app_name}" --basename="${snap_app_name}"
+  # The rev1 model used by this test adds one application snap. Keep the snap
+  # name in sync with developer1-${VERSION}-classic-dangerous-rev1.json.
+  snap_app_name="test-snapd-sh-core${VERSION}"
+  snap_app_id="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  snap pack "${TESTSLIB}/snaps/${snap_app_name}" --filename="${snap_app_name}.snap"
 
   "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
   for key in "${TESTSLIB}"/assertions/{testrootorg-store.account-key,developer1.account,developer1.account-key}; do
@@ -177,9 +164,8 @@ execute: |
   remote.exec snap watch "${change_id}"
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
-  # Verify remodel installed the app snap added in rev1 (jq-core22 on 22,
-  # test-snapd-jq-core24 on 24).
-  remote.exec "snap list" | MATCH "jq-core${VERSION}"
+  # Verify remodel installed the app snap added in rev1.
+  remote.exec "snap list" | MATCH "test-snapd-sh-core${VERSION}"
 
   case "$VERSION" in
     22|24)
