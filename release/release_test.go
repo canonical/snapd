@@ -124,6 +124,7 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 
 	os := release.ReadOSReleaseFromRoot(root)
 	c.Check(os.ID, Equals, "ubuntu")
+	c.Check(os.VariantID, Equals, "")
 	c.Check(os.VersionID, Equals, "18.09")
 }
 

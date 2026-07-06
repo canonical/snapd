@@ -44,6 +44,8 @@ const (
 	deviceScopeConstraintsFeature = "device-scope-constraints"
 	// feature label for plug-names/slot-names constraints
 	nameConstraintsFeature = "name-constraints"
+	// feature label for on-classic distro/variant constraints
+	onClassicVariantConstraintsFeature = "on-classic-variant-constraints"
 )
 
 // AttributeConstraints implements a set of constraints on the attributes of a slot or plug.
@@ -184,7 +186,100 @@ var (
 // OnClassicConstraint specifies a constraint based whether the system is classic and optional specific distros' sets.
 type OnClassicConstraint struct {
 	Classic   bool
-	SystemIDs []string
+	SystemIDs []OnClassicSystemConstraint
+}
+
+// OnClassicSystemConstraint specifies an operating system distro/variant matcher.
+//
+// VariantAny is true for constraints that accept any VARIANT_ID, including the
+// legacy distro-only form (for example "ubuntu") and the explicit wildcard form
+// (for example "ubuntu/*"). VariantID preserves the explicit wildcard so format
+// detection can distinguish old and new syntax.
+type OnClassicSystemConstraint struct {
+	DistroID   string
+	VariantID  string
+	VariantAny bool
+}
+
+func (c *OnClassicConstraint) feature(flabel string) bool {
+	if flabel != onClassicVariantConstraintsFeature {
+		return false
+	}
+	for _, systemID := range c.SystemIDs {
+		// Explicit variant syntax requires format 7, even when it still matches any
+		// variant (for example "ubuntu/*"). The legacy distro-only form keeps the
+		// zero VariantID while still setting VariantAny.
+		if !systemID.VariantAny || systemID.VariantID == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+func compileOnClassicConstraint(context *subruleContext, onClassic any) (*OnClassicConstraint, error) {
+	what := fmt.Sprintf("on-classic in %s", context)
+	syntaxError := fmt.Errorf("%s must be 'true', 'false' or a list of operating system IDs with optional /variant IDs", what)
+
+	switch x := onClassic.(type) {
+	case string:
+		switch x {
+		case "true":
+			return &OnClassicConstraint{Classic: true}, nil
+		case "false":
+			return &OnClassicConstraint{Classic: false}, nil
+		default:
+			return nil, syntaxError
+		}
+	case []any:
+		if len(x) == 0 {
+			return &OnClassicConstraint{Classic: true}, nil
+		}
+		systems := make([]OnClassicSystemConstraint, len(x))
+		for i, v := range x {
+			s, ok := v.(string)
+			if !ok {
+				return nil, fmt.Errorf("%s must be a list of strings", what)
+			}
+			systemID, err := compileOnClassicSystemConstraint(s)
+			if err != nil {
+				return nil, fmt.Errorf("%s contains an invalid element: %q", what, s)
+			}
+			systems[i] = systemID
+		}
+		return &OnClassicConstraint{Classic: true, SystemIDs: systems}, nil
+	default:
+		return nil, syntaxError
+	}
+}
+
+func compileOnClassicSystemConstraint(s string) (OnClassicSystemConstraint, error) {
+	if strings.Count(s, "/") > 1 {
+		return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+	}
+	if distroID, variantID, hasVariant := strings.Cut(s, "/"); hasVariant {
+		if !validDistro.MatchString(distroID) {
+			return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+		}
+		constraint := OnClassicSystemConstraint{
+			DistroID: distroID,
+		}
+		switch {
+		case variantID == "*":
+			constraint.VariantAny = true
+			constraint.VariantID = "*"
+		case variantID == "":
+			// Match only when VARIANT_ID is unset.
+		case validDistro.MatchString(variantID):
+			constraint.VariantID = variantID
+		default:
+			return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+		}
+		return constraint, nil
+	}
+	if !validDistro.MatchString(s) {
+		return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+	}
+	return OnClassicSystemConstraint{DistroID: s, VariantAny: true}, nil
 }
 
 // OnCoreDesktopConstraint specifies a constraint based whether the system is core desktop.
@@ -387,24 +482,9 @@ func baseCompileConstraints(context *subruleContext, cDef constraintsDef, target
 	if onClassic == nil {
 		defaultUsed++
 	} else {
-		var c *OnClassicConstraint
-		switch x := onClassic.(type) {
-		case string:
-			switch x {
-			case "true":
-				c = &OnClassicConstraint{Classic: true}
-			case "false":
-				c = &OnClassicConstraint{Classic: false}
-			}
-		case []any:
-			lst, err := checkStringListInMap(cMap, "on-classic", fmt.Sprintf("on-classic in %s", context), validDistro)
-			if err != nil {
-				return err
-			}
-			c = &OnClassicConstraint{Classic: true, SystemIDs: lst}
-		}
-		if c == nil {
-			return fmt.Errorf("on-classic in %s must be 'true', 'false' or a list of operating system IDs", context)
+		c, err := compileOnClassicConstraint(context, onClassic)
+		if err != nil {
+			return err
 		}
 		target.setOnClassicConstraint(c)
 	}
@@ -667,6 +747,9 @@ func (c *PlugInstallationConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == onClassicVariantConstraintsFeature {
+		return c.OnClassic != nil && c.OnClassic.feature(flabel)
+	}
 	if flabel == nameConstraintsFeature {
 		return c.PlugNames != nil
 	}
@@ -753,6 +836,9 @@ type PlugConnectionConstraints struct {
 func (c *PlugConnectionConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
+	}
+	if flabel == onClassicVariantConstraintsFeature {
+		return c.OnClassic != nil && c.OnClassic.feature(flabel)
 	}
 	if flabel == nameConstraintsFeature {
 		return c.PlugNames != nil || c.SlotNames != nil
@@ -986,6 +1072,9 @@ func (c *SlotInstallationConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
 	}
+	if flabel == onClassicVariantConstraintsFeature {
+		return c.OnClassic != nil && c.OnClassic.feature(flabel)
+	}
 	if flabel == nameConstraintsFeature {
 		return c.SlotNames != nil
 	}
@@ -1086,6 +1175,9 @@ type SlotConnectionConstraints struct {
 func (c *SlotConnectionConstraints) feature(flabel string) bool {
 	if flabel == deviceScopeConstraintsFeature {
 		return c.DeviceScope != nil
+	}
+	if flabel == onClassicVariantConstraintsFeature {
+		return c.OnClassic != nil && c.OnClassic.feature(flabel)
 	}
 	if flabel == nameConstraintsFeature {
 		return c.PlugNames != nil || c.SlotNames != nil

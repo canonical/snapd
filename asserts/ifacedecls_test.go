@@ -855,7 +855,38 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsOnClassic
 	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantAny: true}, {DistroID: "debian", VariantAny: true}}})
+
+	m, err = asserts.ParseHeaders([]byte("iface:\n  allow-installation:\n    on-classic:\n      - ubuntu/touch\n      - ubuntu/*\n      - ubuntu/"))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantID: "touch"}, {DistroID: "ubuntu", VariantID: "*", VariantAny: true}, {DistroID: "ubuntu"}}})
+}
+
+func (s *plugSlotRulesSuite) TestCompileOnClassicSystemConstraint(c *C) {
+	validTests := []struct {
+		input    string
+		expected asserts.OnClassicSystemConstraint
+	}{
+		{input: "ubuntu", expected: asserts.OnClassicSystemConstraint{DistroID: "ubuntu", VariantAny: true}},
+		{input: "ubuntu/touch", expected: asserts.OnClassicSystemConstraint{DistroID: "ubuntu", VariantID: "touch"}},
+		{input: "ubuntu/*", expected: asserts.OnClassicSystemConstraint{DistroID: "ubuntu", VariantID: "*", VariantAny: true}},
+		{input: "ubuntu/", expected: asserts.OnClassicSystemConstraint{DistroID: "ubuntu"}},
+	}
+
+	for _, test := range validTests {
+		constraint, err := asserts.CompileOnClassicSystemConstraintForTest(test.input)
+		c.Assert(err, IsNil)
+		c.Check(constraint, DeepEquals, test.expected)
+	}
+
+	for _, input := range []string{"ubuntu/touch/stable", "ubuntu/!desktop", "ubuntu//", "/touch", "*"} {
+		_, err := asserts.CompileOnClassicSystemConstraintForTest(input)
+		c.Check(err, ErrorMatches, "invalid operating system constraint")
+	}
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleInstallationConstraintsDeviceScope(c *C) {
@@ -1021,7 +1052,15 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsOnClassic(c
 	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantAny: true}, {DistroID: "debian", VariantAny: true}}})
+
+	m, err = asserts.ParseHeaders([]byte("iface:\n  allow-connection:\n    on-classic:\n      - ubuntu/touch\n      - ubuntu/*\n      - ubuntu/"))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompilePlugRule("iface", m["iface"].(map[string]any))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantID: "touch"}, {DistroID: "ubuntu", VariantID: "*", VariantAny: true}, {DistroID: "ubuntu"}}})
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsDeviceScope(c *C) {
@@ -1701,7 +1740,15 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsOnClassic
 	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantAny: true}, {DistroID: "debian", VariantAny: true}}})
+
+	m, err = asserts.ParseHeaders([]byte("iface:\n  allow-installation:\n    on-classic:\n      - ubuntu/touch\n      - ubuntu/*\n      - ubuntu/"))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowInstallation[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantID: "touch"}, {DistroID: "ubuntu", VariantID: "*", VariantAny: true}, {DistroID: "ubuntu"}}})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleInstallationConstraintsDeviceScope(c *C) {
@@ -1868,7 +1915,15 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsOnClassic(c
 	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
 	c.Assert(err, IsNil)
 
-	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []string{"ubuntu", "debian"}})
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantAny: true}, {DistroID: "debian", VariantAny: true}}})
+
+	m, err = asserts.ParseHeaders([]byte("iface:\n  allow-connection:\n    on-classic:\n      - ubuntu/touch\n      - ubuntu/*\n      - ubuntu/"))
+	c.Assert(err, IsNil)
+
+	rule, err = asserts.CompileSlotRule("iface", m["iface"].(map[string]any))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.AllowConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: true, SystemIDs: []asserts.OnClassicSystemConstraint{{DistroID: "ubuntu", VariantID: "touch"}, {DistroID: "ubuntu", VariantID: "*", VariantAny: true}, {DistroID: "ubuntu"}}})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsDeviceScope(c *C) {
@@ -2117,14 +2172,16 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
   allow-connection:
     plug-snap-type:
       - xapp`, `plug-snap-type in allow-connection in slot rule for interface "iface" contains an invalid element: "xapp"`},
-		{`iface:
-  allow-connection:
-    on-classic:
-      x: 1`, `on-classic in allow-connection in slot rule for interface \"iface\" must be 'true', 'false' or a list of operating system IDs`},
+		{"iface:\n  allow-connection:\n    on-classic:\n      x: 1", `on-classic in allow-connection in slot rule for interface \"iface\" must be 'true', 'false' or a list of operating system IDs with optional /variant IDs`},
 		{`iface:
   allow-connection:
     on-classic:
       - zoom!`, `on-classic in allow-connection in slot rule for interface \"iface\" contains an invalid element: \"zoom!\"`},
+		{"iface:\n  allow-connection:\n    on-classic:\n      - ubuntu/touch/stable", `on-classic in allow-connection in slot rule for interface \"iface\" contains an invalid element: \"ubuntu/touch/stable\"`},
+		{`iface:
+  allow-connection:
+    on-classic:
+      - ubuntu/!desktop`, `on-classic in allow-connection in slot rule for interface \"iface\" contains an invalid element: \"ubuntu/!desktop\"`},
 		{`iface:
   allow-connection:
     plug-snap-ids:
