@@ -231,7 +231,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	check(features.CheckDiskSpaceRefresh, false)
 	check(features.CheckDiskSpaceRemove, false)
 	check(features.GateAutoRefreshHook, false)
-	check(features.QuotaGroups, false)
+	check(features.QuotaGroups, true)
 	check(features.RefreshAppAwarenessUX, false)
 	check(features.Confdb, false)
 	check(features.AppArmorPrompting, false)
