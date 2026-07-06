@@ -31,15 +31,17 @@ import (
 )
 
 func isGraduatedExperimentalChange(k string) bool {
-	feature, ok := strings.CutPrefix(k, "core.experimental.")
-	return ok && features.IsGraduated(feature)
+	if !strings.HasPrefix(k, "core.experimental.") {
+		return false
+	}
+	return features.IsGraduated(strings.TrimPrefix(k, "core.experimental."))
 }
 
 func isDefaultEnabledExperimentalChange(k string) bool {
-	featureName, ok := strings.CutPrefix(k, "core.experimental.")
-	if !ok {
+	if !strings.HasPrefix(k, "core.experimental.") {
 		return false
 	}
+	featureName := strings.TrimPrefix(k, "core.experimental.")
 
 	for _, feature := range features.KnownFeatures() {
 		if feature.String() == featureName {
@@ -50,10 +52,10 @@ func isDefaultEnabledExperimentalChange(k string) bool {
 }
 
 func warnDefaultEnabledExperimentalChange(cfg RunTransaction, k string) error {
-	feature, ok := strings.CutPrefix(k, "core.experimental.")
-	if !ok {
+	if !strings.HasPrefix(k, "core.experimental.") {
 		return errors.New("internal error: change is not an experimental feature")
 	}
+	feature := strings.TrimPrefix(k, "core.experimental.")
 
 	// send log to the task logs and and the warnings system
 	msg := fmt.Sprintf("feature %s is enabled by default and will be permanently enabled in a future release", feature)
@@ -63,10 +65,10 @@ func warnDefaultEnabledExperimentalChange(cfg RunTransaction, k string) error {
 }
 
 func dropGraduatedExperimentalChange(cfg RunTransaction, k string) error {
-	feature, ok := strings.CutPrefix(k, "core.experimental.")
-	if !ok {
+	if !strings.HasPrefix(k, "core.experimental.") {
 		return errors.New("internal error: change is not an experimental feature")
 	}
+	feature := strings.TrimPrefix(k, "core.experimental.")
 
 	// setting to nil here drops the flag from the state. it should have already
 	// been cleared out by configstate.Init, but doing it here should not hurt.
