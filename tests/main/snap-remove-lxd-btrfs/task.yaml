@@ -8,9 +8,9 @@ details: |
     /var/snap/lxd/common/lxd/storage-pools/<pool>/. The "clear-snap" task
     is unable to remove the subvolumes.
 
-    The test mounts /var/snap on a loopback btrfs image. The mount is at
-    /var/snap (instead of /var/snap/lxd) as snap removal fails if there are
-    any non-snapctl mounts at or under /var/snap/<name>.
+    The test mounts an empty loopback btrfs image over /var/snap. The mount
+    is at /var/snap (instead of /var/snap/lxd) as snap removal fails if there
+    are any non-snapctl mounts at or under /var/snap/<name>.
 
     Reference: https://forum.snapcraft.io/t/unable-to-remove-lxd-read-only-file-system/16511
     
@@ -23,12 +23,9 @@ backends: [-autopkgtest]
 # LXD 6 is not supported on Ubuntu < 22.04
 systems: [ubuntu-22.04-64, ubuntu-24.04-64, ubuntu-26.04-64]
 
-kill-timeout: 20m
-
 environment:
     BTRFS_IMG: /var/tmp/var-snap-btrfs.img
     BTRFS_MNT: /var/snap
-    STAGING_MNT: /var/tmp/var-snap-btrfs-staging
     POOL_NAME: default
     POOL_BASE: /var/snap/lxd/common/lxd/storage-pools
     POOL_SOURCE: $POOL_BASE/$POOL_NAME
@@ -39,7 +36,6 @@ prepare: |
     if command -v apt && apt -v >/dev/null 2>&1; then
         apt autoremove -y lxd lxd-client || true
     fi
-    snap remove --purge lxd 2>/dev/null || true
 
     echo "Install btrfs-progs"
     tests.pkgs install btrfs-progs
@@ -49,30 +45,20 @@ prepare: |
         exit 1
     fi
 
-    echo "Stop snap services and snapd before shadowing /var/snap"
-    SNAP_LIST=$(snap list 2>/dev/null | awk 'NR>1 {print $1}')
-    for name in $SNAP_LIST; do
-        snap stop "$name" 2>/dev/null || true
-    done
+    echo "Assert no snaps other than snapd/core are installed"
+    test "$(snap list 2>/dev/null | awk 'NR>1 && $1!="snapd" && $1!="core"' | wc -l)" -eq 0
+
+    echo "Stop snapd before shadowing /var/snap"
     systemctl stop snapd.service snapd.socket
 
-    echo "Build a btrfs loopback image, copy /var/snap into it via a staging"
-    echo "mount, then swap it in at /var/snap."
-    truncate -s 6G "$BTRFS_IMG"
+    echo "Build a btrfs loopback image and mount it at /var/snap."
+    truncate -s 3G "$BTRFS_IMG"
     mkfs.btrfs -q -f "$BTRFS_IMG"
-    mkdir -p "$STAGING_MNT"
-    mount -o loop "$BTRFS_IMG" "$STAGING_MNT"
-    cp -a "$BTRFS_MNT/." "$STAGING_MNT/"
-    umount "$STAGING_MNT"
-    rmdir "$STAGING_MNT"
     mount -o loop "$BTRFS_IMG" "$BTRFS_MNT"
     test "$(mountinfo.query "$BTRFS_MNT" .fs_type)" = "btrfs"
-    
-    echo "Restart snapd and snap services"
+
+    echo "Restart snapd"
     systemctl start snapd.socket snapd.service
-    for name in $SNAP_LIST; do
-        snap start "$name" 2>/dev/null || true
-    done
 
     echo "Install LXD snap and wait for it to be ready"
     snap install lxd --channel="$LXD_SNAP_CHANNEL"
@@ -106,7 +92,10 @@ restore: |
 
     echo "Delete btrfs subvolumes deepest-first so that snap remove can succeed"
     if mountpoint -q "$BTRFS_MNT"; then
-        btrfs subvolume list -o "$BTRFS_MNT" 2>/dev/null | \
+        # --recursive option for subvolume delete is not available in btrfs-progs
+        # version 5.16.2 that is available on Ubuntu 22.04. So we delete the
+        # subvolumes one by one with the deepest first.
+        btrfs subvolume list "$BTRFS_MNT" 2>/dev/null | \
             awk '{ for (i=1;i<=NF;i++) if ($i=="path") print $(i+1) }' | \
             sort -r | while read -r sv; do
                 btrfs subvolume delete "$BTRFS_MNT/$sv" 2>/dev/null || true
@@ -117,23 +106,14 @@ restore: |
     echo "But continue restoring the system in case it still fails"
     snap remove --purge lxd 2>/dev/null || true
 
-    echo "Stop snap services and snapd, unmount btrfs, so the original"
-    echo "/var/snap (hidden by the loop mount) comes back into view."
-    SNAP_LIST=$(snap list 2>/dev/null | awk 'NR>1 {print $1}')
-    for name in $SNAP_LIST; do
-        snap stop "$name" 2>/dev/null || true
-    done
+    echo "Stop snapd and unmount btrfs so that the original /var/snap"
+    echo "(hidden by the loop mount) comes back into view"
     systemctl stop snapd.service snapd.socket 2>/dev/null || true
 
     umount -l "$BTRFS_MNT" 2>/dev/null || true
-    umount -l "$STAGING_MNT" 2>/dev/null || true
-    rmdir "$STAGING_MNT" 2>/dev/null || true
 
-    echo "Restart snapd and snap services"
+    echo "Restart snapd"
     systemctl start snapd.socket snapd.service 2>/dev/null || true
-    for name in $SNAP_LIST; do
-        snap start "$name" 2>/dev/null || true
-    done
 
     rm -f "$BTRFS_IMG"
     "$TESTSTOOLS"/lxd-state undo-mount-changes
@@ -143,7 +123,7 @@ debug: |
     grep -E "/var/snap|btrfs" /proc/self/mountinfo || true
     
     echo "--- btrfs subvolumes ---"
-    btrfs subvolume list -o "$BTRFS_MNT" 2>/dev/null || true
+    btrfs subvolume list "$BTRFS_MNT" 2>/dev/null || true
     
     echo "--- pool contents ---"
     ls -al "$POOL_SOURCE" 2>/dev/null || true
@@ -166,8 +146,10 @@ execute: |
     lxc delete --force "$CONTAINER_NAME"
     lxc image list --format csv | MATCH .
 
-    echo "LXD should have created at least one btrfs subvolume under $BTRFS_MNT"
-    test "$(btrfs subvolume list -o "$BTRFS_MNT" 2>/dev/null | wc -l)" -gt 0
+    echo "LXD should have created nested subvolumes for the storage pool and the image"
+    SUBVOLS=$(btrfs subvolume list "$BTRFS_MNT")
+    echo "$SUBVOLS" | MATCH "path lxd/common/lxd/storage-pools/$POOL_NAME$"
+    echo "$SUBVOLS" | MATCH "path lxd/common/lxd/storage-pools/$POOL_NAME/images/"
 
     echo "Check that LXD removal fails due to subvolumes under storage-pools"
     not snap remove --purge lxd 2>stderr.out
