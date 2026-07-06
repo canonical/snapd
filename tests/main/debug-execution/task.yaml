@@ -74,7 +74,7 @@ execute: |
                 MATCH 'internal: false' < snap-apparmor-default.out
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
-                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
+                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/5\.0' < snap-apparmor-default.out
                 MATCH 'internal: true' < snap-apparmor-default.out
             fi
             ;;
@@ -115,7 +115,7 @@ execute: |
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-force-reexec.out
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
-                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
+                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/5\.0' < snap-apparmor-default.out
                 MATCH 'internal: true' < snap-apparmor-default.out
             fi
 
