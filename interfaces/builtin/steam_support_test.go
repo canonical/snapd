@@ -124,8 +124,8 @@ deny @{PROC}/@{pid}/mountinfo r,
 	// contains the allows but not the denials
 	c.Assert(snippet, testutil.Contains, "owner @{PROC}/@{pid}/mountinfo r,")
 	c.Assert(snippet, testutil.Contains, "owner @{PROC}/self/mountinfo r,")
-	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/@{pid}/mountinfo r,")
-	c.Assert(snippet, Not(testutil.Contains), "deny @{PROC}/self/mountinfo r,")
+	c.Assert(snippet, Not(Matches), "(?s).*\ndeny [^\n]*/mountinfo [^\n]*.*")
+	c.Assert(snippet, Not(Matches), "(?s).*\ndeny [^\n]*/mountinfo [^\n]*.*")
 }
 
 func (s *SteamSupportInterfaceSuite) TestSecCompSpec(c *C) {
