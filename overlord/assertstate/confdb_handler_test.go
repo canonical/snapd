@@ -50,6 +50,7 @@ var _ = Suite(&confdbHandlerSuite{})
 func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.st = state.New(nil)
+	assertstate.DelayedCrossMgrInit()
 
 	s.st.Lock()
 	defer s.st.Unlock()
