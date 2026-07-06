@@ -852,6 +852,38 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshBeforeLocalModifi
 	}
 }
 
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefresh(c *C) {
+	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	_, restore := mockSeedRefreshHooks([]string{"snapd"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	stss := []snapstate.SnapInstallTaskSet{
+		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
+	}
+	seedTS, err := snapstate.ArrangeRebootAndUpdateSeed(
+		s.state,
+		stss,
+		snapstate.SeedRefreshEvictionPolicy{
+			SeedsToRetain: 1,
+		},
+		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
+	)
+	c.Assert(err, IsNil)
+	c.Assert(seedTS, NotNil)
+	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
+
+	snapdEnd, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+
+	c.Check(waitsOnTransitively(seedCreate, snapdEnd), Equals, true)
+}
+
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefreshBeforeLocalModificationsDeps(c *C) {
 	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
 	_, restore := mockSeedRefreshHooks([]string{"snapd"})

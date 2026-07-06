@@ -458,12 +458,19 @@ func arrangeRebootAndUpdateSeed(
 	// ensure that everything waits on snapd. we do this pretty late to help
 	// prevent superfluous dependencies between tasks.
 	if finalSnapdTask != nil {
+		// make sure snaps wait on snapd
 		for _, sts := range stss {
 			if sts.snapsup.InstanceName() == "snapd" {
 				continue
 			}
 
 			waitForIfNeeded(sts.prerequisites, finalSnapdTask)
+		}
+
+		// make sure the seed waits on snapd. this dependency will usually
+		// already be set up, but might not be if only snapd is being refreshed.
+		if seedTS != nil {
+			waitForIfNeeded(seedTS.Create, finalSnapdTask)
 		}
 	}
 
