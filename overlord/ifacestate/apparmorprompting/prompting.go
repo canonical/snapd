@@ -222,9 +222,6 @@ run_loop:
 			if err := m.handleRequest(req); err != nil {
 				logger.Noticef("error while handling request: %+v", err)
 			}
-		case <-m.snapdShuttingDown:
-			logger.Debugf("InterfacesRequestsManager is shutting down")
-			break run_loop
 		case <-m.tomb.Dying():
 			logger.Debugf("InterfacesRequestsManager tomb is dying with error %v, disconnecting", m.tomb.Err())
 			break run_loop
