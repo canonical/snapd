@@ -60,9 +60,9 @@ type mkfsParams struct {
 func makeFilesystem(params mkfsParams) error {
 	logger.Debugf("create %s filesystem on %s with label %q", params.Type, params.Device, params.Label)
 	err := mkfsImpl(context.Background(), params.Type, params.Device, &mkfs.MakeOptions{
-			Label: params.Label,
-			DeviceSize: params.Size,
-			SectorSize: params.SectorSize,
+		Label:      params.Label,
+		DeviceSize: params.Size,
+		SectorSize: params.SectorSize,
 	})
 	if err != nil {
 		return err
