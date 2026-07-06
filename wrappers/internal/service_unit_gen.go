@@ -161,6 +161,9 @@ EnvironmentFile=-/etc/environment
 {{- if .LogNamespace}}
 Environment=SNAPD_LOG_NAMESPACE={{.LogNamespace}}
 {{- end}}
+{{- if .ExecCondition}}
+ExecCondition={{.ExecCondition}}
+{{- end}}
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
@@ -289,6 +292,7 @@ WantedBy={{.ServicesTarget}}
 		InterfaceUnitSnippets    string
 		SliceUnit                string
 		LogNamespace             string
+		ExecCondition            string
 
 		Home    string
 		EnvVars string
@@ -338,6 +342,7 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		wrapperData.ExecCondition = "/usr/lib/snapd/snap-user-exec-condition"
 	default:
 		panic("unknown snap.DaemonScope")
 	}

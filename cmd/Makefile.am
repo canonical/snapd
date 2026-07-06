@@ -450,6 +450,22 @@ snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgm
 endif
 
 ##
+## snap-user-exec-condition
+##
+
+libexec_SCRIPTS += snap-user-exec-condition/snap-user-exec-condition
+CLEANFILES += snap-user-exec-condition/$(am__dirstamp) snap-user-exec-condition/snap-user-exec-condition
+
+snap-user-exec-condition/$(am__dirstamp):
+	mkdir -p $$(dirname $@)
+	touch $@
+
+EXTRA_DIST += snap-user-exec-condition/main.py
+
+snap-user-exec-condition/snap-user-exec-condition: snap-user-exec-condition/main.py Makefile snap-user-exec-condition/$(am__dirstamp)
+	install -m 755 $< $@
+
+##
 ## snap-device-helper
 ##
 
