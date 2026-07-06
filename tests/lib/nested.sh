@@ -1086,6 +1086,7 @@ nested_create_core_vm() {
             local BOOTVOLUME
             BOOTVOLUME=pc
             if nested_is_core_ge 20 && [ -e pc-gadget/meta/gadget.yaml ]; then
+                # this assumes core2* gadget layouts and so cannot run on uc18
                 # shellcheck disable=SC2016
                 BOOTVOLUME="$(gojq --yaml-input --raw-output '.volumes | to_entries[] | .key as $p | .value.structure[] | select(.name == "ubuntu-boot") | $p' pc-gadget/meta/gadget.yaml)"
                 if [ -z "$BOOTVOLUME" ]; then
@@ -1876,12 +1877,12 @@ nested_prepare_tools() {
 
     if [ -n "$TAG_FEATURES" ]; then
         # To cover also tests that don't repack the gadget snap, add feature tagging using env variable drop-ins
-        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
+        remote.exec "printf 'SNAPD_DEBUG=1\nSNAPPY_TESTING=1\nSNAPD_TRACE=1\nSNAPD_JSON_LOGGING=1\nSNAP_LOG_TO_JOURNAL=1\n' | sudo tee -a /etc/environment"
         CONF_FILE=99-generate-coverage.conf
         while IFS= read -r line; do
             dir=$(sed -E 's|^(.*)\.in$|/etc/systemd/system/\1.d|' <<<"$line")
             remote.exec "sudo mkdir -p $dir"
-            remote.exec "printf '[Service]\nEnvironment=SNAPD_TRACE=1\nEnvironment=SNAPD_JSON_LOGGING=1\n' | sudo tee $dir/$CONF_FILE"    
+            remote.exec "printf '[Service]\nEnvironment=SNAPD_DEBUG=1\nEnvironment=SNAPPY_TESTING=1\nEnvironment=SNAPD_TRACE=1\nEnvironment=SNAPD_JSON_LOGGING=1\n' | sudo tee $dir/$CONF_FILE"    
         done < <(find "$SPREAD_PATH"/data/systemd "$SPREAD_PATH"/data/systemd-user -type f -name '*.service.in' -exec basename {} \;)
         remote.exec "sudo systemctl daemon-reload"
         remote.exec "sudo systemctl restart snapd"

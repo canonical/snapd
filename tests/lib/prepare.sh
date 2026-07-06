@@ -216,7 +216,7 @@ add_to_kernel_cmdline() {
         cat <<EOF | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
 GRUB_CMDLINE_LINUX_DEFAULT="\${GRUB_CMDLINE_LINUX_DEFAULT} $params"
 EOF
-        sudo update-grub
+        update-grub
         REBOOT
     fi
 }

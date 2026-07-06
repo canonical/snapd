@@ -11,7 +11,7 @@ _prepare_task_artifacts_path() {
 
 _prepare_suite_artifacts_path() {
     artifact=$1
-    local artifacts_dir task_dir
+    local artifacts_dir suite_dir
     artifacts_dir="${SPREAD_PATH}/${artifact}"
     suite_dir="${artifacts_dir}/${SPREAD_BACKEND}:${SPREAD_SYSTEM}:${SPREAD_SUITE//\//--}"
     mkdir -p "$suite_dir"
@@ -32,10 +32,8 @@ features_after_non_nested_task() {
     # So for lines with snapd/snap identifiers, search for lines that begin with `{` 
     # but don't end with `}` and have "TRACE", remove their new lines to recompose the entry.
     # Then only grab TRACE-level entries.
-    systemctl stop snapd || true
     "$TESTSTOOLS"/journal-state get-log --no-pager | _extract_trace_entries > "$task_dir"/journal.txt
     cp /var/lib/snapd/state.json "$task_dir" || true
-    systemctl start snapd || true
 }
 
 features_after_nested_task() {
@@ -43,7 +41,6 @@ features_after_nested_task() {
     task_dir="$(_prepare_task_artifacts_path feature-tags)"
 
     # When a nested test is skipped, its vm will not be available
-    "$TESTSTOOLS"/remote.exec "sudo systemctl stop snapd" || true
     "$TESTSTOOLS"/remote.exec "journalctl --sync" || true
     "$TESTSTOOLS"/remote.exec "journalctl --flush" || true
     # Collect TRACE logs from all boots, appending each boot's logs to journal.txt
@@ -68,7 +65,6 @@ locks(){
 }
 
 features_after_suite() {
-    systemctl stop snapd || true
     # make sure this is only run once per suite
     if ! [ -f "$TESTSTMP/initial-coverage-collected-${SPREAD_SUITE//\//--}" ]; then
         suite_dir="$(_prepare_suite_artifacts_path feature-tags)"
@@ -83,7 +79,6 @@ features_after_suite() {
 
         touch "$TESTSTMP/initial-coverage-collected-${SPREAD_SUITE//\//--}"
     fi
-    systemctl start snapd || true
 }
 
 
@@ -111,7 +106,7 @@ case "$artifact" in
             --after-nested-task)
                 features_after_nested_task
                 ;;
-            --after-suite)
+            --after-suite-prepare)
                 features_after_suite
                 ;;
             *)

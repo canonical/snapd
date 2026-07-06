@@ -780,7 +780,7 @@ prepare_suite_each() {
     tests.invariant check
 
     if [ -n "$TAG_FEATURES" ]; then
-        "$TESTSLIB"/collect-artifacts.sh features --after-suite
+        "$TESTSLIB"/collect-artifacts.sh features --after-suite-prepare
     fi
 }
 
