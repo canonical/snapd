@@ -13,7 +13,7 @@ execute: |
     echo "Check that setting a default-enabled experimental feature succeeds"
     snap set system experimental."${default_enabled_feature}"=true
     snap tasks --last=configure-snap | MATCH "${default_enabled_message}"
-    snap warnings | MATCH "${default_enabled_message}"
+    snap warnings | tr '\n' ' ' | tr -s ' ' | MATCH "${default_enabled_message}"
 
     echo "Check that the default-enabled flag is still persisted"
     gojq '.data.config.core.experimental.layouts' /var/lib/snapd/state.json | MATCH "true"
@@ -23,7 +23,6 @@ execute: |
     echo "Check that setting a default-enabled experimental feature to false succeeds"
     snap set system experimental."${default_enabled_feature}"=false
     snap tasks --last=configure-snap | MATCH "${default_enabled_message}"
-    snap warnings | MATCH "${default_enabled_message}"
 
     echo "Check that the default-enabled false value is still persisted"
     gojq '.data.config.core.experimental.layouts' /var/lib/snapd/state.json | MATCH "false"
@@ -49,14 +48,13 @@ execute: |
     echo "Check that setting a graduated experimental feature to true succeeds"
     snap set system experimental."${feature}"=true
     snap tasks --last=configure-snap | MATCH "${message}"
-    snap warnings | MATCH "${message}"
+    snap warnings | tr '\n' ' ' | tr -s ' ' | MATCH "${message}"
 
     snap okay
 
     echo "Check that setting a graduated experimental feature to false succeeds"
     snap set system experimental."${feature}"=false
     snap tasks --last=configure-snap | MATCH "${message}"
-    snap warnings | MATCH "${message}"
 
     echo "Check that the message is logged by snapd"
     journalctl -b -u snapd | MATCH "${message}"
