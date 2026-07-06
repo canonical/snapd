@@ -3642,10 +3642,12 @@ slots:
 }
 
 // This covers the split setup-profiles flow where one setup-profiles task runs
-// in "prepare-profiles" mode (minimal work before auto-connect) and a later
-// setup-profiles task does full profile generation. The producer's final
-// setup must observe the connection created by the consumer path and regenerate
-// both snaps accordingly.
+// in "prepare-profiles" mode before auto-connect and a later setup-profiles
+// task does full profile generation. Snaps with prepare interface hooks now
+// receive a baseline single-snap setup in the prepare phase so those hooks can
+// execute under confinement. The producer's final setup must still observe the
+// connection created by the consumer path and regenerate both snaps
+// accordingly.
 func (s *interfaceManagerSuite) TestProducerSetupProfilesWaitsForConsumerSetupProfilesAndConnectionIsMade(c *C) {
 	s.MockModel(c, nil)
 
@@ -3726,7 +3728,7 @@ slots:
 	consumerSetup := snapstate.FindTaskMatchingKindAndSnap(consumerChange.Tasks(), "setup-profiles", "consumer")
 	c.Assert(consumerSetup, Not(IsNil))
 
-	c.Assert(secBackend.SetupManyCalls, HasLen, 3)
+	c.Assert(secBackend.SetupManyCalls, HasLen, 5)
 
 	// order the appsets so that the checks are deterministic
 	for i := range secBackend.SetupManyCalls {
@@ -3740,15 +3742,21 @@ slots:
 	c.Check(secBackend.SetupManyCalls[0].AppSets[0].InstanceName(), Equals, "consumer")
 	c.Check(secBackend.SetupManyCalls[0].AppSets[1].InstanceName(), Equals, "producer")
 
-	// doSetupProfiles for consumer
-	c.Assert(secBackend.SetupManyCalls[1].AppSets, HasLen, 1)
-	c.Check(secBackend.SetupManyCalls[1].AppSets[0].InstanceName(), Equals, "consumer")
+	// The prepare phase now sets up the individual snaps that declare
+	// prepare-{plug,slot}- hooks before those hooks can run.
+	singleSnapCalls := make([]string, 0, 3)
+	for _, call := range secBackend.SetupManyCalls[1:4] {
+		c.Assert(call.AppSets, HasLen, 1)
+		singleSnapCalls = append(singleSnapCalls, call.AppSets[0].InstanceName())
+	}
+	sort.Strings(singleSnapCalls)
+	c.Check(singleSnapCalls, DeepEquals, []string{"consumer", "consumer", "producer"})
 
 	// doSetupProfiles for the producer, and here the important thing is that
 	// setup-profiles marks both producer and consumer for setting up
-	c.Assert(secBackend.SetupManyCalls[2].AppSets, HasLen, 2)
-	c.Check(secBackend.SetupManyCalls[2].AppSets[0].InstanceName(), Equals, "consumer")
-	c.Check(secBackend.SetupManyCalls[2].AppSets[1].InstanceName(), Equals, "producer")
+	c.Assert(secBackend.SetupManyCalls[4].AppSets, HasLen, 2)
+	c.Check(secBackend.SetupManyCalls[4].AppSets[0].InstanceName(), Equals, "consumer")
+	c.Check(secBackend.SetupManyCalls[4].AppSets[1].InstanceName(), Equals, "producer")
 }
 
 // The auto-connect task will check snap declarations providing the
@@ -6896,6 +6904,70 @@ func (s *interfaceManagerSuite) TestUndoSetupProfilesOnRefresh(c *C) {
 	err := snapstate.Get(s.state, "snap", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.PendingSecurity.SideInfo.Revision, Equals, snapInfo.Revision)
+}
+
+func (s *interfaceManagerSuite) TestPrepareProfilesSetsUpSecurityForPrepareConnectionHooks(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+
+	const producerV1 = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+hooks:
+ prepare-slot-slot:
+`
+	const producerV2 = `
+name: producer
+version: 2
+slots:
+ slot:
+  interface: test
+hooks:
+ prepare-slot-slot:
+`
+
+	producerInfo := s.mockSnap(c, producerV1)
+	updatedInfo := s.mockUpdatedSnap(c, producerV2, producerInfo.Revision.N+1)
+
+	_ = s.manager(c)
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, producerInfo.InstanceName(), &snapst), IsNil)
+	snapst.Active = false
+	snapstate.Set(s.state, producerInfo.InstanceName(), &snapst)
+
+	change := s.state.NewChange("test", "")
+	task := s.state.NewTask("setup-profiles", "")
+	task.Set("prepare-profiles", true)
+	task.Set("snap-setup", &snapstate.SnapSetup{SideInfo: &snap.SideInfo{
+		RealName: updatedInfo.SnapName(),
+		Revision: updatedInfo.Revision,
+	}})
+	change.AddTask(task)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+	c.Assert(change.Err(), IsNil)
+	c.Assert(s.secBackend.SetupCalls, HasLen, 1)
+	c.Check(s.secBackend.SetupCalls[0].AppSet.InstanceName(), Equals, producerInfo.InstanceName())
+	c.Check(s.secBackend.SetupCalls[0].AppSet.Info().Revision, Equals, updatedInfo.Revision)
+	c.Check(s.secBackend.SetupCalls[0].Options, DeepEquals, interfaces.ConfinementOptions{KernelSnap: "krnl"})
+	c.Check(s.secBackend.SetupCalls[0].SetupContext, DeepEquals, interfaces.SetupContext{
+		Reason:          interfaces.SnapSetupReasonOwnUpdate,
+		CanDelayEffects: false,
+	})
+
+	c.Assert(snapstate.Get(s.state, producerInfo.InstanceName(), &snapst), IsNil)
+	c.Assert(snapst.PendingSecurity, NotNil)
+	c.Check(snapst.PendingSecurity.SideInfo.Revision, Equals, updatedInfo.Revision)
 }
 
 func (s *interfaceManagerSuite) TestFailedRefreshRestoresAutoConnectionPrunedFromIncomingRevision(c *C) {
