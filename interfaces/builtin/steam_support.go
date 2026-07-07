@@ -278,6 +278,10 @@ func (iface *steamSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 		}
 	}
 
+	// we need to override the base denial of /proc/self/mountinfo otherwise that
+	// denial would take priority over the "allow all," / "allow file,"
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
+
 	spec.SetUsesPtraceTrace()
 	return nil
 }
