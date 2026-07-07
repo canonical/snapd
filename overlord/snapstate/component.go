@@ -796,27 +796,49 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 	return tss, nil
 }
 
-func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task, copts ConflictOptions) (*state.TaskSet, error) {
+func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *snap.Info, copts ConflictOptions) error {
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return err
+	}
 	instName := info.InstanceName()
-
 	// For the moment we consider the same conflicts as if the component
 	// was actually the snap.
 	if err := checkChangeConflictIgnoringOneChange(st, instName, nil, copts); err != nil {
-		return nil, err
+		return err
 	}
 
 	// check if this component is required by any validation set in enforcing mode
 	enforcedSets, err := EnforcedValidationSets(st)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	pres, err := enforcedSets.Presence(info)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	compPres := pres.Component(compst.SideInfo.Component.ComponentName)
 	if compPres.Presence == asserts.PresenceRequired {
-		return nil, fmt.Errorf("cannot remove component %q as it is required by an enforcing validation set", compst.SideInfo.Component)
+		return fmt.Errorf("cannot remove component %q as it is required by an enforcing validation set", compst.SideInfo.Component)
+	}
+
+	seedRefresh, err := seedRefreshEnabled(st)
+	if err != nil {
+		return err
+	}
+	if seedRefresh {
+		if err := CheckComponentSeedRefreshRemove(st, info, compst.SideInfo.Component.ComponentName, deviceCtx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func removeComponentTasks(st *state.State, snapst *SnapState, compst *sequence.ComponentState, info *snap.Info, setupSecurity *state.Task, copts ConflictOptions) (*state.TaskSet, error) {
+	instName := info.InstanceName()
+	if err := canRemoveComponent(st, compst, info, copts); err != nil {
+		return nil, err
 	}
 
 	snapSup := &SnapSetup{

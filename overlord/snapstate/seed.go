@@ -80,6 +80,12 @@ var CheckSeedRefreshRemove = func(st *state.State, si *snap.Info, dctx DeviceCon
 	panic("internal error: snapstate.CheckSeedRefreshRemove is unset")
 }
 
+// CheckComponentSeedRefreshRemove is set by devicestate to prevent removal of
+// components that must remain present for seed-refresh.
+var CheckComponentSeedRefreshRemove = func(st *state.State, si *snap.Info, componentName string, dctx DeviceContext) error {
+	panic("internal error: snapstate.CheckComponentSeedRefreshRemove is unset")
+}
+
 func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, error) {
 	t, err := ts.Edge(SnapSetupEdge)
 	if err != nil {

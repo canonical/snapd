@@ -80,6 +80,14 @@ func MockReadComponentInfo(mock func(compMntDir string, snapInfo *snap.Info, csi
 	return func() { readComponentInfoAt = old }
 }
 
+func MockCheckComponentSeedRefreshRemove(mock func(st *state.State, si *snap.Info, componentName string, dctx DeviceContext) error) (restore func()) {
+	old := CheckComponentSeedRefreshRemove
+	CheckComponentSeedRefreshRemove = mock
+	return func() {
+		CheckComponentSeedRefreshRemove = old
+	}
+}
+
 func MockMountPollInterval(intv time.Duration) (restore func()) {
 	old := mountPollInterval
 	mountPollInterval = intv

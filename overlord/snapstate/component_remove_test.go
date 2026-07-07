@@ -21,7 +21,9 @@ package snapstate_test
 
 import (
 	"errors"
+	"fmt"
 
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -459,4 +461,36 @@ func (s *snapmgrTestSuite) TestRemoveComponentUpdateNoConflict(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(len(tss), Equals, 1)
 	verifyComponentRemoveTasks(c, compCurrentIsDiscarded, tss[0])
+}
+
+func (s *snapmgrTestSuite) TestRemoveComponentInSeedRefresh(c *C) {
+	const snapName = "some-snap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	info := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ci, _ := createTestComponent(c, snapName, compName, info)
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(compMntDir string,
+		snapInfo *snap.Info, csi *snap.ComponentSideInfo) (*snap.ComponentInfo, error) {
+		return ci, nil
+	}))
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	s.AddCleanup(snapstate.MockCheckComponentSeedRefreshRemove(func(st *state.State,
+		si *snap.Info, componentName string, dctx snapstate.DeviceContext) error {
+		return fmt.Errorf("blocked by seed refresh")
+	}))
+
+	csi1 := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), snap.R(1))
+	cs1 := sequence.NewComponentState(csi1, snap.StandardComponent)
+	setStateWithComponents(s.state, snapName, snapRev, []*sequence.ComponentState{cs1})
+
+	_, err := snapstate.RemoveComponents(s.state, snapName, []string{compName},
+		snapstate.RemoveComponentsOpts{})
+
+	c.Assert(err, ErrorMatches, "blocked by seed refresh")
 }
