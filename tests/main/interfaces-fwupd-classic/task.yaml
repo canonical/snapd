@@ -9,8 +9,6 @@ systems:
     - -ubuntu-core-*
     # Fwupd is not available in the Ubuntu 14.04 archive.
     - -ubuntu-14.04-*
-    # Amazon Linux does not appear to have a functional fwupd
-    - -amazon-linux-2-*
     - -amazon-linux-2023-*
 
 execute: |

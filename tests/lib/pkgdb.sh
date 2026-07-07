@@ -197,11 +197,6 @@ distro_install_package() {
             quiet eatmydata apt-get install $APT_FLAGS -y "${pkg_names[@]}"
             retval=$?
             ;;
-        amazon-linux-2-*)
-            # shellcheck disable=SC2086
-            quiet yum -y install $YUM_FLAGS "${pkg_names[@]}"
-            retval=$?
-            ;;
         fedora-*|centos-*|amazon-linux-2023-*)
             # shellcheck disable=SC2086
             quiet dnf -y --refresh install $DNF_FLAGS "${pkg_names[@]}"

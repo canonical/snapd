@@ -10,7 +10,6 @@ systems:
     # Ubuntu 16 is too old for the user services
     - -ubuntu-16.04-*
     # The following distros do not have the user agent running by default
-    - -amazon-linux-2-*
     - -amazon-linux-2023-*
     - -opensuse-*
     - -arch-linux-*
