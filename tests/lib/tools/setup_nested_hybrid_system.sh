@@ -68,15 +68,15 @@ run_muinstaller() {
         "${TESTSTOOLS}/store-state" teardown-fake-store "${store_dir}"
     fi
 
-    # build the muinstaller snap
-    if [ -z "$(command -v snapcraft)" ]; then
-        snap install snapcraft --candidate --classic
-    fi
-    "${TESTSTOOLS}/lxd-state" prepare-snap
-    (cd "${TESTSLIB}/muinstaller" && snapcraft)
-
     local muinstaller_snap
-    muinstaller_snap="$(find "${TESTSLIB}/muinstaller/" -maxdepth 1 -name '*.snap')"
+    muinstaller_snap="${PWD}/muinstaller.snap"
+
+    # build the muinstaller snap
+    (
+        cd "${TESTSLIB}/muinstaller"
+        CGO_ENABLED=0 go build -o bin/muinstaller .
+        snap pack --filename="${muinstaller_snap}" .
+    )
 
     # create a VM and mount a cloud image
     tests.nested build-image classic
