@@ -257,9 +257,6 @@ backends:
                   storage: 20G
                   workers: 6
 
-            - amazon-linux-2-64:
-                  workers: 6
-                  storage: preserve-size
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
@@ -440,10 +437,6 @@ backends:
                 image: snapd-spread/debian-sid-64
                 workers: 6
 
-            - amazon-linux-2-64:
-                image: snapd-spread/amazon-linux-2-64
-                workers: 6
-                storage: 50G
             - amazon-linux-2023-64:
                 image: snapd-spread/amazon-linux-2023-64
                 workers: 6
@@ -724,9 +717,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - amazon-linux-2-64:
-                  username: ec2-user
-                  password: ec2-user
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -822,9 +812,6 @@ backends:
                   username: root
                   password: root
             - arch-linux-64:
-                  username: root
-                  password: root
-            - amazon-linux-2-64:
                   username: root
                   password: root
             - amazon-linux-2023-64:
@@ -2096,7 +2083,6 @@ suites:
         systems:
             - arch-linux-*
             - opensuse-*
-            - amazon-linux-2-*
             - amazon-linux-2023-*
             - fedora-*
             - centos-*

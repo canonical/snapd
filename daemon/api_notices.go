@@ -319,10 +319,10 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 	// There aren't too many options, but overall possibilities are:
 	// - we are re-executed and the client isn't
 	// - the client re-executed but we did not
-	// - TODO the client could be a merged snapd-snap binary
 
 	switch filepath.Base(exe) {
 	case "snap", "snap-fips": // the standalone snap binary, or its FIPS build variant
+	case "snapd", "snapd-fips": // the merged snap binary
 	default:
 		return false, nil
 	}
@@ -333,7 +333,8 @@ func isRequestFromSnapCmd(r *http.Request) (bool, error) {
 		return true, nil
 	}
 
-	if strings.HasPrefix(exe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") {
+	if strings.HasPrefix(exe, filepath.Join(dirs.GlobalRootDir, "usr/bin")+"/") ||
+		strings.HasPrefix(exe, dirs.DistroLibExecDir+"/") {
 		// client with expected name from one of the system locations
 		return true, nil
 	}

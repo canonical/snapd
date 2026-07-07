@@ -12,9 +12,6 @@ details: |
     authn_token_delete) are recorded when a local snapd macaroon is
     created on first login and removed on logout.
 
-# Amazon Linux 2: systemd-journald-audit.socket is not available
-systems: [ -amazon-linux-2-64 ]
-
 prepare: |
     python3 "$PWD/enable-audit.py"
 
