@@ -1858,17 +1858,19 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.setupSnapRevisionForFileAndID(c, fooSnap, s.ss.AssertedSnapID("foo"), "canonical", snap.R(99))
 	snapsupBar := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "bar", SnapID: s.ss.AssertedSnapID("bar"), Revision: snap.R(100)},
-		SnapPath: barSnap,
 	}
 	s.setupSnapDeclForNameAndID(c, "bar", s.ss.AssertedSnapID("bar"), "canonical")
 	s.setupSnapRevisionForFileAndID(c, barSnap, s.ss.AssertedSnapID("bar"), "canonical", snap.R(100))
-	// when download completes, the files will be at /var/lib/snapd/snap
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.BlobPath()), 0755), IsNil)
-	c.Assert(os.Rename(fooSnap, snapsupFoo.BlobPath()), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.BlobPath()), 0755), IsNil)
-	c.Assert(os.Rename(barSnap, snapsupBar.BlobPath()), IsNil)
-	tSnapsup1.Set("snap-setup", snapsupFoo)
+
+	// bar represents a downloaded snap setup at its canonical blob path.
+	barBlob := snapsupBar.BlobPath()
+	c.Assert(os.MkdirAll(filepath.Dir(barBlob), 0755), IsNil)
+	c.Assert(os.Rename(barSnap, barBlob), IsNil)
 	tSnapsup2.Set("snap-setup", snapsupBar)
+
+	// foo represents a local-path setup before mount-snap has consumed
+	// SnapPath.
+	tSnapsup1.Set("snap-setup", snapsupFoo)
 
 	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, nil, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,

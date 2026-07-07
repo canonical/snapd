@@ -115,6 +115,20 @@ func (sc *snapInstallChoreographer) runRefreshHooks() bool {
 }
 
 func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
+	if sc.revisionIsPresent() && sc.snapsup.RemoveSnapPath {
+		// If the revision is local, we will not need the temporary snap. This
+		// can happen when e.g. side-loading a local revision again. The
+		// SnapPath is only needed in the "mount-snap" handler and that is
+		// skipped for local revisions.
+		if err := os.Remove(sc.snapsup.SnapPath); err != nil {
+			return nil, err
+		}
+
+		// before snapsup is attached to the tasks, clear it out. a path that
+		// points to nothing isn't useful any more.
+		sc.snapsup.SnapPath = ""
+	}
+
 	prereq := st.NewTask("prerequisites", fmt.Sprintf(
 		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
 	prereq.Set("snap-setup", sc.snapsup)
@@ -131,6 +145,7 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 			i18n.G("Download snap %q%s from channel %q"),
 			sc.snapsup.InstanceName(), sc.revisionString(), sc.snapsup.Channel))
 	}
+
 	prepare.Set("snap-setup", sc.snapsup)
 	prepare.WaitFor(prereq)
 	s.AppendWithoutData(prepare)
@@ -168,16 +183,6 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 }
 
 func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
-	if sc.revisionIsPresent() && sc.snapsup.Flags.RemoveSnapPath {
-		// If the revision is local, we will not need the temporary snap. This
-		// can happen when e.g. side-loading a local revision again. The
-		// SnapPath is only needed in the "mount-snap" handler and that is
-		// skipped for local revisions.
-		if err := os.Remove(sc.snapsup.SnapPath); err != nil {
-			return nil, err
-		}
-	}
-
 	removeExtraComps, discardExtraComps, err := removeExtraComponentsTasks(st, sc.snapst, sc.snapsup.Revision(), sc.compsups)
 	if err != nil {
 		return nil, err

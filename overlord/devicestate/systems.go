@@ -357,9 +357,13 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 		if snapsup.SnapName() != name {
 			continue
 		}
-		// by the time this task runs, the file has already been
-		// downloaded and validated
-		snapFile, err := snapfile.Open(snapsup.BlobPath())
+		// local path tasks carry SnapPath until mount-snap consumes it; otherwise
+		// use the canonical blob path prepared by download-snap or mount-snap.
+		snapPath := snapsup.SnapPath
+		if snapPath == "" {
+			snapPath = snapsup.BlobPath()
+		}
+		snapFile, err := snapfile.Open(snapPath)
 		if err != nil {
 			return nil, "", false, err
 		}
@@ -368,7 +372,7 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 			return nil, "", false, err
 		}
 
-		return info, info.MountFile(), true, nil
+		return info, snapPath, true, nil
 	}
 
 	// either a remodel scenario, in which case the snap is not
