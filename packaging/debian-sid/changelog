@@ -1,3 +1,10 @@
+snapd (2.76.2-1) unstable; urgency=medium
+
+  * New upstream release, LP: #2159940
+    - interfaces: steam-support, docker-support | fix mountinfo denial
+
+ -- Katie May <katie.may@canonical.com>  Tue, 07 Jul 2026 08:38:51 +0200
+
 snapd (2.76.1-1) unstable; urgency=medium
 
   * New upstream release, LP: #2157692
