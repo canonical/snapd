@@ -97,7 +97,7 @@ execute: |
             MATCH 'is-reexec-enabled: false' < snap-no-reexec.out
             MATCH 'is-reexec-explicitly-enabled: false' < snap-no-reexec.out
             MATCH 'is-reexecd: false' < snap-no-reexec.out
-            MATCH 'self-exe: /usr/bin/snap' < snap-no-reexec.out
+            MATCH 'self-exe: /usr/lib/snapd/snapd' < snap-no-reexec.out
 
             echo "Checking forced reexec"
             # when using native package it reexecs as instructed, when using the
