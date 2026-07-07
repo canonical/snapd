@@ -147,6 +147,7 @@ var featuresEnabledWhenUnset = map[SnapdFeature]bool{
 	RefreshAppAwareness:           true,
 	ClassicPreservesXdgRuntimeDir: true,
 	DbusActivation:                true,
+	QuotaGroups:                   true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
