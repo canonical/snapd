@@ -566,6 +566,11 @@ prepare_project() {
                 apt build-dep -y ./ # we don't run this for 14.04
                 # We need to ensure the correct version of golang is used.
                 command -v go | MATCH '/usr/local/bin/go'
+                # There should be no go installed at /usr/bin/go
+                test ! -f /usr/bin/go
+                # Symlink to /usr/bin/go as well to prevent issues with core20 failing
+                # to reboot during suite prepare.
+                ln -s "$best_golang_path" /usr/bin/go
             }
 
             if ! os.query is-trusty; then
