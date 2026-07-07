@@ -451,6 +451,10 @@ func (s *installSuite) TestPreinstallInfoRequirements(c *C) {
 }
 
 func (s *installSuite) TestLoadPreinstallInfo(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	restore := install.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
 		checkResultJSON := `{
 			"result": {
