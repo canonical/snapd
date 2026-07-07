@@ -418,7 +418,7 @@ sudo apt build-dep .
 ##### Steps
  
 1. Check out the `release/<version>` branch
-2. Since the `debian` symlink was removed from the source, create the `debian` folder symlink. For resolute: `ln -sfn packaging/ubuntu-26.10 debian` and for all others: `ln -sfn packaging/ubuntu-16.04 debian`
+2. Since the `debian` symlink was removed from the source, create the `debian` folder symlink. For stonking: `ln -sfn packaging/ubuntu-26.10 debian` and for all others: `ln -sfn packaging/ubuntu-16.04 debian`
 3. Commit the changes, but **do not push**.
 4. Run `gbp buildpackage -S --git-ignore-branch --git-no-purge`. The `--git-no-purge` option is important so we correctly retain the source tree. You may also need to specify `--git-ignore-new` if you have untracked files in your local git repo. You should now have a `build-area` folder one directory up.
 5. For each target release, update the changelogs in `build-area/snapd-<version>` to reflect that target, then build the package.
