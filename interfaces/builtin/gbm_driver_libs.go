@@ -133,6 +133,10 @@ func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 		return fmt.Errorf("invalid client-driver: %w", err)
 	}
 	// Look for the driver library
+	// TODO: if all library-source paths refer to components that are not
+	// installed, this should be a no-op. currently filePathInLibDirs returns an
+	// error for a missing client-driver when all backing component paths were
+	// filtered out.
 	path, err := filePathInLibDirs(slot, clientDriver)
 	if err != nil {
 		return err
