@@ -108,7 +108,7 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 	for _, id := range compsupTaskIDs {
 		compsupTask := filter(id)
 		if compsupTask == nil {
-			return SeedRefreshCandidate{}, err
+			return SeedRefreshCandidate{}, fmt.Errorf("task %q not found in refresh taskset", id)
 		}
 		var compSetup ComponentSetup
 		err := compsupTask.Get("component-setup", &compSetup)
