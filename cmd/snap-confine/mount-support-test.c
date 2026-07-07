@@ -256,7 +256,8 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/is_subdir", test_is_subdir);
     g_test_add_func("/mount/should_bind_mount_dir/directories", test_should_bind_mount_dir__directories);
     g_test_add_func("/mount/should_bind_mount_dir/missing_source", test_should_bind_mount_dir__missing_source);
-    g_test_add_func("/mount/should_bind_mount_dir/missing_destination", test_should_bind_mount_dir__missing_destination);
+    g_test_add_func("/mount/should_bind_mount_dir/missing_destination",
+                    test_should_bind_mount_dir__missing_destination);
     g_test_add_func("/mount/should_bind_mount_dir/source_is_file", test_should_bind_mount_dir__source_is_file);
     g_test_add_func("/mount/resolve_managed_ca_certs_dir/symlink_to_generation",
                     test_resolve_managed_ca_certs_dir__symlink_to_generation);

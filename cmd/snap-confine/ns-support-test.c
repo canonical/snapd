@@ -209,8 +209,7 @@ static void test_managed_ca_cert_db_changed__generation_unchanged(void) {
     g_test_queue_free(published_dir);
 
     char info_content[512] = {0};
-    snprintf(info_content, sizeof info_content,
-             "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
+    snprintf(info_content, sizeof info_content, "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
     write_file(ns_dir, "snap.test-snap.info", info_content);
 
     sc_invocation inv = {.snap_instance = "test-snap"};
@@ -226,8 +225,7 @@ static void test_managed_ca_cert_db_changed__legacy_bundle_key(void) {
     char *published_dir = create_fake_managed_generation(managed_dir, "gen-1");
     g_test_queue_free(published_dir);
 
-    write_file(ns_dir, "snap.test-snap.info",
-               "base-snap-name=core24\nmanaged-ca-cert-db-mtime=0.000000000\n");
+    write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\nmanaged-ca-cert-db-mtime=0.000000000\n");
 
     sc_invocation inv = {.snap_instance = "test-snap"};
     g_assert_true(managed_ca_cert_db_changed(&inv));
@@ -242,8 +240,7 @@ static void test_managed_ca_cert_db_changed__generation_changed(void) {
     char *published_dir = create_fake_managed_generation(managed_dir, "gen-2");
     g_test_queue_free(published_dir);
 
-    write_file(ns_dir, "snap.test-snap.info",
-               "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
+    write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
 
     sc_invocation inv = {.snap_instance = "test-snap"};
     g_assert_true(managed_ca_cert_db_changed(&inv));
@@ -259,8 +256,7 @@ static void test_managed_ca_cert_db_changed__legacy_directory_layout(void) {
     g_assert_cmpint(g_mkdir_with_parents(merged, 0755), ==, 0);
     g_test_queue_free(merged);
 
-    write_file(ns_dir, "snap.test-snap.info",
-               "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
+    write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
 
     sc_invocation inv = {.snap_instance = "test-snap"};
     g_assert_true(managed_ca_cert_db_changed(&inv));
@@ -270,16 +266,15 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
     g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
     g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
-    g_test_add_func("/ns/managed_ca_cert_db_changed/no_info_file",
-                     test_managed_ca_cert_db_changed__no_info_file);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/no_info_file", test_managed_ca_cert_db_changed__no_info_file);
     g_test_add_func("/ns/managed_ca_cert_db_changed/no_generation_key",
-                     test_managed_ca_cert_db_changed__no_generation_key);
+                    test_managed_ca_cert_db_changed__no_generation_key);
     g_test_add_func("/ns/managed_ca_cert_db_changed/generation_unchanged",
-                     test_managed_ca_cert_db_changed__generation_unchanged);
+                    test_managed_ca_cert_db_changed__generation_unchanged);
     g_test_add_func("/ns/managed_ca_cert_db_changed/legacy_bundle_key",
-                     test_managed_ca_cert_db_changed__legacy_bundle_key);
+                    test_managed_ca_cert_db_changed__legacy_bundle_key);
     g_test_add_func("/ns/managed_ca_cert_db_changed/generation_changed",
-                     test_managed_ca_cert_db_changed__generation_changed);
+                    test_managed_ca_cert_db_changed__generation_changed);
     g_test_add_func("/ns/managed_ca_cert_db_changed/legacy_directory_layout",
-                     test_managed_ca_cert_db_changed__legacy_directory_layout);
+                    test_managed_ca_cert_db_changed__legacy_directory_layout);
 }

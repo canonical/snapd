@@ -374,8 +374,7 @@ static char *managed_ca_cert_generation(void) {
  **/
 static bool managed_ca_cert_db_changed(const sc_invocation *inv) {
     char info_path[PATH_MAX] = {0};
-    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir,
-                     inv->snap_instance);
+    sc_must_snprintf(info_path, sizeof info_path, "%s/snap.%s.info", sc_ns_dir, inv->snap_instance);
 
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     stream = fopen(info_path, "r");
