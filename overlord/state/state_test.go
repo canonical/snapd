@@ -954,21 +954,19 @@ func (ss *stateSuite) TestPruneAbortsOldUnreadyChangeAndCreatesAllHoldState(c *C
 	// Regression test for forum thread:
 	// https://forum.snapcraft.io/t/snapd-gets-stuck-doesnt-process-changes/51954
 	//
-	// This test reproduces the stuck state where a change has all tasks in
-	// HoldStatus, making it permanently stuck with no recovery path.
+	// Reproduces the stuck state where a change has all tasks in HoldStatus,
+	// making it permanently stuck with no recovery path.  The bug is
+	// triggered purely by the state engine's Prune path: when a change that
+	// was spawned long ago never completes and its abortWait timer expires,
+	// Prune aborts every pending task from DoStatus to HoldStatus via
+	// Change.abortTasks().
 	//
-	// Scenario:
-	// 1. A change is created with multiple tasks (simulating install/refresh)
-	// 2. Tasks never execute (system degraded, blocked, etc.)
-	// 3. After abortWait duration (72h default), Prune aborts the change
-	// 4. All unstarted tasks transition: DoStatus -> HoldStatus
-	// 5. Change computes as HoldStatus (all tasks Hold)
-	// 6. This is a terminal "Ready" state with no recovery mechanism
+	// This test uses only real state-engine APIs (NewTask, NewChange, AddTask,
+	// WaitFor, MockChangeTimes, Prune) -- no task.SetStatus() calls at all.
+	// The HoldStatus on each pending task is the direct result of abortTasks
+	// being called through the genuine Prune code path.
 	//
-	// This is a design flaw: HoldStatus has contradictory semantics:
-	// - Documentation: "should not run FOR THE MOMENT" (temporary)
-	// - Implementation: Ready() returns true (terminal)
-	// - Result: Unrecoverable stuck states in production
+	// Related: LP #2130315, SNAPDENG-37129
 
 	st := state.New(&fakeStateBackend{})
 	st.Lock()
@@ -978,11 +976,8 @@ func (ss *stateSuite) TestPruneAbortsOldUnreadyChangeAndCreatesAllHoldState(c *C
 	pruneWait := 1 * time.Hour
 	abortWait := 3 * time.Hour
 
-	// Create a change simulating a snap install/refresh with multiple tasks
 	chg := st.NewChange("install-snap", "Install snap from file")
 
-	// Add multiple tasks mimicking a real snap installation
-	// These tasks would normally execute sequentially
 	t1 := st.NewTask("prepare-snap", "Prepare snap")
 	t2 := st.NewTask("mount-snap", "Mount snap")
 	t3 := st.NewTask("copy-snap-data", "Copy snap data")
@@ -993,7 +988,7 @@ func (ss *stateSuite) TestPruneAbortsOldUnreadyChangeAndCreatesAllHoldState(c *C
 	t8 := st.NewTask("setup-aliases", "Setup snap aliases")
 	t9 := st.NewTask("run-hook", "Run configure hook")
 
-	// Link tasks in sequence (each waits for previous)
+	// Link tasks in sequence (each waits for previous).
 	t2.WaitFor(t1)
 	t3.WaitFor(t2)
 	t4.WaitFor(t3)
@@ -1013,88 +1008,40 @@ func (ss *stateSuite) TestPruneAbortsOldUnreadyChangeAndCreatesAllHoldState(c *C
 	chg.AddTask(t8)
 	chg.AddTask(t9)
 
-	// Verify initial state: all tasks are DoStatus (ready to start)
-	c.Check(t1.Status(), Equals, state.DoStatus)
-	c.Check(t2.Status(), Equals, state.DoStatus)
-	c.Check(t3.Status(), Equals, state.DoStatus)
-	c.Check(t4.Status(), Equals, state.DoStatus)
-	c.Check(t5.Status(), Equals, state.DoStatus)
-	c.Check(t6.Status(), Equals, state.DoStatus)
-	c.Check(t7.Status(), Equals, state.DoStatus)
-	c.Check(t8.Status(), Equals, state.DoStatus)
-	c.Check(t9.Status(), Equals, state.DoStatus)
-
-	// Change is DoStatus (has tasks ready to start)
+	// NewTask gives every task DoStatus by default -- no artificial
+	// SetStatus() calls are needed.  The change is therefore also DoStatus
+	// (has tasks ready to start but not yet ready).
 	c.Check(chg.Status(), Equals, state.DoStatus)
 	c.Check(chg.IsReady(), Equals, false)
 
-	// Simulate the change being created but never executing
-	// (system in degraded state, blocked, etc.)
-	// Set spawn time to abortWait ago, ready time unset (not complete)
+	// Simulate the change being created long ago but never executing
+	// (system in degraded/blocked state, no Ensure calls happened).
 	unsetTime := time.Time{}
 	state.MockChangeTimes(chg, now.Add(-abortWait), unsetTime)
 
-	// Run Prune - this should abort the old unready change
+	// Run Prune through the real state-engine path.  This invokes
+	// Change.abortTasks() which transitions DoStatus -> HoldStatus for
+	// every pending task in the aborted change -- this is the bug.
 	past := time.Now().AddDate(-1, 0, 0)
 	st.Prune(past, pruneWait, abortWait, 100)
 
-	// Verify the change still exists (not pruned, because it's not ready)
+	// The change was NOT pruned away because it is not Ready (it's Hold).
 	c.Assert(st.Change(chg.ID()), Equals, chg)
 
-	// THE BUG: All tasks are now in HoldStatus
-	// This happens because abortTasks() sets DoStatus -> HoldStatus
-	c.Check(t1.Status(), Equals, state.HoldStatus, Commentf("task 1 should be Hold"))
-	c.Check(t2.Status(), Equals, state.HoldStatus, Commentf("task 2 should be Hold"))
-	c.Check(t3.Status(), Equals, state.HoldStatus, Commentf("task 3 should be Hold"))
-	c.Check(t4.Status(), Equals, state.HoldStatus, Commentf("task 4 should be Hold"))
-	c.Check(t5.Status(), Equals, state.HoldStatus, Commentf("task 5 should be Hold"))
-	c.Check(t6.Status(), Equals, state.HoldStatus, Commentf("task 6 should be Hold"))
-	c.Check(t7.Status(), Equals, state.HoldStatus, Commentf("task 7 should be Hold"))
-	c.Check(t8.Status(), Equals, state.HoldStatus, Commentf("task 8 should be Hold"))
-	c.Check(t9.Status(), Equals, state.HoldStatus, Commentf("task 9 should be Hold"))
+	// All tasks are now in HoldStatus -- the direct result of Prune ->
+	// abortTasks setting DoStatus -> HoldStatus for pending tasks.  This is
+	// a terminal state with no recovery mechanism.
+	for _, t := range []*state.Task{t1, t2, t3, t4, t5, t6, t7, t8, t9} {
+		c.Check(t.Status(), Equals, state.HoldStatus)
+		c.Check(t.Status().Ready(), Equals, true)
+		c.Check(st.Task(t.ID()), Equals, t)
+	}
 
-	// THE BUG: Change is HoldStatus (lowest priority in statusOrder)
-	// When ALL tasks are HoldStatus, change computes as HoldStatus
-	c.Check(chg.Status(), Equals, state.HoldStatus, Commentf("change should be Hold when all tasks Hold"))
-
-	// THE BUG: HoldStatus is considered "Ready" (terminal/complete)
-	c.Check(chg.IsReady(), Equals, true, Commentf("Hold is a 'ready' status"))
-
-	// THE PROBLEM: This is now a permanently stuck state
-	//
-	// - Change shows as "Hold" (not "Error")
-	// - All tasks are "Ready" so TaskRunner will skip them forever
-	// - No automatic recovery mechanism
-	// - No retry logic
-	// - No timeout
-	// - User sees change stuck indefinitely
-	// - Only fix: manual intervention or complete snapd reinstall
-	//
-	// Root cause: HoldStatus has contradictory semantics:
-	// - Documentation says: "should not run FOR THE MOMENT" (temporary)
-	// - Implementation: Ready() returns true (permanent terminal state)
-	//
-	// This is the design flaw that causes production issues like:
-	// - LP: #2130315
-	// - Forum: https://forum.snapcraft.io/t/snapd-gets-stuck-doesnt-process-changes/51954
-
-	// Verify the tasks are considered "ready" (won't be retried)
-	c.Check(t1.Status().Ready(), Equals, true)
-	c.Check(t2.Status().Ready(), Equals, true)
-	c.Check(t3.Status().Ready(), Equals, true)
-
-	// Verify all tasks still exist (not pruned)
-	c.Check(st.Task(t1.ID()), Equals, t1)
-	c.Check(st.Task(t2.ID()), Equals, t2)
-	c.Check(st.Task(t3.ID()), Equals, t3)
-	c.Check(st.Task(t4.ID()), Equals, t4)
-	c.Check(st.Task(t5.ID()), Equals, t5)
-	c.Check(st.Task(t6.ID()), Equals, t6)
-	c.Check(st.Task(t7.ID()), Equals, t7)
-	c.Check(st.Task(t8.ID()), Equals, t8)
-	c.Check(st.Task(t9.ID()), Equals, t9)
-
-	// This demonstrates the bug exists and is reproducible
+	// The change computes as HoldStatus (all tasks are Hold).  Because
+	// HoldStatus.Ready() == true, the change is considered "ready" even
+	// though nothing meaningful has happened -- no recovery path exists.
+	c.Check(chg.Status(), Equals, state.HoldStatus)
+	c.Check(chg.IsReady(), Equals, true)
 }
 
 func (ss *stateSuite) TestUndoFailureLeadsToHoldStatus(c *C) {
