@@ -230,7 +230,7 @@ prepare_project() {
     if os.query is-classic && [ -n "$TAG_FEATURES" ]; then
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
-        add_to_kernel_cmdline "tag.features=1"
+        add_to_grub_kernel_cmdline "tag.features=1"
     fi
     if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
         "$TESTSTOOLS"/snapd-state cancel-autorefresh

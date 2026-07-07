@@ -64,7 +64,7 @@ locks(){
     cp -f "$TESTSTMP"/snapd_lock_traces "$task_dir"
 }
 
-features_after_suite() {
+features_after_suite_prepare() {
     # make sure this is only run once per suite
     if ! [ -f "$TESTSTMP/initial-coverage-collected-${SPREAD_SUITE//\//--}" ]; then
         suite_dir="$(_prepare_suite_artifacts_path feature-tags)"
@@ -107,7 +107,7 @@ case "$artifact" in
                 features_after_nested_task
                 ;;
             --after-suite-prepare)
-                features_after_suite
+                features_after_suite_prepare
                 ;;
             *)
                 echo "collect-artifacts: unsupported action $1" >&2

@@ -206,7 +206,7 @@ save_installed_core_snap() {
     fi
 }
 
-add_to_kernel_cmdline() {
+add_to_grub_kernel_cmdline() {
     local params=$1
     if [ "$SPREAD_REBOOT" = 0 ]; then
         if [ -f "/etc/default/grub.d/99-spread-kcmdline.cfg" ]; then
