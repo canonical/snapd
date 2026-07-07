@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "app running"
+cat "$SNAP_COMMON/content-basic/content"
