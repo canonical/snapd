@@ -28,6 +28,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
@@ -1048,177 +1049,143 @@ func (ss *stateSuite) TestUndoFailureLeadsToHoldStatus(c *C) {
 	// Regression test for forum thread:
 	// https://forum.snapcraft.io/t/snap-package-uninstallation-became-permanently-stuck/49486
 	//
-	// This test reproduces the scenario where an undo operation fails
-	// (e.g., "directory not empty" during snap removal), causing a task
-	// to transition to HoldStatus with no recovery path.
+	// Reproduces the scenario where a task failure during snap removal
+	// (e.g. "directory not empty" while clearing data) causes an unstarted
+	// downstream task to land in HoldStatus via TaskRunner's abort path,
+	// with no recovery mechanism.  Same design flaw as SNAPDENG-37129 /
+	// TestPruneAbortsOldUnreadyChangeAndCreatesAllHoldState but triggered
+	// through undo/abort instead of prune timeout.
 	//
-	// Related to LP #2130315 (fixed in snapd 2.73 for specific case)
-	//
-	// Scenario:
-	// 1. A removal operation starts executing
-	// 2. Tasks begin to execute (services stopped, interfaces disconnected)
-	// 3. An error occurs during execution (e.g., filesystem inconsistency)
-	// 4. System attempts to undo/rollback the operation
-	// 5. Undo fails because state is inconsistent
-	// 6. Task transitions: AbortStatus -> HoldStatus (taskrunner.go:370)
-	// 7. Change becomes stuck with 1+ tasks in Hold
-	// 8. No recovery mechanism exists
-	//
-	// From forum thread evidence:
-	// - Task states: Undo/Done/Undone/Error/Hold (1 Hold task)
-	// - Error: "failed to remove snap 'opera' base directory:
-	//          remove /home/user/snap/opera: directory not empty"
-	// - Recovery attempts failed: abort, restart, manual cleanup
-	// - Required full OS reinstallation
-	//
-	// This is the SAME HoldStatus design flaw as SNAPDENG-37129:
-	// - Different trigger (undo failure vs prune timeout)
-	// - Same result (terminal Hold state, no recovery)
-	// - Same root cause (HoldStatus semantics contradiction)
+	// This test runs the real TaskRunner loop with fake handlers so that
+	// task transitions (Do -> Doing -> Done, abortLanes -> UndoStatus,
+	// Pending -> HoldStatus) are all driven by the genuine engine.
 
 	st := state.New(&fakeStateBackend{})
-	st.Lock()
-	defer st.Unlock()
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
 
-	// Create a change simulating a snap removal
+	// Fake do+undo handlers for t1-t8 (kind "do-undo"): both succeed.  Handlers
+	// run in goroutines that must explicitly acquire the state lock for any
+	// state access -- just like production task handlers.
+	r.AddHandler("do-undo",
+		func(task *state.Task, tomb *tomb.Tomb) error {
+			st.Lock()
+			defer st.Unlock()
+			return nil
+		},
+		func(task *state.Task, tomb *tomb.Tomb) error {
+			st.Lock()
+			defer st.Unlock()
+			return nil
+		},
+	)
+
+	// Fake do handler for t9 (kind "fail-during-do") that returns an error
+	// when the "do-error" task attribute is set.  No undo handler registered
+	// so any attempt to undo this kind stays in its current status.
+	r.AddHandler("fail-during-do",
+		func(task *state.Task, tomb *tomb.Tomb) error {
+			st.Lock()
+			defer st.Unlock()
+			var fail bool
+			if task.Get("do-error", &fail) == nil && fail {
+				return fmt.Errorf("failed to remove snap base directory: remove /home/user/snap/test: directory not empty")
+			}
+			return nil
+		},
+		nil, // no undo handler -- matches the forum bug where discard-snap had none
+	)
+
+	st.Lock()
+
 	chg := st.NewChange("remove-snap", "Remove snap")
 
-	// Simulate tasks from forum thread snap tasks output
-	// These tasks represent the typical removal sequence
-	t1 := st.NewTask("stop-snap-services", "Stop snap services")
-	t2 := st.NewTask("run-hook", "Run remove hook")
-	t3 := st.NewTask("disconnect-interfaces", "Disconnect interfaces")
-	t4 := st.NewTask("auto-disconnect", "Disconnect auto-connected interfaces")
-	t5 := st.NewTask("save-snapshot", "Save automatic snapshot")
-	t6 := st.NewTask("remove-aliases", "Remove aliases")
-	t7 := st.NewTask("unlink-snap", "Make snap unavailable")
-	t8 := st.NewTask("remove-profiles", "Remove security profiles")
-	t9 := st.NewTask("clear-snap-data", "Remove snap data")      // This one will fail
-	t10 := st.NewTask("discard-snap", "Remove snap from system") // This gets Hold
+	names := []string{
+		"stop-services",
+		"run-hook",
+		"disconnect-interfaces",
+		"auto-disconnect",
+		"save-snapshot",
+		"remove-aliases",
+		"unlink-snap",
+		"remove-profiles",
+	}
+	tasks := make([]*state.Task, 0, 10)
+	for i, name := range names {
+		t := st.NewTask("do-undo", name)
+		chg.AddTask(t)
+		if i > 0 {
+			t.WaitFor(tasks[i-1])
+		}
+		tasks = append(tasks, t)
+	}
 
-	// Link tasks in sequence
-	t2.WaitFor(t1)
-	t3.WaitFor(t2)
-	t4.WaitFor(t3)
-	t5.WaitFor(t4)
-	t6.WaitFor(t5)
-	t7.WaitFor(t6)
-	t8.WaitFor(t7)
-	t9.WaitFor(t8)
-	t10.WaitFor(t9)
-
-	chg.AddTask(t1)
-	chg.AddTask(t2)
-	chg.AddTask(t3)
-	chg.AddTask(t4)
-	chg.AddTask(t5)
-	chg.AddTask(t6)
-	chg.AddTask(t7)
-	chg.AddTask(t8)
+	t9 := st.NewTask("fail-during-do", "clear-snap-data") // will fail via flag
 	chg.AddTask(t9)
-	chg.AddTask(t10)
+	t9.WaitFor(tasks[len(tasks)-1])
+	tasks = append(tasks, t9)
 
-	// Verify initial state
+	t10 := st.NewTask("discard-snap", "discard-snap-from-system") // no handlers (foreign to this runner)
+	chg.AddTask(t10)
+	t10.WaitFor(t9)
+	tasks = append(tasks, t10)
+
+	// Verify initial state: all tasks are DoStatus via NewTask default.
 	c.Check(chg.Status(), Equals, state.DoStatus)
 	for _, t := range chg.Tasks() {
 		c.Check(t.Status(), Equals, state.DoStatus)
 	}
 
-	// Simulate execution: most tasks complete successfully
-	// These would be executed by TaskRunner in real scenario
-	t1.SetStatus(state.DoneStatus)
-	t2.SetStatus(state.DoneStatus)
-	t3.SetStatus(state.DoneStatus)
-	t4.SetStatus(state.DoneStatus)
-	t5.SetStatus(state.DoneStatus)
-	t6.SetStatus(state.DoneStatus)
-	t7.SetStatus(state.DoneStatus)
-	t8.SetStatus(state.DoneStatus)
+	// Flag t9 so its do handler returns an error (simulating "directory not empty").
+	t9.Set("do-error", true)
+	st.Unlock() // release lock before running TaskRunner -- Ensure needs to acquire it
 
-	// Simulate failure during data removal (like "directory not empty")
-	t9.SetStatus(state.ErrorStatus)
-	t9.Errorf("failed to remove snap base directory: remove /home/user/snap/test: directory not empty")
-
-	// At this point, the change should start undo process
-	// t9 failed with error, t10 never executed
-	c.Check(t9.Status(), Equals, state.ErrorStatus)
-	c.Check(t10.Status(), Equals, state.DoStatus)
-
-	// Simulate undo sequence for completed tasks
-	// In real scenario, TaskRunner would call undo handlers
-	// Some undos succeed (tasks can be rolled back)
-	t8.SetStatus(state.UndoneStatus)
-	t7.SetStatus(state.UndoneStatus)
-	t6.SetStatus(state.UndoneStatus)
-	t5.SetStatus(state.UndoneStatus)
-	t4.SetStatus(state.UndoneStatus)
-	// Interfaces took longer to disconnect, still in progress
-	t3.SetStatus(state.DoneStatus) // Actually stays Done per forum evidence
-	t2.SetStatus(state.UndoStatus) // Undo in progress
-	t1.SetStatus(state.UndoStatus) // Undo in progress
-
-	// Now simulate the critical failure:
-	// Task t10 needs to be aborted (never executed), but it has NO undo handler
-	// This matches taskrunner.go:367-370 logic
-	//
-	// In TaskRunner.tryUndo():
-	//   if t.Status() == AbortStatus && r.handlerPair(t).undo == nil {
-	//       t.SetStatus(HoldStatus)  // ← THE BUG
-	//   }
-	//
-	// We simulate this by setting the task to AbortStatus first,
-	// then applying the HoldStatus transition that TaskRunner would do
-	t10.SetStatus(state.AbortStatus)
-
-	// This is what TaskRunner.tryUndo() does when there's no undo handler:
-	// "Cannot undo but it was stopped in flight. Hold so it doesn't look like it finished."
-	t10.SetStatus(state.HoldStatus)
-
-	// Verify the stuck state pattern from forum thread
-	c.Check(t1.Status(), Equals, state.UndoStatus)   // Undoing
-	c.Check(t2.Status(), Equals, state.UndoStatus)   // Undoing
-	c.Check(t3.Status(), Equals, state.DoneStatus)   // Completed disconnect
-	c.Check(t4.Status(), Equals, state.UndoneStatus) // Undone
-	c.Check(t5.Status(), Equals, state.UndoneStatus) // Undone
-	c.Check(t6.Status(), Equals, state.UndoneStatus) // Undone
-	c.Check(t7.Status(), Equals, state.UndoneStatus) // Undone
-	c.Check(t8.Status(), Equals, state.UndoneStatus) // Undone
-	c.Check(t9.Status(), Equals, state.ErrorStatus)  // Failed
-	c.Check(t10.Status(), Equals, state.HoldStatus)  // ← STUCK!
-
-	// The change will compute as Undo (still has tasks in Undo/UndoStatus)
-	c.Check(chg.Status(), Equals, state.UndoStatus)
-
-	// But task t10 is in HoldStatus, which Ready() considers terminal
-	c.Check(t10.Status().Ready(), Equals, true)
-
-	// This is the stuck state from the forum thread:
-	// - Change shows "Undo" status
-	// - One task in Hold (t10)
-	// - snap abort doesn't work (change not "pending")
-	// - snap remove fails ("has change in progress")
-	// - Only fix: reinstall OS or manually edit state.json
-
-	// Demonstrate that the task is considered "Ready" (terminal)
-	// so TaskRunner will never retry it
-	for _, t := range chg.Tasks() {
-		if t.Status() == state.HoldStatus {
-			// HoldStatus is treated as terminal/ready
-			c.Check(t.Status().Ready(), Equals, true)
-			// But documentation says it's temporary!
-			// This is the semantic contradiction.
+	// Run TaskRunner until the change reaches a terminal state.  The loop
+	// drives every transition: sequential do handlers succeed for t1-t8,
+	// t9's handler returns an error triggering abortLanes, and subsequent
+	// Ensure calls process the undos for t8..t1.
+	for i := 0; i < 30; i++ {
+		r.Ensure()
+		r.Wait()
+		st.Lock()
+		if chg.Status().Ready() {
+			st.Unlock()
+			break
 		}
+		st.Unlock()
 	}
 
-	// Additional verification: simulate what happens when user tries to abort
-	// In forum thread, user tried "snap abort 298" multiple times - no effect
-	// This is because abort only works on tasks that aren't Ready()
-	// But HoldStatus.Ready() returns true!
+	// Verify final states produced by the TaskRunner engine.  State is
+	// unlocked after the loop (the last iteration always Unlocks).
+	st.Lock()
+	defer st.Unlock()
 
-	// User also tried restart, manual cleanup, everything - nothing worked
-	// Because HoldStatus is terminal and has no recovery path
+	// t1-t8 completed their do phase successfully, then were undone via abortLanes
+	// (DoneStatus -> UndoStatus -> undo handler runs -> UndoneStatus).
+	for i := 0; i < 8; i++ {
+		c.Check(tasks[i].Status(), Equals, state.UndoneStatus)
+	}
 
-	// The ONLY way to recover: edit state.json or reinstall
+	// t9 failed during do phase.  abortLanes briefly set it to AbortStatus but
+	// the error handler overwrote it with ErrorStatus afterwards.
+	c.Check(t9.Status(), Equals, state.ErrorStatus)
+
+	// THE BUG: t10 was never executed (it waited on t9).  abortLanes -> abortTasks
+	// set it from DoStatus to HoldStatus because it is a pending task in the
+	// aborted lane.  HoldStatus.Ready() == true means TaskRunner will skip it
+	// forever with no recovery mechanism.
+	c.Check(t10.Status(), Equals, state.HoldStatus)
+	c.Check(t10.Status().Ready(), Equals, true)
+
+	// The change computes as ErrorStatus (Error has higher priority than Undone
+	// and Hold in statusOrder), but the stuck Hold task on t10 means the user's
+	// removal operation is unrecoverably broken even though most work was undone.
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+
+	// All tasks are still present (not pruned).
+	for _, t := range chg.Tasks() {
+		c.Check(st.Task(t.ID()), Equals, t)
+	}
 }
 
 func (ss *stateSuite) TestPruneMaxChangesHappy(c *C) {
