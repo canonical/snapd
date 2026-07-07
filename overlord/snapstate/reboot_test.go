@@ -72,6 +72,7 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	prereq := s.state.NewTask("prerequisites", "...")
 	prereq.Set("snap-setup", snapsup)
 	prepareSnap := s.state.NewTask("prepare-snap", "...")
+	prepareSnap.Set("snap-setup", snapsup)
 	prepareSnap.WaitFor(prereq)
 	prereqSync := s.state.NewTask("prerequisites", "...")
 	prereqSync.WaitFor(prepareSnap)
@@ -88,6 +89,7 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	ts := state.NewTaskSet(prereq, prepareSnap, prereqSync, mountSnap, unlinkSnap, linkSnap, autoConnect, startServices)
 
 	ts.MarkEdge(prereq, snapstate.BeginEdge)
+	ts.MarkEdge(prepareSnap, snapstate.SnapSetupEdge)
 	ts.MarkEdge(prepareSnap, snapstate.LastBeforeLocalModificationsEdge)
 	ts.MarkEdge(linkSnap, snapstate.MaybeRebootEdge)
 	ts.MarkEdge(autoConnect, snapstate.MaybeRebootWaitEdge)
@@ -98,7 +100,8 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	return snapstate.NewSnapInstallTaskSetForTest(
 		snapsup,
 		ts,
-		[]*state.Task{prereq, prepareSnap}, // before local modification tasks
+		prereq,
+		[]*state.Task{prepareSnap}, // before local modification tasks
 		prereqSync,
 		mountSnap,
 		[]*state.Task{unlinkSnap, linkSnap}, // modification inducing tasks before reboot
@@ -404,7 +407,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsUC16NoSplits(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -438,7 +440,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssential(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -487,7 +488,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseKernel(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -567,7 +567,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadget(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -643,7 +642,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsGadgetKernel(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -720,7 +718,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -806,113 +803,161 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBaseGadgetKernel(c *C) {
 	c.Check(s.hasRestartBoundaries(c, stss[1].TaskSet()), Equals, false)
 }
 
-func (s *rebootSuite) TestArrangeSnapInstallTaskSetsEarlyDownloads(c *C) {
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshBeforeLocalModificationsDeps(c *C) {
 	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	_, restore := mockSeedRefreshHooks([]string{"core20", "my-kernel"})
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
 		s.snapInstallTaskSetForSnapSetup("my-kernel", "", snap.TypeKernel),
 		s.snapInstallTaskSetForSnapSetup("some-app", "", snap.TypeApp),
 	}
-	earlyDownloads := map[string]bool{
-		"core20":    true,
-		"my-kernel": true,
-	}
-	_, err := snapstate.ArrangeRebootAndUpdateSeed(
+	seedTS, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		earlyDownloads,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
 		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
 	)
 	c.Assert(err, IsNil)
+	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
 
 	baseLastBefore, err := stss[0].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 	kernelLastBefore, err := stss[1].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 
-	for _, sts := range stss {
-		firstLocalModTask := firstTaskAfterLocalModifications(c, sts.TaskSet())
-		c.Check(waitsOnTransitively(firstLocalModTask, baseLastBefore), Equals, true)
-		c.Check(waitsOnTransitively(firstLocalModTask, kernelLastBefore), Equals, true)
+	for _, lastBefore := range []*state.Task{baseLastBefore, kernelLastBefore} {
+		c.Check(waitsOnTransitively(seedCreate, lastBefore), Equals, true)
 	}
-}
 
-func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdEarlyDownload(c *C) {
-	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	stss := []snapstate.SnapInstallTaskSet{
-		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
-		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.snapInstallTaskSetForSnapSetup("some-app", "", snap.TypeApp),
-	}
-	earlyDownloads := map[string]bool{
-		"snapd": true,
-	}
-	_, err := snapstate.ArrangeRebootAndUpdateSeed(
-		s.state,
-		stss,
-		earlyDownloads,
-		snapstate.SeedRefreshEvictionPolicy{
-			SeedsToRetain: 1,
-		},
-		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
-	)
-	c.Assert(err, IsNil)
-
-	snapdLastBefore, err := stss[0].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-
-	baseFirstLocalMod := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
-	c.Check(waitsOnTransitively(baseFirstLocalMod, snapdLastBefore), Equals, true)
-
-	appFirstLocalMod := firstTaskAfterLocalModifications(c, stss[2].TaskSet())
-	c.Check(waitsOnTransitively(appFirstLocalMod, snapdLastBefore), Equals, true)
-
-	baseLastBefore, err := stss[1].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
+	appBegin, err := stss[2].TaskSet().Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
 	appLastBefore, err := stss[2].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 
-	snapdFirstLocalMod := firstTaskAfterLocalModifications(c, stss[0].TaskSet())
-	c.Check(waitsOnTransitively(snapdFirstLocalMod, baseLastBefore), Equals, false)
-	c.Check(waitsOnTransitively(snapdFirstLocalMod, appLastBefore), Equals, false)
+	c.Check(waitsOnTransitively(seedCreate, appBegin), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, appLastBefore), Equals, false)
+	for _, lane := range seedCreate.Lanes() {
+		c.Check(appBegin.Lanes(), testutil.Contains, lane)
+		c.Check(appLastBefore.Lanes(), Not(testutil.Contains), lane)
+	}
 }
 
-func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialEarlyDownloadsNoCycle(c *C) {
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefresh(c *C) {
 	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	_, restore := mockSeedRefreshHooks([]string{"snapd"})
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
-		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
-		s.snapInstallTaskSetForSnapSetup("some-app", "", snap.TypeApp),
 	}
-	earlyDownloads := map[string]bool{
-		"snapd":  true,
-		"core20": true,
-	}
-	_, err := snapstate.ArrangeRebootAndUpdateSeed(
+	seedTS, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		earlyDownloads,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
 		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
 	)
 	c.Assert(err, IsNil)
+	c.Assert(seedTS, NotNil)
+	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
+
+	snapdEnd, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
+	c.Assert(err, IsNil)
+
+	c.Check(waitsOnTransitively(seedCreate, snapdEnd), Equals, true)
+}
+
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefreshBeforeLocalModificationsDeps(c *C) {
+	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	_, restore := mockSeedRefreshHooks([]string{"snapd"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	stss := []snapstate.SnapInstallTaskSet{
+		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("some-app", "", snap.TypeApp),
+	}
+	seedTS, err := snapstate.ArrangeRebootAndUpdateSeed(
+		s.state,
+		stss,
+		snapstate.SeedRefreshEvictionPolicy{
+			SeedsToRetain: 1,
+		},
+		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
+	)
+	c.Assert(err, IsNil)
+	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
+
+	snapdLastBefore, err := stss[0].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+	baseLastBefore, err := stss[1].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+	appBegin, err := stss[2].TaskSet().Edge(snapstate.BeginEdge)
+	c.Assert(err, IsNil)
+	appLastBefore, err := stss[2].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
+	c.Assert(err, IsNil)
+
+	for _, lastBefore := range []*state.Task{snapdLastBefore, baseLastBefore} {
+		c.Check(waitsOnTransitively(seedCreate, lastBefore), Equals, true)
+	}
+
+	c.Check(waitsOnTransitively(seedCreate, appBegin), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, appLastBefore), Equals, false)
+	for _, lane := range seedCreate.Lanes() {
+		c.Check(appBegin.Lanes(), testutil.Contains, lane)
+		c.Check(appLastBefore.Lanes(), Not(testutil.Contains), lane)
+	}
+}
+
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialSeedRefreshNoCycle(c *C) {
+	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	_, restore := mockSeedRefreshHooks([]string{"snapd", "core20"})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
+
+	stss := []snapstate.SnapInstallTaskSet{
+		s.snapInstallTaskSetForSnapSetup("snapd", "", snap.TypeSnapd),
+		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
+		s.snapInstallTaskSetForSnapSetup("some-app", "", snap.TypeApp),
+	}
+	seedTS, err := snapstate.ArrangeRebootAndUpdateSeed(
+		s.state,
+		stss,
+		snapstate.SeedRefreshEvictionPolicy{
+			SeedsToRetain: 1,
+		},
+		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
+	)
+	c.Assert(err, IsNil)
+	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
 
 	snapdEnd, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
@@ -920,27 +965,27 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialEarlyDownlo
 	baseBegin, err := stss[1].TaskSet().Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
 
-	// if this dependency were present, it would create a cycle when snapd and
-	// an essential snap are both in the early download cohort.
-	c.Check(baseBegin.WaitTasks(), Not(testutil.Contains), snapdEnd)
+	c.Check(baseBegin.WaitTasks(), testutil.Contains, snapdEnd)
 
 	snapdLastBefore, err := stss[0].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 	baseLastBefore, err := stss[1].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
 	c.Assert(err, IsNil)
 
-	baseFirstLocalMod := firstTaskAfterLocalModifications(c, stss[1].TaskSet())
-	c.Check(waitsOnTransitively(baseFirstLocalMod, snapdLastBefore), Equals, true)
-
-	snapdFirstLocalMod := firstTaskAfterLocalModifications(c, stss[0].TaskSet())
-	c.Check(waitsOnTransitively(snapdFirstLocalMod, baseLastBefore), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, snapdLastBefore), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, baseLastBefore), Equals, true)
 }
 
-func (s *rebootSuite) TestArrangeSnapInstallTaskSetsEarlyDownloadedAppWaitsAfterEssentials(c *C) {
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshAppsWaitAfterEssentials(c *C) {
 	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
+	_, restore := mockSeedRefreshHooks([]string{"core20", "my-kernel", "some-app"})
+	defer restore()
 
 	s.state.Lock()
 	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
+	tr.Commit()
 
 	stss := []snapstate.SnapInstallTaskSet{
 		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
@@ -948,15 +993,9 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsEarlyDownloadedAppWaitsAfter
 		s.snapInstallTaskSetForSnapSetup("some-app", "", snap.TypeApp),
 		s.snapInstallTaskSetForSnapSetup("some-other-snap", "", snap.TypeApp),
 	}
-	earlyDownloads := map[string]bool{
-		"core20":    true,
-		"my-kernel": true,
-		"some-app":  true,
-	}
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		earlyDownloads,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -967,19 +1006,24 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsEarlyDownloadedAppWaitsAfter
 	finalEssential, err := stss[1].TaskSet().Edge(snapstate.EndEdge)
 	c.Assert(err, IsNil)
 
-	beginEarlyAppTask, err := stss[2].TaskSet().Edge(snapstate.BeginEdge)
+	beginSeedAppTask, err := stss[2].TaskSet().Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
-	c.Check(beginEarlyAppTask.WaitTasks(), Not(testutil.Contains), finalEssential)
+	c.Check(beginSeedAppTask.WaitTasks(), Not(testutil.Contains), finalEssential)
 
-	firstLocalModEarlyApp := firstTaskAfterLocalModifications(c, stss[2].TaskSet())
-	c.Check(firstLocalModEarlyApp.WaitTasks(), testutil.Contains, finalEssential)
+	firstLocalModSeedApp := firstTaskAfterLocalModifications(c, stss[2].TaskSet())
+	c.Check(firstLocalModSeedApp.WaitTasks(), testutil.Contains, finalEssential)
 
-	beginNonEarlyAppTask, err := stss[3].TaskSet().Edge(snapstate.BeginEdge)
+	beginNonSeedAppTask, err := stss[3].TaskSet().Edge(snapstate.BeginEdge)
 	c.Assert(err, IsNil)
-	c.Check(beginNonEarlyAppTask.WaitTasks(), testutil.Contains, finalEssential)
+	c.Check(beginNonSeedAppTask.WaitTasks(), Not(testutil.Contains), finalEssential)
+
+	// non-seed app only performs initial prerequisites before seed creation;
+	// post-prerequisite work waits until all essential snaps are complete.
+	firstPostPrereqsNonSeedApp := firstTaskAfterPrerequisites(c, stss[3].TaskSet())
+	c.Check(firstPostPrereqsNonSeedApp.WaitTasks(), testutil.Contains, finalEssential)
 }
 
-func (s *rebootSuite) TestArrangeSnapInstallTaskSetsNoEarlyDownloads(c *C) {
+func (s *rebootSuite) TestArrangeSnapInstallTaskSetsNoSeedRefreshBeforeLocalModificationsDeps(c *C) {
 	defer snapstatetest.MockDeviceModel(MakeModel20("brand-gadget", nil))()
 
 	s.state.Lock()
@@ -993,7 +1037,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsNoEarlyDownloads(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -1063,6 +1106,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	sts := snapstate.NewSnapInstallTaskSetForTest(
 		snapsup,
 		ts,
+		downloadComp,
 		[]*state.Task{downloadComp},
 		prereqSync,
 		nil,
@@ -1073,7 +1117,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		[]snapstate.SnapInstallTaskSet{sts},
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -1102,7 +1145,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapd(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -1135,7 +1177,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsBootBaseAndOtherBases(c *C) 
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -1167,7 +1208,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsForSnapWithBaseAndWithout(c 
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -1205,7 +1245,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsForSnapWithBootBaseAndWithou
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -1247,7 +1286,6 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsAll(c *C) {
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
@@ -1281,16 +1319,15 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsFailsSplit(c *C) {
 	defer s.state.Unlock()
 
 	stss := []snapstate.SnapInstallTaskSet{
-		snapstate.NewSnapInstallTaskSetForTest(nil, nil, nil, nil, nil, nil, nil),
+		snapstate.NewSnapInstallTaskSetForTest(nil, nil, nil, nil, nil, nil, nil, nil),
 	}
 	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
-		nil,
 		snapstate.SeedRefreshEvictionPolicy{
 			SeedsToRetain: 1,
 		},
 		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
 	)
-	c.Assert(err, ErrorMatches, `internal error: snap install task set has empty slices`)
+	c.Assert(err, ErrorMatches, `internal error: snap install task set has empty task ranges`)
 }
