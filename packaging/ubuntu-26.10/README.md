@@ -55,7 +55,7 @@ podman run \
     -v "snapd-ubuntu-apt-lists:/var/lib/apt/lists" \
     -v "snapd-gomod-cache:/var/cache/gomod" \
     -w /build \
-    docker.io/ubuntu:resolute \
+    docker.io/ubuntu:stonking \
     /bin/bash -x -e -u
 ```
 
