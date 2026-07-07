@@ -449,12 +449,14 @@ CLEANFILES += snap-mgmt/$(am__dirstamp) snap-mgmt/snap-mgmt-selinux
 snap-mgmt/snap-mgmt-selinux: snap-mgmt/snap-mgmt-selinux.sh.in Makefile snap-mgmt/$(am__dirstamp)
 	sed -e 's,[@]STATIC_SNAP_MOUNT_DIR[@],$(STATIC_SNAP_MOUNT_DIR),' <$< >$@
 
+endif
+
 ##
-## snap-cli-wrap (SELinux only)
+## snap-cli-wrap
 ##
-## A minimal wrapper binary installed as /usr/bin/snap on SELinux systems.
-## It carries the snappy_cli_exec_t label, ensuring the correct domain
-## transition to snappy_cli_t fires on exec, and simply execs the real
+## A minimal wrapper binary installed as /usr/bin/snap on SELinux systems, but
+## not necessarily. It carries the snappy_cli_exec_t label, ensuring the correct
+## domain transition to snappy_cli_t fires on exec, and simply execs the real
 ## snapd binary with argv[0]="snap".
 ##
 
@@ -462,8 +464,6 @@ noinst_PROGRAMS += snap-cli-wrap/snap-cli-wrap
 snap_cli_wrap_snap_cli_wrap_SOURCES = snap-cli-wrap/snap-cli-wrap.c
 snap_cli_wrap_snap_cli_wrap_CFLAGS = $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\"
 snap_cli_wrap_snap_cli_wrap_LDFLAGS = $(STATIC_LDFLAGS)
-
-endif
 
 ##
 ## snap-device-helper
