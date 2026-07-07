@@ -1,8 +1,8 @@
 #!/bin/bash
 
 _prepare_task_artifacts_path() {
+    local artifact artifacts_dir task_dir
     artifact=$1
-    local artifacts_dir task_dir
     artifacts_dir="${SPREAD_PATH}/${artifact}"
     task_dir="${artifacts_dir}/${SPREAD_JOB//\//--}"
     mkdir -p "$task_dir"
@@ -10,8 +10,8 @@ _prepare_task_artifacts_path() {
 }
 
 _prepare_suite_artifacts_path() {
+    local artifact artifacts_dir suite_dir
     artifact=$1
-    local artifacts_dir suite_dir
     artifacts_dir="${SPREAD_PATH}/${artifact}"
     suite_dir="${artifacts_dir}/${SPREAD_BACKEND}:${SPREAD_SYSTEM}:${SPREAD_SUITE//\//--}"
     mkdir -p "$suite_dir"
@@ -41,8 +41,8 @@ features_after_nested_task() {
     task_dir="$(_prepare_task_artifacts_path feature-tags)"
 
     # When a nested test is skipped, its vm will not be available
-    "$TESTSTOOLS"/remote.exec "journalctl --sync" || true
-    "$TESTSTOOLS"/remote.exec "journalctl --flush" || true
+    "$TESTSTOOLS"/remote.exec "sudo journalctl --sync" || true
+    "$TESTSTOOLS"/remote.exec "sudo journalctl --flush" || true
     # Collect TRACE logs from all boots, appending each boot's logs to journal.txt
     "$TESTSTOOLS"/remote.exec "journalctl --list-boots -q | awk '{print \$1}' | while read boot_id; do sudo journalctl -b \"\$boot_id\" --no-pager | grep -oP 'snap(?:d|-bootstrap)?\[\d+\]: \K.*' | sed -e ':a' -e '/^{.*\\\"TRACE\\\".*[^}]$/ { N; s/\n//; ba }' | grep '\"TRACE\"'; done" > "$task_dir"/journal.txt || true
 

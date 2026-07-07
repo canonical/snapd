@@ -207,10 +207,10 @@ save_installed_core_snap() {
 }
 
 add_to_kernel_cmdline() {
-    params=$1
+    local params=$1
     if [ "$SPREAD_REBOOT" = 0 ]; then
         if [ -f "/etc/default/grub.d/99-spread-kcmdline.cfg" ]; then
-            echo "/etc/default/grub.d/99-spread-kcmdline.cfg already exists" >& 2
+            echo "/etc/default/grub.d/99-spread-kcmdline.cfg already exists" >&2
             exit 1
         fi
         cat <<EOF | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
@@ -1407,12 +1407,12 @@ repack_gadget_w_feature_tagging_core_18() {
     done
     cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
-system:
-journal:
-persistent: true
+  system:
+    journal:
+      persistent: true
 EOF
     snap pack --filename=pc-repacked.snap pc-gadget 
-    mv pc-repacked.snap $repack_dir/pc-repacked.snap
+    mv pc-repacked.snap "$repack_dir"/pc-repacked.snap
     echo "$repack_dir/pc-repacked.snap"
 }
 
