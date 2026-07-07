@@ -729,7 +729,7 @@ backends:
                 PATH="${SPREAD_HOST_PATH}"
             fi
             # Spread does not expose any settings to ad-hoc backends.
-            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_MEM_OPTION="-m 6144"
             export QEMU_SMP_OPTION="-smp 4"
             exec image-garden allocate "$(.image-garden/remap-name snapd-to-garden "$SPREAD_SYSTEM")"
         discard: |
