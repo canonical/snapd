@@ -60,10 +60,11 @@
 
 /*
  * Preserved namespaces need enough metadata to tell when their trust store
- * view no longer matches what new launches should see. This key is used so
- * namespaces created before the directory-mount change are discarded on reuse.
+ * view no longer matches what new launches should see. Record the immutable
+ * published generation selected by /var/lib/snapd/pki/v1/merged so
+ * namespaces can be discarded when snapd flips merged to a new generation.
  */
-#define SC_MANAGED_CA_CERTS_DIR_MTIME_KEY "managed-ca-certs-dir-mtime"
+#define SC_MANAGED_CA_CERTS_GENERATION_KEY "managed-ca-certs-generation"
 
 /**
  * Effective value of SC_NS_DIR.
@@ -71,6 +72,7 @@
  * We use 'const char *' so we can update sc_ns_dir in the testsuite
  **/
 static const char *sc_ns_dir = SC_NS_DIR;
+static const char *sc_managed_ca_certs_dir = SC_MANAGED_CA_CERTS_DIR;
 
 enum {
     HELPER_CMD_EXIT,
@@ -325,17 +327,50 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_home
     return all_seen;
 }
 
+// managed_ca_cert_generation returns the immutable published-generation ID
+// selected by /var/lib/snapd/pki/v1/merged. When merged is absent or is not a
+// symlink to a generation-backed directory, no generation is returned.
+static char *managed_ca_cert_generation(void) {
+    struct stat ca_stat;
+    if (lstat(sc_managed_ca_certs_dir, &ca_stat) != 0) {
+        if (errno == ENOENT) {
+            return NULL;
+        }
+        die("cannot stat %s", sc_managed_ca_certs_dir);
+    }
+    if (!S_ISLNK(ca_stat.st_mode)) {
+        return NULL;
+    }
+
+    char target[PATH_MAX + 1] = {0};
+    ssize_t len = readlink(sc_managed_ca_certs_dir, target, sizeof target - 1);
+    if (len < 0) {
+        if (errno == ENOENT) {
+            return NULL;
+        }
+        die("cannot read current managed CA cert generation from %s", sc_managed_ca_certs_dir);
+    }
+    target[len] = '\0';
+
+    char *generation = strrchr(target, '/');
+    generation = generation != NULL ? generation + 1 : target;
+    if (generation[0] == '\0') {
+        return NULL;
+    }
+
+    return sc_strdup(generation);
+}
+
 /**
- * managed_ca_cert_db_changed returns true when the modification time of the
- * managed CA certificate directory has changed since the namespace was created.
+ * managed_ca_cert_db_changed returns true when the managed CA certificate
+ * generation visible on the host no longer matches what was recorded when the
+ * preserved namespace was created.
  *
- * The directory mtime is recorded to detect when the namespace predates the
- * directory mount and must be recreated so confined processes can see the
- * full managed trust store layout. If the key is not present (e.g. upgraded
- * from an older snap-confine before managed CA namespace tracking existed),
- * no staleness is reported so that creation of the namespace is not forced
- * unnecessarily. If the new key is present but the directory does not exist,
- * staleness is reported.
+ * A namespace with no recorded generation is reused only while the host also
+ * has no generation-backed managed trust store to mount. As soon as
+ * /var/lib/snapd/pki/v1/merged points at a published generation, such a
+ * namespace is discarded so a recreated namespace can mount the current host
+ * generation.
  **/
 static bool managed_ca_cert_db_changed(const sc_invocation *inv) {
     char info_path[PATH_MAX] = {0};
@@ -344,44 +379,46 @@ static bool managed_ca_cert_db_changed(const sc_invocation *inv) {
 
     FILE *stream SC_CLEANUP(sc_cleanup_file) = NULL;
     stream = fopen(info_path, "r");
-    if (stream == NULL) {
-        return false;
+    if (stream == NULL && errno != ENOENT) {
+        die("cannot open %s", info_path);
     }
 
-    char *saved_mtime SC_CLEANUP(sc_cleanup_string) = NULL;
-    sc_error *err = NULL;
-    if (sc_infofile_get_key(stream, SC_MANAGED_CA_CERTS_DIR_MTIME_KEY, &saved_mtime, &err) < 0) {
-        sc_die_on_error(err);
+    char *saved_generation SC_CLEANUP(sc_cleanup_string) = NULL;
+    if (stream != NULL) {
+        sc_error *err = NULL;
+        if (sc_infofile_get_key(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY, &saved_generation, &err) < 0) {
+            sc_die_on_error(err);
+        }
     }
 
-    if (saved_mtime == NULL) {
-        // No mtime recorded; this namespace was created before the
-        // feature was available.  Do not force a discard.
-        return false;
-    }
+    char *current_generation SC_CLEANUP(sc_cleanup_string) = managed_ca_cert_generation();
 
-    struct stat ca_stat;
-    if (stat(SC_MANAGED_CA_CERTS_DIR, &ca_stat) != 0) {
-        // The managed directory does not exist (yet). If a mtime was
-        // recorded the directory has been removed, which counts as a
-        // change.
+    if (saved_generation == NULL) {
+        if (current_generation == NULL) {
+            return false;
+        }
+        debug("managed CA cert generation %s is now available, discarding namespace without recorded generation",
+              current_generation);
         return true;
     }
 
-    char current_mtime[64] = {0};
-    sc_must_snprintf(current_mtime, sizeof current_mtime, "%lld.%09ld",
-                     (long long)ca_stat.st_mtim.tv_sec,
-                     ca_stat.st_mtim.tv_nsec);
+    if (current_generation == NULL) {
+        debug("managed CA cert generation %s was recorded but the current host generation is unavailable",
+              saved_generation);
+        return true;
+    }
 
-    if (!sc_streq(saved_mtime, current_mtime)) {
-        debug("managed CA cert directory mtime changed: %s -> %s", saved_mtime, current_mtime);
+    if (!sc_streq(saved_generation, current_generation)) {
+        debug("managed CA cert generation changed: %s -> %s", saved_generation, current_generation);
         return true;
     }
 
     return false;
 }
 
-// Inspect the namespace and check if we should discard it.
+/**
+ * Inspect the namespace and check if we should discard it.
+ */
 static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t base_snap_dev) {
     sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
 
@@ -958,14 +995,11 @@ void sc_store_ns_info(const sc_invocation *inv) {
     }
     fprintf(stream, "base-snap-name=%s\n", inv->orig_base_snap_name);
 
-    // Record the directory mtime so preserved namespaces are recreated when
-    // snapd regenerates any part of the managed trust store, not just the
-    // bundle file.
-    struct stat ca_stat;
-    if (stat(SC_MANAGED_CA_CERTS_DIR, &ca_stat) == 0) {
-        fprintf(stream, SC_MANAGED_CA_CERTS_DIR_MTIME_KEY "=%lld.%09ld\n",
-                (long long)ca_stat.st_mtim.tv_sec,
-                ca_stat.st_mtim.tv_nsec);
+    // Record the selected published generation so preserved namespaces are
+    // recreated when snapd flips merged to a different trust-store view.
+    char *generation SC_CLEANUP(sc_cleanup_string) = managed_ca_cert_generation();
+    if (generation != NULL) {
+        fprintf(stream, SC_MANAGED_CA_CERTS_GENERATION_KEY "=%s\n", generation);
     }
 
     if (ferror(stream) != 0) {

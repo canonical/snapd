@@ -54,6 +54,8 @@
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
 #define NUM_ELEM(x) (sizeof(x) / sizeof((x)[0]))
 
+static const char *sc_managed_ca_certs_dir = SC_MANAGED_CA_CERTS_DIR;
+
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
 
 // Treat the managed trust store as an optional overlay. If either side does
@@ -87,6 +89,34 @@ static bool sc_should_bind_mount_dir(const char *src, const char *dst) {
     return true;
 }
 
+// Resolve the host-managed CA certificate view to the immutable generation
+// directory currently selected by /var/lib/snapd/pki/v1/merged. Legacy
+// non-symlink layouts are intentionally ignored so namespaces only ever mount
+// generation-backed trust stores.
+static char *sc_resolve_managed_ca_certs_dir(void) {
+    struct stat src_lstat;
+    if (lstat(sc_managed_ca_certs_dir, &src_lstat) != 0) {
+        if (errno == ENOENT) {
+            return NULL;
+        }
+        die("cannot stat %s", sc_managed_ca_certs_dir);
+    }
+    if (!S_ISLNK(src_lstat.st_mode)) {
+        debug("entry %s is not a symlink, skipping mount", sc_managed_ca_certs_dir);
+        return NULL;
+    }
+
+    char *resolved = realpath(sc_managed_ca_certs_dir, NULL);
+    if (resolved == NULL) {
+        if (errno == ENOENT) {
+            return NULL;
+        }
+        die("cannot resolve %s", sc_managed_ca_certs_dir);
+    }
+
+    return resolved;
+}
+
 // Mount the whole managed trust store so confined processes see the same trust
 // decisions regardless of whether their TLS stack reads the bundle file or
 // resolves certificates through the directory layout under /etc/ssl/certs.
@@ -94,13 +124,18 @@ static bool sc_should_bind_mount_dir(const char *src, const char *dst) {
 // trust store without mutating the namespace copy of that view.
 static void sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
     char dst[PATH_MAX] = {0};
+    char *src SC_CLEANUP(sc_cleanup_string) = sc_resolve_managed_ca_certs_dir();
     sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, SC_SYSTEM_CA_CERTS_DIR);
 
-    if (!sc_should_bind_mount_dir(SC_MANAGED_CA_CERTS_DIR, dst)) {
+    if (src == NULL) {
         return;
     }
 
-    sc_do_mount(SC_MANAGED_CA_CERTS_DIR, dst, NULL, MS_BIND, NULL);
+    if (!sc_should_bind_mount_dir(src, dst)) {
+        return;
+    }
+
+    sc_do_mount(src, dst, NULL, MS_BIND, NULL);
     sc_do_mount(NULL, dst, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
 }
 
