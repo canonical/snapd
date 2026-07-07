@@ -157,6 +157,15 @@ func delayedEffectsTask(chg *state.Change) *state.Task {
 	return nil
 }
 
+func hasPrepareConnectionHook(snapInfo *snap.Info) bool {
+	for hookName := range snapInfo.Hooks {
+		if strings.HasPrefix(hookName, "prepare-plug-") || strings.HasPrefix(hookName, "prepare-slot-") {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -228,15 +237,31 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	}
 
 	if prepareProfiles {
-		// In prepare mode we only refresh repository state and run backend
-		// preparation; full profile setup is deferred to the later
-		// setup-profiles task after auto-connect.
+		// In prepare mode we refresh repository state and run backend
+		// preparation. Full connection-aware regeneration is deferred to the
+		// later setup-profiles task after auto-connect, but snaps that declare
+		// prepare connection hooks still need baseline setup now so those hooks
+		// can execute under confinement.
 		if _, _, err = m.refreshAppSetConnections(task, appSet); err != nil {
 			return err
 		}
 
 		for _, backend := range m.repo.Backends() {
 			if err := backend.Prepare(appSet); err != nil {
+				return err
+			}
+		}
+		if hasPrepareConnectionHook(snapInfo) {
+			// prepare-{plug,slot}- hooks run before the later full setup-profiles
+			// task, so their hook context still needs baseline confinement and
+			// backend artifacts such as snap device cgroup policy files.
+			sctxs := map[string]interfaces.SetupContext{
+				appSet.InstanceName(): {
+					Reason:          interfaces.SnapSetupReasonOwnUpdate,
+					CanDelayEffects: false,
+				},
+			}
+			if err := m.setupSecurityByBackend(task, []*interfaces.SnapAppSet{appSet}, []interfaces.ConfinementOptions{opts}, sctxs, perfTimings); err != nil {
 				return err
 			}
 		}
