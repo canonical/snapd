@@ -150,7 +150,6 @@ distro_install_package() {
         # reason, disable weak deps altogether.
         DNF_FLAGS="--setopt=install_weak_deps=False"
     fi
-    YUM_FLAGS=
     ZYPPER_FLAGS=
     while [ -n "$1" ]; do
         case "$1" in
