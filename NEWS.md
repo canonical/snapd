@@ -1,3 +1,6 @@
+# New in snapd 2.76.2
+* interfaces: steam-support, docker-support | fix mountinfo denial
+
 # New in snapd 2.76.1
 * LP: #2067006 CVE-2024-5300
 * CVE-2026-3888

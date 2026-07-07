@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.76.1
+Version:        2.76.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -1016,6 +1016,10 @@ fi
 %endif
 
 %changelog
+* Tue Jul 07 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.76.2
+ - interfaces: steam-support, docker-support | fix mountinfo denial
+
 * Thu Jun 25 2026 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.76.1
  - LP: #2067006 CVE-2024-5300
