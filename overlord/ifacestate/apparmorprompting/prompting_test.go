@@ -750,7 +750,106 @@ func (s *apparmorpromptingSuite) TestAskShutdownBeforeSending(c *C) {
 	c.Check(mgr.Stop(), IsNil)
 }
 
-func (s *apparmorpromptingSuite) TestAskShutdownBeforeReply(c *C) {
+func (s *apparmorpromptingSuite) TestAskShutdownBeforeReplyWithStop(c *C) {
+	proceedWithClose, _, _, restore := apparmorprompting.MockListenerWithDelayedClose()
+	defer restore()
+
+	const (
+		uid      = 1000
+		pid      = 1234
+		cgroup   = "some-cgroup-path"
+		snap     = "obs-studio"
+		iface    = "audio-record"
+		promptID = prompting.IDType(1)
+	)
+
+	// Write a mapping from an API request to a prompt ID so that the prompts
+	// backend is not immediately ready. We do this so we can easily use the
+	// readiness signal to know when the request has been received and fully
+	// processed.
+	const requestMapping = `{"request-mapping":{"api:1000:audio-record:obs-studio:1234":{"prompt-id":"0000000000000001","user-id":1000}}}`
+	requestMapFilepath := filepath.Join(dirs.SnapInterfacesRequestsRunDir, "request-key-mapping.json")
+	c.Assert(os.MkdirAll(dirs.SnapInterfacesRequestsRunDir, 0o777), IsNil)
+	c.Assert(osutil.AtomicWriteFile(requestMapFilepath, []byte(requestMapping), 0o600, 0), IsNil)
+
+	mgr, err := apparmorprompting.New(s.noticeMgr)
+	c.Assert(err, IsNil)
+
+	// Call Ask, then signal when response has been validated
+	doneChan := make(chan struct{})
+	go func() {
+		outcome, err := mgr.Ask(uid, iface, snap, pid, cgroup)
+		c.Check(outcome, Equals, prompting.OutcomeUnset)
+		c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+		close(doneChan)
+	}()
+
+	// Wait for the manager to be ready
+	select {
+	case <-mgr.Ready():
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("manager failed to become ready after receiving request")
+	}
+
+	// Now Ask should be waiting for a reply. Stop the manager instead.
+	stopResultChan := make(chan error)
+	go func() {
+		select {
+		case stopResultChan <- mgr.Stop():
+			// all good
+		case <-time.After(time.Second):
+			stopResultChan <- fmt.Errorf("timed out waiting for Stop to return")
+		}
+	}()
+
+	select {
+	case <-doneChan:
+		// all good
+	case <-time.After(time.Second):
+		c.Errorf("Ask failed to finish after manager stopped")
+	}
+
+	// Since we delayed the listener close, the prompts backend should not have
+	// closed yet.
+	clientActivity := false
+	prompts, err := mgr.PromptDB().Prompts(uid, clientActivity)
+	c.Check(prompts, HasLen, 1)
+	c.Check(err, IsNil)
+
+	// Try to reply, see that we get ErrPromptingClosed from the Reply closure
+	outcome := prompting.OutcomeAllow
+	_, err = mgr.PromptDB().Reply(uid, promptID, outcome, clientActivity)
+	c.Check(err, Equals, prompting_errors.ErrPromptingClosed)
+
+	// To confirm this was not because the prompts backend was closed, check
+	// that it is still not closed, and that the prompt still exists, so it can
+	// be recreated if/when snapd restarts.
+	prompts, err = mgr.PromptDB().Prompts(uid, clientActivity)
+	c.Check(prompts, HasLen, 1)
+	c.Check(err, IsNil)
+
+	// Check that manager.Stop() has not returned yet
+	select {
+	case err = <-stopResultChan:
+		c.Errorf("received unexpected result from stopResultChan: %v", err)
+	default:
+		// all good
+	}
+
+	// Proceed with closing the manager
+	close(proceedWithClose)
+
+	// Now wait for manager.Stop() to finish
+	select {
+	case err = <-stopResultChan:
+		c.Check(err, IsNil)
+	case <-time.After(time.Second):
+		c.Errorf("timed out waiting for result from mgr.Stop()")
+	}
+}
+
+func (s *apparmorpromptingSuite) TestAskShutdownBeforeReplyWithShutDown(c *C) {
 	_, _, restore := apparmorprompting.MockListener()
 	defer restore()
 
