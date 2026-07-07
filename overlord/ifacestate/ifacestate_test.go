@@ -5703,6 +5703,7 @@ slots:
 	change := s.addRemoveSnapSecurityChange("consumer")
 	s.se.Ensure()
 	s.se.Wait()
+	s.se.ShutDown()
 	s.se.Stop()
 
 	// Change succeeds
@@ -7156,6 +7157,7 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 	s.state.Unlock()
 	s.se.Ensure()
 	s.se.Wait()
+	s.se.ShutDown()
 	s.se.Stop()
 	s.state.Lock()
 
@@ -7902,6 +7904,40 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	warns := s.state.AllWarnings()
 	c.Check(warns, HasLen, 1)
 	c.Check(warns[0].String(), Matches, fmt.Sprintf(`cannot start prompting backend: %v; prompting will be inactive until snapd is restarted`, createError))
+}
+
+func (s *interfaceManagerSuite) TestShutDownInterfacesRequestsManager(c *C) {
+	shutDownCount := 0
+	restore := ifacestate.MockInterfacesRequestsManagerShutDown(func(m *apparmorprompting.InterfacesRequestsManager) {
+		shutDownCount++
+	})
+	defer restore()
+	mgr := ifacestate.NewInterfaceManagerWithAppArmorPrompting(true)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, nil)
+	mgr.ShutDown()
+	c.Check(shutDownCount, Equals, 0)
+
+	restore = ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return true, nil
+	})
+	defer restore()
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
+		return fakeManager, nil
+	})
+	defer restore()
+
+	mgr = s.manager(c)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+
+	mgr.ShutDown()
+	c.Check(shutDownCount, Equals, 1)
+
+	mgr.Stop()
 }
 
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
@@ -9168,6 +9204,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	for i := 0; i < 5; i++ {
 		c.Assert(s.se.Ensure(), IsNil)
 	}
+	s.se.ShutDown()
 	s.se.Stop()
 
 	c.Assert(u.ConnectCalls, Equals, 1)

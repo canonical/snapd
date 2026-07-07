@@ -391,8 +391,7 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int3
 	return prompting.OutcomeAllow, nil
 }
 
-// ShutDown stops the listener, prompt DB, and rule DB from receiving new
-// requests.
+// ShutDown signals the manager to reject new and pending Ask() calls.
 func (m *InterfacesRequestsManager) ShutDown() {
 	m.shutDownOnce.Do(func() {
 		close(m.snapdShuttingDown)
