@@ -1,5 +1,13 @@
 summary: Check that an explicitly installed "dependency" remains marked explicitly installed
 
+details: |
+  There are cases where a user wants a snap which was previously installed
+  implicitly to be installed explicitly (that is to say, they explicitly install
+  it). Similarly to how package managers such as apt manage this is by marking a
+  package as explicitly installed if the user attempts to install it. This test
+  shows that if a snap was installed implicitly but is later explicitly installed,
+  the implicitly-installed flag updates.
+
 prepare: |
   snap install --devmode jq
   snap install core18

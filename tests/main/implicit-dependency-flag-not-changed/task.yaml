@@ -1,4 +1,9 @@
-summary: Check that an explicitly installed remains marked as explicitly installed after refresh
+summary: Check that an explicitly installed snap remains marked as explicitly installed after refresh
+
+details: |
+  Snaps which are explicitly installed by the user should never have the
+  implicitly-installed flag set to true on them. This test shows that snaps
+  which are refreshed do not have this flag added.
 
 prepare: |
   snap install --devmode jq
