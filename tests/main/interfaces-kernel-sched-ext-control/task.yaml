@@ -10,8 +10,9 @@ details: |
     be able to be reconnected.
 
     A snap declaring a plug on this interface must be able to read
-    /sys/kernel/btf/vmlinux and /sys/fs/bpf/ when the plug is connected, and
-    must be denied access to these paths when disconnected.
+    /sys/kernel/btf/vmlinux, /sys/fs/bpf/ and /sys/kernel/sched_ext/ when
+    the plug is connected, and must be denied access to
+    /sys/kernel/sched_ext/state when disconnected.
 
 skip:
     - reason: sched_ext was merged in Linux 6.12
@@ -47,6 +48,6 @@ execute: |
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:kernel-sched-ext-control
 
-    echo "Then the snap is no longer able to read /sys/kernel/btf/vmlinux"
-    not test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/kernel/btf/vmlinux" 2> access.error
+    echo "Then the snap is no longer able to read /sys/kernel/sched_ext/state"
+    not test-snapd-sh.with-kernel-sched-ext-control-plug -c "cat /sys/kernel/sched_ext/state" 2> access.error
     MATCH "Permission denied" < access.error
