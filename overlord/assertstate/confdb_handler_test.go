@@ -28,10 +28,14 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -48,6 +52,7 @@ var _ = Suite(&confdbHandlerSuite{})
 
 func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
 	s.st = state.New(nil)
 	assertstate.DelayedCrossMgrInit()
 
@@ -94,10 +99,12 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	s.AddCleanup(snapstatetest.MockDeviceContext(deviceCtx))
 	s.st.Set("seeded", true)
 
+	s.mockInstalledSnap(c, "enforced-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.R(7))
+
 	s.addValidationSetAssert(c, "my-account", "my-set", 1, []any{
 		map[string]any{
-			"id":       "mysnapididididididididididididid",
-			"name":     "my-snap",
+			"id":       "cccchntON3vR7kwEbVPsILm7bUViPDcc",
+			"name":     "missing-snap",
 			"presence": "required",
 			"revision": "1",
 			"components": map[string]any{
@@ -148,6 +155,16 @@ func (s *confdbHandlerSuite) addValidationSetAssert(c *C, accountID, name string
 	c.Assert(assertstate.Add(s.st, a), IsNil)
 }
 
+func (s *confdbHandlerSuite) mockInstalledSnap(c *C, name, snapID string, revision snap.Revision) {
+	sideInfo := &snap.SideInfo{RealName: name, SnapID: snapID, Revision: revision}
+	snaptest.MockSnap(c, fmt.Sprintf("name: %s\nversion: 1", name), sideInfo)
+	snapstate.Set(s.st, name, &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{sideInfo}),
+		Current:  revision,
+	})
+}
+
 func (s *confdbHandlerSuite) TestDatabagEmpty(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -171,7 +188,14 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 		Mode:      assertstate.Monitor,
 		Current:   1,
 	})
-	s.addValidationSetAssert(c, "acct1", "set-b", 4, nil)
+	s.addValidationSetAssert(c, "acct1", "set-b", 4, []any{
+		map[string]any{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "enforced-snap",
+			"presence": "required",
+			"revision": "7",
+		},
+	})
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "acct1",
 		Name:      "set-b",
@@ -197,12 +221,13 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 		"my-account": map[string]any{
 			"my-set": map[string]any{
 				"mode":     "monitor",
+				"status":   "invalid",
 				"sequence": float64(1),
 				"revision": float64(1),
 				"snaps": []any{
 					map[string]any{
-						"name":     "my-snap",
-						"id":       "mysnapididididididididididididid",
+						"name":     "missing-snap",
+						"id":       "cccchntON3vR7kwEbVPsILm7bUViPDcc",
 						"presence": "required",
 						"revision": float64(1),
 						"components": map[string]any{
@@ -218,18 +243,27 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 				},
 			},
 		},
-		// snap and component constraints are omitted from these two for conciseness
 		"acct1": map[string]any{
 			"set-b": map[string]any{
 				"mode":            "enforce",
+				"status":          "valid",
 				"sequence":        float64(4),
 				"pinned-sequence": float64(5),
 				"revision":        float64(1),
+				"snaps": []any{
+					map[string]any{
+						"name":     "enforced-snap",
+						"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+						"presence": "required",
+						"revision": float64(7),
+					},
+				},
 			},
 		},
 		"acct2": map[string]any{
 			"set-c": map[string]any{
 				"mode":     "enforce",
+				"status":   "valid",
 				"sequence": float64(1),
 				"revision": float64(1),
 			},

@@ -26,8 +26,10 @@ import (
 	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/overlord/confdbstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
@@ -54,6 +56,11 @@ func (c *valsetsConfdbHandler) Databag(st *state.State) (confdb.JSONDatabag, err
 	}
 
 	db := DB(st)
+	installedSnaps, _, err := snapstate.InstalledSnaps(st)
+	if err != nil {
+		return nil, err
+	}
+
 	accounts := make(map[string]map[string]any)
 	for _, tr := range sets {
 		valset := map[string]any{
@@ -83,6 +90,16 @@ func (c *valsetsConfdbHandler) Databag(st *state.State) (confdb.JSONDatabag, err
 
 		vs := a.(*asserts.ValidationSet)
 		valset["revision"] = vs.Revision()
+		vsets := snapasserts.NewValidationSets()
+		if err := vsets.Add(vs); err != nil {
+			return nil, err
+		}
+		status := "valid"
+		if err := vsets.CheckInstalledSnaps(installedSnaps, nil); err != nil {
+			status = "invalid"
+		}
+		valset["status"] = status
+
 		snaps := buildSnapsEntry(vs.Snaps())
 		if len(snaps) > 0 {
 			valset["snaps"] = snaps
