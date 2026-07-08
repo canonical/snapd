@@ -40,7 +40,6 @@ require (
 require (
 	github.com/cilium/ebpf v0.9.1
 	go.etcd.io/bbolt v1.3.9
-	gopkg.in/ini.v1 v1.67.3
 )
 
 require (
