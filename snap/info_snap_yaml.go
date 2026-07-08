@@ -497,7 +497,7 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info, strk *scopedTracker) error {
 			snap.LegacyAliases[alias] = app
 		}
 
-		plugDependencies, err := GetDependenciesFor(append(yApp.PlugNames, globalPlugs...), yApp.SlotNames, snap.Base)
+		plugDependencies, err := DependenciesFor(append(yApp.PlugNames, globalPlugs...), yApp.SlotNames, snap.Base)
 		if err != nil {
 			return err
 		}

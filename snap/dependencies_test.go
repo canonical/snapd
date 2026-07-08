@@ -32,7 +32,7 @@ var _ = Suite(&dependenciesSuite{})
 func (s *dependenciesSuite) TestBasicDependencies(c *C) {
 	plugs := []string{"desktop-legacy"}
 	slots := []string{}
-	deps, err := snap.GetDependenciesFor(plugs, slots, "core24")
+	deps, err := snap.DependenciesFor(plugs, slots, "core24")
 	c.Assert(err, IsNil)
 	c.Assert(deps, DeepEquals, []string{"accessibility-legacy"})
 }
@@ -40,7 +40,7 @@ func (s *dependenciesSuite) TestBasicDependencies(c *C) {
 func (s *dependenciesSuite) TestForbiddenDependencies(c *C) {
 	plugs := []string{"desktop-legacy", "accessibility-legacy"}
 	slots := []string{}
-	deps, err := snap.GetDependenciesFor(plugs, slots, "core24")
+	deps, err := snap.DependenciesFor(plugs, slots, "core24")
 	c.Assert(err, NotNil)
 	c.Assert(deps, IsNil)
 }
@@ -48,7 +48,7 @@ func (s *dependenciesSuite) TestForbiddenDependencies(c *C) {
 func (s *dependenciesSuite) TestSlotDependencies(c *C) {
 	plugs := []string{"desktop-legacy"}
 	slots := []string{"accessibility-legacy"}
-	deps, err := snap.GetDependenciesFor(plugs, slots, "core24")
+	deps, err := snap.DependenciesFor(plugs, slots, "core24")
 	c.Assert(err, IsNil)
 	c.Assert(deps, DeepEquals, []string{})
 }
@@ -56,7 +56,7 @@ func (s *dependenciesSuite) TestSlotDependencies(c *C) {
 func (s *dependenciesSuite) TestNoDependencies(c *C) {
 	plugs := []string{"desktop"}
 	slots := []string{}
-	deps, err := snap.GetDependenciesFor(plugs, slots, "core24")
+	deps, err := snap.DependenciesFor(plugs, slots, "core24")
 	c.Assert(err, IsNil)
 	c.Assert(deps, DeepEquals, []string{})
 }
@@ -78,7 +78,7 @@ func (s *dependenciesSuite) TestMultiDependencies(c *C) {
 
 	forbiddenList := []string{}
 
-	deps, err := snap.GetDependenciesForTest(plugs, slots, "core24", dependencyList, forbiddenList)
+	deps, err := snap.DependenciesForTest(plugs, slots, "core24", dependencyList, forbiddenList)
 	c.Assert(err, IsNil)
 	c.Assert(deps, DeepEquals, []string{"dep3", "dep4", "dep5"})
 }
@@ -100,7 +100,7 @@ func (s *dependenciesSuite) TestMultiDependenciesWithMinimumBase(c *C) {
 
 	forbiddenList := []string{}
 
-	deps, err := snap.GetDependenciesForTest(plugs, slots, "core24", dependencyList, forbiddenList)
+	deps, err := snap.DependenciesForTest(plugs, slots, "core24", dependencyList, forbiddenList)
 	c.Assert(err, IsNil)
 	c.Assert(deps, DeepEquals, []string{"dep4", "dep5"})
 }
@@ -122,7 +122,7 @@ func (s *dependenciesSuite) TestMultiDependenciesWithMaximumBase(c *C) {
 
 	forbiddenList := []string{}
 
-	deps, err := snap.GetDependenciesForTest(plugs, slots, "core24", dependencyList, forbiddenList)
+	deps, err := snap.DependenciesForTest(plugs, slots, "core24", dependencyList, forbiddenList)
 	c.Assert(err, IsNil)
 	c.Assert(deps, DeepEquals, []string{"dep3", "dep4"})
 }

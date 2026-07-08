@@ -30,7 +30,7 @@ var (
 	GetAttribute                 = getAttribute
 	EvalAndValidateSymlink       = evalAndValidateSymlink
 	ShouldValidateSymlink        = shouldValidateSymlink
-	GetDependenciesForTest       = getDependenciesFor
+	DependenciesForTest          = getDependenciesFor
 )
 
 func (info *Info) ForceRenamePlug(oldName, newName string) {

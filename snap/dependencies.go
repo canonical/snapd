@@ -42,7 +42,7 @@ var forbiddenInterfaces = []string{
 	"accessibility-legacy",
 }
 
-func GetDependenciesFor(plugs []string, slots []string, base string) ([]string, error) {
+func DependenciesFor(plugs []string, slots []string, base string) ([]string, error) {
 	return getDependenciesFor(plugs, slots, base, dependencies, forbiddenInterfaces)
 }
 
