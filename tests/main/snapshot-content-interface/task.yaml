@@ -1,0 +1,28 @@
+summary: Check that snapshots work with content interfaces
+
+environment:
+    # tar invoked when creating snapshots triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
+debug: |
+    snap list || true
+    snap saved || true
+
+execute: |
+  snap pack prod
+  snap pack cons
+
+  snap install --dangerous test-prod_1.0_all.snap
+  snap install --dangerous test-cons_1.0_all.snap
+  snap connect test-cons:ciiface test-prod:ciiface
+
+  # Writes a file in the shared folder
+  sudo test-prod.test
+  # Reads it
+  sudo test-cons.test
+
+  set_id=$(snap save test-prod | tail -n1 | cut -d' ' -f1)
+  snap restore "$set_id" test-prod
+
+  # Still can read after save/restore
+  sudo test-cons.test
