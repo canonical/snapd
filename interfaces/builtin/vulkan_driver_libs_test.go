@@ -234,6 +234,10 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
+	// ldconfig is only active on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
