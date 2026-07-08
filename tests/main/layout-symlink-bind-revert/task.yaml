@@ -10,15 +10,10 @@ systems:
   - -ubuntu-14.04-*
 
 prepare: |
-    echo "Ensure feature flag is enabled"
-    snap set core experimental.layouts=true
     echo "Prepare the snaps we're going to use"
     snap pack ./runtime .
     snap pack ./app.v1 .
     snap pack ./app.v2 .
-
-restore: |
-    snap unset core experimental.layouts
 
 execute: |
     echo "The runtime and the application are installed and connected"

@@ -112,7 +112,7 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 	task := r.state.NewTask("configure", "configure")
 	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), task)
 
-	c.Assert(tr.Set("core", "experimental.layouts", true), IsNil)
+	c.Assert(tr.Set("core", "experimental.dbus-activation", true), IsNil)
 
 	r.state.Unlock()
 	c.Assert(configcore.Run(coreDev, tr), IsNil)
@@ -120,12 +120,12 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 
 	tr.Commit()
 
-	msg := "feature layouts is enabled by default and will be permanently enabled in a future release"
+	msg := "feature dbus-activation is enabled by default and will be permanently enabled in a future release"
 
-	var layouts bool
-	err := tr.Get("core", "experimental.layouts", &layouts)
+	var enabled bool
+	err := tr.Get("core", "experimental.dbus-activation", &enabled)
 	c.Check(err, IsNil)
-	c.Check(layouts, Equals, true)
+	c.Check(enabled, Equals, true)
 
 	c.Check(strings.Join(task.Log(), "\n"), testutil.Contains, msg)
 	c.Check(warningsStrings(r.state.AllWarnings()), testutil.Contains, msg)
@@ -167,7 +167,7 @@ func (r *graduatedSuite) TestPruneGraduatedExperimentalConfig(c *C) {
 	for _, feature := range features.Graduated() {
 		c.Assert(setupTr.Set("core", "experimental."+feature, true), IsNil)
 	}
-	c.Assert(setupTr.Set("core", "experimental.layouts", true), IsNil)
+	c.Assert(setupTr.Set("core", "experimental.dbus-activation", true), IsNil)
 	setupTr.Commit()
 
 	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), nil)
@@ -180,10 +180,10 @@ func (r *graduatedSuite) TestPruneGraduatedExperimentalConfig(c *C) {
 		c.Check(config.IsNoOption(err), Equals, true)
 	}
 
-	var layouts bool
-	err := tr.Get("core", "experimental.layouts", &layouts)
+	var enabled bool
+	err := tr.Get("core", "experimental.dbus-activation", &enabled)
 	c.Check(err, IsNil)
-	c.Check(layouts, Equals, true)
+	c.Check(enabled, Equals, true)
 }
 
 func (r *graduatedSuite) TestPruneGraduatedExperimentalConfigDoesNotCreateConfig(c *C) {

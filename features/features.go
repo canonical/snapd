@@ -35,10 +35,8 @@ import (
 type SnapdFeature int
 
 const (
-	// Layouts controls availability of snap layouts.
-	Layouts SnapdFeature = iota
 	// ParallelInstances controls availability installing a snap multiple times.
-	ParallelInstances
+	ParallelInstances SnapdFeature = iota
 	// Hotplug controls availability of dynamically creating slots based on system hardware.
 	Hotplug
 	// RefreshAppAwareness controls refresh being aware of running applications.
@@ -104,7 +102,6 @@ func KnownFeatures() []SnapdFeature {
 // featureNames maps feature constant to stable string representation.
 // The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
 var featureNames = map[SnapdFeature]string{
-	Layouts:             "layouts",
 	ParallelInstances:   "parallel-instances",
 	Hotplug:             "hotplug",
 	RefreshAppAwareness: "refresh-app-awareness",
@@ -143,7 +140,6 @@ var featureNames = map[SnapdFeature]string{
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	Layouts:                       true,
 	RefreshAppAwareness:           true,
 	ClassicPreservesXdgRuntimeDir: true,
 	DbusActivation:                true,
@@ -167,6 +163,7 @@ var featuresExported = map[SnapdFeature]bool{
 // featuresGraduated contains features that used to be guarded by an
 // experimental flag but are now always enabled.
 var featuresGraduated = map[string]bool{
+	"layouts":                        true,
 	"robust-mount-namespace-updates": true,
 }
 
