@@ -166,6 +166,30 @@ jobs:
             find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}' >> report
           fi
 
+          if [ -f consolidated-report.json ] && jq -e '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and (.verb // "") != "" and .verb != "checking" and (.system // "") != "" and .start != null and .end != null)' consolidated-report.json > /dev/null; then
+            echo "## Test Predictor Analysis" >> report
+            echo "| Test | Verb | System | Success Prob |" >> report
+            echo "|------|------|--------|--------------|" >> report
+            jq -r '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and (.verb // "") != "" and .verb != "checking" and (.system // "") != "" and .start != null and .end != null) | [(if (.variant // "") != "" then "\(.name):\(.variant)" else .name end), .verb, .system, .scenario // "generic"] | @tsv' consolidated-report.json |
+              while IFS=$'\t' read -r full_name verb system scenario; do
+                response=$(curl -sf -G http://test-predictor.canonical.com:5000/predict \
+                  --data-urlencode "name=${full_name}" \
+                  --data-urlencode "verb=${verb}" \
+                  --data-urlencode "system=${system}" \
+                  --data-urlencode "scenario=${scenario}" \
+                  --data-urlencode "attempt=${{ github.event.workflow_run.run_attempt }}" \
+                  2>/dev/null) || response='{}'
+                probability=$(jq -r '.success_probability // empty' <<<"$response")
+                if [ -z "$probability" ]; then
+                  probability="unavailable"
+                else
+                  probability=$(awk -v probability="$probability" 'BEGIN { printf "%.1f%%", probability * 100 }')
+                fi
+
+                echo "| ${full_name} | ${verb} | ${system} | ${probability} |" >> report
+              done
+          fi
+
           # display the report
           grep -n '' report
 
