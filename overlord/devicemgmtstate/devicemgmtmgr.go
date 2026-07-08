@@ -326,6 +326,21 @@ func (m *DeviceMgmtManager) getState() (*deviceMgmtState, error) {
 	return &ms, nil
 }
 
+// getMessageAndState retrieves the current state along with the given message.
+func (m *DeviceMgmtManager) getMessageAndState(msgID string) (*deviceMgmtState, *RequestMessage, error) {
+	ms, err := m.getState()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	msg, err := ms.getRequestMessage(msgID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ms, msg, nil
+}
+
 // setState persists the device management state.
 func (m *DeviceMgmtManager) setState(ms *deviceMgmtState) {
 	m.state.Set(deviceMgmtStateKey, ms)
@@ -565,18 +580,13 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	ms, err := m.getState()
-	if err != nil {
-		return err
-	}
-
 	var msgID string
-	err = t.Get("message-id", &msgID)
+	err := t.Get("message-id", &msgID)
 	if err != nil {
 		return err
 	}
 
-	msg, err := ms.getRequestMessage(msgID)
+	ms, msg, err := m.getMessageAndState(msgID)
 	if err != nil {
 		return err
 	}
@@ -585,17 +595,19 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return nil
 	}
 
-	defer m.setState(ms)
-
-	reject := func(reason string) error {
-		msg.ResponseStatus = asserts.MessageStatusRejected
-		msg.ResponseBody = map[string]any{"message": reason}
+	setMsgResponse := func(status asserts.MessageStatus, message string) error {
+		msg.ResponseStatus = status
+		msg.ResponseBody = map[string]any{"message": message}
+		m.setState(ms)
 		return nil
+	}
+	rejectMsg := func(reason string) error {
+		return setMsgResponse(asserts.MessageStatusRejected, reason)
 	}
 
 	a, err := asserts.Decode(msg.RawAssertion)
 	if err != nil {
-		return reject(fmt.Sprintf("cannot decode message: %v", err))
+		return rejectMsg(fmt.Sprintf("cannot decode message: %v", err))
 	}
 
 	err = assertstateFetchAccountKeys(m.state, 0, []string{a.SignKeyID()})
@@ -606,9 +618,18 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 
+	// assertstateFetchAccountKeys may drop the state lock to fetch the key
+	// from the store if it is not available locally.
+	// Concurrent tasks in other lanes may have mutated the state in that window,
+	// so re-read before mutating.
+	ms, msg, err = m.getMessageAndState(msgID)
+	if err != nil {
+		return err
+	}
+
 	err = assertstate.DB(m.state).Check(a)
 	if err != nil {
-		return reject(fmt.Sprintf("cannot verify message signature: %v", err))
+		return rejectMsg(fmt.Sprintf("cannot verify message signature: %v", err))
 	}
 
 	serial, err := m.device.Serial()
@@ -617,12 +638,12 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 	}
 	devID := serial.DeviceID()
 	if !msg.Targets(devID) {
-		return reject(fmt.Sprintf("cannot process message: not intended for device %s", devID))
+		return rejectMsg(fmt.Sprintf("cannot process message: not intended for device %s", devID))
 	}
 
 	now := timeNow()
 	if !msg.ValidAt(now) {
-		return reject(fmt.Sprintf("cannot process message: not valid at %s", now.UTC().Format(time.RFC3339)))
+		return rejectMsg(fmt.Sprintf("cannot process message: not valid at %s", now.UTC().Format(time.RFC3339)))
 	}
 
 	// TODO: implement assumes checks (SD187, SD251). The design is somewhat in
@@ -633,19 +654,27 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 
 	handler, ok := m.handlers[msg.Kind]
 	if !ok {
-		return reject(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
+		return rejectMsg(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
 	}
 
 	err = handler.Validate(m.state, msg)
 	if err != nil {
 		var unauthorizedErr *UnauthorizedError
+		status := asserts.MessageStatusRejected
 		if errors.As(err, &unauthorizedErr) {
-			msg.ResponseStatus = asserts.MessageStatusUnauthorized
-			msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
-			return nil
+			status = asserts.MessageStatusUnauthorized
+		}
+		reason := fmt.Sprintf("cannot process message: %v", err)
+
+		// handler.Validate may drop the state lock internally. Concurrent
+		// tasks in other lanes may have mutated the state in that window,
+		// so re-read before mutating.
+		ms, msg, err = m.getMessageAndState(msgID)
+		if err != nil {
+			return err
 		}
 
-		return reject(fmt.Sprintf("cannot process message: %v", err))
+		return setMsgResponse(status, reason)
 	}
 
 	return nil
@@ -656,18 +685,13 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	ms, err := m.getState()
-	if err != nil {
-		return err
-	}
-
 	var msgID string
-	err = t.Get("message-id", &msgID)
+	err := t.Get("message-id", &msgID)
 	if err != nil {
 		return err
 	}
 
-	msg, err := ms.getRequestMessage(msgID)
+	ms, msg, err := m.getMessageAndState(msgID)
 	if err != nil {
 		return err
 	}
@@ -677,12 +701,11 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	defer m.setState(ms)
-
 	// Check if a change was already created for this message before persisting its ApplyChangeID.
 	chg := findChangeByMgmtMessageID(m.state, msgID)
 	if chg != nil {
 		msg.ApplyChangeID = chg.ID()
+		m.setState(ms)
 		return nil
 	}
 
@@ -690,16 +713,27 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 	if !ok {
 		msg.ResponseStatus = asserts.MessageStatusError
 		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
+		m.setState(ms)
 		return nil
 	}
 
-	chgID, err := handler.Apply(m.state, msg)
+	chgID, applyErr := handler.Apply(m.state, msg)
+
+	// handler.Apply may drop the state lock internally. Concurrent tasks in
+	// other lanes may have mutated the state in that window, so re-read
+	// before mutating.
+	ms, msg, err = m.getMessageAndState(msgID)
 	if err != nil {
+		return err
+	}
+
+	if applyErr != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", applyErr)}
 	} else {
 		msg.ApplyChangeID = chgID
 	}
+	m.setState(ms)
 
 	return nil
 }
