@@ -163,6 +163,10 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *OpenglesDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
+	// ldconfig is only active on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
@@ -171,8 +175,35 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2")}})
 }
 
+func (s *OpenglesDriverLibsInterfaceSuite) TestLdconfigSpecOnCore(c *C) {
+	// ldconfig is skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &ldconfig.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.LibDirs(), HasLen, 0)
+}
+
 func (s *OpenglesDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	// configfiles export runs on classic
 	restore := release.MockOnClassic(true)
+	defer restore()
+
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_opengles-provider_opengles-slot_opengles-driver-libs.library-source"): &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.SnapMountDir, "opengles-provider/5/lib2") + "\n"),
+			Mode: 0644},
+	})
+}
+
+func (s *OpenglesDriverLibsInterfaceSuite) TestConfigfilesSpecOnCore(c *C) {
+	// configfiles export also runs on core
+	restore := release.MockOnClassic(false)
 	defer restore()
 
 	spec := &configfiles.Specification{}
@@ -190,7 +221,7 @@ func (s *OpenglesDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, false)
-	c.Assert(si.ImplicitPlugOnCore, Equals, false)
+	c.Assert(si.ImplicitPlugOnCore, Equals, true)
 	c.Assert(si.ImplicitPlugOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows exposing OpenGLES driver libraries to the system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "opengles-driver-libs")
