@@ -29,8 +29,6 @@ var (
 	DelayedCrossMgrInit                       = delayedCrossMgrInit
 )
 
-type ValsetsConfdbHandler = valsetsConfdbHandler
-
 func MockMaxGroups(n int) (restore func()) {
 	oldMaxGroups := maxGroups
 	maxGroups = n

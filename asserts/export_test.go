@@ -320,6 +320,14 @@ func AssembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byt
 	})
 }
 
+func MockBuiltinAssertions(assertions []Assertion) (restore func()) {
+	oldBuiltinAssertions := builtinAssertions
+	builtinAssertions = assertions
+	return func() {
+		builtinAssertions = oldBuiltinAssertions
+	}
+}
+
 // ParametersForGenerate exposes parametersForGenerate for tests.
 func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
 	return gkm.parametersForGenerate(passphrase, name)

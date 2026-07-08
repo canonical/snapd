@@ -17,10 +17,11 @@
  *
  */
 
-package assertstate_test
+package confdb_test
 
 import (
 	"fmt"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	assertstateconfdb "github.com/snapcore/snapd/overlord/assertstate/confdb"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -38,6 +40,8 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type confdbHandlerSuite struct {
 	testutil.BaseTest
@@ -53,8 +57,10 @@ var _ = Suite(&confdbHandlerSuite{})
 func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.st = state.New(nil)
-	assertstate.DelayedCrossMgrInit()
+	_, err := assertstate.Manager(s.st, state.NewTaskRunner(s.st))
+	c.Assert(err, IsNil)
 
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -169,7 +175,7 @@ func (s *confdbHandlerSuite) TestDatabagEmpty(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	handler := &assertstate.ValsetsConfdbHandler{}
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
 	bag, err := handler.Databag(s.st)
 	c.Assert(err, IsNil)
 	c.Check(bag, NotNil)
@@ -211,7 +217,7 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 		Current:   1,
 	})
 
-	handler := &assertstate.ValsetsConfdbHandler{}
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
 	bag, err := handler.Databag(s.st)
 	c.Assert(err, IsNil)
 

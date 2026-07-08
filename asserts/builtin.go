@@ -117,3 +117,20 @@ func assembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byt
 
 	return a, nil
 }
+
+// RegisterBuiltinConfdbSchema registers a builtin confdb-schema assertion.
+func RegisterBuiltinConfdbSchema(headerBytes, body []byte) error {
+	a, err := assembleBuiltinAssertion(ConfdbSchemaType, headerBytes, body, builtinCheckParams{
+		order: []string{"type", "account-id", "authority-id"},
+		expectedHeaders: map[string]any{
+			"type":         "confdb-schema",
+			"account-id":   "system",
+			"authority-id": "canonical",
+		},
+	})
+	if err != nil {
+		return err
+	}
+	builtinAssertions = append(builtinAssertions, a)
+	return nil
+}
