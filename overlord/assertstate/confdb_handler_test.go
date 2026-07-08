@@ -20,7 +20,6 @@
 package assertstate_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -158,9 +157,8 @@ func (s *confdbHandlerSuite) TestDatabagEmpty(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(bag, NotNil)
 
-	raw, err := bag.Data()
-	c.Assert(err, IsNil)
-	c.Check(string(raw), Equals, `{}`)
+	_, err = s.view.Get(bag, "", nil, confdb.AdminAccess)
+	c.Check(err, testutil.ErrorIs, &confdb.NoDataError{})
 }
 
 func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
@@ -193,12 +191,11 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 	bag, err := handler.Databag(s.st)
 	c.Assert(err, IsNil)
 
-	var data map[string]map[string]map[string]any
-	err = json.Unmarshal(bag["v1"], &data)
+	data, err := s.view.Get(bag, "", nil, confdb.AdminAccess)
 	c.Assert(err, IsNil)
-	c.Check(data, DeepEquals, map[string]map[string]map[string]any{
-		"my-account": {
-			"my-set": {
+	c.Check(data, DeepEquals, map[string]any{
+		"my-account": map[string]any{
+			"my-set": map[string]any{
 				"mode":     "monitor",
 				"sequence": float64(1),
 				"revision": float64(1),
@@ -222,16 +219,16 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 			},
 		},
 		// snap and component constraints are omitted from these two for conciseness
-		"acct1": {
-			"set-b": {
+		"acct1": map[string]any{
+			"set-b": map[string]any{
 				"mode":            "enforce",
 				"sequence":        float64(4),
 				"pinned-sequence": float64(5),
 				"revision":        float64(1),
 			},
 		},
-		"acct2": {
-			"set-c": {
+		"acct2": map[string]any{
+			"set-c": map[string]any{
 				"mode":     "enforce",
 				"sequence": float64(1),
 				"revision": float64(1),
