@@ -182,6 +182,55 @@ missing_interface_spread_test() {
     done
 }
 
+check_mountinfo_override() {
+    # This check verifies that interfaces that grant access to /proc/self/mountinfo
+    # (directly or not) also add a matching prioritized override for the base
+    # "deny" rule (see basePrioritizedSnippets in interfaces/apparmor/template.go).
+    # This looks for the following rules:
+    #   * specific mountinfo paths under /proc or @{PROC} in various forms
+    #   * broad access to /proc/**
+    #   * unconditional "allow file," or "allow all," rules
+
+    local prefix='^[[:space:]]*(owner[[:space:]]+)?'
+    # perms must include 'r' since the base deny only blocks reads
+    local perms='[[:space:]][a-z]*r[a-z]*,'
+    local rules="(${prefix}(/proc|@\\{PROC\\})/(self|@\\{pid\\}|[0-9]+)/mountinfo${perms}"
+    rules+="|${prefix}(/proc|@\\{PROC\\})/\\*\\*${perms}"
+    rules+='|^[[:space:]]*allow[[:space:]]+(file|all),[[:space:]]*$)'
+
+    local -a missing_override=()
+    local f
+    for f in interfaces/builtin/*.go; do
+        if [[ "$f" == *"_test.go" ]]; then
+            continue
+        fi
+
+        local matches
+        matches=$(grep -nE "$rules" "$f" || true)
+        if [ -n "$matches" ] || grep -q '\bmountInfoSnippet\b' "$f"; then
+            if ! grep -q '\bapparmor\.MountInfoKey\b' "$f"; then
+                local lines
+                lines=$(echo "$matches" | cut -d: -f1 | paste -sd, -)
+                if [ -z "$lines" ]; then
+                    lines=$(grep -n '\bmountInfoSnippet\b' "$f" | cut -d: -f1 | paste -sd, -)
+                fi
+                missing_override+=("$f:$lines")
+            fi
+        fi
+    done
+
+    if [ "${#missing_override[@]}" -gt 0 ]; then
+        echo "" >&2
+        echo "These interfaces allow access to /proc/*/mountinfo (explicitly or not)" >&2
+        echo "without adding the allow rule as a prioritized snippet" >&2
+        echo "(see basePrioritizedSnippets in interfaces/apparmor/template.go):" >&2
+        for f in "${missing_override[@]}"; do
+            echo "  - ${f%%:*} (lines: ${f#*:})" >&2
+        done
+        return 1
+    fi
+}
+
 forbidden_cmd_go_deps() {
     local -a forbidden_deps=(
         "github.com/snapcore/snapd/testutil"
@@ -388,6 +437,9 @@ if [ "$STATIC" = 1 ]; then
 
     echo ">> [Go] Checking cmd binaries for forbidden dependencies"
     forbidden_cmd_go_deps
+
+    echo ">> [Go] Checking interfaces that grant mountinfo access use a prioritized override"
+    check_mountinfo_override
 
     if command -v shellcheck >/dev/null; then
         exclude_tools_path=tests/lib/external/snapd-testing-tools
