@@ -1178,8 +1178,9 @@ type PlugInfo struct {
 	// hooks. Unscoped plugs are attached to all apps and hooks in the snap.
 	Unscoped bool
 
-	// Dependency is true if the plug wasn't listed in the snapcraft.yaml file
-	// but was added because another plug depended on it.
+	// Dependency is true if this plug wasn't listed by the snap author in the
+	// snapcraft.yaml file, but was added by the dependencies system because
+	// another plug depended on it.
 	Dependency bool
 }
 
