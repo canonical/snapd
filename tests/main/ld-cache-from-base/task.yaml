@@ -16,7 +16,7 @@ execute: |
   test-snapd-sh-core"$base".sh -c pwd
 
   # Check ld cache related paths are mounted from the base
-  snap debug mount-namespace shell "$test_snap" -- mount > mounts.txt
+  snap debug mount-namespace --shell "$test_snap" -- mount > mounts.txt
   SNAP_MOUNT_DIR=$(os.paths snap-mount-dir)
   currBaseRev=$(readlink "$SNAP_MOUNT_DIR"/core"$base"/current)
   basePath=/var/lib/snapd/snaps/core"$base"_"$currBaseRev".snap

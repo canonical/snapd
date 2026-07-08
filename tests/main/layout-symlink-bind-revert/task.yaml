@@ -27,17 +27,17 @@ execute: |
     snap connect app:runtime runtime:runtime
     app 2>&1 | MATCH "RUNTIME: Hello from the app"
     # As per the layout, there is a symlink
-    snap debug mount-namespace shell app -- /bin/ls -l /opt | MATCH 'runtime -> /snap/app/x1/runtime'
+    snap debug mount-namespace --shell app -- /bin/ls -l /opt | MATCH 'runtime -> /snap/app/x1/runtime'
 
     echo "The application is refreshed with another layout"
     snap install --dangerous ./app_2_all.snap
     app 2>&1 | MATCH "RUNTIME: Hello from the app"
     # As per new layout, there is a bind mount
-    snap debug mount-namespace shell app -- /bin/grep /opt/runtime /proc/self/mountinfo | MATCH '/runtime /opt/runtime .* /dev/loop'
+    snap debug mount-namespace --shell app -- /bin/grep /opt/runtime /proc/self/mountinfo | MATCH '/runtime /opt/runtime .* /dev/loop'
 
     echo "The application is reverted"
     snap revert app 2>&1 | MATCH 'app reverted to 1'
     # Back to symlink
     app 2>&1 | MATCH "RUNTIME: Hello from the app"
     # And we still have a bind mount
-    snap debug mount-namespace shell app -- /bin/ls -l /opt | MATCH 'runtime -> /snap/app/x1/runtime'
+    snap debug mount-namespace --shell app -- /bin/ls -l /opt | MATCH 'runtime -> /snap/app/x1/runtime'
