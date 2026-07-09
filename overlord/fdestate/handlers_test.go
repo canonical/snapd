@@ -35,13 +35,19 @@ import (
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -111,6 +117,137 @@ func (s *fdeMgrSuite) mockCurrentKeys(c *C, rkeys, unlockKeys []fdestate.Keyslot
 			return nil, fmt.Errorf("unexpected devicePath %q", devicePath)
 		}
 	}))
+}
+
+func (s *fdeMgrSuite) TestDoCheckResealHappy(c *C) {
+	const onClassic = false
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	s.startedManager(c, onClassic)
+
+	restore := snapstatetest.MockDeviceModel(boottest.MakeMockUC20Model())
+	defer restore()
+
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
+
+	resealChecks := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealChecks++
+		c.Check(rootdir, Equals, dirs.GlobalRootDir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts.DryRun, Equals, true)
+		return nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("check-reseal", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		Type: snap.TypeApp,
+	})
+	t.Set("finish-restart", true)
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.settle(c)
+
+	c.Check(resealChecks, Equals, 1)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+	c.Check(restart.Pending(s.st), Equals, restart.RestartUnset)
+}
+
+func (s *fdeMgrSuite) TestDoCheckResealFailsWhenResealValidationFails(c *C) {
+	const onClassic = false
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	s.startedManager(c, onClassic)
+
+	restore := snapstatetest.MockDeviceModel(boottest.MakeMockUC20Model())
+	defer restore()
+
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
+
+	resealChecks := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealChecks++
+		c.Check(rootdir, Equals, dirs.GlobalRootDir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts.DryRun, Equals, true)
+		return fmt.Errorf("cannot reseal")
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("check-reseal", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		Type: snap.TypeApp,
+	})
+	t.Set("finish-restart", true)
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.settle(c)
+
+	c.Check(resealChecks, Equals, 1)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), NotNil)
+	c.Check(chg.Err().Error(), Matches, `(?ms).*cannot validate key reseal: cannot reseal.*`)
+	c.Check(restart.Pending(s.st), Equals, restart.RestartUnset)
+}
+
+func (s *fdeMgrSuite) TestDoCheckResealWaitsForRestart(c *C) {
+	const onClassic = false
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	s.startedManager(c, onClassic)
+
+	restore := snapstatetest.MockDeviceModel(boottest.MakeMockUC20Model())
+	defer restore()
+
+	resealChecks := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealChecks++
+		return nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	_, err := restart.Manager(s.st, "boot-id-0", nil)
+	c.Assert(err, IsNil)
+	restart.MockPending(s.st, restart.RestartDaemon)
+
+	t := s.st.NewTask("check-reseal", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		Type: snap.TypeApp,
+	})
+	t.Set("finish-restart", true)
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.settle(c)
+
+	c.Check(resealChecks, Equals, 0)
+	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Assert(chg.Err(), IsNil)
+	c.Check(restart.Pending(s.st), Equals, restart.RestartDaemon)
 }
 
 func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {

@@ -43,12 +43,22 @@ type XKBConfig struct {
 
 // Validates that this is a valid XKB config that can be parsed
 // by Plymouth.
-func (c *XKBConfig) validate() error {
+func (c *XKBConfig) Validate() error {
 	if strings.Contains(c.Model, ",") {
 		return fmt.Errorf("model cannot contain ',': found %q", c.Model)
 	}
 	if len(c.Variants) != 0 && len(c.Variants) != len(c.Layouts) {
 		return fmt.Errorf("layouts and variants do not have the same length")
+	}
+	for _, layout := range c.Layouts {
+		if strings.Contains(layout, ",") {
+			return fmt.Errorf("layout cannot contain ',': found %q", layout)
+		}
+	}
+	for _, variant := range c.Variants {
+		if strings.Contains(variant, ",") {
+			return fmt.Errorf("variant cannot contain ',': found %q", variant)
+		}
 	}
 	// XXX: Should we check that the model and layouts are always set?
 	return nil
@@ -88,8 +98,8 @@ func (c *XKBConfig) KernelCommandLineFragment() string {
 	}
 	opts := strings.Join(c.Options, ",")
 
-	simplified := fmt.Sprintf("%s,%s,%s,%s", layout, c.Model, variant, opts)
-	return fmt.Sprintf("snapd.xkb=%q", simplified)
+	simplified := fmt.Sprintf(`"%s,%s,%s,%s"`, layout, c.Model, variant, opts)
+	return fmt.Sprintf("snapd.xkb=%s", simplified)
 }
 
 func CurrentXKBConfig() (*XKBConfig, error) {
@@ -131,7 +141,7 @@ func CurrentXKBConfig() (*XKBConfig, error) {
 	if vals["X11Options"] != "" {
 		config.Options = strings.Split(vals["X11Options"], ",")
 	}
-	if err := config.validate(); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("cannot parse XKB configuration: %v", err)
 	}
 

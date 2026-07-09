@@ -7,8 +7,7 @@ details: |
   symlink.
 
 systems:
-  - ubuntu-core-20-*
-  - ubuntu-core-22-*
+  - ubuntu-core-2*
 
 restore: |
   current_rev="$(readlink /snap/snapd/current)"
@@ -35,20 +34,29 @@ execute: |
   unsquashfs -d ./snapd-modified "/var/lib/snapd/snaps/snapd_${old_current}.snap"
   for binary in snapd snapd-apparmor; do
     mv "./snapd-modified/usr/lib/snapd/${binary}" "./snapd-modified/usr/lib/snapd/${binary}.real"
-  cat <<\EOF >"./snapd-modified/usr/lib/snapd/${binary}"
+    # for snap & snapd, usr/bin/snap is a symlink to usr/lib/snapd/snapd, so
+    # this wrapper may be invoked as either "snap" or "snapd". Map argv[0] back
+    # to the correct .real binary name.
+    cat <<\EOF >"./snapd-modified/usr/lib/snapd/${binary}"
   #!/bin/bash
   set -eux
-  binary="$(basename "$0")"
-  dir="$(dirname "$0")"
-  realpath "${dir}/${binary}.real" || true
-  realpath "/snap/snapd/current/usr/lib/snapd/${binary}.real" || true
-  stat "${dir}/${binary}.real" || true
-  stat "/snap/snapd/current/usr/lib/snapd/${binary}.real" || true
-  if ! [ "${dir}/${binary}.real" -ef "/snap/snapd/current/usr/lib/snapd/${binary}.real" ]; then
-    echo "Trying to execute the binary '${binary}' before it is available at the right place" 1>&2
+  # Resolve symlinks to find the real location of this script, since
+  # usr/bin/snap is a symlink to usr/lib/snapd/snapd and this wrapper
+  # may be invoked under either name.
+  self="$(readlink -f "$0")"
+  dir="$(dirname "${self}")"
+  # Map argv[0] to the correct .real binary name. usr/bin/snap is a symlink
+  # to usr/lib/snapd/snapd, so "snap" must be mapped to "snapd". All other
+  # names (snapd, snapd-apparmor) are used as-is.
+  case "$(basename "$0")" in
+    snap) real_binary="snapd" ;;
+    *)    real_binary="$(basename "$0")" ;;
+  esac
+  if ! [ "${dir}/${real_binary}.real" -ef "/snap/snapd/current/usr/lib/snapd/${real_binary}.real" ]; then
+    echo "Trying to execute the binary '${real_binary}' before it is available at the right place" 1>&2
     exit 1
   fi
-  exec "${dir}/${binary}.real" "$@"
+  exec -a "$(basename "$0")" "${dir}/${real_binary}.real" "$@"
   EOF
     chmod +x "./snapd-modified/usr/lib/snapd/${binary}"
   done

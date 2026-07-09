@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	_ "github.com/snapcore/snapd/overlord/assertstate/confdb"
 )
 
 type confdbSuite struct {
@@ -269,6 +270,26 @@ func (s *confdbSuite) TestAssembleAndSignChecksSchemaFormatFail(c *C) {
 	schema := `{ "storage": { "schema": { "foo": "any" } } }`
 	_, err := asserts.AssembleAndSignInTest(asserts.ConfdbSchemaType, headers, []byte(schema), testPrivKey0)
 	c.Assert(err, ErrorMatches, `assertion confdb-schema: JSON in body must be indented with 2 spaces and sort object entries by key`)
+}
+
+func (s *confdbSuite) TestBuiltinConfdbSchemaDecodeRoundTrip(c *C) {
+	var systemConfdbs []asserts.Assertion
+	for _, builtin := range asserts.Builtin() {
+		if builtin.Type() != asserts.ConfdbSchemaType {
+			continue
+		}
+		systemConfdbs = append(systemConfdbs, builtin)
+	}
+	c.Assert(systemConfdbs, Not(HasLen), 0)
+
+	for _, builtin := range systemConfdbs {
+		encoded := asserts.Encode(builtin)
+		decoded, err := asserts.Decode(encoded)
+		c.Assert(err, IsNil, Commentf("failed to decode builtin confdb-schema %q", builtin.HeaderString("name")))
+		c.Check(decoded.Type(), Equals, asserts.ConfdbSchemaType)
+		c.Check(decoded.HeaderString("name"), Equals, builtin.HeaderString("name"))
+		c.Check(decoded.HeaderString("account-id"), Equals, builtin.HeaderString("account-id"))
+	}
 }
 
 type confdbCtrlSuite struct {

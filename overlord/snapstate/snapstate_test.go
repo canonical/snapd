@@ -825,6 +825,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 	c.Assert(taskKinds(tasks), DeepEquals, []string{
 		"prerequisites",
 		"prepare-snap",
+		"prerequisites",
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-current-snap",
@@ -938,6 +939,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prerequisites",
 		"prepare-snap",
+		"prerequisites",
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-current-snap",
@@ -6953,16 +6955,20 @@ func (s *snapmgrTestSuite) TestConflictSeedRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg := s.state.NewChange("refresh-snap", "...")
-	chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
-	chg.SetStatus(state.DoingStatus)
+	for _, kind := range []string{"refresh-snap", "revert-snap", "install-snap"} {
+		chg := s.state.NewChange(kind, "...")
+		chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
+		chg.SetStatus(state.DoingStatus)
 
-	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+		err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+		c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{}, Commentf("change kind: %s", kind))
+		c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`, Commentf("change kind: %s", kind))
 
-	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
-	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+		err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+		c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`, Commentf("change kind: %s", kind))
+
+		chg.SetStatus(state.DoneStatus)
+	}
 }
 
 func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
@@ -10403,15 +10409,15 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 					// against the already-installed base and only wait on snapd
 					break
 				}
-				firstLocal := firstTaskAfterLocalModifications(c, sts.ts)
-				if baseFirstLocal := firstTaskAfterLocalModifications(c, baseTS); baseFirstLocal != nil {
-					c.Assert(waitsOnTransitively(firstLocal, baseFirstLocal), Equals, true)
+				mountSnap := findMountSnap(c, sts.ts)
+				if baseMount := findMountSnap(c, baseTS); baseMount != nil {
+					c.Assert(waitsOnTransitively(mountSnap, baseMount), Equals, true)
 				}
 				if findKindInTaskSet(sts.ts, "mount-snap") != nil {
 					firstPostMount := firstTaskAfterMount(c, sts.ts)
 					c.Assert(waitsOnTransitively(firstPostMount, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
 				} else {
-					c.Assert(waitsOnTransitively(firstLocal, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
+					c.Assert(waitsOnTransitively(mountSnap, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
 				}
 			}
 		}
@@ -11391,7 +11397,7 @@ version: 1.0
 
 	// For snaps that skip configure, we expect the end-edge to be set to either of
 	// cleanup task, or start snap services
-	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(8),
@@ -11431,7 +11437,7 @@ epoch: 1
 
 	// For snaps that skip configure, we expect the end-edge to be set to either of
 	// cleanup task, or start snap services
-	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{SkipConfigure: true}, nil)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{SkipConfigure: true}, nil)
 	c.Assert(err, IsNil)
 
 	var t *state.Task

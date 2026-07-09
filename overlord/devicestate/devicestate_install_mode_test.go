@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -1444,7 +1445,7 @@ func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboo
 		c.Assert(ctx.HookName(), Equals, "install-device")
 
 		// snapctl reboot --halt
-		_, _, err := ctlcmd.Run(ctx, []string{"reboot", arg}, 0, nil)
+		_, _, _, err := ctlcmd.Run(ctx, []string{"reboot", arg}, 0, nil)
 		return nil, err
 	})
 	defer restore()
@@ -3517,7 +3518,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionEmptyLa
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "", mockOnVolumes, nil)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "", mockOnVolumes, nil, nil)
 	c.Check(err, ErrorMatches, "cannot setup storage encryption with an empty system label")
 	c.Check(chg, IsNil)
 }
@@ -3526,7 +3527,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionNoVolum
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", nil, nil)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", nil, nil, nil)
 	c.Check(err, ErrorMatches, "cannot setup storage encryption without volumes data")
 	c.Check(chg, IsNil)
 }
@@ -3536,8 +3537,29 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionVolumeA
 	defer s.state.Unlock()
 
 	volumeOpts := &device.VolumesAuthOptions{Mode: "bad-mode", Passphrase: "1234"}
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts)
+	keyboardConfig := &client.KeyboardConfig{Model: "pc105", Layout: "us"}
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts, keyboardConfig)
 	c.Check(err, ErrorMatches, `cannot use authentication mode "bad-mode", only "passphrase" and "pin" modes are supported`)
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionKeyboardConfigError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	keyboardConfig := &client.KeyboardConfig{Model: "pc105,", Layout: "us"}
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, nil, keyboardConfig)
+	c.Check(err, ErrorMatches, `model cannot contain ',': found "pc105,"`)
+	c.Check(chg, IsNil)
+}
+
+func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionMissingKeyboardConfigError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	volumeOpts := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumeOpts, nil)
+	c.Check(err, ErrorMatches, `cannot use volumes authentication without a keyboard configuration`)
 	c.Check(chg, IsNil)
 }
 
@@ -3546,11 +3568,14 @@ func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAn
 	defer s.state.Unlock()
 
 	var volumesAuth *device.VolumesAuthOptions
+	var keyboardConfig *client.KeyboardConfig
 	if withVolumesAuth {
 		volumesAuth = &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "1234"}
+		// keyboard config is required when volumes-auth is passed
+		keyboardConfig = &client.KeyboardConfig{Model: "pc105", Layout: "us"}
 	}
 
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumesAuth)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, volumesAuth, keyboardConfig)
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
 	c.Check(chg.Summary(), Matches, `Setup storage encryption for installing system "1234"`)
@@ -3581,6 +3606,16 @@ func (s *installStepSuite) testDeviceManagerInstallSetupStorageEncryptionTasksAn
 		c.Assert(volumesAuthRequired, Equals, false)
 		c.Assert(cached, IsNil)
 	}
+
+	var tskKeyboardConfig *client.KeyboardConfig
+	err = tskInstallFinish.Get("keyboard-config", &tskKeyboardConfig)
+	if withVolumesAuth {
+		c.Assert(err, IsNil)
+		c.Assert(tskKeyboardConfig, DeepEquals, keyboardConfig)
+	} else {
+		c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+		c.Assert(tskKeyboardConfig, IsNil)
+	}
 }
 
 func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionTasksAndChange(c *C) {
@@ -3600,7 +3635,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 	defer st.Unlock()
 
 	s.state.Set("seeded", true)
-	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, nil)
+	chg, err := devicestate.InstallSetupStorageEncryption(s.state, "1234", mockOnVolumes, nil, nil)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -3614,7 +3649,7 @@ func (s *installStepSuite) TestDeviceManagerInstallSetupStorageEncryptionRunthro
 }
 
 func (s *installStepSuite) TestGeneratePreInstallRecoveryKey(c *C) {
-	defer devicestate.MockEncryptionSetupDataInCache(s.state, "20250528", nil, nil, preinstallCheckContext)()
+	defer devicestate.MockEncryptionSetupDataInCache(s.state, "20250528", nil, nil, preinstallCheckContext, nil)()
 
 	s.state.Lock()
 	defer s.state.Unlock()

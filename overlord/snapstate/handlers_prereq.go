@@ -291,6 +291,13 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 		return prereqProceed, nil
 	}
 
+	// the first prerequisites task must not block on work already scheduled in
+	// this same change. the secondary prerequisites synchronization task is
+	// responsible for polling until that in-flight work has completed.
+	if !prereqs.Has("prerequisites-sync") && link.Change().ID() == prereqs.Change().ID() {
+		return prereqSkip, nil
+	}
+
 	isContentProvider := !basePrerequisite && prerequisiteName != "snapd"
 	if isContentProvider {
 		// the content-provider snap is already being linked by this change, so
@@ -368,8 +375,27 @@ func ensurePrerequisite(t *state.Task, contentAttrs []string, sn StoreSnap, opts
 
 	var ts *state.TaskSet
 	if !installed {
+		if t.Has("prerequisites-sync") {
+			// prereqs that aren't just content providers must be available by
+			// the time the synchronization task runs. if not, we fail the
+			// change.
+			if sn.InstanceName == "snapd" || opts.Flags.RequireTypeBase {
+				return nil, fmt.Errorf("prerequisite %q is not available during prerequisites synchronization", sn.InstanceName)
+			}
+
+			// content providers are soft prerequisites. if we don't have it by
+			// now, we just proceed.
+			return nil, nil
+		}
 		_, ts, err = InstallOne(context.TODO(), st, StoreInstallGoal(sn), opts)
 	} else {
+		if t.Has("prerequisites-sync") {
+			// prereqs that are content providers are considered soft
+			// prerequisites. by the time we hit this branch, we know that the
+			// content provider's update is neither finished nor in flight. in
+			// that case, we proceed without it.
+			return nil, nil
+		}
 		ts, err = maybeUpdateContentProvider(t, sn.InstanceName, contentAttrs, opts)
 	}
 	if err != nil {

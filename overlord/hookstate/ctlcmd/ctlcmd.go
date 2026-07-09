@@ -42,11 +42,13 @@ func (e *MissingContextError) Error() string {
 }
 
 type baseCommand struct {
-	stdout io.Writer
-	stderr io.Writer
-	c      *hookstate.Context
-	name   string
-	uid    string
+	stdout         io.Writer
+	stderr         io.Writer
+	c              *hookstate.Context
+	name           string
+	uid            string
+	changeID       *string
+	clientFeatures []string
 }
 
 func (c *baseCommand) setName(name string) {
@@ -59,6 +61,14 @@ func (c *baseCommand) setUid(uid uint32) {
 
 func (c *baseCommand) setStdout(w io.Writer) {
 	c.stdout = w
+}
+
+func (c *baseCommand) setChangeID(id *string) {
+	c.changeID = id
+}
+
+func (c *baseCommand) setClientFeatures(features []string) {
+	c.clientFeatures = features
 }
 
 func (c *baseCommand) printf(format string, a ...any) {
@@ -106,6 +116,9 @@ type command interface {
 	setContext(context *hookstate.Context)
 	context() *hookstate.Context
 
+	setChangeID(changeID *string)
+	setClientFeatures(features []string)
+
 	Execute(args []string) error
 }
 
@@ -151,13 +164,13 @@ func (f ForbiddenCommandError) Error() string {
 var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode", "refresh", "model", "version", "is-ready", "tasks", "change"}
 
 // Run runs the requested command.
-func Run(context *hookstate.Context, args []string, uid uint32, features []string) (stdout, stderr []byte, err error) {
+func Run(context *hookstate.Context, args []string, uid uint32, features []string) (stdout, stderr []byte, changeID string, err error) {
 	if len(args) == 0 {
-		return nil, nil, fmt.Errorf("internal error: snapctl cannot run without args")
+		return nil, nil, "", fmt.Errorf("internal error: snapctl cannot run without args")
 	}
 
 	if !isAllowedToRun(uid, args) {
-		return nil, nil, &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", args[0], uid)}
+		return nil, nil, "", &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", args[0], uid)}
 	}
 
 	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
@@ -172,6 +185,8 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
+		cmd.setChangeID(&changeID)
+		cmd.setClientFeatures(features)
 
 		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		theCmd.Hidden = cmdInfo.hidden
@@ -181,7 +196,8 @@ func Run(context *hookstate.Context, args []string, uid uint32, features []strin
 	}
 
 	_, err = parser.ParseArgs(args)
-	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), err
+
+	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), changeID, err
 }
 
 // isAllowedToRun returns true if the user with the given UID can run the given snapctl command vector.

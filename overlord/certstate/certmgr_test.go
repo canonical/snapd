@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -47,6 +48,9 @@ type certMgrTestSuite struct {
 func (s *certMgrTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
+
+	restore := release.MockOnClassic(false)
+	s.AddCleanup(restore)
 
 	s.o = overlord.Mock()
 	s.state = s.o.State()
@@ -69,6 +73,17 @@ func (s *certMgrTestSuite) TearDownTest(c *C) {
 
 var _ = Suite(&certMgrTestSuite{})
 
+type checkpointBackend struct {
+	checkpoints [][]byte
+}
+
+func (b *checkpointBackend) Checkpoint(data []byte) error {
+	b.checkpoints = append(b.checkpoints, append([]byte(nil), data...))
+	return nil
+}
+
+func (b *checkpointBackend) EnsureBefore(time.Duration) {}
+
 func (s *certMgrTestSuite) settle(c *C) {
 	s.state.Unlock()
 	err := s.o.Settle(30 * time.Second)
@@ -76,9 +91,24 @@ func (s *certMgrTestSuite) settle(c *C) {
 	s.state.Lock()
 }
 
+func seedCurrentPublishedGeneration(c *C, generation string, bundle []byte) string {
+	target := filepath.Join("published", generation)
+	generationDir := filepath.Join(dirs.SnapdPKIV1Dir, target)
+	c.Assert(os.MkdirAll(generationDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(generationDir, "ca-certificates.crt"), bundle, 0o644), IsNil)
+	c.Assert(os.Symlink(target, filepath.Join(dirs.SnapdPKIV1Dir, "merged")), IsNil)
+	return target
+}
+
+func setMergedTarget(c *C, target string) {
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	c.Assert(os.RemoveAll(mergedDir), IsNil)
+	c.Assert(os.Symlink(target, mergedDir), IsNil)
+}
+
 func (s *certMgrTestSuite) TestEnsureCallsUpdateCertificateDatabase(c *C) {
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		called = true
 		return nil
 	})
@@ -102,7 +132,7 @@ func (s *certMgrTestSuite) TestEnsureCallsUpdateCertificateDatabase(c *C) {
 
 func (s *certMgrTestSuite) TestEnsureDoesNothingWhenNotSeeded(c *C) {
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		called = true
 		return nil
 	})
@@ -113,22 +143,27 @@ func (s *certMgrTestSuite) TestEnsureDoesNothingWhenNotSeeded(c *C) {
 	c.Check(called, Equals, false)
 }
 
-func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
+func (s *certMgrTestSuite) TestEnsureSkipsOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore = certstate.MockRefreshCertificateDatabase(func() error {
 		called = true
 		return nil
 	})
 	defer restore()
 
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "", errors.New("boot id should not be queried on classic")
+	})
+	defer restoreBootID()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	s.state.Set("seeded", true)
-
-	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), []byte("existing"), 0o644), IsNil)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
 
 	s.state.Unlock()
 	defer s.state.Lock()
@@ -138,9 +173,62 @@ func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
 	c.Check(called, Equals, false)
 }
 
+func (s *certMgrTestSuite) TestEnsureSkipsWhenCertDbExists(c *C) {
+	var called bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+
+	seedCurrentPublishedGeneration(c, "existing", []byte("existing"))
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, false)
+}
+
+func (s *certMgrTestSuite) TestEnsureRegeneratesWhenMergedIsPlainDirectory(c *C) {
+	var called bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("seeded", true)
+	c.Assert(os.MkdirAll(dirs.SystemCertsDir, 0o755), IsNil)
+
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(mergedDir, "leftover"), []byte("stale"), 0o644), IsNil)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+
+	_, err = os.Stat(mergedDir)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
 func (s *certMgrTestSuite) TestEnsureSkipsWhenNoBaseCertsDir(c *C) {
 	var called bool
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		called = true
 		return nil
 	})
@@ -161,7 +249,7 @@ func (s *certMgrTestSuite) TestEnsureSkipsWhenNoBaseCertsDir(c *C) {
 
 func (s *certMgrTestSuite) TestEnsureRunsOnlyOnce(c *C) {
 	var calls int
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		calls++
 		return nil
 	})
@@ -188,7 +276,7 @@ func (s *certMgrTestSuite) TestEnsureRunsOnlyOnce(c *C) {
 }
 
 func (s *certMgrTestSuite) TestEnsurePropagatesGenerateError(c *C) {
-	restore := certstate.MockGenerateCertificateDatabase(func() error {
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
 		return errors.New("boom")
 	})
 	defer restore()
@@ -206,6 +294,54 @@ func (s *certMgrTestSuite) TestEnsurePropagatesGenerateError(c *C) {
 
 	err := s.mgr.Ensure()
 	c.Check(err, ErrorMatches, ".*boom.*")
+}
+
+func (s *certMgrTestSuite) TestEnsureGarbageCollectionSkipsWhileUpdateInProgress(c *C) {
+	restoreBootID := certstate.MockOsutilBootID(func() (string, error) {
+		return "", errors.New("boot id should not be queried while update-cert-db is in flight")
+	})
+	defer restoreBootID()
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	currentTarget := seedCurrentPublishedGeneration(c, "current", []byte("current"))
+	currentDir := filepath.Join(dirs.SnapdPKIV1Dir, currentTarget)
+	taskPreviousTarget := filepath.Join("published", "task-prev")
+	taskPreviousDir := filepath.Join(dirs.SnapdPKIV1Dir, taskPreviousTarget)
+	c.Assert(os.MkdirAll(taskPreviousDir, 0o755), IsNil)
+
+	staleTarget := filepath.Join("published", "stale")
+	staleDir := filepath.Join(dirs.SnapdPKIV1Dir, staleTarget)
+	c.Assert(os.MkdirAll(staleDir, 0o755), IsNil)
+
+	for _, dir := range []string{currentDir, taskPreviousDir, staleDir} {
+		c.Assert(os.WriteFile(filepath.Join(dir, ".snapd-inactive"), []byte("boot-1"), 0o644), IsNil)
+	}
+
+	s.state.Lock()
+	chg := s.state.NewChange("foo", "pending update keeps gc from running")
+	task := s.state.NewTask("update-cert-db", "pending update")
+	task.Set(certstate.PreviousGenerationTaskKey, taskPreviousTarget)
+	chg.AddTask(task)
+	s.state.Unlock()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	for _, path := range []string{
+		currentDir,
+		taskPreviousDir,
+		staleDir,
+	} {
+		_, err = os.Stat(path)
+		c.Assert(err, IsNil)
+		c.Assert(filepath.Join(path, ".snapd-inactive"), testutil.FileEquals, "boot-1")
+	}
 }
 
 func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) {
@@ -233,6 +369,105 @@ func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) 
 	c.Assert(err, IsNil)
 	c.Check(bytes.Contains(out, certA), Equals, true)
 	c.Check(bytes.Contains(out, certB), Equals, true)
+
+	backupPath := filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged")
+	_, err = os.Stat(backupPath)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseRetryAfterSwapPreservesUndoBackup(c *C) {
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	oldBundle := []byte("old-ca-bundle")
+	newPEM, _, err := makeTestCertPEM("new")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "new.crt"), newPEM, 0o644), IsNil)
+	seedCurrentPublishedGeneration(c, "old", oldBundle)
+
+	s.state.Lock()
+	task := s.state.NewTask("update-cert-db", "retrying update after swap")
+	s.state.Unlock()
+
+	err = s.mgr.DoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
+	firstRefreshBundle, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(bytes.Contains(firstRefreshBundle, newPEM), Equals, true)
+
+	err = s.mgr.DoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
+	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(out, DeepEquals, firstRefreshBundle)
+
+	err = s.mgr.UndoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
+	out, err = os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(out, DeepEquals, oldBundle)
+}
+
+func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseCheckpointsPreviousGenerationBeforeRefresh(c *C) {
+	backend := &checkpointBackend{}
+	st := state.New(backend)
+	runner := state.NewTaskRunner(st)
+	mgr := certstate.Manager(st, runner)
+
+	oldTarget := seedCurrentPublishedGeneration(c, "old", []byte("old-ca-bundle"))
+
+	st.Lock()
+	chg := st.NewChange("foo", "checkpoint previous generation")
+	task := st.NewTask("update-cert-db", "running handler")
+	chg.AddTask(task)
+	st.Unlock()
+	backend.checkpoints = nil
+
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		c.Assert(backend.checkpoints, HasLen, 1)
+		restoredState, err := state.ReadState(nil, bytes.NewReader(backend.checkpoints[0]))
+		c.Assert(err, IsNil)
+		restoredState.Lock()
+		defer restoredState.Unlock()
+
+		restoredTask := restoredState.Task(task.ID())
+		c.Assert(restoredTask, NotNil)
+
+		var previousTarget string
+		err = restoredTask.Get(certstate.PreviousGenerationTaskKey, &previousTarget)
+		c.Assert(err, IsNil)
+		c.Check(previousTarget, Equals, oldTarget)
+		return nil
+	})
+	defer restore()
+
+	err := mgr.DoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+}
+
+func (s *certMgrTestSuite) TestDoUpdateCertificateDatabasePropagatesCheckpointReadError(c *C) {
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	var called bool
+	restore := certstate.MockRefreshCertificateDatabase(func() error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	task := s.state.NewTask("update-cert-db", "checkpoint read error")
+	task.Set(certstate.PreviousGenerationTaskKey, 42)
+	s.state.Unlock()
+
+	err := s.mgr.DoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, NotNil)
+	c.Check(called, Equals, false)
 }
 
 func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C) {
@@ -240,10 +475,9 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
 
 	current := []byte("current-ca-bundle")
-	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), current, 0o644), IsNil)
+	seedCurrentPublishedGeneration(c, "current", current)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -267,19 +501,24 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRestoresBackup(c *C)
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, current)
 
-	_, err = os.Stat(filepath.Join(mergedDir, "ca-certificates.crt.old"))
+	mergedInfo, err := os.Lstat(mergedDir)
+	c.Assert(err, IsNil)
+	c.Check(mergedInfo.Mode()&os.ModeSymlink != 0, Equals, true)
+
+	_, err = os.Stat(mergedDir + ".staged")
 	c.Check(os.IsNotExist(err), Equals, true)
 }
 
-func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError(c *C) {
+func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedRemovesMerged(c *C) {
 	baseCertsDir := dirs.SystemCertsDir
 	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+	certA, _, err := makeTestCertPEM("A")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "a.crt"), certA, 0o644), IsNil)
 
 	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
-	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
-
-	current := []byte("current-ca-bundle")
-	c.Assert(os.WriteFile(filepath.Join(mergedDir, "ca-certificates.crt"), current, 0o644), IsNil)
+	_, err = os.Stat(mergedDir)
+	c.Assert(os.IsNotExist(err), Equals, true)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -299,7 +538,97 @@ func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseMissingBackupNoError
 	c.Check(tasks[1].Kind(), Equals, "error-trigger")
 	c.Check(tasks[1].Status(), Equals, state.ErrorStatus)
 
+	_, err = os.Stat(mergedDir)
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseIsIdempotent(c *C) {
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	oldBundle := []byte("restored-ca-bundle")
+	newPEM, _, err := makeTestCertPEM("new")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "new.crt"), newPEM, 0o644), IsNil)
+	seedCurrentPublishedGeneration(c, "restored", oldBundle)
+
+	s.state.Lock()
+	task := s.state.NewTask("update-cert-db", "retrying undo after swap")
+	s.state.Unlock()
+
+	err = s.mgr.DoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
+	err = s.mgr.UndoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
 	out, err := os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
 	c.Assert(err, IsNil)
-	c.Check(out, DeepEquals, current)
+	c.Check(out, DeepEquals, oldBundle)
+
+	err = s.mgr.UndoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
+	out, err = os.ReadFile(filepath.Join(mergedDir, "ca-certificates.crt"))
+	c.Assert(err, IsNil)
+	c.Check(out, DeepEquals, oldBundle)
+
+	_, err = os.Stat(filepath.Join(dirs.SnapdPKIV1Dir, "merged.staged"))
+	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseRetryAfterRebootKeepsRestoredMerged(c *C) {
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	oldBundle := []byte("old-ca-bundle")
+	newPEM, _, err := makeTestCertPEM("new")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "new.crt"), newPEM, 0o644), IsNil)
+	oldTarget := seedCurrentPublishedGeneration(c, "old", oldBundle)
+
+	err = certstate.RefreshCertificateDatabase()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	task := s.state.NewTask("update-cert-db", "retrying undo after reboot")
+	task.Set(certstate.PreviousGenerationTaskKey, oldTarget)
+	s.state.Unlock()
+
+	setMergedTarget(c, oldTarget)
+
+	err = s.mgr.UndoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
+	currentTarget, err := os.Readlink(filepath.Join(dirs.SnapdPKIV1Dir, "merged"))
+	c.Assert(err, IsNil)
+	c.Check(currentTarget, Equals, oldTarget)
+}
+
+func (s *certMgrTestSuite) TestUndoUpdateCertificateDatabaseWithoutPriorMergedRetryAfterRebootRemovesMerged(c *C) {
+	baseCertsDir := dirs.SystemCertsDir
+	c.Assert(os.MkdirAll(baseCertsDir, 0o755), IsNil)
+
+	newPEM, _, err := makeTestCertPEM("new")
+	c.Assert(err, IsNil)
+	c.Assert(os.WriteFile(filepath.Join(baseCertsDir, "new.crt"), newPEM, 0o644), IsNil)
+
+	err = certstate.RefreshCertificateDatabase()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	task := s.state.NewTask("update-cert-db", "retrying undo without previous generation")
+	task.Set(certstate.PreviousGenerationTaskKey, "")
+	s.state.Unlock()
+
+	mergedDir := filepath.Join(dirs.SnapdPKIV1Dir, "merged")
+	c.Assert(os.RemoveAll(mergedDir), IsNil)
+	c.Assert(os.MkdirAll(mergedDir, 0o755), IsNil)
+
+	err = s.mgr.UndoUpdateCertificateDatabase(task, nil)
+	c.Assert(err, IsNil)
+
+	_, err = os.Stat(mergedDir)
+	c.Check(os.IsNotExist(err), Equals, true)
 }

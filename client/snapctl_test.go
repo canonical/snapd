@@ -27,6 +27,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
@@ -137,6 +138,163 @@ func (cs *clientSuite) TestClientRunSnapctlHeader(c *check.C) {
 		Args:      []string{"foo", "bar"},
 	}
 	_, _, err := cs.cli.RunSnapctl(options, nil)
-	c.Check(cs.req.Header.Get("X-Snapctl-Features"), check.Equals, "")
+
+	for _, feature := range client.TestSupportedFeatures {
+		c.Check(cs.req.Header.Get("X-Snapctl-Features"), testutil.Contains, feature)
+	}
 	c.Check(err, check.IsNil)
+}
+
+func (cs *clientSuite) TestClientRunSnapctlAsync(c *check.C) {
+	cs.rsps = []string{
+		`{
+			"type": "sync",
+			"status-code": 200,
+			"status": "OK",
+			"result": {
+				"stdout": "",
+				"stderr": "",
+				"change-id": "123"
+			}
+		}`,
+		`{
+			"type": "error",
+			"status-code": 200,
+			"status": "OK",
+			"result": {
+				"message": "unsuccessful with exit code: 3",
+				"kind": "unsuccessful",
+				"value": {
+					"stdout": "",
+					"stderr": "",
+					"exit-code": 3
+				}
+			}
+		}`,
+		`{
+			"type": "sync",
+			"status-code": 200,
+			"status": "OK",
+			"result": {
+				"stdout": "",
+				"stderr": ""
+			}
+		}`,
+	}
+
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"install", "some-snap"},
+	}
+	stdout, stderr, err := cs.cli.RunSnapctl(options, nil)
+
+	c.Assert(err, check.IsNil)
+	c.Check(stdout, check.HasLen, 0)
+	c.Check(stderr, check.HasLen, 0)
+
+	c.Assert(cs.reqs, check.HasLen, 3)
+
+	// Check the client makes the is-ready call, and loops when exit code 3 is returned.
+	var payload0 map[string]any
+	err = json.NewDecoder(cs.reqs[0].Body).Decode(&payload0)
+	c.Check(err, check.IsNil)
+	c.Check(payload0["args"], check.DeepEquals, []any{"install", "some-snap"})
+
+	var payload1 map[string]any
+	err = json.NewDecoder(cs.reqs[1].Body).Decode(&payload1)
+	c.Check(err, check.IsNil)
+	c.Check(payload1["args"], check.DeepEquals, []any{"is-ready", "123"})
+
+	var payload2 map[string]any
+	err = json.NewDecoder(cs.reqs[2].Body).Decode(&payload2)
+	c.Check(err, check.IsNil)
+	c.Check(payload2["args"], check.DeepEquals, []any{"is-ready", "123"})
+}
+
+func (cs *clientSuite) TestClientRunSnapctlPollLoopErrors(c *check.C) {
+	// Initial response that triggers the poll loop (returns a change-id).
+	const initialRsp = `{
+		"type": "sync",
+		"status-code": 200,
+		"status": "OK",
+		"result": {
+			"stdout": "",
+			"stderr": "",
+			"change-id": "123"
+		}
+	}`
+
+	tests := []struct {
+		summary  string
+		pollRsp  string
+		errMatch string
+	}{
+		{
+			summary: "generic snapctl bad request",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 400,
+				"status": "Bad Request",
+				"result": {
+					"message": "snapctl: change \"123\" not found"
+				}
+			}`,
+			errMatch: `snapctl: change "123" not found`,
+		},
+		{
+			// note: this case shouldn't happen, but it is good to ensure that
+			// the client can handle it.
+			summary: "explicit unsuccessful exit code 1",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 200,
+				"status": "OK",
+				"result": {
+					"message": "unsuccessful with exit code: 1",
+					"kind": "unsuccessful",
+					"value": {
+						"stdout": "",
+						"stderr": "command error details",
+						"exit-code": 1
+					}
+				}
+			}`,
+			errMatch: "command error details",
+		},
+		{
+			summary: "change ready but unsuccessful",
+			pollRsp: `{
+				"type": "error",
+				"status-code": 200,
+				"status": "OK",
+				"result": {
+					"message": "unsuccessful with exit code: 2",
+					"kind": "unsuccessful",
+					"value": {
+						"stdout": "",
+						"stderr": "change finished with status Error",
+						"exit-code": 2
+					}
+				}
+			}`,
+			errMatch: "change finished with status Error",
+		},
+	}
+
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"install", "some-snap"},
+	}
+
+	for _, t := range tests {
+		c.Logf("test: %s", t.summary)
+
+		cs.rsps = []string{initialRsp, t.pollRsp}
+		cs.doCalls = 0
+		cs.reqs = nil
+
+		_, _, err := cs.cli.RunSnapctl(options, nil)
+		c.Check(err, check.ErrorMatches, t.errMatch)
+		c.Check(cs.reqs, check.HasLen, 2)
+	}
 }

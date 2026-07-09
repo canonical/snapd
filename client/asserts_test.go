@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -226,13 +225,13 @@ func (cs *clientSuite) TestStoreAccountNoAssertionFound(c *C) {
 func (cs *clientSuite) TestClientAssertTypesErrIsWrapped(c *C) {
 	cs.err = errors.New("boom")
 	_, err := cs.cli.AssertionTypes()
-	var e xerrors.Wrapper
+	var e interface{ Unwrap() error }
 	c.Assert(err, Implements, &e)
 }
 
 func (cs *clientSuite) TestClientKnownErrIsWrapped(c *C) {
 	cs.err = errors.New("boom")
 	_, err := cs.cli.Known("foo", nil, nil)
-	var e xerrors.Wrapper
-	c.Assert(err, Implements, &e)
+	var e2 interface{ Unwrap() error }
+	c.Assert(err, Implements, &e2)
 }

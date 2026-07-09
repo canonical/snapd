@@ -1134,28 +1134,6 @@ func (s *viewSuite) TestJSONDatabagCopy(c *C) {
 	c.Assert(string(data), Equals, `{"foo":"baz"}`)
 }
 
-func (s *viewSuite) TestJSONDataOverwrite(c *C) {
-	bag := confdb.NewJSONDatabag()
-	err := bag.Set(parsePath(c, "foo"), "bar")
-	c.Assert(err, IsNil)
-
-	// precondition check
-	data, err := bag.Data()
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"foo":"bar"}`)
-
-	err = bag.Overwrite([]byte(`{"bar":"foo"}`))
-	c.Assert(err, IsNil)
-
-	val, err := bag.Get(parsePath(c, "bar"), nil)
-	c.Assert(err, IsNil)
-	c.Assert(val, Equals, "foo")
-
-	data, err = bag.Data()
-	c.Assert(err, IsNil)
-	c.Assert(string(data), Equals, `{"bar":"foo"}`)
-}
-
 func (s *viewSuite) TestViewGetResultNamespaceMatchesRequest(c *C) {
 	databag := confdb.NewJSONDatabag()
 	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
@@ -3705,6 +3683,41 @@ func (*viewSuite) TestGetListPlaceholderValueNotFound(c *C) {
 	// path goes beyond stored list
 	_, err = view.Get(bag, "c[2]", nil, confdb.AdminAccess)
 	c.Assert(err, testutil.ErrorIs, &confdb.NoDataError{})
+}
+
+func (*viewSuite) TestGetListUnevenListMerge(c *C) {
+	// check that reading lists with values missing in early positions preserves
+	// the position of later elements when merging the results
+	schema, err := confdb.NewSchema("acc", "confdb", map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{
+					"request": "items[{n}]",
+					"storage": "items[{n}]",
+					"content": []any{
+						map[string]any{"storage": "name"},
+						map[string]any{"storage": "other"},
+					},
+				},
+			},
+		},
+	}, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+
+	bag := confdb.NewJSONDatabag()
+	err = bag.Set(parsePath(c, "items"), []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second", "other": "value"},
+	})
+	c.Assert(err, IsNil)
+
+	view := schema.View("foo")
+	val, err := view.Get(bag, "items", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(val, DeepEquals, []any{
+		map[string]any{"name": "first"},
+		map[string]any{"name": "second", "other": "value"},
+	})
 }
 
 func (*viewSuite) TestDetectViewRulesExpectDifferentTypes(c *C) {

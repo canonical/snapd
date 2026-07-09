@@ -117,8 +117,6 @@ restore: |
         fi      
     done
 
-    tests.cleanup restore
-
 execute: |
     echo "The network-setup-control interface is disconnected by default"
     snap connections netplan-snap | MATCH 'network-setup-control +netplan-snap:network-setup-control +- +-'

@@ -79,6 +79,9 @@ type hookSecurityTag struct {
 }
 
 func (t hookSecurityTag) String() string {
+	if t.componentName != "" {
+		return fmt.Sprintf("snap.%s+%s.hook.%s", t.instanceName, t.componentName, t.hookName)
+	}
 	return fmt.Sprintf("snap.%s.hook.%s", t.instanceName, t.hookName)
 }
 

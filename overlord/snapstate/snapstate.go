@@ -531,16 +531,6 @@ func defaultProviderContentAttrs(st *state.State, info *snap.Info, prqt PrereqTr
 func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	tr := config.NewTransaction(st)
 
-	if len(info.Layout) > 0 {
-		flag, err := features.Flag(tr, features.Layouts)
-		if err != nil {
-			return err
-		}
-		if !flag {
-			return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.layouts' to true")
-		}
-	}
-
 	if info.InstanceKey != "" {
 		flag, err := features.Flag(tr, features.ParallelInstances)
 		if err != nil {
@@ -659,31 +649,41 @@ type PrereqTracker interface {
 	MissingProviderContentTags(info *snap.Info, repo snap.InterfaceRepo) map[string][]string
 }
 
-// InstallPath returns a set of tasks for installing a snap from a file path
-// and the snap.Info for the given snap.
+// InstallPath returns a set of tasks for installing a snap from a file path.
 //
-// Note that the state must be locked by the caller.
-// The provided SideInfo can contain just a name which results in a
-// local revision and sideloading, or full metadata in which case it
-// the snap will appear as installed from the store.
-func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, *snap.Info, error) {
-	target := PathInstallGoal(PathSnap{
+// The state must be locked by the caller. The provided SideInfo can
+// contain just a name which results in a local revision and sideloading, or
+// full metadata in which case it the snap will appear as installed from the
+// store.
+//
+// This function should also be used when updating an already installed snap
+// from a local file.
+func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel string, flags Flags, prqt PrereqTracker) (*state.TaskSet, error) {
+	target := PathUpdateGoal(PathSnap{
 		InstanceName: instanceName,
 		Path:         path,
 		SideInfo:     si,
-		RevOpts:      RevisionOptions{Channel: channel},
+		RevOpts: RevisionOptions{
+			Channel: channel,
+
+			// setting the revision here makes this single-snap path install an
+			// explicit revision update. InstallPathMany intentionally does not
+			// do this, so same-revision local snaps can be handled differently
+			// by the two API entrypoints
+			Revision: si.Revision,
+		},
 	})
+
+	// since this is implemented in terms of a refresh, we always need to
+	// disable re-refresh
+	flags.NoReRefresh = true
 
 	// TODO have caller pass a context
-	info, ts, err := InstallOne(context.Background(), st, target, Options{
+	return UpdateOne(context.Background(), st, target, nil, Options{
 		Flags:         flags,
 		PrereqTracker: prqt,
+		ExpectOneSnap: true,
 	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return ts, info, nil
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -691,7 +691,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 func TryPath(st *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags.TryMode = true
 
-	ts, _, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags, nil)
+	ts, err := InstallPath(st, &snap.SideInfo{RealName: name}, path, "", "", flags, nil)
 	return ts, err
 }
 
@@ -734,41 +734,6 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, err
 	}
 
-	return ts, nil
-}
-
-// InstallPathWithDeviceContext returns a set of tasks for installing a local snap.
-// Note that the state must be locked by the caller.
-//
-// The returned TaskSet will contain a LastBeforeLocalModificationsEdge
-// identifying the last task before the first task that introduces system
-// modifications.
-func InstallPathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name string,
-	opts *RevisionOptions, userID int, flags Flags, prqt PrereqTracker,
-	deviceCtx DeviceContext, fromChange string) (*state.TaskSet, error) {
-	logger.Debugf("installing from local file with device context %s", name)
-
-	if opts == nil {
-		opts = &RevisionOptions{}
-	}
-
-	target := PathInstallGoal(PathSnap{
-		InstanceName: name,
-		Path:         path,
-		SideInfo:     si,
-		RevOpts:      *opts,
-	})
-
-	_, ts, err := InstallOne(context.Background(), st, target, Options{
-		Flags:           flags,
-		UserID:          userID,
-		ConflictOptions: ConflictOptions{FromChange: fromChange},
-		PrereqTracker:   prqt,
-		DeviceCtx:       deviceCtx,
-	})
-	if err != nil {
-		return nil, err
-	}
 	return ts, nil
 }
 
@@ -985,6 +950,9 @@ func validatedInfoFromPathAndSideInfo(instanceName string, path string, si *snap
 // The provided SideInfos can contain just a name which results in a
 // local revision and sideloading, or full metadata in which case
 // the snaps will appear as installed from the store.
+//
+// This function should also be used when updating an already installed snap
+// from a local file.
 func InstallPathMany(ctx context.Context, st *state.State, sideInfos []*snap.SideInfo, paths []string, userID int, flags *Flags) ([]*state.TaskSet, error) {
 	if len(paths) != len(sideInfos) {
 		return nil, fmt.Errorf("internal error: number of paths and side infos must match: %d != %d", len(paths), len(sideInfos))
@@ -1631,6 +1599,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			ConflictOptions:     opts.ConflictOptions,
 			DeviceCtx:           opts.DeviceCtx,
 			NoRestartBoundaries: true,
+			SkipConfigure:       opts.Flags.SkipConfigure,
 		})
 		if err != nil {
 			if errors.Is(err, &timedBusySnapError{}) && sts.ts != nil {
@@ -1656,7 +1625,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		scheduleUpdate(up.Setup.InstanceName(), sts.ts)
 	}
 
-	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, nil, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
+	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
 	if err != nil {
 		return nil, false, nil, err
 	}
@@ -2149,10 +2118,20 @@ func firstNonEmpty(strs ...string) string {
 	return ""
 }
 
-// resolveChannel conditionally resolves the channel for the given snap. If the
-// the revision is set and the channel is empty, then we assume that the caller
-// wants to install by revision and do not mutate the channel.
+// resolveChannel resolves the channel for the given snap.
 func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
+	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
+	if err != nil {
+		return err
+	}
+	r.Channel = resolved
+	return nil
+}
+
+// resolveChannelForStore conditionally resolves the channel for the given snap.
+// If the the revision is set and the channel is empty, then we assume that the
+// caller wants to install by revision and does not mutate the channel.
+func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	// if the revision is set and the caller didn't provide a channel, then we
 	// shouldn't mess with the channel. this is because we don't want the caller
 	// to have to pick the right channel when refreshing/installing by revision.
@@ -2162,14 +2141,7 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 
 	// otherwise, we know that the channel is either empty, or it is specified
 	// along with the revision. in either case, we need to resolve the channel.
-
-	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
-	if err != nil {
-		return err
-	}
-	r.Channel = resolved
-
-	return nil
+	return r.resolveChannel(instanceName, fallback, deviceCtx)
 }
 
 // initializeValidationSets ensures that r.ValidationSets is initialized with a
@@ -3671,7 +3643,7 @@ func RevertToRevision(st *state.State, name string, rev snap.Revision, flags Fla
 	// from, we use ReplaceLatest to indicate that the most recent seed should
 	// be replaced with the incoming one. this is only applicable if this snap
 	// triggers a seed refresh.
-	seedTS, err := arrangeRebootAndUpdateSeed(st, []snapInstallTaskSet{installTS}, nil, SeedRefreshEvictionPolicy{
+	seedTS, err := arrangeRebootAndUpdateSeed(st, []snapInstallTaskSet{installTS}, SeedRefreshEvictionPolicy{
 		SeedsToRetain: 1,
 		ReplaceLatest: true,
 	}, Options{

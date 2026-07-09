@@ -8,8 +8,6 @@ details: |
 systems:
     # Ubuntu 14.04 does not have a complete systemd implementation
     - -ubuntu-14.04-*
-    # Systemd on Amazon Linux 2 does not have the user@uid unit
-    - -amazon-linux-2-*
 
 skip:
     - reason: Debug confinement is not strict on the system

@@ -821,7 +821,8 @@ version: 5.0
 		c.Assert(recoveryGrub.Hashes, HasLen, 1)
 		c.Check(recoveryGrub.Hashes[0], Equals, "aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5")
 
-		c.Check(params.FactoryReset, Equals, opts.factoryReset)
+		c.Check(params.Reprovision, Equals, opts.factoryReset)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, opts.factoryReset)
 		if opts.classic {
 			c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
 		} else {
@@ -991,18 +992,16 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20Install(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   false,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   false,
-		withKComps:   false,
+		standalone: false,
+		classic:    false,
+		fromInitrd: false,
+		withKComps: false,
 	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKernelArgs(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
 		standalone:           false,
-		factoryReset:         false,
 		classic:              false,
 		fromInitrd:           false,
 		withKComps:           false,
@@ -1012,21 +1011,19 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKernelArgs(c *C
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallWithKComps(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   false,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: false,
+		classic:    false,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallOnClassic(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   false,
-		factoryReset: false,
-		classic:      true,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: false,
+		classic:    true,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 
@@ -1052,11 +1049,10 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20FactoryResetOnClassic(c *C
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20InstallFromInitrd(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   true,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   true,
-		withKComps:   true,
+		standalone: true,
+		classic:    false,
+		fromInitrd: true,
+		withKComps: true,
 	})
 }
 
@@ -1347,7 +1343,8 @@ version: 5.0
 		c.Assert(recoveryGrub.Hashes, HasLen, 1)
 		c.Check(recoveryGrub.Hashes[0], Equals, "aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5")
 
-		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.Reprovision, Equals, false)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, false)
 		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 
 		return fmt.Errorf("seal error")
@@ -1361,6 +1358,10 @@ version: 5.0
 }
 
 func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C, whichFile, content, errMsg string, cmdlines map[string]string) {
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, whichFile, content, "", errMsg, cmdlines)
+}
+
+func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c *C, whichFile, content, extraSnapdAppend, errMsg string, cmdlines map[string]string) {
 	if cmdlines == nil {
 		cmdlines = map[string]string{}
 	}
@@ -1420,7 +1421,9 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C,
 		{"grubx64.efi", "grub content"},
 		{"meta/snap.yaml", gadgetSnapYaml},
 		{"meta/gadget.yaml", gadgetYaml},
-		{whichFile, content},
+	}
+	if whichFile != "" {
+		gadgetFiles = append(gadgetFiles, []string{whichFile, content})
 	}
 	snaptest.PopulateDir(unpackedGadgetDir, gadgetFiles)
 	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
@@ -1466,6 +1469,8 @@ version: 5.0
 		Kernel:              kernelInfo,
 		Recovery:            false,
 		UnpackedGadgetDir:   unpackedGadgetDir,
+
+		ExtraSnapdKernelCommandLineAppend: extraSnapdAppend,
 	}
 
 	// set up observer state
@@ -1542,7 +1547,8 @@ version: 5.0
 		c.Assert(recoveryGrub.Hashes, HasLen, 1)
 		c.Check(recoveryGrub.Hashes[0], Equals, "aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5")
 
-		c.Check(params.FactoryReset, Equals, false)
+		c.Check(params.Reprovision, Equals, false)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, false)
 		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data", "system-data"))
 
 		return nil
@@ -1589,17 +1595,28 @@ version: 5.0
 			defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
 			c.Assert(err, IsNil)
 			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
-			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content}, " "))
+			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, content, extraSnapdAppend}, " "))
 		} else {
-			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
+			c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{content, extraSnapdAppend}, " "))
 			c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
 		}
 	case "cmdline.full":
 		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
-		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, content)
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{content, extraSnapdAppend}, " "))
+	case "":
+		blopts := &bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		}
+		bl, err := bootloader.Find(boot.InitramfsUbuntuBootDir, blopts)
+		c.Assert(err, IsNil)
+		tbl := bl.(bootloader.TrustedAssetsBootloader)
+		candidate := false
+		defaultCmdLine, err := tbl.DefaultCommandLine(candidate)
+		c.Assert(err, IsNil)
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, strutil.JoinNonEmpty([]string{defaultCmdLine, extraSnapdAppend}, " "))
 	}
-
-	// ensure modeenv looks correct
 	ubuntuDataModeEnvPath := filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
 	c.Check(ubuntuDataModeEnvPath, testutil.FileEquals, fmt.Sprintf(`mode=run
 recovery_system=20191216
@@ -1640,6 +1657,30 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelFullArgs(c
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelInvalidArgs(c *C) {
 	errMsg := `cannot compose the candidate command line: cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: disallowed kernel argument "snapd=unhappy"`
 	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar snapd=unhappy", errMsg, nil)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20WithExtraSnapdKernelCommandLineAppend(c *C) {
+	extraSnapdAppend := "snapd.xkb=eg,pc105,,grp:alt_shift_toggle"
+	cmdlines := map[string]string{
+		"run": "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 " + extraSnapdAppend,
+	}
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, "", "", extraSnapdAppend, "", cmdlines)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20WithExtraSnapdKernelCommandLineAppendAndCustomKernelExtraArgs(c *C) {
+	extraSnapdAppend := "snapd.xkb=eg,pc105,,grp:alt_shift_toggle"
+	cmdlines := map[string]string{
+		"run": "snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz " + extraSnapdAppend,
+	}
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, "cmdline.extra", "foo bar baz", extraSnapdAppend, "", cmdlines)
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20WithExtraSnapdKernelCommandLineAppendCustomKernelFullArgs(c *C) {
+	extraSnapdAppend := "snapd.xkb=eg,pc105,,grp:alt_shift_toggle"
+	cmdlines := map[string]string{
+		"run": "snapd_recovery_mode=run foo bar baz " + extraSnapdAppend,
+	}
+	s.testMakeSystemRunnable20WithCustomKernelAndSnapdArgs(c, "cmdline.full", "foo bar baz", extraSnapdAppend, "", cmdlines)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable(c *C) {
@@ -2420,21 +2461,19 @@ current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20Install(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   true,
-		factoryReset: false,
-		classic:      false,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: true,
+		classic:    false,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 
 func (s *makeBootable20Suite) TestMakeStandaloneSystemRunnable20InstallOnClassic(c *C) {
 	s.testMakeSystemRunnable20(c, testMakeSystemRunnable20Opts{
-		standalone:   true,
-		factoryReset: false,
-		classic:      true,
-		fromInitrd:   false,
-		withKComps:   true,
+		standalone: true,
+		classic:    true,
+		fromInitrd: false,
+		withKComps: true,
 	})
 }
 
@@ -2555,4 +2594,184 @@ func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsSignedAndDa
 	}
 	// The option is ignored if non-dangerous model
 	s.testMakeBootableImageOptionalKernelArgs(c, model, options, "", "")
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
+	/* baseName := "core26" */
+	fakeProc := c.MkDir()
+	fakeCmdline := filepath.Join(fakeProc, "cmdline")
+	defer kcmdline.MockProcCmdline(fakeCmdline)()
+	err := os.WriteFile(fakeCmdline, []byte(fmt.Sprintf("some ubuntu-core.force-experimental-tokens=1 args")), 0644)
+	c.Assert(err, IsNil)
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+	dirs.SetRootDir(dirs.GlobalRootDir)
+
+	bootloader.Force(nil)
+
+	var model *asserts.Model
+	model = boottest.MakeMockUC20Model(map[string]any{
+		"classic":      "true",
+		"distribution": "ubuntu",
+	})
+	/*seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
+	err = os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)*/
+
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
+	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	c.Assert(err, IsNil)
+	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
+	c.Assert(genv.Save(), IsNil)
+
+	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
+	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
+	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
+	c.Assert(err, IsNil)
+	err = os.WriteFile(mockBootGrubCfg, nil, 0644)
+	c.Assert(err, IsNil)
+
+	myKey := secboot.CreateMockBootstrappedContainer()
+	myKey2 := secboot.CreateMockBootstrappedContainer()
+	chosenPrimaryKey := []byte("primarykey!")
+	myVolumesAuth := &device.VolumesAuthOptions{Mode: device.AuthModePassphrase, Passphrase: "test"}
+	myCheckResult := &secboot.PreinstallCheckResult{}
+
+	encryptionSetup := boot.NewEncryptionSetup(
+		myKey, myKey2,
+		chosenPrimaryKey,
+		myVolumesAuth,
+		myCheckResult,
+	)
+
+	var readSystemEssentialCalls []string
+	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		readSystemEssentialCalls = append(readSystemEssentialCalls, label)
+		c.Check(seedDir, Equals, dirs.SnapSeedDir)
+		if label == "test" {
+			return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+		} else {
+			return model, []*seed.Snap{mockKernelSeedSnap(snap.R(2)), mockGadgetSeedSnap(c, nil)}, nil
+		}
+	})
+	defer restore()
+
+	kernel2, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_2.snap")
+	c.Assert(err, IsNil)
+
+	kernel3, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_3.snap")
+	c.Assert(err, IsNil)
+
+	sealKeyForBootChainsCalled := 0
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams) error {
+		sealKeyForBootChainsCalled++
+		c.Check(method, Equals, device.SealingMethodTPM)
+		c.Check(key, Equals, myKey)
+		c.Check(saveKey, Equals, myKey2)
+		c.Check(primaryKey, DeepEquals, chosenPrimaryKey)
+		c.Check(volumesAuth, Equals, myVolumesAuth)
+		c.Check(checkResult, Equals, myCheckResult)
+
+		recoveryBootLoader, hasRecovery := params.RoleToBlName[bootloader.RoleRecovery]
+		c.Assert(hasRecovery, Equals, true)
+		c.Check(recoveryBootLoader, Equals, "grub")
+		runBootLoader, hasRun := params.RoleToBlName[bootloader.RoleRunMode]
+		c.Assert(hasRun, Equals, true)
+		c.Check(runBootLoader, Equals, "grub")
+
+		c.Assert(params.RunModeBootChains, HasLen, 2)
+		for n, runBootChain := range params.RunModeBootChains {
+			c.Check(runBootChain.Model, Equals, model.Model())
+			c.Check(runBootChain.KernelCmdlines, DeepEquals, []string{"foo", "bar"})
+			c.Check(runBootChain.KernelBootFile.Path, Equals, "kernel.efi")
+			switch n {
+			case 0:
+				c.Check(runBootChain.KernelBootFile.Snap, Equals, filepath.Join(dirs.SnapBlobDir, "pc-kernel_2.snap"))
+			case 1:
+				c.Check(runBootChain.KernelBootFile.Snap, Equals, filepath.Join(dirs.SnapBlobDir, "pc-kernel_3.snap"))
+			}
+			c.Check(runBootChain.KernelBootFile.Role, Equals, bootloader.RoleRunMode)
+			c.Assert(runBootChain.AssetChain, HasLen, 3)
+			runShim := runBootChain.AssetChain[0]
+			runGrub := runBootChain.AssetChain[1]
+			runGrubRun := runBootChain.AssetChain[2]
+			c.Check(runShim.Name, Equals, "bootx64.efi")
+			c.Check(runShim.Hashes, DeepEquals, []string{"shimhash1", "shimhash2"})
+			c.Check(runGrub.Name, Equals, "grubx64.efi")
+			c.Check(runGrub.Hashes, DeepEquals, []string{"recovery-hash1"})
+			c.Check(runGrubRun.Name, Equals, "grubx64.efi")
+			c.Check(runGrubRun.Hashes, DeepEquals, []string{"hash1", "hash2"})
+		}
+
+		c.Check(params.RecoveryBootChainsForRunKey, HasLen, 0)
+		c.Assert(params.RecoveryBootChains, HasLen, 2)
+		for n, recoveryBootChain := range params.RecoveryBootChains {
+			c.Check(recoveryBootChain.KernelBootFile.Path, Equals, "kernel.efi")
+			switch n {
+			case 0:
+				c.Check(recoveryBootChain.KernelBootFile.Snap, Equals, "/var/lib/snapd/seed/snaps/pc-kernel_1.snap")
+			case 1:
+				c.Check(recoveryBootChain.KernelBootFile.Snap, Equals, "/var/lib/snapd/seed/snaps/pc-kernel_2.snap")
+			}
+			c.Check(recoveryBootChain.KernelBootFile.Role, Equals, bootloader.RoleRecovery)
+			c.Check(recoveryBootChain.Model, Equals, model.Model())
+			c.Assert(recoveryBootChain.AssetChain, HasLen, 2)
+			recoveryShim := recoveryBootChain.AssetChain[0]
+			recoveryGrub := recoveryBootChain.AssetChain[1]
+			c.Check(recoveryShim.Name, Equals, "bootx64.efi")
+			c.Check(recoveryShim.Hashes, DeepEquals, []string{"shimhash1", "shimhash2"})
+			c.Check(recoveryGrub.Name, Equals, "grubx64.efi")
+			c.Check(recoveryGrub.Hashes, DeepEquals, []string{"recovery-hash1"})
+		}
+
+		c.Check(params.Reprovision, Equals, true)
+		c.Check(params.LegacyFactoryResetKeyPath, Equals, false)
+		c.Check(params.InstallHostWritableDir, Equals, filepath.Join(boot.InitramfsRunMntDir, "ubuntu-data"))
+
+		c.Check(params.UseTokens, Equals, true)
+
+		return nil
+	})
+	defer restore()
+
+	restore = boot.MockCryptsetupSupportsTokenReplace(true)
+	defer restore()
+
+	modeenv := &boot.Modeenv{
+		Mode:                   "run",
+		RecoverySystem:         "test",
+		CurrentRecoverySystems: []string{"test", "other"},
+		GoodRecoverySystems:    []string{"test", "other"},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"hash1", "hash2"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"bootx64.efi": []string{"shimhash1", "shimhash2"},
+			"grubx64.efi": []string{"recovery-hash1"},
+		},
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"foo", "bar",
+		},
+
+		CurrentKernels: []string{kernel2.Filename(), kernel3.Filename()},
+
+		Model:          "my-model-uc20",
+		BrandID:        "my-brand",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		Grade:          "dangerous",
+	}
+	c.Assert(modeenv.WriteTo(""), IsNil)
+
+	var protector secboot.KeyProtectorFactory
+
+	err = boot.MakeRunnableSystemReprovision(model, protector, encryptionSetup)
+	c.Assert(err, IsNil)
+
+	c.Check(sealKeyForBootChainsCalled, Equals, 1)
+	c.Check(readSystemEssentialCalls, DeepEquals, []string{"test", "other"})
 }

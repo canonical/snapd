@@ -65,6 +65,11 @@ type BootableSet struct {
 
 	// KernelMods contains kernel-modules components in the system.
 	KernelMods []BootableKModsComponents
+
+	// ExtraSnapdKernelCommandLineAppend holds extra snapd kernel command line
+	// arguments to append to the kernel command line which is only applied to
+	// runnable systems.
+	ExtraSnapdKernelCommandLineAppend string
 }
 
 // BootableComponent represents kernel-modules components, which are
@@ -346,11 +351,13 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 }
 
 type makeRunnableOptions struct {
-	Standalone     bool
-	AfterDataReset bool
-	SeedDir        string
-	StateUnlocker  Unlocker
-	UseTokens      bool
+	Standalone    bool
+	SeedDir       string
+	StateUnlocker Unlocker
+
+	LegacyFactoryResetKeyPath bool
+	Reprovision               bool
+	UseTokens                 bool
 }
 
 func copyBootSnap(orig string, filename string, dstSnapBlobDir string) error {
@@ -465,6 +472,46 @@ func sealModeenvUnlock() {
 
 func isSealModeenvLocked() bool {
 	return atomic.LoadInt32(&sealModeenvLocked) == 1
+}
+
+func makeRunnableSystemSeal(modeenv *Modeenv, model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, makeOpts makeRunnableOptions) error {
+	tokens := UseTokens(model)
+	if tokens {
+		logger.Debugf("key data will be stored in tokens")
+	} else {
+		logger.Debugf("key data will be stored in files")
+	}
+
+	flags := sealKeyToModeenvFlags{
+		HookKeyProtectorFactory:   protector,
+		LegacyFactoryResetKeyPath: makeOpts.LegacyFactoryResetKeyPath,
+		Reprovision:               makeOpts.Reprovision,
+		SeedDir:                   makeOpts.SeedDir,
+		StateUnlocker:             makeOpts.StateUnlocker,
+		UseTokens:                 tokens,
+	}
+
+	if makeOpts.Standalone {
+		flags.SnapsDir = dirs.SnapBlobDirUnder(InstallHostWritableDir(model))
+	}
+
+	// seal the encryption key to the parameters specified in
+	// modeenv as well as optimum PCR configuration specified in the
+	// check result (when available)
+	if err := sealKeyToModeenv(
+		encryption.dataBootstrappedContainer,
+		encryption.saveBootstrappedContainer,
+		encryption.primaryKey,
+		encryption.volumesAuth,
+		encryption.checkResult,
+		model,
+		modeenv,
+		flags,
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup, makeOpts makeRunnableOptions) error {
@@ -628,6 +675,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 			return fmt.Errorf("while retrieving system.kernel.*cmdline-append defaults: %v", err)
 		}
 
+		cmdlineAppend = strutil.JoinNonEmpty(
+			[]string{bootWith.ExtraSnapdKernelCommandLineAppend, cmdlineAppend}, " ")
+
 		modeenv.CurrentKernelCommandLines = bootCommandLines{
 			strutil.JoinNonEmpty([]string{cmdline, cmdlineAppend}, " ")}
 
@@ -658,36 +708,7 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets 
 			return fmt.Errorf("cannot check for fde-setup hook key protector: %v", err)
 		}
 
-		tokens := UseTokens(model)
-		if tokens {
-			logger.Debugf("key data will be stored in tokens")
-		} else {
-			logger.Debugf("key data will be stored in files")
-		}
-
-		flags := sealKeyToModeenvFlags{
-			HookKeyProtectorFactory: protector,
-			FactoryReset:            makeOpts.AfterDataReset,
-			SeedDir:                 makeOpts.SeedDir,
-			StateUnlocker:           makeOpts.StateUnlocker,
-			UseTokens:               tokens,
-		}
-		if makeOpts.Standalone {
-			flags.SnapsDir = snapBlobDir
-		}
-		// seal the encryption key to the parameters specified in
-		// modeenv as well as optimum PCR configuration specified in the
-		// check result (when available)
-		if err := sealKeyToModeenv(
-			encryption.dataBootstrappedContainer,
-			encryption.saveBootstrappedContainer,
-			encryption.primaryKey,
-			encryption.volumesAuth,
-			encryption.checkResult,
-			model,
-			modeenv,
-			flags,
-		); err != nil {
+		if err := makeRunnableSystemSeal(modeenv, model, protector, encryption, makeOpts); err != nil {
 			return err
 		}
 	}
@@ -793,7 +814,26 @@ func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *Boot
 // back to the new run system.
 func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup) error {
 	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
-		AfterDataReset: true,
-		SeedDir:        dirs.SnapSeedDir,
+		LegacyFactoryResetKeyPath: true,
+		Reprovision:               true,
+		SeedDir:                   dirs.SnapSeedDir,
+	})
+}
+
+// MakeRunnableSystemReprovision make the systems currently running bootable again.
+// This is intended to repair the boot of a system that was booted for example
+// with a recovery key.
+func MakeRunnableSystemReprovision(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup) error {
+	sealModeenvLock()
+	defer sealModeenvUnlock()
+
+	modeenv, err := ReadModeenv("")
+	if err != nil {
+		return err
+	}
+
+	return makeRunnableSystemSeal(modeenv, model, protector, encryption, makeRunnableOptions{
+		Reprovision: true,
+		SeedDir:     dirs.SnapSeedDir,
 	})
 }

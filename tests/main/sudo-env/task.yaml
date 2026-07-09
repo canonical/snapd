@@ -11,7 +11,7 @@ systems: [ -ubuntu-14.04-* ]
 environment:
     # list of regular expressions that match systems where sudo is set up to use
     # secure_path without snap bindir
-    SECURE_PATH_SUDO_NO_SNAP: "centos-.* amazon-linux-2-64 opensuse-.* debian-.* arch-linux-.*"
+    SECURE_PATH_SUDO_NO_SNAP: "centos-.* opensuse-.* debian-.* arch-linux-.*"
 
 prepare: |
     tests.session -u test prepare
