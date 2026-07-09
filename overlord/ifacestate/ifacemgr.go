@@ -320,15 +320,19 @@ var interfacesRequestsManagerShutDown = func(interfacesRequestsManager *apparmor
 	interfacesRequestsManager.ShutDown()
 }
 
-// ShutDown implements ShutDowner. It prevents the manager from receiving
-// anymore new requests and reject pending ones.
-func (m *InterfaceManager) ShutDown() {
+func (m *InterfaceManager) shutDownInterfacesRequestsManger() {
 	m.interfacesRequestsManagerMu.Lock()
 	defer m.interfacesRequestsManagerMu.Unlock()
 	if m.interfacesRequestsManager == nil {
 		return
 	}
 	interfacesRequestsManagerShutDown(m.interfacesRequestsManager)
+}
+
+// ShutDown implements ShutDowner. It prevents the manager from receiving
+// anymore new requests and reject pending ones.
+func (m *InterfaceManager) ShutDown() {
+	m.shutDownInterfacesRequestsManger()
 }
 
 // Stop implements StateStopper. It stops the udev monitor and prompting,
