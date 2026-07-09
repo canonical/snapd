@@ -15,7 +15,6 @@ execute: |
     fi
   }
 
-  # but snap-bootstrap does not
   # snap-bootstrap is shipped only on ubuntu (except for 14.04)
   if [[ "$SPREAD_SYSTEM" = ubuntu-2* ]] || os.query is-bionic || os.query is-xenial; then
     check_imports /usr/lib/snapd/snap-bootstrap

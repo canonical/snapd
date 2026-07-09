@@ -169,7 +169,8 @@ override_dh_auto_build: snapd.defines.mk
 	# dependencies from the distro, and this would require further updates to the
 	# go.mod file
 	GO111MODULE=off dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
-	# remove snap built by dh_auto_build and build it again using the right tags
+	# remove snapd built by dh_auto_build and build it again using the right tags
+	rm -v $(CURDIR)/_build/bin/snapd
 	GO111MODULE=off GOPATH=$(CURDIR)/_build \
 		$(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snapd SNAPD_DEFINES_DIR=$(CURDIR)
 

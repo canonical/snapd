@@ -26,14 +26,14 @@ Because `/usr/bin/snap` is a symlink to the `snapd` binary and dispatch is based
 On a high level, execution of a snap application is carried out in the following manner:
 
 ```
-      /snap/bin/<app> or `snap run <snap.app>`
+ /snap/bin/<app>, /snap/bin/<snap.app> or `snap run <snap.app>`
                 |
           (re-exec into snapd snap if newer)
                 |
               exec(2)
                 |
                 v
-          snap run <snap.app>   [snap CLI, argv[0]="snap" or app-name]
+          snap run <snap.app>   [snap CLI, argv[0]="snap" or <snap.app>]
                 |
               exec(2)
                 |
