@@ -18,7 +18,6 @@
  */
 
 // Package snap_preseed implements the snap-preseed command entry point.
-// It is used by cmd/snap when invoked as "snap-preseed".
 package snap_preseed
 
 import (
@@ -88,7 +87,7 @@ func probeCore20ImageDir(dir string) bool {
 }
 
 // Run executes the snap-preseed logic with the given parser and args.
-func Run(parser *flags.Parser, args []string) (err error) {
+func run(parser *flags.Parser, args []string) (err error) {
 	// real validation of plugs and slots; needs to be set
 	// for processing of seeds with gadget because of readInfo().
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
@@ -160,7 +159,7 @@ func Run(parser *flags.Parser, args []string) (err error) {
 // Main is the entry point for snap-preseed. It exits the process on error.
 func Main() {
 	parser := Parser()
-	if err := Run(parser, os.Args[1:]); err != nil {
+	if err := run(parser, os.Args[1:]); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
