@@ -5,13 +5,28 @@ set -euo pipefail
 repository="$1"
 workflow_run_id="$2"
 workflow_run_attempt="$3"
+parser=".github/scripts/parse-results-predictor.py"
+
+append_failure_section() {
+	local verb="$1"
+	local heading="$2"
+	local failures=()
+
+	mapfile -t failures < <(python3 "${parser}" failures consolidated-report.json "${verb}")
+	if ((${#failures[@]} == 0)); then
+		return
+	fi
+
+	echo "### ${heading}:"
+	printf -- '- %s\n' "${failures[@]}"
+}
 
 # generate report
 (
 	date
 
 	# The 'skip spread' label was added to the pull request
-	if gh api /repos/"${repository}"/issues/"$(cat pr_number)" | jq '.labels.[].name' | grep -iq '"skip spread"'; then
+	if gh api /repos/"${repository}"/issues/"$(cat pr_number)" --jq '.labels.[].name' | grep -iq '^skip spread$'; then
 		echo "## Spread tests skipped"
 		exit 0
 	fi
@@ -22,25 +37,12 @@ workflow_run_attempt="$3"
 		echo '## No spread failures reported'
 
 	else
-		# Consolidate all json files into one
-		jq -s '{items: (map(.items[]) )}' spread-results-"${workflow_run_id}"*/*.json >consolidated-report.json
+		python3 "${parser}" consolidate consolidated-report.json spread-results-"${workflow_run_id}"*/*.json
 
 		echo "## Failures:"
-		if [[ $(jq -r '.items[] | select(.verb == "preparing" and .success == false)' consolidated-report.json) ]]; then
-			echo "### Preparing:"
-			jq -r '.items[] | select(.verb == "preparing" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |
-				awk ' { print "- " $0 }'
-		fi
-		if [[ $(jq -r '.items[] | select(.verb == "executing" and .success == false)' consolidated-report.json) ]]; then
-			echo "### Executing:"
-			jq -r '.items[] | select(.verb == "executing" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |
-				awk ' { print "- " $0 }'
-		fi
-		if [[ $(jq -r '.items[] | select(.verb == "restoring" and .success == false)' consolidated-report.json) ]]; then
-			echo "### Restoring:"
-			jq -r '.items[] | select(.verb == "restoring" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |
-				awk ' { print "- " $0 }'
-		fi
+		append_failure_section "preparing" "Preparing"
+		append_failure_section "executing" "Executing"
+		append_failure_section "restoring" "Restoring"
 	fi
 ) >report
 
@@ -53,8 +55,10 @@ fi
 append_predictor_table() {
 	local verb="$1"
 	local heading="$2"
+	local predictor_rows=()
 
-	if ! jq -e --arg verb "$verb" '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and .verb == $verb and (.system // "") != "" and .start != null and .end != null)' consolidated-report.json >/dev/null; then
+	mapfile -t predictor_rows < <(python3 "${parser}" predictor-rows consolidated-report.json "${verb}")
+	if ((${#predictor_rows[@]} == 0)); then
 		return
 	fi
 
@@ -62,29 +66,7 @@ append_predictor_table() {
 	echo "| Test | Retries | Predictor |" >>report
 	echo "|------|---------|-----------|" >>report
 
-	jq -r --arg verb "$verb" '
-              [.items[]
-                | select(.success == false and .skipped != true and (.name // "") != "" and .verb == $verb and (.system // "") != "" and .start != null and .end != null)
-                | {
-                    backend: (.backend // ""),
-                    system: .system,
-                    full_name: (if (.variant // "") != "" then "\(.name):\(.variant)" else .name end),
-                    scenario: (.scenario // "generic")
-                  }
-              ]
-              | sort_by([.backend, .system, .full_name, .scenario])
-              | group_by([.backend, .system, .full_name, .scenario])
-              | .[]
-              | .[0] as $item
-              | [
-                  ((if $item.backend != "" then "\($item.backend):" else "" end) + "\($item.system):\($item.full_name)"),
-                  ((length - 1) | tostring),
-                  $item.full_name,
-                  $item.system,
-                  $item.scenario
-                ]
-              | @tsv
-            ' consolidated-report.json |
+	printf '%s\n' "${predictor_rows[@]}" |
 		while IFS=$'\t' read -r display_name retries full_name system scenario; do
 			response=$(curl -sf -G http://test-predictor.canonical.com:5000/predict \
 				--max-time 10 \
@@ -94,7 +76,7 @@ append_predictor_table() {
 				--data-urlencode "scenario=${scenario}" \
 				--data-urlencode "attempt=${workflow_run_attempt}" \
 				2>/dev/null) || response='{}'
-			probability=$(jq -r '.success_probability // empty' <<<"$response")
+			probability=$(python3 "${parser}" success-probability <<<"$response")
 			if [ -z "$probability" ]; then
 				probability="unavailable"
 			else
@@ -112,7 +94,7 @@ append_predictor_table() {
 	echo "" >>report
 }
 
-if [ -f consolidated-report.json ] && jq -e '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and (.verb // "") != "" and .verb != "checking" and (.system // "") != "" and .start != null and .end != null)' consolidated-report.json >/dev/null; then
+if [ -f consolidated-report.json ] && python3 "${parser}" has-predictor-rows consolidated-report.json; then
 	echo "## Test Predictor Analysis" >>report
 	append_predictor_table "preparing" "Preparing"
 	append_predictor_table "executing" "Executing"
