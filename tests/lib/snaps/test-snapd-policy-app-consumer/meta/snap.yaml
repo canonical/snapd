@@ -14,6 +14,9 @@ apps:
   allegro-vcu:
     command: bin/run
     plugs: [ allegro-vcu ]
+  apparmor-observe:
+    command: bin/run
+    plugs: [ apparmor-observe ]
   audio-playback:
     command: bin/run
     plugs: [ audio-playback ]
