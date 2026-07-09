@@ -47,9 +47,11 @@ append_failure_section() {
 ) >report
 
 if find . -name skipped_tests_list.txt | grep -q .; then
-	echo "## Skipped tests from [snapd-testing-skip](https://github.com/canonical/snapd-testing-skip)" >>report
-	echo "*If you wish to have any of the below tests run in your PR, in your PR description, add 'unskip:' followed by a copy-and-pasted list of the below tests you wish to run (unskip plus test list must be valid yaml)*" >>report
-	find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}' >>report
+	{
+		echo "## Skipped tests from [snapd-testing-skip](https://github.com/canonical/snapd-testing-skip)"
+		echo "*If you wish to have any of the below tests run in your PR, in your PR description, add 'unskip:' followed by a copy-and-pasted list of the below tests you wish to run (unskip plus test list must be valid yaml)*"
+		find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}'
+	} >>report
 fi
 
 append_predictor_table() {
@@ -62,9 +64,11 @@ append_predictor_table() {
 		return
 	fi
 
-	echo "### ${heading}" >>report
-	echo "| Test | Retries | Predictor |" >>report
-	echo "|------|---------|-----------|" >>report
+	{
+		echo "### ${heading}"
+		echo "| Test | Retries | Predictor |"
+		echo "|------|---------|-----------|"
+	} >>report
 
 	printf '%s\n' "${predictor_rows[@]}" |
 		while IFS=$'\t' read -r display_name retries full_name system scenario; do
