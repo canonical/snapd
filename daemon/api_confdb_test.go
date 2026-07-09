@@ -397,17 +397,6 @@ func (s *confdbSuite) TestUnsetView(c *C) {
 	})
 	defer restore()
 
-	s.st.Lock()
-	tx, err := confdbstate.NewTransaction(s.st, "system", "network")
-	s.st.Unlock()
-	c.Assert(err, IsNil)
-
-	path, err := confdb.ParsePathIntoAccessors("wifi.ssid", confdb.ParseOptions{})
-	c.Assert(err, IsNil)
-
-	err = tx.Set(path, "foo")
-	c.Assert(err, IsNil)
-
 	var called bool
 	restore = daemon.MockConfdbstateWriteConfdb(func(_ context.Context, _ *state.State, view *confdb.View, values map[string]any) (string, error) {
 		called = true
