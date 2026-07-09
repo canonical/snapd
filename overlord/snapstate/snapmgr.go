@@ -1697,7 +1697,7 @@ func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 		return nil, nil, nil
 	}
 
-	snapList, _, err := InstalledSnaps(m.state)
+	allStates, err := All(m.state)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1709,23 +1709,12 @@ func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 		return nil, nil, err
 	}
 
-	for _, installedSnap := range snapList {
-		var snapst SnapState
-		err = Get(m.state, installedSnap.SnapName(), &snapst)
-
-		if err != nil {
-			// If the snap has already been removed, don't add it to the list
-			if errors.Is(err, state.ErrNoState) {
-				continue
-			}
-			return nil, nil, err
-		}
-
+	for name, snapst := range allStates {
 		if !snapst.ImplicitlyInstalled {
 			continue
 		}
 
-		snapInfo, err := Info(m.state, installedSnap.SnapName(), installedSnap.Revision)
+		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1744,13 +1733,13 @@ func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 
 		removeAll := true
 		removals := map[string]bool{snapst.InstanceName(): true}
-		err = canRemove(m.state, snapInfo, &snapst, removeAll, deviceCtx, removals)
+		err = canRemove(m.state, snapInfo, snapst, removeAll, deviceCtx, removals)
 		if err != nil {
-			logger.Debugf("cannot auto-remove implicitly installed snap %q: %v", installedSnap.SnapName(), err)
+			logger.Debugf("cannot auto-remove implicitly installed snap %q: %v", name, err)
 			continue
 		}
 
-		removeList = append(removeList, installedSnap.SnapName())
+		removeList = append(removeList, name)
 	}
 
 	if len(removeList) == 0 {
