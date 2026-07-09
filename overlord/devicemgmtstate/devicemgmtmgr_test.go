@@ -1409,8 +1409,11 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageDoesNotClobberConcurrentWrite(
 
 	var fetchCalls atomic.Int32
 	s.AddCleanup(devicemgmtstate.MockFetchAccountKeys(func(st *state.State, _ int, _ []string) error {
-		// Delay the first fetch to create a window where the second lane's
-		// handler can complete and persist its state.
+		// Delay whichever lane reaches this call first: it releases the
+		// lock and sleeps, giving the other lane time to acquire the lock,
+		// run to completion, and persist its own write. When this lane
+		// resumes and re-acquires the lock, it must not overwrite that
+		// write with its own stale snapshot.
 		if fetchCalls.Add(1) == 1 {
 			st.Unlock()
 			time.Sleep(100 * time.Millisecond)
@@ -1754,8 +1757,11 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageDoesNotClobberConcurrentWrite(c *
 	var applyCalls atomic.Int32
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			// Delay the first apply to create a window where the second lane's
-			// handler can complete and persist its state.
+			// Delay whichever lane reaches this call first: it releases the
+			// lock and sleeps, giving the other lane time to acquire the
+			// lock, run to completion, and persist its own write. When this
+			// lane resumes and re-acquires the lock, it must not overwrite
+			// that write with its own stale snapshot.
 			if applyCalls.Add(1) == 1 {
 				st.Unlock()
 				time.Sleep(100 * time.Millisecond)
