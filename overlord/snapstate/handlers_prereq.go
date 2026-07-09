@@ -279,8 +279,9 @@ const (
 )
 
 // checkForInFlightPrereqTasks checks whether a link-snap task for
-// prerequisiteName is already in flight and reports how the caller should handle
-// the prerequisite.
+// prerequisiteName is already in flight, or whether prerequisiteName is
+// otherwise involved in another in-flight change (e.g. being removed), and
+// reports how the caller should handle the prerequisite.
 func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, basePrerequisite bool) (prereqInFlightAction, error) {
 	st := prereqs.State()
 
@@ -289,8 +290,14 @@ func checkForInFlightPrereqTasks(prereqs *state.Task, prerequisiteName string, b
 		return 0, err
 	}
 
-	// no link-snap task is in flight for this prerequisite snap, proceed
+	// no link-snap task is in flight for this prerequisite snap, but it
+	// could still be concurrently removed by another change (e.g.
+	// automatic removal of a now-unneeded implicit base). retry rather
+	// than proceeding against a prerequisite that is about to disappear.
 	if link == nil {
+		if err := CheckChangeConflictMany(st, []string{prerequisiteName}, prereqs.Change().ID()); err != nil {
+			return prereqRetry, nil
+		}
 		return prereqProceed, nil
 	}
 
