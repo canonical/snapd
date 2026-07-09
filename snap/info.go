@@ -461,6 +461,7 @@ type StoreAccount struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display-name"`
 	Validation  string `json:"validation,omitempty"`
+	Verified    bool   `json:"verified,omitempty"`
 }
 
 // Layout describes a single element of the layout section.

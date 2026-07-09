@@ -132,6 +132,7 @@ type SnapSetup struct {
 
 	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
+	Publisher    snap.StoreAccount  `json:"publisher,omitempty"`
 	backend.AuxStoreInfo
 
 	// InstanceKey is set by the user during installation and differs for

@@ -313,6 +313,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	if err == nil {
+		err = checkVerifiedPublisher(st, snapsup)
+	}
+
+	if err == nil {
 		cloud, err = maybeCloudName(st)
 	}
 	st.Unlock()
@@ -795,6 +799,13 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	perfTimings := state.TimingsForTask(t)
 	snapsup, snapst, err := snapSetupAndState(t)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
+	st.Lock()
+	err = checkVerifiedPublisher(st, snapsup)
 	st.Unlock()
 	if err != nil {
 		return err
