@@ -86,7 +86,7 @@ func (s *umountSuite) TestListUnitFailure(c *C) {
 	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot retrieve list of mount units: list error`)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "snap1", Origin: "mount-control"},
+		{SnapName: "snap1", Origin: "mount-control", Filter: systemd.AllMountUnits},
 	})
 	c.Check(s.sysd.RemoveMountUnitFileCalls, HasLen, 0)
 }
@@ -100,7 +100,7 @@ func (s *umountSuite) TestUnitNotFound(c *C) {
 	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot find the given mount`)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "snap1", Origin: "mount-control"},
+		{SnapName: "snap1", Origin: "mount-control", Filter: systemd.AllMountUnits},
 	})
 	c.Check(s.sysd.RemoveMountUnitFileCalls, HasLen, 0)
 }
@@ -113,7 +113,7 @@ func (s *umountSuite) TestRemovalError(c *C) {
 	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, ErrorMatches, `cannot remove mount unit: remove error`)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "snap1", Origin: "mount-control"},
+		{SnapName: "snap1", Origin: "mount-control", Filter: systemd.AllMountUnits},
 	})
 	c.Check(s.sysd.RemoveMountUnitFileCalls, DeepEquals, []string{
 		"/dest",
@@ -126,7 +126,7 @@ func (s *umountSuite) TestHappy(c *C) {
 	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"umount", "/dest"}, 0, nil)
 	c.Check(err, IsNil)
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "snap1", Origin: "mount-control"},
+		{SnapName: "snap1", Origin: "mount-control", Filter: systemd.AllMountUnits},
 	})
 	c.Check(s.sysd.RemoveMountUnitFileCalls, DeepEquals, []string{
 		"/dest",
