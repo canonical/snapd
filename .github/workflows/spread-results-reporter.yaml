@@ -166,12 +166,41 @@ jobs:
             find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}' >> report
           fi
 
-          if [ -f consolidated-report.json ] && jq -e '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and (.verb // "") != "" and .verb != "checking" and (.system // "") != "" and .start != null and .end != null)' consolidated-report.json > /dev/null; then
-            echo "## Test Predictor Analysis" >> report
-            echo "| Test | Verb | System | Success Prob |" >> report
-            echo "|------|------|--------|--------------|" >> report
-            jq -r '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and (.verb // "") != "" and .verb != "checking" and (.system // "") != "" and .start != null and .end != null) | [(if (.variant // "") != "" then "\(.name):\(.variant)" else .name end), .verb, .system, .scenario // "generic"] | @tsv' consolidated-report.json |
-              while IFS=$'\t' read -r full_name verb system scenario; do
+          append_predictor_table() {
+            local verb="$1"
+            local heading="$2"
+
+            if ! jq -e --arg verb "$verb" '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and .verb == $verb and (.system // "") != "" and .start != null and .end != null)' consolidated-report.json > /dev/null; then
+              return
+            fi
+
+            echo "### ${heading}" >> report
+            echo "| Test | Retries | Predictor |" >> report
+            echo "|------|---------|-----------|" >> report
+
+            jq -r --arg verb "$verb" '
+              [.items[]
+                | select(.success == false and .skipped != true and (.name // "") != "" and .verb == $verb and (.system // "") != "" and .start != null and .end != null)
+                | {
+                    backend: (.backend // ""),
+                    system: .system,
+                    full_name: (if (.variant // "") != "" then "\(.name):\(.variant)" else .name end),
+                    scenario: (.scenario // "generic")
+                  }
+              ]
+              | group_by([.backend, .system, .full_name, .scenario])
+              | .[]
+              | .[0] as $item
+              | [
+                  ((if $item.backend != "" then "\($item.backend):" else "" end) + "\($item.system):\($item.full_name)"),
+                  ((length - 1) | tostring),
+                  $item.full_name,
+                  $item.system,
+                  $item.scenario
+                ]
+              | @tsv
+            ' consolidated-report.json |
+              while IFS=$'\t' read -r display_name retries full_name system scenario; do
                 response=$(curl -sf -G http://test-predictor.canonical.com:5000/predict \
                   --data-urlencode "name=${full_name}" \
                   --data-urlencode "verb=${verb}" \
@@ -183,11 +212,24 @@ jobs:
                 if [ -z "$probability" ]; then
                   probability="unavailable"
                 else
-                  probability=$(awk -v probability="$probability" 'BEGIN { printf "%.1f%%", probability * 100 }')
+                  probability=$(awk -v probability="$probability" 'BEGIN {
+                    if (probability >= 0.8) marker = "🟢";
+                    else if (probability >= 0.3) marker = "🟡";
+                    else marker = "🔴";
+                    printf "%s %.1f%%", marker, probability * 100
+                  }')
                 fi
 
-                echo "| ${full_name} | ${verb} | ${system} | ${probability} |" >> report
+                echo "| ${display_name} | ${retries} | ${probability} |" >> report
               done
+
+            echo "" >> report
+          }
+
+          if [ -f consolidated-report.json ] && jq -e '.items[] | select(.success == false and .skipped != true and (.name // "") != "" and (.verb // "") != "" and .verb != "checking" and (.system // "") != "" and .start != null and .end != null)' consolidated-report.json > /dev/null; then
+            echo "## Test Predictor Analysis" >> report
+            append_predictor_table "preparing" "Preparing"
+            append_predictor_table "executing" "Executing"
           fi
 
           # display the report
