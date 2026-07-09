@@ -203,6 +203,7 @@ jobs:
             ' consolidated-report.json |
               while IFS=$'\t' read -r display_name retries full_name system scenario; do
                 response=$(curl -sf -G http://test-predictor.canonical.com:5000/predict \
+                  --max-time 10 \
                   --data-urlencode "name=${full_name}" \
                   --data-urlencode "verb=${verb}" \
                   --data-urlencode "system=${system}" \
@@ -231,6 +232,7 @@ jobs:
             echo "## Test Predictor Analysis" >> report
             append_predictor_table "preparing" "Preparing"
             append_predictor_table "executing" "Executing"
+            append_predictor_table "restoring" "Restoring"
           fi
 
           # display the report
