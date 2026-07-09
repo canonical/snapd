@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2023 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1924,6 +1924,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 	}
 	// keep instance key
 	snapst.InstanceKey = snapsup.InstanceKey
+
+	// propagate!
+	snapst.ImplicitlyInstalled = snapsup.ImplicitlyInstalled
 
 	// don't keep the old state because, if we fail, we may or may not be able to
 	// revert the migration. We set the migration status after undoing any
