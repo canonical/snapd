@@ -54,7 +54,7 @@ capability sys_resource,
 
 # BPF filesystem for pinning maps and programs, excluding /sys/fs/bpf/snap/
 /sys/fs/bpf/ r,
-/sys/fs/bpf/[^s.]**    rw,
+/sys/fs/bpf/[^s]**    rw,
 /sys/fs/bpf/s[^n]**    rw,
 /sys/fs/bpf/sn[^a]**   rw,
 /sys/fs/bpf/sna[^p]**  rw,
