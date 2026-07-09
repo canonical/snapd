@@ -1706,6 +1706,10 @@ func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 
 	deviceCtx, err := DeviceCtxFromState(m.state, nil)
 	if err != nil {
+		if _, ok := err.(*ChangeConflictError); ok {
+			// likely just too early, retry at next Ensure
+			return nil, nil, nil
+		}
 		return nil, nil, err
 	}
 
@@ -1770,6 +1774,8 @@ func (m *SnapManager) ensureDependencyRemoval() error {
 	if len(taskSetList) == 0 {
 		return nil
 	}
+
+	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDependencyRemoval")
 
 	change := m.state.NewChange("orphan-removal", "Remove implicitly installed snaps that are no longer required")
 	for _, taskSet := range taskSetList {

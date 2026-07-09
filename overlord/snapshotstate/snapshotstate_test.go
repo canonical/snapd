@@ -78,6 +78,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		return nil, nil
 	}
 	s.AddCleanup(osutil.MockMountInfo(""))
+	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
@@ -404,9 +405,6 @@ func (snapshotSuite) createConflictingChange(c *check.C) (st *state.State, resto
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
-
-	r := snapstatetest.UseFallbackDeviceModel()
-	defer r()
 
 	chg := st.NewChange("rm foo", "...")
 	rmTasks, err := snapstate.Remove(st, "foo", snap.R(0), nil)
