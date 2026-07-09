@@ -1194,7 +1194,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromCore(c *check.C) 
 
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		// pretend 'snap' is reexeced from 'core'
-		return filepath.Join(mountedCorePath, "usr/bin/snap"), nil
+		return filepath.Join(mountedCorePath, "usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -1227,7 +1227,7 @@ func (s *RunSuite) TestSnapRunClassicAppIntegrationReexecedFromSnapd(c *check.C)
 
 	restore := snaprun.MockOsReadlink(func(name string) (string, error) {
 		// pretend 'snap' is reexeced from 'core'
-		return filepath.Join(mountedSnapdPath, "usr/bin/snap"), nil
+		return filepath.Join(mountedSnapdPath, "usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -1674,11 +1674,11 @@ func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 		expected string
 	}{
 		{
-			filepath.Join(dirs.SnapMountDir, "core/current/usr/bin/snap"),
+			filepath.Join(dirs.SnapMountDir, "core/current/usr/lib/snapd/snapd"),
 			filepath.Join(dirs.SnapMountDir, "core/current", dirs.CoreLibExecDir, tool),
 		},
 		{
-			filepath.Join(dirs.SnapMountDir, "snapd/current/usr/bin/snap"),
+			filepath.Join(dirs.SnapMountDir, "snapd/current/usr/lib/snapd/snapd"),
 			filepath.Join(dirs.SnapMountDir, "snapd/current", dirs.CoreLibExecDir, tool),
 		},
 		{
@@ -1689,9 +1689,9 @@ func (s *RunSuite) TestSnapRunSnapdHelperPath(c *check.C) {
 			filepath.Join("/home/foo/ws/snapd/snap"),
 			filepath.Join(dirs.DistroLibExecDir, tool),
 		},
-		// unexpected case
+		// unexpected case: under snap mount dir but not at expected path
 		{
-			filepath.Join(dirs.SnapMountDir, "snapd2/current/bin/snap"),
+			filepath.Join(dirs.SnapMountDir, "snapd2/current/bin/snapd"),
 			filepath.Join(dirs.DistroLibExecDir, tool),
 		},
 	} {
@@ -1712,7 +1712,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromCore(c *check.C) {
 
 	// pretend to be running from core
 	restorer := snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restorer()
 
@@ -1751,7 +1751,7 @@ func (s *RunSuite) TestSnapRunAppIntegrationFromSnapd(c *check.C) {
 
 	// pretend to be running from snapd
 	restorer := snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "snapd/222/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "snapd/222/usr/lib/snapd/snapd"), nil
 	})
 	defer restorer()
 
@@ -2654,7 +2654,7 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -2728,7 +2728,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureBaseMatrix(c *check.C) {
 
 		// pretend to be running from core
 		restoreReadlink := snaprun.MockOsReadlink(func(string) (string, error) {
-			return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+			return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 		})
 
 		restoreCreate := snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
@@ -2783,7 +2783,7 @@ func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -2839,7 +2839,7 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -2893,7 +2893,7 @@ func (s *RunSuite) TestSnapRunTrackingServicesWhenRunByUser(c *check.C) {
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -2955,7 +2955,7 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -3021,7 +3021,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26(c *check.C) {
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -3066,7 +3066,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26SelfManagedAllowed(c *check.C
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 
@@ -3124,7 +3124,7 @@ func (s *RunSuite) TestSnapRunTrackingFailureCore26NonStrictOnlyFails(c *check.C
 
 	// pretend to be running from core
 	restore = snaprun.MockOsReadlink(func(string) (string, error) {
-		return filepath.Join(dirs.SnapMountDir, "core/111/usr/bin/snap"), nil
+		return filepath.Join(dirs.SnapMountDir, "core/111/usr/lib/snapd/snapd"), nil
 	})
 	defer restore()
 

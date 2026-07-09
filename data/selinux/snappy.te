@@ -874,8 +874,8 @@ userdom_search_user_tmp_dirs(snappy_cli_t)
 # create /run/user/<uid>/snap.<name> directories
 userdom_manage_tmp_dirs(snappy_cli_t)
 
-# execute snapd internal tools
-# needed to grab a version information from snap-seccomp
+# allow snappy_cli_t to exec() into the snapd binary which implements
+# snap CLI handler and other internal snapd tools
 can_exec(snappy_cli_t, snappy_exec_t)
 
 # probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
