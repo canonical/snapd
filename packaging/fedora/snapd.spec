@@ -366,6 +366,7 @@ Provides:      golang(%{import_path}/cmd/snapctl) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/cli) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/daemon) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snap-preseed) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/tool/snap-gpio-helper) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/tool/snapd-apparmor) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
