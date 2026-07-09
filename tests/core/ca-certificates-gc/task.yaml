@@ -7,10 +7,6 @@ details: |
     mark it inactive, and the second reboot should remove it while merged
     still points at the current generation.
 
-# skip on UC26 for now, as it only has the ca-certificates db and this 
-# kind of setup needs some changes
-systems: [-ubuntu-core-26-*]
-
 environment:
     CERT_NAME: gccert
 

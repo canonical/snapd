@@ -55,15 +55,12 @@ type snapInstallTaskSet struct {
 	ts      *state.TaskSet
 	snapsup *SnapSetup
 
+	prerequisites                       *state.Task
 	beforeLocalSystemModificationsTasks []*state.Task
 	prerequisitesSync                   *state.Task
 	mountSnap                           *state.Task
 	upToLinkSnapAndBeforeReboot         []*state.Task
 	afterLinkSnapAndPostReboot          []*state.Task
-}
-
-func (sts snapInstallTaskSet) firstLocalMod() *state.Task {
-	return sts.prerequisitesSync
 }
 
 // snapInstallChoreographer orchestrates the construction of a task graph for
@@ -115,12 +112,6 @@ func (sc *snapInstallChoreographer) runRefreshHooks() bool {
 }
 
 func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
-	prereq := st.NewTask("prerequisites", fmt.Sprintf(
-		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
-	prereq.Set("snap-setup", sc.snapsup)
-	s.AppendWithoutData(prereq)
-	s.UpdateEdge(prereq, BeginEdge)
-
 	var prepare *state.Task
 	// if we have a local revision here we go back to that
 	if sc.snapsup.SnapPath != "" || sc.revisionIsPresent() {
@@ -131,8 +122,8 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 			i18n.G("Download snap %q%s from channel %q"),
 			sc.snapsup.InstanceName(), sc.revisionString(), sc.snapsup.Channel))
 	}
+
 	prepare.Set("snap-setup", sc.snapsup)
-	prepare.WaitFor(prereq)
 	s.AppendWithoutData(prepare)
 	s.UpdateEdge(prepare, SnapSetupEdge)
 	s.UpdateEdge(prepare, LastBeforeLocalModificationsEdge)
@@ -168,16 +159,6 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 }
 
 func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
-	if sc.revisionIsPresent() && sc.snapsup.Flags.RemoveSnapPath {
-		// If the revision is local, we will not need the temporary snap. This
-		// can happen when e.g. side-loading a local revision again. The
-		// SnapPath is only needed in the "mount-snap" handler and that is
-		// skipped for local revisions.
-		if err := os.Remove(sc.snapsup.SnapPath); err != nil {
-			return nil, err
-		}
-	}
-
 	removeExtraComps, discardExtraComps, err := removeExtraComponentsTasks(st, sc.snapst, sc.snapsup.Revision(), sc.compsups)
 	if err != nil {
 		return nil, err
@@ -384,6 +365,17 @@ func shouldScheduleUpdateCertDBForRefresh(instanceName string, snapType snap.Typ
 }
 
 func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, s *taskChainSpan, ic installContext) ([]*state.Task, error) {
+	if sc.snapst.IsInstalled() && sc.snapsup.Type == snap.TypeSnapd && ic.DeviceCtx.HasModeenv() && ic.DeviceCtx.RunMode() {
+		// Ensure that new snapd can reseal with the current version of secboot.
+		// This avoids the situation where we update snapd and then can never
+		// reseal again.
+		checkReseal := st.NewTask("check-reseal", fmt.Sprintf(
+			i18n.G("Validate key resealing for snap %q%s"), sc.snapsup.InstanceName(), sc.revisionString()))
+		checkReseal.Set("finish-restart", true)
+		s.Append(checkReseal)
+		s.UpdateEdge(checkReseal, MaybeRebootWaitEdge)
+	}
+
 	if !sc.requiresKmodSetup() {
 		// Let tasks know if they have to do something about restarts
 		// No kernel modules, reboot after link snap
@@ -640,6 +632,27 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installContext) (snapInstallTaskSet, error) {
 	b := newTaskChainBuilder()
 
+	if sc.revisionIsPresent() && sc.snapsup.RemoveSnapPath {
+		// If the revision is local, we will not need the temporary snap. This
+		// can happen when e.g. side-loading a local revision again. The
+		// SnapPath is only needed in the "mount-snap" handler and that is
+		// skipped for local revisions.
+		if err := os.Remove(sc.snapsup.SnapPath); err != nil {
+			return snapInstallTaskSet{}, err
+		}
+
+		// before snapsup is attached to the tasks, clear it out. a path that
+		// points to nothing isn't useful any more.
+		sc.snapsup.SnapPath = ""
+	}
+
+	prerequisites := st.NewTask("prerequisites", fmt.Sprintf(
+		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
+	prerequisites.Set("snap-setup", sc.snapsup)
+	b.Append(prerequisites)
+	b.UpdateEdge(prerequisites, BeginEdge)
+
+	// the builder chains this phase after the initial prerequisites task.
 	beforeLocalSystemMods, err := sc.BeforeLocalSystemMod(st, b.OpenSpan(), ic)
 	if err != nil {
 		return snapInstallTaskSet{}, err
@@ -683,6 +696,7 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 		ts:      b.TaskSet(),
 		snapsup: sc.snapsup,
 
+		prerequisites:                       prerequisites,
 		beforeLocalSystemModificationsTasks: beforeLocalSystemMods,
 		prerequisitesSync:                   prerequisitesSync,
 		mountSnap:                           mountSnap,

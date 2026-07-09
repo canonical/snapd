@@ -628,6 +628,8 @@ slots:
 	}
 
 	s.setConfdbFlag(true, c)
+
+	confdbstate.AssertstateConfdbSchema = assertstate.ConfdbSchema
 }
 
 func (s *confdbSuite) setConfdbFlag(val bool, c *C) {

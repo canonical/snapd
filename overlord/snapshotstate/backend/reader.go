@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
 
 	"github.com/snapcore/snapd/client"
@@ -197,7 +198,7 @@ type Logf func(format string, args ...any)
 // or the one in the snapshot) with that contained in the snapshot. It keeps
 // track of the old data in the task so it can be undone (or cleaned up).
 func (r *Reader) Restore(ctx context.Context, current snap.Revision, usernames []string, logf Logf, opts *dirs.SnapDirOptions) (rs *RestoreState, e error) {
-	rs = &RestoreState{}
+	rs = &RestoreState{Snap: r.Snap}
 	defer func() {
 		if e != nil {
 			logger.Noticef("Restore of snapshot %q failed (%v); undoing.", r.Name(), e)
@@ -393,6 +394,33 @@ func moveFile(rs *RestoreState, file, sourceDir, targetDir string) error {
 		return err
 	}
 	if exists {
+		// Handle mounts under dst before renaming it.
+		// * snapctl mounts are stopped and restarted after moveFile returns
+		//   (i.e., once the src data has been moved).
+		// * non-snapctl mounts cannot be stopped and could lead to dangling
+		//   mounts on move, so return an error if any are present.
+		snapctlMPs, nonSnapctlMPs, err := listMountsAtOrUnder(rs.Snap, dst)
+		if err != nil {
+			return fmt.Errorf("cannot list mounts for snap %q under %q: %v",
+				rs.Snap, dst, err)
+		}
+		if len(nonSnapctlMPs) > 0 {
+			return fmt.Errorf("cannot move data with unknown mount(s) under %q: %s",
+				dst, strings.Join(nonSnapctlMPs, ", "))
+		}
+		stoppedUnits, err := stopMountUnits(snapctlMPs)
+		defer func() {
+			// best effort restart when we exit to restore the mounts in the newly
+			// restored directory, but also cover the error path
+			if startErr := startMountUnits(stoppedUnits); startErr != nil {
+				logger.Noticef("cannot restart mount unit(s) for snap %q under %q: %v",
+					rs.Snap, dst, startErr)
+			}
+		}()
+		if err != nil {
+			return fmt.Errorf("cannot stop mount unit(s) for snap %q under %q: %v",
+				rs.Snap, dst, err)
+		}
 		rsfn := restoreStateFilename(dst)
 		if err := os.Rename(dst, rsfn); err != nil {
 			return err

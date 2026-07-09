@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,6 +62,11 @@ func (s *snapdSuite) SetUpTest(c *C) {
 }
 
 func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
+	// prevent snapd from going into standby (usual wait time is 5s) which makes
+	// Daemon.Stop return ErrRestartSocket
+	restore := standby.MockStandbyWait(time.Hour)
+	defer restore()
+
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2023 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,7 +36,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -51,10 +50,7 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func init() {
-	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
-	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
-
+func lateInit() {
 	// plug/slot sanitization not used by snap commands (except for snap
 	// pack and snap prepare-iamge, which re-sets it), make it no-op.
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
@@ -168,7 +164,8 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		// decode the first rune instead of converting all of desc into []rune
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
-		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
+		// Note: exclude Georgian text which doesn't start sentences with uppercase
+		if unicode.IsLower(r) && !unicode.Is(unicode.Georgian, r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
 			panicOnDebug("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
 		}
 	}
@@ -460,9 +457,9 @@ func exitCodeFromError(err error) int {
 		return 0
 	case client.IsRetryable(err):
 		return 10
-	case xerrors.As(err, &mksquashfsError):
+	case errors.As(err, &mksquashfsError):
 		return 20
-	case xerrors.As(err, &cmdlineFlagsError) || xerrors.As(err, &unknownCmdError):
+	case errors.As(err, &cmdlineFlagsError) || errors.As(err, &unknownCmdError):
 		// EX_USAGE, see sysexit.h
 		return 64
 	default:
@@ -477,6 +474,9 @@ func Main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
 
 	snapdtool.MaybeCompleteFIPSSetup()
+
+	// late initialization, cross package settings etc.
+	lateInit()
 
 	// check for magic symlink to /usr/bin/snap:
 	// 1. symlink from command-not-found to /usr/bin/snap: run c-n-f
@@ -618,8 +618,12 @@ func makeCommandHandler(allCommands []*flags.Command) func(flags.Commander, []st
 var timeAfter func(d time.Duration) <-chan time.Time = time.After
 
 func run() error {
+	// set User-Agent for when 'snap' talks to the store directly (snap download etc...)
+	snapdenv.SetUserAgentFromVersion(snapdtool.Version, nil, "snap")
+
 	apiClient := mkClient()
 	parser := Parser(apiClient)
+
 	if osutil.GetenvBool("SNAPD_TRACE") {
 		parser.CommandHandler = makeCommandHandler(parser.Command.Commands())
 	}

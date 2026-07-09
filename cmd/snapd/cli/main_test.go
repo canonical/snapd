@@ -393,6 +393,12 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 	c.Check(fn, PanicMatches, `description of command's "<option>" is lowercase in locale "en_US": "description"`)
 	log.Reset()
 
+	os.Setenv("LC_MESSAGES", "ka_GE")
+	snap.LintDesc("command", "<option>", "ფაილის ბილიკი", "")
+	c.Check(log.String(), HasLen, 0)
+	log.Reset()
+	os.Setenv("LC_MESSAGES", "en_US")
+
 	// LintDesc does not complain about lowercase description starting with login.ubuntu.com
 	snap.LintDesc("command", "<option>", "login.ubuntu.com description", "")
 	c.Check(log.String(), HasLen, 0)

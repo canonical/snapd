@@ -205,8 +205,52 @@ func generateMacaroonKey() ([]byte, error) {
 
 const snapdMacaroonLocation = "snapd"
 
-// newUserMacaroon returns a snapd macaroon for the given username
-func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
+// isSnapdMacaroon reports whether serializedMacaroon is a snapd
+// macaroon (location "snapd"). Used when auditing snapd local macaroon
+// lifecycle; legacy users may have store macaroons in UserState.Macaroon —
+// see CheckMacaroon token-style fallback.
+func isSnapdMacaroon(serializedMacaroon string) bool {
+	if serializedMacaroon == "" {
+		return false
+	}
+	m, err := MacaroonDeserialize(serializedMacaroon)
+	if err != nil {
+		// Unparseable data is not treated as a snapd macaroon; token audit
+		// events are omitted rather than guessed.
+		return false
+	}
+	return m.Location() == snapdMacaroonLocation
+}
+
+// logAuthnTokenEventsOnSnapdMacaroonChange emits authn_token_created /
+// authn_token_delete events when UserState.Macaroon transitions involve a
+// snapd local macaroon (location "snapd"). UserState.Macaroon may still
+// hold a legacy store macaroon for old users — see the token-style fallback
+// in CheckMacaroon — so isSnapdMacaroon is used to ignore non-snapd values.
+// token_id is always UserState.ID; update-path events represent credential
+// replacement for the same user slot, not a new identity.
+func logAuthnTokenEventsOnSnapdMacaroonChange(prev, user *UserState) {
+	if prev.Macaroon == user.Macaroon {
+		return
+	}
+
+	su := user.snapdUser()
+	tokenID := user.ID
+	prevSnapd := isSnapdMacaroon(prev.Macaroon)
+	newSnapd := isSnapdMacaroon(user.Macaroon)
+
+	switch {
+	case prevSnapd && !newSnapd:
+		seclog.LogAuthnTokenDeleted(su, tokenID)
+	case !prevSnapd && newSnapd:
+		seclog.LogAuthnTokenCreated(su, tokenID)
+	case prevSnapd && newSnapd:
+		seclog.LogAuthnTokenDeleted(su, tokenID)
+		seclog.LogAuthnTokenCreated(su, tokenID)
+	}
+}
+
+var newUserMacaroon = func(macaroonKey []byte, userID int) (string, error) {
 	userMacaroon, err := macaroon.New(macaroonKey, strconv.Itoa(userID), snapdMacaroonLocation)
 	if err != nil {
 		return "", fmt.Errorf("cannot create macaroon for snapd user: %s", err)
@@ -236,8 +280,8 @@ type NewUserParams struct {
 	Expiration time.Time
 }
 
-// NewUser tracks a new authenticated user and saves its details in the state
-// Note that this logs a security event via the security logger.
+// NewUser tracks a new authenticated user and saves its details in the state.
+// Note that this logs security events via the security logger.
 func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 	var authStateData AuthState
 
@@ -276,7 +320,9 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 
 	st.Set("auth", authStateData)
 
-	seclog.LogUserCreated(authenticatedUser.snapdUser())
+	su := authenticatedUser.snapdUser()
+	seclog.LogAuthnTokenCreated(su, authenticatedUser.ID)
+	seclog.LogUserCreated(su)
 
 	return &authenticatedUser, nil
 }
@@ -284,13 +330,13 @@ func NewUser(st *state.State, userParams NewUserParams) (*UserState, error) {
 var ErrInvalidUser = errors.New("invalid user")
 
 // RemoveUser removes a user from the state given its ID.
-// Note that this logs a security event via the security logger.
+// Note that this logs security events via the security logger.
 func RemoveUser(st *state.State, userID int) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.ID == userID })
 }
 
 // RemoveUserByUsername removes a user from the state given its username. Returns a *UserState with the identification information for them.
-// Note that this logs a security event via the security logger.
+// Note that this logs security events via the security logger.
 func RemoveUserByUsername(st *state.State, username string) (removed *UserState, err error) {
 	return removeUser(st, func(u *UserState) bool { return u.Username == username })
 }
@@ -311,6 +357,8 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 		u := &authStateData.Users[i]
 		if p(u) {
 			su := u.snapdUser()
+			tokenID := u.ID
+			hadSnapdMacaroon := isSnapdMacaroon(u.Macaroon)
 			removed := u.identificationOnly()
 			// delete without preserving order
 			n := len(authStateData.Users) - 1
@@ -319,6 +367,9 @@ func removeUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 			authStateData.Users = authStateData.Users[:n]
 			st.Set("auth", authStateData)
 
+			if hadSnapdMacaroon {
+				seclog.LogAuthnTokenDeleted(su, tokenID)
+			}
 			seclog.LogUserRemoved(su)
 
 			return removed, nil
@@ -377,8 +428,8 @@ func findUser(st *state.State, p func(*UserState) bool) (*UserState, error) {
 	return nil, ErrInvalidUser
 }
 
-// UpdateUser updates user in state
-// Note that this logs a security event via the security logger.
+// UpdateUser updates user in state.
+// Note that this logs security events via the security logger.
 func UpdateUser(st *state.State, user *UserState) error {
 	var authStateData AuthState
 
@@ -395,6 +446,8 @@ func UpdateUser(st *state.State, user *UserState) error {
 			prev := authStateData.Users[i]
 			authStateData.Users[i] = *user
 			st.Set("auth", authStateData)
+
+			logAuthnTokenEventsOnSnapdMacaroonChange(&prev, user)
 
 			changed := prev.changedFields(user)
 			if len(changed) > 0 {

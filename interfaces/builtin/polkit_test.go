@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/polkit"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -48,32 +49,25 @@ type polkitInterfaceSuite struct {
 	slot     *interfaces.ConnectedSlot
 	slotInfo *snap.SlotInfo
 
-	daemonPath1  string
-	daemonPath2  string
-	restorePaths func()
+	root        string
+	daemonPath1 string
+	daemonPath2 string
 }
 
 var _ = Suite(&polkitInterfaceSuite{
 	iface: builtin.MustInterface("polkit"),
 })
 
-func (s *polkitInterfaceSuite) SetUpSuite(c *C) {
-	d := c.MkDir()
-	s.daemonPath1 = filepath.Join(d, "polkitd-1")
-	s.daemonPath2 = filepath.Join(d, "polkitd-2")
-	s.restorePaths = builtin.MockPolkitDaemonPaths(s.daemonPath1, s.daemonPath2)
-}
-
-func (s *polkitInterfaceSuite) TearDownSuite(c *C) {
-	s.restorePaths()
-}
-
 func (s *polkitInterfaceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
+
+	s.root = c.MkDir()
+	dirs.SetRootDir(s.root)
 	s.AddCleanup(func() {
 		dirs.SetRootDir("/")
 	})
+
+	s.AddCleanup(release.MockOnClassic(false))
 
 	const mockSlotSnapInfoYaml = `name: core
 version: 1.0
@@ -85,8 +79,13 @@ slots:
 
 	s.slot, s.slotInfo = MockConnectedSlot(c, mockSlotSnapInfoYaml, nil, "polkit")
 
+	s.daemonPath1 = filepath.Join(dirs.GlobalRootDir, "/usr/libexec/polkitd")
+	s.daemonPath2 = filepath.Join(dirs.GlobalRootDir, "/usr/lib/polkit-1/polkitd")
+
+	c.Assert(os.MkdirAll(filepath.Dir(s.daemonPath1), 0o700), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(s.daemonPath2), 0o700), IsNil)
 	c.Assert(os.WriteFile(s.daemonPath1, nil, 0o600), IsNil)
-	c.Assert(os.WriteFile(s.daemonPath2, nil, 0o600), IsNil)
+	c.Assert(os.WriteFile(s.daemonPath2, nil, 0o700), IsNil) // core24 and later
 	c.Assert(os.MkdirAll(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
 	c.Assert(os.MkdirAll(dirs.SnapPolkitRuleDir, 0o700), IsNil)
 }
@@ -542,10 +541,24 @@ slots:
 	c.Assert(err, ErrorMatches, `snap "other" has interface "polkit" with invalid value type bool for "action-prefix" attribute: \*string`)
 }
 
-func (s *polkitInterfaceSuite) TestStaticInfo(c *C) {
+func (s *polkitInterfaceSuite) TestStaticInfoCore(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
-	// ImplicitOnCore is only tested in TestPolkitPoliciesSupported and TestPolkitRulesSupported.
 	c.Check(si.ImplicitOnClassic, Equals, true)
+	// ImplicitOnCore is also tested in TestPolkitPoliciesSupported and TestPolkitRulesSupported.
+	// though the suite already mocks writable directories, which already implies an implicit interface slot.
+	c.Check(si.ImplicitOnCore, Equals, true)
+	c.Check(si.Summary, Equals, "allows installing polkit rules and/or access to polkitd to check authorisation")
+	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "polkit")
+}
+
+func (s *polkitInterfaceSuite) TestStaticInfoClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnClassic, Equals, true)
+	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.Summary, Equals, "allows installing polkit rules and/or access to polkitd to check authorisation")
 	c.Check(si.BaseDeclarationPlugs, testutil.Contains, "polkit")
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "polkit")

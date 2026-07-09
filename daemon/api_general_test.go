@@ -197,16 +197,6 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	// Check that "features" is map
 	featuresAll, ok := resultFeatures.(map[string]any)
 	c.Assert(ok, check.Equals, true)
-	// Ensure that Layouts exists and is feature.FeatureInfo
-	layoutsInfoRaw, exists := featuresAll[features.Layouts.String()]
-	c.Assert(exists, check.Equals, true)
-	layoutsInfo, ok := layoutsInfoRaw.(map[string]any)
-	c.Assert(ok, check.Equals, true, check.Commentf("%+v", layoutsInfoRaw))
-	// Ensure that Layouts is supported and enabled
-	c.Check(layoutsInfo["supported"], check.Equals, true)
-	_, exists = layoutsInfo["unsupported-reason"]
-	c.Check(exists, check.Equals, false)
-	c.Check(layoutsInfo["enabled"], check.Equals, true)
 	// Ensure that ParallelInstances exists and is a feature.FeatureInfo
 	parallelInstancesInfoRaw, exists := featuresAll[features.ParallelInstances.String()]
 	c.Assert(exists, check.Equals, true)

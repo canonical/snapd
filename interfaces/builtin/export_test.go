@@ -150,19 +150,6 @@ func MockDirsToEnsure(fn func(paths []string) ([]*interfaces.EnsureDirSpec, erro
 	return restore
 }
 
-func MockPolkitDaemonPaths(path1, path2 string) (restore func()) {
-	oldDaemonPath1 := polkitDaemonPath1
-	oldDaemonPath2 := polkitDaemonPath2
-
-	polkitDaemonPath1 = path1
-	polkitDaemonPath2 = path2
-
-	return func() {
-		polkitDaemonPath1 = oldDaemonPath1
-		polkitDaemonPath2 = oldDaemonPath2
-	}
-}
-
 func MockApparmorGenerateAAREExclusionPatterns(fn func(excludePatterns []string, opts *apparmor.AAREExclusionPatternsOptions) (string, error)) (restore func()) {
 	return testutil.Mock(&apparmorGenerateAAREExclusionPatterns, fn)
 }

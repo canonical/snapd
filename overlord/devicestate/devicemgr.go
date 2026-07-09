@@ -2782,10 +2782,38 @@ func (m *DeviceManager) systemAndGadgetAndEncryptionInfoWithAction(
 }
 
 type reprovisionSetupData struct {
-	checkContext *secboot.PreinstallCheckContext
+	recoveryKeyID string
+	checkContext  *secboot.PreinstallCheckContext
 }
 
 type reprovisionSetupDataKey struct {
+}
+
+// GenerateReprovisionRecoveryKey generates a recovery key that is
+// stored in the reprovision setup cache. It returns the generated
+// recovery key. Subsequent call to reprovision will use this key.
+func GenerateReprovisionRecoveryKey(st *state.State) (rkey keys.RecoveryKey, err error) {
+	rkey, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	var data *reprovisionSetupData
+	cached := st.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		data = &reprovisionSetupData{recoveryKeyID: keyID}
+	} else {
+		var ok bool
+		data, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+		data.recoveryKeyID = keyID
+	}
+
+	st.Cache(reprovisionSetupDataKey{}, data)
+
+	return rkey, err
 }
 
 func (m *DeviceManager) runningSystemAndGadgetAndEncryptionInfoWithAction(
@@ -3555,9 +3583,9 @@ func (m *DeviceManager) encryptionSupportInfoLocked(systemLabel string, constrai
 //
 // Cache behavior is implicit and depends on the combination of arguments:
 //   - With a CheckAction: the cache must provide a valid CheckContext. In this
-//     mode, only the CheckContext is used, and the rest of the cached
-//     EncryptionSupportInfo is ignored. This implies that any call with
-//     CheckAction must be preceded by a call without that populates the cache.
+//     mode, the cached CheckContext and the set of internally accumulated errors
+//     are implicitly used by GetEncryptionSupportInfo. This implies that any call
+//     with CheckAction must be preceded by a call without that populates the cache.
 //   - Without a CheckAction and encInfoFromCache set to true: the function
 //     returns the cached EncryptionSupportInfo directly, if available. This
 //     provides a way to skip the expensive encryption availability check in
@@ -3592,16 +3620,17 @@ func (m *DeviceManager) encryptionSupportInfo(
 		if checkContext == nil {
 			return nil, errors.New("cannot use check action without cached check context")
 		}
-		constraints.CheckContext = checkContext
+		constraints.PrevInfo = cachedEncryptionSupportInfo
 	} else if encInfoFromCache && cachedEncryptionSupportInfo != nil {
 		// in case of no check action use encryption support info from the
 		// cache when requested and available
 		return cachedEncryptionSupportInfo, nil
 	}
 
-	// GetEncryptionSupportInfo expects and uses constraints.CheckContext when
-	// constraints.CheckAction != nil, otherwise it is ignored. See
-	// install.encryptionAvailabilityCheck.
+	// GetEncryptionSupportInfo expects and uses constraints.PrevInfo.CheckContext when
+	// constraints.CheckAction != nil, otherwise it is ignored (check install.encryptionAvailabilityCheck).
+	// It also accumulates seen errors given constraints.PrevInfo even if some error was
+	// cleared by a "proceed" action.
 	encInfo, err := install.GetEncryptionSupportInfo(constraints, m.runFDESetupHook)
 	if err == nil {
 		refreshCache(systemLabel, &encInfo)

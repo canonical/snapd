@@ -42,6 +42,8 @@ var (
 	NewMultiError = newMultiError
 
 	AddSnapDirToZip = addSnapDirToZip
+
+	IsPathAtOrUnderDir = isPathAtOrUnderDir
 )
 
 func MockIsTesting(newIsTesting bool) func() {

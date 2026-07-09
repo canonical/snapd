@@ -89,7 +89,7 @@ dbus (send)
      bus=system
      path="/org/freedesktop/resolve1"
      interface="org.freedesktop.resolve1.Manager"
-     member="SetLink{DefaultRoute,DNSOverTLS,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
+     member="SetLink*"
      peer=(name="org.freedesktop.resolve1", label=unconfined),
 
 dbus (send)
@@ -103,7 +103,7 @@ dbus (send)
      bus=system
      path="/org/freedesktop/resolve1/link/*"
      interface="org.freedesktop.resolve1.Link"
-     member="Set{DNS,DNSSEC,DNSSECNegativeTrustAnchors,MulticastDNS,Domains,LLMNR}"
+     member="Set*"
      peer=(name="org.freedesktop.resolve1", label=unconfined),
 
 dbus (send)

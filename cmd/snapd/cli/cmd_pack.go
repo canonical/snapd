@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/i18n"
 
@@ -116,7 +115,7 @@ func (x *packCmd) Execute([]string) error {
 	if err != nil {
 		// TRANSLATORS: the %q is the snap-dir (the first positional
 		// argument to the command); the %v is an error
-		return xerrors.Errorf(i18n.G("cannot pack %q: %w"), x.Positional.SnapDir, err)
+		return fmt.Errorf(i18n.G("cannot pack %q: %w"), x.Positional.SnapDir, err)
 
 	}
 	// TRANSLATORS: %s is the path to the built snap file

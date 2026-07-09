@@ -48,6 +48,8 @@ import (
 
 type sealSuite struct {
 	testutil.BaseTest
+
+	rootdir string
 }
 
 var _ = Suite(&sealSuite{})
@@ -55,8 +57,8 @@ var _ = Suite(&sealSuite{})
 func (s *sealSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
-	rootdir := c.MkDir()
-	dirs.SetRootDir(rootdir)
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.AddCleanup(archtest.MockArchitecture("amd64"))
 	s.AddCleanup(efi.MockVars(nil, nil))
@@ -79,19 +81,39 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 	defer boot.MockSealModeenvLocked()()
 
 	for idx, tc := range []struct {
-		sealErr       error
-		provisionErr  error
-		factoryReset  bool
-		reprovision   bool
-		shimId        string
-		grubId        string
-		runGrubId     string
-		expErr        string
-		expSealCalls  int
-		disableTokens bool
+		sealErr                error
+		provisionErr           error
+		factoryReset           bool
+		reprovision            bool
+		shimId                 string
+		grubId                 string
+		runGrubId              string
+		goodRecoverySystems    []string
+		currentRecoverySystems []string
+		expErr                 string
+		expSealCalls           int
+		disableTokens          bool
 	}{
 		{
 			expSealCalls: 1,
+		},
+		{
+			currentRecoverySystems: []string{"20200825"},
+			expSealCalls:           1,
+		},
+		{
+			currentRecoverySystems: []string{"20200825"},
+			goodRecoverySystems:    []string{"20200825"},
+			expSealCalls:           1,
+		},
+		{
+			currentRecoverySystems: []string{"20260702"},
+			expErr:                 `trying to install or reprovision with a try system "20260702"`,
+		},
+		{
+			currentRecoverySystems: []string{"20260702"},
+			goodRecoverySystems:    []string{"20200825"},
+			expErr:                 `trying to install or reprovision with a try system "20260702"`,
 		},
 		{
 			expSealCalls:  1,
@@ -158,6 +180,13 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			BrandID:        model.BrandID(),
 			Grade:          string(model.Grade()),
 			ModelSignKeyID: model.SignKeyID(),
+		}
+
+		if tc.currentRecoverySystems != nil {
+			modeenv.CurrentRecoverySystems = tc.currentRecoverySystems
+		}
+		if tc.goodRecoverySystems != nil {
+			modeenv.GoodRecoverySystems = tc.goodRecoverySystems
 		}
 
 		// mock asset cache
@@ -2164,4 +2193,22 @@ func (s *sealSuite) TestWithBootChainsFDEHook(c *C) {
 	}
 
 	c.Check(chains, DeepEquals, expected)
+}
+
+func (s *sealSuite) TestCheckResealKeyToModeenvUsesDryRun(c *C) {
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(s.rootdir)
+	c.Assert(err, IsNil)
+
+	resealCalls := 0
+	defer boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealCalls++
+		c.Check(rootdir, Equals, s.rootdir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts, DeepEquals, boot.ResealKeyToModeenvOptions{DryRun: true, Force: true})
+		return nil
+	})()
+
+	err = boot.CheckResealKeyToModeenv(s.rootdir, nil)
+	c.Assert(err, IsNil)
+	c.Check(resealCalls, Equals, 1)
 }

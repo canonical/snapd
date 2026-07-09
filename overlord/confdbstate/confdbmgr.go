@@ -46,16 +46,29 @@ const (
 	schedulingCachePrefix = "scheduling-confdb-"
 )
 
-func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
-	hookSup := &hookstate.HookSetup{
-		Snap:        snapName,
-		Hook:        hookName,
-		Optional:    true,
-		IgnoreError: ignoreError,
-	}
-	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
-	task := hookstate.HookTask(st, summary, hookSup, nil)
-	return task
+// SystemConfdbHandler is implemented by subsystem-specific handlers that
+// process confdb requests for data in "system" confdbs (e.g., validation-sets).
+type SystemConfdbHandler interface {
+	// SchemaName returns the name of the confdb-schema this handler manages.
+	SchemaName() string
+
+	// Commit takes a transaction holding the modified confdb data and makes those
+	// changes effective within the subsystem. It may return task sets that need
+	// to be completed before the commit can be considered done. If no async work
+	// is needed, it returns nil task sets.
+	Commit(st *state.State, tx *Transaction) ([]*state.TaskSet, error)
+
+	// Databag returns a JSONDatabag holding a confdb-acceptable representation
+	// of the data this handler is responsible for.
+	Databag(st *state.State) (confdb.JSONDatabag, error)
+}
+
+// systemHandlers holds handlers for "system" confdb-schemas.
+var systemHandlers = map[string]SystemConfdbHandler{}
+
+// RegisterConfdbHandler registers a handler for a "system" confdb-schema.
+func RegisterConfdbHandler(c SystemConfdbHandler) {
+	systemHandlers[c.SchemaName()] = c
 }
 
 type ConfdbManager struct{}
@@ -95,6 +108,18 @@ func Manager(st *state.State, hookMgr *hookstate.HookManager, runner *state.Task
 	return m
 }
 
+func setupConfdbHook(st *state.State, snapName, hookName string, ignoreError bool) *state.Task {
+	hookSup := &hookstate.HookSetup{
+		Snap:        snapName,
+		Hook:        hookName,
+		Optional:    true,
+		IgnoreError: ignoreError,
+	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookName, snapName)
+	task := hookstate.HookTask(st, summary, hookSup, nil)
+	return task
+}
+
 func (m *ConfdbManager) Ensure() error { return nil }
 
 func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -107,7 +132,7 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 		return err
 	}
 
-	confdbAssert, err := assertstateConfdbSchema(st, tx.ConfdbAccount, tx.ConfdbName)
+	confdbAssert, err := AssertstateConfdbSchema(st, tx.ConfdbAccount, tx.ConfdbName)
 	if err != nil {
 		return err
 	}

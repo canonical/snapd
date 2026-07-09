@@ -257,9 +257,6 @@ backends:
                   storage: 20G
                   workers: 6
 
-            - amazon-linux-2-64:
-                  workers: 6
-                  storage: preserve-size
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
@@ -440,10 +437,6 @@ backends:
                 image: snapd-spread/debian-sid-64
                 workers: 6
 
-            - amazon-linux-2-64:
-                image: snapd-spread/amazon-linux-2-64
-                workers: 6
-                storage: 50G
             - amazon-linux-2023-64:
                 image: snapd-spread/amazon-linux-2023-64
                 workers: 6
@@ -724,9 +717,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - amazon-linux-2-64:
-                  username: ec2-user
-                  password: ec2-user
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -822,9 +812,6 @@ backends:
                   username: root
                   password: root
             - arch-linux-64:
-                  username: root
-                  password: root
-            - amazon-linux-2-64:
                   username: root
                   password: root
             - amazon-linux-2023-64:
@@ -1778,7 +1765,8 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1859,7 +1847,8 @@ suites:
             # Configure the ssh connection to the test vm
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1933,7 +1922,8 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -2021,7 +2011,8 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -2092,7 +2083,6 @@ suites:
         systems:
             - arch-linux-*
             - opensuse-*
-            - amazon-linux-2-*
             - amazon-linux-2023-*
             - fedora-*
             - centos-*
