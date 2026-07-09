@@ -319,8 +319,6 @@ func (s *RunSuite) TestSnapRunAppRunsChecksRefreshInhibitionLock(c *check.C) {
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), check.IsNil)
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called int
 	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
@@ -397,28 +395,6 @@ func (s *RunSuite) TestSnapRunAppRunsChecksDisableInhibitionLockService(c *check
 	s.testSnapRunAppRunsChecksInhibitionLock(c, svc, hint, errorMsg)
 }
 
-func (s *RunSuite) TestSnapRunAppRefreshAppAwarenessUnsetSkipsInhibitionLockWait(c *check.C) {
-	defer mockSnapConfine(dirs.DistroLibExecDir)()
-
-	// mock installed snap
-	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
-
-	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
-		return nil
-	})
-	defer restorer()
-
-	// mark snap as inhibited
-	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
-	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), check.IsNil)
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	// unset refresh-app-awareness flag
-	c.Assert(os.RemoveAll(features.RefreshAppAwareness.ControlFile()), check.IsNil)
-
-	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
-	c.Assert(err, check.ErrorMatches, `cannot run "snapname.app", snap is being refreshed`)
-}
-
 func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
@@ -435,9 +411,6 @@ func (s *RunSuite) TestSnapRunAppNewRevisionAfterInhibition(c *check.C) {
 	// mark snap as inhibited
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), check.IsNil)
-	// unset refresh-app-awareness flag
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called bool
 	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
@@ -498,9 +471,6 @@ apps:
 	// mock installed snap
 	snaptest.MockSnap(c, string(mockYaml1), &snap.SideInfo{Revision: snap.R("x2")})
 
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
-
 	var called bool
 	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		called = true
@@ -554,8 +524,6 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R(42)}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), check.IsNil)
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	// Run a hook from the active revision
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=configure", "--", "snapname"})
@@ -588,8 +556,6 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 
 	inhibitInfo := runinhibit.InhibitInfo{Previous: snap.R("x2")}
 	c.Assert(runinhibit.LockWithHint("snapname", runinhibit.HintInhibitedForRefresh, inhibitInfo, nil), check.IsNil)
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called int
 	restore := snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
@@ -641,9 +607,6 @@ func (s *RunSuite) TestSnapRunAppHintUnlockedOnSnapConfineFailure(c *check.C) {
 	c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(runinhibit.HintFile("snapname"), []byte(""), 0644), check.IsNil)
 
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
-
 	inhibitionFlow := fakeInhibitionFlow{
 		start: func(ctx context.Context) error {
 			return fmt.Errorf("this should never be reached")
@@ -689,9 +652,6 @@ func (s *RunSuite) TestSnapRunAppHintLockedUntilTrackingCgroupIsCreated(c *check
 	// mock not-inhibited empty hint
 	c.Assert(os.MkdirAll(runinhibit.InhibitDir, 0755), check.IsNil)
 	c.Assert(os.WriteFile(runinhibit.HintFile("snapname"), []byte(""), 0644), check.IsNil)
-
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	inhibitionFlow := fakeInhibitionFlow{
 		start: func(ctx context.Context) error {
@@ -743,9 +703,6 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRefresh(c *che
 
 	// mock installed snap
 	si := snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
-
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var startCalled, finishCalled int
 	inhibitionFlow := fakeInhibitionFlow{
@@ -888,9 +845,6 @@ func (s *RunSuite) testSnapRunAppRetryNoInhibitHintFileThenOngoingRemoveOrDisabl
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
 
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
-
 	var waitWhileInhibitedCalled int
 	restore = snaprun.MockWaitWhileInhibited(func(ctx context.Context, snapName string, notInhibited func(ctx context.Context) error, inhibited func(ctx context.Context, hint runinhibit.Hint, inhibitInfo *runinhibit.InhibitInfo) (cont bool, err error), interval time.Duration) (flock *osutil.FileLock, retErr error) {
 		waitWhileInhibitedCalled++
@@ -997,9 +951,6 @@ func (s *RunSuite) TestSnapRunAppRetryNoInhibitHintFileThenOngoingRefreshMissing
 	})
 	defer restore()
 
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
-
 	var startCalled, finishCalled int
 	inhibitionFlow := fakeInhibitionFlow{
 		start: func(ctx context.Context) error {
@@ -1101,9 +1052,6 @@ func (s *RunSuite) TestSnapRunAppMaxRetry(c *check.C) {
 
 	// mock installed snap
 	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{Revision: snap.R("x2")})
-
-	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
-	c.Assert(os.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	inhibitionFlow := fakeInhibitionFlow{
 		start: func(ctx context.Context) error {

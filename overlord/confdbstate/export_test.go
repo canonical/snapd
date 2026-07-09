@@ -92,5 +92,5 @@ func GetOngoingTxs(st *state.State, account, schemaName string) (ongoingTxs *con
 }
 
 func MockFetchConfdbSchemaAssertion(f func(*state.State, int, string, string) error) func() {
-	return testutil.Mock(&assertstateFetchConfdbSchemaAssertion, f)
+	return testutil.Mock(&AssertstateFetchConfdbSchemaAssertion, f)
 }

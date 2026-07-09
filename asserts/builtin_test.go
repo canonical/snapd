@@ -162,3 +162,42 @@ primary-key: primary-key-val
 	_, err = dec.Decode()
 	c.Check(err, Equals, io.EOF)
 }
+
+func (s *builtinSuite) TestRegisterBuiltinConfdbSchema(c *C) {
+	restore := asserts.MockBuiltinAssertions(nil)
+	defer restore()
+
+	headers := []byte(`type: confdb-schema
+account-id: system
+authority-id: canonical
+name: test-schema
+views:
+  setup:
+    rules:
+      -
+        request: foo
+        storage: foo
+`)
+	body := []byte(`{
+  "storage": {
+    "schema": {
+      "foo": "string"
+    }
+  }
+}`)
+
+	err := asserts.RegisterBuiltinConfdbSchema(headers, body)
+	c.Assert(err, IsNil)
+
+	builtins := asserts.Builtin()
+	c.Assert(builtins, HasLen, 1)
+	cs, ok := builtins[0].(*asserts.ConfdbSchema)
+	c.Assert(ok, Equals, true)
+	c.Check(cs.AccountID(), Equals, "system")
+	c.Check(cs.AuthorityID(), Equals, "canonical")
+	c.Check(cs.Name(), Equals, "test-schema")
+	c.Check(cs.Schema().View("setup"), NotNil)
+
+	_, signature := cs.Signature()
+	c.Check(string(signature), Equals, "$builtin")
+}
