@@ -397,6 +397,19 @@ const (
 	MountCreated
 )
 
+// MountUnitFilter controls which mount units are returned by ListMountUnits.
+type MountUnitFilter int
+
+const (
+	// LoadedMountUnits returns only units currently loaded in systemd's memory.
+	// This is cheaper but may miss units that have been stopped and garbage-collected
+	// from systemd's memory.
+	LoadedMountUnits MountUnitFilter = iota
+	// AllMountUnits returns all units known to systemd, including those that
+	// are stopped and have been unloaded from memory but still exist on disk.
+	AllMountUnits
+)
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// Backend returns the underlying implementation backend.
@@ -457,9 +470,11 @@ type Systemd interface {
 	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
-	// ListMountUnits gets the list of targets of the mount units created by
-	// the `origin` module for the given snap
-	ListMountUnits(snapName, origin string) ([]string, error)
+	// ListMountUnits gets the list of mount points of the mount units created
+	// by the `origin` module for the given snap. filter controls whether only
+	// currently-loaded units are returned (LoadedMountUnits) or all units
+	// including those stopped and unloaded from systemd's memory (AllMountUnits).
+	ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -1697,8 +1712,39 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 	return originModule, nil
 }
 
-func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
-	out, err := s.systemctl("show", "--property=Description,Where,FragmentPath", "*.mount")
+func (s *systemd) ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error) {
+	var unitArgs []string
+	switch filter {
+	case AllMountUnits:
+		// list-unit-files enumerates all unit files known to systemd on disk,
+		// including units that are stopped and have been unloaded from memory.
+		listOut, err := s.systemctl("list-unit-files", "--no-legend", "*.mount")
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range bytes.Split(bytes.TrimRight(listOut, "\n"), []byte("\n")) {
+			// Each line is: "<unit-name>  <state>  [<preset>]"
+			// Skip:
+			// * blank lines: they should not appear but we must not panic on them
+			// * "-.mount": systemd's synthetic root mount
+			fields := strings.Fields(string(line))
+			if len(fields) == 0 || fields[0] == "-.mount" {
+				continue
+			}
+			unitArgs = append(unitArgs, fields[0])
+		}
+		if len(unitArgs) == 0 {
+			return nil, nil
+		}
+	case LoadedMountUnits:
+		// The *.mount glob is expanded by systemd against its in-memory units,
+		// so only loaded units are returned.
+		unitArgs = []string{"*.mount"}
+	default:
+		return nil, fmt.Errorf("internal error: unknown MountUnitFilter value %d", filter)
+	}
+
+	out, err := s.systemctl(append([]string{"show", "--property=Description,Where,FragmentPath"}, unitArgs...)...)
 	if err != nil {
 		return nil, err
 	}

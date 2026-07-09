@@ -73,7 +73,8 @@ func removeMountUnit(mountDir string, meter progress.Meter) error {
 // if any unit cannot be removed.
 func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
-	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), origin)
+	// Get all mount units, including the unloaded ones
+	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), origin, systemd.AllMountUnits)
 	if err != nil {
 		return err
 	}
@@ -142,7 +143,8 @@ func (b Backend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *di
 func listNonSnapctlMounts(info *snap.Info, baseDirs []string) ([]string, error) {
 	sysd := systemd.New(systemd.SystemMode, nil)
 	// mounts created using snapctl have the "mount-control" origin
-	mcMountPoints, err := sysd.ListMountUnits(info.ContainerName(), "mount-control")
+	// only loaded and active units are needed
+	mcMountPoints, err := sysd.ListMountUnits(info.ContainerName(), "mount-control", systemd.LoadedMountUnits)
 	if err != nil {
 		return nil, err
 	}

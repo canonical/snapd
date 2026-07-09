@@ -34,7 +34,8 @@ import (
 func listMountsAtOrUnder(snapName, baseDir string) (snapctlMPs, nonSnapctlMPs []string, err error) {
 	sysd := systemd.New(systemd.SystemMode, nil)
 	// mounts created using snapctl have the "mount-control" origin
-	mcMountPoints, err := sysd.ListMountUnits(snapName, "mount-control")
+	// only loaded and active units are needed
+	mcMountPoints, err := sysd.ListMountUnits(snapName, "mount-control", systemd.LoadedMountUnits)
 	if err != nil {
 		return nil, nil, err
 	}
