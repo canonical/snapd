@@ -1466,7 +1466,6 @@ func (s *baseDeclSuite) TestValidity(c *C) {
 		"snap-fde-control":                 true,
 		"firmware-updater-support":         true,
 		"devlxd":                           true,
-		"mediatek-accel":                   true,
 	}
 
 	for _, iface := range all {
