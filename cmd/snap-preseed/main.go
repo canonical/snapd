@@ -20,9 +20,9 @@
 package main
 
 import (
-	"github.com/snapcore/snapd/cmd/snapd/preseedtool"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-preseed"
 )
 
 func main() {
-	preseedtool.Main()
+	snap_preseed.Main()
 }

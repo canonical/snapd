@@ -17,9 +17,9 @@
  *
  */
 
-// Package preseedtool implements the snap-preseed command entry point.
+// Package snap_preseed implements the snap-preseed command entry point.
 // It is used by cmd/snap when invoked as "snap-preseed".
-package preseedtool
+package snap_preseed
 
 import (
 	"fmt"
@@ -46,8 +46,8 @@ security profiles. The image is updated and consequently optimised to reduce
 first-boot startup time`
 )
 
-// Options holds the command line options for snap-preseed.
-type Options struct {
+// options holds the command line options for snap-preseed.
+type options struct {
 	Reset               bool   `long:"reset"`
 	ResetChroot         bool   `long:"reset-chroot" hidden:"1"`
 	Hybrid              bool   `long:"hybrid"`
@@ -69,12 +69,12 @@ var (
 	preseedHybridReset          = preseed.HybridReset
 	preseedResetPreseededChroot = preseed.ResetPreseededChroot
 
-	opts Options
+	opts options
 )
 
 // Parser creates and returns a go-flags parser for snap-preseed.
 func Parser() *flags.Parser {
-	opts = Options{}
+	opts = options{}
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = shortHelp
 	parser.LongDescription = longHelp
