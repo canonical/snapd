@@ -1355,6 +1355,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		Username:    "canonical",
 		DisplayName: "Canonical",
 		Validation:  "verified",
+		Verified:    true,
 	})
 	c.Check(result.Version, Equals, "6.4")
 	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
@@ -2723,6 +2724,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		Username:    "canonical",
 		DisplayName: "Canonical",
 		Validation:  "verified",
+		Verified:    true,
 	})
 	c.Check(snp.Version, Equals, "6.3")
 	c.Check(snp.Size, Equals, int64(20480))

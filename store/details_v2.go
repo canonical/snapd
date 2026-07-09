@@ -337,6 +337,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.Base = d.Base
 	info.License = d.License
 	info.Publisher = d.Publisher
+	info.Publisher.Verified = isVerified(d.Publisher.Validation)
 	info.DownloadInfo = downloadInfoFromStoreDownload(d.Download)
 	info.CommonIDs = d.CommonIDs
 	if len(info.EditedLinks) == 0 {

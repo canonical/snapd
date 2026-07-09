@@ -271,6 +271,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimpleAndLegacy(c *C) {
 			Username:    "canonical",
 			DisplayName: "Canonical",
 			Validation:  "verified",
+			Verified:    true,
 		},
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://api.snapcraft.io/api/v1/snaps/download/99T7MUlRhtI3U0QFgl5mXXESAiSwt776_3887.snap",
