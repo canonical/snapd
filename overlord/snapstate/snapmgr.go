@@ -1714,11 +1714,6 @@ func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 			continue
 		}
 
-		snapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			return nil, nil, err
-		}
-
 		snapType, err := snapst.Type()
 		if err != nil {
 			return nil, nil, err
@@ -1729,6 +1724,11 @@ func createDependencyRemovalTasks(m *SnapManager) ([]string, []*state.TaskSet, e
 		// now, bail if the snap isn't a base.
 		if snapType != snap.TypeBase {
 			continue
+		}
+
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, nil, err
 		}
 
 		removeAll := true
