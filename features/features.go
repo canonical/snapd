@@ -39,8 +39,6 @@ const (
 	ParallelInstances SnapdFeature = iota
 	// Hotplug controls availability of dynamically creating slots based on system hardware.
 	Hotplug
-	// RefreshAppAwareness controls refresh being aware of running applications.
-	RefreshAppAwareness
 	// UserDaemons controls availability of user mode service support.
 	UserDaemons
 	// DbusActivation controls whether snaps daemons can be activated via D-Bus
@@ -100,9 +98,8 @@ func KnownFeatures() []SnapdFeature {
 // featureNames maps feature constant to stable string representation.
 // The constants here must be synchronized with cmd/libsnap-confine-private/feature.c
 var featureNames = map[SnapdFeature]string{
-	ParallelInstances:   "parallel-instances",
-	Hotplug:             "hotplug",
-	RefreshAppAwareness: "refresh-app-awareness",
+	ParallelInstances: "parallel-instances",
+	Hotplug:           "hotplug",
 
 	UserDaemons:    "user-daemons",
 	DbusActivation: "dbus-activation",
@@ -136,15 +133,13 @@ var featureNames = map[SnapdFeature]string{
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	RefreshAppAwareness: true,
-	DbusActivation:      true,
-	QuotaGroups:         true,
+	DbusActivation: true,
+	QuotaGroups:    true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
 var featuresExported = map[SnapdFeature]bool{
-	RefreshAppAwareness: true,
-	ParallelInstances:   true,
+	ParallelInstances: true,
 
 	HiddenSnapDataHomeDir: true,
 	MoveSnapHomeDir:       true,
@@ -160,6 +155,7 @@ var featuresGraduated = map[string]bool{
 	"layouts":                           true,
 	"robust-mount-namespace-updates":    true,
 	"classic-preserves-xdg-runtime-dir": true,
+	"refresh-app-awareness":             true,
 }
 
 var (
