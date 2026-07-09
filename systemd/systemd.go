@@ -77,6 +77,13 @@ var (
 
 	// allow replacing the systemd implementation with a mock one
 	newSystemd = newSystemdReal
+
+	// maxUnitsPerShow is the maximum number of unit names passed to a single
+	// "systemctl show" invocation by showUnitProperties. Kept as a var so
+	// tests can reduce it to exercise the chunk-boundary logic without
+	// creating hundreds of fake units. 64 units x NAME_MAX (255) bytes ~ 16 KB,
+	// which should be below the ARG_MAX limit also on constrained systems.
+	maxUnitsPerShow = 64
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -1712,43 +1719,62 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 	return originModule, nil
 }
 
-func (s *systemd) ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error) {
-	var unitArgs []string
-	switch filter {
-	case AllMountUnits:
-		// list-unit-files enumerates all unit files known to systemd on disk,
-		// including units that are stopped and have been unloaded from memory.
-		listOut, err := s.systemctl("list-unit-files", "--no-legend", "*.mount")
-		if err != nil {
-			return nil, err
-		}
-		for _, line := range bytes.Split(bytes.TrimRight(listOut, "\n"), []byte("\n")) {
-			// Each line is: "<unit-name>  <state>  [<preset>]"
-			// Skip:
-			// * blank lines: they should not appear but we must not panic on them
-			// * "-.mount": systemd's synthetic root mount
-			fields := strings.Fields(string(line))
-			if len(fields) == 0 || fields[0] == "-.mount" {
-				continue
-			}
-			unitArgs = append(unitArgs, fields[0])
-		}
-		if len(unitArgs) == 0 {
-			return nil, nil
-		}
-	case LoadedMountUnits:
-		// The *.mount glob is expanded by systemd against its in-memory units,
-		// so only loaded units are returned.
-		unitArgs = []string{"*.mount"}
-	default:
-		return nil, fmt.Errorf("internal error: unknown MountUnitFilter value %d", filter)
-	}
-
-	out, err := s.systemctl(append([]string{"show", "--property=Description,Where,FragmentPath"}, unitArgs...)...)
+// listMountUnitNames returns the names of all mount unit files known to
+// systemd on disk by running "systemctl list-unit-files". This includes units
+// that are stopped and have been unloaded from memory. The synthetic root mount
+// "-.mount" is excluded.
+func (s *systemd) listMountUnitNames() ([]string, error) {
+	listOut, err := s.systemctl("list-unit-files", "--no-legend", "*.mount")
 	if err != nil {
 		return nil, err
 	}
+	var names []string
+	for _, line := range bytes.Split(bytes.TrimRight(listOut, "\n"), []byte("\n")) {
+		// Each line is: "<unit-name>  <state>  [<preset>]"
+		// Skip:
+		// * blank lines: they should not appear but we must not panic on them
+		// * "-.mount": systemd's synthetic root mount
+		fields := strings.Fields(string(line))
+		if len(fields) == 0 || fields[0] == "-.mount" {
+			continue
+		}
+		names = append(names, fields[0])
+	}
+	return names, nil
+}
 
+// showUnitProperties runs "systemctl show <propertyArg>" for the given
+// unit names, chunking the calls to stay within ARG_MAX limits.
+// The returned byte slice is the concatenated output with "\n\n" record
+// separators preserved at chunk boundaries.
+func (s *systemd) showUnitProperties(propertyArg string, unitArgs []string) ([]byte, error) {
+	var out []byte
+	for len(unitArgs) > 0 {
+		chunk := unitArgs
+		if len(chunk) > maxUnitsPerShow {
+			chunk = chunk[:maxUnitsPerShow]
+		}
+		chunkOut, err := s.systemctl(append([]string{"show", propertyArg}, chunk...)...)
+		if err != nil {
+			return nil, err
+		}
+		// systemctl show ends each chunk with a single "\n". Insert an
+		// extra "\n" between chunks so that the boundary becomes "\n\n",
+		// which is the unit-record separator the parser below expects.
+		if len(out) > 0 {
+			out = append(out, '\n')
+		}
+		out = append(out, chunkOut...)
+		unitArgs = unitArgs[len(chunk):]
+	}
+	return out, nil
+}
+
+// parseMountUnitsOutput parses the concatenated "systemctl show" output and
+// returns the mount points of units belonging to snapName and (optionally)
+// created by the given origin module. The output must include the
+// Description, Where, and FragmentPath properties.
+func parseMountUnitsOutput(out []byte, snapName, origin string) ([]string, error) {
 	var mountPoints []string
 	if bytes.TrimSpace(out) == nil {
 		return mountPoints, nil
@@ -1805,6 +1831,36 @@ func (s *systemd) ListMountUnits(snapName, origin string, filter MountUnitFilter
 		mountPoints = append(mountPoints, where)
 	}
 	return mountPoints, nil
+}
+
+func (s *systemd) ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error) {
+	var unitArgs []string
+	switch filter {
+	case AllMountUnits:
+		// list-unit-files enumerates all unit files known to systemd on disk,
+		// including units that are stopped and have been unloaded from memory.
+		var err error
+		unitArgs, err = s.listMountUnitNames()
+		if err != nil {
+			return nil, err
+		}
+		if len(unitArgs) == 0 {
+			return nil, nil
+		}
+	case LoadedMountUnits:
+		// The *.mount glob is expanded by systemd against its in-memory units,
+		// so only loaded units are returned.
+		unitArgs = []string{"*.mount"}
+	default:
+		return nil, fmt.Errorf("internal error: unknown MountUnitFilter value %d", filter)
+	}
+
+	out, err := s.showUnitProperties("--property=Description,Where,FragmentPath", unitArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseMountUnitsOutput(out, snapName, origin)
 }
 
 func (s *systemd) ReloadOrRestart(serviceNames []string) error {
