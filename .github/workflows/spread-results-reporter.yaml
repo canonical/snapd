@@ -188,6 +188,7 @@ jobs:
                     scenario: (.scenario // "generic")
                   }
               ]
+              | sort_by([.backend, .system, .full_name, .scenario])
               | group_by([.backend, .system, .full_name, .scenario])
               | .[]
               | .[0] as $item
