@@ -363,6 +363,7 @@ Provides:      golang(%{import_path}/cmd/snap-seccomp) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-seccomp/syscalls) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-update-ns) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapctl) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapctl/tool/snapctl) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapctl/tool/snap-exec) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/cli) = %{version}-%{release}
