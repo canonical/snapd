@@ -63,6 +63,14 @@ func MockSystemdSysctlPath(p string) (restore func()) {
 	}
 }
 
+func MockMaxUnitsPerShow(n int) (restore func()) {
+	old := maxUnitsPerShow
+	maxUnitsPerShow = n
+	return func() {
+		maxUnitsPerShow = old
+	}
+}
+
 func (e *Error) SetExitCode(i int) {
 	e.exitCode = i
 }
