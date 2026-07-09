@@ -100,7 +100,7 @@ func (s *KernelSchedExtControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(snippet, testutil.Contains, "/sys/kernel/sched_ext/hotplug_seq r,")
 	c.Check(snippet, testutil.Contains, "/sys/kernel/sched_ext/state r,")
 	c.Check(snippet, testutil.Contains, "/sys/fs/bpf/ r,")
-	c.Check(snippet, testutil.Contains, "/sys/fs/bpf/[^s.]**    rw,")
+	c.Check(snippet, testutil.Contains, "/sys/fs/bpf/[^s]**    rw,")
 	c.Check(snippet, testutil.Contains, "/sys/fs/bpf/s[^n]**    rw,")
 	c.Check(snippet, testutil.Contains, "/sys/fs/bpf/sn[^a]**   rw,")
 	c.Check(snippet, testutil.Contains, "/sys/fs/bpf/sna[^p]**  rw,")
