@@ -1005,6 +1005,14 @@ uc_write_bootstrap_wrapper() {
     local INJECT_ERR="${2:-false}"
 
     cp -a /usr/lib/snapd/snap-bootstrap "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap.real
+    # snap-bootstrap (from the host deb) may link libresolv.so.2, which is
+    # absent from the minimal initrd; copy it from the host into the
+    # skeleton so the dynamic linker can resolve it at boot.
+    libresolv=$(ldd /usr/lib/snapd/snap-bootstrap | grep -oE '[^[:space:]]+libresolv\.so\.2')
+    if [ -n "$libresolv" ] && [ -f "$libresolv" ]; then
+        mkdir -p "$SKELETON_PATH$(dirname "$libresolv")"
+        cp -a "$libresolv" "$SKELETON_PATH$libresolv"
+    fi
     cat <<'EOF' >"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
 #!/bin/sh
 set -eux
