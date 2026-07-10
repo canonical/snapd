@@ -307,11 +307,15 @@ const (
 	// expired. The key for interfaces-requests-rule-update notices is the
 	// rule ID.
 	InterfacesRequestsRuleUpdateNotice NoticeType = "interfaces-requests-rule-update"
+
+	// Recorded whenever the health status of a snap changes. The key for
+	// snap-health notices is the snap instance name.
+	SnapHealthNotice NoticeType = "snap-health"
 )
 
 func (t NoticeType) Valid() bool {
 	switch t {
-	case ChangeUpdateNotice, WarningNotice, RefreshInhibitNotice, SnapRunInhibitNotice, InterfacesRequestsPromptNotice, InterfacesRequestsRuleUpdateNotice:
+	case ChangeUpdateNotice, WarningNotice, RefreshInhibitNotice, SnapRunInhibitNotice, InterfacesRequestsPromptNotice, InterfacesRequestsRuleUpdateNotice, SnapHealthNotice:
 		return true
 	}
 	return false
