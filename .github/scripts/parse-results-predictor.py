@@ -126,11 +126,14 @@ def predictor_rows(args: argparse.Namespace) -> int:
 
 
 def success_probability(_args: argparse.Namespace) -> int:
-	response = json.load(sys.stdin)
+	try:
+		response = json.load(sys.stdin)
+	except json.JSONDecodeError:
+		return 0
 	if not isinstance(response, dict):
 		return 0
 	probability = response.get("success_probability")
-	if probability is not None:
+	if isinstance(probability, (int, float)) and not isinstance(probability, bool):
 		print(probability)
 	return 0
 
