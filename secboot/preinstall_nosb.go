@@ -59,6 +59,7 @@ func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) 
 	return nil, errBuildWithoutSecboot
 }
 
+// AcceptedErrors returns nil because preinstall checks are unavailable without secboot.
 func (cr *PreinstallCheckResult) AcceptedErrors() []string {
 	return nil
 }
