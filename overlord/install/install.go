@@ -1123,10 +1123,12 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedContainer(cpi snap.Container
 	return targetPath, sha3_384, uint64(size), nil
 }
 
+// PreinstallInfo holds preinstall check information persisted during install.
 type PreinstallInfo struct {
 	AcceptedErrors []string
 }
 
+// LoadPreinstallInfo loads persisted preinstall check information.
 func LoadPreinstallInfo() (*PreinstallInfo, error) {
 	checkResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
 	checkResult, err := secbootLoadCheckResult(checkResultPath)
@@ -1143,6 +1145,7 @@ func LoadPreinstallInfo() (*PreinstallInfo, error) {
 	}, nil
 }
 
+// Requirements returns the encryption support requirements implied by the accepted errors.
 func (info *PreinstallInfo) Requirements() []EncryptionSupportRequirement {
 	acceptedErrors := make(map[string]bool, len(info.AcceptedErrors))
 	for _, err := range info.AcceptedErrors {
