@@ -385,14 +385,25 @@ func (s *confdbHandlerSuite) TestCannotUnsetMode(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account",
+		Name:      "my-set",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  7,
+		Current:   1,
+	})
+
 	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
 	c.Assert(err, IsNil)
 
+	val, err := s.view.Get(tx, "my-account.my-set.mode", nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+	c.Assert(val, Equals, "enforce")
+
 	err = s.view.Set(tx, "my-account.my-set", map[string]any{
-		"mode":            "enforce",
 		"pinned-sequence": 5,
 	})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `.*cannot find required combinations of keys`)
 
 	// unsetting mode fails because the storage schema marks it as required
 	err = s.view.Unset(tx, "my-account.my-set.mode")
