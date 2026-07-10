@@ -1,0 +1,72 @@
+summary: Verify that a replaced layout mount source discards the preserved mount namespace
+
+details: |
+    Layout bind mounts sourced from $SNAP_DATA or $SNAP_COMMON bind the source
+    directory inode into the preserved mount namespace when the namespace is
+    first created. If the source directory is later replaced with a new inode —
+    either by a snapshot restore or by a snap app, hook, or service moving the
+    directory — the preserved namespace becomes stale: the layout destination
+    still references the original inode while the source path now resolves to a
+    different one.
+
+    This test verifies that in such a case the preserved mount namespace is
+    discarded and recreated.
+
+environment:
+    TRIGGER/v1: snapshot-restore
+    TRIGGER/v2: app-rename
+    LAYOUT_SRC/v1: /var/snap/test-snapd-layout-data/current/test-data
+    LAYOUT_SRC/v2: /var/snap/test-snapd-layout-data/common/test-data
+    LAYOUT_DEST/v1: /var/lib/test-snapd-layout-data
+    LAYOUT_DEST/v2: /var/lib/test-snapd-layout-common
+    # tar invoked when creating snapshots triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout-data
+    tests.cleanup defer snap remove --purge test-snapd-layout-data
+
+execute: |
+    echo "Run the snap once to create the preserved mount namespace"
+    test-snapd-layout-data.sh -c "true"
+
+    echo "The layout destination is accessible inside the namespace"
+    test-snapd-layout-data.sh -c "test -d $LAYOUT_DEST"
+
+    echo "Confirm the namespace is being reused at this point"
+    SNAPD_DEBUG=1 test-snapd-layout-data.sh -c "true" 2>&1 | MATCH "preserved mount is not stale, reusing"
+
+    if [ "$TRIGGER" = snapshot-restore ]; then
+        echo "Drop a canary file via the layout destination"
+        test-snapd-layout-data.sh -c "echo hello > $LAYOUT_DEST/canary"
+        test -f "$LAYOUT_SRC/canary"
+
+        echo "Take a snapshot"
+        SET_ID=$(snap save test-snapd-layout-data | cut -d\  -f1 | tail -n1)
+        tests.cleanup defer snap forget "$SET_ID" || true
+
+        echo "Remove the canary so we can verify restore brings it back"
+        rm -f "$LAYOUT_SRC/canary"
+
+        echo "Restore the snapshot — this replaces the snap data directory inode"
+        snap restore "$SET_ID"
+        test -f "$LAYOUT_SRC/canary"
+    elif [ "$TRIGGER" = app-rename ]; then
+        echo "Simulate an app replacing the layout source dir (mv old new)"
+        test-snapd-layout-data.sh -c "mv \$SNAP_COMMON/test-data \$SNAP_COMMON/test-data-old && mkdir \$SNAP_COMMON/test-data"
+    fi
+
+    echo "Namespace must be discarded and rebuilt after the source dir was replaced"
+    SNAPD_DEBUG=1 test-snapd-layout-data.sh -c "true" &> output.log
+    MATCH "namespace is stale" < output.log
+    MATCH "discarding mount namespaces of snap test-snapd-layout-data" <output.log
+    echo "Layout destination must be accessible in the fresh namespace"
+    test-snapd-layout-data.sh -c "test -d $LAYOUT_DEST"
+
+    if [ "$TRIGGER" = snapshot-restore ]; then
+        echo "Canary must be visible through the layout destination in the new namespace"
+        test-snapd-layout-data.sh -c "test -f $LAYOUT_DEST/canary"
+    fi
+
+    echo "Confirm the namespace is now reused again"
+    SNAPD_DEBUG=1 test-snapd-layout-data.sh -c "true" 2>&1 | MATCH "preserved mount is not stale, reusing"

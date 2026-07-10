@@ -1,0 +1,19 @@
+name: test-snapd-layout-data
+version: 1.0
+summary: Test snap with SNAP_DATA and SNAP_COMMON layout bind mounts
+description: |
+  Used to reproduce the preserved namespace staleness bug triggered by
+  snapshot restore or directory rename replacing a snap data directory inode.
+base: core24
+confinement: strict
+grade: devel
+
+layout:
+  /var/lib/test-snapd-layout-data:
+    bind: $SNAP_DATA/test-data
+  /var/lib/test-snapd-layout-common:
+    bind: $SNAP_COMMON/test-data
+
+apps:
+  sh:
+    command: bin/sh
