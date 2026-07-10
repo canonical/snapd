@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package snapd_apparmor_test
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	snapd_apparmor "github.com/snapcore/snapd/cmd/snapd-apparmor"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/release"
