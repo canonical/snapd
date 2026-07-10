@@ -27,6 +27,3 @@ ExecStart=@libexecdir@/snapd/snapd-apparmor start
 EnvironmentFile=-@SNAPD_ENVIRONMENT_FILE@
 EnvironmentFile=-/var/lib/snapd/environment/snapd.conf
 RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target

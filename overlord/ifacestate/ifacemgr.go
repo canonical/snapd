@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -254,9 +255,31 @@ func (m *InterfaceManager) StartUp() error {
 			return err
 		}
 	}
-	if hasAppArmorBackend(m.repo.Backends()) && snapdAppArmorServiceIsDisabled() {
-		s.Warnf(`the snapd.apparmor service is disabled; snap applications will likely not start.
-Run "systemctl enable --now snapd.apparmor" to correct this.`)
+
+	if hasAppArmorBackend(m.repo.Backends()) {
+		all, err := snapstate.All(s)
+		if err != nil {
+			return err
+		}
+		for name, sn := range all {
+			if (sn.SnapType == string(snap.TypeApp)) && sn.Active {
+				info, err := sn.CurrentInfo()
+				if err != nil {
+					return err
+				}
+				// We do not check hooks. But this is informal.
+				for _, app := range info.Apps {
+					glob := fmt.Sprintf("/sys/kernel/security/apparmor/policy/profiles/snap.%s.%s.*", name, app.Name)
+					matches, err := filepath.Glob(glob)
+					if err != nil {
+						return err
+					}
+					if len(matches) == 0 {
+						s.Warnf("the snapd.apparmor service is not running; snap applications will likely not start.")
+					}
+				}
+			}
+		}
 	}
 
 	ifacerepo.Replace(s, m.repo)
