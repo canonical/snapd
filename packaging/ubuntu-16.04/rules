@@ -114,7 +114,7 @@ ifeq (${FIPSBUILD},1)
 endif
 
 TAGS=-tags "$(_TAGS)"
-SNAP_BOOTSTRAP_TAGS=-tags "$(_SNAP_BOOTSTRAP_TAGS)"
+SNAP_BOOTSTRAP_TAGS=-tags "$(_SNAP_BOOTSTRAP_TAGS),netgo"
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
