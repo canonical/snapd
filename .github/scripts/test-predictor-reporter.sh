@@ -6,6 +6,8 @@ repository="$1"
 workflow_run_id="$2"
 workflow_run_attempt="$3"
 parser=".github/scripts/parse-results-predictor.py"
+test_predictor_url="${TEST_PREDICTOR_URL:?TEST_PREDICTOR_URL must be set}"
+test_predictor_url="${test_predictor_url%/}"
 
 append_failure_section() {
 	local verb="$1"
@@ -72,7 +74,7 @@ append_predictor_table() {
 
 	printf '%s\n' "${predictor_rows[@]}" |
 		while IFS=$'\t' read -r display_name retries full_name system scenario; do
-			response=$(curl -sf -G http://test-predictor.canonical.com:5000/predict \
+			response=$(curl -sf -G "${test_predictor_url}/predict" \
 				--max-time 10 \
 				--data-urlencode "name=${full_name}" \
 				--data-urlencode "verb=${verb}" \
