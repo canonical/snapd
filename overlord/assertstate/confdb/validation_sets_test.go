@@ -321,7 +321,7 @@ func (s *confdbHandlerSuite) TestCommitUpdatesOnlyMode(c *C) {
 	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
 	c.Assert(err, IsNil)
 
-	// set specific path
+	// set specific path and check other data isn't affected
 	err = s.view.Set(tx, "my-account.my-set.mode", "monitor")
 	c.Assert(err, IsNil)
 
@@ -334,6 +334,21 @@ func (s *confdbHandlerSuite) TestCommitUpdatesOnlyMode(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(tr.Mode, Equals, assertstate.Monitor)
 	c.Check(tr.PinnedAt, Equals, 3)
+
+	// if we set the entire validation set map without pinned-sequence, it's removed
+	tx, err = confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	err = s.view.Set(tx, "my-account.my-set", map[string]any{"mode": "enforce"})
+	c.Assert(err, IsNil)
+
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, IsNil)
+
+	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr.Mode, Equals, assertstate.Enforce)
+	c.Check(tr.PinnedAt, Equals, 0)
 }
 
 func (s *confdbHandlerSuite) TestCommitUnsetsPinnedSequence(c *C) {
