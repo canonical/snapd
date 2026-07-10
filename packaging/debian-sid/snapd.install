@@ -10,12 +10,11 @@ data/completion/zsh/_snap /usr/share/zsh/vendor-completions
 data/info /usr/lib/snapd/
 # snap-confine stuff
 etc/apparmor.d/usr.lib.snapd.snap-confine.real
-usr/bin/snap
+usr/bin/snapd /usr/lib/snapd/
 usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
-usr/bin/snapd /usr/lib/snapd/
 usr/bin/snapd-apparmor /usr/lib/snapd/
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-confine.caps

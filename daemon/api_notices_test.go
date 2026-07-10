@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/dirs/dirstest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -45,6 +46,9 @@ type noticesSuite struct {
 
 func (s *noticesSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
+
+	dirstest.MustMockDefaultLibExecDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(dirs.GlobalRootDir)
 
 	s.expectReadAccess(daemon.InterfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "snap-interfaces-requests-control"}})
 	s.expectWriteAccess(daemon.OpenAccess{})
@@ -987,6 +991,25 @@ func (s *noticesSuite) TestAddNoticesSnapCmdUnknownBinary(c *C) {
 	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "bad-c0re/12/usr/bin/snap"), true)
 }
 
+func (s *noticesSuite) TestAddNoticesSnapCmdReexecMergedSnapd(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "snapd/11/usr/lib/snapd/snapd"), false)
+}
+
+func (s *noticesSuite) TestAddNoticesSnapCmdReexecMergedSnapdFIPS(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.SnapMountDir, "snapd/11/usr/lib/snapd/snapd-fips"), false)
+}
+
+func (s *noticesSuite) TestAddNoticesSnapCmdMergedSnapd(c *C) {
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.GlobalRootDir, "/usr/lib/snapd/snapd"), false)
+}
+
+func (s *noticesSuite) TestAddNoticesSnapCmdMergedSnapdAltLibexecdir(c *C) {
+	r := c.MkDir()
+	dirstest.MustMockAltLibExecDir(r)
+	dirs.SetRootDir(r)
+	s.testAddNoticesSnapCmd(c, filepath.Join(dirs.GlobalRootDir, "/usr/libexec/snapd/snapd"), false)
+}
+
 func (s *noticesSuite) testAddNoticesSnapCmd(c *C, exePath string, shouldFail bool) {
 	s.daemon(c)
 
@@ -1243,6 +1266,10 @@ func (s *noticesSuite) TestIsFromSnapCmd(c *C) {
 		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/bin/snap"), true},
 		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/bin/snap-fips"), true},
 		{filepath.Join(dirs.GlobalRootDir, "/usr/bin/snap"), true},
+		// merged snapd & snap
+		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/lib/snapd/snapd-fips"), true},
+		{filepath.Join(dirs.SnapMountDir, "snapd/123/usr/lib/snapd/snapd"), true},
+		{filepath.Join(dirs.GlobalRootDir, "/usr/lib/snapd/snapd"), true},
 
 		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/snap"), false},
 		{filepath.Join(dirs.GlobalRootDir, "/foo/bar/baz/not-a-snap"), false},

@@ -160,50 +160,6 @@ func waitForIfNeeded(waiter, target *state.Task) {
 	waiter.WaitFor(target)
 }
 
-// addEarlyDownloadDeps sets up dependencies so that all early-download snaps'
-// beforeLocalSystemModificationsTasks complete before any snap's first local
-// system modification begins. The first local-modification task is the
-// prerequisites synchronization task.
-func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]bool) error {
-	if len(earlyDownloads) == 0 {
-		return nil
-	}
-
-	tail := func(tasks []*state.Task) *state.Task {
-		return tasks[len(tasks)-1]
-	}
-
-	downloadTails := make(map[string]*state.Task, len(earlyDownloads))
-	for _, sts := range stss {
-		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
-			sts.firstLocalMod() == nil {
-			return errors.New("internal error: snap install task set has empty slices")
-		}
-
-		name := sts.snapsup.InstanceName()
-		if earlyDownloads[name] {
-			downloadTails[name] = tail(sts.beforeLocalSystemModificationsTasks)
-		}
-	}
-
-	for _, sts := range stss {
-		firstLocalMod := sts.firstLocalMod()
-		for name, tail := range downloadTails {
-			if name == sts.snapsup.InstanceName() {
-				continue
-			}
-
-			// since there are already some cross-snap dependencies established, we use
-			// a smarter WaitFor alternative here that considers existing transitive
-			// dependencies. this reduces the number of superfluous dependencies in the
-			// final graph of tasks.
-			waitForIfNeeded(firstLocalMod, tail)
-		}
-	}
-
-	return nil
-}
-
 // arrangeRebootAndUpdateSeed arranges the correct link-order between all the
 // provided snap install task-sets, sets up restart boundaries for essential
 // snaps (base, gadget, kernel), and returns the task set needed to update the
@@ -211,8 +167,6 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 //
 // The resulting ordering is defined here:
 //
-//	early download phase for model snaps (no local system modifications, just downloads)
-//	|
 //	snapd (all tasks)
 //	|
 //	boot-base -> gadget -> kernel (mount-snap, when present)
@@ -225,6 +179,12 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 //	|
 //	non-essential bases and apps
 //
+// Seed refresh adds a phase before create-recovery-system. The seed creation
+// task waits on every snap's initial prerequisites task, because those tasks
+// can schedule prerequisite seed snaps. For snaps that are part of the new
+// seed, it also waits on the rest of their before-local-modifications tasks so
+// devicestate can consume the selected snap/component setup tasks.
+//
 // finalize-recovery-system's placement is dependent upon which snaps are being
 // refreshed. It runs after create-recovery-system is done, and it also waits
 // for all model snaps to be finished refreshing. The set of model snaps being
@@ -233,15 +193,16 @@ func addEarlyDownloadDeps(stss []snapInstallTaskSet, earlyDownloads map[string]b
 func arrangeRebootAndUpdateSeed(
 	st *state.State,
 	stss []snapInstallTaskSet,
-	earlyDownloads map[string]bool,
 	eviction SeedRefreshEvictionPolicy,
 	opts Options,
 ) (seedRefreshTS *state.TaskSet, err error) {
 	for _, sts := range stss {
-		if len(sts.beforeLocalSystemModificationsTasks) == 0 ||
+		if sts.prerequisites == nil ||
+			len(sts.beforeLocalSystemModificationsTasks) == 0 ||
+			sts.prerequisitesSync == nil ||
 			len(sts.upToLinkSnapAndBeforeReboot) == 0 ||
 			len(sts.afterLinkSnapAndPostReboot) == 0 {
-			return nil, errors.New("internal error: snap install task set has empty slices")
+			return nil, errors.New("internal error: snap install task set has empty task ranges")
 		}
 	}
 
@@ -254,15 +215,6 @@ func arrangeRebootAndUpdateSeed(
 	seedTS, seedSnapTaskSets, err := seedRefreshAndSeedSnapTaskSets(st, stss, eviction, opts)
 	if err != nil {
 		return nil, err
-	}
-
-	// since we need seed snaps to be available before we create the seed
-	// itself, we add the seed snaps to the early download cohort
-	for name := range seedSnapTaskSets {
-		if earlyDownloads == nil {
-			earlyDownloads = make(map[string]bool, len(seedSnapTaskSets))
-		}
-		earlyDownloads[name] = true
 	}
 
 	head := func(tasks []*state.Task) *state.Task {
@@ -327,7 +279,7 @@ func arrangeRebootAndUpdateSeed(
 	beforeReboot := func(sts snapInstallTaskSet) (*state.Task, *state.Task) {
 		// on UC16, everything is before reboot
 		if isUC16 {
-			return head(sts.beforeLocalSystemModificationsTasks), tail(sts.afterLinkSnapAndPostReboot)
+			return sts.prerequisites, tail(sts.afterLinkSnapAndPostReboot)
 		}
 
 		// we let sts.beforeLocalSystemModificationsTasks happen in parallel
@@ -342,15 +294,12 @@ func arrangeRebootAndUpdateSeed(
 		return head(sts.afterLinkSnapAndPostReboot), tail(sts.afterLinkSnapAndPostReboot)
 	}
 
-	// snapd fully goes first, we rely on the existing ordering of the tasks
-	// updating snapd
-	if sts, ok := essentials[snap.TypeSnapd]; ok {
-		prev = tail(sts.afterLinkSnapAndPostReboot)
-	}
-
-	// enables us to require that downloads start after we've swapped to the new
+	// enables us to require that everything start after we've swapped to the new
 	// snapd, if we have one. might be nil!
-	finalSnapdTask := prev
+	var finalSnapdTask *state.Task
+	if sts, ok := essentials[snap.TypeSnapd]; ok {
+		finalSnapdTask = tail(sts.afterLinkSnapAndPostReboot)
+	}
 
 	// then all the mount-snap tasks for essential snaps, in order. this applies
 	// only to single-reboot systems where mount-snap is orchestrated separately
@@ -373,21 +322,6 @@ func arrangeRebootAndUpdateSeed(
 			continue
 		}
 
-		// if this essential snap is not one of the early downloads, we ensure
-		// that this snap's first before-local-modifications task waits on the
-		// final snapd task. this results in the new version of snapd executing
-		// all tasks created for this essential snap.
-		//
-		// alternatively, when this essential snap is part of the early download
-		// cohort, we omit this dependency, and we only require that this snap's
-		// modification inducing tasks wait for snapd. this frees up this
-		// essential snap's before-local-modifications tasks so that they can be
-		// freely arranged before all local modification inducing tasks, across
-		// all snaps.
-		if finalSnapdTask != nil && !earlyDownloads[sts.snapsup.InstanceName()] {
-			head(sts.beforeLocalSystemModificationsTasks).WaitFor(finalSnapdTask)
-		}
-
 		chain(beforeReboot(sts))
 	}
 
@@ -396,19 +330,6 @@ func arrangeRebootAndUpdateSeed(
 	// reboot to test the system, and another reboot to return to the run
 	// system.
 	if seedTS != nil {
-		// if no tasks have been added to the chain yet, appending the seed task
-		// to the end of the chain will not result in the seed tasks waiting on
-		// the early download phase. in that case, we must add those
-		// dependencies explicitly.
-		//
-		// this can happen if the seed is being updated due to non-essential
-		// snap refreshes
-		if prev == nil {
-			for _, sts := range seedSnapTaskSets {
-				seedTS.Create.WaitFor(tail(sts.beforeLocalSystemModificationsTasks))
-			}
-		}
-
 		chain(seedTS.Create, seedTS.Create)
 	}
 
@@ -493,16 +414,26 @@ func arrangeRebootAndUpdateSeed(
 		}
 	}
 
-	// some non-essential snaps might have been a part of the early download
-	// cohort. in that case, we need to make sure that we don't accidentally
-	// create a dependency cycle. thus, early downloaded snaps will have their
-	// first modification-inducing task wait on the final essential snap, rather
-	// than their first download task.
 	nonEssentialWaitHead := func(sts snapInstallTaskSet) *state.Task {
-		if earlyDownloads[sts.snapsup.InstanceName()] {
-			return sts.firstLocalMod()
+		// during a seed-refresh, all initial prerequisites tasks will run prior
+		// to seed creation.
+		if seedTS != nil {
+			// for seed snaps, their before-local-modifications tasks also run
+			// before seed creation, so schedule the synchronization task as the
+			// first post-essential task.
+			if _, ok := seedSnapTaskSets[sts.snapsup.InstanceName()]; ok {
+				return sts.prerequisitesSync
+			}
+
+			// for non-seed snaps, schedule the rest of the
+			// before-local-modifications phase as the first post-essential
+			// task.
+			return head(sts.beforeLocalSystemModificationsTasks)
 		}
-		return head(sts.beforeLocalSystemModificationsTasks)
+
+		// in the absence of a seed-refresh, the first post-essential tasks
+		// should simply be the first task of each snap's chain of tasks.
+		return sts.prerequisites
 	}
 
 	// make the bases just wait on the final essential snap to finish up
@@ -524,12 +455,48 @@ func arrangeRebootAndUpdateSeed(
 		}
 	}
 
-	if err := addEarlyDownloadDeps(stss, earlyDownloads); err != nil {
-		return nil, err
+	// ensure that everything waits on snapd. we do this pretty late to help
+	// prevent superfluous dependencies between tasks.
+	if finalSnapdTask != nil {
+		// make sure snaps wait on snapd
+		for _, sts := range stss {
+			if sts.snapsup.InstanceName() == "snapd" {
+				continue
+			}
+
+			waitForIfNeeded(sts.prerequisites, finalSnapdTask)
+		}
+
+		// make sure the seed waits on snapd. this dependency will usually
+		// already be set up, but might not be if only snapd is being refreshed.
+		if seedTS != nil {
+			waitForIfNeeded(seedTS.Create, finalSnapdTask)
+		}
 	}
 
 	if seedTS == nil {
 		return nil, nil
+	}
+
+	// seed creation must wait on all initial prerequisites tasks, because those
+	// tasks can schedule seed snaps.
+	for _, sts := range stss {
+		// for seed snaps, seed creation must also wait on the rest of the
+		// before-local-modifications phase so it can consume the selected
+		// snap/component setup tasks.
+		if _, ok := seedSnapTaskSets[sts.snapsup.InstanceName()]; ok {
+			waitForIfNeeded(seedTS.Create, tail(sts.beforeLocalSystemModificationsTasks))
+			continue
+		}
+
+		// non-seed snaps only need to have their initial prerequisites task run
+		// before seed creation
+		for _, lane := range seedTS.Create.Lanes() {
+			if !contains(sts.prerequisites.Lanes(), lane) {
+				sts.prerequisites.JoinLane(lane)
+			}
+		}
+		waitForIfNeeded(seedTS.Create, sts.prerequisites)
 	}
 
 	// finalize-recovery-system only waits on create-recovery-system by default.

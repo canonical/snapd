@@ -18,9 +18,7 @@ environment:
 prepare: |
   VERSION="$(tests.nested show version)"
 
-  snap install lxd
   snap install --edge test-snapd-swtpm
-  snap install snapcraft --classic
 
   # The rev1 model used by this test adds one application snap. Keep the
   # selected snap name/id in sync with developer1-${VERSION}-classic-dangerous-rev1.json.

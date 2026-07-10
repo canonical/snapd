@@ -598,7 +598,7 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 		return fmt.Errorf(i18n.G("cannot run %q, snap is disabled"), snap.JoinSnapApp(snapName, app.Name))
 	}
 
-	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() {
+	if app.IsService() {
 		// Skip check
 		return nil
 	}
@@ -632,9 +632,6 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		}
 
 		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, snapName, appName)
-		if errors.Is(err, errOngoingSnapRefresh) {
-			return fmt.Errorf(i18n.G("cannot run %q, snap is being refreshed"), snapApp)
-		}
 		if errors.Is(err, errInhibitedForRemove) {
 			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapApp)
 		}
@@ -767,21 +764,17 @@ func snapdHelperPath(toolName string) (string, error) {
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
 	}
-	// The logic below only works if the last two path components
-	// are /usr/bin
-	// FIXME: use a snap warning?
-	if !strings.HasSuffix(exe, "/usr/bin/"+filepath.Base(exe)) {
+
+	// usr/bin/snap and usr/lib/snapd/snapd are the same binary, so our exe
+	// (snapd) is already at the desired path
+
+	if !strings.HasSuffix(exe, filepath.Join(dirs.CoreLibExecDir, filepath.Base(exe))) {
 		logger.Noticef("(internal error): unexpected exe input in snapdHelperPath: %v", exe)
 		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
 	}
-	// snapBase will be "/snap/{core,snapd}/$rev/" because
-	// the snap binary is always at $root/usr/bin/snap
-	snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
-	// Run snap-confine from the core/snapd snap.  The tools in
-	// core/snapd snap are statically linked, or mostly
-	// statically, with the exception of libraries such as libudev
-	// and libc.
-	return filepath.Join(snapBase, dirs.CoreLibExecDir, toolName), nil
+
+	// internal tools are at the same directory as this binary
+	return filepath.Join(filepath.Dir(exe), toolName), nil
 }
 
 /* Kerberos tickets live in /tmp, or in the place specified by KRB5CCNAME

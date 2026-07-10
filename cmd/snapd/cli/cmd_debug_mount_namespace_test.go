@@ -30,37 +30,15 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func (s *SnapSuite) TestDebugMountNamespaceDiscardRequiresRoot(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 1000 })
-	defer restore()
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "discard", "test-snap"})
-	c.Assert(err, ErrorMatches, "this command requires root privileges")
-}
-
-func (s *SnapSuite) TestDebugMountNamespaceShellRequiresRoot(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 1000 })
-	defer restore()
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "shell", "test-snap"})
-	c.Assert(err, ErrorMatches, "this command requires root privileges")
-}
-
 func (s *SnapSuite) TestDebugMountNamespaceShellFailsIfMntFileNotExist(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 0 })
-	defer restore()
-
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("/")
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "shell", "test-snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--shell", "test-snap"})
 	c.Assert(err, ErrorMatches, `cannot enter mount namespace of snap "test-snap": the mount namespace is not bound to a file \(.*/run/snapd/ns/test-snap.mnt does not exist\)`)
 }
 
 func (s *SnapSuite) TestDebugMountNamespaceShellDefaultBash(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 0 })
-	defer restore()
-
 	rootDir := c.MkDir()
 	dirs.SetRootDir(rootDir)
 	defer dirs.SetRootDir("/")
@@ -77,31 +55,25 @@ func (s *SnapSuite) TestDebugMountNamespaceShellDefaultBash(c *C) {
 	nsenterCmd := testutil.MockCommand(c, "nsenter", "")
 	defer nsenterCmd.Restore()
 
-	var execCalled bool
-	var execPath string
 	var execArgv []string
 	var execEnv []string
 	restoreExec := snap.MockSyscallExec(func(path string, argv []string, env []string) error {
-		execCalled = true
-		execPath = path
 		execArgv = argv
 		execEnv = env
 		return nil
 	})
 	defer restoreExec()
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "shell", "test-snap"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--shell", "test-snap"})
 	c.Assert(err, IsNil)
-	c.Assert(execCalled, Equals, true)
-	c.Assert(execPath, Equals, nsenterCmd.Exe())
 	c.Assert(execArgv, DeepEquals, []string{"nsenter", "-m" + mntFile, "/bin/bash"})
-	c.Assert(execEnv, DeepEquals, []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"})
+	c.Assert(execEnv, DeepEquals, []string{
+		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+		"PS1=(test-snap) [\\u@\\h \\W]\\$ ",
+	})
 }
 
 func (s *SnapSuite) TestDebugMountNamespaceShellWithCommand(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 0 })
-	defer restore()
-
 	rootDir := c.MkDir()
 	dirs.SetRootDir(rootDir)
 	defer dirs.SetRootDir("/")
@@ -127,16 +99,13 @@ func (s *SnapSuite) TestDebugMountNamespaceShellWithCommand(c *C) {
 	})
 	defer restoreExec()
 
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "shell", "test-snap", "--", "/usr/bin/findmnt", "-l"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--shell", "test-snap", "--", "/usr/bin/findmnt", "-l"})
 	c.Assert(err, IsNil)
 	c.Assert(execArgv, DeepEquals, []string{"nsenter", "-m" + mntFile, "/usr/bin/findmnt", "-l"})
 	c.Assert(execEnv, DeepEquals, []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin"})
 }
 
 func (s *SnapSuite) TestDebugMountNamespaceShellWithCommandNoDash(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 0 })
-	defer restore()
-
 	rootDir := c.MkDir()
 	dirs.SetRootDir(rootDir)
 	defer dirs.SetRootDir("/")
@@ -161,20 +130,17 @@ func (s *SnapSuite) TestDebugMountNamespaceShellWithCommandNoDash(c *C) {
 	defer restoreExec()
 
 	// Without --, positional arguments that don't look like flags work fine
-	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "shell", "test-snap", "/usr/bin/findmnt"})
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--shell", "test-snap", "/usr/bin/findmnt"})
 	c.Assert(err, IsNil)
 	c.Assert(execArgv, DeepEquals, []string{"nsenter", "-m" + mntFile, "/usr/bin/findmnt"})
 }
 
 func (s *SnapSuite) TestDebugMountNamespaceDiscardRunsTool(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 0 })
-	defer restore()
-
 	cmd := testutil.MockCommand(c, "snap-discard-ns", "")
 	dirs.DistroLibExecDir = cmd.BinDir()
 	defer cmd.Restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "discard", "test-snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--discard", "test-snap"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"snap-discard-ns", "test-snap"},
@@ -182,13 +148,43 @@ func (s *SnapSuite) TestDebugMountNamespaceDiscardRunsTool(c *C) {
 }
 
 func (s *SnapSuite) TestDebugMountNamespaceDiscardReportsError(c *C) {
-	restore := snap.MockOsGetuid(func() int { return 0 })
-	defer restore()
-
 	cmd := testutil.MockCommand(c, "snap-discard-ns", "echo 'namespace error'; exit 1")
 	dirs.DistroLibExecDir = cmd.BinDir()
 	defer cmd.Restore()
 
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "discard", "test-snap"})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--discard", "test-snap"})
 	c.Assert(err, ErrorMatches, `cannot discard mount namespace of snap "test-snap": .*`)
+}
+
+func (s *SnapSuite) TestDebugMountNamespaceInfoMessageFound(c *C) {
+	rootDir := c.MkDir()
+	dirs.SetRootDir(rootDir)
+	defer dirs.SetRootDir("/")
+
+	nsDir := filepath.Join(rootDir, "/run/snapd/ns")
+	err := os.MkdirAll(nsDir, 0755)
+	c.Assert(err, IsNil)
+	mntFile := filepath.Join(nsDir, "test-snap.mnt")
+	err = os.WriteFile(mntFile, nil, 0600)
+	c.Assert(err, IsNil)
+
+	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "test-snap"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, "mount namespace of snap \"test-snap\" bound to "+mntFile+", use --shell to enter\n")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugMountNamespaceInfoMessageNotFound(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("/")
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "test-snap"})
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals, "no mount namespace of snap \"test-snap\" found\n")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugMountNamespaceShellAndDiscardMutuallyExclusive(c *C) {
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"debug", "mount-namespace", "--shell", "--discard", "test-snap"})
+	c.Assert(err, ErrorMatches, `--shell and --discard cannot be used together`)
 }
