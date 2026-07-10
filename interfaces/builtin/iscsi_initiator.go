@@ -19,6 +19,18 @@
 
 package builtin
 
+import (
+	"path/filepath"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/strutil"
+)
+
 /*
  * The iscsi-initiator interface allows snaps to act as iSCSI initiators,
  * enabling them to discover, connect to, and manage iSCSI targets for
@@ -60,8 +72,8 @@ const iscsiInitiatorConnectedPlugAppArmor = `
 /etc/iscsi/isns/ rwk,
 /etc/iscsi/isns/** rw,
 # iSCSI target node information for persistent connections
-/etc/iscsi/nodes/ rwk,
-/etc/iscsi/nodes/** rw,
+/{etc,var/lib}/iscsi/nodes/ rwk,
+/{etc,var/lib}/iscsi/nodes/** rw,
 
 # Runtime files and locks for iSCSI daemon operation
 /run/lock/iscsi/ rw,
@@ -103,7 +115,66 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     iscsiInitiatorBaseDeclarationSlots,
 		baseDeclarationPlugs:     iscsiInitiatorBaseDeclarationPlugs,
-		connectedPlugAppArmor:    iscsiInitiatorConnectedPlugAppArmor,
 		connectedPlugKModModules: iscsiInitiatorConnectedPlugKmod,
 	}})
+}
+
+const nodesDBDebianPath = "/var/lib/iscsi/nodes"
+
+// shouldMountVarLibNodesDB returns true if we're running in a distro that uses
+// /var/lib/iscsi/nodes as the nodes DB path, in which case it must be
+// bind-mounted from /var/lib/snapd/hostfs/... to the expected location.
+func shouldMountVarLibNodesDB() (bool, error) {
+	if !release.DistroLike("debian", "ubuntu") {
+		return false, nil
+	}
+
+	if release.ReleaseInfo.ID == "ubuntu" {
+		const minVersion = "24.04"
+		cmp, err := strutil.VersionCompare(release.ReleaseInfo.VersionID, minVersion)
+		if err != nil {
+			return false, err
+		}
+		if cmp < 0 {
+			return false, nil
+		}
+	}
+
+	srcDir := dirs.GlobalRootDir + nodesDBDebianPath
+	return osutil.IsDirectory(srcDir), nil
+}
+
+// MountConnectedPlug exposes the host's iSCSI persistent node database at
+// /var/lib/iscsi/nodes inside the snap mount namespace.
+func (iface *iscsiInitiatorInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	ok, err := shouldMountVarLibNodesDB()
+	if err != nil || !ok {
+		return err
+	}
+
+	return spec.AddMountEntry(osutil.MountEntry{
+		Name:    filepath.Join("/var/lib/snapd/hostfs", nodesDBDebianPath),
+		Dir:     nodesDBDebianPath,
+		Options: []string{"bind", "rw"},
+	})
+}
+
+// AppArmorConnectedPlug updates the snap-update-ns rules to allow the bind
+// mount of the iscsi node DB to the correct location.
+func (iface *iscsiInitiatorInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(iscsiInitiatorConnectedPlugAppArmor)
+
+	ok, err := shouldMountVarLibNodesDB()
+	if err != nil || !ok {
+		return err
+	}
+
+	emit := spec.AddUpdateNSf
+	emit("  # Bind-mount host's iSCSI persistent node database\n")
+	emit("  mount options=(bind, rw) /var/lib/snapd/hostfs%s/ -> %s/,\n", nodesDBDebianPath, nodesDBDebianPath)
+	emit("  umount %s/,\n", nodesDBDebianPath)
+	// /var/lib/iscsi/nodes/ does not exist in the snap's base, so we need to
+	// add writable-mimic rules for snap-update-ns create it
+	apparmor.GenWritableProfile(emit, nodesDBDebianPath, 1)
+	return nil
 }
