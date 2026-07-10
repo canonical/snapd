@@ -543,34 +543,21 @@ prepare_project() {
                         # currently expects 1.23, see:
                         # https://launchpad.net/~ubuntu-toolchain-r/+archive/ubuntu/golang-fips
                         best_golang=golang-1.23
-                        ;;
-                    ubuntu-20.04-*)
-                        # On 20.04, the newest available go version is 1.22.
-                        best_golang=golang-1.22
-                        ;;
-                    ubuntu-core-20-*)
-                        # On core20, reboot during spread prepare fails when
-                        # using any go version newer than 1.18. So stick to 1.18.
-                        best_golang=golang-1.18
-                        ;;
-                    ubuntu-core-1* | ubuntu-1*)
-                        # On <20.04, use 1.18
-                        best_golang=golang-1.18
+                        quiet apt install -y golang-1.23
                         ;;
                 esac
-                # Ensure the desired go is installed instead of the first dep match
-                quiet apt install -y "$best_golang"
-                best_golang_path="/usr/lib/${best_golang/lang/}/bin/go"
-                test -e "$best_golang_path"
-                ln -s "$best_golang_path" /usr/local/bin/go
                 apt build-dep -y ./ # we don't run this for 14.04
                 # We need to ensure the correct version of golang is used.
-                command -v go | MATCH '/usr/local/bin/go'
-                # There should be no go installed at /usr/bin/go
-                test ! -f /usr/bin/go
-                # Symlink to /usr/bin/go as well to prevent issues with core20 failing
-                # to reboot during suite prepare.
-                ln -s "$best_golang_path" /usr/bin/go
+                if [ -z "$(command -v go)" ]; then
+                    # Find the path to the versioned go which was installed as a dependency
+                    for real_golang in "$best_golang" golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
+                        real_golang_path="/usr/lib/${real_golang/lang/}/bin/go"
+                        if [ -e "$real_golang_path" ]; then
+                            ln -s "$real_golang_path" /usr/bin/go
+                            break
+                        fi
+                    done
+                fi
             }
 
             if ! os.query is-trusty; then
