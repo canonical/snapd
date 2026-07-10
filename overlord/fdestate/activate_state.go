@@ -95,7 +95,7 @@ type FDEPreinstallState struct {
 	Requirements []install.EncryptionSupportRequirement `json:"requirements"`
 
 	// AcceptedErrors maps accepted preinstall check error kinds to optional metadata.
-	// Values are currently nil with but can be extended later with arguments for
+	// Values are currently nil but can be extended later with arguments for
 	// future proofing.
 	AcceptedErrors map[string]any `json:"accepted-errors"`
 }
