@@ -128,8 +128,23 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 		return currentSeedTS, added, nil
 	}
 
-	snapstate.PendingSeedRefreshTasks = func(*state.TaskSet) (*snapstate.SeedRefreshTaskSet, error) {
-		return currentSeedTS, nil
+	snapstate.PendingSeedRefreshTasks = func(ts *state.TaskSet) (*snapstate.SeedRefreshTaskSet, error) {
+		if currentSeedTS == nil {
+			return nil, nil
+		}
+
+		for _, t := range ts.Tasks() {
+			if t.ID() != currentSeedTS.Finalize.ID() || t.Status().Ready() {
+				continue
+			}
+
+			if currentSeedTS.Create.Status() != state.DoStatus {
+				return nil, fmt.Errorf("internal error: seed-refresh creation task has already started with status %s while finalization is still pending", currentSeedTS.Create.Status())
+			}
+			return currentSeedTS, nil
+		}
+
+		return nil, nil
 	}
 
 	snapstate.UpdateSeedRefreshChange = func(seedTS *snapstate.SeedRefreshTaskSet, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (bool, error) {
