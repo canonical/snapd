@@ -60,7 +60,7 @@ func init() {
 
 // Main is the entry point for snap-exec. It exits the process on error.
 func Main() {
-	if err := Run(); err != nil {
+	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)
 		os.Exit(1)
 	}
@@ -87,8 +87,8 @@ func parseArgs(args []string) (app string, appArgs []string, err error) {
 	return rest[0], rest[1:], nil
 }
 
-// Run executes the snap-exec logic.
-func Run() error {
+// run executes the snap-exec logic.
+func run() error {
 	snapTarget, extraArgs, err := parseArgs(os.Args[1:])
 	if err != nil {
 		return err
@@ -101,10 +101,10 @@ func Run() error {
 
 	// Now actually handle the dispatching
 	if opts.Hook != "" {
-		return ExecHook(snapTarget, revision, opts.Hook)
+		return execHook(snapTarget, revision, opts.Hook)
 	}
 
-	return ExecApp(snapTarget, revision, opts.Command, extraArgs)
+	return execApp(snapTarget, revision, opts.Command, extraArgs)
 }
 
 const defaultShell = "/bin/bash"
@@ -145,9 +145,9 @@ func absoluteCommandChain(mountDir string, commandChain []string) []string {
 	return chain
 }
 
-// ExpandEnvCmdArgs takes the string list of commandline arguments
+// expandEnvCmdArgs takes the string list of commandline arguments
 // and expands any $VAR with the given var from the env argument.
-func ExpandEnvCmdArgs(args []string, env osutil.Environment) []string {
+func expandEnvCmdArgs(args []string, env osutil.Environment) []string {
 	cmdArgs := make([]string, 0, len(args))
 	for _, arg := range args {
 		maybeExpanded := os.Expand(arg, func(varName string) string {
@@ -168,8 +168,8 @@ func completionHelper() (string, error) {
 	return filepath.Join(filepath.Dir(exe), "etelpmoc.sh"), nil
 }
 
-// ExecApp executes a snap application.
-func ExecApp(snapTarget, revision, command string, args []string) error {
+// execApp executes a snap application.
+func execApp(snapTarget, revision, command string, args []string) error {
 	if strings.ContainsRune(snapTarget, '+') {
 		return fmt.Errorf("snap-exec cannot run a snap component without a hook specified (use --hook)")
 	}
@@ -228,7 +228,7 @@ func ExecApp(snapTarget, revision, command string, args []string) error {
 	// (see also overlord/snapstate/check_snap.go's normPath)
 	tmpArgv := strings.Split(cmdAndArgs, " ")
 	cmd := tmpArgv[0]
-	cmdArgs := ExpandEnvCmdArgs(tmpArgv[1:], env)
+	cmdArgs := expandEnvCmdArgs(tmpArgv[1:], env)
 
 	// run the command
 	fullCmd := []string{filepath.Join(app.Snap.MountDir(), cmd)}
@@ -267,8 +267,8 @@ func getComponentInfo(name string, snapInfo *snap.Info) (*snap.ComponentInfo, er
 	return snap.ReadCurrentComponentInfo(name, snapInfo)
 }
 
-// ExecHook executes a snap hook.
-func ExecHook(snapTarget string, revision, hookName string) error {
+// execHook executes a snap hook.
+func execHook(snapTarget string, revision, hookName string) error {
 	snapName, componentName := snap.SplitSnapComponentInstanceName(snapTarget)
 
 	rev, err := snap.ParseRevision(revision)
