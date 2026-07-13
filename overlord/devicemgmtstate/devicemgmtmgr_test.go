@@ -1689,7 +1689,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
 	s.st.Unlock()
 	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
 	s.st.Lock()
-	c.Assert(err, ErrorMatches, `cannot find subsystem change "16384"`)
+	c.Assert(err, ErrorMatches, `internal error: cannot find subsystem change "16384"`)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseNoHandlerForMessageKind(c *C) {
@@ -1782,11 +1782,14 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 	}
 	s.mgr.SetState(ms)
 
+	changeReady := false
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		resultFromChange: func(*state.Change) (map[string]any, error) {
-			c.Error("resultFromChange must not be called while subsystem change is not ready")
+			if !changeReady {
+				c.Error("resultFromChange must not be called while subsystem change is not ready")
+			}
 
-			return nil, nil
+			return map[string]any{"values": "ok"}, nil
 		},
 	})
 
@@ -1799,6 +1802,37 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
 	s.st.Lock()
 	c.Assert(err, FitsTypeOf, &state.Retry{})
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.ReadyResponses, HasLen, 0)
+
+	// Now mark the subsystem change as done and verify the handler proceeds.
+	changeReady = true
+	subsysChg.SetStatus(state.DoneStatus)
+
+	s.mgr.MockSigner(&mockSigner{
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.st.Unlock()
+	err = s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {

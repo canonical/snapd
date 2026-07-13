@@ -636,6 +636,11 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot marshal response body: %w", err)
 	}
 
+	// TODO: determine reasonable behavior for internal errors (e.g., signing or marshal failures).
+	// Since tasks are idempotent, a failed message will not be re-dispatched or re-applied on the
+	// next change, but the request message remains in state until doQueueResponse completes,
+	// so such failures leave it hanging indefinitely.
+
 	resAs, err := m.signer.SignResponseMessage(msg.AccountID, msg.ID(), msg.ResponseStatus, bodyBytes)
 	if err != nil {
 		return fmt.Errorf("cannot sign response message: %w", err)
@@ -651,8 +656,7 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 	// 2. If it errors elsewhere (in validate, apply, or queue-response), we end
 	//    up not advancing Applied, which means we accumulate messages until we
 	//    hit the sequence cap.
-	// Refactor sequence rejection to always evict immediately and determine the
-	// right behavior for internal errors.
+	// Refactor sequence rejection to always evict immediately.
 	if msg.SeqNum > 0 && msg.ResponseStatus == asserts.MessageStatusSuccess {
 		ms.Sequences[msg.BaseID].Applied = msg.SeqNum
 	}
@@ -678,7 +682,7 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) er
 
 	change := m.state.Change(msg.ApplyChangeID)
 	if change == nil {
-		return fmt.Errorf("cannot find subsystem change %q", msg.ApplyChangeID)
+		return fmt.Errorf("internal error: cannot find subsystem change %q", msg.ApplyChangeID)
 	}
 	if !change.Status().Ready() {
 		return &state.Retry{After: awaitSubsystemRetryInterval}
