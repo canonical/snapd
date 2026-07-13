@@ -122,19 +122,6 @@ func seedRefreshEnabled(st *state.State) (bool, error) {
 	return seedRefresh, nil
 }
 
-func changeHasPendingSeedRefresh(chg *state.Change) bool {
-	for _, t := range chg.Tasks() {
-		switch t.Kind() {
-		case "create-recovery-system", "finalize-recovery-system":
-			if !t.Status().Ready() {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 // seedRefreshAndSeedSnapTaskSets returns the seed-refresh tasks and the task
 // sets for snaps that are involved in the seed refresh.
 func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, eviction SeedRefreshEvictionPolicy, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
@@ -150,12 +137,6 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 	}
 
 	if !enabled {
-		return nil, nil, nil
-	}
-
-	// if the tasks here are being created from within a change that is still
-	// performing a seed refresh, then we don't want to create another one.
-	if chg := st.Change(opts.FromChange); chg != nil && changeHasPendingSeedRefresh(chg) {
 		return nil, nil, nil
 	}
 
@@ -191,23 +172,32 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 	return seedTS, seedSnapTaskSets, nil
 }
 
-// maybeMergeLateSeedRefreshPrereq folds a prerequisite refresh into an
-// in-flight seed refresh when the current change still has pending
-// recovery-system tasks and the prerequisite snap is part of the model.
-func maybeMergeLateSeedRefreshPrereq(chg *state.Change, dctx DeviceContext, providerTS *state.TaskSet) error {
-	if !changeHasPendingSeedRefresh(chg) {
-		return nil
+// maybeMergeLateSeedRefreshPrereq orders a late prerequisite refresh against an
+// in-flight seed refresh. The initial prerequisites task must run before seed
+// creation even when the snap is not part of the seed refresh. If the snap is
+// part of the seed refresh, then the before-local-modification tasks for that
+// snap will be ordered before seed creation.
+func maybeMergeLateSeedRefreshPrereq(chg *state.Change, seedTS *SeedRefreshTaskSet, dctx DeviceContext, ts *state.TaskSet) error {
+	// if this task set already carries the seed creation tasks, then there
+	// isn't anything more to do
+	for _, t := range ts.Tasks() {
+		if t.ID() == seedTS.Create.ID() {
+			return nil
+		}
 	}
 
-	seedTS, err := PendingSeedRefreshTasks(state.NewTaskSet(chg.Tasks()...))
-	if err != nil {
-		return err
+	var prereq *state.Task
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
+			prereq = t
+			break
+		}
 	}
-	if seedTS == nil {
-		return nil
+	if prereq == nil {
+		return errors.New("internal error: seed-refresh provider task set is missing initial prerequisites task")
 	}
 
-	candidate, err := seedRefreshCandidateForTaskSet(providerTS)
+	candidate, err := seedRefreshCandidateForTaskSet(ts)
 	if err != nil {
 		return err
 	}
@@ -218,15 +208,29 @@ func maybeMergeLateSeedRefreshPrereq(chg *state.Change, dctx DeviceContext, prov
 	}
 
 	if !added {
+		// seed creation must wait on all prerequisite tasks spawned by a refresh.
+		// this ensures that we've recursively resolved all prerequisites prior to
+		// seed creation.
+		for _, lane := range seedTS.Create.Lanes() {
+			prereq.JoinLane(lane)
+		}
+		seedTS.Create.WaitFor(prereq)
+
 		return nil
 	}
 
-	// TODO:SEEDREFRESH: drop this check
-	if err := errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg, seedTS, providerTS); err != nil {
+	// TODO:SEEDREFRESH: if a snap going into the refreshed seed starts
+	// requiring a base or content provider that was not in the existing
+	// seed, supporting it would require the refreshed seed to gain this
+	// prerequisite snap. this is intentionally unsupported for now. adding an
+	// early failure here would be nice, but we'd have to open the seed. a
+	// seed-refresh that hits this case will fail during seed creation.
+
+	if err := errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg, seedTS, ts); err != nil {
 		return err
 	}
 
-	return mergeLateSeedRefreshPrereq(seedTS, providerTS)
+	return mergeLateSeedRefreshPrereq(seedTS, ts)
 }
 
 // errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation rejects the currently
@@ -274,15 +278,6 @@ func errorIfPrereqNeedsInFlightBaseBlockedBySeedCreation(chg *state.Change, seed
 // setup payload. this function only joins lanes and adds the ordering
 // dependencies needed by seed refresh.
 func mergeLateSeedRefreshPrereq(seedTS *SeedRefreshTaskSet, providerTS *state.TaskSet) error {
-	_, err := providerTS.Edge(SnapSetupEdge)
-	if err != nil {
-		return errors.New("internal error: seed-refresh provider task set is missing required edge")
-	}
-
-	for _, lane := range seedTS.Create.Lanes() {
-		providerTS.JoinLane(lane)
-	}
-
 	end, err := providerTS.Edge(EndEdge)
 	if err != nil {
 		return errors.New("internal error: seed-refresh provider task set is missing required edge")
@@ -291,6 +286,14 @@ func mergeLateSeedRefreshPrereq(seedTS *SeedRefreshTaskSet, providerTS *state.Ta
 	lastBeforeLocal, err := providerTS.Edge(LastBeforeLocalModificationsEdge)
 	if err != nil {
 		return errors.New("internal error: seed-refresh provider task set is missing required edge")
+	}
+
+	// joining the full task set to the seed lanes ensures that undoing the snap
+	// also undoes the seed refresh.
+	for _, lane := range seedTS.Create.Lanes() {
+		for _, t := range providerTS.Tasks() {
+			t.JoinLane(lane)
+		}
 	}
 
 	// TODO:SEEDREFRESH: what about content-providers that are essential snaps?
