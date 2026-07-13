@@ -20,9 +20,31 @@
 package backend
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/systemd/fdstore"
+	"github.com/snapcore/snapd/testutil"
 )
+
+type MemfdSecretState = memfdSecretState
+
+func (s *memfdSecretState) Capacity() int {
+	return s.capacity()
+}
+
+func CloseSecretState(s SecretState) error {
+	switch s := s.(type) {
+	case *memfdSecretState:
+		return s.closeUnlocked()
+	case *inMemorySecretState:
+		return s.close()
+	default:
+		return fmt.Errorf("unsupported secret state type")
+	}
+}
 
 func MockSsecbootFindFreeHandle(f func() (uint32, error)) (restore func()) {
 	old := secbootFindFreeHandle
@@ -53,5 +75,37 @@ func MockSecbootPCRPolicyCounterHandles(f func(uk secboot.UpdatedKeys) []uint32)
 	secbootPCRPolicyCounterHandles = f
 	return func() {
 		secbootPCRPolicyCounterHandles = old
+	}
+}
+
+func MockFdstoreAdd(f func(name fdstore.FdName, f *os.File) error) (restore func()) {
+	return testutil.Mock(&fdstoreAdd, f)
+}
+
+func MockFdstoreGet(f func(name fdstore.FdName) (*os.File, error)) (restore func()) {
+	return testutil.Mock(&fdstoreGet, f)
+}
+
+func MockFdstoreRemove(f func(name fdstore.FdName) error) (restore func()) {
+	return testutil.Mock(&fdstoreRemove, f)
+}
+
+func MockUnixMmap(f func(fd int, offset int64, length int, prot int, flags int) ([]byte, error)) (restore func()) {
+	return testutil.Mock(&unixMmap, f)
+}
+
+func MockUnixMunmap(f func(b []byte) error) (restore func()) {
+	return testutil.Mock(&unixMunmap, f)
+}
+
+func ResetSecretState() {
+	if secretStateOnce != nil {
+		switch s := secretStateOnce.(type) {
+		case *memfdSecretState:
+			s.closeUnlocked()
+		case *inMemorySecretState:
+			s.close()
+		}
+		secretStateOnce = nil
 	}
 }
