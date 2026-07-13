@@ -33,136 +33,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (s *snapmgrTestSuite) TestDoRemoveAliasesRefreshAppAwarenessDisabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "alias-snap", Revision: snap.R(11)},
-		}),
-		Current:             snap.R(11),
-		Active:              true,
-		AutoAliasesDisabled: true,
-		AliasesPending:      false,
-		Aliases: map[string]*snapstate.AliasTarget{
-			"manual1": {Manual: "cmd1"},
-		},
-	})
-
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-	// With refresh-app-awareness disabled
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", false)
-	tr.Commit()
-
-	t := s.state.NewTask("remove-aliases", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-	})
-	t.Set("remove-reason", "refresh")
-	chg := s.state.NewChange("sample", "...")
-	chg.AddTask(t)
-
-	s.state.Unlock()
-
-	s.se.Ensure()
-	s.se.Wait()
-
-	s.state.Lock()
-
-	c.Check(t.Status(), Equals, state.DoneStatus)
-	expected := fakeOps{
-		{
-			op:   "remove-snap-aliases",
-			name: "alias-snap",
-		},
-	}
-	// start with an easier-to-read error if this fails:
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "alias-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Check(snapst.AutoAliasesDisabled, Equals, true)
-	c.Check(snapst.AliasesPending, Equals, true)
-}
-
-func (s *snapmgrTestSuite) TestDoUndoRemoveAliasesRefreshAppAwarenessDisabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	snapstate.Set(s.state, "alias-snap", &snapstate.SnapState{
-		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
-			{RealName: "alias-snap", Revision: snap.R(11)},
-		}),
-		Current:             snap.R(11),
-		Active:              true,
-		AutoAliasesDisabled: true,
-		AliasesPending:      false,
-		Aliases: map[string]*snapstate.AliasTarget{
-			"manual1": {Manual: "cmd1"},
-		},
-	})
-
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-	// With refresh-app-awareness disabled
-	tr = config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", false)
-	tr.Commit()
-
-	t := s.state.NewTask("remove-aliases", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
-	})
-	t.Set("remove-reason", "refresh")
-	chg := s.state.NewChange("sample", "...")
-	chg.AddTask(t)
-
-	terr := s.state.NewTask("error-trigger", "provoking total undo")
-	terr.WaitFor(t)
-	chg.AddTask(terr)
-
-	s.state.Unlock()
-
-	for i := 0; i < 3; i++ {
-		s.se.Ensure()
-		s.se.Wait()
-	}
-
-	s.state.Lock()
-
-	c.Check(t.Status(), Equals, state.UndoneStatus)
-	expected := fakeOps{
-		{
-			op:   "remove-snap-aliases",
-			name: "alias-snap",
-		},
-		{
-			op:      "update-aliases",
-			aliases: []*backend.Alias{{Name: "manual1", Target: "alias-snap.cmd1"}},
-		},
-	}
-	// start with an easier-to-read error if this fails:
-	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
-
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "alias-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Check(snapst.AutoAliasesDisabled, Equals, true)
-	c.Check(snapst.AliasesPending, Equals, false)
-}
-
 func (s *snapmgrTestSuite) TestDoRemoveAliasesExcludeFromRefreshAppAwareness(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -296,7 +166,6 @@ func (s *snapmgrTestSuite) TestDoRemoveAliasesSkipped(c *C) {
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
 	tr.Commit()
-	// refresh-app-awareness should be enabled by default
 	t := s.state.NewTask("remove-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
@@ -346,7 +215,6 @@ func (s *snapmgrTestSuite) TestDoUndoRemoveAliasesSkipped(c *C) {
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
 	tr.Commit()
-	// refresh-app-awareness should be enabled by default
 	t := s.state.NewTask("remove-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
@@ -1162,7 +1030,6 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesAutoPruneOldAliases(c *C) {
 	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
 	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
-	// refresh-app-awareness should be enabled by default
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
 	removeAliasesTask.Set("remove-reason", "refresh")
@@ -1262,7 +1129,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAutoPruneOldAliases(c *C) {
 	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
 	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
-	// refresh-app-awareness should be enabled by default
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
 	removeAliasesTask.Set("remove-reason", "refresh")
@@ -1379,7 +1245,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAutoErrorMidwayPruneOldAliases(
 	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
 	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
-	// refresh-app-awareness should be enabled by default
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
 	removeAliasesTask.Set("remove-reason", "refresh")
@@ -1560,7 +1425,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAutoPruneOldAliasesConflict(c *
 	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
 	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
-	// refresh-app-awareness should be enabled by default
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
 	removeAliasesTask.Set("remove-reason", "refresh")

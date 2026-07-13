@@ -689,11 +689,6 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// With the refresh-app-awareness feature enabled.
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
-
 	// With a snap state indicating a snap is already installed.
 	snapst := &snapstate.SnapState{
 		Active: true,
@@ -744,11 +739,6 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// With the refresh-app-awareness feature enabled.
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 
 	// With a snap state indicating a snap is already installed.
 	snapst := &snapstate.SnapState{
@@ -811,11 +801,6 @@ func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) 
 func (s *snapmgrTestSuite) TestInstallDespiteBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// With the refresh-app-awareness feature enabled.
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 
 	// With a snap state indicating a snap is already installed and it failed
 	// to refresh over a week ago. Use UTC and Round to have predictable

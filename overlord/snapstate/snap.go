@@ -801,12 +801,7 @@ func shouldPreDownloadSnap(st *state.State, snapsup *SnapSetup, snapst *SnapStat
 		return nil, nil
 	}
 
-	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
-	if err != nil && !config.IsNoOption(err) {
-		return nil, err
-	}
-	if !experimentalRefreshAppAwareness || excludeFromRefreshAppAwareness(snapsup.Type) || snapsup.Flags.IgnoreRunning {
+	if excludeFromRefreshAppAwareness(snapsup.Type) || snapsup.Flags.IgnoreRunning {
 		return nil, nil
 	}
 
