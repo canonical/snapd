@@ -175,10 +175,6 @@ backends:
                   image: ubuntu-2404-64
                   storage: 15G
                   workers: 8
-            - ubuntu-25.10-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2510-amd64
-                  storage: 15G
-                  workers: 8
 
     google-core:
         type: google
@@ -635,11 +631,11 @@ backends:
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
     qemu-nested:
@@ -782,9 +778,6 @@ backends:
                   username: root
                   password: root
             - ubuntu-24.04-64:
-                  username: root
-                  password: root
-            - ubuntu-25.10-64:
                   username: root
                   password: root
             - ubuntu-26.04-64:
