@@ -7473,6 +7473,16 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceDefaultReservationError(c *C) {
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
 }
 
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceDefaultReservationHappy(c *C) {
+	featureFlag := true
+	failInstallSize := false
+	failDiskCheck := false
+	// No system.disk-space-reservation is set, so the default 5MB reservation is used.
+	// The helper asserts required size == 123 + DefaultDiskSpaceReservation.
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	c.Check(err, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestUpdateConfigureDiskSpaceReservation(c *C) {
 	const freeDiskSpace = uint64(1500)
 	var requiredSizes []uint64
@@ -7521,16 +7531,21 @@ func (s *snapmgrTestSuite) TestUpdateConfigureDiskSpaceReservation(c *C) {
 	c.Check(requiredSizes, DeepEquals, []uint64{2123, 1123})
 }
 
-func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroSkipsCheck(c *C) {
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroChecksNormalSize(c *C) {
+	var requiredSizes []uint64
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
-		c.Fatalf("unexpected disk space check")
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, sz)
 		return nil
 	})
 	defer restore()
 
+	var installSizeCalled bool
 	restore = snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
-		c.Fatalf("unexpected install size calculation")
-		return 0, nil
+		installSizeCalled = true
+		c.Assert(snaps, HasLen, 1)
+		c.Check(snaps[0].InstanceName(), Equals, "some-snap")
+		return 123, nil
 	})
 	defer restore()
 
@@ -7554,6 +7569,9 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroSkipsCheck(c *C) {
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
 	_, err := snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
+	// 0B reservation means checks run with just the install size, no buffer
+	c.Check(installSizeCalled, Equals, true)
+	c.Check(requiredSizes, DeepEquals, []uint64{123})
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfDisabled(c *C) {

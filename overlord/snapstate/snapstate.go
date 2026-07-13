@@ -174,23 +174,25 @@ func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
 	return true, nil
 }
 
-func diskSpaceReservation(tr *config.Transaction) uint64 {
+func diskSpaceReservation(tr *config.Transaction) *uint64 {
 	var reservation string
 	err := tr.Get("core", "system.disk-space-reservation", &reservation)
 	if config.IsNoOption(err) {
 		// TODO: decide how unset system.disk-space-reservation should behave when
 		// the experimental disk space feature flags are graduated.
-		return defaultDiskSpaceReservation
+		defaultReservation := defaultDiskSpaceReservation
+		return &defaultReservation
 	}
 	if err != nil {
-		return 0
+		return nil
 	}
 
 	parsedReservation, err := strutil.ParseByteSize(reservation)
 	if err != nil {
-		return 0
+		return nil
 	}
-	return uint64(parsedReservation)
+	reservationBytes := uint64(parsedReservation)
+	return &reservationBytes
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -2524,7 +2526,7 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 
 func checkDiskSpaceDownload(st *state.State, infos []minimalInstallInfo, rootDir string) error {
 	reservation := diskSpaceReservation(config.NewTransaction(st))
-	if reservation == 0 {
+	if reservation == nil {
 		return nil
 	}
 
@@ -2533,7 +2535,7 @@ func checkDiskSpaceDownload(st *state.State, infos []minimalInstallInfo, rootDir
 		totalSize += uint64(info.DownloadSize())
 	}
 
-	return checkForAvailableSpace(totalSize, reservation, infos, "download", rootDir)
+	return checkForAvailableSpace(totalSize, *reservation, infos, "download", rootDir)
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
@@ -2560,7 +2562,7 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 	}
 
 	reservation := diskSpaceReservation(tr)
-	if reservation == 0 {
+	if reservation == nil {
 		return nil
 	}
 
@@ -2569,7 +2571,7 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
-	return checkForAvailableSpace(totalSize, reservation, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
+	return checkForAvailableSpace(totalSize, *reservation, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
 }
 
 func checkForAvailableSpace(totalSize, reservation uint64, infos []minimalInstallInfo, changeKind string, rootDir string) error {
@@ -3171,11 +3173,11 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
 		reservation := diskSpaceReservation(config.NewTransaction(st))
-		if reservation == 0 {
+		if reservation == nil {
 			return ts, err
 		}
 
-		requiredSpace := snapshotSize + reservation
+		requiredSpace := snapshotSize + *reservation
 		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
@@ -3327,7 +3329,7 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 				if err != nil && !config.IsNoOption(err) {
 					return nil, 0, err
 				}
-				if checkDiskSpaceRemove && diskSpaceReservation(tr) != 0 {
+				if checkDiskSpaceRemove && diskSpaceReservation(tr) != nil {
 					snapshotSize, err = EstimateSnapshotSize(st, instanceName, nil)
 					if err != nil {
 						return nil, 0, err
@@ -3611,11 +3613,11 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	// will only be greater than 0 if the feature is enabled.
 	if totalSnapshotsSize > 0 {
 		reservation := diskSpaceReservation(config.NewTransaction(st))
-		if reservation == 0 {
+		if reservation == nil {
 			return removed, tasksets, nil
 		}
 
-		requiredSpace := totalSnapshotsSize + reservation
+		requiredSpace := totalSnapshotsSize + *reservation
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 				return nil, nil, &InsufficientSpaceError{

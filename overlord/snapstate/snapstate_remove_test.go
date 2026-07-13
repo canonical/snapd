@@ -1734,17 +1734,21 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceCheckPasses(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceReservationZeroSkipsSnapshotSizeCheck(c *C) {
+func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceReservationZeroChecksSnapshotSize(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	var snapshotSizeCall int
 	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
-		c.Fatalf("unexpected snapshot size estimation")
-		return 0, nil
+		snapshotSizeCall++
+		c.Check(instanceName, Equals, "one")
+		return 123, nil
 	}
 
+	var requiredSizes []uint64
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, required uint64) error {
-		c.Fatalf("unexpected disk space check")
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, required)
 		return nil
 	})
 	defer restore()
@@ -1773,6 +1777,9 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceReservationZeroSkipsSnapshotSi
 	_, _, err := snapstate.RemoveMany(s.state, []string{"one"}, nil)
 	c.Assert(err, IsNil)
 	c.Check(automaticSnapshotCalled, Equals, true)
+	// 0B reservation means checks run with just the snapshot size, no buffer
+	c.Check(snapshotSizeCall, Equals, 1)
+	c.Check(requiredSizes, DeepEquals, []uint64{123})
 }
 
 type snapdBackend struct {
