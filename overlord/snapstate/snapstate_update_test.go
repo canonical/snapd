@@ -20822,13 +20822,15 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesDoNotMergeW
 	c.Assert(chg.IsReady(), Equals, false)
 }
 
-// TODO:SEEDREFRESH: update this test once this scenario is supported
-func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesFailsForProviderSwitchingToInFlightNonEssentialBase(c *C) {
-	_, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesProviderSwitchingToInFlightNonEssentialBaseRunThrough(c *C) {
+	restore := snapstate.MockPrerequisitesRetryTimeout(time.Millisecond)
+	defer restore()
+
+	_, restore = s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
 		"kernel":         "kernel",
 		"base":           "core18",
-		"required-snaps": []any{"content-provider", "some-app"},
-	}, []string{"content-provider", "some-app"})
+		"required-snaps": []any{"some-base", "content-provider", "some-app"},
+	}, []string{"some-base", "content-provider", "some-app"})
 	defer restore()
 
 	s.state.Lock()
@@ -20864,24 +20866,45 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesFailsForPro
 		seedRefreshSnap{name: "some-app", snapID: "some-app-id", snapType: "app", base: "core18"},
 	)
 
-	uts, _ := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{InstanceName: "some-app"}, {InstanceName: "some-base"}})
-	taskSetsBySnap, _ := parseSeedRefreshTaskSets(uts)
-	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
+	mockSeedRefreshRebootHandlers(s, c, nil)
 
-	prereqs := findKindInTaskSet(appTS, "prerequisites")
-	c.Assert(prereqs, NotNil)
+	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{InstanceName: "some-app"}, {InstanceName: "some-base"}})
+	taskSetsBySnap, seedTS := parseSeedRefreshTaskSets(uts)
+	c.Assert(seedTS, NotNil)
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, seedTS)
+	baseTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-base")
 
 	s.state.Unlock()
 	err := s.o.SettleWithBreakCondition(testutil.HostScaledTimeout(10*time.Second), func() bool {
 		s.state.Lock()
 		defer s.state.Unlock()
-		return prereqs.Status().Ready()
+		return seedCreate.Status() == state.WaitStatus
 	})
 	s.state.Lock()
 	c.Assert(err, IsNil)
 
-	c.Assert(prereqs.Status(), Equals, state.ErrorStatus)
-	c.Assert(strings.Join(prereqs.Log(), "\n"), Matches, `(?s).*cannot automatically update prerequisite "content-provider" during seed-refresh while base "some-base" waits for create-recovery-system.*`)
+	providerPrereq, providerPrereqSync := findPrereqTasksForSnap(c, chg, "content-provider")
+
+	// base goes into the seed, but it isn't linked until after seed creation,
+	// since it isn't the boot base.
+	baseLink := findKindInTaskSet(baseTS, "link-snap")
+	c.Assert(baseLink, NotNil)
+	c.Check(waitTasksContainKindForSnap(c, seedCreate, "some-base", "validate-snap"), Equals, true)
+	c.Check(waitsOnTransitively(seedCreate, baseLink), Equals, false)
+
+	// initial prerequisites task goes before the seed is created
+	c.Check(waitsOnTransitively(seedCreate, providerPrereq), Equals, true)
+
+	// but preprequisites sync task runs after. this is important, since this
+	// task retries until the base's link-snap is done.
+	c.Check(waitsOnTransitively(seedCreate, providerPrereqSync), Equals, false)
+	c.Check(waitTasksContainKindForSnap(c, seedCreate, "content-provider", "validate-snap"), Equals, true)
+	c.Check(waitTasksContainKindForSnap(c, seedFinalize, "content-provider", "run-hook"), Equals, true)
+
+	s.mockRestartAndSettle(c, chg)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshAllowsRequestedModelContentProviderRefresh(c *C) {
