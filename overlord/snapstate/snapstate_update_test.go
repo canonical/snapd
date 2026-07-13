@@ -21309,8 +21309,8 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
-	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, _ snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	oldCreateSeedRefreshTasks := snapstate.CreateSeedRefreshTasks
+	snapstate.CreateSeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, _ snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTasks, map[string]bool, error) {
 		added := make(map[string]bool, len(candidates))
 		for _, candidate := range candidates {
 			if candidate.InstanceName != "kernel" && candidate.InstanceName != "core18" && candidate.InstanceName != "some-app" {
@@ -21334,14 +21334,14 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRemoveSystemFailureDoesN
 		remove2 := st.NewTask("remove-recovery-system", "Remove old recovery system 2")
 		remove2.WaitFor(finalize)
 
-		return &snapstate.SeedRefreshTaskSet{
+		return &snapstate.SeedRefreshTasks{
 			Create:   create,
 			Finalize: finalize,
 			Remove:   []*state.Task{remove1, remove2},
 		}, added, nil
 	}
 	defer func() {
-		snapstate.SeedRefreshTasks = oldSeedRefreshTasks
+		snapstate.CreateSeedRefreshTasks = oldCreateSeedRefreshTasks
 	}()
 
 	restartRequested := mockSeedRefreshRebootHandlers(s, c, nil)

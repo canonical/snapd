@@ -159,7 +159,7 @@ func defaultPrereqSnapsChannel() string {
 func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm timings.Measurer, opts Options) error {
 	st := t.State()
 
-	var seedTS *SeedRefreshTaskSet
+	var seedTS *SeedRefreshTasks
 	trackSeedTS := func(ts *state.TaskSet) error {
 		if seedTS != nil {
 			return nil
