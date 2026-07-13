@@ -87,7 +87,7 @@ type observedSeedRefreshCandidates struct {
 }
 
 func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, func()) {
-	oldSeedRefreshTasks := snapstate.SeedRefreshTasks
+	oldCreateSeedRefreshTasks := snapstate.CreateSeedRefreshTasks
 	oldPendingSeedRefreshTasks := snapstate.PendingSeedRefreshTasks
 	oldUpdateSeedRefreshChange := snapstate.UpdateSeedRefreshChange
 	triggered := make(map[string]bool, len(triggers))
@@ -96,9 +96,9 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 	}
 
 	var observed observedSeedRefreshCandidates
-	var currentSeedTS *snapstate.SeedRefreshTaskSet
+	var currentSeedTS *snapstate.SeedRefreshTasks
 
-	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, eviction snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	snapstate.CreateSeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, eviction snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTasks, map[string]bool, error) {
 		observed.initial = append(observed.initial, candidates)
 		observed.evictions = append(observed.evictions, eviction)
 
@@ -121,14 +121,14 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 		finalize.WaitFor(create)
 		finalize.Set("recovery-system-setup-task", create.ID())
 
-		currentSeedTS = &snapstate.SeedRefreshTaskSet{
+		currentSeedTS = &snapstate.SeedRefreshTasks{
 			Create:   create,
 			Finalize: finalize,
 		}
 		return currentSeedTS, added, nil
 	}
 
-	snapstate.PendingSeedRefreshTasks = func(ts *state.TaskSet) (*snapstate.SeedRefreshTaskSet, error) {
+	snapstate.PendingSeedRefreshTasks = func(ts *state.TaskSet) (*snapstate.SeedRefreshTasks, error) {
 		if currentSeedTS == nil {
 			return nil, nil
 		}
@@ -147,7 +147,7 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 		return nil, nil
 	}
 
-	snapstate.UpdateSeedRefreshChange = func(seedTS *snapstate.SeedRefreshTaskSet, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (bool, error) {
+	snapstate.UpdateSeedRefreshChange = func(seedTS *snapstate.SeedRefreshTasks, _ snapstate.DeviceContext, candidate snapstate.SeedRefreshCandidate) (added bool, err error) {
 		observed.prerequisites = append(observed.prerequisites, candidate)
 
 		if !triggered[candidate.InstanceName] {
@@ -162,7 +162,7 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 	}
 
 	return &observed, func() {
-		snapstate.SeedRefreshTasks = oldSeedRefreshTasks
+		snapstate.CreateSeedRefreshTasks = oldCreateSeedRefreshTasks
 		snapstate.PendingSeedRefreshTasks = oldPendingSeedRefreshTasks
 		snapstate.UpdateSeedRefreshChange = oldUpdateSeedRefreshChange
 	}
