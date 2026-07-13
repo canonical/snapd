@@ -1746,17 +1746,17 @@ func SeedRefreshTasks(
 	var snapsups, compsups []string
 	added := make(map[string]bool, len(candidates))
 	for _, candidate := range candidates {
-		filteredCandidate, seedRefreshTriggered, err := filter(candidate)
+		candidate, triggers, err := filter(candidate)
 		if err != nil {
 			return nil, nil, err
 		}
-		if !seedRefreshTriggered {
+		if !triggers {
 			continue
 		}
-		added[filteredCandidate.InstanceName] = true
+		added[candidate.InstanceName] = true
 
-		snapsups = append(snapsups, filteredCandidate.SnapSetupTaskIDs...)
-		for _, tid := range filteredCandidate.ComponentSetupTaskIDs {
+		snapsups = append(snapsups, candidate.SnapSetupTaskIDs...)
+		for _, tid := range candidate.ComponentSetupTaskIDs {
 			compsups = append(compsups, tid)
 		}
 	}
@@ -1825,11 +1825,11 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 
 	filter := seedRefreshFilter(chg.State(), dctx)
 
-	filteredCandidate, seedRefreshTriggered, err := filter(candidate)
+	candidate, triggers, err := filter(candidate)
 	if err != nil {
 		return nil, err
 	}
-	if !seedRefreshTriggered {
+	if !triggers {
 		return nil, nil
 	}
 
@@ -1838,7 +1838,7 @@ func UpdateSeedRefreshChange(chg *state.Change, dctx snapstate.DeviceContext, ca
 		return nil, err
 	}
 
-	if err := appendSeedRefreshCandidate(seedTS.Create, filteredCandidate.SnapSetupTaskIDs, filteredCandidate.ComponentSetupTaskIDs); err != nil {
+	if err := appendSeedRefreshCandidate(seedTS.Create, candidate.SnapSetupTaskIDs, candidate.ComponentSetupTaskIDs); err != nil {
 		return nil, err
 	}
 
@@ -1868,20 +1868,20 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks []string, com
 // gaining/losing snaps
 func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
 	filter := seedRefreshFilter(st, dctx)
-	_, seedRefreshTriggered, err := filter(snapstate.SeedRefreshCandidate{
+	_, triggers, err := filter(snapstate.SeedRefreshCandidate{
 		InstanceName: si.SnapName(),
 	})
 	if err != nil {
 		return err
 	}
 
-	if seedRefreshTriggered {
+	if triggers {
 		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
 	}
 	return nil
 }
 
-func cachedOptionalSeedTriggers(st *state.State) func() (map[string]bool, map[string]bool, error) {
+func cachedOptionalSeedTriggers(st *state.State) func() (snaps map[string]bool, components map[string]bool, err error) {
 	var optionalTriggers, optionalComponentTriggers map[string]bool
 	return func() (map[string]bool, map[string]bool, error) {
 		if optionalTriggers != nil && optionalComponentTriggers != nil {
