@@ -151,20 +151,20 @@ func (s *dispatchSuite) TestArgv0SnapInSnapDispatchesCLI(c *C) {
 func (s *dispatchSuite) TestArgv0SnapdArgv1SnapPreseedDispatchesPreseed(c *C) {
 	called, argsAtCall := runDispatch([]string{"snapd", "snap-preseed", "/some/path"})
 	c.Check(called, Equals, "snap-preseed")
-	// Tool name is stripped; tool sees ["snapd", "/some/path"].
-	c.Check(argsAtCall, DeepEquals, []string{"snapd", "/some/path"})
+	// Tool name is preserved; tool sees ["snap-preseed", "/some/path"].
+	c.Check(argsAtCall, DeepEquals, []string{"snap-preseed", "/some/path"})
 }
 
 func (s *dispatchSuite) TestArgv0SnapdArgv1SnapdApparmorDispatches(c *C) {
 	called, argsAtCall := runDispatch([]string{"snapd", "snapd-apparmor", "start"})
 	c.Check(called, Equals, "snapd-apparmor")
-	c.Check(argsAtCall, DeepEquals, []string{"snapd", "start"})
+	c.Check(argsAtCall, DeepEquals, []string{"snapd-apparmor", "start"})
 }
 
 func (s *dispatchSuite) TestArgv0SnapdArgv1SnapGpioHelperDispatches(c *C) {
 	called, argsAtCall := runDispatch([]string{"snapd", "snap-gpio-helper", "export-chardev"})
 	c.Check(called, Equals, "snap-gpio-helper")
-	c.Check(argsAtCall, DeepEquals, []string{"snapd", "export-chardev"})
+	c.Check(argsAtCall, DeepEquals, []string{"snap-gpio-helper", "export-chardev"})
 }
 
 // --- arg stripping ---
@@ -174,15 +174,14 @@ func (s *dispatchSuite) TestArgv0SnapdArgv1SnapGpioHelperDispatches(c *C) {
 func (s *dispatchSuite) TestToolDispatchStripsToolNameFromArgs(c *C) {
 	called, argsAtCall := runDispatch([]string{"snapd", "snap-preseed", "--reset", "/path"})
 	c.Check(called, Equals, "snap-preseed")
-	// The tool should see ["snapd", "--reset", "/path"], not
-	// ["snapd", "snap-preseed", "--reset", "/path"].
-	c.Check(argsAtCall, DeepEquals, []string{"snapd", "--reset", "/path"})
+	// The tool should see ["snap-preseed", "--reset", "/path"]
+	c.Check(argsAtCall, DeepEquals, []string{"snap-preseed", "--reset", "/path"})
 }
 
 func (s *dispatchSuite) TestToolDispatchNoUserArgsStripsToolName(c *C) {
 	called, argsAtCall := runDispatch([]string{"snapd", "snap-gpio-helper"})
 	c.Check(called, Equals, "snap-gpio-helper")
-	c.Check(argsAtCall, DeepEquals, []string{"snapd"})
+	c.Check(argsAtCall, DeepEquals, []string{"snap-gpio-helper"})
 }
 
 // --- re-exec integration ---
