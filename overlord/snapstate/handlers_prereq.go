@@ -269,7 +269,7 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 			continue
 		}
 
-		if err := maybeMergeLateSeedRefreshPrereq(t.Change(), seedTS, opts.DeviceCtx, ts); err != nil {
+		if err := maybeMergeLateSeedRefreshPrereq(seedTS, opts.DeviceCtx, ts); err != nil {
 			return err
 		}
 	}
