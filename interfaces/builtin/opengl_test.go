@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -194,4 +195,16 @@ func (s *OpenglInterfaceSuite) TestMountSpec(c *C) {
 	c.Check(entries[1].Name, Equals, filepath.Join(hostfs, tmpdir, "/usr/lib/wsl"))
 	c.Check(entries[1].Dir, Equals, "/usr/lib/wsl")
 	c.Check(entries[1].Options, DeepEquals, []string{"rbind"})
+}
+
+func (s *OpenglInterfaceSuite) TestUbuntuTouchWithHalium(c *C) {
+	restore := release.MockOnTouch(true);
+	defer restore()
+
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/dev/{,binderfs/}hwbinder rw,`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `/android{,/**} r,`)
 }

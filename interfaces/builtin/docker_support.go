@@ -723,6 +723,24 @@ ptrace (read, trace) peer=unconfined,
 ###EXCL{<> rwlix,:/snap/snapd/*/usr/lib/snapd/snap-confine,/snap/core/*/usr/lib/snapd/snap-confine}###
 `
 
+const dockerSupportConnectedPlugAppArmorTouch = `
+# Description: allow docker daemon to change profile
+
+# OnTouch doesn't use AAREExclusionPatterns due to parser/kernel bugs,
+# so allow accesses and change_profile the regular way.
+/** rwlix,
+change_profile unsafe /** -> docker-default,
+change_profile unsafe /** -> cri-containerd.apparmor.d,
+`
+
+const dockerSupportPrivilegedAppArmorTouch = `
+# Description: allow docker daemon to run privileged
+
+# OnTouch doesn't use AAREExclusionPatterns due to parser/kernel bugs,
+# so allow change_profile the regular way.
+change_profile unsafe /**,
+`
+
 const dockerSupportPrivilegedSecComp = `
 # Description: allow docker daemon to run privileged containers. This gives
 # full access to all resources on the system and thus gives device ownership to
@@ -749,6 +767,7 @@ func (iface *dockerSupportInterface) KModConnectedPlug(spec *kmod.Specification,
 
 func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	var privileged bool
+	var err error
 	_ = plug.Attr("privileged-containers", &privileged)
 
 	// The 'change_profile unsafe' rules conflict with the 'ix' rules in
@@ -762,71 +781,82 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// snaps.
 	spec.SetSuppressPycacheDeny()
 
-	defaultSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
-		dockerSupportConnectedPlugAppArmor,
-		[]string{
-			"/snap/snapd/*/usr/lib/snapd/snap-confine",
-			"/snap/core/*/usr/lib/snapd/snap-confine",
-		},
-		&apparmor_sandbox.AAREExclusionPatternsOptions{
-			Prefix: "change_profile unsafe ",
-			Suffix: " -> docker-default,",
-		},
-	)
-	if err != nil {
-		return err
-	}
+	defaultSnippet := dockerSupportConnectedPlugAppArmor
 
-	defaultSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
-		defaultSnippet,
-		[]string{
-			"/snap/snapd/*/usr/lib/snapd/snap-confine",
-			"/snap/core/*/usr/lib/snapd/snap-confine",
-		},
-		&apparmor_sandbox.AAREExclusionPatternsOptions{
-			Prefix: "change_profile unsafe ",
-			Suffix: " -> cri-containerd.apparmor.d,",
-		},
-	)
-	if err != nil {
-		return err
-	}
-
-	spec.AddSnippet(defaultSnippet)
-	if privileged {
-		privilegedSnippet, err := apparmor_sandbox.InsertAAREExclusionPatterns(
-			dockerSupportPrivilegedAppArmor,
+	if !release.OnTouch {
+		defaultSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+			dockerSupportConnectedPlugAppArmor,
 			[]string{
 				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 				"/snap/core/*/usr/lib/snapd/snap-confine",
 			},
 			&apparmor_sandbox.AAREExclusionPatternsOptions{
 				Prefix: "change_profile unsafe ",
-				Suffix: ",",
+				Suffix: " -> docker-default,",
 			},
 		)
 		if err != nil {
 			return err
 		}
 
-		privilegedSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
-			privilegedSnippet,
+		defaultSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+			defaultSnippet,
 			[]string{
 				"/snap/snapd/*/usr/lib/snapd/snap-confine",
 				"/snap/core/*/usr/lib/snapd/snap-confine",
 			},
 			&apparmor_sandbox.AAREExclusionPatternsOptions{
-				Prefix: "",
-				Suffix: " rwlix,",
+				Prefix: "change_profile unsafe ",
+				Suffix: " -> cri-containerd.apparmor.d,",
 			},
 		)
 		if err != nil {
 			return err
 		}
+	} else {
+		spec.AddSnippet(dockerSupportConnectedPlugAppArmorTouch)
+	}
 
+	spec.AddSnippet(defaultSnippet)
+
+	if privileged {
+		privilegedSnippet := dockerSupportPrivilegedAppArmor
+		if !release.OnTouch {
+			privilegedSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+				dockerSupportPrivilegedAppArmor,
+				[]string{
+					"/snap/snapd/*/usr/lib/snapd/snap-confine",
+					"/snap/core/*/usr/lib/snapd/snap-confine",
+				},
+				&apparmor_sandbox.AAREExclusionPatternsOptions{
+					Prefix: "change_profile unsafe ",
+					Suffix: ",",
+				},
+			)
+			if err != nil {
+				return err
+			}
+
+			privilegedSnippet, err = apparmor_sandbox.InsertAAREExclusionPatterns(
+				privilegedSnippet,
+				[]string{
+					"/snap/snapd/*/usr/lib/snapd/snap-confine",
+					"/snap/core/*/usr/lib/snapd/snap-confine",
+				},
+				&apparmor_sandbox.AAREExclusionPatternsOptions{
+					Prefix: "",
+					Suffix: " rwlix,",
+				},
+			)
+			if err != nil {
+				return err
+			}
+		} else {
+			spec.AddSnippet(dockerSupportPrivilegedAppArmorTouch)
+		}
 		spec.AddSnippet(privilegedSnippet)
 	}
-	if !release.OnClassic {
+	if !release.OnClassic || release.OnTouch {
 		spec.AddSnippet(dockerSupportConnectedPlugAppArmorCore)
 	}
 	// if apparmor supports userns mediation then add this too

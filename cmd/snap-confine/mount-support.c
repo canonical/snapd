@@ -48,6 +48,7 @@
 #include "../libsnap-confine-private/string-utils.h"
 #include "../libsnap-confine-private/tool.h"
 #include "../libsnap-confine-private/utils.h"
+#include "mount-support-hybris.h"
 #include "mount-support-nvidia.h"
 
 #define MAX_BUF 1000
@@ -753,6 +754,7 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
     // pre-pivot filesystem.
     if (config->distro == SC_DISTRO_CLASSIC) {
         sc_mount_nvidia_driver(scratch_dir, config->base_snap_name);
+        sc_mount_hybris_driver(scratch_dir, config->base_snap_name);
     }
     // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     //                    pivot_root
