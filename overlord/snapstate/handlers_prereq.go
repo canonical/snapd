@@ -264,6 +264,8 @@ func installPrereqs(t *state.Task, base string, prereq map[string][]string, tm t
 		}
 	}
 
+	// ensure that all prerequisites installs/updates are properly ordered in
+	// relation to seed-refresh tasks, if they exist
 	for _, ts := range append([]*state.TaskSet{snapdTS, baseTS}, tss...) {
 		if seedTS == nil || ts == nil {
 			continue
