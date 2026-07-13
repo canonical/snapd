@@ -190,13 +190,16 @@ check_mountinfo_override() {
     #   * specific mountinfo paths under /proc or @{PROC} in various forms
     #   * broad access to /proc/**
     #   * unconditional "allow file," or "allow all," rules
+    # It also looks for references to mountInfoSnippet. These are likely used
+    # in an AddPrioritizedSnippet call but let's be sure.
 
     local prefix='^[[:space:]]*(owner[[:space:]]+)?'
     # perms must include 'r' since the base deny only blocks reads
     local perms='[[:space:]][a-z]*r[a-z]*,'
     local rules="(${prefix}(/proc|@\\{PROC\\})/(self|@\\{pid\\}|[0-9]+)/mountinfo${perms}"
     rules+="|${prefix}(/proc|@\\{PROC\\})/\\*\\*${perms}"
-    rules+='|^[[:space:]]*allow[[:space:]]+(file|all),[[:space:]]*$)'
+    rules+='|^[[:space:]]*allow[[:space:]]+(file|all),[[:space:]]*$'
+    rules+='|mountInfoSnippet)'
 
     local -a missing_override=()
     local f
@@ -207,25 +210,25 @@ check_mountinfo_override() {
 
         local matches
         matches=$(grep -nE "$rules" "$f" || true)
-        if [ -n "$matches" ] || grep -q '\bmountInfoSnippet\b' "$f"; then
-            if ! grep -q '\bapparmor\.MountInfoKey\b' "$f"; then
-                local lines
-                lines=$(echo "$matches" | cut -d: -f1 | paste -sd, -)
-                if [ -z "$lines" ]; then
-                    lines=$(grep -n '\bmountInfoSnippet\b' "$f" | cut -d: -f1 | paste -sd, -)
-                fi
-                missing_override+=("$f:$lines")
+        if [ -n "$matches" ]; then
+            if ! grep -qE 'AddPrioritizedSnippet\(.* apparmor\.MountInfoKey' "$f"; then
+                missing_override+=("$f")
+                missing_override+=("$matches")
             fi
         fi
     done
 
     if [ "${#missing_override[@]}" -gt 0 ]; then
         echo "" >&2
-        echo "These interfaces allow access to /proc/*/mountinfo (explicitly or not)" >&2
+        echo "These interfaces allow access to /proc/*/mountinfo (specifically or not)" >&2
         echo "without adding the allow rule as a prioritized snippet" >&2
         echo "(see basePrioritizedSnippets in interfaces/apparmor/template.go):" >&2
-        for f in "${missing_override[@]}"; do
-            echo "  - ${f%%:*} (lines: ${f#*:})" >&2
+        local i
+        for ((i=0; i<${#missing_override[@]}; i+=2)); do
+            echo "  - ${missing_override[i]}:" >&2
+            while IFS= read -r line; do
+                echo "      ${line}" >&2
+            done <<< "${missing_override[i+1]}"
         done
         return 1
     fi
