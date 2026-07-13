@@ -75,9 +75,5 @@ func MockSecbootFDEOpteeTAPresent(fn func() bool) (restore func()) {
 }
 
 func MockSecbootLoadCheckResult(f func(filename string) (*secboot.PreinstallCheckResult, error)) (restore func()) {
-	old := secbootLoadCheckResult
-	secbootLoadCheckResult = f
-	return func() {
-		secbootLoadCheckResult = old
-	}
+	return testutil.Mock(&secbootLoadCheckResult, f)
 }

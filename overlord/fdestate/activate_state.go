@@ -89,8 +89,8 @@ func RunningWithPlatformKeys(status FDEStatus) bool {
 	return status == FDEStatusDegraded || status == FDEStatusActive
 }
 
-// FDEPreinstallState is json serializable data captured at install time.
-type FDEPreinstallState struct {
+// FDEPreinstallInfo is json serializable data captured at install time.
+type FDEPreinstallInfo struct {
 	// Requirements lists encryption support requirements detected at install-time.
 	Requirements []install.EncryptionSupportRequirement `json:"requirements"`
 
@@ -111,14 +111,14 @@ type FDESystemState struct {
 	AutoRepairResult AutoRepairResult `json:"auto-repair-result"`
 
 	// Preinstall provides information captured during install-time checks.
-	Preinstall FDEPreinstallState `json:"preinstall"`
+	Preinstall FDEPreinstallInfo `json:"preinstall"`
 }
 
 // SystemState returns a json serializable FDE state of the booted
 // system.
 func SystemState(st *state.State, model *asserts.Model) (*FDESystemState, error) {
 	ret := &FDESystemState{
-		Preinstall: FDEPreinstallState{
+		Preinstall: FDEPreinstallInfo{
 			Requirements:   []install.EncryptionSupportRequirement{},
 			AcceptedErrors: map[string]any{},
 		},

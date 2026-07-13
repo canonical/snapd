@@ -1263,7 +1263,7 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithoutModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusActive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
-				Preinstall: fdestate.FDEPreinstallState{
+				Preinstall: fdestate.FDEPreinstallInfo{
 					Requirements:   []install.EncryptionSupportRequirement{},
 					AcceptedErrors: map[string]any{},
 				},
@@ -1273,7 +1273,7 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithoutModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusInactive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
-				Preinstall: fdestate.FDEPreinstallState{
+				Preinstall: fdestate.FDEPreinstallInfo{
 					Requirements:   []install.EncryptionSupportRequirement{},
 					AcceptedErrors: map[string]any{},
 				},
@@ -1352,7 +1352,7 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusActive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
-				Preinstall: fdestate.FDEPreinstallState{
+				Preinstall: fdestate.FDEPreinstallInfo{
 					Requirements: []install.EncryptionSupportRequirement{"volumes-auth"},
 					AcceptedErrors: map[string]any{
 						"no-hardware-root-of-trust": nil,
@@ -1364,7 +1364,7 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusInactive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
-				Preinstall: fdestate.FDEPreinstallState{
+				Preinstall: fdestate.FDEPreinstallInfo{
 					Requirements: []install.EncryptionSupportRequirement{"volumes-auth"},
 					AcceptedErrors: map[string]any{
 						"no-hardware-root-of-trust": nil,
