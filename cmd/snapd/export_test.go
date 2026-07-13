@@ -31,6 +31,11 @@ func MockToolMains(m map[string]func()) (restore func()) {
 	return testutil.Mock(&toolMains, m)
 }
 
+// MockReexecTools replaces the reexecTools list for the duration of a test.
+func MockReexecTools(r []string) (restore func()) {
+	return testutil.Mock(&reexecTools, r)
+}
+
 // MockDaemonMain replaces the daemon entry point for the duration of a test.
 func MockDaemonMain(f func()) (restore func()) {
 	return testutil.Mock(&daemonMain, f)
