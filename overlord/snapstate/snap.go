@@ -834,7 +834,7 @@ func checkPublisherValidation(tr *config.Transaction, publisher snap.StoreAccoun
 	validations := strings.Split(validationsStr, ",")
 	for _, v := range validations {
 		v = strings.TrimSpace(v)
-		if v == "verified" && publisher.Verified {
+		if v == "verified" && publisher.IsVerified() {
 			return true
 		}
 		if publisher.Validation != "" && v == publisher.Validation {
@@ -845,7 +845,8 @@ func checkPublisherValidation(tr *config.Transaction, publisher snap.StoreAccoun
 	return false
 }
 
-func checkVerifiedPublisher(st *state.State, snapsup *SnapSetup) error {
+// CheckVerifiedPublisher checks if the snap's publisher validation meets the system requirements; local and private snaps are excluded. Called from doValidateSnap in assertstate.
+func CheckVerifiedPublisher(st *state.State, snapsup *SnapSetup) error {
 	var validationsStr string
 	tr := config.NewTransaction(st)
 	err := tr.Get("core", "system.security.required-publisher-validations", &validationsStr)
@@ -861,24 +862,20 @@ func checkVerifiedPublisher(st *state.State, snapsup *SnapSetup) error {
 		return nil
 	}
 
-	var seeded bool
-	if err := st.Get("seeded", &seeded); err == nil && seeded && !snapdenv.Preseeding() {
-		publisher := snapsup.Publisher
-		if snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" && PublisherStoreAccount != nil {
-			if pub, err := PublisherStoreAccount(st, snapsup.SideInfo.SnapID); err == nil {
-				publisher = pub
-			}
+	publisher := snapsup.Publisher
+	if snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != "" && PublisherStoreAccount != nil {
+		if pub, err := PublisherStoreAccount(st, snapsup.SideInfo.SnapID); err == nil {
+			publisher = pub
 		}
+	}
 
-		// installed snaps are unaffected if validation drops on refresh
-		isVerified := checkPublisherValidation(tr, publisher)
-		if !isVerified {
-			var snapst SnapState
-			if err := Get(st, snapsup.InstanceName(), &snapst); err == nil && snapst.IsInstalled() {
-				return fmt.Errorf("cannot update snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
-			}
-			return fmt.Errorf("cannot install snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
+	// installed snaps are unaffected if validation drops on refresh
+	if !checkPublisherValidation(tr, publisher) {
+		var snapst SnapState
+		if err := Get(st, snapsup.InstanceName(), &snapst); err == nil && snapst.IsInstalled() {
+			return fmt.Errorf("cannot update snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
 		}
+		return fmt.Errorf("cannot install snap %q: publisher validation does not match system.security.required-publisher-validations", snapsup.InstanceName())
 	}
 	return nil
 }
@@ -937,10 +934,6 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 				}
 			}
 		}
-	}
-
-	if err := checkVerifiedPublisher(st, snapsup); err != nil {
-		return err
 	}
 
 	return nil
@@ -1147,7 +1140,7 @@ func CheckInstalledSnapsPublisherValidation(st *state.State) {
 		}
 
 		if !checkPublisherValidation(tr, publisher) {
-			logger.Noticef("snap %q publisher validation dropped below required security policy (required-publisher-validations=%s)", instanceName, validationsStr)
+			st.Warnf("snap %q publisher validation dropped below required security policy (required-publisher-validations=%s)", instanceName, validationsStr)
 		}
 	}
 }

@@ -461,7 +461,11 @@ type StoreAccount struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display-name"`
 	Validation  string `json:"validation,omitempty"`
-	Verified    bool   `json:"verified,omitempty"`
+}
+
+// IsVerified reports whether the store account is verified.
+func (a StoreAccount) IsVerified() bool {
+	return a.Validation == "verified"
 }
 
 // Layout describes a single element of the layout section.
