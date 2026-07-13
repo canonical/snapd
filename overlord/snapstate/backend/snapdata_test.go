@@ -304,5 +304,49 @@ func (s *snapdataSuite) TestRemoveSnapDataDirWithUnexpectedFiles(c *C) {
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	err := s.be.RemoveSnapDataDir(info, false, nil)
+	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello: directory not empty\ndir contents: \[unexpected\]`)
+}
+
+func (s *snapdataSuite) TestRemoveSnapDataDirEnotemptyWithReadDirError(c *C) {
+	baseDataDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap", "hello")
+	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
+	// unexpected folder to make removal fail with ENOTEMPTY
+	c.Assert(os.Mkdir(filepath.Join(baseDataDir, "unexpected"), 0755), IsNil)
+	// make the dir non-readable so ReadDir fails; dir contents should not
+	// be appended to the error message in this case
+	c.Assert(os.Chmod(baseDataDir, 0111), IsNil)
+	defer os.Chmod(baseDataDir, 0755)
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	err := s.be.RemoveSnapDataDir(info, false, nil)
 	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello: directory not empty`)
+}
+
+func (s *snapdataSuite) TestRemoveSnapDataDirErrorNotEnotempty(c *C) {
+	parentDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap")
+	baseDataDir := filepath.Join(parentDir, "hello")
+	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
+	// make parent non-writable so removal fails with EACCES, not ENOTEMPTY;
+	// dir contents should not be appended to the error message in this case
+	c.Assert(os.Chmod(parentDir, 0555), IsNil)
+	defer os.Chmod(parentDir, 0755)
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	err := s.be.RemoveSnapDataDir(info, false, nil)
+	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello: permission denied`)
+}
+
+func (s *snapdataSuite) TestRemoveSnapDataDirCurrentSymlinkRemovalFails(c *C) {
+	baseDataDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap", "hello")
+	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
+	// create the current symlink
+	c.Assert(os.Symlink("10", filepath.Join(baseDataDir, "current")), IsNil)
+	// make the dir non-writable so unlinking current fails with EACCES;
+	// dir contents should not be appended since the error is not ENOTEMPTY
+	c.Assert(os.Chmod(baseDataDir, 0555), IsNil)
+	defer os.Chmod(baseDataDir, 0755)
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	err := s.be.RemoveSnapDataDir(info, false, nil)
+	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello/current: permission denied`)
 }
