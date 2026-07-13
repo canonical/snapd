@@ -20,14 +20,12 @@
 package snapstate_test
 
 import (
-	"context"
-
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	snapstatetest "github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snapdenv"
 )
 
 type verifiedPublishersSuite struct {
@@ -40,166 +38,164 @@ func (s *verifiedPublishersSuite) SetUpTest(c *C) {
 	s.snapmgrTestSuite.SetUpTest(c)
 }
 
+func (s *verifiedPublishersSuite) makeSnapsup(snapName, snapID string, publisher snap.StoreAccount) *snapstate.SnapSetup {
+	return &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+			SnapID:   snapID,
+		},
+		Publisher: publisher,
+	}
+}
+
+// TestRequireVerifiedPublishersDefault verifies that with no policy configured all snaps pass publisher validation.
 func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersDefault(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("seeded", true)
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", snap.StoreAccount{
+		ID:         "unverified-developer",
+		Username:   "unverified-developer",
+		Validation: "unproven",
+	})
 
-	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
-		info.Publisher = snap.StoreAccount{
-			ID:          "unverified-developer",
-			Username:    "unverified-developer",
-			DisplayName: "Unverified Developer",
-			Validation:  "unproven",
-			Verified:    false,
-		}
-		return nil
-	}
-
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	err := snapstate.CheckVerifiedPublisher(s.state, snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(ts, NotNil)
 }
 
+// TestRequireVerifiedPublishersEnforcedFail verifies that unverified snaps are rejected when the policy requires verified publishers.
 func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersEnforcedFail(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("seeded", true)
-
-	// Enable policy
 	tr := config.NewTransaction(s.state)
 	err := tr.Set("core", "system.security.required-publisher-validations", "verified")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
-		info.Publisher = snap.StoreAccount{
-			ID:          "unverified-developer",
-			Username:    "unverified-developer",
-			DisplayName: "Unverified Developer",
-			Validation:  "unproven",
-			Verified:    false,
-		}
-		return nil
-	}
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", snap.StoreAccount{
+		ID:         "unverified-developer",
+		Username:   "unverified-developer",
+		Validation: "unproven",
+	})
 
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap": publisher validation does not match system.security.required-publisher-validations`)
 }
 
+// TestRequireVerifiedPublishersEnforcedSuccess verifies that verified snaps are allowed when the policy requires verified publishers.
 func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersEnforcedSuccess(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("seeded", true)
-
-	// Enable policy
 	tr := config.NewTransaction(s.state)
 	err := tr.Set("core", "system.security.required-publisher-validations", "verified")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
-		info.Publisher = snap.StoreAccount{
-			ID:          "verified-developer",
-			Username:    "verified-developer",
-			DisplayName: "Verified Developer",
-			Validation:  "verified",
-			Verified:    true,
-		}
-		return nil
-	}
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", snap.StoreAccount{
+		ID:         "verified-developer",
+		Username:   "verified-developer",
+		Validation: "verified",
+	})
 
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(ts, NotNil)
 }
 
-func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersSeedingBypass(c *C) {
+// TestRequireVerifiedPublishersPrivateSnapBypass verifies that private snaps are excluded from publisher validation enforcement.
+func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersPrivateSnapBypass(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("seeded", true)
-
-	// Mock snapdenv.Preseeding() to true
-	restore := snapdenv.MockPreseeding(true)
-	defer restore()
-
-	// Enable policy
 	tr := config.NewTransaction(s.state)
 	err := tr.Set("core", "system.security.required-publisher-validations", "verified")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
-		info.Publisher = snap.StoreAccount{
-			ID:          "unverified-developer",
-			Username:    "unverified-developer",
-			DisplayName: "Unverified Developer",
-			Validation:  "unproven",
-			Verified:    false,
-		}
-		return nil
+	snapsup := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "private-snap",
+			SnapID:   "private-snap-id",
+			Private:  true,
+		},
+		Publisher: snap.StoreAccount{
+			ID:         "unverified-developer",
+			Username:   "unverified-developer",
+			Validation: "unproven",
+		},
 	}
 
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(ts, NotNil)
 }
 
+// TestAllowStarredPublishersStarredFail verifies that starred-only snaps are rejected when the policy only lists "verified".
 func (s *verifiedPublishersSuite) TestAllowStarredPublishersStarredFail(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("seeded", true)
-
-	// Enable require-verified-publishers but keep allow-starred-publishers false
 	tr := config.NewTransaction(s.state)
 	err := tr.Set("core", "system.security.required-publisher-validations", "verified")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
-		info.Publisher = snap.StoreAccount{
-			ID:          "starred-developer",
-			Username:    "starred-developer",
-			DisplayName: "Starred Developer",
-			Validation:  "starred",
-			Verified:    false,
-		}
-		return nil
-	}
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", snap.StoreAccount{
+		ID:         "starred-developer",
+		Username:   "starred-developer",
+		Validation: "starred",
+	})
 
-	_, err = snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
 	c.Assert(err, ErrorMatches, `cannot install snap "some-snap": publisher validation does not match system.security.required-publisher-validations`)
 }
 
+// TestAllowStarredPublishersStarredSuccess verifies that starred snaps pass when the policy includes "starred".
 func (s *verifiedPublishersSuite) TestAllowStarredPublishersStarredSuccess(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.state.Set("seeded", true)
-
-	// Enable required-publisher-validations with verified and starred
 	tr := config.NewTransaction(s.state)
 	err := tr.Set("core", "system.security.required-publisher-validations", "verified,starred")
 	c.Assert(err, IsNil)
 	tr.Commit()
 
-	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
-		info.Publisher = snap.StoreAccount{
-			ID:          "starred-developer",
-			Username:    "starred-developer",
-			DisplayName: "Starred Developer",
-			Validation:  "starred",
-			Verified:    false,
-		}
-		return nil
-	}
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", snap.StoreAccount{
+		ID:         "starred-developer",
+		Username:   "starred-developer",
+		Validation: "starred",
+	})
 
-	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
 	c.Assert(err, IsNil)
-	c.Assert(ts, NotNil)
+}
+
+// TestRequireVerifiedPublishersUpdateFail verifies that updating an already-installed snap whose publisher validation has dropped is blocked.
+func (s *verifiedPublishersSuite) TestRequireVerifiedPublishersUpdateFail(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Simulate an already-installed snap
+	snapst := snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		}),
+		Current: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapst)
+
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("core", "system.security.required-publisher-validations", "verified")
+	c.Assert(err, IsNil)
+	tr.Commit()
+
+	snapsup := s.makeSnapsup("some-snap", "some-snap-id", snap.StoreAccount{
+		ID:         "unverified-developer",
+		Username:   "unverified-developer",
+		Validation: "unproven",
+	})
+
+	err = snapstate.CheckVerifiedPublisher(s.state, snapsup)
+	c.Assert(err, ErrorMatches, `cannot update snap "some-snap": publisher validation does not match system.security.required-publisher-validations`)
 }

@@ -67,11 +67,6 @@ type snapDetails struct {
 	CommonIDs []string `json:"common_ids,omitempty"`
 }
 
-// isVerified reports whether the given validation value indicates verified publisher status.
-func isVerified(validation string) bool {
-	return validation == "verified"
-}
-
 func infoFromRemote(d *snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
@@ -99,7 +94,6 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 		Username:    d.Developer,
 		DisplayName: d.DeveloperName,
 		Validation:  d.DeveloperValidation,
-		Verified:    isVerified(d.DeveloperValidation),
 	}
 	info.Channel = d.Channel
 	info.Sha3_384 = d.DownloadSha3_384
