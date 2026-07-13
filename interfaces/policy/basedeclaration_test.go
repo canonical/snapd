@@ -1184,7 +1184,6 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 		"cups":                      true,
 		"custom-device":             true,
 		"desktop":                   true,
-		"docker":                    true,
 		"fwupd":                     true,
 		"location-control":          true,
 		"location-observe":          true,
