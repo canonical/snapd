@@ -100,13 +100,15 @@ func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts
 				if !errors.Is(firstRemoveErr, unix.ENOTEMPTY) {
 					return ""
 				}
-				entries, err := os.ReadDir(firstErrDir)
+				d, err := os.Open(firstErrDir)
 				if err != nil {
 					return ""
 				}
-				names := make([]string, len(entries))
-				for i, e := range entries {
-					names[i] = e.Name()
+				defer d.Close()
+				const maxEntries = 10
+				names, err := d.Readdirnames(maxEntries)
+				if err != nil {
+					return ""
 				}
 				return "\ndir contents: [" + strings.Join(names, ", ") + "]"
 			}()

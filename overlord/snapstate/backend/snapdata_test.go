@@ -312,7 +312,7 @@ func (s *snapdataSuite) TestRemoveSnapDataDirEnotemptyWithReadDirError(c *C) {
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
 	// unexpected folder to make removal fail with ENOTEMPTY
 	c.Assert(os.Mkdir(filepath.Join(baseDataDir, "unexpected"), 0755), IsNil)
-	// make the dir non-readable so ReadDir fails; dir contents should not
+	// make the dir non-readable so Readdirnames fails; dir contents should not
 	// be appended to the error message in this case
 	c.Assert(os.Chmod(baseDataDir, 0111), IsNil)
 	defer os.Chmod(baseDataDir, 0755)
