@@ -630,8 +630,8 @@ prepare_classic() {
         # installed packages to make sure we do not re-install it again.
         if ( os.query is-ubuntu || os.query is-debian ) && tests.pkgs is-installed lxd-installer; then
             extra=
-            if os.query is-ubuntu-ge 25.10; then
-                # the following dependency is in place in 25.10:
+            if os.query is-ubuntu-ge 26.04; then
+                # the following dependency is in place in 26.04:
                 # ubuntu-server:amd64 Depends lxd-installer
                 #
                 # NOTE: this will leave some packages without explicit

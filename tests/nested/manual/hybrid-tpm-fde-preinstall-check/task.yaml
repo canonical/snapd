@@ -1,4 +1,4 @@
-summary: Test secboot efi preinstall check used for TPM backed FDE on hybrid Ubuntu 25.10+ system.
+summary: Test secboot efi preinstall check used for TPM backed FDE on hybrid Ubuntu 26.04+ system.
 
 details: |
   This test prepares an encrypted hybrid Ubuntu system seed and test that the

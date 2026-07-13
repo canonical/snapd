@@ -122,9 +122,9 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-interim",
+        "group": "ubuntu-daily",
         "backend": "openstack",
-        "systems": "ubuntu-25.10-64",
+        "systems": "ubuntu-26.10-64",
         "tasks": "tests/...",
         "rules": "main"
       },
