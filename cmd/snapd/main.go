@@ -30,6 +30,9 @@ import (
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-gpio-helper"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-preseed"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -41,6 +44,15 @@ var (
 		"snap-gpio-helper": snap_gpio_helper.Main,
 	}
 
+	// list of snapd tools that expect reexec
+	//
+	// could use a simple list instead of adding to a map to avoid exporting
+	// types to the test suite
+	reexecTools = []string{
+		"snapd-apparmor",
+		"snap-gpio-helper",
+	}
+
 	daemonMain = daemon.Main
 	cliMain    = cli.Main
 )
@@ -48,16 +60,18 @@ var (
 func main() {
 	argv0 := filepath.Base(os.Args[0])
 
+	// TODO: unify reexec call so that we have a single entrypoint for snapd,
+	// snapd tools and snap
+
 	switch argv0 {
 	case "snapd":
 		// Tool dispatch: the C wrapper (snapd-tool-wrap) sets
 		// argv[0]="snapd" and argv[1]=<tool-name>. Check argv[1]
 		// for known tool names before falling through to the daemon.
 		if len(os.Args) > 1 {
-			if toolMain, ok := toolMains[os.Args[1]]; ok {
-				// Strip argv[1] (the tool name) so the tool sees its own args.
-				os.Args = append(os.Args[:1], os.Args[2:]...)
-				toolMain()
+			toolName := os.Args[1]
+			if toolMain, ok := toolMains[toolName]; ok {
+				runTool(toolName, toolMain, os.Args)
 				return
 			}
 		}
@@ -66,4 +80,19 @@ func main() {
 	default:
 		cliMain()
 	}
+}
+
+func runTool(toolName string, toolMain func(), fullArgv []string) {
+	// setup logger so that we have logs from reexec, the tool can install a new
+	// logger by reinitializing it.
+	logger.SimpleSetup(nil)
+
+	if strutil.ListContains(reexecTools, toolName) {
+		snapdtool.ExecInSnapdOrCoreSnap()
+	}
+
+	// Strip argv[1] (the tool name) so the tool sees its own args.
+	os.Args = append(fullArgv[:1], fullArgv[2:]...)
+
+	toolMain()
 }
