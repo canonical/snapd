@@ -1,0 +1,73 @@
+summary: Test multi-entry binary dispatch and tool re-exec
+
+details: |
+    The test verifies that the multi-entry binary dispatch preserves the
+    tool name through re-exec.
+
+# Run on Ubuntu which supports reexec by default, as well as Fedora and Arch,
+# where both support reexec if enabled explicitly at runtimq
+systems:
+  - ubuntu-2*
+  - arch-*
+  - fedora-*
+
+environment:
+    SNAP_REEXEC/reexec0: 0
+    # use 'forces' so that force the reexec
+    SNAP_REEXEC/reexec1: force
+
+skip:
+    - reason: No need to test when snapd is from archive and reexec is disabled
+      if: |
+        [ "$SNAP_REEXEC" = "0" ] && tests.info is-snapd-from-archive
+
+prepare: |
+    # Create a mock snapd binary that logs argv[1] (the tool name used for
+    # dispatch). When ExecInSnapdOrCoreSnap() re-execs into the snap, the
+    # kernel processes the shebang and the shell sees the original argv[1]
+    # (the tool name) as $1.
+    cat >/tmp/mock-snapd-tool <<'EOF'
+    #!/bin/sh
+    echo "MOCK_TOOL_DISPATCH: $1"
+    EOF
+    chmod +x /tmp/mock-snapd-tool
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    mount --bind /tmp/mock-snapd-tool "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snapd"
+    tests.cleanup defer umount "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snapd"
+
+    tests.cleanup defer rm -f /tmp/mock-snapd-tool
+
+    if [ "$SNAP_MOUNT_DIR" = "/var/lib/snapd/snap" ] && [ ! -L /snap ]; then
+        # set up classic execution support
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+
+execute: |
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+
+    # Tools that re-exec: with reexec enabled, the mock should be hit and
+    # print the tool name. With reexec disabled, the actual tool runs.
+    for tool in snapd-apparmor snap-gpio-helper; do
+        if [ ! -x "$LIBEXEC_DIR/snapd/$tool" ]; then
+            continue
+        fi
+        echo "=== $tool (SNAP_REEXEC=$SNAP_REEXEC) ==="
+        output=$("$LIBEXEC_DIR/snapd/$tool" 2>&1 || true)
+        echo "$output"
+        if [ "$SNAP_REEXEC" = "force" ] || [ "$SNAP_REEXEC" = "1" ]; then
+            echo "$output" | MATCH "MOCK_TOOL_DISPATCH: $tool"
+        else
+            echo "$output" | NOMATCH "MOCK_TOOL_DISPATCH"
+        fi
+    done
+
+    if [ -x "$LIBEXEC_DIR/snapd/snap-preseed" ]; then
+        # snap-preseed does NOT re-exec: the mock should never be hit regardless
+        # of the reexec setting.
+        echo "=== snap-preseed (SNAP_REEXEC=$SNAP_REEXEC) ==="
+        output=$("$LIBEXEC_DIR/snapd/snap-preseed" 2>&1 || true)
+        echo "$output"
+        echo "$output" | NOMATCH "MOCK_TOOL_DISPATCH"
+    fi

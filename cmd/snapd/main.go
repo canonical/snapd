@@ -27,19 +27,72 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snapd/cli"
 	"github.com/snapcore/snapd/cmd/snapd/daemon"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-gpio-helper"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-preseed"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/strutil"
+)
+
+var (
+	// toolMains maps tool names (as passed in argv[1] by snapd-tool-wrap) to the
+	// corresponding Main() entry point.
+	toolMains = map[string]func(){
+		"snap-preseed":     snap_preseed.Main,
+		"snapd-apparmor":   snapd_apparmor.Main,
+		"snap-gpio-helper": snap_gpio_helper.Main,
+	}
+
+	// list of snapd tools that expect reexec
+	//
+	// could use a simple list instead of adding to a map to avoid exporting
+	// types to the test suite
+	reexecTools = []string{
+		"snapd-apparmor",
+		"snap-gpio-helper",
+	}
+
+	daemonMain = daemon.Main
+	cliMain    = cli.Main
 )
 
 func main() {
 	argv0 := filepath.Base(os.Args[0])
 
-	// dispatch the binary multi entry point
-	// TODO add snap-preseed
+	// TODO: unify reexec call so that we have a single entrypoint for snapd,
+	// snapd tools and snap
+
 	switch argv0 {
 	case "snapd":
-		daemon.Main()
+		// Tool dispatch: the C wrapper (snapd-tool-wrap) sets
+		// argv[0]="snapd" and argv[1]=<tool-name>. Check argv[1]
+		// for known tool names before falling through to the daemon.
+		if len(os.Args) > 1 {
+			toolName := os.Args[1]
+			if toolMain, ok := toolMains[toolName]; ok {
+				runTool(toolName, toolMain, os.Args)
+				return
+			}
+		}
+		// no tool invoked, proceed to executing snapd daemon main()
+		daemonMain()
 	default:
-		// "snap" needs to be handled last, as it's a special entrypoint for
-		// snap application execution through symlinks at /snap/bin/<name>
-		cli.Main()
+		cliMain()
 	}
+}
+
+func runTool(toolName string, toolMain func(), fullArgv []string) {
+	// setup logger so that we have logs from reexec, the tool can install a new
+	// logger by reinitializing it.
+	logger.SimpleSetup(nil)
+
+	if strutil.ListContains(reexecTools, toolName) {
+		snapdtool.ExecInSnapdOrCoreSnap()
+	}
+
+	// Strip argv[1] (the tool name) so the tool sees its own args.
+	os.Args = append(fullArgv[:1], fullArgv[2:]...)
+
+	toolMain()
 }

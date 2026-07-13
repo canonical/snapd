@@ -8,7 +8,9 @@ For security, snap applications and services are executed in a sandbox by defaul
 
 For robustness, snapd ensures that all operations either succeed or revert their changes to the previous state of the system, even in the face of restarts, reboots or failures. To achieve this robustness, much of both the internal state and operational state of snapd is persisted to disk (as [`overlord/state.State`](https://pkg.go.dev/github.com/snapcore/snapd/overlord/state#State)).
 
-All the binaries, and their entry points, are defined under the [`cmd`](https://github.com/canonical/snapd/tree/master/cmd) package. The `snap` command and the `snapd` daemon share a single multi-call binary built from [`cmd/snapd`](https://github.com/canonical/snapd/tree/master/cmd/snapd). The real binary is installed as `snapd` (e.g. `/usr/lib/snapd/snapd`); `/usr/bin/snap` is a symlink pointing to it. At runtime, the binary dispatches on `argv[0]`: when invoked as `snapd` it runs the daemon; when invoked as `snap` (or any other name, as happens for snap application symlinks in `/snap/bin`) it runs the CLI. The execution sandbox helpers `snap-confine` and `snap-exec` handle the execution pipeline for snaps alongside the `snap run` subcommand.
+ All the binaries, and their entry points, are defined under the [`cmd`](https://github.com/canonical/snapd/tree/master/cmd) package. The `snap` command and the `snapd` daemon share a single multi-call binary built from [`cmd/snapd`](https://github.com/canonical/snapd/tree/master/cmd/snapd). The real binary is installed as `snapd` (e.g. `/usr/lib/snapd/snapd`); `/usr/bin/snap` is a symlink pointing to it. At runtime, the binary dispatches on `argv[0]`: when invoked as `snapd` it runs the daemon; when invoked as `snap` (or any other name, as happens for snap application symlinks in `/snap/bin`) it runs the CLI.  The execution sandbox helpers `snap-confine` and `snap-exec` handle the execution pipeline for snaps alongside the `snap run` subcommand.
+
+ Internal snapd tools (`snapd-apparmor`, `snap-preseed`, `snap-gpio-helper`) are not standalone binaries. Instead a tiny C wrapper (`snapd-tool-wrap`, built from [`cmd/snapd-tool-wrap`](https://github.com/canonical/snapd/tree/master/cmd/snapd-tool-wrap)) is symlinked under each tool name in `/usr/lib/snapd/`. The wrapper sets `argv[0]="snapd"` and `argv[1]=<tool-name>`, then `execv()`s into the `snapd` binary. The Go dispatch in `cmd/snapd/main.go` checks `argv[1]` for known tool names before falling through to the daemon, and calls the corresponding tool entry point. This separation ensures tool names never collide with snap application names, since the only reserved `argv[0]` name is `snapd` (which no snap can be named).
 
 ## Entry points and the execution pipeline
 
@@ -19,9 +21,9 @@ Entry points for launching software in a snap are mainly either:
 
 In both cases, execution starts within the `snap run` command provided with the application (via the symlink) or the service (provided explicitly) reference information.
 
-Both the daemon and the `snap` CLI support *re-exec*: on startup they compare their own version against the `snapd` or `core` snap installed on the system. If the snap is newer, execution restarts from the binary inside that snap — ensuring users always run the most up-to-date snapd without requiring a system package update.
+ Both the daemon and the `snap` CLI support *re-exec*: on startup they compare their own version against the `snapd` or `core` snap installed on the system. If the snap is newer, execution restarts from the binary inside that snap — ensuring users always run the most up-to-date snapd without requiring a system package update.
 
-Because `/usr/bin/snap` is a symlink to the `snapd` binary and dispatch is based on `argv[0]`, re-exec into the snap preserves the original `argv[0]` so the same dispatch (CLI vs daemon) applies in the new process.
+ Because `/usr/bin/snap` is a symlink to the `snapd` binary and dispatch is based on `argv[0]`, re-exec into the snap preserves the original `argv[0]` so the same dispatch (CLI vs daemon) applies in the new process.
 
 On a high level, execution of a snap application is carried out in the following manner:
 

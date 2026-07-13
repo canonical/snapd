@@ -15,12 +15,12 @@ usr/bin/snap-exec /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
-usr/bin/snapd-apparmor /usr/lib/snapd/
 usr/lib/snapd/snap-confine
 usr/lib/snapd/snap-confine.caps
 usr/lib/snapd/snap-confine.v2-only.caps
 usr/lib/snapd/snap-device-helper
 usr/lib/snapd/snap-discard-ns
+usr/lib/snapd/snapd-tool-wrap
 # gdb helper
 usr/lib/snapd/snap-gdbserver-shim
 usr/lib/snapd/snap-strace-shim
