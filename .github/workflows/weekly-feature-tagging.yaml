@@ -54,7 +54,7 @@ jobs:
       nested-systems: ${{ steps.read-systems.outputs.nested-systems }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       
       - name: Filter systems
         if: needs.set-inputs.outputs.run-one-system != ''
@@ -167,7 +167,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download snapd snap
         uses: ./.github/actions/download-snapd-snap
@@ -198,7 +198,7 @@ jobs:
       || fromJSON(github.run_attempt) > fromJSON(needs.set-inputs.outputs.maximum-reruns)
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Get generated data
         uses: actions/download-artifact@v8
