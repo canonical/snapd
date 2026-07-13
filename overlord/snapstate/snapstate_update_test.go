@@ -20398,6 +20398,101 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 	c.Assert(chg.IsReady(), Equals, true)
 }
 
+func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshLatePrerequisiteFailure(c *C, providerInSeed bool) {
+	requiredSnaps := []any{"some-app"}
+	seedRefreshTriggers := []string{"some-app"}
+	if providerInSeed {
+		requiredSnaps = []any{"content-provider", "some-app"}
+		seedRefreshTriggers = []string{"content-provider", "some-app"}
+	}
+
+	_, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
+		"kernel":         "kernel",
+		"base":           "core18",
+		"required-snaps": requiredSnaps,
+	}, seedRefreshTriggers)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.InstanceName() != "some-app" {
+			return nil
+		}
+
+		info.Plugs = map[string]*snap.PlugInfo{
+			"shared-content": {
+				Snap:      info,
+				Name:      "shared-content",
+				Interface: "content",
+				Attrs: map[string]any{
+					"default-provider": "content-provider",
+					"content":          "shared-content",
+				},
+			},
+		}
+
+		return nil
+	}
+
+	mockSeedRefreshRebootHandlers(s, c, nil)
+
+	s.installSeedRefreshSnaps(c,
+		seedRefreshSnap{name: "kernel", snapID: "kernel-id", snapType: "kernel"},
+		seedRefreshSnap{name: "core18", snapID: "core18-snap-id", snapType: "base"},
+		seedRefreshSnap{name: "content-provider", snapID: "content-provider-id", snapType: "app", base: "core18"},
+		seedRefreshSnap{name: "some-app", snapID: "some-app-id", snapType: "app", base: "core18"},
+	)
+
+	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{InstanceName: "some-app"}})
+	_, seedTS := parseSeedRefreshTaskSets(uts)
+	c.Assert(seedTS, NotNil)
+	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, seedTS)
+
+	errInjected := 0
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "auto-connect:Doing" && op.name == "content-provider" {
+			errInjected++
+			return errors.New("late prerequisite mock error")
+		}
+		return nil
+	}
+
+	// run until seed creation requests a reboot, after the late prerequisite
+	// has been added to the change and joined to the seed lanes.
+	s.settle(c)
+	providerLink := findTaskForSnap(c, chg, "link-snap", "content-provider")
+	c.Check(waitTasksContainKindForSnap(c, seedFinalize, "content-provider", "run-hook"), Equals, providerInSeed)
+
+	// resume into the provider failure.
+	s.mockRestartAndSettle(c, chg)
+	if providerInSeed {
+		// let the seed cohort finish undoing across its restart boundary.
+		s.mockRestartAndSettle(c, chg)
+	}
+
+	c.Check(providerLink.Status(), Equals, state.UndoneStatus)
+	if providerInSeed {
+		c.Check(seedCreate.Status(), Equals, state.UndoneStatus)
+	} else {
+		c.Check(seedCreate.Status(), Equals, state.DoneStatus)
+		c.Check(seedFinalize.Status(), Equals, state.DoneStatus)
+	}
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*\(late prerequisite mock error\)`)
+	c.Check(errInjected, Equals, 1)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshLatePrerequisiteFailureUndoesSeed(c *C) {
+	s.testUpdateWithGoalSeedRefreshLatePrerequisiteFailure(c, true)
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshLateNonSeedPrerequisiteFailureDoesNotUndoSeed(c *C) {
+	s.testUpdateWithGoalSeedRefreshLatePrerequisiteFailure(c, false)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRecursivePrerequisitesBeforeCreate(c *C) {
 	observed, restore := s.setupSeedRefreshUpdateTest(c, false, true, map[string]any{
 		"kernel":         "kernel",
