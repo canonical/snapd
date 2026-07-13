@@ -381,6 +381,23 @@ func (s *attrConstraintsSuite) TestEvalCheckPlugCompat(c *C) {
 	s.testEvalCheckCompat(c, "PLUG_COMPAT")
 }
 
+func (s *attrConstraintsSuite) TestEvalCheckCompatNonString(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`attrs:
+  compatibility: $SLOT_COMPAT(compatibility)`))
+	c.Assert(err, IsNil)
+
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]any))
+	c.Assert(err, IsNil)
+
+	comp := func(op string, arg string) (any, error) {
+		return "foo-1", nil
+	}
+	err = cstrs.Check(attrs(`
+compatibility: 1
+`), testEvalAttr{comp: comp, compatLabels: true})
+	c.Check(err, ErrorMatches, `attribute "compatibility" does not match \$SLOT_COMPAT\(compatibility\): 1 != foo-1`)
+}
+
 func (s *attrConstraintsSuite) testEvalCheckCompat(c *C, compatOper string) {
 	m, err := asserts.ParseHeaders([]byte(fmt.Sprintf(`attrs:
   foo: $%s(foo)`, compatOper)))
