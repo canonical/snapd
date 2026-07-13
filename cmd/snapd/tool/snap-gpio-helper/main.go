@@ -26,7 +26,6 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/sandbox/gpio"
-	"github.com/snapcore/snapd/snapdtool"
 )
 
 type options struct {
@@ -56,8 +55,6 @@ func run(args []string) error {
 }
 
 func Main() {
-	snapdtool.ExecInSnapdOrCoreSnap()
-
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
