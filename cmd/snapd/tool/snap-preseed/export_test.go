@@ -24,6 +24,10 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
+var (
+	Run = run
+)
+
 func MockOsGetuid(f func() int) (restore func()) {
 	r := testutil.Backup(&osGetuid)
 	osGetuid = f
