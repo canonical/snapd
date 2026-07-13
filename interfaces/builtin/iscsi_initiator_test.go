@@ -20,12 +20,10 @@
 package builtin_test
 
 import (
-	"os"
 	"strings"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -33,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -141,76 +138,21 @@ func (s *iscsiInitiatorInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
 
-func (s *iscsiInitiatorInterfaceSuite) TestMountConnectedPlugSourceMissing(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-
-	restore := release.MockReleaseInfo(&release.OS{ID: "debian"})
-	defer restore()
-
-	spec := &mount.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
-	// no source directory so we don't create the mount entry
-	c.Check(spec.MountEntries(), HasLen, 0)
-}
-
-func (s *iscsiInitiatorInterfaceSuite) TestUpdateNSAppArmor(c *C) {
-	dirs.SetRootDir(c.MkDir())
-	defer dirs.SetRootDir("")
-	c.Assert(os.MkdirAll(dirs.GlobalRootDir+"/var/lib/iscsi/nodes", 0o755), IsNil)
-
+func (s *iscsiInitiatorInterfaceSuite) TestMountEntryAndNsRule(c *C) {
 	const nsSnippet = "mount options=(bind, rw) /var/lib/snapd/hostfs/var/lib/iscsi/nodes/ -> /var/lib/iscsi/nodes/,"
 
-	for _, tc := range []struct {
-		releaseInfo *release.OS
-		expectMount bool
-	}{{
-		releaseInfo: &release.OS{ID: "debian"},
-		expectMount: true,
-	}, {
-		releaseInfo: &release.OS{ID: "ubuntu", VersionID: "24.04"},
-		expectMount: true,
-	}, {
-		releaseInfo: &release.OS{ID: "ubuntu", VersionID: "26.04"},
-		expectMount: true,
-	}, {
-		releaseInfo: &release.OS{ID: "ubuntu", VersionID: "22.04"},
-		expectMount: false,
-	}, {
-		releaseInfo: &release.OS{ID: "ubuntu", VersionID: "20.04"},
-		expectMount: false,
-	}, {
-		releaseInfo: &release.OS{ID: "fedora"},
-		expectMount: false,
-	}, {
-		releaseInfo: &release.OS{ID: "arch"},
-		expectMount: false,
-	},
-	} {
-		restore := release.MockReleaseInfo(tc.releaseInfo)
-		cmt := Commentf("distro %s %s", tc.releaseInfo.ID, tc.releaseInfo.VersionID)
+	mountSpec := &mount.Specification{}
+	c.Assert(mountSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
+		Name:    "/var/lib/snapd/hostfs/var/lib/iscsi/nodes",
+		Dir:     "/var/lib/iscsi/nodes",
+		Options: []string{"bind", "rw"},
+	}})
 
-		mountSpec := &mount.Specification{}
-		c.Assert(mountSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil, cmt)
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	aaSpec := apparmor.NewSpecification(appSet)
+	c.Assert(aaSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 
-		appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
-		c.Assert(err, IsNil, cmt)
-		apparmorSpec := apparmor.NewSpecification(appSet)
-		c.Assert(apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil, cmt)
-
-		mountNs := strings.Join(apparmorSpec.UpdateNS(), "\n")
-		if tc.expectMount {
-			c.Check(mountSpec.MountEntries(), DeepEquals, []osutil.MountEntry{{
-				Name:    "/var/lib/snapd/hostfs/var/lib/iscsi/nodes",
-				Dir:     "/var/lib/iscsi/nodes",
-				Options: []string{"bind", "rw"},
-			}}, cmt)
-			c.Check(mountNs, testutil.Contains, nsSnippet, cmt)
-		} else {
-			c.Check(mountSpec.MountEntries(), HasLen, 0, cmt)
-			c.Check(mountNs, Not(testutil.Contains), "/var/lib/iscsi/nodes", cmt)
-		}
-
-		restore()
-	}
+	c.Check(strings.Join(aaSpec.UpdateNS(), "\n"), testutil.Contains, nsSnippet)
 }

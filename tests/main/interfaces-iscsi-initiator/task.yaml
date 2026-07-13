@@ -35,20 +35,16 @@ prepare: |
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/static
   "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/isns
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/isns
+  "$TESTSTOOLS"/fs-state mock-dir /var/lib/iscsi/nodes
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /var/lib/iscsi/nodes
+  "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/nodes
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/nodes
   "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/initiatorname.iscsi
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/initiatorname.iscsi
   "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/iscsid.conf
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-file /etc/iscsi/iscsid.conf
   echo "InitiatorName=iqn.1993-08.org.debian:01:abcdef123" > /etc/iscsi/initiatorname.iscsi
   echo "node.startup = automatic" > /etc/iscsi/iscsid.conf
-
-  if os.query is-debian || os.query is-ubuntu-ge 24.04; then
-    "$TESTSTOOLS"/fs-state mock-dir /var/lib/iscsi/nodes
-    tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /var/lib/iscsi/nodes
-  else
-    "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/nodes
-    tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/nodes
-  fi
 
   snap install "$TEST_SNAP" --channel=latest/edge
 
@@ -74,13 +70,8 @@ execute: |
   "$TEST_SNAP".client -c "cat /etc/iscsi/iscsid.conf"
 
   echo "And the snap is able to access iSCSI nodes directory"
-  NODE_DIR=""
-  if os.query is-debian || os.query is-ubuntu-ge 24.04; then
-    NODE_DIR="/var/lib/iscsi/nodes"
-  else
-    NODE_DIR="/etc/iscsi/nodes"
-  fi
-  "$TEST_SNAP".client -c "ls $NODE_DIR"
+  "$TEST_SNAP".client -c "ls /etc/iscsi/nodes"
+  "$TEST_SNAP".client -c "ls /var/lib/iscsi/nodes"
 
   echo "And the snap is able to access additional Open-iSCSI persistent state"
   "$TEST_SNAP".client -c "ls /etc/iscsi/ifaces"
