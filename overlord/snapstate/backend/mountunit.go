@@ -73,7 +73,10 @@ func removeMountUnit(mountDir string, meter progress.Meter) error {
 // if any unit cannot be removed.
 func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
-	// Get installed mount units which includes the unloaded units
+	// Get installed mount units which includes the unloaded units.
+	// Using systemd.InstalledMountUnits here ensures that we get the
+	// mount units even if they are not currently loaded in systemd's
+	// memory (e.g. if it was stopped and garbage-collected).
 	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), origin, systemd.InstalledMountUnits)
 	if err != nil {
 		return err
@@ -142,8 +145,11 @@ func (b Backend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *di
 
 func listNonSnapctlMounts(info *snap.Info, baseDirs []string) ([]string, error) {
 	sysd := systemd.New(systemd.SystemMode, nil)
-	// mounts created using snapctl have the "mount-control" origin
-	// only loaded and active units are needed
+	// Mounts created using snapctl have the "mount-control" origin.
+	// Only active units are needed here but systemd.LoadedMountUnits
+	// lists loaded units which may be active or inactive. This is still
+	// fine because mcMountPoints is only used to filter the mountInfo
+	// list which only contains active mounts.
 	mcMountPoints, err := sysd.ListMountUnits(info.ContainerName(), "mount-control", systemd.LoadedMountUnits)
 	if err != nil {
 		return nil, err

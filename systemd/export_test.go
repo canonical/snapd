@@ -21,6 +21,8 @@ package systemd
 
 import (
 	"io"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -28,47 +30,27 @@ var (
 )
 
 func MockOsGetenv(f func(string) string) func() {
-	oldOsGetenv := osGetenv
-	osGetenv = f
-	return func() { osGetenv = oldOsGetenv }
+	return testutil.Mock(&osGetenv, f)
 }
 
 func MockOsutilStreamCommand(f func(string, ...string) (io.ReadCloser, error)) func() {
-	old := osutilStreamCommand
-	osutilStreamCommand = f
-	return func() { osutilStreamCommand = old }
+	return testutil.Mock(&osutilStreamCommand, f)
 }
 
 func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
-	old := osutilIsMounted
-	osutilIsMounted = f
-	return func() {
-		osutilIsMounted = old
-	}
+	return testutil.Mock(&osutilIsMounted, f)
 }
 
 func MockSquashFsType(f func() (string, []string)) func() {
-	old := squashfsFsType
-	squashfsFsType = f
-	return func() {
-		squashfsFsType = old
-	}
+	return testutil.Mock(&squashfsFsType, f)
 }
 
 func MockSystemdSysctlPath(p string) (restore func()) {
-	old := systemdSysctlPath
-	systemdSysctlPath = p
-	return func() {
-		systemdSysctlPath = old
-	}
+	return testutil.Mock(&systemdSysctlPath, p)
 }
 
 func MockMaxUnitsPerShow(n int) (restore func()) {
-	old := maxUnitsPerShow
-	maxUnitsPerShow = n
-	return func() {
-		maxUnitsPerShow = old
-	}
+	return testutil.Mock(&maxUnitsPerShow, n)
 }
 
 func (e *Error) SetExitCode(i int) {
