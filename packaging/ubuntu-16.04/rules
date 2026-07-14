@@ -26,8 +26,8 @@ else
 endif
 
 export PATH:=${PATH}:${CURDIR}
-# make sure that correct go version is found on xenial
-export PATH:=/usr/lib/go-1.18/bin:${PATH}
+# make sure that the correct go version is found on systems which ship golang-go <=1.23
+export PATH:=/usr/lib/go-1.23/bin:/usr/lib/go-1.22/bin:/usr/lib/go-1.21/bin:/usr/lib/go-1.20/bin:/usr/lib/go-1.18/bin:${PATH}
 ifeq (${FIPSBUILD},1)
 	# when building with FIPS, use Go 1.23 which is also declared in build
 	# dependencies; during testing it is manually installed, but during LP builds
@@ -114,7 +114,12 @@ ifeq (${FIPSBUILD},1)
 endif
 
 TAGS=-tags "$(_TAGS)"
-SNAP_BOOTSTRAP_TAGS=-tags "$(_SNAP_BOOTSTRAP_TAGS)"
+# By default, building with newer go versions will cause snap-bootstrap to link
+# to libresolv.so.2, which may not always be accessible in the initramfs. By
+# setting the `netgo` build flag, we disable the use of the cgo-based resolver
+# and use the built-in one instead. Though there should be no need to use
+# nsswitch or glibc's resolver in the initramfs anyway.
+SNAP_BOOTSTRAP_TAGS=-tags "$(_SNAP_BOOTSTRAP_TAGS),netgo"
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
