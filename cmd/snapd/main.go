@@ -88,11 +88,12 @@ func runTool(toolName string, toolMain func(), fullArgv []string) {
 	logger.SimpleSetup(nil)
 
 	if strutil.ListContains(reexecTools, toolName) {
+		// reexec, if enabled, must be applied **before** any args modifications
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
 	// Strip argv[1] (the tool name) so the tool sees its own args.
-	os.Args = append(fullArgv[:1], fullArgv[2:]...)
+	os.Args = append([]string{toolName}, fullArgv[2:]...)
 
 	toolMain()
 }

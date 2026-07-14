@@ -62,7 +62,7 @@ snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries = $(addprefix $(builddir)/, snapd snapctl snap-seccomp snap-update-ns)
+go_binaries = $(addprefix $(builddir)/, snapd snapctl snap-seccomp snap-update-ns snap-exec)
 
 GO_TAGS = nosecboot
 ifeq ($(with_testkeys),1)
@@ -211,17 +211,20 @@ install:: | $(DESTDIR)$(bindir)
 install:: | $(DESTDIR)$(bindir)
 	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd $|/snap
 
-# Ensure $(libexecdir)/snapd/snap-preseed is a symlink to $(libexecdir)/snapd/snapd-tool-wrap
-install:: | $(DESTDIR)$(libexecdir)/snapd
-	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $|/snap-preseed
+# Ensure $(libexecdir)/snapd/snap-preseed is a symlink to $(libexecdir)/snapd/snapd-tool-wrap.
+# snapd-tool-wrap is installed by the autotools "make install" in cmd/; the
+# order-only prerequisite makes this dependency explicit and fails fast if the
+# wrapper binary is missing.
+install:: | $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $(DESTDIR)$(libexecdir)/snapd/snap-preseed
 
 # Ensure $(libexecdir)/snapd/snapd-apparmor is a symlink to $(libexecdir)/snapd/snapd-tool-wrap
-install:: | $(DESTDIR)$(libexecdir)/snapd
-	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $|/snapd-apparmor
+install:: | $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $(DESTDIR)$(libexecdir)/snapd/snapd-apparmor
 
 # Ensure $(libexecdir)/snapd/snap-gpio-helper is a symlink to $(libexecdir)/snapd/snapd-tool-wrap
-install:: | $(DESTDIR)$(libexecdir)/snapd
-	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $|/snap-gpio-helper
+install:: | $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $(DESTDIR)$(libexecdir)/snapd/snap-gpio-helper
 
 # Generate and install man page for snap command.
 # The binary dispatches on argv[0]; invoke it as "snap" to get the CLI help.

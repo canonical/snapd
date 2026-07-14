@@ -5,7 +5,7 @@ details: |
     tool name through re-exec.
 
 # Run on Ubuntu which supports reexec by default, as well as Fedora and Arch,
-# where both support reexec if enabled explicitly at runtimq
+# where both support reexec if enabled explicitly at runtime
 systems:
   - ubuntu-2*
   - arch-*
@@ -13,7 +13,7 @@ systems:
 
 environment:
     SNAP_REEXEC/reexec0: 0
-    # use 'forces' so that force the reexec
+    # use 'force' so that reexec is forced
     SNAP_REEXEC/reexec1: force
 
 skip:

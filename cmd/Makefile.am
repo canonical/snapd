@@ -470,7 +470,8 @@ snap_cli_wrap_snap_cli_wrap_LDFLAGS = $(STATIC_LDFLAGS)
 ## snapd-tool-wrap
 ##
 ## A generic multi-call wrapper for internal snapd tools (e.g. snap-preseed).
-## Hardlinked under each tool name in /usr/lib/snapd/<tool-name>.
+## Symlinked, hardlinked or copied under each tool name in
+## /usr/lib/snapd/<tool-name>.
 ##
 
 libexec_PROGRAMS += snapd-tool-wrap/snapd-tool-wrap

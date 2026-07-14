@@ -17,8 +17,8 @@
 
 /*
  * snapd-tool-wrap is a generic multi-call wrapper for internal snapd tools
- * (e.g. snap-preseed, snapd-apparmor). It is hardlinked under each tool name
- * in /usr/lib/snapd/<tool-name>.
+ * (e.g. snap-preseed, snapd-apparmor). It is symlinked, hardlinked or copied
+ * under each tool name in /usr/lib/snapd/<tool-name>.
  *
  * At runtime, it uses basename(argv[0]) to determine the tool name, sets
  * argv[0]="snapd" (unambiguous dispatch), places the tool name at argv[1], and
