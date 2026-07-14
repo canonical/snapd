@@ -68,12 +68,16 @@ append_predictor_table() {
 
 	{
 		echo "### ${heading}"
-		echo "| Test | Retries | Predictor |"
-		echo "|------|---------|-----------|"
+		echo "| Test | Success % |"
+		echo "|------|-----------|"
 	} >>report
 
 	printf '%s\n' "${predictor_rows[@]}" |
-		while IFS=$'\t' read -r display_name retries full_name system scenario; do
+		while IFS=$'\t' read -r display_name occurrences full_name system scenario; do
+			if ((occurrences > 1)); then
+				display_name+=" <kbd>${occurrences} times</kbd>"
+			fi
+
 			response=$(curl -sf -G "${test_predictor_url}/predict" \
 				--max-time 10 \
 				--data-urlencode "name=${full_name}" \
@@ -94,7 +98,7 @@ append_predictor_table() {
                   }')
 			fi
 
-			echo "| ${display_name} | ${retries} | ${probability} |" >>report
+			echo "| ${display_name} | ${probability} |" >>report
 		done
 
 	echo "" >>report

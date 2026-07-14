@@ -116,12 +116,12 @@ def predictor_rows(args: argparse.Namespace) -> int:
 
 	for key in sorted(grouped_items):
 		backend, system, test_name, scenario = key
-		retries = len(grouped_items[key]) - 1
+		occurrences = len(grouped_items[key])
 		if backend:
 			test_display_name = f"{backend}:{system}:{test_name}"
 		else:
 			test_display_name = f"{system}:{test_name}"
-		print("\t".join([test_display_name, str(retries), test_name, system, scenario]))
+		print("\t".join([test_display_name, str(occurrences), test_name, system, scenario]))
 	return 0
 
 
