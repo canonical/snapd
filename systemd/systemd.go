@@ -403,6 +403,8 @@ type Systemd interface {
 	Backend() Backend
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
+	// DaemonReEnable disables a daemon and re-enables it again
+	DaemonReEnable(services []string) error
 	// DaemonRexec reexecutes systemd's system manager, should be
 	// only necessary to apply manager's configuration like
 	// watchdog.
@@ -695,6 +697,23 @@ func (s *systemd) DisableNoReload(serviceNames []string) error {
 		args = append(args, "--no-reload")
 	}
 	args = append(args, "disable")
+	args = append(args, serviceNames...)
+	_, err := s.systemctl(args...)
+	return err
+}
+
+func (s *systemd) DaemonReEnable(serviceNames []string) error {
+	if len(serviceNames) == 0 {
+		return nil
+	}
+	var args []string
+	if s.rootDir != "" {
+		// passing root already implies no reload
+		args = append(args, "--root", s.rootDir)
+	} else {
+		args = append(args, "--no-reload")
+	}
+	args = append(args, "reenable")
 	args = append(args, serviceNames...)
 	_, err := s.systemctl(args...)
 	return err
