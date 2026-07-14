@@ -1725,6 +1725,8 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 // systemd on disk by running "systemctl list-unit-files". This includes units
 // that are stopped and have been unloaded from memory.
 func (s *systemd) listInstalledMountUnitNames() ([]string, error) {
+	// TODO: Switch to using "--output=json" once the minimum required systemd
+	// version for "mount-control" interface is bumped up to 246.
 	listOut, err := s.systemctl("list-unit-files", "--no-legend", "*.mount")
 	if err != nil {
 		return nil, err
