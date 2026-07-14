@@ -1721,8 +1721,7 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 
 // listMountUnitNames returns the names of all mount unit files known to
 // systemd on disk by running "systemctl list-unit-files". This includes units
-// that are stopped and have been unloaded from memory. The synthetic root mount
-// "-.mount" is excluded.
+// that are stopped and have been unloaded from memory.
 func (s *systemd) listMountUnitNames() ([]string, error) {
 	listOut, err := s.systemctl("list-unit-files", "--no-legend", "*.mount")
 	if err != nil {
@@ -1731,11 +1730,9 @@ func (s *systemd) listMountUnitNames() ([]string, error) {
 	var names []string
 	for _, line := range bytes.Split(bytes.TrimRight(listOut, "\n"), []byte("\n")) {
 		// Each line is: "<unit-name>  <state>  [<preset>]"
-		// Skip:
-		// * blank lines: they should not appear but we must not panic on them
-		// * "-.mount": systemd's synthetic root mount
+		// Skip blank lines: they should not appear but we must not panic on them.
 		fields := strings.Fields(string(line))
-		if len(fields) == 0 || fields[0] == "-.mount" {
+		if len(fields) == 0 {
 			continue
 		}
 		names = append(names, fields[0])
@@ -1743,18 +1740,18 @@ func (s *systemd) listMountUnitNames() ([]string, error) {
 	return names, nil
 }
 
-// showUnitProperties runs "systemctl show <propertyArg>" for the given
+// showUnitProperties runs "systemctl show <propertyOption>" for the given
 // unit names, chunking the calls to stay within ARG_MAX limits.
 // The returned byte slice is the concatenated output with "\n\n" record
 // separators preserved at chunk boundaries.
-func (s *systemd) showUnitProperties(propertyArg string, unitArgs []string) ([]byte, error) {
+func (s *systemd) showUnitProperties(propertyOption string, unitArgs []string) ([]byte, error) {
 	var out []byte
 	for len(unitArgs) > 0 {
 		chunk := unitArgs
 		if len(chunk) > maxUnitsPerShow {
 			chunk = chunk[:maxUnitsPerShow]
 		}
-		chunkOut, err := s.systemctl(append([]string{"show", propertyArg}, chunk...)...)
+		chunkOut, err := s.systemctl(append([]string{"show", propertyOption, "--"}, chunk...)...)
 		if err != nil {
 			return nil, err
 		}

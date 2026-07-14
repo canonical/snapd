@@ -2879,7 +2879,7 @@ func (s *SystemdTestSuite) TestListMountUnitsLoadedHappy(c *C) {
 	createFakeUnit := func(fileName, snapName, where, origin string) error {
 		path := filepath.Join(tmpDir, fileName)
 		if len(systemctlOutput) > 0 {
-			systemctlOutput += "\n\n"
+			systemctlOutput += "\n"
 		}
 		systemctlOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
 Where=%s
@@ -2966,11 +2966,12 @@ func (s *SystemdTestSuite) TestListMountUnitsAllHappy(c *C) {
 	c.Assert(err, IsNil)
 	defer os.RemoveAll(tmpDir)
 
-	var showOutput string
+	// "-.mount" is a generated root mount returned by list-unit-files
+	showOutput := "Description=Root Mount\nWhere=/\nFragmentPath=/run/systemd/generator/-.mount\n"
 	createFakeUnit := func(fileName, snapName, where, origin string) error {
 		path := filepath.Join(tmpDir, fileName)
 		if len(showOutput) > 0 {
-			showOutput += "\n\n"
+			showOutput += "\n"
 		}
 		showOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
 Where=%s
@@ -2999,8 +3000,6 @@ X-SnapdOrigin=%s
 	err = createFakeUnit("somewhere-other.mount", "some-other-snap", "/somewhere/other", "module2")
 	c.Assert(err, IsNil)
 
-	// list-unit-files output: three real units plus the synthetic root mount
-	// "-.mount" which must be silently skipped.
 	listOut := "-.mount  static   -\nsomepath-somedir.mount  enabled  enabled\nsomewhere-there.mount  enabled  -\nsomewhere-other.mount  static   disabled\n"
 
 	s.outs = [][]byte{
@@ -3013,12 +3012,12 @@ X-SnapdOrigin=%s
 	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
 	c.Check(err, IsNil)
 
-	// Verify the two systemctl calls; "-.mount" must not appear in the show call.
+	// Verify the two systemctl calls
 	c.Assert(s.argses, HasLen, 2)
 	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
 	c.Check(s.argses[1], DeepEquals, []string{
-		"show", "--property=Description,Where,FragmentPath",
-		"somepath-somedir.mount", "somewhere-there.mount", "somewhere-other.mount",
+		"show", "--property=Description,Where,FragmentPath", "--",
+		"-.mount", "somepath-somedir.mount", "somewhere-there.mount", "somewhere-other.mount",
 	})
 
 	// Repeat with origin filter
@@ -3045,7 +3044,7 @@ func (s *SystemdTestSuite) TestListMountUnitsAllListUnitFilesMalformed(c *C) {
 	c.Assert(s.argses, HasLen, 2)
 	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
 	c.Check(s.argses[1], DeepEquals, []string{
-		"show", "--property=Description,Where,FragmentPath",
+		"show", "--property=Description,Where,FragmentPath", "--",
 		"foo.mount", "bar.mount",
 	})
 }
@@ -3121,8 +3120,8 @@ X-SnapdOrigin=snapstate
 	// Verify three systemctl calls: list-unit-files + two show calls
 	c.Assert(s.argses, HasLen, 3)
 	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=Description,Where,FragmentPath", "snap-foo-1.mount", "snap-foo-2.mount"})
-	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=Description,Where,FragmentPath", "snap-foo-3.mount"})
+	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=Description,Where,FragmentPath", "--", "snap-foo-1.mount", "snap-foo-2.mount"})
+	c.Check(s.argses[2], DeepEquals, []string{"show", "--property=Description,Where,FragmentPath", "--", "snap-foo-3.mount"})
 }
 
 func (s *SystemdTestSuite) TestListMountUnitsUnknownFilter(c *C) {
