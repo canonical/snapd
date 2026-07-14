@@ -23,6 +23,7 @@ package main_test
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -186,9 +187,9 @@ func (s *dispatchSuite) TestToolDispatchNoUserArgsStripsToolName(c *C) {
 	c.Check(argsAtCall, DeepEquals, []string{"snap-gpio-helper"})
 }
 
-// TestToolDispatchHelpShowsToolName verifies that after dispatch sets
-// os.Args[0] to the tool name.
-func (s *dispatchSuite) TestToolDispatchHelpShowsToolName(c *C) {
+// TestToolDispatchHelpShowsToolNameGoFlags verifies that after dispatch sets
+// os.Args[0] to the tool name. such that "go-flags" help output looks correct.
+func (s *dispatchSuite) TestToolDispatchHelpShowsToolNameGoFlags(c *C) {
 	saved := os.Args
 	defer func() { os.Args = saved }()
 	os.Args = []string{"snapd", "my-tool", "--help"}
@@ -218,6 +219,32 @@ func (s *dispatchSuite) TestToolDispatchHelpShowsToolName(c *C) {
 	c.Check(parseErr.(*flags.Error).Type, Equals, flags.ErrHelp)
 	// The Usage line must show the tool name, not "snapd".
 	c.Check(helpOutput, Matches, `(?s).*Usage:\s+my-tool \[OPTIONS\]\n.*`)
+}
+
+// TestToolDispatchHelpShowsToolNameStdlibFlag verifies that after dispatch
+// sets os.Args[0] to the tool name, such that "flag" help output looks correct.
+func (s *dispatchSuite) TestToolDispatchHelpShowsToolNameStdlibFlag(c *C) {
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"snapd", "my-tool", "-h"}
+
+	var usageOutput string
+	var parseErr error
+	restore := snapdmain.MockToolMains(map[string]func(){
+		"my-tool": func() {
+			fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+			var buf bytes.Buffer
+			fs.SetOutput(&buf)
+			parseErr = fs.Parse(os.Args[1:])
+			usageOutput = buf.String()
+		},
+	})
+	defer restore()
+
+	snapdmain.Main()
+
+	c.Assert(parseErr, Equals, flag.ErrHelp)
+	c.Check(usageOutput, Matches, `(?s).*Usage of my-tool:.*`)
 }
 
 // --- re-exec integration ---
