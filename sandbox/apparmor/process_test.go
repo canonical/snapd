@@ -29,6 +29,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func (s *apparmorSuite) mockSecurityLabelProbe(c *C) {
+	restore := apparmor.MockSecurityLabelProbeLevel(func() apparmor.LevelType {
+		return apparmor.Full
+	})
+	s.AddCleanup(restore)
+}
+
 func (s *apparmorSuite) TestDecodeLabel(c *C) {
 	label := snap.AppSecurityTag("snap_name", "my-app")
 	snapName, appName, hookName, err := apparmor.DecodeLabel(label)
@@ -56,7 +63,21 @@ func (s *apparmorSuite) TestDecodeLabelUnrecognisedSnapLabel(c *C) {
 	c.Assert(err, ErrorMatches, `unknown snap related security label "snap.weird"`)
 }
 
+func (s *apparmorSuite) TestSecurityLabelFromPidNewKernelPath(c *C) {
+	s.mockSecurityLabelProbe(c)
+
+	newProcFile := filepath.Join(s.fakeroot, "proc/42/attr/apparmor/current")
+	c.Assert(os.MkdirAll(filepath.Dir(newProcFile), 0755), IsNil)
+	c.Assert(os.WriteFile(newProcFile, []byte("snap.foo.app (complain)\n"), 0644), IsNil)
+
+	label, err := apparmor.SecurityLabelFromPid(42)
+	c.Assert(err, IsNil)
+	c.Check(label, Equals, "snap.foo.app")
+}
+
 func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
+	s.mockSecurityLabelProbe(c)
+
 	// when the new file exists we use that one
 	newProcFile := filepath.Join(s.fakeroot, "proc/42/attr/apparmor/current")
 	c.Assert(os.MkdirAll(filepath.Dir(newProcFile), 0755), IsNil)
@@ -74,6 +95,8 @@ func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 }
 
 func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
+	s.mockSecurityLabelProbe(c)
+
 	// When no /proc/$pid/attr/current exists, assume unconfined
 	_, _, _, err := apparmor.SnapAppFromPid(42)
 	c.Check(err, ErrorMatches, `security label "unconfined" does not belong to a snap`)
