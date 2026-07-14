@@ -1,0 +1,395 @@
+summary: refresh seed on UC20+ triggered by components
+
+details: |
+  Verify that seed-refresh updates the recovery seed as part of a normal refresh
+  change on Ubuntu Core triggered by component refreshes. The test refreshes
+  components of a required, optional in seed, and optional not in seed snap and
+  checks that the refreshed recovery system is recorded, and verifies the refreshed
+  recovery system boots with the refreshed components.
+
+systems:
+  - -ubuntu-1*
+
+environment:
+  NESTED_MEM: 4096
+  NESTED_ENABLE_TPM: true
+  NESTED_ENABLE_SECURE_BOOT: true
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_REPACK_GADGET_SNAP: true
+  NESTED_REPACK_KERNEL_SNAP: true
+  NESTED_REPACK_BASE_SNAP: true
+  NESTED_UBUNTU_SEED_SIZE: 3000M
+  NESTED_REPACK_FOR_FAKESTORE: true
+  NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+  NESTED_SIGN_SNAPS_FAKESTORE: true
+  NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+
+  SNAP_PRESENCE/required_snap_component_exclusive: "required"
+  SNAP_PRESENCE/optional_in_seed_snap_component_exclusive: "optional_in_seed"
+  SNAP_PRESENCE/optional_not_in_seed_snap_component_exclusive: "optional_not_in_seed"
+  COMPONENT_EXCLUSIVE/required_snap_component_exclusive: true
+  COMPONENT_EXCLUSIVE/optional_in_seed_snap_component_exclusive: true
+  COMPONENT_EXCLUSIVE/optional_not_in_seed_snap_component_exclusive: true
+
+  SNAP_PRESENCE/required_snap_non_component_exclusive: "required"
+  SNAP_PRESENCE/optional_in_seed_snap_non_component_exclusive: "optional_in_seed"
+  SNAP_PRESENCE/optional_not_in_seed_snap_non_component_exclusive: "optional_not_in_seed"
+  COMPONENT_EXCLUSIVE/required_snap_non_component_exclusive: false
+  COMPONENT_EXCLUSIVE/optional_in_seed_snap_non_component_exclusive: false
+  COMPONENT_EXCLUSIVE/optional_not_in_seed_snap_non_component_exclusive: false
+
+skip:
+  - reason: This test needs test keys to be trusted
+    if: |
+      [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+  snap install test-snapd-swtpm --edge
+
+  "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+  cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+  cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+  version="$(tests.nested show version)"
+  base_snap="core${version}"
+  test_snap_name="test-snapd-component-seed-refresh"
+  test_snap_dir="$TESTSLIB/snaps/test-snapd-component-seed-refresh"
+  presence="$(echo "$SNAP_PRESENCE" | cut -d "_" -f 1)"
+  model_json_template="$TESTSLIB/assertions/developer1-components-seed-refresh-dangerous.json.in"
+  model_json="$(pwd)/model.json"
+
+  case "${version}" in
+    20) base_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q" ;;
+    22) base_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT" ;;
+    24) base_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM" ;;
+    26) base_id="cUqM61hRuZAJYmIS898Ux66VY61gBbZf" ;;
+    *)
+      echo "unsupported Core version: ${version}"
+      exit 1
+      ;;
+  esac
+
+  sed \
+    -e "s/@@VERSION@@/${version}/g" \
+    -e "s/@@BASE@@/${base_snap}/g" \
+    -e "s/@@BASE_ID@@/${base_id}/g" \
+    -e "s/@@PRESENCE@@/${presence}/g" \
+    "${model_json_template}" > "${model_json}"
+
+  sed "s/@@BASE@@/${base_snap}/g" "${test_snap_dir}"/meta/snap.yaml.in > "${test_snap_dir}"/meta/snap.yaml
+
+  test_snap_id="$(gojq -r --arg name "${test_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
+  test -n "${test_snap_id}"
+
+  # Create model for this test UC version
+  gendeveloper1 sign-model < "${model_json}" > pc.model
+  export NESTED_CUSTOM_MODEL=$PWD/pc.model
+
+  extra_snaps_path="$(tests.nested get extra-snaps-path)"
+  test_snap_path="$("${TESTSTOOLS}/snaps-state" pack-local "${test_snap_name}")"
+  mv "${test_snap_path}" "${extra_snaps_path}/"
+  test_snap_path="${extra_snaps_path}/$(basename "${test_snap_path}")"
+
+  tests.nested prepare-essential-snaps
+
+  "${TESTSTOOLS}"/store-state make-snap-installable --noack \
+    --revision 1 \
+    "${NESTED_FAKESTORE_BLOB_DIR}" \
+    "${test_snap_path}" \
+    "${test_snap_id}"
+
+  for comp in "comp-required" "comp-optional-in-seed" "comp-optional-not-in-seed" "comp-not-in-model"; do
+      comp_dir="${TESTSLIB}/snaps/${test_snap_name}/${comp}"
+      comp_path="${extra_snaps_path}/${test_snap_name}+${comp}.comp"
+      snap pack --filename="${comp_path}" "${comp_dir}"
+      "${TESTSTOOLS}"/store-state make-component-installable --noack \
+        --snap-revision 1 \
+        --component-revision 1 \
+        --snap-id "${test_snap_id}" \
+        "${NESTED_FAKESTORE_BLOB_DIR}" \
+        "${comp_path}"
+  done
+
+  snapd_snap="$(echo ${extra_snaps_path}/snapd_*.snap)"
+  comp_required_path="${extra_snaps_path}/${test_snap_name}+comp-required.comp"
+  comp_optional_in_seed_path="${extra_snaps_path}/${test_snap_name}+comp-optional-in-seed.comp"
+
+  export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+  SNAP_PRESENCE="${SNAP_PRESENCE:-required}"
+  if [ "$SNAP_PRESENCE" = "optional_not_in_seed" ]; then
+      ubuntu-image snap --image-size 10G pc.model \
+        --snap "${extra_snaps_path}"/pc.snap \
+        --snap "${extra_snaps_path}"/pc-kernel.snap \
+        --snap "${snapd_snap}" \
+        --snap "${extra_snaps_path}/${base_snap}".snap
+  else
+      # include components comp-required and comp-optional-in-the-seed in the seed
+      ubuntu-image snap --image-size 10G pc.model \
+        --snap "${extra_snaps_path}"/pc.snap \
+        --snap "${extra_snaps_path}"/pc-kernel.snap \
+        --snap "${snapd_snap}" \
+        --snap "${extra_snaps_path}/${base_snap}".snap \
+        --snap "${test_snap_path}" \
+        --comp "${comp_required_path}" \
+        --comp "${comp_optional_in_seed_path}"
+  fi
+
+  image_dir=$(tests.nested get images-path)
+  image_name=$(tests.nested get image-name core)
+  mv ./pc.img "${image_dir}/${image_name}"
+  tests.nested configure-default-user
+
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+  tests.nested build-image core
+  tests.nested create-vm core
+
+  # shellcheck source=tests/lib/core-config.sh
+  . "${TESTSLIB}/core-config.sh"
+
+  remote.exec 'sudo systemctl stop snapd snapd.socket'
+  remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon" = "fake-session"' > state.json
+  remote.push state.json
+  remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+  remote.exec 'sudo systemctl start snapd snapd.socket'
+
+  remote.refresh disable-refreshes
+
+restore: |
+  systemctl stop fakedevicesvc.service || true
+  "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
+
+execute: |
+  # shellcheck source=tests/lib/core-config.sh
+  . "${TESTSLIB}/core-config.sh"
+
+  # SNAP_PRESENCE="${SNAP_PRESENCE:-required}"
+  # COMPONENT_EXCLUSIVE="${COMPONENT_EXCLUSIVE:-true}"
+  version="$(tests.nested show version)"
+  extra_snaps_path="$(tests.nested get extra-snaps-path)"
+  test_snap_name="test-snapd-component-seed-refresh"
+  component_names=(
+      "comp-required"
+      "comp-optional-in-seed"
+      "comp-optional-not-in-seed"
+      "comp-not-in-model"
+  )
+  full_component_names=(
+      "${test_snap_name}+comp-required"
+      "${test_snap_name}+comp-optional-in-seed"
+      "${test_snap_name}+comp-optional-not-in-seed"
+      "${test_snap_name}+comp-not-in-model"
+  )
+  model_json="$TESTSLIB/assertions/developer1-${version}-components-seed-refresh-dangerous.json"
+  test_snap_id="$(gojq -r --arg name "${test_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
+  test_snap_path="$(echo "${extra_snaps_path}/${test_snap_name}_"*".snap")"
+  test -n "${test_snap_id}"
+
+  make_fake_store_revision() {
+    local source_snap="$1"
+    local output_snap="$2"
+    local snap_id="$3"
+    local revision="$4"
+
+    rm -rf squashfs-root
+    unsquashfs -d squashfs-root "${source_snap}"
+    gojq --yaml-input --yaml-output --arg version "v${revision}" ".version = \$version" squashfs-root/meta/snap.yaml > snap.yaml.new
+    mv snap.yaml.new squashfs-root/meta/snap.yaml
+    snap pack --filename="${output_snap}" ./squashfs-root
+    rm -rf squashfs-root
+
+    "${TESTSTOOLS}/store-state" make-snap-installable --noack \
+      --revision "${revision}" \
+      "${NESTED_FAKESTORE_BLOB_DIR}" \
+      "${output_snap}" \
+      "${snap_id}"
+  }
+
+  make_fake_component_store_revision() {
+    local source_comp="$1"
+    local output_comp="$2"
+    local snap_id="$3"
+    local snap_rev="$4"
+    local comp_rev="$5"
+
+    rm -rf squashfs-root
+    unsquashfs -d squashfs-root "${source_comp}"
+    gojq --yaml-input --yaml-output --arg version "${comp_rev}" ".version = \$version" squashfs-root/meta/component.yaml > component.yaml.new
+    mv component.yaml.new squashfs-root/meta/component.yaml
+    snap pack --filename="${output_comp}" ./squashfs-root
+    rm -rf squashfs-root
+
+    "${TESTSTOOLS}/store-state" make-component-installable --noack \
+        --snap-id "${snap_id}" \
+        --snap-revision "${snap_rev}" \
+        --component-revision "${comp_rev}" \
+        "${NESTED_FAKESTORE_BLOB_DIR}" \
+        "${output_comp}"
+  }
+
+  run_seed_refresh_round() {
+    local change_id boot_id
+    change_id="$(remote.exec "sudo snap refresh --no-wait ${test_snap_name}")"
+    if [ "$SNAP_PRESENCE" = "optional_not_in_seed" ]; then
+        # Check that there are no create-recovery-systems tasks
+        tasks=$(remote.exec "snap tasks ${change_id} --format=json")
+        echo "$tasks" | gojq '[.tasks[] | select(.kind == "create-recovery-system")] | length' | MATCH 0
+    else
+        boot_id="$(tests.nested boot-id)"
+        remote.wait-for reboot "${boot_id}"
+        remote.wait-for snap-command
+    fi
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\\s+(Done|Undone|Error)'"
+    remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Done"
+  }
+
+  assert_live_snap_revisions() {
+    local snap_revision snap_name revision
+
+    # accepts name/revision pairs in "snap=revision" format
+    for snap_revision in "$@"; do
+      snap_name="${snap_revision%%=*}"
+      revision="${snap_revision#*=}"
+
+      remote.exec "snap list ${snap_name}" | awk 'NR != 1 { print $3 }' | MATCH "^${revision}$"
+    done
+  }
+
+  assert_live_comp_revisions() {
+    local comp_revision full_comp_name revision
+
+    # accepts name/revision pairs in "snap+comp=revision" format
+    for comp_revision in "$@"; do
+      full_comp_name="${comp_revision%%=*}"
+      revision="${comp_revision#*=}"
+
+      remote.exec "snap component ${full_comp_name}" | awk 'END { print $1,$2 }' | MATCH "^installed: ${revision}$"
+    done
+  }
+
+  # verify seeded snap revisions are present in a recovery system
+  assert_seed_snap_and_comp_revisions_present() {
+    local system_label="$1"
+    local assertions="/run/mnt/ubuntu-seed/systems/${system_label}/assertions/snaps"
+    local snap_revision snap_name comp_name revision snap_id
+
+    shift
+
+    # accepts name/revision pairs in "snap=revision" format
+    for snap_revision in "$@"; do
+      revision="${snap_revision#*=}"
+      snap_name="${snap_revision%%=*}"
+      comp_name="${snap_name#*+}"
+      snap_name="${snap_name%%+*}"
+
+      case "${snap_name}" in
+        "${test_snap_name}") snap_id="${test_snap_id}" ;;
+        *)
+          echo "unexpected snap: ${snap_name}"
+          exit 1
+          ;;
+      esac
+
+      remote.exec "sudo grep -Fxq 'snap-id: ${snap_id}' ${assertions}"
+      if [[ "$snap_revision" == *+* ]]; then
+          remote.exec "test -f /var/lib/snapd/seed/snaps/${snap_name}+${comp_name}_${revision}.comp"
+          remote.exec "awk -v RS='\n\n' '/resource-name: ${comp_name}/ && /resource-revision: ${revision}/' ${assertions}" | MATCH '.'
+      else
+          remote.exec "test -f /var/lib/snapd/seed/snaps/${snap_name}_${revision}.snap"
+          remote.exec "awk -v RS='\n\n' '/snap-id: ${test_snap_id}/ && /snap-revision: ${revision}/' ${assertions}" | MATCH '.'
+      fi
+
+    done
+  }
+
+  remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > seeded-systems-before.json
+  orig_seed_label="$(gojq -r '.[0].system' seeded-systems-before.json)"
+  latest_seed_label=""
+
+  # ensure that all the components are installed before enabling seed-refresh
+  remote.exec "sudo snap install ${full_component_names[@]}"
+
+  remote.exec 'sudo snap set core experimental.seed-refresh=true'
+
+  snap_revision=1
+  if [ "$COMPONENT_EXCLUSIVE" = "false" ]; then
+      snap_revision=2
+      snap_output_path="${extra_snaps_path}/${test_snap_name}_${snap_revision}.snap"
+      make_fake_store_revision "${test_snap_path}" "${snap_output_path}" "${test_snap_id}" "${snap_revision}"
+  fi
+  comp_revision=2
+  for comp in ${full_component_names[@]}; do
+      comp_path="${extra_snaps_path}/${comp}.comp"
+      comp_output_path="${extra_snaps_path}/${comp}_${comp_revision}.comp"
+      make_fake_component_store_revision "${comp_path}" "${comp_output_path}" "${test_snap_id}" "${snap_revision}" "${comp_revision}"
+  done
+
+  run_seed_refresh_round
+
+  if [ "$COMPONENT_EXCLUSIVE" = "true" ]; then
+      assert_live_snap_revisions "${test_snap_name}=1"
+  else
+      assert_live_snap_revisions "${test_snap_name}=2"
+  fi
+
+  for comp in "${component_names[@]}"; do
+      assert_live_comp_revisions "${test_snap_name}+${comp}=2"
+  done
+
+  remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > seeded-systems.json
+  remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["default-recovery-system"]' > default-recovery-system.json
+
+  if [ "$SNAP_PRESENCE" = "optional_not_in_seed" ]; then
+      # verify no seed refresh was triggered
+      test "$(gojq -r '.[0].system' seeded-systems.json)" = "${orig_seed_label}"
+      test "$(gojq '[.[] | select(."seed-refresh" == true)] | length' seeded-systems.json)" = 0
+  else
+      # verify seed-refresh recorded and promoted the new recovery system
+      latest_seed_label="$(gojq -r '.[0].system' seeded-systems.json)"
+      test -n "${latest_seed_label}"
+      test "${latest_seed_label}" != "${orig_seed_label}"
+      test "$(gojq -r '.[0]["seed-refresh"]' seeded-systems.json)" = true
+      test "$(gojq -r '.[1].system' seeded-systems.json)" = "${orig_seed_label}"
+      test "$(gojq -r '.system' default-recovery-system.json)" = "${latest_seed_label}"
+      test "$(gojq '[.[] | select(."seed-refresh" == true)] | length' seeded-systems.json)" = 1
+
+      # verify the refreshed snaps and components are present in the seed
+      remote.exec "test -d /run/mnt/ubuntu-seed/systems/${latest_seed_label}"
+  fi
+
+  if [ "$SNAP_PRESENCE" = "optional_not_in_seed" ]; then
+      remote.exec "! ls /var/lib/snapd/seed/snaps/${test_snap_name}_*.snap 2>/dev/null"
+  else
+      assert_seed_snap_and_comp_revisions_present "${orig_seed_label}"  "${test_snap_name}=1"
+      latest_snap_revision=2
+      if [ "$COMPONENT_EXCLUSIVE" = "true" ]; then
+          latest_snap_revision=1
+      fi
+      assert_seed_snap_and_comp_revisions_present "${latest_seed_label}" "${test_snap_name}=${latest_snap_revision}"
+
+      assertions="/run/mnt/ubuntu-seed/systems/${latest_seed_label}/assertions/snaps"
+      for comp in "${component_names[@]}"; do
+          case "$comp" in
+          # "comp-optional-not-in-seed" )
+          #     # components optional not in the seed should have the revision from the model
+          #     remote.exec "awk -v RS='\n\n' '/resource-name: ${comp}/ && /resource-revision: 1/' ${assertions}" | MATCH '.'
+          #     remote.exec "test -f /var/lib/snapd/seed/snaps/${test_snap_name}+${comp}_1.comp"
+          #     remote.exec "awk -v RS='\n\n' '/resource-name: ${comp}/ && /resource-revision: 2/' ${assertions}" | NOMATCH '.'
+          #     remote.exec "! ls /var/lib/snapd/seed/snaps/${test_snap_name}+${comp}_2.comp 2>/dev/null"
+          #     ;;
+          "comp-not-in-model")
+          "comp-optional-not-in-seed")
+              # components not in the model should not be seeded
+              remote.exec "! ls /var/lib/snapd/seed/snaps/${test_snap_name}+${comp}_*.comp 2>/dev/null"
+              ;;
+          "comp-optional-in-seed" | "comp-required")
+              # required and optional in seed components should be seeded with
+              # updated revisions
+              assert_seed_snap_and_comp_revisions_present "${orig_seed_label}"  "${test_snap_name}+${comp}=1"
+              assert_seed_snap_and_comp_revisions_present "${latest_seed_label}" "${test_snap_name}+${comp}=2"
+              ;;
+          esac
+      done
+  fi
