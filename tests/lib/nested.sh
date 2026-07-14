@@ -1775,17 +1775,17 @@ nested_start_classic_vm() {
 
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+
+        # Give extra disk space for the image
+        qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +4G
+
+        # HACK: convert "classic" qcow2 to raw "core" image because we need
+        # to boot with OVMF, but we do this to use shared vm code
+        qemu-img convert -f qcow2 -O raw \
+            "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
+            "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw"
+        mv -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
     fi
-
-    # Give extra disk space for the image
-    qemu-img resize "$NESTED_IMAGES_DIR/$IMAGE_NAME" +4G
-
-    # HACK: convert "classic" qcow2 to raw "core" image because we need
-    # to boot with OVMF, but we do this to use shared vm code
-    qemu-img convert -f qcow2 -O raw \
-        "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
-        "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw"
-    mv -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.raw" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
     nested_create_vm_service "$NESTED_IMAGES_DIR/$IMAGE_NAME" "-drive file=$NESTED_ASSETS_DIR/seed.img,if=virtio"
 
