@@ -408,13 +408,15 @@ const (
 type MountUnitFilter int
 
 const (
-	// LoadedMountUnits returns only units currently loaded in systemd's memory.
+	// LoadedMountUnits returns units currently loaded in systemd's memory.
 	// This is cheaper but may miss units that have been stopped and garbage-collected
 	// from systemd's memory.
 	LoadedMountUnits MountUnitFilter = iota
-	// AllMountUnits returns all units known to systemd, including those that
-	// are stopped and have been unloaded from memory but still exist on disk.
-	AllMountUnits
+	// InstalledMountUnits returns units that have a backing unit file
+	// installed on the filesystem, as reported by "systemctl list-unit-files".
+	// This includes units that are stopped and have been unloaded from systemd's
+	// memory, but excludes purely transient units that have no backing file.
+	InstalledMountUnits
 )
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
@@ -479,8 +481,8 @@ type Systemd interface {
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of mount points of the mount units created
 	// by the `origin` module for the given snap. filter controls whether only
-	// currently-loaded units are returned (LoadedMountUnits) or all units
-	// including those stopped and unloaded from systemd's memory (AllMountUnits).
+	// units currently loaded in systemd's memory are returned (LoadedMountUnits)
+	// or units that have an installed backing file (InstalledMountUnits).
 	ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
@@ -1719,10 +1721,10 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 	return originModule, nil
 }
 
-// listMountUnitNames returns the names of all mount unit files known to
+// listInstalledMountUnitNames returns the names of all mount unit files known to
 // systemd on disk by running "systemctl list-unit-files". This includes units
 // that are stopped and have been unloaded from memory.
-func (s *systemd) listMountUnitNames() ([]string, error) {
+func (s *systemd) listInstalledMountUnitNames() ([]string, error) {
 	listOut, err := s.systemctl("list-unit-files", "--no-legend", "*.mount")
 	if err != nil {
 		return nil, err
@@ -1833,11 +1835,11 @@ func parseMountUnitsOutput(out []byte, snapName, origin string) ([]string, error
 func (s *systemd) ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error) {
 	var unitArgs []string
 	switch filter {
-	case AllMountUnits:
-		// list-unit-files enumerates all unit files known to systemd on disk,
-		// including units that are stopped and have been unloaded from memory.
+	case InstalledMountUnits:
+		// listInstalledMountUnitNames enumerates all installed unit files known to
+		// systemd, including units that are stopped and have been unloaded from memory.
 		var err error
-		unitArgs, err = s.listMountUnitNames()
+		unitArgs, err = s.listInstalledMountUnitNames()
 		if err != nil {
 			return nil, err
 		}

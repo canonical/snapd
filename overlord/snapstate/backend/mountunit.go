@@ -73,8 +73,8 @@ func removeMountUnit(mountDir string, meter progress.Meter) error {
 // if any unit cannot be removed.
 func (b Backend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
-	// Get all mount units, including the unloaded ones
-	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), origin, systemd.AllMountUnits)
+	// Get installed mount units which includes the unloaded units
+	mountPoints, err := sysd.ListMountUnits(s.ContainerName(), origin, systemd.InstalledMountUnits)
 	if err != nil {
 		return err
 	}
