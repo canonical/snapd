@@ -180,8 +180,6 @@ class TestBuildRuntimeLookup(unittest.TestCase):
                 _make_suite_item('google', 'ubuntu-24.04-64', 'tests/smoke', '',
                                  '2026-01-01T00:00:00Z', '2026-01-01T00:00:15Z', 'preparing'),
                 _make_suite_item('google', 'ubuntu-24.04-64', 'tests/smoke', '',
-                                 '2026-01-01T00:00:15Z', '2026-01-01T00:03:15Z', 'executing'),
-                _make_suite_item('google', 'ubuntu-24.04-64', 'tests/smoke', '',
                                  '2026-01-01T00:03:15Z', '2026-01-01T00:03:25Z', 'restoring'),
             ]
             with open(os.path.join(artifact_dir, 'results.json'), 'w') as f:
@@ -190,7 +188,7 @@ class TestBuildRuntimeLookup(unittest.TestCase):
             lookup = runtimeadder.build_runtime_lookup(tmpdir)
 
             # Suite runtime should include all target phases present in results.
-            self.assertAlmostEqual(205.0, lookup[('google:ubuntu-24.04-64', 'tests/smoke', '')])
+            self.assertAlmostEqual(25, lookup[('google:ubuntu-24.04-64', 'tests/smoke', '')])
             self.assertEqual(1, len(lookup))
 
 

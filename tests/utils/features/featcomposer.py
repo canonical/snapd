@@ -35,7 +35,7 @@ def _parse_file_name(file_name: str) -> SpreadTaskNames:
     original_name = file_name.replace('--', '/')
     task = ':'.join(original_name.split(':')[2:])
     if task.endswith('/'):
-        suite_name = task
+        suite_name = task[:-1]
         task_name = ''
     else:
         task_split=task.split('/')
