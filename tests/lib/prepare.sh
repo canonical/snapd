@@ -1218,8 +1218,9 @@ uc24_build_initramfs_kernel_snap() {
 
     unsquashfs -d pc-kernel "$ORIG_SNAP"
     kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
-    ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
-                          --firmwaredir pc-kernel/firmware --output initrd.img
+    TMPDIR=/var/tmp \
+        ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
+        --firmwaredir pc-kernel/firmware --output initrd.img
 
     # Check that manifest is generated
     stat manifest-initramfs.yaml-"$kernelver"
@@ -1249,7 +1250,8 @@ uc24_build_initramfs_kernel_snap() {
     # Build signed uki image - snakeoil keys shipped by ubuntu-core-initramfs
     # are used by default
     objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
-    ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
+    TMPDIR=/var/tmp \
+        ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
     cp kernel.efi-"$kernelver" pc-kernel/kernel.efi
 
     # copy any extra files that tests may need for the kernel

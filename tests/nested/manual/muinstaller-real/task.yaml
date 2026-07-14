@@ -369,6 +369,16 @@ execute: |
       remote.exec not test -e /run/mnt/ubuntu-seed/systems/classic
       exit 0
   fi
+
+  # check that the hybrid recovery menu doesn't contain entries for booting into
+  # the recovery system directly from grub
+  remote.exec "sudo cat /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg" > grub.cfg
+  MATCH "Continue to run mode" < grub.cfg
+  MATCH "UEFI Firmware Settings" < grub.cfg
+  NOMATCH "Recover using" < grub.cfg
+  NOMATCH "Install using" < grub.cfg
+  NOMATCH "Factory reset using" < grub.cfg
+
   if [ "$version" == 22 ]; then
       # We are not mounting the users file for 22.04, the full recover
       # feature is not supported until 24.04+.
