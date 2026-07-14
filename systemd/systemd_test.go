@@ -2926,7 +2926,7 @@ X-SnapdOrigin=%s
 	c.Check(err, IsNil)
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsAllEmpty(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsInstalledEmpty(c *C) {
 	// When list-unit-files returns no mount units, ListMountUnits must return
 	// nil without issuing a second systemctl call.
 	s.outs = [][]byte{
@@ -2934,7 +2934,7 @@ func (s *SystemdTestSuite) TestListMountUnitsAllEmpty(c *C) {
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "", AllMountUnits)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
 	c.Check(units, IsNil)
 	c.Check(err, IsNil)
 
@@ -2943,7 +2943,7 @@ func (s *SystemdTestSuite) TestListMountUnitsAllEmpty(c *C) {
 	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsAllWhitespaceOnly(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsInstalledWhitespaceOnly(c *C) {
 	// When list-unit-files returns only whitespace (non-empty but no real
 	// unit names), ListMountUnits must return nil without issuing a second
 	// systemctl call.
@@ -2952,7 +2952,7 @@ func (s *SystemdTestSuite) TestListMountUnitsAllWhitespaceOnly(c *C) {
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "", AllMountUnits)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
 	c.Check(units, IsNil)
 	c.Check(err, IsNil)
 
@@ -2961,7 +2961,7 @@ func (s *SystemdTestSuite) TestListMountUnitsAllWhitespaceOnly(c *C) {
 	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsAllHappy(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsInstalledHappy(c *C) {
 	tmpDir, err := os.MkdirTemp("/tmp", "snapd-systemd-test-list-mounts-all-*")
 	c.Assert(err, IsNil)
 	defer os.RemoveAll(tmpDir)
@@ -3008,7 +3008,7 @@ X-SnapdOrigin=%s
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "", AllMountUnits)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
 	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
 	c.Check(err, IsNil)
 
@@ -3022,12 +3022,12 @@ X-SnapdOrigin=%s
 
 	// Repeat with origin filter
 	s.i = 0
-	units, err = sysd.ListMountUnits("some-snap", "module3", AllMountUnits)
+	units, err = sysd.ListMountUnits("some-snap", "module3", InstalledMountUnits)
 	c.Check(units, DeepEquals, []string{"/somewhere/there"})
 	c.Check(err, IsNil)
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsAllListUnitFilesMalformed(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsInstalledListUnitFilesMalformed(c *C) {
 	// A blank line embedded in list-unit-files output is skipped rather
 	// than causing a panic
 	s.outs = [][]byte{
@@ -3036,7 +3036,7 @@ func (s *SystemdTestSuite) TestListMountUnitsAllListUnitFilesMalformed(c *C) {
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "", AllMountUnits)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
 	c.Check(units, HasLen, 0)
 	c.Check(err, IsNil)
 
@@ -3049,11 +3049,11 @@ func (s *SystemdTestSuite) TestListMountUnitsAllListUnitFilesMalformed(c *C) {
 	})
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsAllListUnitFilesError(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsInstalledListUnitFilesError(c *C) {
 	s.errors = []error{fmt.Errorf("list-unit-files failed")}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "", AllMountUnits)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
 	c.Check(units, IsNil)
 	c.Check(err, ErrorMatches, ".*list-unit-files failed.*")
 
@@ -3062,7 +3062,7 @@ func (s *SystemdTestSuite) TestListMountUnitsAllListUnitFilesError(c *C) {
 	c.Check(s.argses[0], DeepEquals, []string{"list-unit-files", "--no-legend", "*.mount"})
 }
 
-func (s *SystemdTestSuite) TestListMountUnitsAllChunkBoundary(c *C) {
+func (s *SystemdTestSuite) TestListMountUnitsInstalledChunkBoundary(c *C) {
 	// Reduce the chunk size to 2 so that 3 units span two "show" calls
 	restore := MockMaxUnitsPerShow(2)
 	defer restore()
@@ -3113,7 +3113,7 @@ X-SnapdOrigin=snapstate
 	}
 
 	sysd := New(SystemMode, nil)
-	units, err := sysd.ListMountUnits("some-snap", "", AllMountUnits)
+	units, err := sysd.ListMountUnits("some-snap", "", InstalledMountUnits)
 	c.Check(err, IsNil)
 	c.Check(units, DeepEquals, []string{"/snap/foo/1", "/snap/foo/2", "/snap/foo/3"})
 

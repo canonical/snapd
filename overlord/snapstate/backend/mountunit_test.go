@@ -143,7 +143,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "foo", Origin: "", Filter: systemd.AllMountUnits},
+		{SnapName: "foo", Origin: "", Filter: systemd.InstalledMountUnits},
 	})
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 0)
 }
@@ -175,7 +175,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "foo", Origin: "", Filter: systemd.AllMountUnits},
+		{SnapName: "foo", Origin: "", Filter: systemd.InstalledMountUnits},
 	})
 
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 1)
@@ -207,7 +207,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
 	c.Check(err, IsNil)
 	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "foo", Origin: "", Filter: systemd.AllMountUnits},
+		{SnapName: "foo", Origin: "", Filter: systemd.InstalledMountUnits},
 	})
 
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 3)
@@ -243,7 +243,7 @@ func (s *mountunitSuite) TestRemoveSnapMountUnitsFiltersBaseDirs(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
-		{SnapName: "some-snap", Origin: "mount-control", Filter: systemd.AllMountUnits},
+		{SnapName: "some-snap", Origin: "mount-control", Filter: systemd.InstalledMountUnits},
 	})
 	// Only the two matching mount points should have been removed.
 	c.Assert(sysd.RemoveMountUnitFileCalls, HasLen, 2)
