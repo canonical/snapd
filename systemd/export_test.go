@@ -24,7 +24,12 @@ import (
 )
 
 var (
-	Jctl = jctl
+	Jctl       = jctl
+	NewSystemd = newSystemd
+)
+
+type (
+	Emulation = emulation
 )
 
 func MockOsGetenv(f func(string) string) func() {
