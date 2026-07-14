@@ -36,7 +36,7 @@ prepare: |
 
     snap connections go-example-webserver > webserver-connections.txt
     snap list | grep -v "^snapd[[:space:]]" > snap-list.txt
-    sed -i 's/Prompt=never/Prompt=normal/' /etc/update-manager/release-upgrades
+    sed -i 's/Prompt=.*/Prompt=normal/' /etc/update-manager/release-upgrades
     if not tests.info is-reexec-in-use && tests.info is-snapd-from-archive; then
         . /etc/os-release
         version_id_re="${VERSION_ID//./\\.}"
@@ -55,10 +55,10 @@ restore: |
     snap remove --purge test-snapd-sh
     snap remove --purge test-snapd-auto-aliases
     snap remove --purge test-snapd-classic-confinement
-    sed -i 's/Prompt=normal/Prompt=never/' /etc/update-manager/release-upgrades
+    sed -i 's/Prompt=.*/Prompt=never/' /etc/update-manager/release-upgrades
 
 execute: |
-    sed -i 's/Prompt=never/Prompt=normal/' /etc/update-manager/release-upgrades
+    sed -i 's/Prompt=.*/Prompt=normal/' /etc/update-manager/release-upgrades
     
     # Grab all supported distros except for the first one, which we're running on
     mapfile -t upgrades < <(ubuntu-distro-info --supported --release | awk '{print $1}' | sed 1d)
