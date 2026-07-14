@@ -1629,14 +1629,12 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
 
             distro_purge_package snapd
-            case "$SPREAD_SYSTEM" in
-                arch-*)
-                    # In Arch there is no separate snap-confine package.
-                    ;;
-                *)
-                    distro_purge_package snap-confine ubuntu-core-launcher
-                    ;;
-            esac
+            if tests.pkgs is-installed snap-confine; then
+                distro_purge_package snap-confine
+            fi
+            if tests.pkgs is-installed ubuntu-core-launcher; then
+                distro_purge_package ubuntu-core-launcher
+            fi
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests

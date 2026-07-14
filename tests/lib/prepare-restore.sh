@@ -886,8 +886,7 @@ restore_suite() {
             find /var/lib/systemd/deb-systemd-user-helper-enabled \
                 -name 'snapd*' -delete || true
         fi
-        if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
-            # A snap-confine package never existed on openSUSE or Arch
+	if tests.pkgs is-installed snap-confine; then
             distro_purge_package snap-confine
         fi
     fi
