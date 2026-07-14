@@ -408,9 +408,9 @@ const (
 type MountUnitFilter int
 
 const (
-	// LoadedMountUnits returns units currently loaded in systemd's memory.
-	// This is cheaper but may miss units that have been stopped and garbage-collected
-	// from systemd's memory.
+	// LoadedMountUnits returns units currently loaded in systemd's memory,
+	// as reported by "systemctl show *.mount". This is cheaper but may miss
+	// units that have been stopped and garbage-collected from systemd's memory.
 	LoadedMountUnits MountUnitFilter = iota
 	// InstalledMountUnits returns units that have a backing unit file
 	// installed on the filesystem, as reported by "systemctl list-unit-files".
@@ -1761,7 +1761,7 @@ func (s *systemd) showUnitProperties(propertyOption string, unitArgs []string) (
 		}
 		// systemctl show ends each chunk with a single "\n". Insert an
 		// extra "\n" between chunks so that the boundary becomes "\n\n",
-		// which is the unit-record separator the parser below expects.
+		// which is the unit-record separator parseMountUnitsOutput expects.
 		if len(out) > 0 {
 			out = append(out, '\n')
 		}
