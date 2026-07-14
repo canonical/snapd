@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -33,7 +35,13 @@ var (
 	OrderedCurrentBootImagesHybrid          = orderedCurrentBootImagesHybrid
 	CheckFDEFeatures                        = checkFDEFeatures
 	PreinstallCheckSupportedWithEnvFallback = preinstallCheckSupportedWithEnvFallback
+
+	UbuntuISOBootMode = ubuntuISOBootMode
+	RunBootMode       = runBootMode
+	RecoverBootMode   = recoverBootMode
 )
+
+type BootMode = bootMode
 
 func MockPreinstallCheckTimeout(tm time.Duration) (restore func()) {
 	old := preinstallCheckTimeout
@@ -71,4 +79,12 @@ func MockSecbootFDEOpteeTAPresent(fn func() bool) (restore func()) {
 	restore = testutil.Backup(&secbootFDEOpteeTAPresent)
 	secbootFDEOpteeTAPresent = fn
 	return restore
+}
+
+func MockBootMaybeReadModeenv(f func() (*boot.Modeenv, error)) (restore func()) {
+	return testutil.Mock(&bootMaybeReadModeenv, f)
+}
+
+func MockFdestateGetRunBootChain(f func() ([]bootloader.BootFile, error)) (restore func()) {
+	return testutil.Mock(&fdestateGetRunBootChain, f)
 }
