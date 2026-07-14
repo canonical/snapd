@@ -1,0 +1,126 @@
+summary: Verify install-device hostname is copied to run mode
+
+details: |
+    Check that a hostname set by the gadget install-device hook during install
+    mode is copied to the target run-mode system before the device reboots.
+    On UC26 this also verifies that the presence of the install-device hook
+    prevents the single-boot initramfs install path and that the hook runs.
+
+backends: [-garden]
+systems: [ubuntu-24.04-64, ubuntu-26.04-64]
+
+environment:
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_SIGN_SNAPS_FAKESTORE: true
+    NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-dangerous.model
+    NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+    NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+    NESTED_USE_CLOUD_INIT: false
+
+prepare: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    "$TESTSTOOLS"/store-state setup-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+    "$TESTSTOOLS"/store-state teardown-staging-store
+
+    echo "Expose the needed assertions through the fakestore"
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
+
+    VERSION="$(tests.nested show version)"
+
+    echo "Generate a system-user assertion for the dangerous model"
+    gojq --arg model "testkeys-snapd-dangerous-core-${VERSION}-amd64" \
+        ".models += [\$model] | .models |= unique" \
+        "$TESTSLIB/assertions/developer1-${VERSION}-auto-import.json" > auto-import.json
+    "$TESTSLIB/gendeveloper1assert/main.sh" auto-import.json auto-import.assert
+    export NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="$PWD/auto-import.assert"
+
+    echo "Grab and prepare the gadget snap"
+    snap download --basename=pc --channel="$VERSION/edge" pc
+    unsquashfs -d pc-gadget pc.snap
+
+    echo "Add the install-device hook"
+    mkdir -p pc-gadget/meta/hooks
+    cp install-device pc-gadget/meta/hooks/install-device
+    chmod +x pc-gadget/meta/hooks/install-device
+
+    echo "Disable serial registration for this test"
+    test -f pc-gadget/meta/hooks/prepare-device
+    sed -i '0,/^set -eu$/s//set -eu\n\nsnapctl set device-service.access=offline/' pc-gadget/meta/hooks/prepare-device
+    grep -q '^snapctl set device-service.access=offline$' pc-gadget/meta/hooks/prepare-device
+    chmod +x pc-gadget/meta/hooks/prepare-device
+
+    echo "Add the install-device hook plug to snap.yaml"
+    gojq -s --yaml-input --yaml-output '.[0] * .[1]' snap-yaml-extras.yaml pc-gadget/meta/snap.yaml > snap.yaml.tmp
+    cp -v snap.yaml.tmp pc-gadget/meta/snap.yaml
+
+    echo "Hold refreshes and make the journal persistent"
+    sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> pc-gadget/meta/gadget.yaml
+
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
+    rm -rf pc-gadget/
+
+    NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="pc-snap-decl-extras.json"
+    export NESTED_FAKESTORE_SNAP_DECL_PC_GADGET
+
+    tests.nested build-image core
+    unset NESTED_FAKESTORE_SNAP_DECL_PC_GADGET
+
+    tests.nested create-vm core
+
+restore: |
+    "$TESTSTOOLS"/store-state teardown-fake-store "$NESTED_FAKESTORE_BLOB_DIR"
+    tests.cleanup restore
+
+debug: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    cat "$NESTED_LOGS_DIR/ubuntu-image.log" || true
+    journalctl -u nested-vm --no-pager || true
+    nested_print_serial_log || true
+    remote.exec "sudo snap changes" || true
+    remote.exec "sudo snap changes | awk '/Initialize device/ { print \$1 }' | xargs -r -n1 sudo snap change" || true
+    remote.exec "cat /proc/cmdline" || true
+    remote.exec "cat /var/lib/snapd/modeenv" || true
+    remote.exec "cat /etc/hostname" || true
+    remote.exec "hostnamectl status --static" || true
+    remote.exec "snap get pc device-service.access" || true
+    remote.exec "snap connections pc" || true
+    remote.exec "sudo journalctl -b --no-pager" || true
+    remote.exec "zcat /var/log/install-mode.log.gz" || true
+
+execute: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    echo "Wait for device initialisation to be done"
+    INITIALIZE_DEVICE_CHANGE="$(remote.exec snap changes | awk '/Initialize device/ { print $1; exit }')"
+    test -n "$INITIALIZE_DEVICE_CHANGE"
+    retry -n 200 --wait 1 --env "INITIALIZE_DEVICE_CHANGE=$INITIALIZE_DEVICE_CHANGE" sh -c \
+        "remote.exec snap changes | MATCH \"^${INITIALIZE_DEVICE_CHANGE}\\s+(Done|Error).*Initialize device\""
+    remote.exec "sudo snap change $INITIALIZE_DEVICE_CHANGE" || true
+    remote.exec snap changes | MATCH "^${INITIALIZE_DEVICE_CHANGE}\\s+Done.*Initialize device"
+
+    echo "Check the system booted into run mode"
+    remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=run"
+    remote.exec "cat /var/lib/snapd/modeenv" | MATCH "mode=run"
+
+    echo "Check that install-device ran"
+    remote.exec "zcat /var/log/install-mode.log.gz" | MATCH "Run install-device hook"
+
+    echo "Check the gadget hook has hostname-control connected"
+    remote.exec "snap connections pc" | MATCH 'hostname-control\s+pc:hostname-control\s+:hostname-control'
+
+    echo "Check that serial registration was disabled for the test"
+    remote.exec "snap get pc device-service.access" | MATCH "^offline$"
+
+    echo "Check that the install-device hostname reached run mode"
+    remote.exec "cat /etc/hostname" | MATCH "^install-device-hostname$"
+    remote.exec "hostnamectl status --static" | MATCH "^install-device-hostname$"

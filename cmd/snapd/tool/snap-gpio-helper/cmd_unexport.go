@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snap_gpio_helper
 
 import "github.com/snapcore/snapd/sandbox/gpio"
 

@@ -432,11 +432,6 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// With refresh-app-awareness enabled
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
-
 	// With a snap "pkg" at revision 42
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
 	snapstate.Set(s.state, "pkg", &snapstate.SnapState{
@@ -510,11 +505,6 @@ type testDoUnlinkCurrentSnapWithServicesOpts struct {
 func (s *linkSnapSuite) testDoUnlinkCurrentSnapWithAppsOrServices(c *C, opts testDoUnlinkCurrentSnapWithServicesOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// With refresh-app-awareness enabled
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 
 	// With a snap "pkg" at revision 42
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
@@ -660,10 +650,6 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
-
 	// With a snap "pkg" at revision 42
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
 
@@ -748,11 +734,6 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// Make sure refresh-app-awareness is enabled
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
@@ -2845,26 +2826,9 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheckOn(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
-
 	chg := s.testDoUnlinkSnapRefreshAwareness(c)
 
 	c.Check(chg.Err(), ErrorMatches, `(?ms).*^- some-change-descr \(snap "some-snap" has running apps \(some-app\), pids: 1234\).*`)
-}
-
-func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", false)
-	tr.Commit()
-
-	chg := s.testDoUnlinkSnapRefreshAwareness(c)
-
-	c.Check(chg.Err(), IsNil)
 }
 
 func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {

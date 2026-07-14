@@ -17,27 +17,27 @@
  *
  */
 
-package main_test
+package snap_gpio_helper_test
 
 import (
 	"context"
 
 	. "gopkg.in/check.v1"
 
-	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-gpio-helper"
 	"github.com/snapcore/snapd/strutil"
 )
 
 func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {
 	exportCalled := 0
-	restore := main.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
+	restore := snap_gpio_helper.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
 		exportCalled++
 		return nil
 	})
 	defer restore()
 
 	ensureDriverCalled := 0
-	restore = main.MockGpioEnsureAggregatorDriver(func() error {
+	restore = snap_gpio_helper.MockGpioEnsureAggregatorDriver(func() error {
 		ensureDriverCalled++
 		return nil
 	})
@@ -49,7 +49,7 @@ func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {
 		"0-":    `invalid lines argument: .*: invalid syntax`,
 		"a":     `invalid lines argument: .*: invalid syntax`,
 	} {
-		err := main.Run([]string{
+		err := snap_gpio_helper.Run([]string{
 			"export-chardev", "label-0", lines, "gadget-name", "slot-name",
 		})
 		c.Check(err, ErrorMatches, expectedErr)
@@ -61,7 +61,7 @@ func (s *snapGpioHelperSuite) TestExportGpioChardevBadLine(c *C) {
 
 func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 	exportCalled := 0
-	restore := main.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
+	restore := snap_gpio_helper.MockGpioExportGadgetChardevChip(func(ctx context.Context, chipLabels []string, lines strutil.Range, gadgetName, slotName string) error {
 		exportCalled++
 		c.Check(chipLabels, DeepEquals, []string{"label-0", "label-1"})
 		c.Check(lines, DeepEquals, strutil.Range{
@@ -76,13 +76,13 @@ func (s *snapGpioHelperSuite) TestExportGpioChardev(c *C) {
 	defer restore()
 
 	ensureDriverCalled := 0
-	restore = main.MockGpioEnsureAggregatorDriver(func() error {
+	restore = snap_gpio_helper.MockGpioEnsureAggregatorDriver(func() error {
 		ensureDriverCalled++
 		return nil
 	})
 	defer restore()
 
-	err := main.Run([]string{
+	err := snap_gpio_helper.Run([]string{
 		"export-chardev", "label-0,label-1", "7,0-6,8-100", "gadget-name", "slot-name",
 	})
 	c.Check(err, IsNil)
