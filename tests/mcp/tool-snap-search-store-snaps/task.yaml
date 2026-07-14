@@ -1,0 +1,21 @@
+summary: Verify tool snap_search_store_snaps via snap mcp
+
+details: |
+    Verify that snap mcp can invoke the snap_search_store_snaps
+    tool and return at least one expected store result.
+
+execute: |
+    snap set system experimental.mcp=true
+
+    req='{"jsonrpc":"2.0","id":"tool-snap-search-store-snaps","method":"tools/call","params":{"name":"snap_search_store_snaps","arguments":{"name":"core"}}}'
+    printf '%s\n' "$req" | snap mcp > response.json
+    NOMATCH "Structured content does not match the tool's output schema" < response.json
+
+    gojq -r '.jsonrpc' < response.json | MATCH '^2.0$'
+    gojq -r '.id' < response.json | MATCH '^tool-snap-search-store-snaps$'
+    gojq -r 'has("error")' < response.json | MATCH '^false$'
+
+    gojq -r '.result.isError' < response.json | MATCH '^false$'
+    gojq -r '.result.content[0].type' < response.json | MATCH '^text$'
+    gojq -r '.result.content[0].text | fromjson | .store_snaps | length > 0' < response.json | MATCH '^true$'
+    gojq -r '.result.content[0].text | fromjson | .store_snaps | map(.name == "core") | any' < response.json | MATCH '^true$'

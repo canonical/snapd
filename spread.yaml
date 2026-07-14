@@ -1511,6 +1511,21 @@ suites:
             if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
                 systemctl status snapd.socket || true
             fi
+    tests/mcp/:
+        summary: MCP command and API integration tests
+        systems: [-ubuntu-secboot-*, -ubuntu-fips-*]
+        prepare: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite
+        prepare-each: |
+            "$TESTSLIB"/prepare-restore.sh --prepare-suite-each
+        restore-each: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite-each
+        restore: |
+            "$TESTSLIB"/prepare-restore.sh --restore-suite
+        debug: |
+            if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
+                systemctl status snapd.socket || true
+            fi
     tests/core/:
         summary: Subset of Ubuntu Core specific tests
         systems: [ubuntu-core-*]

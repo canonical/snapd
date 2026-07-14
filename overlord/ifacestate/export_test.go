@@ -32,6 +32,24 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+type MCPConnectionResult struct {
+	Ref   *interfaces.ConnRef
+	State ConnectionState
+}
+
+func ConnectionsToMap(conns []MCPConnectionResult, snapFilter string) map[string]any {
+	internal := make([]connectionResult, 0, len(conns))
+	for _, conn := range conns {
+		internal = append(internal, connectionResult{ref: conn.Ref, state: conn.State})
+	}
+	return connectionsToMap(internal, snapFilter)
+}
+
+type ListConnectionsTool = listConnectionsTool
+type ListPlugsTool = listPlugsTool
+type ListSlotsTool = listSlotsTool
+type ListInterfaceTypesTool = listInterfaceTypesTool
+
 var (
 	AddImplicitInterfaces        = addImplicitInterfaces
 	SnapsWithSecurityProfiles    = snapsWithSecurityProfiles
