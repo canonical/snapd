@@ -39,7 +39,7 @@ func main() {
 
 	err = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "skipping %s: %v\n", path, err)
+			fmt.Fprintf(os.Stderr, "Error in walking %s: %v\n", path, err)
 			os.Exit(1)
 		}
 		if d.IsDir() && shouldSkipDir(path, d.Name(), excludedDirNames, autoExcludedDirs) {
@@ -80,58 +80,27 @@ func shouldSkipDir(path, dirName string, excludedDirNames, excludedAbsDirs map[s
 }
 
 func loggerDependencyDirs() (map[string]bool, error) {
-	outDefault, err := runCmdOutput("go", "list", "-e", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
-	if err != nil {
-		return nil, err
+	goListDirTemplate := "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}"
+	cmds := [][]string{
+		{"list", "-e", "-deps", "-f", goListDirTemplate, "./logger"},
+		{"list", "-e", "-test", "-deps", "-f", goListDirTemplate, "./logger"},
+		{"list", "-e", "-tags", "structuredlogging", "-deps", "-f", goListDirTemplate, "./logger"},
+		{"list", "-e", "-test", "-tags", "structuredlogging", "-deps", "-f", goListDirTemplate, "./logger"},
 	}
-	outStructured, err := runCmdOutput("go", "list", "-e", "-tags", "structuredlogging", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
-	if err != nil {
-		return nil, err
-	}
-	outDefaultTest, err := runCmdOutput("go", "list", "-e", "-test", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
-	if err != nil {
-		return nil, err
-	}
-	outStructuredTest, err := runCmdOutput("go", "list", "-e", "-test", "-tags", "structuredlogging", "-deps", "-f", "{{if and (not .Standard) .Module.Main}}{{.Dir}}{{end}}", "./logger")
-	if err != nil {
-		return nil, err
-	}
-
 	dirs := map[string]bool{}
-	for _, line := range strings.Split(outDefault, "\n") {
-		d := strings.TrimSpace(line)
-		if d == "" {
-			continue
+	for _, args := range cmds {
+		out, err := runCmdOutput("go", args...)
+		if err != nil {
+			return nil, err
 		}
-		if abs, err := filepath.Abs(d); err == nil {
-			dirs[abs] = true
-		}
-	}
-	for _, line := range strings.Split(outStructured, "\n") {
-		d := strings.TrimSpace(line)
-		if d == "" {
-			continue
-		}
-		if abs, err := filepath.Abs(d); err == nil {
-			dirs[abs] = true
-		}
-	}
-	for _, line := range strings.Split(outDefaultTest, "\n") {
-		d := strings.TrimSpace(line)
-		if d == "" {
-			continue
-		}
-		if abs, err := filepath.Abs(d); err == nil {
-			dirs[abs] = true
-		}
-	}
-	for _, line := range strings.Split(outStructuredTest, "\n") {
-		d := strings.TrimSpace(line)
-		if d == "" {
-			continue
-		}
-		if abs, err := filepath.Abs(d); err == nil {
-			dirs[abs] = true
+		for _, line := range strings.Split(out, "\n") {
+			d := strings.TrimSpace(line)
+			if d == "" {
+				continue
+			}
+			if abs, err := filepath.Abs(d); err == nil {
+				dirs[abs] = true
+			}
 		}
 	}
 
@@ -168,8 +137,6 @@ func instrumentFile(path, wd string) error {
 	if r, err := filepath.Rel(wd, path); err == nil {
 		relPath = filepath.ToSlash(r)
 	}
-
-	inLoggerPkg := f.Name.Name == "logger"
 
 	type insertion struct {
 		offset int
@@ -211,7 +178,7 @@ func instrumentFile(path, wd string) error {
 		src = append(src[:ins.offset], append([]byte(ins.text), src[ins.offset:]...)...)
 	}
 
-	if !inLoggerPkg && !hasLoggerImport(f) {
+	if !hasLoggerImport(f) {
 		src = addImportToSource(src, fset, f, `"github.com/snapcore/snapd/logger"`)
 	}
 

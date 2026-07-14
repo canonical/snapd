@@ -127,6 +127,8 @@ func (l *StructuredLog) markLogged(msg string, attrs ...any) {
 	l.seenLogs[key] = true
 }
 
+// Trace only prints if SNAPD_TRACE is set, tag.features=1 is on the kernel cmdline,
+// and structured logging is active. It will only log lines that have not already been logged.
 func (l *StructuredLog) Trace(msg string, attrs ...any) {
 	if l.traceEnabled() && !l.alreadyLogged(msg, attrs...) {
 		var pcs [1]uintptr
@@ -144,7 +146,8 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 	if opts == nil {
 		opts = &LoggerOptions{}
 	}
-	if !osutil.GetenvBool("SNAPD_JSON_LOGGING") && !jsonLoggingEnabledOnKernelCmdline() {
+	isStructuredLoggingEnabled := osutil.GetenvBool("SNAPD_JSON_LOGGING") || featureTaggingEnabledOnKernelCmdline()
+	if !isStructuredLoggingEnabled {
 		return newLog(w, flag, opts)
 	}
 	options := &slog.HandlerOptions{
@@ -189,24 +192,14 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 		log:      slog.New(slog.NewJSONHandler(w, options)),
 		debug:    opts.ForceDebug || debugEnabledOnKernelCmdline(),
 		flags:    flag,
-		quiet:    opts.Quiet,
-		trace:    traceEnabledOnKernelCmdline(),
+		quiet:    quietEnabledOnKernelCmdline(),
+		trace:    featureTaggingEnabledOnKernelCmdline(),
 		seenLogs: make(map[string]bool),
 	}
 	return logger
 }
 
-func traceEnabledOnKernelCmdline() bool {
-	// if this is called during tests, always ignore it so we don't have to mock
-	// the /proc/cmdline for every test that ends up using a logger
-	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
-		return false
-	}
-	m, _ := kcmdline.KeyValues("tag.features")
-	return m["tag.features"] == "1"
-}
-
-func jsonLoggingEnabledOnKernelCmdline() bool {
+func featureTaggingEnabledOnKernelCmdline() bool {
 	// if this is called during tests, always ignore it so we don't have to mock
 	// the /proc/cmdline for every test that ends up using a logger
 	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
