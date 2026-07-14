@@ -58,6 +58,8 @@ restore: |
     sed -i 's/Prompt=normal/Prompt=never/' /etc/update-manager/release-upgrades
 
 execute: |
+    sed -i 's/Prompt=never/Prompt=normal/' /etc/update-manager/release-upgrades
+    
     # Grab all supported distros except for the first one, which we're running on
     mapfile -t upgrades < <(ubuntu-distro-info --supported --release | awk '{print $1}' | sed 1d)
 
