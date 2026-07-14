@@ -22,11 +22,13 @@
 package main_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/jessevdk/go-flags"
 	. "gopkg.in/check.v1"
 
 	snapdmain "github.com/snapcore/snapd/cmd/snapd"
@@ -182,6 +184,40 @@ func (s *dispatchSuite) TestToolDispatchNoUserArgsStripsToolName(c *C) {
 	called, argsAtCall := runDispatch([]string{"snapd", "snap-gpio-helper"})
 	c.Check(called, Equals, "snap-gpio-helper")
 	c.Check(argsAtCall, DeepEquals, []string{"snap-gpio-helper"})
+}
+
+// TestToolDispatchHelpShowsToolName verifies that after dispatch sets
+// os.Args[0] to the tool name.
+func (s *dispatchSuite) TestToolDispatchHelpShowsToolName(c *C) {
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"snapd", "my-tool", "--help"}
+
+	var helpOutput string
+	var parseErr error
+	restore := snapdmain.MockToolMains(map[string]func(){
+		"my-tool": func() {
+			// use go-flags parser which looks at argv[0] to produce the 'help'
+			// output
+			type options struct {
+				Option bool `long:"option"`
+			}
+			opts := options{}
+			parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+			_, parseErr = parser.ParseArgs(os.Args[1:])
+			var buf bytes.Buffer
+			parser.WriteHelp(&buf)
+			helpOutput = buf.String()
+		},
+	})
+	defer restore()
+
+	snapdmain.Main()
+
+	c.Assert(parseErr, FitsTypeOf, &flags.Error{})
+	c.Check(parseErr.(*flags.Error).Type, Equals, flags.ErrHelp)
+	// The Usage line must show the tool name, not "snapd".
+	c.Check(helpOutput, Matches, `(?s).*Usage:\s+my-tool \[OPTIONS\]\n.*`)
 }
 
 // --- re-exec integration ---
