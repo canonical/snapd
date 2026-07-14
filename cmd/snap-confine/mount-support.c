@@ -54,7 +54,90 @@
 #define SNAP_PRIVATE_TMP_ROOT_DIR "/tmp/snap-private-tmp"
 #define NUM_ELEM(x) (sizeof(x) / sizeof((x)[0]))
 
+static const char *sc_managed_ca_certs_dir = SC_MANAGED_CA_CERTS_DIR;
+
 static void sc_detach_views_of_writable(sc_distro distro, bool normal_mode);
+
+// Treat the managed trust store as an optional overlay. If either side does
+// not look like a cert directory, keeping the base view is safer than failing
+// namespace construction and preventing the snap from starting.
+static bool sc_should_bind_mount_dir(const char *src, const char *dst) {
+    struct stat src_stat;
+    if (lstat(src, &src_stat) != 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot stat %s", src);
+    }
+    if (!S_ISDIR(src_stat.st_mode)) {
+        debug("entry %s is not a directory, skipping mount", src);
+        return false;
+    }
+
+    struct stat dst_stat;
+    if (lstat(dst, &dst_stat) != 0) {
+        if (errno == ENOENT) {
+            return false;
+        }
+        die("cannot stat %s", dst);
+    }
+    if (!S_ISDIR(dst_stat.st_mode)) {
+        debug("entry %s is not a directory, skipping mount", dst);
+        return false;
+    }
+
+    return true;
+}
+
+// Resolve the host-managed CA certificate view to the immutable generation
+// directory currently selected by /var/lib/snapd/pki/v1/merged. Legacy
+// non-symlink layouts are intentionally ignored so namespaces only ever mount
+// generation-backed trust stores.
+static char *sc_resolve_managed_ca_certs_dir(void) {
+    struct stat src_lstat;
+    if (lstat(sc_managed_ca_certs_dir, &src_lstat) != 0) {
+        if (errno == ENOENT) {
+            return NULL;
+        }
+        die("cannot stat %s", sc_managed_ca_certs_dir);
+    }
+    if (!S_ISLNK(src_lstat.st_mode)) {
+        debug("entry %s is not a symlink, skipping mount", sc_managed_ca_certs_dir);
+        return NULL;
+    }
+
+    char *resolved = realpath(sc_managed_ca_certs_dir, NULL);
+    if (resolved == NULL) {
+        if (errno == ENOENT) {
+            return NULL;
+        }
+        die("cannot resolve %s", sc_managed_ca_certs_dir);
+    }
+
+    return resolved;
+}
+
+// Mount the whole managed trust store so confined processes see the same trust
+// decisions regardless of whether their TLS stack reads the bundle file or
+// resolves certificates through the directory layout under /etc/ssl/certs.
+// Remount it read-only so confined applications can consume the generated
+// trust store without mutating the namespace copy of that view.
+static void sc_maybe_bind_mount_managed_ca_certs_dir(const char *scratch_dir) {
+    char dst[PATH_MAX] = {0};
+    char *src SC_CLEANUP(sc_cleanup_string) = sc_resolve_managed_ca_certs_dir();
+    sc_must_snprintf(dst, sizeof dst, "%s%s", scratch_dir, SC_SYSTEM_CA_CERTS_DIR);
+
+    if (src == NULL) {
+        return;
+    }
+
+    if (!sc_should_bind_mount_dir(src, dst)) {
+        return;
+    }
+
+    sc_do_mount(src, dst, NULL, MS_BIND, NULL);
+    sc_do_mount(NULL, dst, NULL, MS_REMOUNT | MS_BIND | MS_RDONLY, NULL);
+}
 
 // TODO: simplify this, after all it is just a tmpfs
 // TODO: fold this into bootstrap
@@ -652,6 +735,12 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
             sc_do_mount("none", dst, NULL, MS_SLAVE, NULL);
         }
     }
+
+    // Prefer the managed CA certificate directory when present so snaps see
+    // the trust store that snapd generated, even when consumers rely on the
+    // directory view instead of reading only the bundle file.
+    sc_maybe_bind_mount_managed_ca_certs_dir(scratch_dir);
+
     // The "core" base snap is special as it contains snapd and friends.
     // Other base snaps do not, so whenever a base snap other than core is
     // in use we need extra provisions for setting up internal tooling to
