@@ -1316,8 +1316,14 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap, fetchAsserts AssertsFetchFunc
 			}
 		}
 
-		// TODO: optionally check that model snap name and
-		// info snap name match
+		if !sn.local {
+			if modelID := sn.SnapRef.ID(); modelID != "" && info.ID() != "" {
+				if modelID != info.ID() {
+					return fmt.Errorf("snap %q snap-id mismatch: model assertion declares snap-id %q but store returned snap-id %q",
+						sn.SnapName(), modelID, info.ID())
+				}
+			}
+		}
 
 		needsClassic := info.NeedsClassic()
 		if needsClassic {
