@@ -1,0 +1,119 @@
+summary: Check that system.disk-space-reservation option controls disk space checks.
+
+details: |
+  Verify the tri-state behavior of system.disk-space-reservation:
+    - Unset (nil): uses the default 5MB reservation
+    - 0B: checks run with no extra reservation (only snap size required)
+    - >0B: checks run with the configured reservation added to snap size
+
+# this test remounts /var/lib/snapd which is too intrusive for core.
+systems: [-ubuntu-core-*]
+
+environment:
+  TMPFSMOUNT: /var/lib/snapd
+  # filling tmpfs mounted under /var/lib/snapd triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
+  SUFFICIENT_SIZE: 300M
+
+prepare: |
+  systemctl stop snapd.{socket,service}
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+  snapd.tool exec snap-mgmt --purge
+  mkdir -p "$SNAP_MOUNT_DIR"
+  mount -t tmpfs tmpfs -o size="$SUFFICIENT_SIZE",mode=0755 "$TMPFSMOUNT"
+
+  systemctl start snapd.{socket,service}
+  snap wait system seed.loaded
+
+restore: |
+  systemctl stop snapd.{socket,service}
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  snapd.tool exec snap-mgmt --purge
+  mkdir -p "$SNAP_MOUNT_DIR"
+  umount -l "$TMPFSMOUNT"
+  systemctl start snapd.{socket,service}
+
+execute: |
+  resize() {
+    mount -o remount,size="$1",mode=0755 "$TMPFSMOUNT"
+  }
+
+  get_disk_usage() {
+    df -B1048576 "$TMPFSMOUNT" | tail -1 | awk '{print $3}'
+  }
+
+  echo "Enabling experimental disk space check for install"
+  snap set system experimental.check-disk-space-install=true
+
+  echo "=== Test 1: Large reservation causes install failure ==="
+  # Resize so there is ~50MB free
+  resize "$SUFFICIENT_SIZE"
+  snap install hello-world
+  NEWSIZE=$(($(get_disk_usage) + 50))
+  resize "${NEWSIZE}M"
+
+  # Set reservation larger than free space
+  snap set system system.disk-space-reservation=100MB
+  if snap install test-snapd-sh 2>install-error.txt; then
+    echo "expected install to fail with large reservation"
+    exit 1
+  fi
+  MATCH "due to low disk space" < install-error.txt
+
+  echo "=== Test 2: 0B reservation allows install with tight space ==="
+  # Same tight space, but 0B reservation means only snap size is required
+  snap set system system.disk-space-reservation=0B
+  snap install test-snapd-sh
+  snap remove --purge test-snapd-sh
+
+  echo "=== Test 3: Unset reservation uses default 5MB ==="
+  snap unset system system.disk-space-reservation
+
+  # Resize so there's enough for the snap but less than snap + 5MB
+  resize "$SUFFICIENT_SIZE"
+  snap remove --purge hello-world 2>/dev/null || true
+
+  snap install hello-world
+  # Leave just enough for a small snap but not snap + 5MB reservation
+  NEWSIZE=$(($(get_disk_usage) + 6))
+  resize "${NEWSIZE}M"
+
+  # This should succeed because 6MB > 5MB default reservation + small snap overhead
+  # Use a very small snap to make the math work
+  snap install test-snapd-sh 2>install-error2.txt || true
+
+  # Resize even tighter: less than 5MB free
+  NEWSIZE=$(($(get_disk_usage) + 3))
+  resize "${NEWSIZE}M"
+
+  # Now install should fail because free space < snap size + 5MB default
+  if snap install test-snapd-tools 2>install-error3.txt; then
+    echo "expected install to fail with default reservation and tight space"
+    exit 1
+  fi
+  MATCH "due to low disk space" < install-error3.txt
+
+  echo "=== Test 4: Configured positive reservation is respected ==="
+  resize "$SUFFICIENT_SIZE"
+  snap remove --purge test-snapd-sh 2>/dev/null || true
+  snap remove --purge hello-world 2>/dev/null || true
+
+  snap install hello-world
+  # Leave 15MB free
+  NEWSIZE=$(($(get_disk_usage) + 15))
+  resize "${NEWSIZE}M"
+
+  # 10MB reservation + snap size should fit in 15MB
+  snap set system system.disk-space-reservation=10MB
+  snap install test-snapd-sh
+
+  snap remove --purge test-snapd-sh
+
+  # 20MB reservation + snap size will NOT fit in 15MB
+  snap set system system.disk-space-reservation=20MB
+  if snap install test-snapd-sh 2>install-error4.txt; then
+    echo "expected install to fail with 20MB reservation"
+    exit 1
+  fi
+  MATCH "due to low disk space" < install-error4.txt
