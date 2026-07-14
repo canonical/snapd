@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snap_preseed
 
 import (
 	"github.com/snapcore/snapd/image/preseed"

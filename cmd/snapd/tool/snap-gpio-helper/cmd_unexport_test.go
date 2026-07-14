@@ -17,17 +17,17 @@
  *
  */
 
-package main_test
+package snap_gpio_helper_test
 
 import (
 	. "gopkg.in/check.v1"
 
-	main "github.com/snapcore/snapd/cmd/snap-gpio-helper"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-gpio-helper"
 )
 
 func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {
 	unexportCalled := 0
-	restore := main.MockGpioUnxportGadgetChardevChip(func(gadgetName, slotName string) error {
+	restore := snap_gpio_helper.MockGpioUnxportGadgetChardevChip(func(gadgetName, slotName string) error {
 		unexportCalled++
 		c.Check(gadgetName, Equals, "gadget-name")
 		c.Check(slotName, Equals, "slot-name")
@@ -36,13 +36,13 @@ func (s *snapGpioHelperSuite) TestUnexportGpioChardev(c *C) {
 	defer restore()
 
 	ensureDriverCalled := 0
-	restore = main.MockGpioEnsureAggregatorDriver(func() error {
+	restore = snap_gpio_helper.MockGpioEnsureAggregatorDriver(func() error {
 		ensureDriverCalled++
 		return nil
 	})
 	defer restore()
 
-	err := main.Run([]string{
+	err := snap_gpio_helper.Run([]string{
 		"unexport-chardev", "label-0,label-1", "7,0-6,8-100", "gadget-name", "slot-name",
 	})
 	c.Check(err, IsNil)

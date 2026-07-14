@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -50,10 +49,6 @@ var errInhibitedForRemove = fmt.Errorf("snap is being removed")
 // errInhibitedForDisable indicates that snap is inhibited from running because
 // it is disabled.
 var errInhibitedForDisable = fmt.Errorf("snap is disabled")
-
-// errOngoingSnapRefresh indicates snap cannot run because it is being refreshed
-// and refresh-app-awareness is not enabled.
-var errOngoingSnapRefresh = fmt.Errorf("snap is being refreshed")
 
 // waitWhileInhibited blocks until snap is not inhibited for refresh anymore and then
 // returns a locked hint file lock along with the latest snap and app information.
@@ -84,9 +79,6 @@ func waitWhileInhibited(ctx context.Context, cli *client.Client, snapName string
 		}
 		if hint == runinhibit.HintInhibitedForDisable {
 			return false, errInhibitedForDisable
-		}
-		if !features.RefreshAppAwareness.IsEnabled() {
-			return true, errOngoingSnapRefresh
 		}
 		if !notified {
 			flow = newInhibitionFlow(cli, snapName)

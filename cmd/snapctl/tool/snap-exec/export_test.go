@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snap_exec
 
 import (
 	"syscall"
