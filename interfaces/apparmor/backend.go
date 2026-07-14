@@ -46,6 +46,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -66,6 +67,7 @@ var (
 	parserFeatures        = apparmor_sandbox.ParserFeatures
 	loadProfiles          = apparmor_sandbox.LoadProfiles
 	removeCachedProfiles  = apparmor_sandbox.RemoveCachedProfiles
+	pruneCache            = apparmor_sandbox.PruneCache
 
 	// make sure that apparmor profile fulfills the late discarding backend
 	// interface
@@ -603,6 +605,16 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 		}
 	}
 	return errors
+}
+
+// Prune Apparmor cache from unused data
+// At the moment we mostly prune from old dfa files that are not used anymore
+// Good time to call pruning is when snapd updated and all profiles are recalculated
+// as this gives parser chance to mark dfa cached filed that are still in used
+// apparmor parser touches cached dfa on successful hit.
+// PruneCache implements the interfaces.CachePruner interface.
+func (b *Backend) PruneCache(pruneInterval time.Duration) {
+	pruneCache(apparmor_sandbox.CacheDir, pruneInterval)
 }
 
 // Removes all AppArmor profiles from disk but does not unload them from the
