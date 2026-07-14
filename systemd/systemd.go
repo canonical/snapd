@@ -415,7 +415,7 @@ const (
 	// InstalledMountUnits returns units that have a backing unit file
 	// installed on the filesystem, as reported by "systemctl list-unit-files".
 	// This includes units that are stopped and have been unloaded from systemd's
-	// memory, but excludes purely transient units that have no backing file.
+	// memory, but excludes units that have no backing file.
 	InstalledMountUnits
 )
 
