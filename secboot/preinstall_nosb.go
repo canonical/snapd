@@ -58,3 +58,7 @@ func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
 func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) {
 	return nil, errBuildWithoutSecboot
 }
+
+func (cr *PreinstallCheckResult) AcceptedErrors() []string {
+	return nil
+}
