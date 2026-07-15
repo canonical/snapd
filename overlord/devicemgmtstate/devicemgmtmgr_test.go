@@ -189,7 +189,7 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 			return chg.ID(), nil
 		},
 		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return map[string]any{"key": "value"}, nil
+			return map[string]any{"values": "ok"}, nil
 		},
 	})
 }
@@ -1233,7 +1233,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadRawAssertion(c *C) {
 	c.Check(msg.ResponseBody["message"], Equals, "cannot decode message: assertion content/signature separator not found")
 }
 
-func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeysError(c *C) {
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -1246,7 +1246,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeysError(c *C) {
 	})
 
 	fetchErr := fmt.Errorf("store unavailable")
-	s.AddCleanup(devicemgmtstate.MockFetchAccountKeys(func(_ *state.State, _ int, _ []string) error {
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
 		return fetchErr
 	}))
 
@@ -1404,7 +1404,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnauthorized(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusUnauthorized)
-	c.Check(msg.ResponseBody["message"], Equals, `cannot process message: cannot perform action: operator "alice" is not authorized`)
+	c.Check(msg.ResponseBody["message"], Equals, `cannot perform action: operator "alice" is not authorized`)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
@@ -1421,7 +1421,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
-			return fmt.Errorf("invalid payload")
+			return fmt.Errorf("cannot validate message: invalid payload")
 		},
 	})
 
@@ -1434,7 +1434,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
 
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
-	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: invalid payload")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot validate message: invalid payload")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
@@ -1485,7 +1485,51 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
 }
 
-func (s *deviceMgmtMgrSuite) TestDoValidateMessageDoesNotClobberConcurrentWrite(c *C) {
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterFetch(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "unknown-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "unknown-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	var fetchCalls atomic.Int32
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(st *state.State, _ int, _ string) error {
+		if fetchCalls.Add(1) == 1 {
+			// first lane: wait for lane 2's full write before resuming.
+			lane2Done := make(chan struct{})
+			st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+				if t.Kind() == "validate-mgmt-message" && new == state.DoneStatus {
+					close(lane2Done)
+					return true
+				}
+				return false
+			})
+
+			st.Unlock()
+			<-lane2Done
+			st.Lock()
+		}
+		return nil
+	}))
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["msg1"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(ms.Sequences["msg2"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterValidate(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -1498,27 +1542,28 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageDoesNotClobberConcurrentWrite(
 		}, nil
 	})
 
+	var validateCalls atomic.Int32
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(*state.State, *devicemgmtstate.RequestMessage) error {
-			return fmt.Errorf("rejected")
+		validate: func(st *state.State, _ *devicemgmtstate.RequestMessage) error {
+			if validateCalls.Add(1) == 1 {
+				// first lane: wait for lane 2's full write before resuming.
+				lane2Done := make(chan struct{})
+				st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+					if t.Kind() == "validate-mgmt-message" && new == state.DoneStatus {
+						close(lane2Done)
+						return true
+					}
+					return false
+				})
+
+				st.Unlock()
+				<-lane2Done
+				st.Lock()
+			}
+
+			return fmt.Errorf("cannot validate message: rejected")
 		},
 	})
-
-	var fetchCalls atomic.Int32
-	s.AddCleanup(devicemgmtstate.MockFetchAccountKeys(func(st *state.State, _ int, _ []string) error {
-		// Delay whichever lane reaches this call first: it releases the
-		// lock and sleeps, giving the other lane time to acquire the lock,
-		// run to completion, and persist its own write. When this lane
-		// resumes and re-acquires the lock, it must not overwrite that
-		// write with its own stale snapshot.
-		if fetchCalls.Add(1) == 1 {
-			st.Unlock()
-			time.Sleep(100 * time.Millisecond)
-			st.Lock()
-		}
-
-		return nil
-	}))
 
 	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
@@ -1579,7 +1624,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 
 		ms.Sequences[messageID].Messages[0].ResponseStatus = asserts.MessageStatusRejected
 		ms.Sequences[messageID].Messages[0].ResponseBody = map[string]any{
-			"message": "cannot process message: device not in target list",
+			"message": "cannot process message: not intended for device serial-1.my-model.my-brand",
 		}
 
 		s.mgr.SetState(ms)
@@ -1665,7 +1710,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			return "", fmt.Errorf("system in inconsistent state")
+			return "", fmt.Errorf("cannot apply message: system in inconsistent state")
 		},
 	})
 
@@ -1679,7 +1724,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Equals, "")
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
-	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: system in inconsistent state")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot apply message: system in inconsistent state")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
@@ -1846,7 +1891,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageMessageNotFound(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find message "seqA-2"`)
 }
 
-func (s *deviceMgmtMgrSuite) TestDoApplyMessageDoesNotClobberConcurrentWrite(c *C) {
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageConcurrentWriteAfterApply(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -1862,14 +1907,19 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageDoesNotClobberConcurrentWrite(c *
 	var applyCalls atomic.Int32
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			// Delay whichever lane reaches this call first: it releases the
-			// lock and sleeps, giving the other lane time to acquire the
-			// lock, run to completion, and persist its own write. When this
-			// lane resumes and re-acquires the lock, it must not overwrite
-			// that write with its own stale snapshot.
 			if applyCalls.Add(1) == 1 {
+				// first lane: wait for lane 2's full write before resuming.
+				lane2Done := make(chan struct{})
+				st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+					if t.Kind() == "apply-mgmt-message" && new == state.DoneStatus {
+						close(lane2Done)
+						return true
+					}
+					return false
+				})
+
 				st.Unlock()
-				time.Sleep(100 * time.Millisecond)
+				<-lane2Done
 				st.Lock()
 			}
 
@@ -1886,8 +1936,15 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageDoesNotClobberConcurrentWrite(c *
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	c.Check(ms.Sequences["msg1"].Messages[0].ApplyChangeID, Not(Equals), "")
-	c.Check(ms.Sequences["msg2"].Messages[0].ApplyChangeID, Not(Equals), "")
+	for i := 1; i <= 2; i++ {
+		msgID := fmt.Sprintf("msg%d", i)
+		applyChgID := ms.Sequences[msgID].Messages[0].ApplyChangeID
+		c.Check(applyChgID, Not(Equals), "")
+
+		applyChg := s.st.Change(applyChgID)
+		c.Assert(applyChg, Not(IsNil))
+		c.Check(applyChg.Has(devicemgmtstate.MgmtMessageIDKey), Equals, true)
+	}
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseOK(c *C) {
@@ -1900,18 +1957,6 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseOK(c *C) {
 				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
 			},
 		}, nil
-	})
-
-	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(*state.State, *devicemgmtstate.RequestMessage) error { return nil },
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			devicemgmtstate.MarkChangeForMessage(chg, msg)
-			return chg.ID(), nil
-		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return map[string]any{"values": "ok"}, nil
-		},
 	})
 
 	s.mgr.MockBackend(&mockDeviceBackend{
@@ -2096,7 +2141,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 			return chg.ID(), nil
 		},
 		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return nil, fmt.Errorf("operation failed")
+			return nil, fmt.Errorf("cannot get result from change: operation failed")
 		},
 	})
 
@@ -2105,7 +2150,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
 			c.Check(messageID, Equals, "mesg-1")
 			c.Check(status, Equals, asserts.MessageStatusError)
-			c.Check(string(body), Equals, `{"message":"cannot process message: operation failed"}`)
+			c.Check(string(body), Equals, `{"message":"cannot get result from change: operation failed"}`)
 
 			return assertstest.FakeAssertionWithBody(body, map[string]any{
 				"type":        "response-message",
@@ -2364,6 +2409,71 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromChange(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "test-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	var resultCalls atomic.Int32
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			if resultCalls.Add(1) == 1 {
+				// first lane: wait for lane 2's full write before resuming.
+				lane2Done := make(chan struct{})
+				s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+					if t.Kind() == "queue-mgmt-response" && new == state.DoneStatus {
+						close(lane2Done)
+						return true
+					}
+					return false
+				})
+
+				s.st.Unlock()
+				<-lane2Done
+				s.st.Lock()
+			}
+
+			return map[string]any{"values": "ok"}, nil
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Assert(ms.ReadyResponses, HasLen, 2)
+	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
+	c.Check(ms.ReadyResponses["msg2"].Format, Equals, "assertion")
 }
 
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {

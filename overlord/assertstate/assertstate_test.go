@@ -6316,7 +6316,7 @@ func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoRevisionsFound(c *C) {
 	})
 }
 
-func (s *assertMgrSuite) TestFetchAccountKeysOK(c *C) {
+func (s *assertMgrSuite) TestFetchAccountKeyOK(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -6340,7 +6340,7 @@ func (s *assertMgrSuite) TestFetchAccountKeysOK(c *C) {
 	})
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
-	err = assertstate.FetchAccountKeys(s.state, 0, []string{keyID})
+	err = assertstate.FetchAccountKey(s.state, 0, keyID)
 	c.Assert(err, IsNil)
 
 	// found
@@ -6350,7 +6350,7 @@ func (s *assertMgrSuite) TestFetchAccountKeysOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *assertMgrSuite) TestFetchAccountKeysNotFound(c *C) {
+func (s *assertMgrSuite) TestFetchAccountKeyError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -6366,10 +6366,6 @@ func (s *assertMgrSuite) TestFetchAccountKeysNotFound(c *C) {
 
 	assertstate.ReplaceDB(s.state, db)
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	err = assertstate.FetchAccountKeys(s.state, 0, []string{"no-such-key-id"})
-	c.Assert(err, IsNil)
-	c.Check(logbuf.String(), testutil.Contains, `cannot fetch account-key "no-such-key-id"`)
+	err = assertstate.FetchAccountKey(s.state, 0, "no-such-key-id")
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 }

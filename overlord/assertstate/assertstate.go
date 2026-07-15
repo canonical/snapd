@@ -1486,29 +1486,18 @@ func ValidatedIntegrityData(st *state.State, snapID string, rev snap.Revision) (
 	return integrity.NewIntegrityDataParamsFromRevision(revAssertion)
 }
 
-// FetchAccountKeys fetches the account-key assertions for the given signing key IDs.
-func FetchAccountKeys(st *state.State, userID int, signKeyIDs []string) error {
+// FetchAccountKey fetches the account-key assertion for the given signing key ID.
+func FetchAccountKey(st *state.State, userID int, signKeyID string) error {
 	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
 	if err != nil {
 		return err
 	}
 
 	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
-		for _, keyID := range signKeyIDs {
-			ref := &asserts.Ref{
-				Type:       asserts.AccountKeyType,
-				PrimaryKey: []string{keyID},
-			}
-			err := f.Fetch(ref)
-			if err != nil {
-				if errors.Is(err, &asserts.NotFoundError{}) {
-					logger.Noticef("cannot fetch account-key %q: %v", keyID, err)
-					continue
-				}
-
-				return err
-			}
+		ref := &asserts.Ref{
+			Type:       asserts.AccountKeyType,
+			PrimaryKey: []string{signKeyID},
 		}
-		return nil
+		return f.Fetch(ref)
 	})
 }

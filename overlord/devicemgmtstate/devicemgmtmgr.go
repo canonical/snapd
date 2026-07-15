@@ -55,8 +55,8 @@ const (
 )
 
 var (
-	timeNow                     = time.Now
-	assertstateFetchAccountKeys = assertstate.FetchAccountKeys
+	timeNow                    = time.Now
+	assertstateFetchAccountKey = assertstate.FetchAccountKey
 
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
@@ -628,15 +628,15 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return rejectMsg(fmt.Sprintf("cannot decode message: %v", err))
 	}
 
-	err = assertstateFetchAccountKeys(m.state, 0, []string{a.SignKeyID()})
-	if err != nil {
+	err = assertstateFetchAccountKey(m.state, 0, a.SignKeyID())
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		// TODO: need to distinguish between:
 		//  - transient errors (like store unreachable) - retry
 		//  - permanent errors - determine whether to fail the task or reject the message.
 		return err
 	}
 
-	// assertstateFetchAccountKeys may drop the state lock to fetch the key
+	// assertstateFetchAccountKey may drop the state lock to fetch the key
 	// from the store if it is not available locally.
 	// Concurrent tasks in other lanes may have mutated the state in that window,
 	// so re-read before mutating.
@@ -682,11 +682,10 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		if errors.As(err, &unauthorizedErr) {
 			status = asserts.MessageStatusUnauthorized
 		}
-		reason := fmt.Sprintf("cannot process message: %v", err)
+		reason := err.Error()
 
-		// handler.Validate may drop the state lock internally. Concurrent
-		// tasks in other lanes may have mutated the state in that window,
-		// so re-read before mutating.
+		// handler.Validate may drop the state lock internally. Concurrent tasks
+		// in other lanes may have mutated the state in that window, so re-read before mutating.
 		ms, msg, err = m.getMessageAndState(msgID)
 		if err != nil {
 			return err
@@ -738,8 +737,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 	chgID, applyErr := handler.Apply(m.state, msg)
 
 	// handler.Apply may drop the state lock internally. Concurrent tasks in
-	// other lanes may have mutated the state in that window, so re-read
-	// before mutating.
+	// other lanes may have mutated the state in that window, so re-read before mutating.
 	ms, msg, err = m.getMessageAndState(msgID)
 	if err != nil {
 		return err
@@ -747,7 +745,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 
 	if applyErr != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", applyErr)}
+		msg.ResponseBody = map[string]any{"message": applyErr.Error()}
 	} else {
 		msg.ApplyChangeID = chgID
 	}
@@ -780,6 +778,13 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	err = m.setMessageResponseFromChange(msg)
+	if err != nil {
+		return err
+	}
+
+	// handler.ResultFromChange may drop the state lock internally. Concurrent tasks
+	// in other lanes may have mutated the state in that window, so re-read before mutating.
+	ms, _, err = m.getMessageAndState(msgID)
 	if err != nil {
 		return err
 	}
@@ -844,7 +849,7 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) er
 	body, err := handler.ResultFromChange(change)
 	if err != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
-		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
+		msg.ResponseBody = map[string]any{"message": err.Error()}
 	} else {
 		msg.ResponseStatus = asserts.MessageStatusSuccess
 		msg.ResponseBody = body
