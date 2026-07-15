@@ -128,8 +128,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeeded(c *C) {
 		return nil
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -185,8 +187,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNotNeeded(c *C) {
 		return fmt.Errorf("Unexpected call")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return false
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -223,8 +225,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReprovision(c *C) {
 		return fmt.Errorf("some error")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -291,8 +295,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoActivateStateRecovery(c *C
 		return nil
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -411,8 +417,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReseal(c *C) {
 		return nil
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -479,8 +487,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -505,7 +515,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
 	result, err := fdestate.GetRepairAttemptResult(s.st)
 	c.Assert(err, IsNil)
 
-	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-encryption-support"))
 
 	c.Check(logbuf.String(), testutil.Contains, `WARNING: could not auto repair keyslots due to failed platform initialization: some error`)
 }
@@ -526,8 +536,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecksWithDetail
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -563,7 +575,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecksWithDetail
 	result, err := fdestate.GetRepairAttemptResult(s.st)
 	c.Assert(err, IsNil)
 
-	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-encryption-support"))
 
 	c.Check(logbuf.String(), testutil.Contains, "WARNING: could not auto repair keyslots due to failed platform initialization:\n- error-1\n- error-2\n")
 }

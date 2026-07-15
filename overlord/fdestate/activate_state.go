@@ -110,6 +110,8 @@ type FDESystemState struct {
 	// AutoRepairResult is the status of the auto-repair attempt
 	AutoRepairResult AutoRepairResult `json:"auto-repair-result"`
 
+	Recommendations []RecommendedRemedialAction `json:"recommendations",omit-empty`
+
 	// Preinstall provides information captured during install-time checks.
 	Preinstall FDEPreinstallInfo `json:"preinstall"`
 }
@@ -144,6 +146,7 @@ func SystemState(st *state.State, model *asserts.Model) (*FDESystemState, error)
 		ret.AutoRepairResult = AutoRepairNotInitialized
 	} else {
 		ret.AutoRepairResult = repairResult.Result
+		ret.Recommendations = repairResult.Recommendations
 	}
 
 	s, err := getActivateState(st)
@@ -187,6 +190,9 @@ func SystemState(st *state.State, model *asserts.Model) (*FDESystemState, error)
 	if s.NumActivatedContainersWithRecoveryKey() != 0 {
 		ret.Status = FDEStatusRecovery
 	} else if secboot.ActivateStateHasDegradedErrors(s) {
+		// TODO: we should get degraded from the autorepair
+		// state since there are system wide errors to look
+		// at.
 		ret.Status = FDEStatusDegraded
 	} else {
 		ret.Status = FDEStatusActive

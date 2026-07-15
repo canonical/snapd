@@ -191,7 +191,7 @@ func MockOsutilBootID(f func() (string, error)) (restore func()) {
 	return testutil.Mock(&osutilBootID, f)
 }
 
-func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState) bool) (restore func()) {
+func MockSecbootShouldAttemptRepair(f func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions) (restore func()) {
 	return testutil.Mock(&secbootShouldAttemptRepair, f)
 }
 

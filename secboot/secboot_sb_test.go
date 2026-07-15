@@ -5917,7 +5917,7 @@ func (s *secbootSuite) TestShouldAttemptRepairDegraded(c *C) {
 
 	// Incorrect user auth should not cause repair
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncorrectUserAuth
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	c.Check(secboot.ShouldAttemptRepair(state, nil).AttemptRepair, Equals, false)
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
@@ -5928,12 +5928,12 @@ func (s *secbootSuite) TestShouldAttemptRepairDegraded(c *C) {
 	} {
 		state.Activations["a"].KeyslotErrors["b"] = failure
 
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		c.Check(secboot.ShouldAttemptRepair(state, nil).AttemptRepair, Equals, false)
 	}
 
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncompatibleRoleParams
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	c.Check(secboot.ShouldAttemptRepair(state, nil).AttemptRepair, Equals, true)
 }
 
 func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
@@ -5953,7 +5953,7 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 		},
 	}
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	c.Check(secboot.ShouldAttemptRepair(state, nil).AttemptRepair, Equals, false)
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
@@ -5963,9 +5963,9 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 		sb.KeyslotErrorUnknown,
 	} {
 		state.Activations["a"].KeyslotErrors["a"] = failure
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		c.Check(secboot.ShouldAttemptRepair(state, nil).AttemptRepair, Equals, false)
 	}
 
 	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	c.Check(secboot.ShouldAttemptRepair(state, nil).AttemptRepair, Equals, true)
 }

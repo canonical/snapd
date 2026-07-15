@@ -101,6 +101,7 @@ func (s *activateStateSuite) TestActivateStateHappy(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "active",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -145,6 +146,7 @@ func (s *activateStateSuite) TestActivateStateHappyWithAutoRepairState(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "active",
 		"auto-repair-result": "success",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -190,6 +192,7 @@ func (s *activateStateSuite) TestActivateStateDegraded(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "degraded",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -223,6 +226,7 @@ func (s *activateStateSuite) TestActivateStateInactive(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "inactive",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -258,6 +262,7 @@ func (s *activateStateSuite) TestActivateStateRecovery(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "recovery",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -281,6 +286,7 @@ func (s *activateStateSuite) TestActivateStateNoActivateState(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "indeterminate",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -335,6 +341,7 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSONStateHybridModel(c *
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "indeterminate",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -367,6 +374,7 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSONClassicModel(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "inactive",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -390,6 +398,7 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSONNoModel(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "indeterminate",
 		"auto-repair-result": "not-initialized",
+		"recommendations":    nil,
 		"preinstall": map[string]any{
 			"requirements":    []any{},
 			"accepted-errors": map[string]any{},
@@ -435,6 +444,7 @@ func (s *activateStateSuite) testActivateStateIncludesPreinstallRequirements(c *
 		c.Check(systemState, SerializesTo, map[string]any{
 			"status":             "active",
 			"auto-repair-result": "not-initialized",
+			"recommendations":    nil,
 			"preinstall": map[string]any{
 				"requirements":    []any{"volumes-auth"},
 				"accepted-errors": map[string]any{secboot.ErrorKindNoHardwareRootOfTrust: nil},
@@ -444,6 +454,7 @@ func (s *activateStateSuite) testActivateStateIncludesPreinstallRequirements(c *
 		c.Check(systemState, SerializesTo, map[string]any{
 			"status":             "active",
 			"auto-repair-result": "not-initialized",
+			"recommendations":    nil,
 			"preinstall": map[string]any{
 				"requirements":    []any{},
 				"accepted-errors": map[string]any{"running-in-vm": nil},
