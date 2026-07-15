@@ -58,12 +58,20 @@ type SecretState interface {
 
 	// Set associates value with key for future consulting by managers.
 	// The provided value must properly marshal and unmarshal with encoding/json.
-	Set(key string, value any)
+	// It returns ErrInsufficientCapacity if the serialized state does not
+	// fit in the fixed-size backing store.
+	Set(key string, value any) error
+
+	// Close releases the resources associated with the secret state.
+	// After Close is called the state can no longer be used.
+	Close() error
 }
 
 var (
 	secretStateOnce SecretState
 	secretStateMu   = sync.RWMutex{}
+
+	ErrInsufficientCapacity = errors.New("insufficient capacity in secret state")
 )
 
 func OpenSecretState() (retState SecretState, retErr error) {
@@ -81,7 +89,7 @@ func OpenSecretState() (retState SecretState, retErr error) {
 			retState = &inMemorySecretState{
 				data: make(customData),
 			}
-			runtime.SetFinalizer(retState, (*inMemorySecretState).close)
+			runtime.SetFinalizer(retState, (*inMemorySecretState).Close)
 
 			retErr = nil
 			secretStateOnce = retState
@@ -140,7 +148,7 @@ func OpenSecretState() (retState SecretState, retErr error) {
 		header: initMemfdSecretHeader(mmap),
 		mmap:   mmap,
 	}
-	runtime.SetFinalizer(s, (*memfdSecretState).closeUnlocked)
+	runtime.SetFinalizer(s, (*memfdSecretState).Close)
 
 	if s.header.version != 1 {
 		return nil, fmt.Errorf("unsupported memfd-secret state version %d", s.header.version)
@@ -188,22 +196,23 @@ func (s *inMemorySecretState) Has(key string) bool {
 	return s.data.has(key)
 }
 
-func (s *inMemorySecretState) Set(key string, value any) {
+func (s *inMemorySecretState) Set(key string, value any) error {
 	secretStateMu.Lock()
 	defer secretStateMu.Unlock()
 
 	if s.closed {
-		logger.Panicf("internal error: attempt to set key %q on closed state", key)
+		return fmt.Errorf("internal error: attempt to set key %q on closed state", key)
 	}
 
 	s.data.set(key, value)
+	return nil
 }
 
-func (s *inMemorySecretState) close() error {
+func (s *inMemorySecretState) Close() error {
 	secretStateMu.Lock()
 	defer secretStateMu.Unlock()
 
-	if s.closed {
+	if s == nil || s.closed {
 		return nil
 	}
 
@@ -261,27 +270,33 @@ func (s *memfdSecretState) Has(key string) bool {
 	return s.data.has(key)
 }
 
-func (s *memfdSecretState) Set(key string, value any) {
+func (s *memfdSecretState) Set(key string, value any) error {
 	secretStateMu.Lock()
 	defer secretStateMu.Unlock()
 
 	if s.closed {
-		logger.Panicf("internal error: attempt to set key %q on closed state", key)
-		return
+		return fmt.Errorf("internal error: attempt to set key %q on closed state", key)
 	}
+
+	// remember the previous entry so the change can be reverted if the
+	// resulting state does not fit in the fixed-size backing store.
+	prevValue, hadPrev := s.data[key]
 
 	s.data.set(key, value)
 	p, err := json.Marshal(s.data)
 	if err != nil {
-		logger.Panicf("internal error: cannot marshal state data: %v", err)
+		return fmt.Errorf("internal error: cannot marshal state data: %v", err)
 	}
 
 	needed := len(p)
 	if s.capacity() < needed {
-		if err := s.grow(uint64(needed)); err != nil {
-			// XXX: panic or return error?
-			logger.Panicf("internal error: cannot grow state data: %v", err)
+		// revert the change since the new state does not fit
+		if hadPrev {
+			s.data[key] = prevValue
+		} else {
+			delete(s.data, key)
 		}
+		return fmt.Errorf("cannot set key %q: %w", key, ErrInsufficientCapacity)
 	}
 
 	prevSize := int(s.header.size)
@@ -297,77 +312,6 @@ func (s *memfdSecretState) Set(key string, value any) {
 	}
 	s.header.size = uint64(needed)
 	s.header.writeTo(s.mmap[:memfdSecretDataOffset])
-}
-
-// grow the memfd-secret file to accommodate the needed size.
-//
-// Note: Any mmaped data is lost, so the caller must ensure that
-// the data is copied to the new mmaped region.
-func (s *memfdSecretState) grow(needed uint64) (retErr error) {
-	defer func() {
-		if retErr != nil {
-			// best-effort closing on error
-			if err := s.closeLocked(); err != nil {
-				logger.Noticef("cannot close memfd-secret state: %v", err)
-			}
-
-			// best-effort removal from fdstore on error
-			if err := fdstoreRemove(fdstore.FdNameMemfdSecretState); err != nil && !errors.Is(err, fdstore.ErrNotFound) {
-				logger.Noticef("cannot remove memfd-secret state from fdstore: %v", err)
-			}
-		}
-	}()
-
-	header := s.header
-	// keep doubling the size until the data fits, so we achieve amortized O(1) growth.
-	newSize := uint64(len(s.mmap) * 2)
-	for newSize < needed+uint64(memfdSecretDataOffset) {
-		newSize *= 2
-	}
-	newFile, err := createMemfdSecretFile(newSize)
-	if err != nil {
-		return err
-	}
-
-	if newSize > math.MaxInt {
-		return fmt.Errorf("memfd-secret state size too large: %d", newSize)
-	}
-
-	newMmap, err := unixMmap(int(newFile.Fd()), 0, int(newSize), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if retErr != nil {
-			if err := unixMunmap(newMmap); err != nil {
-				logger.Noticef("cannot unmap memfd-secret state: %v", err)
-			}
-		}
-	}()
-
-	// clean the old state
-	if err := s.closeLocked(); err != nil {
-		return err
-	}
-	if err := fdstoreRemove(fdstore.FdNameMemfdSecretState); err != nil {
-		return err
-	}
-
-	// add new state
-	if err := fdstoreAdd(fdstore.FdNameMemfdSecretState, newFile); err != nil {
-		return err
-	}
-	*s = memfdSecretState{
-		data: s.data,
-
-		f:      newFile,
-		header: header,
-		mmap:   newMmap,
-
-		closed: false,
-	}
-
-	secretStateOnce = s
 	return nil
 }
 
@@ -375,7 +319,7 @@ func (s *memfdSecretState) capacity() int {
 	return len(s.mmap) - memfdSecretDataOffset
 }
 
-func (s *memfdSecretState) closeUnlocked() error {
+func (s *memfdSecretState) Close() error {
 	secretStateMu.Lock()
 	defer secretStateMu.Unlock()
 
@@ -383,7 +327,7 @@ func (s *memfdSecretState) closeUnlocked() error {
 }
 
 func (s *memfdSecretState) closeLocked() error {
-	if s.closed {
+	if s == nil || s.closed {
 		return nil
 	}
 

@@ -170,6 +170,15 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
 
+	if stateBackend == "memfd-secret" {
+		if _, ok := secretState.(*backend.MemfdSecretState); !ok {
+			// On kernels without memfd_secret support (or where it is
+			// disabled), OpenSecretState will fall back to the in-memory
+			// implementation.
+			c.Skip("memfd-secret not supported")
+		}
+	}
+
 	if stateBackend == "in-memory" {
 		c.Assert(logbuf.String(), testutil.Contains, "cannot open memfd-secret backed secret state: cannot get memfd-secret state: boom")
 		c.Assert(logbuf.String(), testutil.Contains, "falling back to memory backed secret state instead")
@@ -203,7 +212,8 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 	c.Check(err, testutil.ErrorIs, state.ErrNoState)
 
 	// Set a key
-	secretState.Set("key-1", "some-value")
+	err = secretState.Set("key-1", "some-value")
+	c.Assert(err, IsNil)
 
 	// Get the key
 	var val string
@@ -216,21 +226,24 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 	c.Assert(exists, Equals, true)
 
 	// Remove the key by setting it to nil
-	secretState.Set("key-1", nil)
+	err = secretState.Set("key-1", nil)
+	c.Assert(err, IsNil)
 
 	// Check if the key exists after removal
 	exists = secretState.Has("key-1")
 	c.Assert(exists, Equals, false)
 
 	// Set another key
-	secretState.Set("key-2", "another-value")
+	err = secretState.Set("key-2", "another-value")
+	c.Assert(err, IsNil)
 
 	// Close the secret state
-	err = backend.CloseSecretState(secretState)
+	err = secretState.Close()
 	c.Assert(err, IsNil)
 
 	// All operations should fail after closing the secret state
-	c.Check(func() { secretState.Set("key-3", "another-value") }, PanicMatches, `internal error: attempt to set key "key-3" on closed state`)
+	err = secretState.Set("key-3", "another-value")
+	c.Check(err, ErrorMatches, `internal error: attempt to set key "key-3" on closed state`)
 	err = secretState.Get("key-3", &val)
 	c.Check(err, ErrorMatches, `internal error: attempt to get key "key-3" on closed state`)
 	exists = secretState.Has("key-3")
@@ -282,13 +295,20 @@ func (s *secretStateSuite) TestMemfdSecretStateHappyInMemoryFallback(c *C) {
 	s.testMemfdSecretStateHappy(c, backend)
 }
 
-func (s *secretStateSuite) TestMemfdSecretStateGrows(c *C) {
+func (s *secretStateSuite) TestMemfdSecretStateSetTooLarge(c *C) {
 	expectedOps := []string{}
 
 	// Open and initialize the secret state
 	secretState, err := backend.OpenSecretState()
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
+
+	if _, ok := secretState.(*backend.MemfdSecretState); !ok {
+		// On kernels without memfd_secret support (or where it is
+		// disabled), OpenSecretState will fall back to the in-memory
+		// implementation.
+		c.Skip("memfd-secret not supported")
+	}
 
 	expectedOps = append(expectedOps,
 		// first try to get the memfd-secret-state from fdstore fails, and
@@ -301,100 +321,40 @@ func (s *secretStateSuite) TestMemfdSecretStateGrows(c *C) {
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
 	memfdSecretState := secretState.(*backend.MemfdSecretState)
-	// initial capacity is (8KB - 128B) for the header
+	// capacity is fixed at (8KB - 128B) for the header
 	c.Assert(memfdSecretState.Capacity(), Equals, 1024*8-128)
 
-	// Set a key with a large value to trigger growth
+	// Setting a key with a value that does not fit in the fixed-size backing
+	// store fails.
 	largeValue := make([]byte, 1024*1024) // 1MB
 	for i := range largeValue {
 		largeValue[i] = byte(i % 256)
 	}
-	secretState.Set("large-key", largeValue)
+	err = secretState.Set("large-key", largeValue)
+	c.Assert(err, ErrorMatches, `cannot set key "large-key": insufficient capacity in secret state`)
+	c.Assert(err, testutil.ErrorIs, backend.ErrInsufficientCapacity)
 
-	// The capacity should have grown to accommodate the large value. The new
-	// capacity should be at least (~1MB + 128B) for the header, and since the growth
-	// doubles the size, it should be (2MB - 128B).
-	c.Assert(memfdSecretState.Capacity(), Equals, 1024*1024*2-128)
+	// The failed Set left no trace: the key was not stored and the capacity
+	// is unchanged.
+	c.Assert(secretState.Has("large-key"), Equals, false)
+	c.Assert(memfdSecretState.Capacity(), Equals, 1024*8-128)
 
-	expectedOps = append(expectedOps,
-		// growth mmaps the new (larger) file, unmaps the old mapping,
-		// then swaps the file stored in fdstore.
-		"mmap: 2097152",
-		"munmap: 8192",
-		"fdstore-remove: memfd-secret-state",
-		"fdstore-add: memfd-secret-state",
-	)
+	// No growth-related operations should have been performed.
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
-	// Get the key and verify the value
-	var retrievedValue []byte
-	err = secretState.Get("large-key", &retrievedValue)
-	c.Assert(err, IsNil)
-	c.Assert(retrievedValue, DeepEquals, largeValue)
+	// A value that fits can still be set afterwards.
+	c.Assert(secretState.Set("small-key", "value"), IsNil)
+	var val string
+	c.Assert(secretState.Get("small-key", &val), IsNil)
+	c.Assert(val, Equals, "value")
 
 	// Close the secret state
-	err = backend.CloseSecretState(secretState)
+	err = secretState.Close()
 	c.Assert(err, IsNil)
 
 	expectedOps = append(expectedOps,
 		// closing unmaps the current mapping
-		"munmap: 2097152",
-	)
-	c.Assert(s.ops, DeepEquals, expectedOps)
-}
-
-func (s *secretStateSuite) TestMemfdSecretStateGrowFails(c *C) {
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
-	// Open and initialize the secret state
-	secretState, err := backend.OpenSecretState()
-	c.Assert(err, IsNil)
-	c.Assert(secretState, NotNil)
-
-	expectedOps := []string{
-		"fdstore-get: memfd-secret-state",
-		"fdstore-add: memfd-secret-state",
-		"mmap: 8192",
-	}
-	c.Assert(s.ops, DeepEquals, expectedOps)
-
-	// Make the fdstore add that happens during growth fail.
-	s.failOn["fdstore-add"] = true
-
-	// Setting a key with a large value triggers growth, which fails at the
-	// fdstore add step. The failure must be cleaned up properly:
-	//   1. close the old state which unmaps its mapping
-	//   2. unmap the new mapping and remove the state from fdstore
-	// The parent Set must panic.
-	largeValue := make([]byte, 1024*1024) // 1MB
-	c.Check(func() { secretState.Set("large-key", largeValue) }, PanicMatches,
-		`internal error: cannot grow state data: boom`)
-
-	expectedOps = append(expectedOps,
-		// growth mmaps the new (larger) file
-		"mmap: 2097152",
-		// growth closes the old state, which unmaps the old mapping
 		"munmap: 8192",
-		// growth removes the old file from fdstore
-		"fdstore-remove: memfd-secret-state",
-		// growth tries to add the new file to fdstore, which fails here
-		"fdstore-add: memfd-secret-state",
-		// cleanup unmaps the new mapping
-		"munmap: 2097152",
-		// cleanup does a best-effort removal from fdstore
-		"fdstore-remove: memfd-secret-state",
 	)
 	c.Assert(s.ops, DeepEquals, expectedOps)
-
-	c.Assert(logbuf.String(), testutil.Contains, "internal error: cannot grow state data: boom")
-
-	// The failed growth fully closed the previous state and reset the global
-	// secret state, so a fresh secret state can be opened again.
-	s.failOn["fdstore-add"] = false
-	secretState, err = backend.OpenSecretState()
-	c.Assert(err, IsNil)
-	c.Assert(secretState, NotNil)
-	c.Assert(secretState.Has("large-key"), Equals, false)
-	c.Assert(backend.CloseSecretState(secretState), IsNil)
 }
