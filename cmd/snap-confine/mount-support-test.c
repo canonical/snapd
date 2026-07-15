@@ -18,6 +18,8 @@
 #include "mount-support.h"
 #include "mount-support-nvidia.c"
 #include "mount-support-nvidia.h"
+#include "mount-support-wsl2-gpu.c"
+#include "mount-support-wsl2-gpu.h"
 #include "mount-support.c"
 
 #include <glib.h>

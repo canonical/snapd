@@ -144,7 +144,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_VERSION":       "1.0",
 		"SNAP_REVISION":      "17",
 		"SNAP_ARCH":          arch.DpkgArchitecture(),
-		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
+		"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/lib/wsl",
 		"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 		"SNAP_UID":           fmt.Sprint(sys.Getuid()),
 		"SNAP_EUID":          fmt.Sprint(sys.Geteuid()),
@@ -301,7 +301,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			"SNAP_VERSION":       "1.0",
 			"SNAP_REVISION":      "42",
 			"SNAP_ARCH":          arch.DpkgArchitecture(),
-			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
+			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/lib/wsl",
 			"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 			"SNAP_USER_COMMON":   fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
 			"SNAP_USER_DATA":     fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
@@ -349,7 +349,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			"SNAP_VERSION":       "1.0",
 			"SNAP_REVISION":      "42",
 			"SNAP_ARCH":          arch.DpkgArchitecture(),
-			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32",
+			"SNAP_LIBRARY_PATH":  "/var/lib/snapd/lib/gl:/var/lib/snapd/lib/gl32:/var/lib/snapd/lib/wsl",
 			"SNAP_REEXEC":        os.Getenv("SNAP_REEXEC"),
 			// User's data directories are not mapped to
 			// snap-specific ones
