@@ -98,6 +98,9 @@ owner /run/user/[0-9]*/doc/{,*/} r,
 # the user guided the access and can specify anything DAC allows.
 /run/user/[0-9]*/doc/*/** rw,
 
+# Avoid errors when running .exe files accessed via the XDG Desktop Portal.
+/run/user/[0-9]*/doc/** m,
+
 # Allow access to xdg-desktop-portal and xdg-document-portal
 dbus (receive, send)
     bus=session
