@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -83,7 +82,16 @@ func (s *copydataSuite) TestCopyData(c *C) {
 }
 
 func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOptions) {
-	dirs.SetSnapHomeDirs("/home")
+	{
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+			return []*user.User{usr}, nil
+		})
+		defer restore()
+	}
+
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", snapDir)
 	homeData := filepath.Join(homedir, "hello/10")
 	err := os.MkdirAll(homeData, 0755)
@@ -150,7 +158,19 @@ func (s *copydataSuite) testCopyDataMulti(c *C, snapDir string, opts *dirs.SnapD
 		filepath.Join(dirs.GlobalRootDir, "home", "company"),
 		filepath.Join(dirs.GlobalRootDir, "home", "department"),
 		filepath.Join(dirs.GlobalRootDir, "office")}
-	dirs.SetSnapHomeDirs(strings.Join(homeDirs, ","))
+
+	var mockUsers []*user.User
+	for i, homeBase := range homeDirs {
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = filepath.Join(homeBase, "user1")
+		usr.Uid = fmt.Sprintf("%d", 1000+i)
+		mockUsers = append(mockUsers, usr)
+	}
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return mockUsers, nil
+	})
+	defer restore()
 
 	snapHomeDirs := []string{}
 	snapHomeDataDirs := []string{}
@@ -309,6 +329,16 @@ func (s *copydataSuite) testCopyDataUndo(c *C, snapDir string, opts *dirs.SnapDi
 	s.populateData(c, snap.R(10))
 	homedir := s.populateHomeDataWithSnapDir(c, "user1", snapDir, snap.R(10))
 
+	{
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+			return []*user.User{usr}, nil
+		})
+		defer restore()
+	}
+
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
@@ -443,6 +473,16 @@ func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
 	s.populateData(c, snap.R(10))
 	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
+	{
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+			return []*user.User{usr}, nil
+		})
+		defer restore()
+	}
+
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
@@ -469,6 +509,16 @@ func (s *copydataSuite) TestCopyDataUndoIdempotent(c *C) {
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	s.populateData(c, snap.R(10))
 	homedir := s.populateHomeData(c, "user1", snap.R(10))
+
+	{
+		usr, err := user.Current()
+		c.Assert(err, IsNil)
+		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+			return []*user.User{usr}, nil
+		})
+		defer restore()
+	}
 
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
@@ -563,6 +613,19 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 	s.populateData(c, snap.R(10))
 	homedir1 := s.populateHomeData(c, "user1", snap.R(10))
 	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
+
+	{
+		usr1, err := user.Current()
+		c.Assert(err, IsNil)
+		usr1.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		usr2, err := user.Current()
+		c.Assert(err, IsNil)
+		usr2.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user2")
+		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+			return []*user.User{usr1, usr2}, nil
+		})
+		defer restore()
+	}
 
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})

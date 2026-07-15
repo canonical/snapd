@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -50,12 +52,17 @@ func (s *snapdataSuite) TearDownTest(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapData(c *C) {
-	dirs.SetSnapHomeDirs("/home")
-	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", "snap")
-	homeData := filepath.Join(homedir, "hello/10")
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1")
+	usr := &user.User{Uid: "1000", HomeDir: homedir}
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	homeData := filepath.Join(homedir, "snap", "hello", "10")
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
-	varData := filepath.Join(dirs.SnapDataDir, "hello/10")
+	varData := filepath.Join(dirs.SnapDataDir, "hello", "10")
 	err = os.MkdirAll(varData, 0755)
 	c.Assert(err, IsNil)
 
@@ -69,97 +76,123 @@ func (s *snapdataSuite) TestRemoveSnapData(c *C) {
 	c.Assert(osutil.FileExists(filepath.Dir(varData)), Equals, true)
 }
 
-// same as TestRemoveSnapData but with multiple homedirs
+// same as TestRemoveSnapData but with multiple users in different homedirs
 func (s *snapdataSuite) TestRemoveSnapDataMulti(c *C) {
-	homeDirs := []string{filepath.Join(dirs.GlobalRootDir, "home"),
-		filepath.Join(dirs.GlobalRootDir, "home", "company"),
-		filepath.Join(dirs.GlobalRootDir, "home", "department"),
-		filepath.Join(dirs.GlobalRootDir, "office")}
+	userHomes := []string{
+		filepath.Join(dirs.GlobalRootDir, "home", "user1"),
+		filepath.Join(dirs.GlobalRootDir, "home", "company", "user2"),
+		filepath.Join(dirs.GlobalRootDir, "home", "department", "user3"),
+		filepath.Join(dirs.GlobalRootDir, "office", "user4"),
+	}
+	var users []*user.User
+	for i, home := range userHomes {
+		users = append(users, &user.User{
+			Uid:     fmt.Sprintf("%d", 1000+i),
+			HomeDir: home,
+		})
+	}
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return users, nil
+	})
+	defer restore()
 
-	dirs.SetSnapHomeDirs(strings.Join(homeDirs, ","))
-	snapHomeDataDirs := []string{}
-
-	for _, v := range homeDirs {
-		snapHomeDir := filepath.Join(v, "user1", "snap")
-		snapHomeData := filepath.Join(snapHomeDir, "hello/10")
+	snapHomeDataDirs := make([]string, 0, len(userHomes))
+	for _, home := range userHomes {
+		snapHomeData := filepath.Join(home, "snap", "hello", "10")
 		err := os.MkdirAll(snapHomeData, 0755)
 		c.Assert(err, IsNil)
 		snapHomeDataDirs = append(snapHomeDataDirs, snapHomeData)
 	}
 
-	varData := filepath.Join(dirs.SnapDataDir, "hello/10")
+	varData := filepath.Join(dirs.SnapDataDir, "hello", "10")
 	err := os.MkdirAll(varData, 0755)
 	c.Assert(err, IsNil)
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	err = s.be.RemoveSnapData(info, nil)
+	c.Assert(err, IsNil)
 
 	for _, v := range snapHomeDataDirs {
-		c.Assert(err, IsNil)
 		c.Assert(osutil.FileExists(v), Equals, false)
 		c.Assert(osutil.FileExists(filepath.Dir(v)), Equals, true)
-
 	}
-
 	c.Assert(osutil.FileExists(varData), Equals, false)
 	c.Assert(osutil.FileExists(filepath.Dir(varData)), Equals, true)
 }
 
 func (s *snapdataSuite) TestSnapDataDirs(c *C) {
-	homeDir1 := filepath.Join("home", "users")
-	homeDir2 := filepath.Join("remote", "users")
-	homeDirs := homeDir1 + "," + homeDir2
-	dirs.SetSnapHomeDirs(homeDirs)
-	dataHomeDirs := []string{filepath.Join(dirs.GlobalRootDir, homeDir1, "user1", "snap", "hello", "10"),
-		filepath.Join(dirs.GlobalRootDir, homeDir1, "user2", "snap", "hello", "10"),
-		filepath.Join(dirs.GlobalRootDir, homeDir2, "user3", "snap", "hello", "10"),
-		filepath.Join(dirs.GlobalRootDir, homeDir2, "user4", "snap", "hello", "10"),
-		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "10"),
-		filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "10")}
-	for _, path := range dataHomeDirs {
-		err := os.MkdirAll(path, 0755)
-		c.Assert(err, IsNil)
-	}
+	homeDir1 := filepath.Join(dirs.GlobalRootDir, "home", "users")
+	homeDir2 := filepath.Join(dirs.GlobalRootDir, "remote", "users")
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "0", HomeDir: filepath.Join(dirs.GlobalRootDir, "/root")},
+			{Uid: "1001", HomeDir: filepath.Join(homeDir1, "user1")},
+			{Uid: "1002", HomeDir: filepath.Join(homeDir1, "user2")},
+			{Uid: "1003", HomeDir: filepath.Join(homeDir2, "user3")},
+			{Uid: "1004", HomeDir: filepath.Join(homeDir2, "user4")},
+		}, nil
+	})
+	defer restore()
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	snapDataDirs, err := backend.SnapDataDirs(info, nil)
+	result, err := backend.SnapDataDirs(info, nil)
 	c.Assert(err, IsNil)
-	c.Check(snapDataDirs, DeepEquals, dataHomeDirs)
+	c.Check(result, DeepEquals, []string{
+		filepath.Join(homeDir1, "user1", "snap", "hello", "10"),
+		filepath.Join(homeDir1, "user2", "snap", "hello", "10"),
+		filepath.Join(homeDir2, "user3", "snap", "hello", "10"),
+		filepath.Join(homeDir2, "user4", "snap", "hello", "10"),
+		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "10"),
+		filepath.Join(dirs.SnapDataDir, "hello", "10"),
+	})
 }
 
 func (s *snapdataSuite) TestSnapCommonDataDirs(c *C) {
 	homeDir1 := filepath.Join(dirs.GlobalRootDir, "home", "users")
 	homeDir2 := filepath.Join(dirs.GlobalRootDir, "remote", "users")
-	homeDirs := homeDir1 + "," + homeDir2
-	dirs.SetSnapHomeDirs(homeDirs)
-	dataHomeDirs := []string{filepath.Join(homeDir1, "user1", "snap", "hello", "common"), filepath.Join(homeDir1, "user2", "snap", "hello", "common"),
-		filepath.Join(homeDir2, "user3", "snap", "hello", "common"), filepath.Join(homeDir2, "user4", "snap", "hello", "common"),
-		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common"), filepath.Join(dirs.GlobalRootDir, "var", "snap", "hello", "common")}
-	for _, path := range dataHomeDirs {
-		err := os.MkdirAll(path, 0755)
-		c.Assert(err, IsNil)
-	}
+
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "0", Gid: "0", HomeDir: filepath.Join(dirs.GlobalRootDir, "/root")},
+			{Uid: "1001", Gid: "1001", HomeDir: filepath.Join(homeDir1, "user1")},
+			{Uid: "1002", Gid: "1002", HomeDir: filepath.Join(homeDir2, "user2")},
+		}, nil
+	})
+	defer restore()
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-	snapCommonDataDirs, err := backend.SnapCommonDataDirs(info, nil)
+	result, err := backend.SnapCommonDataDirs(info, nil)
 	c.Assert(err, IsNil)
-	c.Check(snapCommonDataDirs, DeepEquals, dataHomeDirs)
+	// order: home common dirs, root common dir, XDG runtime dirs (all users incl. root), system common dir
+	c.Check(result, DeepEquals, []string{
+		filepath.Join(homeDir1, "user1", "snap", "hello", "common"),
+		filepath.Join(homeDir2, "user2", "snap", "hello", "common"),
+		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common"),
+		filepath.Join(dirs.XdgRuntimeDirBase, "0", "snap.hello"),
+		filepath.Join(dirs.XdgRuntimeDirBase, "1001", "snap.hello"),
+		filepath.Join(dirs.XdgRuntimeDirBase, "1002", "snap.hello"),
+		filepath.Join(dirs.SnapDataDir, "hello", "common"),
+	})
 }
 
 func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
-	dirs.SetSnapHomeDirs("/home")
-	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1", "snap")
-	homeCommonData := filepath.Join(homedir, "hello/common")
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1")
+	usr := &user.User{Uid: "1000", Gid: "1000", HomeDir: homedir}
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	homeCommonData := filepath.Join(homedir, "snap", "hello", "common")
 	err := os.MkdirAll(homeCommonData, 0755)
 	c.Assert(err, IsNil)
-	varCommonData := filepath.Join(dirs.SnapDataDir, "hello/common")
+	varCommonData := filepath.Join(dirs.SnapDataDir, "hello", "common")
 	err = os.MkdirAll(varCommonData, 0755)
 	c.Assert(err, IsNil)
-
 	rootCommonDir := filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common")
 	c.Assert(os.MkdirAll(rootCommonDir, 0700), IsNil)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
-
 	err = s.be.RemoveSnapCommonData(info, nil)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(homeCommonData), Equals, false)
@@ -207,18 +240,30 @@ func (s *snapdataSuite) testRemoveSnapDataDir(c *C, hasOtherInstances bool, opts
 	// root + user home data dirs
 	homeDir1 := filepath.Join(dirs.GlobalRootDir, "home", "users")
 	homeDir2 := filepath.Join(dirs.GlobalRootDir, "remote", "users")
-	homeDirs := homeDir1 + "," + homeDir2
-	dirs.SetSnapHomeDirs(homeDirs)
-	snapDataDirs := []string{
+	userHomes := []string{
 		filepath.Join(homeDir1, "user1"),
 		filepath.Join(homeDir1, "user2"),
 		filepath.Join(homeDir2, "user3"),
 		filepath.Join(homeDir2, "user4"),
-		filepath.Join(dirs.GlobalRootDir, "root"),
 	}
-	for _, dir := range snapDataDirs {
-		baseDataDirs = append(baseDataDirs, filepath.Join(dir, snapHomeDir, "hello"))
-		baseDataInstanceDirs = append(baseDataInstanceDirs, filepath.Join(dir, snapHomeDir, "hello_instance"))
+	rootHome := filepath.Join(dirs.GlobalRootDir, "root")
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		users := []*user.User{
+			{Uid: "0", HomeDir: rootHome},
+		}
+		for i, home := range userHomes {
+			users = append(users, &user.User{
+				Uid:     fmt.Sprintf("%d", 1001+i),
+				HomeDir: home,
+			})
+		}
+		return users, nil
+	})
+	defer restore()
+
+	for _, home := range append(userHomes, rootHome) {
+		baseDataDirs = append(baseDataDirs, filepath.Join(home, snapHomeDir, "hello"))
+		baseDataInstanceDirs = append(baseDataInstanceDirs, filepath.Join(home, snapHomeDir, "hello_instance"))
 	}
 
 	// create all base directories
@@ -294,7 +339,14 @@ func (s *snapdataSuite) TestRemoveSnapDataDirWithHiddenDataDirNoOtherInstances(c
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirWithUnexpectedFiles(c *C) {
-	baseDataDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap", "hello")
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "users")
+	usr := &user.User{Uid: "1000", HomeDir: homedir}
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{usr}, nil
+	})
+	defer restore()
+
+	baseDataDir := filepath.Join(homedir, "snap", "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
 	// expected current symlink
 	dataCurrentSymlink := filepath.Join(baseDataDir, "current")
@@ -308,7 +360,15 @@ func (s *snapdataSuite) TestRemoveSnapDataDirWithUnexpectedFiles(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirEnotemptyWithReadDirError(c *C) {
-	baseDataDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap", "hello")
+	homeDir := filepath.Join(dirs.GlobalRootDir, "home", "users")
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "1000", HomeDir: homeDir},
+		}, nil
+	})
+	defer restore()
+
+	baseDataDir := filepath.Join(homeDir, "snap", "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
 	// unexpected folder to make removal fail with ENOTEMPTY
 	c.Assert(os.Mkdir(filepath.Join(baseDataDir, "unexpected"), 0755), IsNil)
@@ -323,7 +383,15 @@ func (s *snapdataSuite) TestRemoveSnapDataDirEnotemptyWithReadDirError(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirErrorNotEnotempty(c *C) {
-	parentDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap")
+	homeDir := filepath.Join(dirs.GlobalRootDir, "home", "users")
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "1000", HomeDir: homeDir},
+		}, nil
+	})
+	defer restore()
+
+	parentDir := filepath.Join(homeDir, "snap")
 	baseDataDir := filepath.Join(parentDir, "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
 	// make parent non-writable so removal fails with EACCES, not ENOTEMPTY;
@@ -337,7 +405,15 @@ func (s *snapdataSuite) TestRemoveSnapDataDirErrorNotEnotempty(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirCurrentSymlinkRemovalFails(c *C) {
-	baseDataDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap", "hello")
+	homeDir := filepath.Join(dirs.GlobalRootDir, "home", "users")
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "1000", HomeDir: homeDir},
+		}, nil
+	})
+	defer restore()
+
+	baseDataDir := filepath.Join(homeDir, "snap", "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
 	// create the current symlink
 	c.Assert(os.Symlink("10", filepath.Join(baseDataDir, "current")), IsNil)
@@ -349,4 +425,85 @@ func (s *snapdataSuite) TestRemoveSnapDataDirCurrentSymlinkRemovalFails(c *C) {
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	err := s.be.RemoveSnapDataDir(info, false, nil)
 	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello/current: permission denied`)
+}
+
+// TestRemoveSnapDataSkipsNonUserDir verifies that directories that look like
+// home dirs but don't belong to any real user are not removed.
+func (s *snapdataSuite) TestRemoveSnapDataSkipsNonUserDir(c *C) {
+	realHomeDir := filepath.Join(dirs.GlobalRootDir, "home", "real-user")
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "1000", HomeDir: realHomeDir},
+		}, nil
+	})
+	defer restore()
+
+	// Create data for the real user
+	realData := filepath.Join(realHomeDir, "snap", "hello", "10")
+	c.Assert(os.MkdirAll(realData, 0755), IsNil)
+
+	// Create data under a directory that looks like a home dir but isn't a real user
+	nonUserData := filepath.Join(dirs.GlobalRootDir, "home", "build-artifact", "snap", "hello", "10")
+	c.Assert(os.MkdirAll(nonUserData, 0755), IsNil)
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	err := s.be.RemoveSnapData(info, nil)
+	c.Assert(err, IsNil)
+
+	// Real user's data is removed
+	c.Assert(osutil.FileExists(realData), Equals, false)
+	// Non-user directory is NOT removed
+	c.Assert(osutil.FileExists(nonUserData), Equals, true)
+}
+
+// TestSnapDataDirsAllUsersError verifies that errors from allUsers() are propagated.
+func (s *snapdataSuite) TestSnapDataDirsAllUsersError(c *C) {
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return nil, fmt.Errorf("mock AllUsers error")
+	})
+	defer restore()
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	_, err := backend.SnapDataDirs(info, nil)
+	c.Assert(err, ErrorMatches, "mock AllUsers error")
+}
+
+// TestSnapCommonDataDirsAllUsersError verifies that errors from allUsers() are propagated.
+func (s *snapdataSuite) TestSnapCommonDataDirsAllUsersError(c *C) {
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return nil, fmt.Errorf("mock AllUsers error")
+	})
+	defer restore()
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	_, err := backend.SnapCommonDataDirs(info, nil)
+	c.Assert(err, ErrorMatches, "mock AllUsers error")
+}
+
+// TestRemoveSnapDataDirAllUsersError verifies that errors from allUsers() are
+// propagated when removing the snap base data directory.
+func (s *snapdataSuite) TestRemoveSnapDataDirAllUsersError(c *C) {
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return nil, fmt.Errorf("mock AllUsers error")
+	})
+	defer restore()
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	err := s.be.RemoveSnapDataDir(info, false, nil)
+	c.Assert(err, ErrorMatches, "mock AllUsers error")
+}
+
+// TestSnapCommonDataDirsInvalidUid verifies that a non-numeric UID returned by
+// allUsers() causes an error when building the XDG runtime directory list.
+func (s *snapdataSuite) TestSnapCommonDataDirsInvalidUid(c *C) {
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "not-a-uid", Gid: "0", HomeDir: filepath.Join(dirs.GlobalRootDir, "home", "user1")},
+		}, nil
+	})
+	defer restore()
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	_, err := backend.SnapCommonDataDirs(info, nil)
+	c.Assert(err, ErrorMatches, `cannot parse user id not-a-uid: .*`)
 }
