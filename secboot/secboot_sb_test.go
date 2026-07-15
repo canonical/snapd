@@ -5912,6 +5912,7 @@ func (s *secbootSuite) TestActivateStateDegraded(c *C) {
 		//FIXME: enable this once we can discriminate the no
 		// key data case.
 		//sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidRoleParams,
 		sb.KeyslotErrorInvalidPrimaryKey,
 		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
@@ -5937,23 +5938,54 @@ func (s *secbootSuite) TestShouldAttemptRepairDegraded(c *C) {
 
 	// Incorrect user auth should not cause repair
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncorrectUserAuth
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
+
+	// Technically KeyslotErrorUserAuthUnavailable should also be ignored though
+	// it would never happen as degraded.
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorUserAuthUnavailable
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
-		sb.KeyslotErrorInvalidKeyData,
 		sb.KeyslotErrorInvalidPrimaryKey,
 		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
 	} {
 		state.Activations["a"].KeyslotErrors["b"] = failure
 
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
+	}
+
+	// TODO: we should handle KeyslotErrorInvalidKeyData once we can
+	// discriminate the case of not using token.
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorInvalidKeyData,
+	} {
+		state.Activations["a"].KeyslotErrors["b"] = failure
+
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{})
 	}
 
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncompatibleRoleParams
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{AttemptRepair: true})
+
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorInvalidRoleParams
+
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{AttemptRepair: true})
+
+	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncorrectUserAuth
+
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
 }
 
 func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
@@ -5965,7 +5997,7 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 				"a": sb.KeyslotErrorIncorrectUserAuth,
 			},
 		},
-		"ignored": {
+		"b": {
 			Status: sb.ActivationSucceededWithPlatformKey,
 			KeyslotErrors: map[string]sb.KeyslotErrorType{
 				"a": sb.KeyslotErrorIncompatibleRoleParams,
@@ -5973,21 +6005,220 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 		},
 	}
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       true,
+	})
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
-		//sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidRoleParams,
 		sb.KeyslotErrorInvalidPrimaryKey,
-		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
 	} {
 		state.Activations["a"].KeyslotErrors["a"] = failure
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
+	}
+
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorIncorrectUserAuth,
+	} {
+		state.Activations["a"].KeyslotErrors["a"] = failure
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+			PermitManual:       true,
+		})
+	}
+
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorPlatformFailure,
+	} {
+		state.Activations["a"].KeyslotErrors["a"] = failure
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
 	}
 
 	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+
+	// A degraded error on b can force auto repair.
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorPlatformFailure
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+
+	// DA lockout should not need fix, but "b" does need fix.
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorUserAuthUnavailable
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+
+	// Let's clear error on b
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorNone
+
+	// DA lockout does not need fix
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorUserAuthUnavailable
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
+
+	// Special unexpected case: no errors at all should not be
+	// considered only KeyslotErrorUserAuthUnavailable errors.
+	delete(state.Activations["a"].KeyslotErrors, "a")
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairWithMultipleRecovery(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncompatibleRoleParams,
+			},
+		},
+		"b": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorIncompatibleRoleParams,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
+
+	// All incorrect user auth on one container
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorIncorrectUserAuth
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       true,
+	})
+
+	// Same but inverted
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncorrectUserAuth
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       true,
+	})
+
+	// Some more complicated errror
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorInvalidPrimaryKey
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+
+	state.Activations["b"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
+	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorInvalidPrimaryKey
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairNoRepair(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorLocked(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorUserAuthUnavailable,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrTPMLockout)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequirePlatformReset: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorAnyError(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, fmt.Errorf("some-unknown-error"))
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorUninitializedWithRecovery(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithRecoveryKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorInvalidKeyData,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrLockoutAuthNotInitialized)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorUninitialized(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrLockoutAuthNotInitialized)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
 }
 
 func (s *secbootSuite) TestGetPCRHandleFromToken(c *C) {
