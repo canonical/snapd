@@ -83,9 +83,7 @@ func (s *copydataSuite) TestCopyData(c *C) {
 
 func (s *copydataSuite) testCopyData(c *C, snapDir string, opts *dirs.SnapDirOptions) {
 	{
-		usr, err := user.Current()
-		c.Assert(err, IsNil)
-		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		usr := &user.User{Uid: "1000", Gid: "1000", HomeDir: filepath.Join(dirs.GlobalRootDir, "home", "user1")}
 		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
 			return []*user.User{usr}, nil
 		})
@@ -330,9 +328,7 @@ func (s *copydataSuite) testCopyDataUndo(c *C, snapDir string, opts *dirs.SnapDi
 	homedir := s.populateHomeDataWithSnapDir(c, "user1", snapDir, snap.R(10))
 
 	{
-		usr, err := user.Current()
-		c.Assert(err, IsNil)
-		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		usr := &user.User{Uid: "1000", Gid: "1000", HomeDir: filepath.Join(dirs.GlobalRootDir, "home", "user1")}
 		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
 			return []*user.User{usr}, nil
 		})
@@ -474,9 +470,7 @@ func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
 	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	{
-		usr, err := user.Current()
-		c.Assert(err, IsNil)
-		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		usr := &user.User{Uid: "1000", Gid: "1000", HomeDir: filepath.Join(dirs.GlobalRootDir, "home", "user1")}
 		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
 			return []*user.User{usr}, nil
 		})
@@ -511,9 +505,7 @@ func (s *copydataSuite) TestCopyDataUndoIdempotent(c *C) {
 	homedir := s.populateHomeData(c, "user1", snap.R(10))
 
 	{
-		usr, err := user.Current()
-		c.Assert(err, IsNil)
-		usr.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
+		usr := &user.User{Uid: "1000", Gid: "1000", HomeDir: filepath.Join(dirs.GlobalRootDir, "home", "user1")}
 		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
 			return []*user.User{usr}, nil
 		})
@@ -615,12 +607,8 @@ func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
 	homedir2 := s.populateHomeData(c, "user2", snap.R(10))
 
 	{
-		usr1, err := user.Current()
-		c.Assert(err, IsNil)
-		usr1.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user1")
-		usr2, err := user.Current()
-		c.Assert(err, IsNil)
-		usr2.HomeDir = filepath.Join(dirs.GlobalRootDir, "home", "user2")
+		usr1 := &user.User{Uid: "1000", Gid: "1000", HomeDir: filepath.Join(dirs.GlobalRootDir, "home", "user1")}
+		usr2 := &user.User{Uid: "1001", Gid: "1001", HomeDir: filepath.Join(dirs.GlobalRootDir, "home", "user2")}
 		restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
 			return []*user.User{usr1, usr2}, nil
 		})
