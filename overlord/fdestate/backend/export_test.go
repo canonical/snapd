@@ -87,8 +87,14 @@ func MockUnixMunmap(f func(b []byte) error) (restore func()) {
 }
 
 func ResetSecretState() {
-	if secretStateOnce != nil {
-		secretStateOnce.Close()
+	secretStateMu.RLock()
+	s := secretStateOnce
+	secretStateMu.RUnlock()
+
+	if s != nil {
+		s.Close()
+		secretStateMu.Lock()
 		secretStateOnce = nil
+		secretStateMu.Unlock()
 	}
 }

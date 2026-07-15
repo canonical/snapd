@@ -286,13 +286,13 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 }
 
 func (s *secretStateSuite) TestMemfdSecretStateHappyMemfdSecret(c *C) {
-	const backend = "memfd-secret"
-	s.testMemfdSecretStateHappy(c, backend)
+	const stateBackend = "memfd-secret"
+	s.testMemfdSecretStateHappy(c, stateBackend)
 }
 
 func (s *secretStateSuite) TestMemfdSecretStateHappyInMemoryFallback(c *C) {
-	const backend = "in-memory"
-	s.testMemfdSecretStateHappy(c, backend)
+	const stateBackend = "in-memory"
+	s.testMemfdSecretStateHappy(c, stateBackend)
 }
 
 func (s *secretStateSuite) TestMemfdSecretStateSetTooLarge(c *C) {

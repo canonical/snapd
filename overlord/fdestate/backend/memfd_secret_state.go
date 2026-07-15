@@ -1,3 +1,22 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2026 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package backend
 
 import (
@@ -360,6 +379,13 @@ func initMemfdSecretHeader(data []byte) memfdSecretHeader {
 		magic: binary.LittleEndian.Uint32(data[0:4]),
 	}
 	if header.magic != memfdSecretMagic {
+		// unknown magic, wipe the whole file to avoid leaking
+		// secrets from previous usage.
+		// TODO:GOVERSION: use clear() once we are on go>=1.21
+		for i := range data {
+			data[i] = 0
+		}
+
 		// initialize header
 		header = memfdSecretHeader{
 			magic:   memfdSecretMagic,
@@ -367,14 +393,6 @@ func initMemfdSecretHeader(data []byte) memfdSecretHeader {
 			size:    0,
 		}
 		header.writeTo(data[:memfdSecretDataOffset])
-
-		// unknown magic, wipe the rest of the file to avoid leaking
-		// secrets from previous usage.
-		// TODO:GOVERSION: use clear() once we are on go>=1.21
-		payload := data[memfdSecretDataOffset:]
-		for i := range payload {
-			payload[i] = 0
-		}
 	} else {
 		header.version = binary.LittleEndian.Uint16(data[4:6])
 		header.size = binary.LittleEndian.Uint64(data[6:14])
@@ -394,6 +412,8 @@ func createMemfdSecretFile(size uint64) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	// TODO: Use raw fcntl and check for errors.
+	unix.CloseOnExec(fd)
 
 	f := os.NewFile(uintptr(fd), "memfd-secret")
 	// memfd-secret files are created with size 0, so we need
