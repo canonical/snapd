@@ -371,3 +371,10 @@ type Disk interface {
 	PartitionWithFsLabel(string) (Partition, error)
 	DiskModel() string
 }
+
+type RemedialActions struct {
+	AttemptRepair        bool
+	RequireReprovision   bool
+	PermitManual         bool
+	RequirePlatformReset bool
+}
