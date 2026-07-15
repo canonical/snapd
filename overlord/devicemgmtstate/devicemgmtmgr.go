@@ -218,6 +218,11 @@ func (ms *deviceMgmtState) enqueueRequestMessages(pollResp *store.MessageExchang
 			ms.Sequences[reqMsg.BaseID] = seq
 		}
 
+		// Drop any sequenced message that has already been applied.
+		if reqMsg.SeqNum > 0 && reqMsg.SeqNum <= seq.Applied {
+			continue
+		}
+
 		// TODO:GOVERSION:1.21: replace with slices.BinarySearchFunc
 		i := sort.Search(len(seq.Messages), func(i int) bool {
 			return seq.Messages[i].SeqNum >= reqMsg.SeqNum
