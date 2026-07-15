@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const accessibilityLegacySummary = `special permissions for accessibility server`
+const accessibilityLegacySummary = `allows access to accessibility server`
 
 const accessibilityLegacyBaseDeclarationSlots = `
   accessibility-legacy:
