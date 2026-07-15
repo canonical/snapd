@@ -20,7 +20,6 @@
 package backend
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/snapcore/snapd/boot"
@@ -33,17 +32,6 @@ type MemfdSecretState = memfdSecretState
 
 func (s *memfdSecretState) Capacity() int {
 	return s.capacity()
-}
-
-func CloseSecretState(s SecretState) error {
-	switch s := s.(type) {
-	case *memfdSecretState:
-		return s.closeUnlocked()
-	case *inMemorySecretState:
-		return s.close()
-	default:
-		return fmt.Errorf("unsupported secret state type")
-	}
 }
 
 func MockSsecbootFindFreeHandle(f func() (uint32, error)) (restore func()) {
@@ -100,12 +88,7 @@ func MockUnixMunmap(f func(b []byte) error) (restore func()) {
 
 func ResetSecretState() {
 	if secretStateOnce != nil {
-		switch s := secretStateOnce.(type) {
-		case *memfdSecretState:
-			s.closeUnlocked()
-		case *inMemorySecretState:
-			s.close()
-		}
+		secretStateOnce.Close()
 		secretStateOnce = nil
 	}
 }
