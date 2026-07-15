@@ -20,10 +20,13 @@
 package daemon_test
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"testing/iotest"
 
 	. "gopkg.in/check.v1"
 
@@ -1045,6 +1048,10 @@ func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
 
 }
 
+// TestByActionAccessLargeJSON pins down that byActionAccess still surfaces
+// the body-size-limit error at the access-checker boundary (parsing is
+// delegated to parseRequestAction, but the wire-level BadRequest response
+// is byActionAccess's contract).
 func (s *accessSuite) TestByActionAccessLargeJSON(c *C) {
 	body := strings.NewReader(fmt.Sprintf(`{"action": "%s"}`, strings.Repeat("a", 4*1024*1024)))
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
@@ -1058,8 +1065,10 @@ func (s *accessSuite) TestByActionAccessLargeJSON(c *C) {
 	c.Assert(err, DeepEquals, daemon.BadRequest("body size limit exceeded"))
 }
 
-func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
-	body := strings.NewReader(fmt.Sprintf(`{"action": "some-action"} data`))
+// TestByActionAccessDataAfterJSON pins down that byActionAccess still
+// surfaces the trailing-data error at the access-checker boundary.
+func (s *accessSuite) TestByActionAccessDataAfterJSON(c *C) {
+	body := strings.NewReader(`{"action": "some-action"} data`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
@@ -1069,4 +1078,41 @@ func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
 	err = ac.CheckAccess(nil, req, &ucred, nil)
 	c.Assert(err, DeepEquals, daemon.BadRequest("unexpected data after request body"))
+}
+
+// TestByActionAccessEmptyBody pins down that an empty POST body with a
+// JSON content type is rejected with BadRequest("EOF"), matching
+// pre-refactor wire behavior.
+func (s *accessSuite) TestByActionAccessEmptyBody(c *C) {
+	req, err := http.NewRequest("POST", "/v2/system-volumes", strings.NewReader(""))
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
+
+	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+	err = ac.CheckAccess(nil, req, &ucred, nil)
+	c.Assert(err, DeepEquals, daemon.BadRequest("EOF"))
+}
+
+// TestByActionAccessBodyReadError pins down that a non-EOF read error
+// from the request body surfaces as BadRequest carrying the underlying
+// error message.
+func (s *accessSuite) TestByActionAccessBodyReadError(c *C) {
+	simulatedErr := errors.New("simulated transient read error")
+	// Yield a partial JSON prefix, then error on subsequent reads —
+	// stdlib composition of a stream that broke partway through.
+	body := io.NopCloser(io.MultiReader(
+		strings.NewReader(`{"action":"install"`),
+		iotest.ErrReader(simulatedErr),
+	))
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
+
+	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+	err = ac.CheckAccess(nil, req, &ucred, nil)
+	c.Assert(err, DeepEquals, daemon.BadRequest(simulatedErr.Error()))
 }
