@@ -38,16 +38,16 @@ execute: |
     echo "Then the snap is able to list the BPF filesystem"
     test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/fs/bpf/"
 
-    echo "Then the snap is not able to list the snap BPF folder"
-    not test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/fs/bpf/snap" 2> access.error
-    MATCH "Permission denied" < access.error
-
     echo "Then the snap is able to access the sched_ext filesystem"
     test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/kernel/sched_ext/"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
     fi
+
+    echo "Then the snap is not able to list the snap BPF folder"
+    not test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/fs/bpf/snap" 2> access.error
+    MATCH "Permission denied" < access.error
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-sh:kernel-sched-ext-control
