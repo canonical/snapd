@@ -356,6 +356,35 @@ components:
 	})
 }
 
+// TestRunnablesDeterministicOrder verifies that Runnables returns entries in a
+// stable, sorted order regardless of the underlying map iteration order.
+func (s *snapAppSetSuite) TestRunnablesDeterministicOrder(c *C) {
+	const yaml = `name: name
+version: 1
+apps:
+  zebra-app:
+  alpha-app:
+  mango-app:
+hooks:
+  post-refresh:
+  install:
+  configure:
+`
+	info := snaptest.MockInfo(c, yaml, nil)
+	set, err := interfaces.NewSnapAppSet(info, nil)
+	c.Assert(err, IsNil)
+
+	// Apps appear first (alphabetically), then hooks (alphabetically).
+	c.Check(set.Runnables(), DeepEquals, []snap.Runnable{
+		{CommandName: "alpha-app", SecurityTag: "snap.name.alpha-app"},
+		{CommandName: "mango-app", SecurityTag: "snap.name.mango-app"},
+		{CommandName: "zebra-app", SecurityTag: "snap.name.zebra-app"},
+		{CommandName: "hook.configure", SecurityTag: "snap.name.hook.configure"},
+		{CommandName: "hook.install", SecurityTag: "snap.name.hook.install"},
+		{CommandName: "hook.post-refresh", SecurityTag: "snap.name.hook.post-refresh"},
+	})
+}
+
 func (s *snapAppSetSuite) TestPlugRunnables(c *C) {
 	const yaml = `name: name
 version: 1

@@ -27,11 +27,20 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// snippetEntry holds a dbus snippet together with its priority.
+// Snippets with lower priority values appear first in the combined output.
+// When priorities are equal, snippets are ordered lexicographically by their
+// content to guarantee a stable, deterministic result.
+type snippetEntry struct {
+	priority int
+	snippet  string
+}
+
 // Specification keeps all the dbus snippets.
 type Specification struct {
 	// Snippets are indexed by security tag.
 	appSet       *interfaces.SnapAppSet
-	snippets     map[string][]string
+	snippets     map[string][]snippetEntry
 	securityTags []string
 }
 
@@ -43,34 +52,67 @@ func (spec *Specification) SnapAppSet() *interfaces.SnapAppSet {
 	return spec.appSet
 }
 
-// AddSnippet adds a new dbus snippet.
+// AddSnippet adds a new dbus snippet with default priority 0.
 func (spec *Specification) AddSnippet(snippet string) {
+	spec.AddSnippetWithPriority(snippet, 0)
+}
+
+// AddSnippetWithPriority adds a new dbus snippet with the given priority.
+// Snippets are combined in ascending priority order; snippets with equal
+// priority are further sorted lexicographically by their content to ensure
+// a deterministic result.
+func (spec *Specification) AddSnippetWithPriority(snippet string, priority int) {
 	if len(spec.securityTags) == 0 {
 		return
 	}
 	if spec.snippets == nil {
-		spec.snippets = make(map[string][]string)
+		spec.snippets = make(map[string][]snippetEntry)
 	}
 	for _, tag := range spec.securityTags {
-		spec.snippets[tag] = append(spec.snippets[tag], snippet)
+		spec.snippets[tag] = append(spec.snippets[tag], snippetEntry{priority: priority, snippet: snippet})
 	}
 }
 
-// Snippets returns a deep copy of all the added snippets.
+// Snippets returns a deep copy of all the added snippets, with each tag's
+// snippets sorted by priority then by content for deterministic output.
 func (spec *Specification) Snippets() map[string][]string {
 	result := make(map[string][]string, len(spec.snippets))
-	for k, v := range spec.snippets {
-		result[k] = append([]string(nil), v...)
+	for tag, entries := range spec.snippets {
+		sorted := sortedSnippets(entries)
+		result[tag] = sorted
 	}
 	return result
 }
 
+// sortedSnippets returns the snippet strings from entries sorted by priority
+// (ascending) and then lexicographically by content as a tie-breaker.
+func sortedSnippets(entries []snippetEntry) []string {
+	cp := make([]snippetEntry, len(entries))
+	copy(cp, entries)
+	sort.SliceStable(cp, func(i, j int) bool {
+		if cp[i].priority != cp[j].priority {
+			return cp[i].priority < cp[j].priority
+		}
+		return cp[i].snippet < cp[j].snippet
+	})
+	out := make([]string, len(cp))
+	for i, e := range cp {
+		out[i] = e.snippet
+	}
+	return out
+}
+
 // SnippetForTag returns a combined snippet for given security tag with individual snippets
 // joined with newline character. Empty string is returned for non-existing security tag.
+// Snippets are ordered by priority (ascending) then lexicographically by content.
 func (spec *Specification) SnippetForTag(tag string) string {
+	entries, ok := spec.snippets[tag]
+	if !ok {
+		return ""
+	}
 	var buffer bytes.Buffer
-	for _, snippet := range spec.snippets[tag] {
-		buffer.WriteString(snippet)
+	for _, s := range sortedSnippets(entries) {
+		buffer.WriteString(s)
 		buffer.WriteRune('\n')
 	}
 	return buffer.String()
