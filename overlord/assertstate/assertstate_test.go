@@ -21,14 +21,12 @@ package assertstate_test
 
 import (
 	"bytes"
-	"context"
 	"crypto"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -47,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -82,194 +81,6 @@ type assertMgrSuite struct {
 
 var _ = Suite(&assertMgrSuite{})
 
-type fakeStore struct {
-	storetest.Store
-	state                           *state.State
-	db                              asserts.RODatabase
-	maxDeclSupportedFormat          int
-	maxValidationSetSupportedFormat int
-
-	requestedTypes [][]string
-	opts           *store.RefreshOptions
-
-	snapActionErr         error
-	downloadAssertionsErr error
-	assertionErr          error
-}
-
-func (sto *fakeStore) pokeStateLock() {
-	// the store should be called without the state lock held. Try
-	// to acquire it.
-	sto.state.Lock()
-	sto.state.Unlock()
-}
-
-func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
-	if sto.assertionErr != nil {
-		return nil, sto.assertionErr
-	}
-	sto.pokeStateLock()
-
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
-	defer restore()
-
-	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
-	return ref.Resolve(sto.db.Find)
-}
-
-func (sto *fakeStore) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
-	sto.pokeStateLock()
-
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
-	defer restore()
-
-	ref := &asserts.AtSequence{
-		Type:        assertType,
-		SequenceKey: sequenceKey,
-		Sequence:    sequence,
-		Pinned:      sequence > 0,
-	}
-
-	if ref.Sequence <= 0 {
-		hdrs, err := asserts.HeadersFromSequenceKey(ref.Type, ref.SequenceKey)
-		if err != nil {
-			return nil, err
-		}
-		return sto.db.FindSequence(ref.Type, hdrs, -1, -1)
-	}
-
-	return ref.Resolve(sto.db.Find)
-}
-
-func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
-	sto.pokeStateLock()
-
-	if len(currentSnaps) != 0 || len(actions) != 0 {
-		panic("only assertion query supported")
-	}
-
-	toResolve, toResolveSeq, err := assertQuery.ToResolve()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if sto.snapActionErr != nil {
-		return nil, nil, sto.snapActionErr
-	}
-
-	sto.opts = opts
-
-	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
-	defer restore()
-
-	restoreSeq := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, sto.maxValidationSetSupportedFormat)
-	defer restoreSeq()
-
-	reqTypes := make(map[string]bool)
-	ares := make([]store.AssertionResult, 0, len(toResolve)+len(toResolveSeq))
-	for g, ats := range toResolve {
-		urls := make([]string, 0, len(ats))
-		for _, at := range ats {
-			reqTypes[at.Ref.Type.Name] = true
-			a, err := at.Ref.Resolve(sto.db.Find)
-			if err != nil {
-				assertQuery.AddError(err, &at.Ref)
-				continue
-			}
-			if a.Revision() > at.Revision {
-				urls = append(urls, fmt.Sprintf("/assertions/%s", at.Unique()))
-			}
-		}
-		ares = append(ares, store.AssertionResult{
-			Grouping:   asserts.Grouping(g),
-			StreamURLs: urls,
-		})
-	}
-
-	for g, ats := range toResolveSeq {
-		urls := make([]string, 0, len(ats))
-		for _, at := range ats {
-			reqTypes[at.Type.Name] = true
-			var a asserts.Assertion
-			headers, err := asserts.HeadersFromSequenceKey(at.Type, at.SequenceKey)
-			if err != nil {
-				return nil, nil, err
-			}
-			if !at.Pinned {
-				a, err = sto.db.FindSequence(at.Type, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-			} else {
-				a, err = at.Resolve(sto.db.Find)
-			}
-			if err != nil {
-				assertQuery.AddSequenceError(err, at)
-				continue
-			}
-			storeVs := a.(*asserts.ValidationSet)
-			if storeVs.Sequence() > at.Sequence || (storeVs.Sequence() == at.Sequence && storeVs.Revision() >= at.Revision) {
-				urls = append(urls, fmt.Sprintf("/assertions/%s/%s", a.Type().Name, strings.Join(a.At().PrimaryKey, "/")))
-			}
-		}
-		ares = append(ares, store.AssertionResult{
-			Grouping:   asserts.Grouping(g),
-			StreamURLs: urls,
-		})
-	}
-
-	// behave like the actual SnapAction if there are no results
-	if len(ares) == 0 {
-		return nil, ares, &store.SnapActionError{
-			NoResults: true,
-		}
-	}
-
-	typeNames := make([]string, 0, len(reqTypes))
-	for k := range reqTypes {
-		typeNames = append(typeNames, k)
-	}
-	sort.Strings(typeNames)
-	sto.requestedTypes = append(sto.requestedTypes, typeNames)
-
-	return nil, ares, nil
-}
-
-func (sto *fakeStore) DownloadAssertions(urls []string, b *asserts.Batch, user *auth.UserState) error {
-	sto.pokeStateLock()
-
-	if sto.downloadAssertionsErr != nil {
-		return sto.downloadAssertionsErr
-	}
-
-	resolve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
-		defer restore()
-
-		restoreSeq := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, sto.maxValidationSetSupportedFormat)
-		defer restoreSeq()
-		return ref.Resolve(sto.db.Find)
-	}
-
-	for _, u := range urls {
-		comps := strings.Split(u, "/")
-
-		if len(comps) < 4 {
-			return fmt.Errorf("cannot use URL: %s", u)
-		}
-
-		assertType := asserts.Type(comps[2])
-		key := comps[3:]
-		ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
-		a, err := resolve(ref)
-		if err != nil {
-			return err
-		}
-		if err := b.Add(a); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 var (
 	dev1PrivKey, _ = assertstest.GenerateKey(752)
 )
@@ -301,12 +112,12 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 
 	s.o.AddManager(s.o.TaskRunner())
 
-	s.fakeStore = &fakeStore{
-		state: s.state,
-		db:    s.storeSigning,
+	s.fakeStore = &assertstatetest.FakeStore{
+		State: s.state,
+		DB:    s.storeSigning,
 		// leave this comment to keep old gofmt happy
-		maxDeclSupportedFormat:          asserts.SnapDeclarationType.MaxSupportedFormat(),
-		maxValidationSetSupportedFormat: asserts.ValidationSetType.MaxSupportedFormat(),
+		MaxDeclSupportedFormat:          asserts.SnapDeclarationType.MaxSupportedFormat(),
+		MaxValidationSetSupportedFormat: asserts.ValidationSetType.MaxSupportedFormat(),
 	}
 	s.trivialDeviceCtx = &snapstatetest.TrivialDeviceContext{
 		CtxStore: s.fakeStore,
@@ -783,7 +594,7 @@ func (s *assertMgrSuite) TestFetchUnsupportedUpdateIgnored(c *C) {
 		return f.Fetch(ref)
 	}
 
-	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
+	s.fakeStore.(*assertstatetest.FakeStore).MaxDeclSupportedFormat = 999
 	err = assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
 	// no error and the old one was kept
 	c.Assert(err, IsNil)
@@ -824,7 +635,7 @@ func (s *assertMgrSuite) TestFetchUnsupportedError(c *C) {
 		return f.Fetch(ref)
 	}
 
-	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
+	s.fakeStore.(*assertstatetest.FakeStore).MaxDeclSupportedFormat = 999
 	err := assertstate.DoFetch(s.state, 0, s.trivialDeviceCtx, nil, fetching)
 	c.Check(err, ErrorMatches, `(?s).*proposed "snap-declaration" assertion has format 999 but 111 is latest supported.*`)
 }
@@ -1372,7 +1183,7 @@ func (s *assertMgrSuite) TestRefreshSnapAssertions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Revision(), Equals, 2)
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	// changed validation set assertion again
 	vsetAs3 := s.validationSetAssert(c, "bar", "4", "5", "required", "1")
@@ -1425,7 +1236,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNop(c *C) {
 
 	err := assertstate.RefreshSnapDeclarations(s.state, 0, &assertstate.RefreshAssertionsOptions{IsAutoRefresh: true})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, true)
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
@@ -1501,7 +1312,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	c.Check(a.(*asserts.Account).DisplayName(), Equals, "Dev 1 edited display-name")
 
 	// change snap decl to something that has a too new format
-	s.fakeStore.(*fakeStore).maxDeclSupportedFormat = 999
+	s.fakeStore.(*assertstatetest.FakeStore).MaxDeclSupportedFormat = 999
 	(func() {
 		restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, 999)
 		defer restore()
@@ -1728,7 +1539,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsDownloadError(c *C) {
 	err = s.storeSigning.Add(snapDeclFoo1)
 	c.Assert(err, IsNil)
 
-	s.fakeStore.(*fakeStore).downloadAssertionsErr = errors.New("download error")
+	s.fakeStore.(*assertstatetest.FakeStore).DownloadAssertionsErr = errors.New("download error")
 
 	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot refresh snap-declarations for snaps:
@@ -1768,7 +1579,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsPersistentNetworkError(c *C)
 	c.Assert(err, IsNil)
 
 	pne := new(httputil.PersistentNetworkError)
-	s.fakeStore.(*fakeStore).snapActionErr = pne
+	s.fakeStore.(*assertstatetest.FakeStore).SnapActionErr = pne
 
 	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, Equals, pne)
@@ -1777,7 +1588,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsPersistentNetworkError(c *C)
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallback(c *C) {
 	// test that if we get a 4xx or 500 error from the store trying bulk
 	// assertion refresh we fall back to the old logic
-	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
+	s.fakeStore.(*assertstatetest.FakeStore).SnapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
@@ -1791,7 +1602,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallbackUnexpectedSna
 	// test that if we get an unexpected SnapAction error from the
 	// store trying bulk assertion refresh we fall back to the old
 	// logic
-	s.fakeStore.(*fakeStore).snapActionErr = &store.SnapActionError{
+	s.fakeStore.(*assertstatetest.FakeStore).SnapActionErr = &store.SnapActionError{
 		NoResults: true,
 		Other:     []error{errors.New("unexpected error")},
 	}
@@ -1807,7 +1618,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStoreFallbackUnexpectedSna
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStoreFallback(c *C) {
 	// test that if we get a 4xx or 500 error from the store trying bulk
 	// assertion refresh we fall back to the old logic
-	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
+	s.fakeStore.(*assertstatetest.FakeStore).SnapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
 
 	logbuf, restore := logger.MockLogger()
 	defer restore()
@@ -1884,7 +1695,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany14NoStore(c *C) {
 	err := s.testRefreshSnapDeclarationsMany(c, 14)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "snap-declaration"},
 	})
 }
@@ -1897,7 +1708,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany16NoStore(c *C) {
 	err := s.testRefreshSnapDeclarationsMany(c, 16)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "snap-declaration"},
 	})
 }
@@ -1913,7 +1724,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany16WithStore(c *C) {
 	err = s.testRefreshSnapDeclarationsMany(c, 16)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
 		{"account", "account-key", "snap-declaration"},
 		// final separate request covering store only
@@ -1935,7 +1746,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany17NoStore(c *C) {
 	err := s.testRefreshSnapDeclarationsMany(c, 17)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
 		{"account", "account-key", "snap-declaration"},
 		// final separate request for the rest
@@ -1948,7 +1759,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany17NoStoreMergeErrors(c *
 	defer s.state.Unlock()
 	s.setModel(sysdb.GenericClassicModel())
 
-	s.fakeStore.(*fakeStore).downloadAssertionsErr = errors.New("download error")
+	s.fakeStore.(*assertstatetest.FakeStore).DownloadAssertionsErr = errors.New("download error")
 
 	err := s.testRefreshSnapDeclarationsMany(c, 17)
 	c.Check(err, ErrorMatches, `(?s)cannot refresh snap-declarations for snaps:
@@ -1956,7 +1767,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany17NoStoreMergeErrors(c *
 	// all foo* snaps accounted for
 	c.Check(strings.Count(err.Error(), "foo"), Equals, 17)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
 		{"account", "account-key", "snap-declaration"},
 		// final separate request for the rest
@@ -1975,7 +1786,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany31WithStore(c *C) {
 	err = s.testRefreshSnapDeclarationsMany(c, 31)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
 		{"account", "account-key", "snap-declaration"},
 		// final separate request for the rest and store
@@ -2000,7 +1811,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsMany32WithStore(c *C) {
 	err = s.testRefreshSnapDeclarationsMany(c, 32)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		// first 16 groups request
 		{"account", "account-key", "snap-declaration"},
 		// 2nd round request
@@ -2687,7 +2498,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, true)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -2719,7 +2530,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefreshError(c *C) {
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
-	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
+	s.fakeStore.(*assertstatetest.FakeStore).SnapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2787,10 +2598,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
 	c.Check(a.Revision(), Equals, 2)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, true)
 
 	// sequence changed in the store to 4
 	vsetAs3 := s.validationSetAssert(c, "bar", "4", "3", "required", "1")
@@ -2806,11 +2617,11 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	})
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
-	s.fakeStore.(*fakeStore).requestedTypes = nil
+	s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes = nil
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -2920,7 +2731,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 2)
 	c.Check(a.Revision(), Equals, 5)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -2929,11 +2740,11 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	err = s.storeSigning.Add(vsetAs3)
 	c.Assert(err, IsNil)
 
-	s.fakeStore.(*fakeStore).requestedTypes = nil
+	s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes = nil
 	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -3100,7 +2911,7 @@ version: 1`), &snap.SideInfo{
 	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 2)
 	c.Check(a.Revision(), Equals, 3)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -3162,7 +2973,7 @@ version: 1`), &snap.SideInfo{Revision: snap.R("1")})
 	c.Check(a.(*asserts.ValidationSet).Sequence(), Equals, 1)
 	c.Check(a.Revision(), Equals, 2)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -3238,7 +3049,7 @@ func (s *assertMgrSuite) TestFetchAllIgnoresValidationSetIfConflict(c *C) {
 		"sequence":   "2",
 	})
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 }
@@ -3274,7 +3085,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	})
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -3339,7 +3150,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 	})
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -3397,7 +3208,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeWrongSna
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).RequestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
 
@@ -3575,7 +3386,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 }
 
 func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMissingSnap(c *C) {
@@ -3869,7 +3680,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertion(c *C) {
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -3930,7 +3741,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionUpdate(c *C) {
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -4007,7 +3818,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionPinToOlderSequence(c *
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -4082,7 +3893,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionAfterMonitor(c *C) {
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -4137,7 +3948,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetAssertionIgnoreValidation(c *C)
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -4240,7 +4051,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationError(c
 		"sequence":   "1",
 	})
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 }
 
 func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsValidationErrorCommitsOnlyPrerequisites(c *C) {
@@ -4377,7 +4188,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsOK(c *C) {
 		"sequence":   "1",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	// tracking was updated
 	var tr assertstate.ValidationSetTracking
@@ -4478,7 +4289,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsAlreadyTrackedUpd
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	// tracking was updated
 	var tr assertstate.ValidationSetTracking
@@ -4561,7 +4372,7 @@ func (s *assertMgrSuite) TestTryEnforceValidationSetsAssertionsConflictError(c *
 		"sequence":   "2",
 	})
 	c.Assert(errors.Is(err, &asserts.NotFoundError{}), Equals, true)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 }
 
 func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
@@ -4600,7 +4411,7 @@ func (s *assertMgrSuite) TestMonitorValidationSet(c *C) {
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, false)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, false)
 
 	var tr assertstate.ValidationSetTracking
 	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
@@ -4886,7 +4697,7 @@ func (s *assertMgrSuite) TestEnforceValidationSetsWithLocalPrerequisitesDoesNotN
 		snapasserts.NewInstalledSnap("some-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.Revision{N: 1}, nil),
 	}
 
-	s.fakeStore.(*fakeStore).assertionErr = store.ErrStoreOffline
+	s.fakeStore.(*assertstatetest.FakeStore).AssertionErr = store.ErrStoreOffline
 
 	err := assertstate.ApplyEnforcedValidationSets(st, valSets, nil, installedSnaps, nil, 0)
 	c.Assert(err, IsNil)
@@ -5946,14 +5757,14 @@ func (s *assertMgrSuite) TestFetchConfdbAssertion(c *C) {
 
 func (s *assertMgrSuite) TestConfdbAssertionsAutoRefreshBulkFetch(c *C) {
 	s.testConfdbAssertionsAutoRefresh(c)
-	c.Check(s.fakeStore.(*fakeStore).opts.Scheduled, Equals, true)
+	c.Check(s.fakeStore.(*assertstatetest.FakeStore).Opts.Scheduled, Equals, true)
 }
 
 func (s *assertMgrSuite) TestConfdbAssertionsAutoRefreshSingleFetch(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
-	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
+	s.fakeStore.(*assertstatetest.FakeStore).SnapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
 	s.testConfdbAssertionsAutoRefresh(c)
 
 	// get the last line (we call AutoRefresh more than once)
@@ -6009,7 +5820,7 @@ func (s *assertMgrSuite) TestBulkRefreshLocalConfdbSchemaNotFound(c *C) {
 }
 
 func (s *assertMgrSuite) TestSingleRefreshLocalConfdbSchemaNotFound(c *C) {
-	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
+	s.fakeStore.(*assertstatetest.FakeStore).SnapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 500}
 
 	log := s.testRefreshLocalConfdbSchemaNotFound(c)
 
@@ -6192,8 +6003,8 @@ func (s *assertMgrSuite) TestOfflineErrorSurfaced(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	sto := s.fakeStore.(*fakeStore)
-	sto.assertionErr = store.ErrStoreOffline
+	sto := s.fakeStore.(*assertstatetest.FakeStore)
+	sto.AssertionErr = store.ErrStoreOffline
 
 	s.setupModelAndStore(c)
 
