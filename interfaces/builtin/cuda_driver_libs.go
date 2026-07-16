@@ -32,10 +32,10 @@ import (
 
 const cudaDriverLibsSummary = `allows exposing CUDA driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plugs only supported for the system snap (note this is checked on "system"
+// snap installation even though this is an implicit plug in that case) - in
+// the future we will allow snaps having this as plug and this declaration will
+// have to change.
 const cudaDriverLibsBaseDeclarationPlugs = `
   cuda-driver-libs:
     allow-installation:
@@ -78,6 +78,11 @@ func (iface *cudaDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) err
 
 func (iface *cudaDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
+	// ldconfig is only used on classic; on core the libraries are exported
+	// via /var/lib/snapd/export instead.
+	if !release.OnClassic {
+		return nil
+	}
 	return addLdconfigLibDirs(spec, slot)
 }
 
@@ -91,15 +96,7 @@ func (t *cudaDriverLibsInterface) PathPatterns() []string {
 
 func (iface *cudaDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
-
-	// Files used by snap-confine on classic
-	if release.OnClassic {
-		if err := addConfigfilesForSystemLibrarySourcePaths(cudaDriverLibs, spec, slot); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return addConfigfilesForSystemLibrarySourcePaths(cudaDriverLibs, spec, slot)
 }
 
 func (iface *cudaDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
@@ -115,8 +112,8 @@ func init() {
 			summary:              cudaDriverLibsSummary,
 			baseDeclarationPlugs: cudaDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: cudaDriverLibsBaseDeclarationSlots,
-			// Not supported on core yet
-			implicitPlugOnCore:    false,
+			// Supported on core and classic
+			implicitPlugOnCore:    true,
 			implicitPlugOnClassic: true,
 		},
 	})

@@ -77,6 +77,7 @@ static const size_t egl_vendor_globs_len = SC_ARRAY_SIZE(egl_vendor_globs);
 static const char *nvidia_driver_version_file(void) {
     const char *path = getenv("SNAPD_TESTING_NVIDIA_DRIVER_VERSION_FILE");
     if (path != NULL) {
+        debug("overriding nvidia driver version file: %s", path);
         return path;
     }
     return "/sys/module/nvidia/version";
