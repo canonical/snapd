@@ -67,7 +67,7 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeter(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterWithErrExitCode(c *C) {
+func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterWithErrorExitCode(c *C) {
 	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
 		return "greeter", nil
 	})
@@ -77,6 +77,30 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterWithErrExitCode(c *
 		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "3"})
 	}, PanicMatches, `internal error: exitStatus\{3\} .*`)
 	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCode0(c *C) {
+	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
+		return "user", nil // shouldn't matter
+	})
+	defer restore()
+
+	c.Assert(func() {
+		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "0"})
+	}, PanicMatches, `internal error: exitStatus\{1\} .*`)
+	c.Check(s.Stderr(), Equals, "invalid --error-exit-code: must be in range 1-255")
+}
+
+func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCode255(c *C) {
+	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
+		return "greeter", nil // shouldn't matter
+	})
+	defer restore()
+
+	c.Assert(func() {
+		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "256"})
+	}, PanicMatches, `internal error: exitStatus\{1\} .*`)
+	c.Check(s.Stderr(), Equals, "invalid --error-exit-code: must be in range 1-255")
 }
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNoSession(c *C) {
@@ -91,7 +115,7 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionNoSession(c *C) {
 	c.Check(s.Stderr(), Equals, "cannot determine session class: loginctl command [show-session auto -p Class] failed with exit status 1: No session for PID\n")
 }
 
-func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrExitCode(c *C) {
+func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrorExitCode(c *C) {
 	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("loginctl command [show-session auto -p Class] failed with exit status 1: No session for PID")
 	})
