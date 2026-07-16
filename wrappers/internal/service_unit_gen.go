@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -80,6 +81,27 @@ func ensureMinSystemdDuration(app *snap.AppInfo, in timeout.Timeout, field strin
 		return time.Microsecond
 	}
 	return inDur
+}
+
+// userServicePreconditionErrorExitCode returns the first exit code starting
+// from 1 that is not in the app's SuccessExitStatus list. This is used to
+// determine the --error-exit-code argument for the
+// "snap routine user-service-precondition" ExecCondition stanza, ensuring it
+// does not collide with any of the app's success exit status codes. Returns
+// an error if all codes 1-255 are occupied.
+func userServicePreconditionErrorExitCode(successExitStatus []string) (int, error) {
+	codes := make(map[int]bool)
+	for _, s := range successExitStatus {
+		if code, err := strconv.Atoi(s); err == nil {
+			codes[code] = true
+		}
+	}
+	for i := 1; i <= 255; i++ {
+		if !codes[i] {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("cannot find available exit code for user-service-precondition: all exit codes 1-255 are in success-exit-status")
 }
 
 func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOptions) ([]byte, error) {
@@ -160,6 +182,9 @@ X-Snappy=yes
 EnvironmentFile=-/etc/environment
 {{- if .LogNamespace}}
 Environment=SNAPD_LOG_NAMESPACE={{.LogNamespace}}
+{{- end}}
+{{- if .ExecCondition}}
+ExecCondition={{.ExecCondition}}
 {{- end}}
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
@@ -282,6 +307,7 @@ WantedBy={{.ServicesTarget}}
 		OOMAdjustScore           int
 		BusName                  string
 		SuccessExitStatus        []string
+		ExecCondition            string
 		Before                   []string
 		After                    []string
 		Requires                 []string
@@ -338,6 +364,15 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		errExitCode, err := userServicePreconditionErrorExitCode(appInfo.SuccessExitStatus)
+		if err != nil {
+			return nil, err
+		}
+		if errExitCode != 1 {
+			wrapperData.ExecCondition = fmt.Sprintf("/usr/bin/snap routine user-service-precondition --error-exit-code %d", errExitCode)
+		} else {
+			wrapperData.ExecCondition = "/usr/bin/snap routine user-service-precondition"
+		}
 	default:
 		panic("unknown snap.DaemonScope")
 	}
