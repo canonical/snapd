@@ -59,6 +59,17 @@ func (s *logindSuite) TestSessionClass(c *C) {
 		got, err := logind.SessionClass()
 		c.Assert(err, IsNil)
 		c.Check(got, Equals, class)
+
+		// Try without trailing \n
+		restore = logind.MockLoginctl(func(args ...string) ([]byte, error) {
+			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
+			return []byte("Class=" + class), nil
+		})
+		defer restore()
+
+		got, err = logind.SessionClass()
+		c.Assert(err, IsNil)
+		c.Check(got, Equals, class)
 	}
 }
 
@@ -81,6 +92,7 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 
 func (s *logindSuite) TestSessionClassEmptyOutput(c *C) {
 	restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 		return []byte(""), nil
 	})
 	defer restore()
@@ -91,18 +103,22 @@ func (s *logindSuite) TestSessionClassEmptyOutput(c *C) {
 }
 
 func (s *logindSuite) TestSessionClassMalformedOutput(c *C) {
-	restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
-		return []byte("unexpected-no-equals\n"), nil
-	})
-	defer restore()
+	for _, output := range []string{"", "unexpected-no-equals\n", "foo=user\n", "Class=\n"} {
+		restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
+			return []byte(output), nil
+		})
+		defer restore()
 
-	_, err := logind.SessionClass()
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid property format from loginctl for Class .*")
+		_, err := logind.SessionClass()
+		c.Assert(err, NotNil)
+		c.Check(err, ErrorMatches, "invalid property format from loginctl for Class .*")
+	}
 }
 
 func (s *logindSuite) TestSessionClassWithWhitespace(c *C) {
 	restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 		return []byte("  Class=user  \n"), nil
 	})
 	defer restore()
