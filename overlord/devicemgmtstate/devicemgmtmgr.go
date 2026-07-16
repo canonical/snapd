@@ -613,19 +613,19 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return nil
 	}
 
-	setMsgResponse := func(status asserts.MessageStatus, message string) error {
+	setMsgResponse := func(status asserts.MessageStatus, message string) {
 		msg.ResponseStatus = status
 		msg.ResponseBody = map[string]any{"message": message}
 		m.setState(ms)
-		return nil
 	}
-	rejectMsg := func(reason string) error {
-		return setMsgResponse(asserts.MessageStatusRejected, reason)
+	rejectMsg := func(reason string) {
+		setMsgResponse(asserts.MessageStatusRejected, reason)
 	}
 
 	a, err := asserts.Decode(msg.RawAssertion)
 	if err != nil {
-		return rejectMsg(fmt.Sprintf("cannot decode message: %v", err))
+		rejectMsg(fmt.Sprintf("cannot decode message: %v", err))
+		return nil
 	}
 
 	err = assertstateFetchAccountKey(m.state, 0, a.SignKeyID())
@@ -647,7 +647,8 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 
 	err = assertstate.DB(m.state).Check(a)
 	if err != nil {
-		return rejectMsg(fmt.Sprintf("cannot verify message signature: %v", err))
+		rejectMsg(fmt.Sprintf("cannot verify message signature: %v", err))
+		return nil
 	}
 
 	serial, err := m.device.Serial()
@@ -656,12 +657,14 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 	}
 	devID := serial.DeviceID()
 	if !msg.Targets(devID) {
-		return rejectMsg(fmt.Sprintf("cannot process message: not intended for device %s", devID))
+		rejectMsg(fmt.Sprintf("cannot process message: not intended for device %s", devID))
+		return nil
 	}
 
 	now := timeNow()
 	if !msg.ValidAt(now) {
-		return rejectMsg(fmt.Sprintf("cannot process message: not valid at %s", now.UTC().Format(time.RFC3339)))
+		rejectMsg(fmt.Sprintf("cannot process message: not valid at %s", now.UTC().Format(time.RFC3339)))
+		return nil
 	}
 
 	// TODO: implement assumes checks (SD187, SD251). The design is somewhat in
@@ -672,7 +675,8 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 
 	handler, ok := m.handlers[msg.Kind]
 	if !ok {
-		return rejectMsg(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
+		rejectMsg(fmt.Sprintf("cannot find handler for message kind %q", msg.Kind))
+		return nil
 	}
 
 	err = handler.Validate(m.state, msg)
@@ -691,7 +695,8 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 			return err
 		}
 
-		return setMsgResponse(status, reason)
+		setMsgResponse(status, reason)
+		return nil
 	}
 
 	return nil

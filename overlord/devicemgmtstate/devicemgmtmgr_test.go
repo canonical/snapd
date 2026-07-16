@@ -26,7 +26,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1445,11 +1444,17 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
 		return &store.MessageExchangeResponse{}, nil
 	})
 
+	// Prevent FetchAccountKey from dropping the state lock, which would let the
+	// concurrent retry tasks race past the idempotency guard.
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
+		return nil
+	}))
+
 	validateCalls := 0
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
 			validateCalls++
-			return fmt.Errorf("invalid payload")
+			return fmt.Errorf("cannot validate message: invalid payload")
 		},
 	})
 
@@ -1498,10 +1503,11 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterFetch(c *C
 		}, nil
 	})
 
-	var fetchCalls atomic.Int32
+	firstCall := true
 	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(st *state.State, _ int, _ string) error {
-		if fetchCalls.Add(1) == 1 {
-			// first lane: wait for lane 2's full write before resuming.
+		if firstCall {
+			firstCall = false
+			// Wait for the other lane's full write before resuming.
 			lane2Done := make(chan struct{})
 			st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
 				if t.Kind() == "validate-mgmt-message" && new == state.DoneStatus {
@@ -1542,11 +1548,12 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterValidate(c
 		}, nil
 	})
 
-	var validateCalls atomic.Int32
+	firstCall := true
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		validate: func(st *state.State, _ *devicemgmtstate.RequestMessage) error {
-			if validateCalls.Add(1) == 1 {
-				// first lane: wait for lane 2's full write before resuming.
+			if firstCall {
+				firstCall = false
+				// Wait for the other lane's full write before resuming.
 				lane2Done := make(chan struct{})
 				st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
 					if t.Kind() == "validate-mgmt-message" && new == state.DoneStatus {
@@ -1904,11 +1911,12 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageConcurrentWriteAfterApply(c *C) {
 		}, nil
 	})
 
-	var applyCalls atomic.Int32
+	firstCall := true
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			if applyCalls.Add(1) == 1 {
-				// first lane: wait for lane 2's full write before resuming.
+			if firstCall {
+				firstCall = false
+				// Wait for the other lane's full write before resuming.
 				lane2Done := make(chan struct{})
 				st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
 					if t.Kind() == "apply-mgmt-message" && new == state.DoneStatus {
@@ -2424,7 +2432,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromCh
 		}, nil
 	})
 
-	var resultCalls atomic.Int32
+	firstCall := true
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			chg := st.NewChange("subsystem", "apply payload")
@@ -2432,8 +2440,9 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromCh
 			return chg.ID(), nil
 		},
 		resultFromChange: func(*state.Change) (map[string]any, error) {
-			if resultCalls.Add(1) == 1 {
-				// first lane: wait for lane 2's full write before resuming.
+			if firstCall {
+				firstCall = false
+				// Wait for the other lane's full write before resuming.
 				lane2Done := make(chan struct{})
 				s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
 					if t.Kind() == "queue-mgmt-response" && new == state.DoneStatus {
