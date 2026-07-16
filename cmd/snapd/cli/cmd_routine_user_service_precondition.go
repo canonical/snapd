@@ -31,7 +31,7 @@ import (
 
 type cmdRoutineUserServicePrecondition struct {
 	clientMixin
-	ErrExitCode int `long:"error-exit-code" default:"1"`
+	ErrorExitCode int `long:"error-exit-code" default:"1"`
 }
 
 var shortRoutineUserServicePreconditionHelp = i18n.G("Check whether user services should run in this session")
@@ -61,15 +61,19 @@ func (x *cmdRoutineUserServicePrecondition) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+	if x.ErrorExitCode < 1 || x.ErrorExitCode > 255 {
+		fmt.Fprintf(Stderr, "invalid --error-exit-code: must be in range 1-255")
+		panic(&exitStatus{code: 1}) // best we can do
+	}
 
 	class, err := logindSessionClass(context.Background())
 	if err != nil {
 		fmt.Fprintf(Stderr, "cannot determine session class: %v\n", err)
-		panic(&exitStatus{code: x.ErrExitCode})
+		panic(&exitStatus{code: x.ErrorExitCode})
 	}
 
 	if class == "greeter" {
-		panic(&exitStatus{code: x.ErrExitCode})
+		panic(&exitStatus{code: x.ErrorExitCode})
 	}
 
 	return nil
