@@ -86,6 +86,8 @@ def build_runtime_lookup(results_dir: str) -> dict[tuple, float]:
             try:
                 system = f"{item['backend']}:{item['system']}"
                 name = item["name"]
+                if name.endswith('/'):
+                    name = name[:-1]
                 variant = item.get("variant") or ""
                 runtime = _parse_runtime_seconds(item["start"], item["end"])
             except (KeyError, ValueError):
