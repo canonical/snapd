@@ -29,14 +29,6 @@ test_predictor_url="${test_predictor_url%/}"
 	fi
 ) >report
 
-if find . -name skipped_tests_list.txt | grep -q .; then
-	{
-		echo "## Skipped tests from [snapd-testing-skip](https://github.com/canonical/snapd-testing-skip)"
-		echo "*If you wish to have any of the below tests run in your PR, in your PR description, add 'unskip:' followed by a copy-and-pasted list of the below tests you wish to run (unskip plus test list must be valid yaml)*"
-		find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}'
-	} >>report
-fi
-
 append_predictor_table() {
 	local verb="$1"
 	local heading="$2"
@@ -93,6 +85,14 @@ if [ -f consolidated-report.json ] && python3 "${parser}" has-predictor-rows con
 	append_predictor_table "preparing" "Preparing"
 	append_predictor_table "executing" "Executing"
 	append_predictor_table "restoring" "Restoring"
+fi
+
+if find . -name skipped_tests_list.txt | grep -q .; then
+	{
+		echo "## Skipped tests from [snapd-testing-skip](https://github.com/canonical/snapd-testing-skip)"
+		echo "*If you wish to have any of the below tests run in your PR, in your PR description, add 'unskip:' followed by a copy-and-pasted list of the below tests you wish to run (unskip plus test list must be valid yaml)*"
+		find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}'
+	} >>report
 fi
 
 # display the report
