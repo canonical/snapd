@@ -1,0 +1,28 @@
+name: test-snapd-user-service-exec-condition
+version: 1.0
+summary: Test snap for ExecCondition in user service files
+description: |
+  This snap contains multiple user daemon services to test that snapd
+  generates ExecCondition stanzas correctly in systemd user service files,
+  including the --error-exit-code argument when SuccessExitStatus includes
+  code 1.
+
+apps:
+  svc-no-success-exit:
+    command: bin/service-start
+    daemon: simple
+    daemon-scope: user
+  svc-with-1-2:
+    command: bin/service-start
+    daemon: simple
+    daemon-scope: user
+    success-exit-status:
+      - 1
+      - 2
+  svc-with-42-250:
+    command: bin/service-start
+    daemon: simple
+    daemon-scope: user
+    success-exit-status:
+      - 42
+      - 250
