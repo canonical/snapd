@@ -6,22 +6,8 @@ repository="$1"
 workflow_run_id="$2"
 workflow_run_attempt="$3"
 parser=".github/scripts/parse-results-predictor.py"
-test_predictor_url="${TEST_PREDICTOR_URL:?TEST_PREDICTOR_URL must be set}"
+test_predictor_url="${TEST_PREDICTOR_URL:-}"
 test_predictor_url="${test_predictor_url%/}"
-
-append_failure_section() {
-	local verb="$1"
-	local heading="$2"
-	local failures=()
-
-	mapfile -t failures < <(python3 "${parser}" failures consolidated-report.json "${verb}")
-	if ((${#failures[@]} == 0)); then
-		return
-	fi
-
-	echo "### ${heading}:"
-	printf -- '- %s\n' "${failures[@]}"
-}
 
 # generate report
 (
@@ -40,11 +26,6 @@ append_failure_section() {
 
 	else
 		python3 "${parser}" consolidate consolidated-report.json spread-results-"${workflow_run_id}"*/*.json
-
-		echo "## Failures:"
-		append_failure_section "preparing" "Preparing"
-		append_failure_section "executing" "Executing"
-		append_failure_section "restoring" "Restoring"
 	fi
 ) >report
 
@@ -78,14 +59,17 @@ append_predictor_table() {
 				display_name+=" <kbd>${occurrences} times</kbd>"
 			fi
 
-			response=$(curl -sf -G "${test_predictor_url}/predict" \
-				--max-time 10 \
-				--data-urlencode "name=${full_name}" \
-				--data-urlencode "verb=${verb}" \
-				--data-urlencode "system=${system}" \
-				--data-urlencode "scenario=${scenario}" \
-				--data-urlencode "attempt=${workflow_run_attempt}" \
-				2>/dev/null) || response='{}'
+			response='{}'
+			if [ -n "${test_predictor_url}" ]; then
+				response=$(curl -sf -G "${test_predictor_url}/predict" \
+					--max-time 10 \
+					--data-urlencode "name=${full_name}" \
+					--data-urlencode "verb=${verb}" \
+					--data-urlencode "system=${system}" \
+					--data-urlencode "scenario=${scenario}" \
+					--data-urlencode "attempt=${workflow_run_attempt}" \
+					2>/dev/null) || response='{}'
+			fi
 			probability=$(python3 "${parser}" success-probability <<<"$response")
 			if [ -z "$probability" ]; then
 				probability="unavailable"

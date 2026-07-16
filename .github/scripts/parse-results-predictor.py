@@ -45,19 +45,6 @@ def full_name(item: JsonObject) -> str:
 	return name
 
 
-def display_name(item: JsonObject) -> str:
-	backend = string_value(item.get("backend", ""))
-	system = string_value(item.get("system", ""))
-	test_name = full_name(item)
-	if backend:
-		return f"{backend}:{system}:{test_name}"
-	return f"{system}:{test_name}"
-
-
-def is_failed(item: JsonObject, verb: str) -> bool:
-	return item.get("verb") == verb and item.get("success") is False
-
-
 def is_predictor_candidate(item: JsonObject) -> bool:
 	return (
 		item.get("success") is False
@@ -66,8 +53,6 @@ def is_predictor_candidate(item: JsonObject) -> bool:
 		and bool(string_value(item.get("verb", "")))
 		and item.get("verb") != "checking"
 		and bool(string_value(item.get("system", "")))
-		and item.get("start") is not None
-		and item.get("end") is not None
 	)
 
 
@@ -83,13 +68,6 @@ def consolidate(args: argparse.Namespace) -> int:
 	with open(args.output, "w", encoding="utf-8") as output_file:
 		json.dump({"items": items}, output_file)
 		output_file.write("\n")
-	return 0
-
-
-def failures(args: argparse.Namespace) -> int:
-	for item in load_items(args.report):
-		if is_failed(item, args.verb):
-			print(display_name(item))
 	return 0
 
 
@@ -146,11 +124,6 @@ def parse_args() -> argparse.Namespace:
 	consolidate_parser.add_argument("output")
 	consolidate_parser.add_argument("patterns", nargs="+")
 	consolidate_parser.set_defaults(func=consolidate)
-
-	failures_parser = subparsers.add_parser("failures")
-	failures_parser.add_argument("report")
-	failures_parser.add_argument("verb")
-	failures_parser.set_defaults(func=failures)
 
 	has_predictor_rows_parser = subparsers.add_parser("has-predictor-rows")
 	has_predictor_rows_parser.add_argument("report")
