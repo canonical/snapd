@@ -338,15 +338,16 @@ func buildSnapsEntry(snaps []*asserts.ValidationSetSnap) []map[string]any {
 }
 
 // Commit translates the changes in the Transaction into validation-set state.
-// State must be locked by caller.
+// State must be locked by caller. Changes are not persisted atomically across
+// all kinds and validation sets (see apply for more details).
 func (c *ValsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
 	view, err := confdbstate.GetView(st, "system", "validation-sets", "admin")
 	if err != nil {
 		return nil, fmt.Errorf("internal error: unexpected confdb-schema in validation-sets handler: %v", err)
 	}
 
-	type vsKey struct{ account, name string }
-	valsets := make(map[vsKey][][]confdb.Accessor)
+	seen := make(map[valsetRef]bool)
+	changes := &validationSetChanges{}
 	for _, path := range tx.AlteredPaths() {
 		if len(path) < 3 {
 			// shouldn't be possible as confdb-schema doesn't allow it
@@ -359,81 +360,144 @@ func (c *ValsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transacti
 			return nil, fmt.Errorf("internal error: cannot write to system/validation-sets: unsupported storage version %q", path[0].Name())
 		}
 
-		k := vsKey{account: path[1].Name(), name: path[2].Name()}
-		valsets[k] = append(valsets[k], path)
-	}
-
-	for k := range valsets {
-		request := k.account + "." + k.name
-		result, err := view.Get(tx, request, nil, confdb.AdminAccess)
-		if err != nil {
-			if errors.Is(err, &confdb.NoDataError{}) {
-				if err := assertstate.ForgetValidationSet(st, k.account, k.name, assertstate.ForgetValidationSetOpts{}); err != nil {
-					return nil, fmt.Errorf("cannot forget validation set %s/%s: %v", k.account, k.name, err)
-				}
-				continue
-			}
-			return nil, fmt.Errorf("cannot read validation set %s/%s from confdb: %v", k.account, k.name, err)
+		// deduplicate the ids since AlteredPaths() may return several specific paths
+		// under the same validation set (for mode and pinned-sequence, for example)
+		ref := valsetRef{accountID: path[1].Name(), name: path[2].Name()}
+		if seen[ref] {
+			continue
 		}
+		seen[ref] = true
 
-		val, ok := result.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("internal error: unexpected result type %T for validation set %s/%s", result, k.account, k.name)
-		}
-
-		tr := &assertstate.ValidationSetTracking{}
-		err = assertstate.GetValidationSet(st, k.account, k.name, tr)
-		if err != nil && !errors.Is(err, state.ErrNoState) {
-			return nil, fmt.Errorf("cannot read validation-set %s/%s for commit: %v", k.account, k.name, err)
-		}
-		tr.AccountID = k.account
-		tr.Name = k.name
-
-		err = applyChanges(k.account, k.name, tr, val)
+		// separate changes into forgets, monitors and enforcement so we can check
+		// do enforcement checks before the other two
+		change, err := extractChangeData(view, tx, ref)
 		if err != nil {
 			return nil, err
 		}
-
-		assertstate.UpdateValidationSet(st, tr)
+		changes.add(change)
 	}
 
-	return nil, nil
+	return nil, changes.apply(st)
 }
 
-// applyChanges applies values set through confdb to the ValidationSetTracking.
-func applyChanges(accountID, name string, tr *assertstate.ValidationSetTracking, val any) error {
-	valset, ok := val.(map[string]any)
+type valsetRef struct {
+	accountID string
+	name      string
+
+	pinnedSeq int
+}
+
+func (r valsetRef) String() string {
+	var seqStr string
+	if r.pinnedSeq != 0 {
+		seqStr = "=" + strconv.Itoa(r.pinnedSeq)
+	}
+	return r.accountID + "/" + r.name + seqStr
+}
+
+// valsetChange represents a change to a validation-set's tracking state.
+type valsetChange struct {
+	// kind can be "monitor", "enforce" or "forget"
+	kind string
+	id   valsetRef
+}
+
+// extractChangeData extracts the validation set reference and change type
+// (enforce, monitor or forget) for the data modified through confdb.
+func extractChangeData(view *confdb.View, tx *confdbstate.Transaction, ref valsetRef) (valsetChange, error) {
+	request := ref.accountID + "." + ref.name
+	result, err := view.Get(tx, request, nil, confdb.AdminAccess)
+	if err != nil {
+		if errors.Is(err, &confdb.NoDataError{}) {
+			return valsetChange{kind: "forget", id: ref}, nil
+		}
+		return valsetChange{}, fmt.Errorf("cannot read validation set %s/%s from confdb: %v", ref.accountID, ref.name, err)
+	}
+
+	val, ok := result.(map[string]any)
 	if !ok {
-		return fmt.Errorf("internal error: unexpected type %T for validation set %s/%s", val, accountID, name)
+		return valsetChange{}, fmt.Errorf("internal error: unexpected result type %T for validation set %s/%s", result, ref.accountID, ref.name)
 	}
 
-	if rawMode, ok := valset["mode"]; ok {
-		mode, ok := rawMode.(string)
-		if !ok {
-			// writes are validated against the storage schema so shouldn't be possible
-			return fmt.Errorf(`internal error: "mode" should be a string, got %[1]T: %[1]v`, rawMode)
-		}
-
-		// per the storage schema these are the only choices and it can't be unset
-		switch mode {
-		case "monitor":
-			tr.Mode = assertstate.Monitor
-		case "enforce":
-			tr.Mode = assertstate.Enforce
+	// extract mode
+	var mode string
+	if rawMode, ok := val["mode"]; ok {
+		if modeStr, ok := rawMode.(string); ok {
+			mode = modeStr
 		}
 	}
 
-	if rawSeq, ok := valset["pinned-sequence"]; ok {
+	if mode != "monitor" && mode != "enforce" {
+		// the schema already validates the mode so this should be impossible
+		return valsetChange{}, fmt.Errorf(`internal error: mode must be present as either "monitor" or "enforce": got %v`, val["mode"])
+	}
+
+	// extract pinned-sequence, if any is set
+	if rawSeq, ok := val["pinned-sequence"]; ok {
 		v, ok := rawSeq.(float64)
 		if !ok {
 			// writes are validated against the storage schema so shouldn't be possible
-			return fmt.Errorf(`internal error: "pinned-sequence" should be an int, got %[1]T: %[1]v`, rawSeq)
+			return valsetChange{}, fmt.Errorf(`internal error: "pinned-sequence" should be an int, got %v`, rawSeq)
 		}
-
-		tr.PinnedAt = int(v)
-	} else {
-		tr.PinnedAt = 0
+		ref.pinnedSeq = int(v)
 	}
 
+	return valsetChange{kind: mode, id: ref}, nil
+}
+
+// validationSetChanges collects the changes to be applied to validation-set
+// tracking state as part of a confdb commit.
+type validationSetChanges struct {
+	forgets  []valsetRef
+	monitors []valsetRef
+	enforces []valsetRef
+}
+
+// add buckets the given change into the appropriate slice.
+func (c *validationSetChanges) add(change valsetChange) {
+	switch change.kind {
+	case "forget":
+		c.forgets = append(c.forgets, change.id)
+	case "enforce":
+		c.enforces = append(c.enforces, change.id)
+	case "monitor":
+		c.monitors = append(c.monitors, change.id)
+	}
+}
+
+// apply persists the collected changes starting with enforcement, then monitoring
+// and finally forgetting (sorted by likelihood of failing). Enforcement changes
+// are atomic but other kinds are not. Failures to enforce do not change the
+// state or asserts DB, but failures to monitor do not rollback previous monitor
+// or enforcement changes.
+func (c *validationSetChanges) apply(st *state.State) error {
+	if len(c.enforces) > 0 {
+		snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
+		if err != nil {
+			return err
+		}
+
+		enforceStrings := make([]string, 0, len(c.enforces))
+		for _, ref := range c.enforces {
+			enforceStrings = append(enforceStrings, ref.String())
+		}
+
+		if err := assertstate.TryEnforcedValidationSets(st, enforceStrings, 0, snaps, ignoreValidation); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	}
+
+	for _, ref := range c.monitors {
+		if _, err := assertstate.MonitorValidationSet(st, ref.accountID, ref.name, ref.pinnedSeq, 0); err != nil {
+			return fmt.Errorf("cannot monitor validation set %s/%s: %v", ref.accountID, ref.name, err)
+		}
+	}
+
+	for _, ref := range c.forgets {
+		opts := assertstate.ForgetValidationSetOpts{}
+		if err := assertstate.ForgetValidationSet(st, ref.accountID, ref.name, opts); err != nil {
+			return fmt.Errorf("cannot forget validation set %s/%s: %v", ref.accountID, ref.name, err)
+		}
+	}
 	return nil
 }
