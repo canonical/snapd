@@ -386,6 +386,14 @@ func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func())
 	}
 }
 
+func MockLogindSessionClass(f func(ctx context.Context) (string, error)) (restore func()) {
+	old := logindSessionClass
+	logindSessionClass = f
+	return func() {
+		logindSessionClass = old
+	}
+}
+
 func MockSyscallUmount(f func(string, int) error) (restore func()) {
 	old := syscallUnmount
 	syscallUnmount = f
