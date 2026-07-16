@@ -94,7 +94,7 @@ func SessionClass() (string, error) {
 
 	// strip the "Class=" prefix from the output
 	splitVal := strings.SplitN(cleanVal, "=", 2)
-	if len(splitVal) != 2 {
+	if len(splitVal) != 2 || strings.TrimSpace(splitVal[0]) != "Class" || strings.TrimSpace(splitVal[1]) == "" {
 		return "", fmt.Errorf("invalid property format from loginctl for Class (got %s)", cleanVal)
 	}
 
