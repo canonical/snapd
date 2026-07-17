@@ -480,8 +480,8 @@ func (s *snapmgrTestSuite) TestRemoveComponentInSeedRefresh(c *C) {
 	c.Assert(tr.Set("core", "experimental.seed-refresh", true), IsNil)
 	tr.Commit()
 
-	s.AddCleanup(snapstate.MockCheckComponentSeedRefreshRemove(func(st *state.State,
-		si *snap.Info, componentName string, dctx snapstate.DeviceContext) error {
+	s.AddCleanup(snapstate.MockCheckSeedRefreshRemove(func(*state.State,
+		snapstate.SeedRefreshCandidate, snapstate.DeviceContext) error {
 		return fmt.Errorf("blocked by seed refresh")
 	}))
 

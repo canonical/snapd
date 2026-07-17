@@ -827,7 +827,16 @@ func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *
 		return err
 	}
 	if seedRefresh {
-		if err := CheckComponentSeedRefreshRemove(st, info, compst.SideInfo.Component.ComponentName, deviceCtx); err != nil {
+		// Construct a component exclusive candidate with the component
+		// to test if the component would trigger a seed refresh.
+		// The task id is not involved in the filtering when checking
+		// if a component triggers a seed, so it is fine to leave
+		// the value in the ComponentSetupTaskIDs field empty.
+		candidate := SeedRefreshCandidate{
+			InstanceName:          info.InstanceName(),
+			ComponentSetupTaskIDs: map[string]string{compst.SideInfo.Component.ComponentName: ""},
+		}
+		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
 	}

@@ -298,7 +298,6 @@ func delayedCrossMgrInit() {
 	snapstate.SeedRefreshTasks = SeedRefreshTasks
 	snapstate.UpdateSeedRefreshChange = UpdateSeedRefreshChange
 	snapstate.CheckSeedRefreshRemove = CheckSeedRefreshRemove
-	snapstate.CheckComponentSeedRefreshRemove = CheckComponentSeedRefreshRemove
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -1862,40 +1861,21 @@ func appendSeedRefreshCandidate(create *state.Task, snapSetupTasks []string, com
 	return setTaskRecoverySystemSetup(create, setup)
 }
 
-// CheckSeedRefreshRemove prevents removing optional snaps that are still
-// present in the current seed while seed-refresh is enabled.
+// CheckSeedRefreshRemove prevents removing optional snaps and components that
+// are still present in the current seed while seed-refresh is enabled.
 //
 // TODO:SEEDREFRESH: remove this once we support seed-refresh seeds
 // gaining/losing snaps
-func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.DeviceContext) error {
+func CheckSeedRefreshRemove(st *state.State, candidate snapstate.SeedRefreshCandidate, dctx snapstate.DeviceContext) error {
 	filter := seedRefreshFilter(st, dctx)
-	_, seedRefreshTriggered, err := filter(snapstate.SeedRefreshCandidate{
-		InstanceName: si.SnapName(),
-	})
+	_, seedRefreshTriggered, err := filter(candidate)
+
 	if err != nil {
 		return err
 	}
 
 	if seedRefreshTriggered {
 		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
-	}
-	return nil
-}
-
-// CheckComponentSeedRefreshRemove is set by devicestate to prevent removal of
-// components that must remain present for seed-refresh.
-var CheckComponentSeedRefreshRemove = func(st *state.State, si *snap.Info, componentName string, dctx snapstate.DeviceContext) error {
-	filter := seedRefreshFilter(st, dctx)
-	_, seedRefreshTriggered, err := filter(snapstate.SeedRefreshCandidate{
-		InstanceName:          si.SnapName(),
-		ComponentSetupTaskIDs: map[string]string{componentName: ""},
-	})
-	if err != nil {
-		return err
-	}
-
-	if seedRefreshTriggered {
-		return errors.New("cannot remove component present in the current seed while seed-refresh is enabled")
 	}
 	return nil
 }
