@@ -38,6 +38,16 @@ var (
 	confdbstateWriteConfdb = WriteConfdb
 )
 
+// confdbMessageBody is the body of a confdb request message.
+type confdbMessageBody struct {
+	Action      string         `json:"action"`
+	Account     string         `json:"account"`
+	View        string         `json:"view"`
+	Keys        []string       `json:"keys"`
+	Constraints map[string]any `json:"constraints"`
+	Values      map[string]any `json:"values"`
+}
+
 // deviceBackend fetches the device's confdb-control assertion.
 type deviceBackend interface {
 	ConfdbControl() (*asserts.ConfdbControl, error)
@@ -51,13 +61,27 @@ type confdbMessageHandler struct {
 // Validate checks that the operator sending the message has been granted
 // access to the requested confdb view in the device's confdb-control assertion.
 func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) error {
-	var payload struct {
-		Account string `json:"account"`
-		View    string `json:"view"`
-	}
-	err := json.Unmarshal([]byte(msg.Body), &payload)
+	var body confdbMessageBody
+	err := json.Unmarshal([]byte(msg.Body), &body)
 	if err != nil {
 		return fmt.Errorf("cannot decode message body: %v", err)
+	}
+
+	if body.Action != "get" && body.Action != "set" {
+		return fmt.Errorf("cannot validate message: unknown action %q", body.Action)
+	}
+
+	if body.Account == "" {
+		return fmt.Errorf("cannot validate message: account is required")
+	}
+
+	viewParts := strings.Split(body.View, "/")
+	if len(viewParts) != 2 {
+		return fmt.Errorf("cannot validate message: invalid view %q, expected <schema>/<view-name>", body.View)
+	}
+
+	if body.Action == "set" && len(body.Values) == 0 {
+		return fmt.Errorf("cannot validate message: body contains no values to write")
 	}
 
 	cc, err := h.device.ConfdbControl()
@@ -74,15 +98,12 @@ func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.Re
 	// For now, only "operator-key" is supported.
 
 	ctrl := cc.Control()
-	ok, err := ctrl.IsDelegated(
-		msg.AccountID,
-		payload.Account+"/"+payload.View,
-		[]string{"operator-key"},
-	)
+	authMethod := []string{"operator-key"}
+	delegated, err := ctrl.IsDelegated(msg.AccountID, body.Account+"/"+body.View, authMethod)
 	if err != nil {
 		return fmt.Errorf("cannot validate message: %v", err)
 	}
-	if !ok {
+	if !delegated {
 		return &devicemgmtstate.UnauthorizedError{Operator: msg.AccountID}
 	}
 
@@ -91,42 +112,26 @@ func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.Re
 
 // Apply schedules the confdb action described in the message and returns the change ID.
 func (h *confdbMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-	// TODO: determine if constraints (filtering) and access-timeout need to be
-	// supported in the message body spec (SD194), and implement them here.
-	var payload struct {
-		Action  string         `json:"action"`
-		Account string         `json:"account"`
-		View    string         `json:"view"`
-		Keys    []string       `json:"keys"`
-		Values  map[string]any `json:"values"`
-	}
-	err := json.Unmarshal([]byte(msg.Body), &payload)
+	var body confdbMessageBody
+	err := json.Unmarshal([]byte(msg.Body), &body)
 	if err != nil {
 		return "", fmt.Errorf("cannot decode message body: %v", err)
 	}
 
-	viewParts := strings.Split(payload.View, "/")
-	if len(viewParts) != 2 {
-		return "", fmt.Errorf("cannot apply message: invalid view %q, expected <schema>/<view-name>", payload.View)
-	}
-
-	view, err := confdbstateGetView(st, payload.Account, viewParts[0], viewParts[1])
+	viewParts := strings.Split(body.View, "/")
+	view, err := confdbstateGetView(st, body.Account, viewParts[0], viewParts[1])
 	if err != nil {
 		return "", err
 	}
 
 	var chgID string
-	switch payload.Action {
+	switch body.Action {
 	case "get":
-		chgID, err = confdbstateReadConfdb(context.Background(), st, view, payload.Keys, nil, confdb.AdminAccess)
+		chgID, err = confdbstateReadConfdb(context.Background(), st, view, body.Keys, body.Constraints, confdb.AdminAccess)
 	case "set":
-		if len(payload.Values) == 0 {
-			return "", fmt.Errorf("cannot apply message: body contains no values to write")
-		}
-
-		chgID, err = confdbstateWriteConfdb(context.Background(), st, view, payload.Values)
+		chgID, err = confdbstateWriteConfdb(context.Background(), st, view, body.Values)
 	default:
-		return "", fmt.Errorf("cannot apply message: unknown action %q", payload.Action)
+		return "", fmt.Errorf("cannot apply message: unknown action %q", body.Action)
 	}
 	if err != nil {
 		return "", err
@@ -134,9 +139,8 @@ func (h *confdbMessageHandler) Apply(st *state.State, msg *devicemgmtstate.Reque
 
 	chg := st.Change(chgID)
 	if chg == nil {
-		return "", fmt.Errorf("internal: cannot find change %q after applying confdb message", chgID)
+		return "", fmt.Errorf("internal error: cannot find change %q created for confdb message", chgID)
 	}
-
 	devicemgmtstate.MarkChangeForMessage(chg, msg)
 
 	return chgID, nil
@@ -148,7 +152,7 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 		return nil, chg.Err()
 	}
 	if chg.Status() != state.DoneStatus {
-		return nil, fmt.Errorf("internal: unexpected change status %s", chg.Status())
+		return nil, fmt.Errorf("internal error: unexpected change status %s", chg.Status())
 	}
 
 	var apiData map[string]any
@@ -158,7 +162,7 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 			return map[string]any{}, nil
 		}
 
-		return nil, fmt.Errorf("internal: change %q done with no api-data", chg.Kind())
+		return nil, fmt.Errorf("internal error: change %q done with no api-data", chg.Kind())
 	}
 	if err != nil {
 		return nil, err
@@ -171,7 +175,7 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 
 	errMap, ok := errData.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("internal: api-data error field is not a map")
+		return nil, fmt.Errorf("internal error: api-data error field is not a map")
 	}
 
 	msg, _ := errMap["message"].(string)

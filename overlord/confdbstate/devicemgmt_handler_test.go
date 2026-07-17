@@ -176,9 +176,34 @@ func (s *confdbHandlerSuite) TestValidateInvalidBody(c *C) {
 			expectedErr: "cannot decode message body: .*",
 		},
 		{
+			name:        "missing account",
+			body:        `{"action":"get","account":"","view":"network/wifi-admin"}`,
+			expectedErr: "cannot validate message: account is required",
+		},
+		{
+			name:        "unknown action",
+			body:        `{"action":"delete","account":"system","view":"network/wifi-admin"}`,
+			expectedErr: `cannot validate message: unknown action "delete"`,
+		},
+		{
 			name:        "invalid view",
 			body:        `{"action":"get","account":"system","view":"network"}`,
-			expectedErr: `cannot validate message: view "system/network" must be in the format account/confdb/view`,
+			expectedErr: `cannot validate message: invalid view "network", expected <schema>/<view-name>`,
+		},
+		{
+			name:        "view with too many segments",
+			body:        `{"action":"get","account":"system","view":"foo/bar/baz"}`,
+			expectedErr: `cannot validate message: invalid view "foo/bar/baz", expected <schema>/<view-name>`,
+		},
+		{
+			name:        "set with no values",
+			body:        `{"action":"set","account":"system","view":"network/wifi-admin"}`,
+			expectedErr: "cannot validate message: body contains no values to write",
+		},
+		{
+			name:        "set with empty values",
+			body:        `{"action":"set","account":"system","view":"network/wifi-admin","values":{}}`,
+			expectedErr: "cannot validate message: body contains no values to write",
 		},
 	}
 
@@ -207,9 +232,10 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	})
 	defer restore()
 
-	restore = confdbstate.MockConfdbstateReadConfdb(func(_ context.Context, st *state.State, view *confdb.View, requests []string, _ map[string]any, _ confdb.Access) (string, error) {
+	restore = confdbstate.MockConfdbstateReadConfdb(func(_ context.Context, st *state.State, view *confdb.View, requests []string, constraints map[string]any, _ confdb.Access) (string, error) {
 		c.Check(view.Name, Equals, "wifi-admin")
 		c.Check(requests, DeepEquals, []string{"ssid"})
+		c.Check(constraints, DeepEquals, map[string]any{"iface": "wlan0"})
 
 		chg := st.NewChange("get-confdb", "test change")
 		return chg.ID(), nil
@@ -219,7 +245,7 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	msg := &devicemgmtstate.RequestMessage{
 		BaseID: "msg-1",
 		Kind:   "confdb",
-		Body:   `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"]}`,
+		Body:   `{"action":"get","account":"system","view":"network/wifi-admin","keys":["ssid"],"constraints":{"iface":"wlan0"}}`,
 	}
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -292,29 +318,9 @@ func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {
 			expectedErr: "cannot decode message body: .*",
 		},
 		{
-			name:        "invalid view",
-			body:        `{"action":"get","account":"system","view":"network"}`,
-			expectedErr: `cannot apply message: invalid view "network", expected <schema>/<view-name>`,
-		},
-		{
-			name:        "view with too many segments",
-			body:        `{"action":"get","account":"system","view":"foo/bar/baz"}`,
-			expectedErr: `cannot apply message: invalid view "foo/bar/baz", expected <schema>/<view-name>`,
-		},
-		{
 			name:        "unknown action",
 			body:        `{"action":"delete","account":"system","view":"network/wifi-admin"}`,
 			expectedErr: `cannot apply message: unknown action "delete"`,
-		},
-		{
-			name:        "set with no values field",
-			body:        `{"action":"set","account":"system","view":"network/wifi-admin"}`,
-			expectedErr: "cannot apply message: body contains no values to write",
-		},
-		{
-			name:        "set with empty values",
-			body:        `{"action":"set","account":"system","view":"network/wifi-admin","values":{}}`,
-			expectedErr: "cannot apply message: body contains no values to write",
 		},
 	}
 
@@ -419,7 +425,7 @@ func (s *confdbHandlerSuite) TestResultFromChangeNotDone(c *C) {
 
 	body, err := handler.ResultFromChange(chg)
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `internal: unexpected change status Doing`)
+	c.Check(err, ErrorMatches, `internal error: unexpected change status Doing`)
 	c.Check(body, IsNil)
 }
 
@@ -448,7 +454,7 @@ func (s *confdbHandlerSuite) TestResultFromChangeNoApiDataOnGetChange(c *C) {
 
 	body, err := handler.ResultFromChange(chg)
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `internal: change "get-confdb" done with no api-data`)
+	c.Check(err, ErrorMatches, `internal error: change "get-confdb" done with no api-data`)
 	c.Check(body, IsNil)
 }
 
@@ -503,6 +509,6 @@ func (s *confdbHandlerSuite) TestResultFromChangeApiDataErrorFieldNotAMap(c *C) 
 
 	body, err := handler.ResultFromChange(chg)
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "internal: api-data error field is not a map")
+	c.Check(err, ErrorMatches, "internal error: api-data error field is not a map")
 	c.Check(body, IsNil)
 }
