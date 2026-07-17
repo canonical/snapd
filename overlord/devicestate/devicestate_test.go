@@ -3076,9 +3076,10 @@ func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveBlocksOptionalSnapInCurrentSe
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-2", "presence": "optional"},
 	}, nil, "snap-2")
-	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
-
-	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: "snap-2",
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
 	c.Assert(err, ErrorMatches, `cannot remove snap present in the current seed while seed-refresh is enabled`)
 }
 
@@ -3093,9 +3094,10 @@ func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalSnapNotInCurren
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-2", "presence": "optional"},
 	}, nil)
-	info := snaptest.MockInfo(c, "name: snap-2\nversion: 1", nil)
-
-	err := devicestate.CheckSeedRefreshRemove(s.state, info, dctx)
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: "snap-2",
+	}
+	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
 	c.Assert(err, IsNil)
 }
 
