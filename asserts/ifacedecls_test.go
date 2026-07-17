@@ -883,9 +883,19 @@ func (s *plugSlotRulesSuite) TestCompileOnClassicSystemConstraint(c *C) {
 		c.Check(constraint, DeepEquals, test.expected)
 	}
 
-	for _, input := range []string{"ubuntu/touch/stable", "ubuntu/!desktop", "ubuntu//", "/touch", "*"} {
-		_, err := asserts.CompileOnClassicSystemConstraintForTest(input)
-		c.Check(err, ErrorMatches, "invalid operating system constraint")
+	invalidTests := []struct {
+		input string
+		err   string
+	}{
+		{input: "ubuntu/touch/stable", err: "invalid operating system constraint: too many '/' separators"},
+		{input: "ubuntu/!desktop", err: "invalid operating system constraint: invalid variant ID"},
+		{input: "ubuntu//", err: "invalid operating system constraint: too many '/' separators"},
+		{input: "/touch", err: "invalid operating system constraint: invalid distro ID"},
+		{input: "*", err: "invalid operating system constraint: invalid distro ID"},
+	}
+	for _, test := range invalidTests {
+		_, err := asserts.CompileOnClassicSystemConstraintForTest(test.input)
+		c.Check(err, ErrorMatches, test.err)
 	}
 }
 
@@ -2173,15 +2183,10 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
     plug-snap-type:
       - xapp`, `plug-snap-type in allow-connection in slot rule for interface "iface" contains an invalid element: "xapp"`},
 		{"iface:\n  allow-connection:\n    on-classic:\n      x: 1", `on-classic in allow-connection in slot rule for interface \"iface\" must be 'true', 'false' or a list of operating system IDs with optional /variant IDs`},
-		{`iface:
-  allow-connection:
-    on-classic:
-      - zoom!`, `on-classic in allow-connection in slot rule for interface \"iface\" contains an invalid element: \"zoom!\"`},
-		{"iface:\n  allow-connection:\n    on-classic:\n      - ubuntu/touch/stable", `on-classic in allow-connection in slot rule for interface \"iface\" contains an invalid element: \"ubuntu/touch/stable\"`},
-		{`iface:
-  allow-connection:
-    on-classic:
-      - ubuntu/!desktop`, `on-classic in allow-connection in slot rule for interface \"iface\" contains an invalid element: \"ubuntu/!desktop\"`},
+		{"iface:\n  allow-connection:\n    on-classic:\n      -\n        distro: ubuntu", `on-classic in allow-connection in slot rule for interface "iface" must be a list of strings`},
+		{"iface:\n  allow-connection:\n    on-classic:\n      - zoom!", `on-classic in allow-connection in slot rule for interface "iface" contains an invalid element: "zoom!": invalid operating system constraint: invalid distro ID`},
+		{"iface:\n  allow-connection:\n    on-classic:\n      - ubuntu/touch/stable", `on-classic in allow-connection in slot rule for interface "iface" contains an invalid element: "ubuntu/touch/stable": invalid operating system constraint: too many '/' separators`},
+		{"iface:\n  allow-connection:\n    on-classic:\n      - ubuntu/!desktop", `on-classic in allow-connection in slot rule for interface "iface" contains an invalid element: "ubuntu/!desktop": invalid operating system constraint: invalid variant ID`},
 		{`iface:
   allow-connection:
     plug-snap-ids:

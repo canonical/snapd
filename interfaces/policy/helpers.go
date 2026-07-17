@@ -89,13 +89,7 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 }
 
 func checkOnClassicSystem(system asserts.OnClassicSystemConstraint, distroID, variantID string) bool {
-	if system.DistroID != distroID {
-		return false
-	}
-	if system.VariantAny {
-		return true
-	}
-	return system.VariantID == variantID
+	return system.DistroID == distroID && (system.VariantID == variantID || system.VariantAny)
 }
 
 func checkOnCoreDesktop(c *asserts.OnCoreDesktopConstraint) error {

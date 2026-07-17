@@ -242,7 +242,7 @@ func compileOnClassicConstraint(context *subruleContext, onClassic any) (*OnClas
 			}
 			systemID, err := compileOnClassicSystemConstraint(s)
 			if err != nil {
-				return nil, fmt.Errorf("%s contains an invalid element: %q", what, s)
+				return nil, fmt.Errorf("%s contains an invalid element: %q: %v", what, s, err)
 			}
 			systems[i] = systemID
 		}
@@ -254,11 +254,11 @@ func compileOnClassicConstraint(context *subruleContext, onClassic any) (*OnClas
 
 func compileOnClassicSystemConstraint(s string) (OnClassicSystemConstraint, error) {
 	if strings.Count(s, "/") > 1 {
-		return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+		return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint: too many '/' separators")
 	}
 	if distroID, variantID, hasVariant := strings.Cut(s, "/"); hasVariant {
 		if !validDistro.MatchString(distroID) {
-			return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+			return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint: invalid distro ID")
 		}
 		constraint := OnClassicSystemConstraint{
 			DistroID: distroID,
@@ -272,12 +272,12 @@ func compileOnClassicSystemConstraint(s string) (OnClassicSystemConstraint, erro
 		case validDistro.MatchString(variantID):
 			constraint.VariantID = variantID
 		default:
-			return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+			return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint: invalid variant ID")
 		}
 		return constraint, nil
 	}
 	if !validDistro.MatchString(s) {
-		return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint")
+		return OnClassicSystemConstraint{}, fmt.Errorf("invalid operating system constraint: invalid distro ID")
 	}
 	return OnClassicSystemConstraint{DistroID: s, VariantAny: true}, nil
 }
