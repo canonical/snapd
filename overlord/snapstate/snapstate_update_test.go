@@ -21619,7 +21619,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
 		InstanceName:          "some-app",
 		SnapSetupTaskIDs:      []string{appSnapSetupTask.ID()},
-		ComponentSetupTaskIDs: appCompSetupTaskIDs,
+		ComponentSetupTaskIDs: map[string]string{"standard-component": appCompSetupTaskIDs[0]},
 	}})
 	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
 
