@@ -231,9 +231,6 @@ func compileOnClassicConstraint(context *subruleContext, onClassic any) (*OnClas
 			return nil, syntaxError
 		}
 	case []any:
-		if len(x) == 0 {
-			return &OnClassicConstraint{Classic: true}, nil
-		}
 		systems := make([]OnClassicSystemConstraint, len(x))
 		for i, v := range x {
 			s, ok := v.(string)
