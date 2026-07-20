@@ -154,6 +154,9 @@ owner @{PROC}/@{pid}/fd/[0-9]* w,
 /run/udev/data/+hid:* r,
 /run/udev/data/+input:input[0-9]* r,
 
+# Allow access to WebHID devices (LP: #2148141).
+/dev/hidraw[0-9]* rwk,
+
 # screen
 /run/udev/data/c29:[0-9]* r,  # /dev/fb*
 /run/udev/data/+backlight:* r,
