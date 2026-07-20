@@ -54,7 +54,7 @@ var systemsCmd = &Command{
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
 	POST:        postSystemsAction,
-	Actions:     []string{"reboot", "create", "install"},
+	Actions:     []string{"reboot", "create", "install", "fix-encryption-support", "generate-recovery-key"},
 	WriteAccess: rootAccess{},
 }
 
@@ -78,7 +78,24 @@ type systemsResponse struct {
 	Systems []client.System `json:"systems,omitempty"`
 }
 
+func getRunningSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
+	deviceMgr := c.d.overlord.DeviceManager()
+
+	sys, gadgetInfo, encryptionInfo, err := deviceManagerRunningSystemAndGadgetAndEncryptionInfo(deviceMgr)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
+	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
+	return SyncResponse(*details)
+}
+
 func getAllSystems(c *Command, r *http.Request, user *auth.UserState) Response {
+	query := r.URL.Query()
+	if query.Get("running") == "true" {
+		return getRunningSystemDetails(c, r, user)
+	}
+
 	var rsp systemsResponse
 
 	seedSystems, err := c.d.overlord.DeviceManager().Systems()
@@ -134,6 +151,12 @@ var deviceManagerSystemAndGadgetAndEncryptionInfo func(
 	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
 ) = (*devicestate.DeviceManager).SystemAndGadgetAndEncryptionInfo
 
+var deviceManagerRunningSystemAndGadgetAndEncryptionInfo func(
+	dm *devicestate.DeviceManager,
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).RunningSystemAndGadgetAndEncryptionInfo
+
 // wrapped for unit tests
 var deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo func(
 	dm *devicestate.DeviceManager,
@@ -142,6 +165,13 @@ var deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo func(
 ) (
 	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
 ) = (*devicestate.DeviceManager).ApplyActionOnSystemAndGadgetAndEncryptionInfo
+
+var deviceManagerApplyActionOnRunningSystemAndGadgetAndEncryptionInfo func(
+	dm *devicestate.DeviceManager,
+	checkAction *secboot.PreinstallAction,
+) (
+	*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error,
+) = (*devicestate.DeviceManager).ApplyActionOnRunningSystemAndGadgetAndEncryptionInfo
 
 func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEncryption {
 	if encInfo.Disabled {
@@ -176,16 +206,25 @@ func storageEncryption(encInfo *install.EncryptionSupportInfo) *client.StorageEn
 		storageEnc.Features = append(storageEnc.Features, client.StorageEncryptionFeaturePINAuth)
 	}
 
+	encRequirements := encInfo.Requirements()
+	if len(encRequirements) > 0 {
+		storageEnc.Requirements = make([]string, len(encRequirements))
+		for i, req := range encRequirements {
+			storageEnc.Requirements[i] = string(req)
+		}
+	}
+
 	return storageEnc
 }
 
 var (
-	devicestateInstallFinish                 = devicestate.InstallFinish
-	devicestateInstallSetupStorageEncryption = devicestate.InstallSetupStorageEncryption
-	devicestateInstallPreseed                = devicestate.InstallPreseed
-	devicestateCreateRecoverySystem          = devicestate.CreateRecoverySystem
-	devicestateRemoveRecoverySystem          = devicestate.RemoveRecoverySystem
-	devicestateGeneratePreInstallRecoveryKey = devicestate.GeneratePreInstallRecoveryKey
+	devicestateInstallFinish                  = devicestate.InstallFinish
+	devicestateInstallSetupStorageEncryption  = devicestate.InstallSetupStorageEncryption
+	devicestateInstallPreseed                 = devicestate.InstallPreseed
+	devicestateCreateRecoverySystem           = devicestate.CreateRecoverySystem
+	devicestateRemoveRecoverySystem           = devicestate.RemoveRecoverySystem
+	devicestateGeneratePreInstallRecoveryKey  = devicestate.GeneratePreInstallRecoveryKey
+	devicestateGenerateReprovisionRecoveryKey = devicestate.GenerateReprovisionRecoveryKey
 )
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -321,6 +360,11 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCheckPINQuality(c, systemLabel, &req)
 	case "fix-encryption-support":
 		return postSystemActionFixEncryptionSupport(c, systemLabel, &req)
+	case "generate-recovery-key":
+		if systemLabel != "" {
+			return BadRequest("label should not be provided for generate-recovery-key action")
+		}
+		return postSystemActionGenerateRecoveryKey(c, &req)
 	default:
 		return BadRequest("unsupported action %q", req.Action)
 	}
@@ -369,6 +413,31 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 	return SyncResponse(nil)
 }
 
+func volumesAuthRequiredLocked(c *Command, systemLabel string) (bool, error) {
+	st := c.d.overlord.State()
+	st.Unlock()
+	defer st.Lock()
+
+	// use cached encryption information when available; skips the expensive
+	// availability check
+	const encInfoFromCache = true
+
+	deviceMgr := c.d.overlord.DeviceManager()
+	_, _, encInfo, err := deviceManagerSystemAndGadgetAndEncryptionInfo(
+		deviceMgr, systemLabel, encInfoFromCache)
+	if err != nil {
+		return false, err
+	}
+
+	for _, req := range encInfo.Requirements() {
+		if req == install.EncryptionSupportRequirementVolumesAuth {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRequest) Response {
 	st := c.d.overlord.State()
 	st.Lock()
@@ -380,8 +449,27 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 			if err := req.VolumesAuth.Validate(); err != nil {
 				return BadRequest("invalid volume authentication options: %v", err)
 			}
+			if req.KeyboardConfig == nil {
+				return BadRequest("cannot use volumes authentication without a keyboard configuration")
+			}
 		}
-		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes, req.VolumesAuth)
+
+		if req.VolumesAuth == nil || req.VolumesAuth.Mode == device.AuthModeNone {
+			volumesAuthRequired, err := volumesAuthRequiredLocked(c, systemLabel)
+			if err != nil {
+				return InternalError("cannot determine if volume authentication is required for install from %q: %v", systemLabel, err)
+			}
+			if volumesAuthRequired {
+				return BadRequest("cannot setup storage encryption for install from %q: volumes-auth is required", systemLabel)
+			}
+		}
+
+		if req.KeyboardConfig != nil {
+			if err := req.KeyboardConfig.Validate(); err != nil {
+				return BadRequest("invalid keyboard configuration: %v", err)
+			}
+		}
+		chg, err := devicestateInstallSetupStorageEncryption(st, systemLabel, req.OnVolumes, req.VolumesAuth, req.KeyboardConfig)
 		if err != nil {
 			return BadRequest("cannot setup storage encryption for install from %q: %v", systemLabel, err)
 		}
@@ -390,7 +478,7 @@ func postSystemActionInstall(c *Command, systemLabel string, req *systemActionRe
 	case client.InstallStepGenerateRecoveryKey:
 		rkey, err := devicestateGeneratePreInstallRecoveryKey(st, systemLabel)
 		if err != nil {
-			return BadRequest("cannot generate recovery key for %q: %v", systemLabel, err)
+			return InternalError("cannot generate recovery key for %q: %v", systemLabel, err)
 		}
 		return SyncResponse(map[string]string{
 			"recovery-key": rkey.String(),
@@ -763,10 +851,6 @@ func postSystemActionCheckPINQuality(c *Command, systemLabel string, req *system
 }
 
 func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *systemActionRequest) Response {
-	if systemLabel == "" {
-		return BadRequest("system action requires the system label to be provided")
-	}
-
 	// FixAction set to "" is valid and maps to secboot constant ActionNone.
 	// Omission of FixAction is not allowed.
 	if req.FixAction == nil {
@@ -790,11 +874,33 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 
 	deviceMgr := c.d.overlord.DeviceManager()
 
-	sys, gadgetInfo, encryptionInfo, err := deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, checkAction)
+	var err error
+	var sys *devicestate.System
+	var gadgetInfo *gadget.Info
+	var encryptionInfo *install.EncryptionSupportInfo
+	if systemLabel == "" {
+		sys, gadgetInfo, encryptionInfo, err = deviceManagerApplyActionOnRunningSystemAndGadgetAndEncryptionInfo(deviceMgr, checkAction)
+	} else {
+		sys, gadgetInfo, encryptionInfo, err = deviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(deviceMgr, systemLabel, checkAction)
+	}
 	if err != nil {
 		return InternalError(err.Error())
 	}
 
 	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
 	return SyncResponse(*details)
+}
+
+func postSystemActionGenerateRecoveryKey(c *Command, req *systemActionRequest) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	rkey, err := devicestateGenerateReprovisionRecoveryKey(st)
+	if err != nil {
+		return InternalError("cannot generate recovery key: %v", err)
+	}
+	return SyncResponse(map[string]string{
+		"recovery-key": rkey.String(),
+	})
 }

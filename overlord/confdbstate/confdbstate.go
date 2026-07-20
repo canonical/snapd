@@ -31,8 +31,6 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
@@ -44,8 +42,9 @@ import (
 )
 
 var (
-	assertstateConfdbSchema               = assertstate.ConfdbSchema
-	assertstateFetchConfdbSchemaAssertion = assertstate.FetchConfdbSchemaAssertion
+	// assertstate implements SystemConfdbHandler so this avoids a circular import
+	AssertstateConfdbSchema               func(st *state.State, account, schemaName string) (*asserts.ConfdbSchema, error)
+	AssertstateFetchConfdbSchemaAssertion func(st *state.State, userID int, account, name string) error
 
 	setConfdbChangeKind = swfeats.RegisterChangeKind("set-confdb")
 	getConfdbChangeKind = swfeats.RegisterChangeKind("get-confdb")
@@ -101,7 +100,7 @@ func (e *NoViewError) Error() string {
 // name. Returns asserts.NotFoundError if no confdb-schema assertion can be
 // fetched and NoViewError if the known confdb-schema has no such view.
 func GetView(st *state.State, account, schemaName, viewName string) (*confdb.View, error) {
-	confdbSchemaAs, err := assertstateConfdbSchema(st, account, schemaName)
+	confdbSchemaAs, err := AssertstateConfdbSchema(st, account, schemaName)
 	if err != nil {
 		if !errors.Is(err, &asserts.NotFoundError{}) {
 			return nil, err
@@ -109,7 +108,7 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 		logger.Noticef("confdb-schema %s/%s not found locally, fetching from store", account, schemaName)
 
 		userID := 0
-		fetchErr := assertstateFetchConfdbSchemaAssertion(st, userID, account, schemaName)
+		fetchErr := AssertstateFetchConfdbSchemaAssertion(st, userID, account, schemaName)
 		if fetchErr != nil {
 			if errors.Is(fetchErr, store.ErrStoreOffline) {
 				logger.Noticef(fetchErr.Error())
@@ -118,7 +117,7 @@ func GetView(st *state.State, account, schemaName, viewName string) (*confdb.Vie
 			return nil, fetchErr
 		}
 
-		confdbSchemaAs, err = assertstateConfdbSchema(st, account, schemaName)
+		confdbSchemaAs, err = AssertstateConfdbSchema(st, account, schemaName)
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +174,16 @@ func GetViaView(bag confdb.Databag, view *confdb.View, requests []string, constr
 	return results, nil
 }
 
-var readDatabag = func(st *state.State, account, dbSchemaName string) (confdb.JSONDatabag, error) {
+var readDatabag = func(st *state.State, account, schema string) (confdb.JSONDatabag, error) {
+	if account == "system" {
+		handler, ok := systemHandlers[schema]
+		if !ok {
+			return nil, fmt.Errorf("cannot read databag for system/%s: no internal handler", schema)
+		}
+
+		return handler.Databag(st)
+	}
+
 	var databags map[string]map[string]confdb.JSONDatabag
 	if err := st.Get("confdb-databags", &databags); err != nil {
 		if errors.Is(err, &state.NoStateError{}) {
@@ -184,14 +192,19 @@ var readDatabag = func(st *state.State, account, dbSchemaName string) (confdb.JS
 		return nil, err
 	}
 
-	if databags[account] == nil || databags[account][dbSchemaName] == nil {
+	if databags[account] == nil || databags[account][schema] == nil {
 		return confdb.NewJSONDatabag(), nil
 	}
 
-	return databags[account][dbSchemaName], nil
+	return databags[account][schema], nil
 }
 
 var writeDatabag = func(st *state.State, databag confdb.JSONDatabag, account, dbSchemaName string) error {
+	if account == "system" {
+		// should never happen but let's be defensive
+		return fmt.Errorf("internal error: \"system\" confdbs do not store databags")
+	}
+
 	var databags map[string]map[string]confdb.JSONDatabag
 	err := st.Get("confdb-databags", &databags)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
@@ -285,11 +298,7 @@ func waitForAccess(ctx context.Context, st *state.State, view *confdb.View, accK
 			}
 		}
 
-		err = maybeUnblockAccesses(txs)
-		if err != nil {
-			return "", fmt.Errorf("cannot cleanup state after timeout/cancel: %v", err)
-		}
-
+		maybeUnblockAccesses(txs)
 		updateTxs(txs)
 
 		return "", fmt.Errorf("cannot %s %s: timed out waiting for access", accKind, view.ID())
@@ -871,11 +880,8 @@ func cleanupAccess(st *state.State, accessID, account, schema string) {
 		}
 	}
 
-	// this may actually not unblock anything, if other accesses are being processed
-	uerr = maybeUnblockAccesses(txs)
-	if uerr != nil {
-		logger.Noticef("cannot unblock next access after failed access: %v", uerr)
-	}
+	// this may not actually unblock anything if other accesses are being processed
+	maybeUnblockAccesses(txs)
 }
 
 // ReadConfdb schedules a change to load a confdb, running any appropriate
@@ -1014,13 +1020,4 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 	linkTask(clearTxTask)
 
 	return ts, clearTxTask, nil
-}
-
-func MockFetchConfdbSchemaAssertion(f func(*state.State, int, string, string) error) func() {
-	osutil.MustBeTestBinary("mocking can only be done in tests")
-	old := assertstateFetchConfdbSchemaAssertion
-	assertstateFetchConfdbSchemaAssertion = f
-	return func() {
-		assertstateFetchConfdbSchemaAssertion = old
-	}
 }

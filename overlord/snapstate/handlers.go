@@ -916,8 +916,18 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
+	defer st.Unlock()
+
 	perfTimings.Save(st)
-	st.Unlock()
+
+	// nothing else should use SnapPath anymore, since that path might not even
+	// exist, in the case that the file was removed above. to prevent this, we
+	// clear it out
+	snapsup.SnapPath = ""
+	if err := SetTaskSnapSetup(t, snapsup); err != nil {
+		return err
+	}
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
@@ -1084,12 +1094,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) (retErr e
 	}
 
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-
-	refreshAppAwarenessEnabled := experimentalRefreshAppAwareness && !excludeFromRefreshAppAwareness(snapsup.Type)
+	refreshAppAwarenessEnabled := !excludeFromRefreshAppAwareness(snapsup.Type)
 	if refreshAppAwarenessEnabled && !snapsup.Flags.IgnoreRunning {
 		// Invoke the hard refresh flow. Upon success the returned lock will be
 		// held to prevent snap-run from advancing until UnlinkSnap, executed
@@ -3749,10 +3754,6 @@ const (
 // during a refresh.
 func shouldSkipRemoveAliases(st *state.State, removeReason removeAliasesReason, snapType snap.Type) (skip bool, err error) {
 	tr := config.NewTransaction(st)
-	experimentalRefreshAppAwareness, err := features.Flag(tr, features.RefreshAppAwareness)
-	if err != nil && !config.IsNoOption(err) {
-		return false, err
-	}
 	experimentalRefreshAppAwarenessUX, err := features.Flag(tr, features.RefreshAppAwarenessUX)
 	if err != nil && !config.IsNoOption(err) {
 		return false, err
@@ -3762,9 +3763,6 @@ func shouldSkipRemoveAliases(st *state.State, removeReason removeAliasesReason, 
 		return false, nil
 	}
 	if !experimentalRefreshAppAwarenessUX {
-		return false, nil
-	}
-	if !experimentalRefreshAppAwareness {
 		return false, nil
 	}
 	if excludeFromRefreshAppAwareness(snapType) {

@@ -82,17 +82,17 @@ func (s *experimentalSuite) TestExportedFeatures(c *C) {
 
 func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]any{
-		"experimental.refresh-app-awareness": "true",
+		"experimental.hidden-snap-folder": "true",
 	})
 	tmpDir := c.MkDir()
 	c.Assert(configcore.FilesystemOnlyApply(classicDev, tmpDir, conf), IsNil)
-	c.Check(osutil.FileExists(filepath.Join(tmpDir, "/var/lib/snapd/features/refresh-app-awareness")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(tmpDir, "/var/lib/snapd/features/hidden-snap-folder")), Equals, true)
 }
 
 func (s *experimentalSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]any{
-		"experimental.refresh-app-awareness": 1,
+		"experimental.hidden-snap-folder": 1,
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(classicDev, tmpDir, conf), ErrorMatches, `experimental.refresh-app-awareness can only be set to 'true' or 'false'`)
+	c.Assert(configcore.FilesystemOnlyApply(classicDev, tmpDir, conf), ErrorMatches, `experimental.hidden-snap-folder can only be set to 'true' or 'false'`)
 }

@@ -24,10 +24,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"golang.org/x/xerrors"
-
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
+	"github.com/snapcore/snapd/osutil/keyboard"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 )
@@ -75,7 +74,7 @@ func (client *Client) ListSystems() ([]System, error) {
 	var rsp systemsResponse
 
 	if _, err := client.doSync("GET", "/v2/systems", nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot list recovery systems: %v", err)
+		return nil, fmt.Errorf("cannot list recovery systems: %v", err)
 	}
 	return rsp.Systems, nil
 }
@@ -104,7 +103,7 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 		return err
 	}
 	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
-		return xerrors.Errorf("cannot request system action: %v", err)
+		return fmt.Errorf("cannot request system action: %v", err)
 	}
 	return nil
 }
@@ -137,9 +136,9 @@ func (client *Client) RebootToSystem(systemLabel, mode string) error {
 	}
 	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, nil); err != nil {
 		if systemLabel != "" {
-			return xerrors.Errorf("cannot request system reboot into %q: %v", systemLabel, err)
+			return fmt.Errorf("cannot request system reboot into %q: %v", systemLabel, err)
 		}
-		return xerrors.Errorf("cannot request system reboot: %v", err)
+		return fmt.Errorf("cannot request system reboot: %v", err)
 	}
 	return nil
 }
@@ -187,6 +186,9 @@ type StorageEncryption struct {
 
 	// AvailabilityCheckErrors reports errors detected during preinstall check.
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails `json:"availability-check-errors,omitempty"`
+
+	// Requirements is a list of requirements that must be met for storage encryption to be supported.
+	Requirements []string `json:"requirements,omitempty"`
 }
 
 type SystemDetails struct {
@@ -222,7 +224,7 @@ func (client *Client) SystemDetails(systemLabel string) (*SystemDetails, error) 
 	var rsp SystemDetails
 
 	if _, err := client.doSync("GET", "/v2/systems/"+systemLabel, nil, nil, nil, &rsp); err != nil {
-		return nil, xerrors.Errorf("cannot get details for system %q: %v", systemLabel, err)
+		return nil, fmt.Errorf("cannot get details for system %q: %v", systemLabel, err)
 	}
 	gadget.SetEnclosingVolumeInStructs(rsp.Volumes)
 	return &rsp, nil
@@ -252,6 +254,37 @@ const (
 	InstallStepPreseed InstallStep = "preseed"
 )
 
+// KeyboardConfig carries the keyboard layout selected at install-time so it can
+// be propagated to the first-boot kernel command line (e.g. for plymouth to use
+// the correct keymap at the passphrase/PIN prompt).
+type KeyboardConfig struct {
+	Model   string   `json:"model,omitempty"`
+	Layout  string   `json:"layout,omitempty"`
+	Variant string   `json:"variant,omitempty"`
+	Options []string `json:"options,omitempty"`
+}
+
+// XKBConfig converts the KeyboardConfig to simplified keyboard.XKBConfig struct.
+func (c *KeyboardConfig) XKBConfig() keyboard.XKBConfig {
+	xkb := keyboard.XKBConfig{
+		Model:   c.Model,
+		Options: c.Options,
+	}
+	if c.Layout != "" {
+		xkb.Layouts = []string{c.Layout}
+	}
+	if c.Variant != "" {
+		xkb.Variants = []string{c.Variant}
+	}
+	return xkb
+}
+
+// Validate the keyboard configuration.
+func (c *KeyboardConfig) Validate() error {
+	xkb := c.XKBConfig()
+	return xkb.Validate()
+}
+
 type InstallSystemOptions struct {
 	// Step is the install step, either "setup-storage-encryption"
 	// or "finish", or "preseed".
@@ -270,6 +303,8 @@ type InstallSystemOptions struct {
 	// authentication). If VolumesAuth is nil, the default is to have no
 	// authentication.
 	VolumesAuth *device.VolumesAuthOptions `json:"volumes-auth,omitempty"`
+	// KeyboardConfig contains the selected keyboard layout.
+	KeyboardConfig *KeyboardConfig `json:"keyboard-config,omitempty"`
 
 	// TargetRoot is a path to the rootfs of a mounted target system for the
 	// "preseed" step.
@@ -304,7 +339,7 @@ func (client *Client) InstallSystem(systemLabel string, opts *InstallSystemOptio
 	}
 	chgID, err := client.doAsync("POST", "/v2/systems/"+systemLabel, nil, nil, &body)
 	if err != nil {
-		return "", xerrors.Errorf("cannot request system install for %q: %v", systemLabel, err)
+		return "", fmt.Errorf("cannot request system install for %q: %v", systemLabel, err)
 	}
 	return chgID, nil
 }
@@ -338,7 +373,7 @@ func (client *Client) GeneratePreInstallRecoveryKey(systemLabel string) (recover
 		RecoveryKey string `json:"recovery-key"`
 	}
 	if _, err := client.doSync("POST", "/v2/systems/"+systemLabel, nil, nil, &body, &rsp); err != nil {
-		return "", xerrors.Errorf("cannot generate recovery key for system %q: %v", systemLabel, err)
+		return "", fmt.Errorf("cannot generate recovery key for system %q: %v", systemLabel, err)
 	}
 	return rsp.RecoveryKey, nil
 }

@@ -99,13 +99,8 @@ unconfined_domain(snappy_unconfined_snap_t)
 permissive snappy_t;
 
 # Allow transitions from init_t to snappy for sockets
-# init_named_socket_activation() is not supported by core policy in RHEL7
-gen_require(`
-	type init_t;
-	type var_run_t;
-')
-filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd.socket")
-filetrans_pattern(init_t, var_run_t, snappy_var_run_t, sock_file, "snapd-snap.socket")
+init_named_socket_activation(snappy_t, snappy_var_run_t, "snapd.socket")
+init_named_socket_activation(snappy_t, snappy_var_run_t, "snapd-snap.socket")
 
 # Allow init_t to read snappy data
 allow init_t snappy_var_lib_t:dir read;
@@ -879,8 +874,8 @@ userdom_search_user_tmp_dirs(snappy_cli_t)
 # create /run/user/<uid>/snap.<name> directories
 userdom_manage_tmp_dirs(snappy_cli_t)
 
-# execute snapd internal tools
-# needed to grab a version information from snap-seccomp
+# allow snappy_cli_t to exec() into the snapd binary which implements
+# snap CLI handler and other internal snapd tools
 can_exec(snappy_cli_t, snappy_exec_t)
 
 # probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2

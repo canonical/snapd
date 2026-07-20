@@ -1056,8 +1056,10 @@ func assemble(headers map[string]any, body, content, signature []byte) (Assertio
 		return nil, fmt.Errorf("assertion body is not utf8")
 	}
 
-	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
+	if !isBuiltinSignature(signature) {
+		if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
+			return nil, fmt.Errorf("assertion: %v", err)
+		}
 	}
 
 	typ, err := checkNotEmptyString(headers, "type")

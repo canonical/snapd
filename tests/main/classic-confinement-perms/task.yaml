@@ -7,8 +7,6 @@ details: |
 systems:
     # classic confinement not supported by core
     - -ubuntu-core-*
-      # no session bus
-    - -amazon-linux-2-*
     - -ubuntu-14.04-*
 
 prepare: |

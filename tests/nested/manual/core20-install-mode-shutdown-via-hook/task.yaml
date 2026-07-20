@@ -31,11 +31,6 @@ prepare: |
 
     tests.nested build-image core
 
-restore: |
-    # Cleanup restore is needed in this case because nested tests are not
-    # doing automatic cleanups
-    tests.cleanup restore
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

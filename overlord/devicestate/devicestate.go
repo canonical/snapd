@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -64,9 +65,6 @@ var (
 	snapstateDownloadComponents   = snapstate.DownloadComponents
 	snapstateDownload             = snapstate.Download
 	snapstateUpdateOne            = snapstate.UpdateOne
-	snapstateInstallOne           = snapstate.InstallOne
-	snapstateStoreInstallGoal     = snapstate.StoreInstallGoal
-	snapstatePathInstallGoal      = snapstate.PathInstallGoal
 	snapstateStoreUpdateGoal      = snapstate.StoreUpdateGoal
 	snapstatePathUpdateGoal       = snapstate.PathUpdateGoal
 	snapstateInstallComponents    = snapstate.InstallComponents
@@ -517,6 +515,11 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 		}
 	}
 
+	constraints, err := r.vsets.Presence(naming.Snap(rt.name))
+	if err != nil {
+		return 0, nil, err
+	}
+
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, rt.name, &snapst); err != nil {
 		if !errors.Is(err, state.ErrNoState) {
@@ -530,12 +533,12 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 			return remodelNoAction, nil, nil
 		}
 
-		goal, err := r.installGoal(rt, requiredComponents)
+		goal, err := r.updateGoal(st, rt, requiredComponents, constraints)
 		if err != nil {
 			return 0, nil, err
 		}
 
-		_, ts, err := snapstateInstallOne(ctx, st, goal, snapstate.Options{
+		ts, err := snapstateUpdateOne(ctx, st, goal, nil, snapstate.Options{
 			DeviceCtx:       r.deviceCtx,
 			ConflictOptions: snapstate.ConflictOptions{FromChange: r.fromChange},
 			PrereqTracker:   r.tracker,
@@ -559,11 +562,6 @@ func (r *remodeler) maybeInstallOrUpdate(ctx context.Context, st *state.State, r
 	needsChannelChange := rt.channel != "" && rt.channel != currentChannelOrTrack && !snapst.Current.Local()
 
 	currentInfo, err := snapst.CurrentInfo()
-	if err != nil {
-		return 0, nil, err
-	}
-
-	constraints, err := r.vsets.Presence(naming.Snap(rt.name))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -731,50 +729,6 @@ func revisionSupportsComponents(info *snap.Info, components []string) bool {
 	return true
 }
 
-func (r *remodeler) installGoal(sn remodelSnapTarget, components []string) (snapstate.InstallGoal, error) {
-	if r.offline {
-		ls, ok := r.localSnaps[sn.name]
-		if !ok {
-			return nil, fmt.Errorf("no snap file provided for %q", sn.name)
-		}
-
-		comps := make([]snapstate.PathComponent, 0, len(components))
-		for _, c := range components {
-			cref := naming.NewComponentRef(sn.name, c)
-			lc, ok := r.localComponents[cref.String()]
-			if !ok {
-				return nil, fmt.Errorf("cannot find locally provided component: %q", cref)
-			}
-
-			comps = append(comps, lc)
-		}
-
-		opts := snapstate.RevisionOptions{
-			Channel:        sn.channel,
-			ValidationSets: r.vsets,
-		}
-
-		// TODO: snapstate for by-path installs doesn't verify validation sets.
-		// decide if we want to manually verify the given rules here or not.
-
-		return snapstatePathInstallGoal(snapstate.PathSnap{
-			Path:       ls.Path,
-			SideInfo:   ls.SideInfo,
-			RevOpts:    opts,
-			Components: comps,
-		}), nil
-	}
-
-	return snapstateStoreInstallGoal(snapstate.StoreSnap{
-		InstanceName: sn.name,
-		Components:   components,
-		RevOpts: snapstate.RevisionOptions{
-			Channel:        sn.channel,
-			ValidationSets: r.vsets,
-		},
-	}), nil
-}
-
 // installedRevisionUpdateGoal returns an update goal which will install a snap
 // revision that was previously installed on the system and still in the
 // sequence. We use a [snapstate.PathUpdateGoal] to enable this.
@@ -784,13 +738,13 @@ func (r *remodeler) installedRevisionUpdateGoal(
 	components []string,
 	constraints snapasserts.SnapPresenceConstraints,
 ) (snapstate.UpdateGoal, error) {
-	if constraints.Revision.Unset() {
-		return nil, errors.New("internal error: falling back to a previous revision requires that we have a specific revision to pick")
-	}
-
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, sn.name, &snapst); err != nil {
 		return nil, err
+	}
+
+	if constraints.Revision.Unset() {
+		return nil, errors.New("internal error: falling back to a previous revision requires that we have a specific revision to pick")
 	}
 
 	index := snapst.LastIndex(constraints.Revision)
@@ -849,11 +803,16 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 	if r.offline {
 		ls, ok := r.localSnaps[sn.name]
 		if !ok {
-			// this attempts to create a snapstate.StoreUpdateGoal that will
-			// switch back to a previously installed snap revision that is still
-			// in the sequence
+			// this attempts to create a snapstate.UpdateGoal that will switch
+			// back to a previously installed snap revision that is still in the
+			// sequence
 			g, err := r.installedRevisionUpdateGoal(st, sn, components, constraints)
 			if err != nil {
+				// if we don't have an installed revision to fall back to,
+				// rewrite the error to mention the missing input
+				if errors.Is(err, state.ErrNoState) {
+					return nil, fmt.Errorf("no snap file provided for %q", sn.name)
+				}
 				return nil, err
 			}
 			return g, nil
@@ -891,16 +850,17 @@ func (r *remodeler) updateGoal(st *state.State, sn remodelSnapTarget, components
 		}), nil
 	}
 
+	// components will be the full list of components needed by the new model,
+	// and it might already contain any of the components that are already
+	// installed. the snapstate code handles this case correctly.
 	return snapstateStoreUpdateGoal(snapstate.StoreUpdate{
-		InstanceName: sn.name,
+		InstanceName:         sn.name,
+		AdditionalComponents: components,
+		InstallIfMissing:     true,
 		RevOpts: snapstate.RevisionOptions{
 			Channel:        sn.channel,
 			ValidationSets: r.vsets,
 		},
-		// components will be the full list of components needed by the new
-		// model, and it might already contain any of the components that are
-		// already installed. the snapstate code handles this case correctly.
-		AdditionalComponents: components,
 	}), nil
 }
 
@@ -2659,7 +2619,7 @@ func InstallFinish(st *state.State, label string, onVolumes map[string]*gadget.V
 // InstallSetupStorageEncryption creates a change that will setup the
 // storage encryption for the install of the given label and
 // volumes.
-func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions) (*state.Change, error) {
+func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[string]*gadget.Volume, volumesAuth *device.VolumesAuthOptions, keyboardConfig *client.KeyboardConfig) (*state.Change, error) {
 	if label == "" {
 		return nil, fmt.Errorf("cannot setup storage encryption with an empty system label")
 	}
@@ -2667,6 +2627,9 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 		return nil, fmt.Errorf("cannot setup storage encryption without volumes data")
 	}
 	if volumesAuth != nil {
+		if keyboardConfig == nil {
+			return nil, fmt.Errorf("cannot use volumes authentication without a keyboard configuration")
+		}
 		if err := volumesAuth.Validate(); err != nil {
 			return nil, err
 		}
@@ -2680,6 +2643,12 @@ func InstallSetupStorageEncryption(st *state.State, label string, onVolumes map[
 	setupStorageEncryptionTask.Set("on-volumes", onVolumes)
 	if volumesAuth != nil {
 		setupStorageEncryptionTask.Set("volumes-auth-required", true)
+	}
+	if keyboardConfig != nil {
+		if err := keyboardConfig.Validate(); err != nil {
+			return nil, err
+		}
+		setupStorageEncryptionTask.Set("keyboard-config", keyboardConfig)
 	}
 	chg.AddTask(setupStorageEncryptionTask)
 

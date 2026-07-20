@@ -412,6 +412,8 @@ func Save(st *state.State, instanceNames []string, users []string, options map[s
 	ts = state.NewTaskSet()
 
 	for _, name := range instanceNames {
+		// TODO: add tasks to stop snap's applications and services
+
 		desc := fmt.Sprintf("Save data of snap %q in snapshot set #%d", name, setID)
 		task := st.NewTask("save-snapshot", desc)
 
@@ -435,6 +437,8 @@ func Save(st *state.State, instanceNames []string, users []string, options map[s
 		// Also note we aren't promising this behaviour; we can change
 		// it if we find it to be wrong.
 		ts.AddTask(task)
+
+		// TODO: add task to restart snap's services
 	}
 
 	return setID, instanceNames, ts, nil
@@ -454,6 +458,9 @@ func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err
 	}
 
 	ts = state.NewTaskSet()
+
+	// TODO: add tasks to stop snap's applications and services
+
 	desc := fmt.Sprintf("Save data of snap %q in automatic snapshot set #%d", snapName, setID)
 	task := st.NewTask("save-snapshot", desc)
 	snapshot := snapshotSetup{
@@ -463,6 +470,8 @@ func AutomaticSnapshot(st *state.State, snapName string) (ts *state.TaskSet, err
 	}
 	task.Set("snapshot-setup", &snapshot)
 	ts.AddTask(task)
+
+	// TODO: add task to restart snap's services
 
 	return ts, nil
 }
@@ -511,6 +520,8 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 			current = snapst.Current
 		}
 
+		// TODO: add tasks to stop snap's applications and services
+
 		desc := fmt.Sprintf("Restore data of snap %q from snapshot set #%d", summary.snap, setID)
 		task := st.NewTask("restore-snapshot", desc)
 		snapshot := snapshotSetup{
@@ -533,6 +544,8 @@ func Restore(st *state.State, setID uint64, snapNames []string, users []string) 
 		task := st.NewTask("cleanup-after-restore", desc)
 		task.WaitAll(ts)
 		ts.AddTask(task)
+
+		// TODO: add task to restart snap's services
 	}
 
 	return snapsFound, ts, nil

@@ -21,9 +21,10 @@ run_muinstaller() {
     local disk="${8}"
     local kern_mods_comp="${9}"
     local passphrase="${10}"
-    local recovery_key_out="${11}"
-    local exit_at_preinstall="${12}"
-    shift 12
+    local pin="${11}"
+    local recovery_key_out="${12}"
+    local exit_at_preinstall="${13}"
+    shift 13
     local extra_muinstaller_args=("${@}")
 
     # ack the needed assertions
@@ -67,15 +68,15 @@ run_muinstaller() {
         "${TESTSTOOLS}/store-state" teardown-fake-store "${store_dir}"
     fi
 
-    # build the muinstaller snap
-    if [ -z "$(command -v snapcraft)" ]; then
-        snap install snapcraft --candidate --classic
-    fi
-    "${TESTSTOOLS}/lxd-state" prepare-snap
-    (cd "${TESTSLIB}/muinstaller" && snapcraft)
-
     local muinstaller_snap
-    muinstaller_snap="$(find "${TESTSLIB}/muinstaller/" -maxdepth 1 -name '*.snap')"
+    muinstaller_snap="${PWD}/muinstaller.snap"
+
+    # build the muinstaller snap
+    (
+        cd "${TESTSLIB}/muinstaller"
+        CGO_ENABLED=0 go build -o bin/muinstaller .
+        snap pack --filename="${muinstaller_snap}" .
+    )
 
     # create a VM and mount a cloud image
     tests.nested build-image classic
@@ -184,6 +185,9 @@ EOF
     if [ -n "$passphrase" ]; then
         muinstaller_args+=("-passphrase" "\"$passphrase\"")
     fi
+    if [ -n "$pin" ]; then
+        muinstaller_args+=("-pin" "\"$pin\"")
+    fi
     if [ -n "$recovery_key_out" ]; then
         muinstaller_args+=("-recovery-key-out" "/tmp/rkey.out")
     fi
@@ -223,6 +227,8 @@ EOF
     # Start installed image
     if [ -n "$passphrase" ]; then
         tests.nested create-vm core --keep-firmware-state --passphrase "$passphrase"
+    elif [ -n "$pin" ]; then
+        tests.nested create-vm core --keep-firmware-state --passphrase "$pin"
     else
         tests.nested create-vm core --keep-firmware-state
     fi
@@ -239,6 +245,7 @@ main() {
     local disk=""
     local kern_mods_comp=""
     local passphrase=""
+    local pin=""
     local recovery_key_out=""
     local exit_at_preinstall=""
     local extra_muinstaller_args=()
@@ -285,6 +292,10 @@ main() {
                 passphrase="${2}"
                 shift 2
                 ;;
+            --pin)
+                pin="${2}"
+                shift 2
+                ;;
             --recovery-key-out)
                 recovery_key_out="${2}"
                 shift 2
@@ -295,6 +306,10 @@ main() {
                 ;;
             --extra-muinstaller-arg)
                 extra_muinstaller_args+=("${2}")
+                shift 2
+                ;;
+            --keyboard-config)
+                extra_muinstaller_args+=("-keyboard-config" "${2}")
                 shift 2
                 ;;
             --preseed-rootfs)
@@ -333,6 +348,11 @@ main() {
 
     if [ -n "${gadget_assertion}" ] && [ -z "${gadget_snap}" ]; then
         echo "--gadget is required when --gadget-assertion is provided"
+        exit 1
+    fi
+
+    if [ -n "${passphrase}" ] && [ -n "${pin}" ]; then
+        echo "--passphrase and --pin cannot be used together"
         exit 1
     fi
 
@@ -389,10 +409,9 @@ main() {
             kernel_assertion="${PWD}/pc-kernel.assert"
         fi
 
-        run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" \
-                        "${gadget_assertion}" "${kernel_snap}" "${kernel_assertion}" "${label}" \
-                        "${disk}" "${kern_mods_comp}" "${passphrase}" "${recovery_key_out}" \
-			"${exit_at_preinstall}" \
+        run_muinstaller "${model_assertion}" "${store_dir}" "${gadget_snap}" "${gadget_assertion}" \
+                        "${kernel_snap}" "${kernel_assertion}" "${label}" "${disk}" "${kern_mods_comp}" \
+                        "${passphrase}" "${pin}" "${recovery_key_out}" "${exit_at_preinstall}" \
                         "${extra_muinstaller_args[@]}"
     )
 }

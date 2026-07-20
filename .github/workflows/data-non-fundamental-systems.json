@@ -4,7 +4,7 @@
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "amazon-linux",
         "backend": "openstack",
-        "systems": "amazon-linux-2-64 amazon-linux-2023-64",
+        "systems": "amazon-linux-2023-64",
         "tasks": "tests/...",
         "rules": "main"
       },

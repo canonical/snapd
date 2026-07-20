@@ -29,6 +29,10 @@ import (
 type PreinstallCheckContext struct{}
 type PreinstallCheckResult struct{}
 
+const (
+	ErrorKindNoHardwareRootOfTrust = ""
+)
+
 const ActionNone = ""
 
 func PreinstallCheck(ctx context.Context, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
@@ -53,4 +57,8 @@ func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
 
 func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) {
 	return nil, errBuildWithoutSecboot
+}
+
+func (cr *PreinstallCheckResult) AcceptedErrors() []string {
+	return nil
 }

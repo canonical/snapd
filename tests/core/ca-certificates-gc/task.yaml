@@ -1,0 +1,184 @@
+summary: Check certificate generation garbage collection across reboots
+
+details: |
+    Create a second published certificate generation by adding a custom
+    certificate, then reboot twice to exercise the boot-delayed garbage
+    collection policy. The first reboot should keep the old generation but
+    mark it inactive, and the second reboot should remove it while merged
+    still points at the current generation.
+
+environment:
+    CERT_NAME: gccert
+
+restore: |
+    snap unset system "pki.certs.custom.${CERT_NAME}" || true
+
+execute: |
+    PKI_BASE_DIR=/var/lib/snapd/pki/v1
+    MERGED_DIR="$PKI_BASE_DIR/merged"
+    PUBLISHED_DIR="$PKI_BASE_DIR/published"
+    CA_CERTIFICATES_DB="$MERGED_DIR/ca-certificates.crt"
+    CERT_PEM="$PWD/gc-cert.pem"
+    CERT_KEY="$PWD/gc-cert.key"
+
+    # The GC assertions below run on boot, so each phase waits for seed and
+    # for snapd to return to a stable state before checking the published view.
+    wait_for_snapd_ready() {
+        snap wait system seed.loaded
+        retry -n 30 --wait 1 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
+    }
+
+    # Garbage collection only reasons about immutable published generations;
+    # the active view is represented separately via the merged symlink.
+    generation_count() {
+        find "$PUBLISHED_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d '[:space:]'
+    }
+
+    ensure_generation_count() {
+        local expected="$1"
+        local actual
+
+        actual="$(generation_count)"
+        if [ "$actual" -ne "$expected" ]; then
+            echo "Expected $expected published certificate generations, found $actual"
+            find "$PUBLISHED_DIR" -mindepth 1 -maxdepth 1 -type d | sort || true
+            exit 1
+        fi
+    }
+
+    # The public contract is that consumers follow merged, not a concrete
+    # published directory, so keep checking that the symlink still points at
+    # the generation we expect the system to serve.
+    ensure_merged_target() {
+        local expected="$1"
+        local target
+
+        if ! [ -L "$MERGED_DIR" ]; then
+            echo "Merged certificates path is not a symlink: $MERGED_DIR"
+            ls -ld "$MERGED_DIR" || true
+            exit 1
+        fi
+
+        target="$(readlink "$MERGED_DIR")"
+        case "$target" in
+            published/*) ;;
+            *)
+                echo "Merged certificates symlink does not point into published/: $target"
+                exit 1
+                ;;
+        esac
+
+        if [ -n "$expected" ] && [ "$target" != "$expected" ]; then
+            echo "Merged certificates symlink points to $target, expected $expected"
+            exit 1
+        fi
+
+        if ! [ -d "$PKI_BASE_DIR/$target" ]; then
+            echo "Merged certificates target does not exist: $target"
+            exit 1
+        fi
+
+        printf '%s\n' "$target"
+    }
+
+    bundle_digests() {
+        local bundle="$1"
+        local splitdir derfile
+        splitdir="$(mktemp -d)"
+        derfile="$(mktemp)"
+        trap 'rm -rf "$splitdir" "$derfile"' RETURN
+
+        csplit -q -f "$splitdir/cert-" -b "%05d.pem" "$bundle" \
+            '/-----BEGIN CERTIFICATE-----/' '{*}' >/dev/null 2>&1 || true
+
+        for f in "$splitdir"/cert-*.pem; do
+            grep -q -- "-----BEGIN CERTIFICATE-----" "$f" || continue
+            : > "$derfile"
+            if ! openssl x509 -in "$f" -inform pem -outform der > "$derfile" 2>/dev/null; then
+                echo "Failed to parse certificate chunk $f from $bundle" >&2
+                return 1
+            fi
+            sha256sum "$derfile" | awk '{print $1}'
+        done | sort -u
+    }
+
+    cert_in_bundle() {
+        local cert="$1"
+        local bundle="$2"
+        local cert_digest
+
+        cert_digest="$(openssl x509 -in "$cert" -inform pem -outform der | sha256sum | awk '{print $1}')"
+        bundle_digests "$bundle" | grep -Fx "$cert_digest"
+    }
+
+    wait_for_snapd_ready
+
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+        # Initial boot: capture the original published generation, then add a
+        # custom certificate to force publication of a second generation.
+        if ! [ -f "$CERT_PEM" ]; then
+            openssl req -x509 -newkey rsa:2048 -nodes -sha256 \
+                -subj "/CN=snapd-spread-ca-gc" \
+                -days 2 \
+                -keyout "$CERT_KEY" -out "$CERT_PEM" >/dev/null 2>&1
+        fi
+
+        old_target="$(ensure_merged_target "")"
+        printf '%s\n' "$old_target" > old-target
+
+        ensure_generation_count 1
+        test ! -e "$PKI_BASE_DIR/$old_target/.snapd-inactive"
+
+        snap set system "pki.certs.custom.${CERT_NAME}.content=$(cat "$CERT_PEM")"
+
+        # retry executes an external command, so keep the predicate inline
+        # instead of relying on a shell function from this script.
+        retry -n 30 --wait 1 sh -c "test -L \"$MERGED_DIR\" && [ \"\$(readlink \"$MERGED_DIR\")\" != \"\$(cat old-target)\" ]"
+
+        new_target="$(ensure_merged_target "")"
+        printf '%s\n' "$new_target" > new-target
+
+        test "$new_target" != "$old_target"
+        ensure_generation_count 2
+        test -d "$PKI_BASE_DIR/$old_target"
+        test -d "$PKI_BASE_DIR/$new_target"
+        test ! -e "$PKI_BASE_DIR/$old_target/.snapd-inactive"
+        test ! -e "$PKI_BASE_DIR/$new_target/.snapd-inactive"
+        cert_in_bundle "$CERT_PEM" "$CA_CERTIFICATES_DB"
+
+        REBOOT
+    elif [ "$SPREAD_REBOOT" -eq 1 ]; then
+        # First reboot: startup GC should leave both
+        # generations in place but mark the displaced one as inactive for this
+        # boot, while merged must keep serving the new generation.
+        old_target="$(cat old-target)"
+        new_target="$(cat new-target)"
+        old_marker="$PKI_BASE_DIR/$old_target/.snapd-inactive"
+
+        ensure_merged_target "$new_target" >/dev/null
+        ensure_generation_count 2
+        retry -n 30 --wait 1 test -f "$old_marker"
+        test "$(cat "$old_marker")" = "$(cat /proc/sys/kernel/random/boot_id)"
+        test ! -e "$PKI_BASE_DIR/$new_target/.snapd-inactive"
+        cert_in_bundle "$CERT_PEM" "$CA_CERTIFICATES_DB"
+
+        REBOOT
+    elif [ "$SPREAD_REBOOT" -eq 2 ]; then
+        # Second reboot: the previously marked generation is
+        # now old enough to collect, so only the live generation should remain
+        # and merged must still resolve to it.
+        old_target="$(cat old-target)"
+        new_target="$(cat new-target)"
+
+        retry -n 30 --wait 1 sh -c "[ \"\$(find \"$PUBLISHED_DIR\" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d '[:space:]')\" -eq 1 ]"
+
+        ensure_merged_target "$new_target" >/dev/null
+        ensure_generation_count 1
+        test ! -e "$PKI_BASE_DIR/$old_target"
+        test -d "$PKI_BASE_DIR/$new_target"
+        test ! -e "$PKI_BASE_DIR/$new_target/.snapd-inactive"
+        cert_in_bundle "$CERT_PEM" "$CA_CERTIFICATES_DB"
+    else
+        echo "unexpected reboot"
+        exit 1
+    fi

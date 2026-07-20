@@ -89,6 +89,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		sealErr           error
 		provisionErr      error
 		factoryReset      bool
+		reprovision       bool
 		shimId            string
 		grubId            string
 		runGrubId         string
@@ -117,23 +118,23 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			sealErr: nil, expErr: "",
 			expProvisionCalls: 1, expSealCalls: 2, disableTokens: true, withVolumesAuth: true,
 		}, {
+			sealErr: nil, factoryReset: true,
+			expProvisionCalls: 1, expSealCalls: 2,
+		}, {
 			sealErr: nil,
 			// old boot assets
 			shimId: "bootx64.efi", grubId: "grubx64.efi",
 			expErr:            "",
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
-			sealErr: nil, factoryReset: true,
+			sealErr: nil, reprovision: true,
 			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
-			sealErr: nil, factoryReset: true,
+			sealErr: nil, reprovision: true,
 			expProvisionCalls: 1, expSealCalls: 2, withVolumesAuth: true, withCheckResult: true,
 		}, {
-			sealErr: nil, factoryReset: true,
+			sealErr: nil, factoryReset: true, reprovision: true,
 			expProvisionCalls: 1, expSealCalls: 2, disableTokens: true,
-		}, {
-			sealErr: nil, factoryReset: true,
-			expProvisionCalls: 1, expSealCalls: 2,
 		}, {
 			sealErr: errors.New("seal error"), expErr: "cannot seal the encryption keys: seal error",
 			expProvisionCalls: 1, expSealCalls: 1,
@@ -196,7 +197,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		restore := fdeBackend.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
 			provisionCalls++
 			c.Check(lockoutAuthFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "tpm-lockout-auth"))
-			if tc.factoryReset {
+			if tc.reprovision {
 				c.Check(mode, Equals, secboot.TPMPartialReprovision)
 			} else {
 				c.Check(mode, Equals, secboot.TPMProvisionFull)
@@ -381,10 +382,11 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			},
 		}
 		params := &boot.SealKeyForBootChainsParams{
-			BootChains:             bootChains,
-			FactoryReset:           tc.factoryReset,
-			InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
-			UseTokens:              !tc.disableTokens,
+			BootChains:                bootChains,
+			LegacyFactoryResetKeyPath: tc.factoryReset,
+			Reprovision:               tc.reprovision,
+			InstallHostWritableDir:    filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
+			UseTokens:                 !tc.disableTokens,
 		}
 		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, volumesAuth, checkResult, params)
 
@@ -584,7 +586,6 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	}
 	params := &boot.SealKeyForBootChainsParams{
 		BootChains:             bootChains,
-		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 		UseTokens:              useTokens,
 		PrimaryKey:             []byte{1, 2, 3, 4},
@@ -672,7 +673,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	}
 	params := &boot.SealKeyForBootChainsParams{
 		BootChains:             bootChains,
-		FactoryReset:           false,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 	}
 	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, nil, nil, params)

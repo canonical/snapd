@@ -150,7 +150,7 @@ func (e *UnmatchedConstraintsError) Is(err error) bool {
 	return ok
 }
 
-func NewUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
+func newUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
 	return &UnmatchedConstraintsError{
 		view:        view.ID(),
 		requests:    requests,
@@ -1658,6 +1658,12 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 		return res, nil
 	}
 
+	// we use nil to indicate missing results in a list (if we just did not
+	// include them, the subsequent values would be out of order). Skip it
+	if res == nil {
+		return nil, nil
+	}
+
 	// check if the part is an unmatched placeholder which should have been filled
 	// by the databag with all possible values
 	switch part := unmatchedSuffix[0]; part.Type() {
@@ -1748,7 +1754,7 @@ func (e *UnconstrainedParamsError) Is(err error) bool {
 	return ok
 }
 
-func NewUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
+func newUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
 	return &UnconstrainedParamsError{
 		operation:     op,
 		unconstrained: unconstrained,
@@ -1794,7 +1800,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	}
 
 	if len(unconstrainedReqs) != 0 {
-		return NewUnconstrainedParamsError(op, unconstrainedReqs)
+		return newUnconstrainedParamsError(op, unconstrainedReqs)
 	}
 	return nil
 }
@@ -1848,7 +1854,7 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 
 	unusedConstraints := keys(constraintPlaceholders)
 	sort.Strings(unusedConstraints)
-	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
+	return newUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
 func getVisibilitiesToPrune(userAccess Access) []Visibility {
@@ -2647,6 +2653,7 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 	}
 
 	if matchAll {
+		var hasData bool
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
@@ -2672,16 +2679,20 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 			var res any
 			if err := get(accessors, keyIndex+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
+					// add a nil to maintain the order of nested results. When merging
+					// we'll check for nil values and skip them
+					results = append(results, nil)
 					continue
 				}
+
+				return err
 			}
 
-			if res != nil {
-				results = append(results, res)
-			}
+			hasData = true
+			results = append(results, res)
 		}
 
-		if len(results) == 0 {
+		if !hasData {
 			return &NoDataError{}
 		}
 
@@ -3176,17 +3187,6 @@ func (s JSONDatabag) Copy() JSONDatabag {
 	}
 
 	return JSONDatabag(copy)
-}
-
-// Overwrite replaces the entire databag with the provided data.
-func (s *JSONDatabag) Overwrite(data []byte) error {
-	var unmarshalledBag map[string]json.RawMessage
-	if err := json.Unmarshal(data, &unmarshalledBag); err != nil {
-		return err
-	}
-
-	*s = JSONDatabag(unmarshalledBag)
-	return nil
 }
 
 // JSONSchema is the Schema implementation corresponding to JSONDatabag and it's
