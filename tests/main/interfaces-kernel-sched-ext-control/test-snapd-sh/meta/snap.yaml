@@ -1,6 +1,8 @@
 name: test-snapd-sh
 summary: A no-strings-attached, no-fuss shell for writing tests
 version: 1.0
+# core26 so that we always get a device cgroup
+base: core26
 
 apps:
     with-kernel-sched-ext-control-plug:

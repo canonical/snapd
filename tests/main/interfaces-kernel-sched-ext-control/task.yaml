@@ -29,6 +29,9 @@ execute: |
     echo "The interface is not connected by default"
     snap interfaces -i kernel-sched-ext-control | MATCH '^- +test-snapd-sh:kernel-sched-ext-control'
 
+    echo "Run the snap to establish known state"
+    test-snapd-sh.with-kernel-sched-ext-control-plug -c true
+
     echo "When the plug is connected"
     snap connect test-snapd-sh:kernel-sched-ext-control
 
