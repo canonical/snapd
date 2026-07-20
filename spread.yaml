@@ -1836,6 +1836,7 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        warn-timeout: 10m
         kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
@@ -1915,6 +1916,7 @@ suites:
             NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
             NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
+        warn-timeout: 10m
         kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
