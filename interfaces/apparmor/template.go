@@ -309,14 +309,22 @@ var templateCommon = `
   # unprivilged, dedicated user).
   /run/uuidd/request rw,
   /sys/devices/virtual/tty/{console,tty*}/active r,
+
+  # cgroup v1
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
-  /sys/fs/cgroup/system.slice/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.max r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.shares r,
+  # cgroup v2
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.max r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.high r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.max r,
+  /sys/fs/cgroup/{system,user}.slice/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.weight r,
+
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /sys/module/apparmor/parameters/enabled r,
   /{,usr/}lib/ r,
