@@ -27,7 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	confdbpkg "github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -226,14 +226,14 @@ func (c *ValsetsConfdbHandler) SchemaName() string {
 // Databag reads all validation set tracking from the state and returns a
 // confdb.JSONDatabag structured as described in the system/validation-sets
 // confdb-schema. State must be locked by caller.
-func (c *ValsetsConfdbHandler) Databag(st *state.State) (confdbpkg.JSONDatabag, error) {
+func (c *ValsetsConfdbHandler) Databag(st *state.State) (confdb.JSONDatabag, error) {
 	sets, err := assertstate.ValidationSets(st)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(sets) == 0 {
-		return confdbpkg.NewJSONDatabag(), nil
+		return confdb.NewJSONDatabag(), nil
 	}
 
 	db := assertstate.DB(st)
@@ -337,6 +337,103 @@ func buildSnapsEntry(snaps []*asserts.ValidationSetSnap) []map[string]any {
 	return result
 }
 
-func (c *ValsetsConfdbHandler) Commit(*state.State, *confdbstate.Transaction) ([]*state.TaskSet, error) {
-	return nil, errors.New("not implemented yet")
+// Commit translates the changes in the Transaction into validation-set state.
+// State must be locked by caller.
+func (c *ValsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+	view, err := confdbstate.GetView(st, "system", "validation-sets", "admin")
+	if err != nil {
+		return nil, fmt.Errorf("internal error: unexpected confdb-schema in validation-sets handler: %v", err)
+	}
+
+	type vsKey struct{ account, name string }
+	valsets := make(map[vsKey][][]confdb.Accessor)
+	for _, path := range tx.AlteredPaths() {
+		if len(path) < 3 {
+			// shouldn't be possible as confdb-schema doesn't allow it
+			return nil, fmt.Errorf("internal error: unexpected storage path: %v", confdb.JoinAccessors(path))
+		}
+
+		// Databag() will need changes if we add v2 paths in the confdb-schema, so
+		// fail here to flag the issue
+		if path[0].Name() != "v1" {
+			return nil, fmt.Errorf("internal error: cannot write to system/validation-sets: unsupported storage version %q", path[0].Name())
+		}
+
+		k := vsKey{account: path[1].Name(), name: path[2].Name()}
+		valsets[k] = append(valsets[k], path)
+	}
+
+	for k := range valsets {
+		request := k.account + "." + k.name
+		result, err := view.Get(tx, request, nil, confdb.AdminAccess)
+		if err != nil {
+			if errors.Is(err, &confdb.NoDataError{}) {
+				if err := assertstate.ForgetValidationSet(st, k.account, k.name, assertstate.ForgetValidationSetOpts{}); err != nil {
+					return nil, fmt.Errorf("cannot forget validation set %s/%s: %v", k.account, k.name, err)
+				}
+				continue
+			}
+			return nil, fmt.Errorf("cannot read validation set %s/%s from confdb: %v", k.account, k.name, err)
+		}
+
+		val, ok := result.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("internal error: unexpected result type %T for validation set %s/%s", result, k.account, k.name)
+		}
+
+		tr := &assertstate.ValidationSetTracking{}
+		err = assertstate.GetValidationSet(st, k.account, k.name, tr)
+		if err != nil && !errors.Is(err, state.ErrNoState) {
+			return nil, fmt.Errorf("cannot read validation-set %s/%s for commit: %v", k.account, k.name, err)
+		}
+		tr.AccountID = k.account
+		tr.Name = k.name
+
+		err = applyChanges(k.account, k.name, tr, val)
+		if err != nil {
+			return nil, err
+		}
+
+		assertstate.UpdateValidationSet(st, tr)
+	}
+
+	return nil, nil
+}
+
+// applyChanges applies values set through confdb to the ValidationSetTracking.
+func applyChanges(accountID, name string, tr *assertstate.ValidationSetTracking, val any) error {
+	valset, ok := val.(map[string]any)
+	if !ok {
+		return fmt.Errorf("internal error: unexpected type %T for validation set %s/%s", val, accountID, name)
+	}
+
+	if rawMode, ok := valset["mode"]; ok {
+		mode, ok := rawMode.(string)
+		if !ok {
+			// writes are validated against the storage schema so shouldn't be possible
+			return fmt.Errorf(`internal error: "mode" should be a string, got %[1]T: %[1]v`, rawMode)
+		}
+
+		// per the storage schema these are the only choices and it can't be unset
+		switch mode {
+		case "monitor":
+			tr.Mode = assertstate.Monitor
+		case "enforce":
+			tr.Mode = assertstate.Enforce
+		}
+	}
+
+	if rawSeq, ok := valset["pinned-sequence"]; ok {
+		v, ok := rawSeq.(float64)
+		if !ok {
+			// writes are validated against the storage schema so shouldn't be possible
+			return fmt.Errorf(`internal error: "pinned-sequence" should be an int, got %[1]T: %[1]v`, rawSeq)
+		}
+
+		tr.PinnedAt = int(v)
+	} else {
+		tr.PinnedAt = 0
+	}
+
+	return nil
 }
