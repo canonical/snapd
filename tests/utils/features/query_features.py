@@ -315,8 +315,7 @@ class DirRetriever(Retriever):
             ):
                 with open(os.path.join(timestamp_dir, filename), "r", encoding="utf-8") as f:
                     system_json = json.load(f)
-                    if self.exclude and "tests" in system_json:
-                        remove_features(system_json["tests"], self.exclude)
+                    remove_features(system_json.get("tests", []), self.exclude)
                     yield system_json
 
     def _get_single_json(self, timestamp: str, system: str) -> SystemFeatures:
@@ -325,8 +324,7 @@ class DirRetriever(Retriever):
             raise RuntimeError(f"system file not found {sys_path}")
         with open(sys_path, "r", encoding="utf-8") as f:
             system_json = json.load(f)
-            if self.exclude and "tests" in system_json:
-                remove_features(system_json["tests"], self.exclude)
+            remove_features(system_json.get("tests", []), self.exclude)
             return system_json
 
     def _get_all_features(self, timestamp) -> dict[str, list[Any]]:
@@ -339,9 +337,8 @@ class DirRetriever(Retriever):
                 del all["timestamp"]
             if "all_features" in all:
                 del all["all_features"]
-            if self.exclude:
-                for feature in self.exclude:
-                    all.pop(feature, None)
+            for feature in self.exclude or []:
+                all.pop(feature, None)
             return all
 
 

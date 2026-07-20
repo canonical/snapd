@@ -21,9 +21,9 @@ retriever = None
 timestamps = None
 timestamp_options = []
 coverage_matrix = {}
-exclude_list = ['coverages']
-all_features = [feat for feat in qf.KNOWN_FEATURES if feat not in exclude_list]
-feature_options = [{"label": item, "value": item} for item in all_features]
+exclude_features = ['coverages']
+included_features = [feat for feat in qf.KNOWN_FEATURES if feat not in exclude_features]
+feature_options = [{"label": item, "value": item} for item in included_features]
 cached_duplicates = {}
 cached_all_features_diff = {}
 cached_feat_explore = {}
@@ -53,9 +53,9 @@ def set_retriever(_, path):
     global retriever
     if os.path.isfile(path):
         with open(path, "r", encoding="utf-8") as f:
-            retriever = qf.MongoRetriever(f, exclude_list)
+            retriever = qf.MongoRetriever(f, exclude_features)
     elif os.path.isdir(path):
-        retriever = qf.DirRetriever(path, exclude_list)
+        retriever = qf.DirRetriever(path, exclude_features)
     global timestamps
     timestamps = retriever.get_sorted_timestamps_and_systems()
     global timestamp_options
@@ -146,7 +146,7 @@ def update_totals_table(selected_timestamp):
             diff_data.append(d)
 
     columns = [{"name": "System", "id": "system"}] + [
-        {"name": key, "id": key} for key in all_features
+        {"name": key, "id": key} for key in included_features
     ]
 
     return columns, diff_data
@@ -457,15 +457,15 @@ def create_coverage_matrix(timestamp, remove_failed, suite, task, variant):
         return [], []
 
     columns = [{"name": "System", "id": "system"}] + [
-        {"name": key, "id": key} for key in all_features
+        {"name": key, "id": key} for key in included_features
     ]
     global coverage_matrix
     coverage_matrix[timestamp] = [
-        {"system": system, **{key: 0 for key in all_features}}
+        {"system": system, **{key: 0 for key in included_features}}
         for system in systems
     ]
     matrix = [
-        {"system": system, **{key: 0 for key in all_features}}
+        {"system": system, **{key: 0 for key in included_features}}
         for system in systems
     ]
     for i, system in enumerate(systems):
@@ -473,7 +473,7 @@ def create_coverage_matrix(timestamp, remove_failed, suite, task, variant):
             retriever, timestamp, system, remove_failed, suite, task, variant
         )
         coverage_matrix[timestamp][i].update(feats)
-        for feature in all_features:
+        for feature in included_features:
             matrix[i][feature] = len(feats[feature])
 
     return columns, matrix
