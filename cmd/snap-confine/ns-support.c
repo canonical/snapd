@@ -37,6 +37,7 @@
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -976,6 +977,26 @@ static bool sc_read_mnt_ns_id(int mnt_fd, uint64_t *ns_id_out) {
     return true;
 }
 
+// Returns true if the running kernel is on the 6.18.y stable series, the
+// only one affected by the mnt_ns_loop() ordering bug this file works
+// around (see the comment above sc_ensure_mount_ns_id_ordered's caller in
+// snap-confine.c for the exact commit range). Presence of the NS_GET_ID
+// ioctl is not a substitute for this check: unlike the bug, the ioctl
+// itself is not removed once 6.19 fixes the underlying id allocation, so
+// checking for it alone would keep applying this workaround indefinitely
+// on every later kernel too.
+static bool sc_running_kernel_is_6_18(void) {
+    struct utsname uts;
+    if (uname(&uts) < 0) {
+        die("cannot query kernel version");
+    }
+    int major = 0, minor = 0;
+    if (sscanf(uts.release, "%d.%d", &major, &minor) != 2) {
+        return false;
+    }
+    return major == 6 && minor == 18;
+}
+
 // High level strategy: the kernel's ordering check is a per-CPU condition,
 // not a global one, so there is no way to compute the right CPU up front --
 // pinning to some fixed CPU chosen ahead of time is not a substitute for
@@ -993,6 +1014,15 @@ static bool sc_read_mnt_ns_id(int mnt_fd, uint64_t *ns_id_out) {
 void sc_ensure_mount_ns_id_ordered(struct sc_mount_ns *group) {
     if (group->child == 0) {
         die("precondition failed: we don't have a helper process");
+    }
+
+    if (!sc_running_kernel_is_6_18()) {
+        // Only the 6.18.y series ever allocates mount namespace ids in a
+        // way that can violate mnt_ns_loop()'s ordering assumption. Outside
+        // that range we trust the kernel's normal invariant undisturbed
+        // instead of probing NS_GET_ID and possibly triggering the sweep
+        // below for an unrelated reason.
+        return;
     }
 
     char helper_ns_path[PATH_MAX] = {0};

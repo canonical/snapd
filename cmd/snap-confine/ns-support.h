@@ -164,6 +164,10 @@ void sc_store_ns_info(const sc_invocation *inv);
  * other mount() calls (so that re-unsharing, if needed, is cheap), and only
  * once sc_fork_helper() has already been called for this group.
  *
+ * The bug only exists on the 6.18.y stable series (fixed in 6.19), so this
+ * is a no-op on any other kernel, checked via uname(2) rather than by
+ * relying on NS_GET_ID's presence alone.
+ *
  * See https://bugs.launchpad.net/snapd/+bug/2161539 for the full
  * analysis this workaround is based on.
  **/

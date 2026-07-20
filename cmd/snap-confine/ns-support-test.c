@@ -132,6 +132,18 @@ static void test_nsfs_fs_id(void) {
     g_assert_cmpint(buf.f_type, ==, NSFS_MAGIC);
 }
 
+// Check that sc_running_kernel_is_6_18() agrees with a straightforward
+// uname(2) reading done independently here, so that the two never drift
+// apart from each other on whatever kernel the test happens to run on.
+static void test_sc_running_kernel_is_6_18(void) {
+    struct utsname uts;
+    g_assert_cmpint(uname(&uts), ==, 0);
+    int major = 0, minor = 0;
+    g_assert_cmpint(sscanf(uts.release, "%d.%d", &major, &minor), ==, 2);
+    bool expected = major == 6 && minor == 18;
+    g_assert_cmpint(sc_running_kernel_is_6_18(), ==, expected);
+}
+
 // Check that sc_ensure_mount_ns_id_ordered() enforces its precondition that
 // a helper process has already been forked for this group.
 static void test_sc_ensure_mount_ns_id_ordered_no_helper(void) {
@@ -185,7 +197,10 @@ static void test_sc_read_mnt_ns_id_self(void) {
 // a fresh mount namespace should, overwhelmingly, already be ordered before
 // it, and sc_ensure_mount_ns_id_ordered() should return without needing to
 // exercise its CPU-sweep fallback (which, if it did trigger, would still be
-// expected to terminate -- see the comment above the function).
+// expected to terminate -- see the comment above the function). On kernels
+// outside the affected 6.18.y series this is a no-op by construction (see
+// sc_running_kernel_is_6_18()), so the test still passes there, it just
+// doesn't exercise anything beyond that early return.
 //
 // This needs real CAP_SYS_ADMIN in the same user namespace as the helper
 // process, like the real code always has by the time it gets here: using
@@ -227,6 +242,7 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
     g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
     g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
+    g_test_add_func("/ns/sc_running_kernel_is_6_18", test_sc_running_kernel_is_6_18);
     g_test_add_func("/ns/sc_ensure_mount_ns_id_ordered_no_helper", test_sc_ensure_mount_ns_id_ordered_no_helper);
     g_test_add_func("/ns/sc_read_mnt_ns_id_bad_fd", test_sc_read_mnt_ns_id_bad_fd);
     g_test_add_func("/ns/sc_read_mnt_ns_id_self", test_sc_read_mnt_ns_id_self);
