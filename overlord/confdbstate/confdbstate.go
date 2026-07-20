@@ -487,7 +487,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 		return nil, nil, nil, fmt.Errorf("cannot write confdb view %s: no custodian snap connected", view.ID())
 	}
 
-	paths := tx.alteredPaths()
+	paths := tx.AlteredPaths()
 	mightAffectEph, err := view.WriteAffectsEphemeral(paths)
 	if err != nil {
 		return nil, nil, nil, err
