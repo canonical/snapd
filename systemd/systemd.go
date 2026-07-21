@@ -77,6 +77,13 @@ var (
 
 	// allow replacing the systemd implementation with a mock one
 	newSystemd = newSystemdReal
+
+	// maxUnitsPerShow is the maximum number of unit names passed to a single
+	// "systemctl show" invocation by showUnitProperties. Kept as a var so
+	// tests can reduce it to exercise the chunk-boundary logic without
+	// creating hundreds of fake units. 64 units x NAME_MAX (255) bytes ~ 16 KB,
+	// which should be below the ARG_MAX limit also on constrained systems.
+	maxUnitsPerShow = 64
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -397,6 +404,21 @@ const (
 	MountCreated
 )
 
+// MountUnitFilter controls which mount units are returned by ListMountUnits.
+type MountUnitFilter int
+
+const (
+	// LoadedMountUnits returns units currently loaded in systemd's memory,
+	// as reported by "systemctl show *.mount". This is cheaper but may miss
+	// units that have been stopped and garbage-collected from systemd's memory.
+	LoadedMountUnits MountUnitFilter = iota
+	// InstalledMountUnits returns units that have a backing unit file
+	// installed on the filesystem, as reported by "systemctl list-unit-files".
+	// This includes units that are stopped and have been unloaded from systemd's
+	// memory, but excludes units that have no backing file.
+	InstalledMountUnits
+)
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// Backend returns the underlying implementation backend.
@@ -457,9 +479,11 @@ type Systemd interface {
 	EnsureMountUnitFile(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
-	// ListMountUnits gets the list of targets of the mount units created by
-	// the `origin` module for the given snap
-	ListMountUnits(snapName, origin string) ([]string, error)
+	// ListMountUnits gets the list of mount points of the mount units created
+	// by the `origin` module for the given snap. filter controls whether only
+	// units currently loaded in systemd's memory are returned (LoadedMountUnits)
+	// or units that have an installed backing file (InstalledMountUnits).
+	ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -1697,12 +1721,61 @@ func extractOriginModule(systemdUnitPath string) (string, error) {
 	return originModule, nil
 }
 
-func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
-	out, err := s.systemctl("show", "--property=Description,Where,FragmentPath", "*.mount")
+// listInstalledMountUnitNames returns the names of all mount unit files known to
+// systemd on disk by running "systemctl list-unit-files". This includes units
+// that are stopped and have been unloaded from memory.
+func (s *systemd) listInstalledMountUnitNames() ([]string, error) {
+	// TODO: Switch to using "--output=json" once the minimum required systemd
+	// version for "mount-control" interface is bumped up to 246.
+	listOut, err := s.systemctl("list-unit-files", "--no-legend", "*.mount")
 	if err != nil {
 		return nil, err
 	}
+	var names []string
+	for _, line := range bytes.Split(bytes.TrimRight(listOut, "\n"), []byte("\n")) {
+		// Each line is: "<unit-name>  <state>  [<preset>]"
+		// Skip blank lines: they should not appear but we must not panic on them.
+		fields := strings.Fields(string(line))
+		if len(fields) == 0 {
+			continue
+		}
+		names = append(names, fields[0])
+	}
+	return names, nil
+}
 
+// showUnitProperties runs "systemctl show <propertyOption>" for the given
+// unit names, chunking the calls to stay within ARG_MAX limits.
+// The returned byte slice is the concatenated output with "\n\n" record
+// separators preserved at chunk boundaries.
+func (s *systemd) showUnitProperties(propertyOption string, unitArgs []string) ([]byte, error) {
+	var out []byte
+	for len(unitArgs) > 0 {
+		chunk := unitArgs
+		if len(chunk) > maxUnitsPerShow {
+			chunk = chunk[:maxUnitsPerShow]
+		}
+		chunkOut, err := s.systemctl(append([]string{"show", propertyOption, "--"}, chunk...)...)
+		if err != nil {
+			return nil, err
+		}
+		// systemctl show ends each chunk with a single "\n". Insert an
+		// extra "\n" between chunks so that the boundary becomes "\n\n",
+		// which is the unit-record separator parseMountUnitsOutput expects.
+		if len(out) > 0 {
+			out = append(out, '\n')
+		}
+		out = append(out, chunkOut...)
+		unitArgs = unitArgs[len(chunk):]
+	}
+	return out, nil
+}
+
+// parseMountUnitsOutput parses the concatenated "systemctl show" output and
+// returns the mount points of units belonging to snapName and (optionally)
+// created by the given origin module. The output must include the
+// Description, Where, and FragmentPath properties.
+func parseMountUnitsOutput(out []byte, snapName, origin string) ([]string, error) {
 	var mountPoints []string
 	if bytes.TrimSpace(out) == nil {
 		return mountPoints, nil
@@ -1759,6 +1832,36 @@ func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
 		mountPoints = append(mountPoints, where)
 	}
 	return mountPoints, nil
+}
+
+func (s *systemd) ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error) {
+	var unitArgs []string
+	switch filter {
+	case InstalledMountUnits:
+		// listInstalledMountUnitNames enumerates all installed unit files known to
+		// systemd, including units that are stopped and have been unloaded from memory.
+		var err error
+		unitArgs, err = s.listInstalledMountUnitNames()
+		if err != nil {
+			return nil, err
+		}
+		if len(unitArgs) == 0 {
+			return nil, nil
+		}
+	case LoadedMountUnits:
+		// The *.mount glob is expanded by systemd against its in-memory units,
+		// so only loaded units are returned.
+		unitArgs = []string{"*.mount"}
+	default:
+		return nil, fmt.Errorf("internal error: unknown MountUnitFilter value %d", filter)
+	}
+
+	out, err := s.showUnitProperties("--property=Description,Where,FragmentPath", unitArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseMountUnitsOutput(out, snapName, origin)
 }
 
 func (s *systemd) ReloadOrRestart(serviceNames []string) error {
