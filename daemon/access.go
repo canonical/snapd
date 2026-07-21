@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/sandbox/cgroup"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -77,16 +78,45 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 // accessUnknown, which indicates the decision should be delegated to
 // the next access checker.
 type accessChecker interface {
-	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError
+}
+
+func isAuditedAccessLevel(level accessLevel) bool {
+	return level == accessLevelAuthenticated || level == accessLevelRoot
+}
+
+func recordDeniedIfAudited(rec AuthzRecorder, level accessLevel, reason string) {
+	if isAuditedAccessLevel(level) {
+		rec.RecordDenied(reason)
+	}
+}
+
+func recordGrantedIfAudited(rec AuthzRecorder, level accessLevel, reason, iface string, plug bool) {
+	if isAuditedAccessLevel(level) {
+		rec.RecordGranted(reason, iface, plug)
+	}
+}
+
+func recordDeniedMissingInterfaceIfAudited(rec AuthzRecorder, level accessLevel, plug bool) {
+	if !isAuditedAccessLevel(level) {
+		return
+	}
+	if plug {
+		rec.RecordDenied(seclog.ReasonDeniedMissingInterfacePlug)
+	} else {
+		rec.RecordDenied(seclog.ReasonDeniedMissingInterfaceSlot)
+	}
 }
 
 // requireSockets ensures the request was received via one of the specified sockets.
-func requireSockets(ucred *ucrednet, sockets []string) *apiError {
+func requireSockets(ucred *ucrednet, sockets []string, rec AuthzRecorder, level accessLevel) *apiError {
 	if ucred == nil {
+		recordDeniedIfAudited(rec, level, seclog.ReasonDeniedNoPeerCredentials)
 		return Forbidden("access denied")
 	}
 
 	if !strutil.ListContains(sockets, ucred.Socket) {
+		recordDeniedIfAudited(rec, level, seclog.ReasonDeniedSocketNotPermitted)
 		return Forbidden("access denied")
 	}
 
@@ -129,19 +159,21 @@ func (o accessOptions) validate() error {
 	return nil
 }
 
-func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, opts accessOptions) *apiError {
+func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, opts accessOptions, rec AuthzRecorder) *apiError {
 	if err := opts.validate(); err != nil {
 		return InternalError(err.Error())
 	}
 
-	if rspe := requireSockets(ucred, opts.Sockets); rspe != nil {
+	if rspe := requireSockets(ucred, opts.Sockets, rec, opts.AccessLevel); rspe != nil {
 		return rspe
 	}
 
+	var ifaceOutcome interfaceAccessOutcome
 	if opts.InterfaceAccess != nil {
 		// No interface checks are made if request is coming from snapd.socket
 		// to account for the snapd-control interface.
-		rspe := requireInterfaceApiAccess(d, r, ucred, *opts.InterfaceAccess)
+		var rspe *apiError
+		ifaceOutcome, rspe = requireInterfaceApiAccess(d, r, ucred, *opts.InterfaceAccess, rec, opts.AccessLevel)
 		if rspe != nil {
 			return rspe
 		}
@@ -151,12 +183,17 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 		return nil
 	}
 
+	iface := ifaceOutcome.MatchedIface
+	plug := ifaceOutcome.Plug
+
 	if opts.AccessLevel == accessLevelAuthenticated && user != nil {
 		// user != nil means we have an authenticated user
+		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.ReasonGrantedUserAuth, iface, plug)
 		return nil
 	}
 
 	if ucred.Uid == 0 {
+		recordGrantedIfAudited(rec, opts.AccessLevel, seclog.ReasonGrantedRootAuth, iface, plug)
 		return nil
 	}
 
@@ -164,13 +201,21 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 	// being prompted for authorisation. This should be avoided if
 	// access is otherwise granted.
 	if opts.PolkitAction != "" {
-		return checkPolkitAction(r, ucred, opts.PolkitAction)
+		rspe := checkPolkitAction(r, ucred, opts.PolkitAction)
+		if rspe == nil {
+			recordGrantedIfAudited(rec, opts.AccessLevel, seclog.ReasonGrantedPolkitAuth, iface, plug)
+		} else {
+			recordDeniedIfAudited(rec, opts.AccessLevel, seclog.ReasonDeniedPolkitAuthDenied)
+		}
+		return rspe
 	}
 
 	// XXX: when to 403 vs 401?
 	if opts.AccessLevel == accessLevelAuthenticated || opts.InterfaceAccess != nil {
+		recordDeniedIfAudited(rec, opts.AccessLevel, seclog.ReasonDeniedUserAuthDenied)
 		return Unauthorized("access denied")
 	}
+	recordDeniedIfAudited(rec, opts.AccessLevel, seclog.ReasonDeniedRootAuthDenied)
 	return Forbidden("access denied")
 }
 
@@ -178,12 +223,12 @@ func checkAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserSta
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapdSocket},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 // authenticatedAccess allows requests from authenticated users,
@@ -201,36 +246,36 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel:  accessLevelAuthenticated,
 		Sockets:      []string{dirs.SnapdSocket},
 		PolkitAction: ac.Polkit,
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 // rootAccess allows requests from the root uid, provided they
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 // snapAccess allows requests from the snapd-snap.socket only.
 type snapAccess struct{}
 
-func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapSocket},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 var (
@@ -249,39 +294,47 @@ type interfaceAccessReqs struct {
 	Plug bool
 }
 
+// interfaceAccessOutcome carries a matched interface connection for grant postfix.
+type interfaceAccessOutcome struct {
+	MatchedIface string
+	Plug         bool
+}
+
 func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
-	ucred *ucrednet, req interfaceAccessReqs,
-) *apiError {
+	ucred *ucrednet, req interfaceAccessReqs, rec AuthzRecorder, level accessLevel,
+) (interfaceAccessOutcome, *apiError) {
 	if !req.Slot && !req.Plug {
-		return InternalError("required connection side is unspecified")
+		return interfaceAccessOutcome{}, InternalError("required connection side is unspecified")
 	}
 	if req.Slot && req.Plug {
-		return InternalError("snap cannot be specified on both sides of the connection")
+		return interfaceAccessOutcome{}, InternalError("snap cannot be specified on both sides of the connection")
 	}
 
 	if len(req.Interfaces) == 0 {
-		return InternalError("interfaces access check, but interfaces list is empty")
+		return interfaceAccessOutcome{}, InternalError("interfaces access check, but interfaces list is empty")
 	}
 
 	if ucred == nil {
-		return Forbidden("access denied")
+		recordDeniedIfAudited(rec, level, seclog.ReasonDeniedNoPeerCredentials)
+		return interfaceAccessOutcome{}, Forbidden("access denied")
 	}
 
 	switch ucred.Socket {
 	case dirs.SnapdSocket:
-		// Allow access on main snapd.socket
-		return nil
+		return interfaceAccessOutcome{}, nil
 
 	case dirs.SnapSocket:
 		// Handled below
 	default:
-		return Forbidden("access denied")
+		recordDeniedIfAudited(rec, level, seclog.ReasonDeniedSocketNotPermitted)
+		return interfaceAccessOutcome{}, Forbidden("access denied")
 	}
 
 	// Access on snapd-snap.socket requires a connected plug.
 	snapName, err := cgroupSnapNameFromPid(int(ucred.Pid))
 	if err != nil {
-		return Forbidden("could not determine snap name for pid: %s", err)
+		recordDeniedMissingInterfaceIfAudited(rec, level, req.Plug)
+		return interfaceAccessOutcome{}, Forbidden("could not determine snap name for pid: %s", err)
 	}
 
 	st := d.state
@@ -289,16 +342,16 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 	defer st.Unlock()
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
-		return Forbidden("internal error: cannot get connections: %s", err)
+		return interfaceAccessOutcome{}, Forbidden("internal error: cannot get connections: %s", err)
 	}
-	foundMatchingInterface := false
+	var outcome interfaceAccessOutcome
 	for refStr, connState := range conns {
 		if !connState.Active() || !strutil.ListContains(req.Interfaces, connState.Interface) {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)
 		if err != nil {
-			return Forbidden("internal error: %s", err)
+			return interfaceAccessOutcome{}, Forbidden("internal error: %s", err)
 		}
 		matchOnSlot := req.Slot && connRef.SlotRef.Snap == snapName
 		matchOnPlug := req.Plug && connRef.PlugRef.Snap == snapName
@@ -307,13 +360,17 @@ func requireInterfaceApiAccessImpl(d *Daemon, r *http.Request,
 			// Do not return here, but keep processing connections for the side
 			// effect of attaching all connected interfaces we asked for to the
 			// remote address.
-			foundMatchingInterface = true
+			if outcome.MatchedIface == "" {
+				outcome.MatchedIface = connState.Interface
+				outcome.Plug = req.Plug
+			}
 		}
 	}
-	if foundMatchingInterface {
-		return nil
+	if outcome.MatchedIface != "" {
+		return outcome, nil
 	}
-	return Forbidden("access denied")
+	recordDeniedMissingInterfaceIfAudited(rec, level, req.Plug)
+	return interfaceAccessOutcome{}, Forbidden("access denied")
 }
 
 // interfaceOpenAccess behaves like openAccess, but allows requests from
@@ -322,7 +379,7 @@ type interfaceOpenAccess struct {
 	Interfaces []string
 }
 
-func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel: accessLevelOpen,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -331,7 +388,7 @@ func (ac interfaceOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 			Plug:       true,
 		},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 // interfaceAuthenticatedAccess behaves like authenticatedAccess, but also
@@ -347,7 +404,7 @@ type interfaceAuthenticatedAccess struct {
 	Polkit string
 }
 
-func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel: accessLevelAuthenticated,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -357,7 +414,7 @@ func (ac interfaceAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, u
 		},
 		PolkitAction: ac.Polkit,
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 // interfaceProviderRootAccess behaves like rootAccess, but also allows requests
@@ -367,7 +424,7 @@ type interfaceProviderRootAccess struct {
 	Interfaces []string
 }
 
-func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -376,7 +433,7 @@ func (ac interfaceProviderRootAccess) CheckAccess(d *Daemon, r *http.Request, uc
 			Slot:       true,
 		},
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 // interfaceRootAccess behaves like rootAccess, but also allows requests
@@ -397,7 +454,7 @@ type interfaceRootAccess struct {
 	Polkit string
 }
 
-func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	opts := accessOptions{
 		AccessLevel: accessLevelRoot,
 		Sockets:     []string{dirs.SnapdSocket, dirs.SnapSocket},
@@ -407,7 +464,7 @@ func (ac interfaceRootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucr
 		},
 		PolkitAction: ac.Polkit,
 	}
-	return checkAccess(d, r, ucred, user, opts)
+	return checkAccess(d, r, ucred, user, opts, rec)
 }
 
 type actionRequest struct {
@@ -431,7 +488,7 @@ type byActionAccess struct {
 
 const maxBodySize = 4 * 1024 * 1024 // 4MB
 
-func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState, rec AuthzRecorder) *apiError {
 	switch ac.Default.(type) {
 	// TODO: If less strict interfaces are needed as defaults then
 	// we might need to introduce access checker sorting so that the
@@ -462,7 +519,6 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 		if (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) && lr.N <= 0 {
 			return BadRequest("body size limit exceeded")
 		}
-		// Content type is JSON, but it's invalid
 		return BadRequest(err.Error())
 	}
 	if decoder.More() {
@@ -474,8 +530,8 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 
 	checker := ac.ByAction[req.Action]
 	if checker == nil {
-		return ac.Default.CheckAccess(d, r, ucred, user)
+		return ac.Default.CheckAccess(d, r, ucred, user, rec)
 	}
 
-	return checker.CheckAccess(d, r, ucred, user)
+	return checker.CheckAccess(d, r, ucred, user, rec)
 }

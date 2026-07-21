@@ -20,6 +20,7 @@
 package daemon
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -159,12 +160,23 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+	action := tryExtractJSONAction(r)
+
+	authzRec := NewAuthzRecorder().
+		WithUser(seclogSnapdUserFromAuth(user)).
+		WithPeer(seclogPeerFromUcred(ucred)).
+		WithEndpoint(seclogEndpointFromRequest(c.Path, r.Method, action))
+
+	rspe := access.CheckAccess(c.d, r, ucred, user, authzRec)
+	authzRec.Emit()
+	if rspe != nil {
 		rspe.ServeHTTP(w, r)
 		return
 	}
 
-	traceSnapdAPI(c, w, r)
+	if osutil.GetenvBool("SNAPD_TRACE") {
+		traceSnapdAPI(c, r, action)
+	}
 
 	rsp := rspf(c, r, user)
 
@@ -186,30 +198,101 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
-func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		loggedWithAction := false
-		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
-			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
-			bodyBytes, err := io.ReadAll(r.Body)
+func traceSnapdAPI(c *Command, r *http.Request, action string) {
+	if action != "" {
+		logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
+		return
+	}
+	logger.Trace("endpoint", "method", r.Method, "path", c.Path)
+}
+
+// actionPeekSize bounds how much of the request body we inspect when
+// looking for the top-level "action" key.
+const actionPeekSize = 4096
+
+// peekableBody wraps a buffered reader as an http.Request body so the
+// prefix can be inspected via Peek without advancing the read position.
+// Close is delegated to the original body so the server can release it.
+type peekableBody struct {
+	io.Reader
+	io.Closer
+}
+
+// tryExtractJSONAction returns the top-level "action" string field of a JSON
+// request body. It must be called at most once per request.
+//
+// The function replaces r.Body with a buffered wrapper (peekableBody) that
+// preserves the original body's Close while allowing a prefix peek without
+// advancing the read position. Subsequent handlers still read the full body.
+//
+// Only POST and PUT requests are considered. Content-Type must be absent or
+// exactly "application/json"; other types are ignored and the body is left
+// unchanged.
+//
+// Extraction inspects at most actionPeekSize (4 KiB) via bufio.Reader.Peek
+// and a streaming JSON tokenizer. It fails closed: on any error (action
+// beyond the peek window, malformed prefix, non-string action value,
+// preceding value too large) it returns an empty string.
+func tryExtractJSONAction(r *http.Request) string {
+	if (r.Method != "POST" && r.Method != "PUT") || r.Body == nil {
+		return ""
+	}
+	if ct := r.Header.Get("Content-Type"); ct != "" && ct != "application/json" {
+		return ""
+	}
+
+	// Wrap the body so Peek can inspect a bounded prefix without
+	// advancing the read position.
+	orig := r.Body
+	br := bufio.NewReaderSize(orig, actionPeekSize)
+	r.Body = peekableBody{Reader: br, Closer: orig}
+
+	// Ignore the error: a short body (EOF) still yields the bytes we
+	// got, which is all we need. Any tokenize error below returns "".
+	peeked, _ := br.Peek(actionPeekSize)
+
+	dec := json.NewDecoder(bytes.NewReader(peeked))
+	t, err := dec.Token()
+	if err != nil || t != json.Delim('{') {
+		return ""
+	}
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return ""
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return ""
+		}
+		if key == "action" {
+			var v string
+			if dec.Decode(&v) != nil {
+				return ""
+			}
+			return v
+		}
+		// Skip this value (scalar, object or array) by depth counting.
+		depth := 0
+		for {
+			tok, err := dec.Token()
 			if err != nil {
-				logger.Trace("endpoint-error", "body-read", err)
+				return ""
 			}
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
+			if d, ok := tok.(json.Delim); ok {
+				switch d {
+				case '{', '[':
+					depth++
+				case '}', ']':
+					depth--
 				}
 			}
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		}
-		if !loggedWithAction {
-			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
+			if depth == 0 {
+				break
+			}
 		}
 	}
+	return ""
 }
 
 type wrappedWriter struct {
