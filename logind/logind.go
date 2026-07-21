@@ -21,6 +21,7 @@ package logind
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -30,8 +31,8 @@ import (
 
 // loginctlCmd calls loginctl with the given args, returning its standard
 // output (and wrapped error)
-var loginctlCmd = func(args ...string) ([]byte, error) {
-	cmd := exec.Command("loginctl", args...)
+var loginctlCmd = func(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "loginctl", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -46,7 +47,7 @@ var loginctlCmd = func(args ...string) ([]byte, error) {
 // MockLoginctl allows to mock the loginctl invocations.
 // The provided function will be called when loginctl would be invoked.
 // The function can return the output and an error.
-func MockLoginctl(f func(args ...string) ([]byte, error)) func() {
+func MockLoginctl(f func(ctx context.Context, args ...string) ([]byte, error)) func() {
 	oldLoginctlCmd := loginctlCmd
 	loginctlCmd = f
 	return func() {
@@ -85,18 +86,18 @@ func (e *Error) Error() string {
 // loginctl. It invokes "loginctl show-session auto -p Class" and parses
 // the "Class=<value>" output. An error is returned if loginctl fails,
 // for example when there is no session for the current process.
-func SessionClass() (string, error) {
-	out, err := loginctlCmd("show-session", "auto", "-p", "Class")
+func SessionClass(ctx context.Context) (string, error) {
+	out, err := loginctlCmd(ctx, "show-session", "auto", "-p", "Class")
 	if err != nil {
 		return "", err
 	}
-	cleanVal := strings.TrimSpace(string(out))
 
 	// strip the "Class=" prefix from the output
-	splitVal := strings.SplitN(cleanVal, "=", 2)
-	if len(splitVal) != 2 || strings.TrimSpace(splitVal[0]) != "Class" || strings.TrimSpace(splitVal[1]) == "" {
-		return "", fmt.Errorf("invalid property format from loginctl for Class (got %s)", cleanVal)
+	orig := strings.TrimSpace(string(out))
+	before, after, ok := strings.Cut(orig, "=")
+	if !ok || before != "Class" || after == "" || strings.Contains(after, "=") {
+		return "", fmt.Errorf("invalid property format from loginctl for Class: %q", orig)
 	}
 
-	return strings.TrimSpace(splitVal[1]), nil
+	return strings.TrimSpace(after), nil
 }
