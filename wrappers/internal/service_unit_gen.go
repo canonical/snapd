@@ -364,15 +364,12 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		// identify the first error value that is not reserved as a successful exit status
 		errExitCode, err := userServicePreconditionErrorExitCode(appInfo.SuccessExitStatus)
 		if err != nil {
 			return nil, err
 		}
-		if errExitCode != 1 {
-			wrapperData.ExecCondition = fmt.Sprintf("/usr/bin/snap routine user-service-precondition --error-exit-code %d", errExitCode)
-		} else {
-			wrapperData.ExecCondition = "/usr/bin/snap routine user-service-precondition"
-		}
+		wrapperData.ExecCondition = fmt.Sprintf("/usr/bin/snap routine user-service-precondition --error-exit-code %d", errExitCode)
 	default:
 		panic("unknown snap.DaemonScope")
 	}

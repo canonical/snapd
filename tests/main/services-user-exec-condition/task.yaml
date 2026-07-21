@@ -3,8 +3,7 @@ summary: Check that user service files have ExecCondition stanza
 details: |
   Verifies that snapd generates ExecCondition=/usr/bin/snap routine
   user-service-precondition in systemd user service files for user daemons,
-  and that --error-exit-code is correctly set when SuccessExitStatus
-  includes code 1.
+  and that --error-exit-code is correctly set.
 
   ExecCondition requires systemd version 243, which is not supported by
   Ubuntu LTS releases prior to 20.04.
@@ -26,15 +25,13 @@ execute: |
     SVC_FILE_1_2=/etc/systemd/user/snap.test-snapd-user-service-exec-condition.svc-with-1-2.service
     SVC_FILE_42_250=/etc/systemd/user/snap.test-snapd-user-service-exec-condition.svc-with-42-250.service
 
-    echo "User service without success-exit-status has ExecCondition without --error-exit-code"
-    MATCH '^ExecCondition=/usr/bin/snap routine user-service-precondition$' < "$SVC_FILE_NO_SE"
-    not MATCH 'error-exit-code' < "$SVC_FILE_NO_SE"
+    echo "User service without success-exit-status has ExecCondition with --error-exit-code 1"
+    MATCH '^ExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1$' < "$SVC_FILE_NO_SE"
 
     echo "User service with success-exit-status [1, 2] has --error-exit-code 3"
     MATCH '^ExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 3$' < "$SVC_FILE_1_2"
     MATCH '^SuccessExitStatus=1 2$' < "$SVC_FILE_1_2"
 
-    echo "User service with success-exit-status [42, 250] has no --error-exit-code (1 is free)"
-    MATCH '^ExecCondition=/usr/bin/snap routine user-service-precondition$' < "$SVC_FILE_42_250"
-    not MATCH 'error-exit-code' < "$SVC_FILE_42_250"
+    echo "User service with success-exit-status [42, 250] has --error-exit-code 1"
+    MATCH '^ExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1$' < "$SVC_FILE_42_250"
     MATCH '^SuccessExitStatus=42 250$' < "$SVC_FILE_42_250"
