@@ -39,6 +39,16 @@ var _ = Suite(&configHelpersSuite{})
 
 func (s *configHelpersSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapJSON := json.RawMessage(`{}`)
+	s.state.Set("snaps", map[string]*json.RawMessage{
+		"snap1":     &snapJSON,
+		"snap2":     &snapJSON,
+		"snap3":     &snapJSON,
+		"some-snap": &snapJSON,
+	})
 }
 
 func (s *configHelpersSuite) TestConfigSnapshot(c *C) {

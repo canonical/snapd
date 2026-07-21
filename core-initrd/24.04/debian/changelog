@@ -1,3 +1,9 @@
+ubuntu-core-initramfs (69+2.76+g419.87e21bf+24.04) noble; urgency=medium
+
+  * Update to snapd version 2.76+g419.87e21bf
+
+ -- Philip Meulengracht <philip.meulengracht@canonical.com>  Thu, 04 Jun 2026 08:23:11 +0200
+
 ubuntu-core-initramfs (69+2.75.2+g295.cef124a+24.04) noble; urgency=medium
 
   * Update to snapd version 2.75.2+g295.cef124a

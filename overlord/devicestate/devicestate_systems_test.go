@@ -1858,17 +1858,19 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.setupSnapRevisionForFileAndID(c, fooSnap, s.ss.AssertedSnapID("foo"), "canonical", snap.R(99))
 	snapsupBar := snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "bar", SnapID: s.ss.AssertedSnapID("bar"), Revision: snap.R(100)},
-		SnapPath: barSnap,
 	}
 	s.setupSnapDeclForNameAndID(c, "bar", s.ss.AssertedSnapID("bar"), "canonical")
 	s.setupSnapRevisionForFileAndID(c, barSnap, s.ss.AssertedSnapID("bar"), "canonical", snap.R(100))
-	// when download completes, the files will be at /var/lib/snapd/snap
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.BlobPath()), 0755), IsNil)
-	c.Assert(os.Rename(fooSnap, snapsupFoo.BlobPath()), IsNil)
-	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.BlobPath()), 0755), IsNil)
-	c.Assert(os.Rename(barSnap, snapsupBar.BlobPath()), IsNil)
-	tSnapsup1.Set("snap-setup", snapsupFoo)
+
+	// bar represents a downloaded snap setup at its canonical blob path.
+	barBlob := snapsupBar.BlobPath()
+	c.Assert(os.MkdirAll(filepath.Dir(barBlob), 0755), IsNil)
+	c.Assert(os.Rename(barSnap, barBlob), IsNil)
 	tSnapsup2.Set("snap-setup", snapsupBar)
+
+	// foo represents a local-path setup before mount-snap has consumed
+	// SnapPath.
+	tSnapsup1.Set("snap-setup", snapsupFoo)
 
 	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()}, nil, devicestate.CreateRecoverySystemOptions{
 		TestSystem: true,
@@ -2760,7 +2762,7 @@ func (s *deviceMgrSystemsCreateSuite) TestSeedRefreshTasksFinalizeUndoDoesNotRes
 		{
 			InstanceName: s.model.Kernel(),
 		},
-	})
+	}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(added, DeepEquals, map[string]bool{s.model.Kernel(): true})
 	c.Assert(seedTS, NotNil)
@@ -3449,9 +3451,9 @@ func mockHelperForEncryptionAvailabilityCheck(s suiteWithAddCleanup, c *C, isSup
 		s.DeviceManager().SetEncryptionSupportInfoInCacheUnlocked(cacheLabel, encInfo)
 	}
 
-	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		callCnt.checkCnt++
-		c.Assert(bootImagePaths, HasLen, 3)
+		c.Assert(bootImageFiles, HasLen, 3)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
 		if hasTPM {
 			return preinstallCheckContext, nil, nil

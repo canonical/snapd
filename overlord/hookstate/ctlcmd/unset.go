@@ -81,8 +81,8 @@ func (s *unsetCommand) Execute(args []string) error {
 
 	if !s.View {
 		context.Lock()
+		defer context.Unlock()
 		tr := configstate.ContextTransaction(context)
-		context.Unlock()
 
 		// unsetting options
 		for _, confKey := range s.Positional.ConfKeys {

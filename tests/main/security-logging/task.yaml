@@ -5,10 +5,12 @@ details: |
     audit subsystem (AUDIT_TRUSTED_APP, type 1121). This test verifies that
     a failed login attempt produces an "authn_login_failure" event and,
     when store credentials are available, that a successful login produces
-    an "authn_login_success" event in the audit log.
-
-# Amazon Linux 2: systemd-journald-audit.socket is not available
-systems: [ -amazon-linux-2-64 ]
+    an "authn_login_success" event in the audit log. It also checks that
+    user lifecycle events (user_created, user_updated, user_removed) are
+    recorded when users are created via login, updated on re-login, and
+    removed via logout. Token lifecycle events (authn_token_created,
+    authn_token_delete) are recorded when a local snapd macaroon is
+    created on first login and removed on logout.
 
 prepare: |
     python3 "$PWD/enable-audit.py"
@@ -95,14 +97,40 @@ execute: |
 
     # WARN level is not being picked up by auditd, but it should be present in the journal when auditd is not active, so only check for the presence of the event when auditd is not active.
     if [ "$AUDITD_ACTIVE" -eq 0 ]; then
-        journal_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: invalid-credentials:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":{"snapd-user-id":0,"store-user-name":"","store-user-email":"someemail@testing.com","expiration":"never"},"error":{"code":"invalid-credentials","message":"invalid credentials"}'
+    	journal_match '"level":"WARN","description":"User <unknown>:someemail@testing.com:<unknown> login failure: 401:invalid credentials","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_failure","user":\{"snapd_user_id":0,"store_user_name":"","store_user_email":"someemail@testing.com","expiration":"never"\},"error":\{"code":401,"kind":"login-required","message":"invalid credentials"\}'
     fi
 
     # SPREAD_STORE_USER and SPREAD_STORE_PASSWORD are only available when running off master
     # core does not have expect, so skip core systems
     if [ -n "$SPREAD_STORE_USER" ] && [ -n "$SPREAD_STORE_PASSWORD" ] && os-query is-classic && [ "$AUDITD_ACTIVE" -eq 0 ]; then
         echo "Checking that a successful login produces an audit event"
+        journal_pin
         expect -d -f "$TESTSLIB"/successful_login.exp
 
-        journal_match '"level":"INFO","description":"User [^ ]* login success","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_success","user":\{"snapd-user-id":[0-9]+,"store-user-name":"[^"]*","store-user-email":"[^"]*","expiration":"[^"]*"\}'
+        journal_match '"level":"INFO","description":"User [^ ]* login success","app_id":"canonical.snapd.snapd","type":"security","category":"AUTHN","event":"authn_login_success","user":\{"snapd_user_id":[0-9]+,"store_user_name":"[^"]*","store_user_email":"[^"]*","expiration":"[^"]*"\}'
+
+        echo "Checking that user creation produces an audit event"
+        journal_match '"category":"USER","event":"user_created","user":\{"snapd_user_id":[0-9]+,"store_user_name":"[^"]*","store_user_email":"[^"]*","expiration":"[^"]*"\}'
+
+        echo "Checking that first login creates a local snapd macaroon audit event"
+        journal_match '"category":"AUTHN","event":"authn_token_created".*"token_id":[0-9]+'
+
+        echo "Checking that a second login produces a user_updated audit event"
+        # A second login refreshes the store macaroon and discharges, so the
+        # store always returns new tokens and changed_fields will be non-empty.
+        # If the store ever returns identical tokens, no user_updated event
+        # will fire and this journal_match will time out.
+        journal_pin
+        expect -d -f "$TESTSLIB"/successful_login.exp
+
+        journal_match '"category":"USER","event":"user_updated","user":\{"snapd_user_id":[0-9]+,"store_user_name":"[^"]*","store_user_email":"[^"]*","expiration":"[^"]*"\},"changed_fields":\[.*\]'
+
+        echo "Checking that logout produces a user_removed audit event"
+        journal_pin
+        snap logout
+
+        journal_match '"category":"USER","event":"user_removed","user":\{"snapd_user_id":[0-9]+,"store_user_name":"[^"]*","store_user_email":"[^"]*","expiration":"[^"]*"\}'
+
+        echo "Checking that logout removes the local snapd macaroon audit event"
+        journal_match '"category":"AUTHN","event":"authn_token_delete".*"token_id":[0-9]+'
     fi

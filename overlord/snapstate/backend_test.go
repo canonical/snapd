@@ -95,6 +95,8 @@ type fakeOp struct {
 	requireSnapdTooling bool
 
 	dirOpts  *dirs.SnapDirOptions
+	dirs     []string
+	origin   string
 	undoInfo *backend.UndoInfo
 
 	currentComps []*snap.ComponentSideInfo
@@ -139,6 +141,16 @@ func (ops fakeOps) Count(op string) int {
 		}
 	}
 	return n
+}
+
+func (ops fakeOps) Filter(op string) fakeOps {
+	var filtered fakeOps
+	for i := range ops {
+		if ops[i].op == op {
+			filtered = append(filtered, ops[i])
+		}
+	}
+	return filtered
 }
 
 func (ops fakeOps) First(op string) *fakeOp {
@@ -1068,19 +1080,16 @@ type fakeSnappyBackend struct {
 	maybeInjectErr func(*fakeOp) error
 
 	infos map[string]map[snap.Revision]*snap.Info
+
+	nonSnapctlMounts []string
 }
 
-func (f *fakeSnappyBackend) maybeErrForLastOp() error {
+func (f *fakeSnappyBackend) maybeErr(op *fakeOp) error {
 	if f.maybeInjectErr == nil {
 		return nil
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if len(f.ops) == 0 {
-		return nil
-	}
-	return f.maybeInjectErr(&f.ops[len(f.ops)-1])
+	return f.maybeInjectErr(op)
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -1210,12 +1219,13 @@ func (f *fakeSnappyBackend) SetupComponent(compFilePath string, compPi snap.Cont
 
 func (f *fakeSnappyBackend) SetupKernelModulesComponents(currentComps, finalComps []*snap.ComponentSideInfo, ksnapName string, ksnapRev snap.Revision, meter progress.Meter) error {
 	meter.Notify("prepare-kernel-modules-components")
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:           "prepare-kernel-modules-components",
 		currentComps: currentComps,
 		finalComps:   finalComps,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) UndoSetupComponent(cpi snap.ContainerPlaceInfo, installRecord *backend.InstallRecord, dev snap.Device, removeOpts backend.RemoveComponentOpts, meter progress.Meter) error {
@@ -1408,15 +1418,16 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, opts *dirs
 	}
 
 	f.appendOp(op)
-	return f.maybeErrForLastOp()
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) SetupSnapSaveData(info *snap.Info, _ snap.Device, meter progress.Meter) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "setup-snap-save-data",
 		path: info.CommonDataSaveDir(),
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) MaybeSetNextBoot(
@@ -1470,11 +1481,12 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev snap.Device, linkCtx b
 }
 
 func (f *fakeSnappyBackend) LinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "link-component",
 		path: cpi.MountDir(),
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func svcSnapMountDir(svcs []*snap.AppInfo) string {
@@ -1511,7 +1523,7 @@ func (f *fakeSnappyBackend) StartServices(svcs []*snap.AppInfo, disabledSvcs *wr
 		}
 	}
 	f.appendOp(&op)
-	return f.maybeErrForLastOp()
+	return f.maybeErr(&op)
 }
 
 func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string]*snap.AppInfo, disabledSvcs *wrappers.DisabledServices, reason snap.ServiceStopReason, undoer backend.Undoer, meter progress.Meter, tm timings.Measurer) error {
@@ -1540,13 +1552,14 @@ func (f *fakeSnappyBackend) StopServices(svcs []*snap.AppInfo, rmSvcs map[string
 		return f.StartServices(svcs, disabledSvcs, meter, tm)
 	})
 
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:              fmt.Sprintf("stop-snap-services:%s", reason),
 		path:            svcSnapMountDir(svcs),
 		services:        svcNames,
 		removedServices: rmSvcNames,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillReason, tm timings.Measurer) error {
@@ -1556,13 +1569,14 @@ func (f *fakeSnappyBackend) KillSnapApps(snapName string, reason snap.AppKillRea
 	}
 	defer testLock.Close()
 
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   fmt.Sprintf("kill-snap-apps:%s", reason),
 		name: snapName,
 		// Check if snap lock is held when terminating pids
 		snapLocked: testLock.TryLock() == osutil.ErrAlreadyLocked,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progress.Meter) (*wrappers.DisabledServices, error) {
@@ -1595,30 +1609,32 @@ func (f *fakeSnappyBackend) QueryDisabledServices(info *snap.Info, meter progres
 		}
 	}
 
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:                   "current-snap-service-states",
 		disabledServices:     f.servicesCurrentlyDisabled,
 		disabledUserServices: f.userServicesCurrentlyDisabled,
-	})
+	}
+	f.appendOp(op)
 
 	return &wrappers.DisabledServices{
 		SystemServices: l,
 		UserServices:   ul,
-	}, f.maybeErrForLastOp()
+	}, f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, p progress.Meter) error {
 	p.Notify("setup-snap")
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:    "undo-setup-snap",
 		name:  s.InstanceName(),
 		path:  s.MountDir(),
 		stype: typ,
-	})
+	}
+	f.appendOp(op)
 	if s.InstanceName() == "borken-undo-setup" {
 		return errors.New(`cannot undo setup of "borken-undo-setup" snap`)
 	}
-	return f.maybeErrForLastOp()
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, opts *dirs.SnapDirOptions, p progress.Meter) error {
@@ -1627,12 +1643,13 @@ func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.I
 	if oldInfo != nil {
 		old = oldInfo.MountDir()
 	}
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "undo-copy-snap-data",
 		path: newInfo.MountDir(),
 		old:  old,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, _ snap.Device, meter progress.Meter) error {
@@ -1640,17 +1657,18 @@ func (f *fakeSnappyBackend) UndoSetupSnapSaveData(newInfo, oldInfo *snap.Info, _
 	if oldInfo != nil {
 		old = oldInfo.CommonDataSaveDir()
 	}
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "undo-setup-snap-save-data",
 		path: newInfo.CommonDataSaveDir(),
 		old:  old,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkContext, meter progress.Meter) error {
 	meter.Notify("unlink")
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "unlink-snap",
 		path: info.MountDir(),
 
@@ -1658,109 +1676,144 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, linkCtx backend.LinkCont
 		unlinkSkipBinaries:     linkCtx.SkipBinaries,
 		otherInstances:         linkCtx.HasOtherInstances,
 		inhibitHint:            linkCtx.RunInhibitHint,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) UnlinkComponent(cpi snap.ContainerPlaceInfo, snapRev snap.Revision) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "unlink-component",
 		path: cpi.MountDir(),
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, installRecord *backend.InstallRecord, dev snap.Device, meter progress.Meter) error {
 	meter.Notify("remove-snap-files")
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:    "remove-snap-files",
 		path:  s.MountDir(),
 		stype: typ,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info, opts *dirs.SnapDirOptions) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "remove-snap-data",
 		path: info.MountDir(),
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirOptions) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapSaveData(info *snap.Info, _ snap.Device) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "remove-snap-save-data",
 		path: snap.CommonDataSaveDir(info.InstanceName()),
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bool, opts *dirs.SnapDirOptions) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:             "remove-snap-data-dir",
 		name:           info.InstanceName(),
 		path:           snap.BaseDataDir(info.InstanceName()),
 		otherInstances: otherInstances,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
-func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter) error {
-	f.appendOp(&fakeOp{
-		op:   "remove-snap-mount-units",
-		name: s.ContainerName(),
-	})
-	return f.maybeErrForLastOp()
+func (f *fakeSnappyBackend) ListNonSnapctlMountsInSnapRevDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	op := &fakeOp{
+		op:    "list-non-snapctl-mounts-rev",
+		name:  info.InstanceName(),
+		revno: info.Revision,
+	}
+	f.appendOp(op)
+	return f.nonSnapctlMounts, f.maybeErr(op)
+}
+
+func (f *fakeSnappyBackend) ListNonSnapctlMountsInSnapAllDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) {
+	op := &fakeOp{
+		op:    "list-non-snapctl-mounts-all",
+		name:  info.InstanceName(),
+		revno: info.Revision,
+	}
+	f.appendOp(op)
+	return f.nonSnapctlMounts, f.maybeErr(op)
+}
+
+func (f *fakeSnappyBackend) RemoveContainerMountUnits(s snap.ContainerPlaceInfo, meter progress.Meter, origin string, baseDirs []string) error {
+	op := &fakeOp{
+		op:     "remove-snap-mount-units",
+		name:   s.ContainerName(),
+		origin: origin,
+		dirs:   baseDirs,
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:             "remove-snap-dir",
 		name:           s.InstanceName(),
 		path:           snap.BaseDir(s.InstanceName()),
 		otherInstances: otherInstances,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "discard-namespace",
 		name: snapName,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) DiscardLockedSnapNamespace(snapName string) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "discard-namespace-locked",
 		name: snapName,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveAllSnapAppArmorProfiles() error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op: "remove-apparmor-profiles",
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapInhibitLock(snapName string, stateUnlocker runinhibit.Unlocker) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "remove-inhibit-lock",
 		name: snapName,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
@@ -1801,7 +1854,7 @@ func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsu
 	}
 
 	f.appendOp(op)
-	return f.maybeErrForLastOp()
+	return f.maybeErr(op)
 }
 
 type byAlias []*backend.Alias
@@ -1821,20 +1874,22 @@ func (f *fakeSnappyBackend) UpdateAliases(add []*backend.Alias, remove []*backen
 		remove = append([]*backend.Alias(nil), remove...)
 		sort.Sort(byAlias(remove))
 	}
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:        "update-aliases",
 		aliases:   add,
 		rmAliases: remove,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RemoveSnapAliases(snapName string) error {
-	f.appendOp(&fakeOp{
+	op := &fakeOp{
 		op:   "remove-snap-aliases",
 		name: snapName,
-	})
-	return f.maybeErrForLastOp()
+	}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinhibit.Hint, stateUnlocker runinhibit.Unlocker, decision func() error) (lock *osutil.FileLock, err error) {
@@ -1874,19 +1929,21 @@ func (f *fakeSnappyBackend) RunInhibitSnapForUnlink(info *snap.Info, hint runinh
 }
 
 func (f *fakeSnappyBackend) HideSnapData(snapName string) error {
-	f.appendOp(&fakeOp{op: "hide-snap-data", name: snapName})
-	return f.maybeErrForLastOp()
+	op := &fakeOp{op: "hide-snap-data", name: snapName}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) UndoHideSnapData(snapName string) error {
-	f.appendOp(&fakeOp{op: "undo-hide-snap-data", name: snapName})
-	return f.maybeErrForLastOp()
+	op := &fakeOp{op: "undo-hide-snap-data", name: snapName}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revision, opts *dirs.SnapDirOptions) (*backend.UndoInfo, error) {
-	f.appendOp(&fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev})
-
-	if err := f.maybeErrForLastOp(); err != nil {
+	op := &fakeOp{op: "init-exposed-snap-home", name: snapName, revno: rev}
+	f.appendOp(op)
+	if err := f.maybeErr(op); err != nil {
 		return nil, err
 	}
 
@@ -1894,13 +1951,15 @@ func (f *fakeSnappyBackend) InitExposedSnapHome(snapName string, rev snap.Revisi
 }
 
 func (f *fakeSnappyBackend) UndoInitExposedSnapHome(snapName string, undoInfo *backend.UndoInfo) error {
-	f.appendOp(&fakeOp{op: "undo-init-exposed-snap-home", name: snapName, undoInfo: undoInfo})
-	return f.maybeErrForLastOp()
+	op := &fakeOp{op: "undo-init-exposed-snap-home", name: snapName, undoInfo: undoInfo}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) InitXDGDirs(info *snap.Info) error {
-	f.appendOp(&fakeOp{op: "init-xdg-dirs", name: info.InstanceName()})
-	return f.maybeErrForLastOp()
+	op := &fakeOp{op: "init-xdg-dirs", name: info.InstanceName()}
+	f.appendOp(op)
+	return f.maybeErr(op)
 }
 
 func (f *fakeSnappyBackend) appendOp(op *fakeOp) {

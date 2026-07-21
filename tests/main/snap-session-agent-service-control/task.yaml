@@ -9,8 +9,6 @@ systems:
     - -ubuntu-14.04-*
     # Ubuntu Core 16 has read-only /etc/systemd/user
     - -ubuntu-core-16-*
-    # Systemd on CentOS 7/Amazon Linux 2 does not have the user@uid unit
-    - -amazon-linux-2-*
 
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled. This may not

@@ -78,22 +78,122 @@ func (*apparmorSuite) TestAppArmorParser(c *C) {
 	c.Check(err, Equals, nil)
 }
 
-func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
-	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
-	parser := filepath.Join(libSnapdDir, "apparmor_parser")
+func (s *apparmorSuite) TestAppArmorParserDistroAbiIgnored(c *C) {
+	mockParserCmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer mockParserCmd.Restore()
+	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
+	defer restore()
+
+	type abiCase struct {
+		name     string
+		abi30    string
+		abi40    string
+		abi50    string
+		expected []string
+		logMatch string
+	}
+
+	cases := []abiCase{
+		{
+			name:     "no abi files",
+			expected: []string{mockParserCmd.Exe()},
+		},
+		{
+			name:     "only abi 3.0",
+			abi30:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0"),
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0")},
+		},
+		{
+			name:     "only abi 5.0",
+			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0")},
+		},
+		{
+			name:     "abi 4.0 and 5.0 - uses 5.0",
+			abi40:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/4.0"),
+			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0")},
+			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected`,
+		},
+		{
+			name:     "all three abis - uses 5.0",
+			abi30:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/3.0"),
+			abi40:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/4.0"),
+			abi50:    filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0"),
+			expected: []string{mockParserCmd.Exe(), "--policy-features", filepath.Join(s.fakeroot, "/etc/apparmor.d/abi/5.0")},
+			logMatch: `(?ms).* DEBUG: apparmor 5.0 ABI detected`,
+		},
+	}
+
+	for _, tc := range cases {
+		c.Logf("case: %s", tc.name)
+
+		if tc.abi30 != "" {
+			c.Assert(os.MkdirAll(filepath.Dir(tc.abi30), 0755), IsNil)
+			c.Assert(os.WriteFile(tc.abi30, nil, 0644), IsNil)
+		}
+		if tc.abi40 != "" {
+			c.Assert(os.MkdirAll(filepath.Dir(tc.abi40), 0755), IsNil)
+			c.Assert(os.WriteFile(tc.abi40, nil, 0644), IsNil)
+		}
+		if tc.abi50 != "" {
+			c.Assert(os.MkdirAll(filepath.Dir(tc.abi50), 0755), IsNil)
+			c.Assert(os.WriteFile(tc.abi50, nil, 0644), IsNil)
+		}
+
+		restore30 := apparmor.MockHostAbi30File(tc.abi30)
+		restore40 := apparmor.MockHostAbi40File(tc.abi40)
+		restore50 := apparmor.MockHostAbi50File(tc.abi50)
+		log, restoreLogger := logger.MockLogger()
+
+		os.Setenv("SNAPD_DEBUG", "1")
+		cmd, internal, err := apparmor.AppArmorParser()
+		c.Assert(err, IsNil)
+		c.Check(cmd.Path, Equals, mockParserCmd.Exe())
+		c.Check(cmd.Args, DeepEquals, tc.expected)
+		c.Check(internal, Equals, false)
+		if tc.logMatch != "" {
+			c.Check(log.String(), Matches, tc.logMatch)
+		} else if tc.name == "no abi files" || tc.name == "only abi 3.0" || tc.name == "only abi 5.0" {
+			// No ABI-4/ABI-5 ignore messages expected; the generic
+			// "checking distro apparmor_parser" message is still present.
+			c.Check(log.String(), Matches, `(?ms).* DEBUG: checking distro apparmor_parser .*\n`)
+		}
+
+		restoreLogger()
+		os.Unsetenv("SNAPD_DEBUG")
+		restore30()
+		restore40()
+		restore50()
+	}
+}
+
+func setupInternalAppArmorParserEnv(c *C, abiVersions ...string) (parser, libSnapdDir string, restore func()) {
+	fakeroot := c.MkDir()
+	dirs.SetRootDir(fakeroot)
+
+	libSnapdDir = filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
+	parser = filepath.Join(libSnapdDir, "apparmor_parser")
 	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
 	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
+	for _, abiVersion := range abiVersions {
+		c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi", abiVersion), nil, 0644), IsNil)
+	}
 
-	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+	restoreReadlink := snapdtool.MockOsReadlink(func(path string) (string, error) {
 		c.Assert(path, Equals, "/proc/self/exe")
 		return filepath.Join(libSnapdDir, "snapd"), nil
 	})
-	defer restore()
-	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
-	defer restore()
+	restoreSupportsReexec := apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
 
+	return parser, libSnapdDir, func() {
+		restoreSupportsReexec()
+		restoreReadlink()
+	}
+}
+
+func assertInternalAppArmorParser(c *C, parser, libSnapdDir, expectedAbiVersion string) {
 	cmd, internal, err := apparmor.AppArmorParser()
 	c.Check(err, IsNil)
 	c.Check(cmd.Path, Equals, parser)
@@ -101,39 +201,30 @@ func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
 		parser,
 		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
 		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
-		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/3.0"),
+		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi", expectedAbiVersion),
 	})
 	c.Check(internal, Equals, true)
 }
 
+func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi3(c *C) {
+	parser, libSnapdDir, restore := setupInternalAppArmorParserEnv(c, "3.0")
+	defer restore()
+
+	assertInternalAppArmorParser(c, parser, libSnapdDir, "3.0")
+}
+
 func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi4(c *C) {
-	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
-	parser := filepath.Join(libSnapdDir, "apparmor_parser")
-	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
-	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/3.0"), nil, 0644), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
-
-	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
-		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(libSnapdDir, "snapd"), nil
-	})
-	defer restore()
-	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	parser, libSnapdDir, restore := setupInternalAppArmorParserEnv(c, "3.0", "4.0")
 	defer restore()
 
-	cmd, internal, err := apparmor.AppArmorParser()
-	c.Check(err, IsNil)
-	c.Check(cmd.Path, Equals, parser)
-	c.Check(cmd.Args, DeepEquals, []string{
-		parser,
-		"--config-file", filepath.Join(libSnapdDir, "/apparmor/parser.conf"),
-		"--base", filepath.Join(libSnapdDir, "/apparmor.d"),
-		// 4.0 was preferred.
-		"--policy-features", filepath.Join(libSnapdDir, "/apparmor.d/abi/4.0"),
-	})
-	c.Check(internal, Equals, true)
+	assertInternalAppArmorParser(c, parser, libSnapdDir, "4.0")
+}
+
+func (*apparmorSuite) TestAppArmorInternalAppArmorParserAbi5(c *C) {
+	parser, libSnapdDir, restore := setupInternalAppArmorParserEnv(c, "3.0", "4.0", "5.0")
+	defer restore()
+
+	assertInternalAppArmorParser(c, parser, libSnapdDir, "5.0")
 }
 
 func (*apparmorSuite) TestAppArmorLevelTypeStringer(c *C) {
@@ -549,7 +640,7 @@ func (s *parserFeatureTestSuite) TestProbeFeature(c *C) {
 	probeOneParserFeature(c, &knownProbes, parserPath, "xdp", `profile snap-test { network xdp,}`)
 
 	// Pretend we have all the features.
-	err := os.WriteFile(parserPath, []byte(fakeParserScript("4.1.7")), 0o755)
+	err := os.WriteFile(parserPath, []byte(fakeParserScript("5.0.2")), 0o755)
 	c.Assert(err, IsNil)
 
 	// Did any feature probes got added to non-test code?
@@ -569,26 +660,7 @@ func (s *parserFeatureTestSuite) TestNoParser(c *C) {
 }
 
 func (s *parserFeatureTestSuite) TestInternalParser(c *C) {
-	// Put a fake parser at $SNAP_MOUNT_DIR/snapd/42/usr/lib/snapd/apparmor_parser
-	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
-	parser := filepath.Join(libSnapdDir, "apparmor_parser")
-	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
-	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
-
-	// Pretend that we are running snapd from that snap location.
-	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
-		if path != "/proc/self/exe" {
-			c.Fatal("Unexpected readlink", path)
-		}
-
-		return filepath.Join(libSnapdDir, "snapd"), nil
-	})
-	s.AddCleanup(restore)
-
-	// Pretend snapd supports re-execution from snapd snap.
-	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	_, _, restore := setupInternalAppArmorParserEnv(c, "4.0")
 	s.AddCleanup(restore)
 
 	// Did we recognize the internal parser?
@@ -976,18 +1048,7 @@ func (s *apparmorSuite) TestSetupConfCacheDirs(c *C) {
 }
 
 func (s *apparmorSuite) TestSetupConfCacheDirsWithInternalApparmor(c *C) {
-	libSnapdDir := filepath.Join(dirs.SnapMountDir, "/snapd/42/usr/lib/snapd")
-	parser := filepath.Join(libSnapdDir, "apparmor_parser")
-	c.Assert(os.MkdirAll(libSnapdDir, 0755), IsNil)
-	c.Assert(os.WriteFile(parser, nil, 0755), IsNil)
-	c.Assert(os.MkdirAll(filepath.Join(libSnapdDir, "apparmor.d/abi"), 0755), IsNil)
-	c.Assert(os.WriteFile(filepath.Join(libSnapdDir, "apparmor.d/abi/4.0"), nil, 0644), IsNil)
-	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
-		c.Assert(path, Equals, "/proc/self/exe")
-		return filepath.Join(libSnapdDir, "snapd"), nil
-	})
-	defer restore()
-	restore = apparmor.MockSnapdAppArmorSupportsReexec(func() bool { return true })
+	_, _, restore := setupInternalAppArmorParserEnv(c, "4.0")
 	defer restore()
 
 	apparmor.SetupConfCacheDirs("/newdir")

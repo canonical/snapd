@@ -10,7 +10,6 @@ backends:
   - -external
 
 systems:
-  - -amazon-linux-2-*    # fails to start service daemon-containerd
   - -amazon-linux-2023-* # fails to start service daemon-containerd
   - -centos-9-*          # fails to start service daemon-containerd
   - -fedora-44-*          # fails to start service daemon-containerd

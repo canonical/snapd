@@ -38,6 +38,9 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
+
+	// import to register validation-set confdb schema and handler
+	_ "github.com/snapcore/snapd/overlord/assertstate/confdb"
 	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/clusterstate"
 	"github.com/snapcore/snapd/overlord/cmdstate"
@@ -555,6 +558,12 @@ func (o *Overlord) ensureDidRun() {
 func (o *Overlord) CanStandby() bool {
 	run := atomic.LoadInt32(&o.ensureRun)
 	return run != 0
+}
+
+// ShutDown asks the manager that implement the ShutDowner interface
+// to stop accepting new requests and finish handling existing requests.
+func (o *Overlord) ShutDown() {
+	o.stateEng.ShutDown()
 }
 
 // Stop stops the ensure loop and the managers under the StateEngine.

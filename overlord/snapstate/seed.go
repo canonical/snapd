@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // SeedRefreshTaskSet carries the tasks needed to perform a seed refresh.
@@ -33,6 +34,15 @@ type SeedRefreshTaskSet struct {
 	Create   *state.Task
 	Finalize *state.Task
 	Remove   []*state.Task
+}
+
+// SeedRefreshEvictionPolicy carries the seed-refresh system pruning policy
+// selected by snapstate for the current operation.
+type SeedRefreshEvictionPolicy struct {
+	// SeedsToRetain is the number of existing seed-refresh systems to keep.
+	SeedsToRetain int
+	// ReplaceLatest forces removal of the newest existing seed-refresh system.
+	ReplaceLatest bool
 }
 
 // SeedRefreshCandidate carries information about a snap that might trigger a
@@ -51,7 +61,7 @@ type SeedRefreshCandidate struct {
 
 // SeedRefreshTasks is set by devicestate to avoid an import cycle. See
 // devicestate.SeedRefreshTasks.
-var SeedRefreshTasks = func(st *state.State, dctx DeviceContext, candidates []SeedRefreshCandidate) (*SeedRefreshTaskSet, map[string]bool, error) {
+var SeedRefreshTasks = func(st *state.State, dctx DeviceContext, candidates []SeedRefreshCandidate, eviction SeedRefreshEvictionPolicy) (*SeedRefreshTaskSet, map[string]bool, error) {
 	panic("internal error: snapstate.SeedRefreshTasks is unset")
 }
 
@@ -59,6 +69,15 @@ var SeedRefreshTasks = func(st *state.State, dctx DeviceContext, candidates []Se
 // devicestate.UpdateSeedRefreshChange.
 var UpdateSeedRefreshChange = func(chg *state.Change, dctx DeviceContext, candidate SeedRefreshCandidate) (*SeedRefreshTaskSet, error) {
 	panic("internal error: snapstate.UpdateSeedRefreshChange is unset")
+}
+
+// CheckSeedRefreshRemove is set by devicestate to prevent removal of snaps that
+// must remain present for seed-refresh.
+//
+// TODO:SEEDREFRESH: remove this hook once seed-refresh supports seeds
+// gaining/losing snaps
+var CheckSeedRefreshRemove = func(st *state.State, si *snap.Info, dctx DeviceContext) error {
+	panic("internal error: snapstate.CheckSeedRefreshRemove is unset")
 }
 
 func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, error) {
@@ -112,7 +131,13 @@ func changeHasPendingSeedRefresh(chg *state.Change) bool {
 
 // seedRefreshAndSeedSnapTaskSets returns the seed-refresh tasks and the task
 // sets for snaps that are involved in the seed refresh.
-func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
+func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, eviction SeedRefreshEvictionPolicy, opts Options) (*SeedRefreshTaskSet, map[string]snapInstallTaskSet, error) {
+	// try mode doesn't actually install the snap, should never trigger a
+	// seed-refresh
+	if opts.Flags.TryMode || opts.NoSeedRefresh {
+		return nil, nil, nil
+	}
+
 	enabled, err := seedRefreshEnabled(st)
 	if err != nil {
 		return nil, nil, err
@@ -142,7 +167,7 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 		candidates = append(candidates, candidate)
 	}
 
-	seedTS, added, err := SeedRefreshTasks(st, deviceCtx, candidates)
+	seedTS, added, err := SeedRefreshTasks(st, deviceCtx, candidates, eviction)
 	if err != nil {
 		return nil, nil, err
 	}

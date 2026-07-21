@@ -179,7 +179,7 @@ Provides:       %{name}-login-service%{?_isa} = 1.33
 %if ! 0%{?with_bundled}
 BuildRequires: golang(github.com/bmatcuk/doublestar/v4)
 BuildRequires: golang(github.com/chai2010/gettext-go)
-BuildRequires: golang(github.com/coreos/go-systemd/activation)
+BuildRequires: golang(github.com/cilium/ebpf)
 BuildRequires: golang(github.com/godbus/dbus/v5)
 BuildRequires: golang(github.com/godbus/dbus/v5/introspect)
 BuildRequires: golang(github.com/gorilla/mux)
@@ -194,8 +194,6 @@ BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
 BuildRequires: golang(golang.org/x/crypto/ssh/terminal)
-BuildRequires: golang(golang.org/x/xerrors)
-BuildRequires: golang(golang.org/x/xerrors/internal)
 BuildRequires: golang(gopkg.in/check.v1)
 BuildRequires: golang(gopkg.in/macaroon.v1)
 BuildRequires: golang(gopkg.in/mgo.v2/bson)
@@ -277,7 +275,6 @@ BuildArch:     noarch
 %if ! 0%{?with_bundled}
 Requires:      golang(github.com/bmatcuk/doublestar/v4)
 Requires:      golang(github.com/chai2010/gettext-go)
-Requires:      golang(github.com/coreos/go-systemd/activation)
 Requires:      golang(github.com/godbus/dbus/v5)
 Requires:      golang(github.com/godbus/dbus/v5/introspect)
 Requires:      golang(github.com/gorilla/mux)
@@ -294,8 +291,6 @@ Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
 Requires:      golang(golang.org/x/crypto/ssh/terminal)
-Requires:      golang(golang.org/x/xerrors)
-Requires:      golang(golang.org/x/xerrors/internal)
 Requires:      golang(gopkg.in/check.v1)
 Requires:      golang(gopkg.in/macaroon.v1)
 Requires:      golang(gopkg.in/mgo.v2/bson)
@@ -309,7 +304,6 @@ Requires:      golang(gopkg.in/yaml.v3)
 # *sigh*... I hate golang...
 Provides:      bundled(golang(github.com/bmatcuk/doublestar/v4))
 Provides:      bundled(golang(github.com/chai2010/gettext-go))
-Provides:      bundled(golang(github.com/coreos/go-systemd/activation))
 Provides:      bundled(golang(github.com/godbus/dbus/v5))
 Provides:      bundled(golang(github.com/godbus/dbus/v5/introspect))
 Provides:      bundled(golang(github.com/gorilla/mux))
@@ -326,8 +320,6 @@ Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
 Provides:      bundled(golang(golang.org/x/crypto/sha3))
 Provides:      bundled(golang(golang.org/x/crypto/ssh/terminal))
-Provides:      bundled(golang(golang.org/x/xerrors))
-Provides:      bundled(golang(golang.org/x/xerrors/internal))
 Provides:      bundled(golang(gopkg.in/check.v1))
 Provides:      bundled(golang(gopkg.in/macaroon.v1))
 Provides:      bundled(golang(gopkg.in/mgo.v2/bson))
@@ -360,7 +352,6 @@ Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/client/clientutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
@@ -372,7 +363,14 @@ Provides:      golang(%{import_path}/cmd/snap-seccomp) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-seccomp/syscalls) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-update-ns) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapctl) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapctl/tool/snapctl) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapctl/tool/snap-exec) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/cli) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/daemon) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snap-preseed) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snap-gpio-helper) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snapd-apparmor) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock/runinhibit) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
@@ -724,6 +722,13 @@ popd
             SNAPD_DEFINES_DIR=$PWD \
             install
 
+# Install the CLI wrapper as /usr/bin/snap, replacing the symlink installed by
+# snapd.mk. The wrapper is a real binary carrying snappy_cli_exec_t so that the
+# SELinux domain transition to snappy_cli_t fires correctly on exec. This works
+# even if not using SElinux.
+rm -f %{buildroot}%{_bindir}/snap
+install -m 0755 cmd/snap-cli-wrap/snap-cli-wrap %{buildroot}%{_bindir}/snap
+
 %if 0%{?rhel} == 7
 # Install kernel tweaks
 # See: https://access.redhat.com/articles/3128691
@@ -777,10 +782,10 @@ for file in $(find . -iname "*_test.go"); do
     cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
     echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
 done
-if [ -d cmd/snap/testdata ]; then
-    echo "%%dir %%{gopath}/src/%%{import_path}/cmd/snap/testdata" >> devel.file-list
-    install -d -p %{buildroot}/%{gopath}/src/%{import_path}/cmd/snap/testdata
-    for file in cmd/snap/testdata/*; do
+if [ -d cmd/snapd/cli/testdata ]; then
+    echo "%%dir %%{gopath}/src/%%{import_path}/cmd/snapd/cli/testdata" >> devel.file-list
+    install -d -p %{buildroot}/%{gopath}/src/%{import_path}/cmd/snapd/cli/testdata
+    for file in cmd/snapd/cli/testdata/*; do
         cp -pav $file %{buildroot}/%{gopath}/src/%{import_path}/$file
         echo "%%{gopath}/src/%%{import_path}/$file" >> unit-test-devel.file-list
     done

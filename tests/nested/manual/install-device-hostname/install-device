@@ -1,0 +1,5 @@
+#!/bin/sh
+
+set -eu
+
+hostnamectl set-hostname install-device-hostname

@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	_ "golang.org/x/crypto/sha3"
 	"gopkg.in/tomb.v2"
@@ -59,6 +60,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
@@ -86,6 +88,7 @@ var (
 	fdestateGenerateRecoveryKey          = fdestate.GenerateRecoveryKey
 
 	installLogicPrepareRunSystemData = installLogic.PrepareRunSystemData
+	copyInstallModeHostname          = copyInstallModeHostnameImpl
 )
 
 func writeLogs(rootdir string, fromMode string) error {
@@ -197,6 +200,32 @@ func writeTimings(st *state.State, rootdir, fromMode string) error {
 
 	if err := gz.Flush(); err != nil {
 		return fmt.Errorf("cannot flush timings output: %v", err)
+	}
+
+	return nil
+}
+
+func copyInstallModeHostnameImpl(rootdir string) error {
+	hostnamePath := filepath.Join(dirs.GlobalRootDir, "etc/hostname")
+	hostnameBytes, err := os.ReadFile(hostnamePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("cannot read install-mode hostname: %v", err)
+	}
+
+	hostname := strings.TrimSpace(string(hostnameBytes))
+	if hostname == "" {
+		return nil
+	}
+
+	targetHostnamePath := sysconfig.WritableDefaultsDir(rootdir, "etc/writable/hostname")
+	if err := os.MkdirAll(filepath.Dir(targetHostnamePath), 0755); err != nil {
+		return err
+	}
+	if err := osutil.AtomicWriteFile(targetHostnamePath, []byte(hostname+"\n"), 0644, 0); err != nil {
+		return fmt.Errorf("cannot write install-mode hostname: %v", err)
 	}
 
 	return nil
@@ -344,7 +373,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		KernelMods:          kBootInfo.BootableKMods,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
+		if trustedInstallObserver != nil {
+			err = bootMakeRunnable(deviceCtx.Model(), bootWith,
+				trustedInstallObserver.BootAssets(),
+				trustedInstallObserver.EncryptionSetup())
+		} else {
+			err = bootMakeRunnable(deviceCtx.Model(), bootWith, nil, nil)
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
@@ -410,6 +445,10 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		if err := sd.DaemonReload(); err != nil {
 			return err
 		}
+	}
+
+	if err := copyInstallModeHostname(boot.InstallHostWritableDir(model)); err != nil {
+		return err
 	}
 
 	// ensure the next boot goes into run mode
@@ -674,7 +713,13 @@ func (m *DeviceManager) doFactoryResetRunSystem(t *state.Task, _ *tomb.Tomb) err
 		KernelMods:          kBootInfo.BootableKMods,
 	}
 	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
-		err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, trustedInstallObserver)
+		if trustedInstallObserver != nil {
+			err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith,
+				trustedInstallObserver.BootAssets(),
+				trustedInstallObserver.EncryptionSetup())
+		} else {
+			err = bootMakeRunnableAfterDataReset(deviceCtx.Model(), bootWith, nil, nil)
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
@@ -1265,7 +1310,12 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	logger.Debugf("making the installed system runnable for system label %s", systemLabel)
-	if err := bootMakeRunnableStandalone(systemAndSnaps.Model, bootWith, trustedInstallObserver, st.Unlocker()); err != nil {
+	if err := bootMakeRunnableStandalone(
+		systemAndSnaps.Model,
+		bootWith,
+		trustedInstallObserver.BootAssets(),
+		trustedInstallObserver.EncryptionSetup(),
+		st.Unlocker()); err != nil {
 		return err
 	}
 

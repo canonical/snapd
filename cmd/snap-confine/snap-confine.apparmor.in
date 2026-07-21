@@ -3,7 +3,7 @@
 
 @{SNAP_MOUNT_DIR_LIST}="{,/var/lib/snapd}/snap"
 
-@LIBEXECDIR@/snap-confine (attach_disconnected) {
+profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     # Include any additional files that snapd chose to generate.
     # - for $HOME on remote file system.
     # - for $HOME on encrypted media

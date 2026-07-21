@@ -75,11 +75,12 @@ func UpdateBootRevisions(st *state.State) error {
 		if actual.SnapRevision() != info.SideInfo.Revision {
 			// FIXME: check that there is no task
 			//        for this already in progress
-			ts, err := RevertToRevision(st, actual.SnapName(), actual.SnapRevision(), Flags{}, "")
+			const noRestartBoundaries = false
+			installTS, err := revertToRevisionTaskSet(st, actual.SnapName(), actual.SnapRevision(), Flags{}, "", noRestartBoundaries)
 			if err != nil {
 				return err
 			}
-			tsAll = append(tsAll, ts)
+			tsAll = append(tsAll, installTS.ts)
 		}
 	}
 

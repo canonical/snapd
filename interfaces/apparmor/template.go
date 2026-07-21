@@ -297,7 +297,7 @@ var templateCommon = `
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
-  /sys/fs/cgroup/system.slice/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.max r,
+  /sys/fs/cgroup/system.slice/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.{high,max} r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
@@ -974,7 +974,7 @@ var updateNSTemplate = `
 
 ###INCLUDE_SYSTEM_TUNABLES_HOME_D_WITH_VENDORED_APPARMOR###
 
-profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
+profile snap-update-ns.###SNAP_INSTANCE_NAME### flags=(attach_disconnected) {
   # The next four rules mirror those above. We want to be able to read
   # and map snap-update-ns into memory but it may come from a variety of places.
   /usr/lib{,exec,64}/snapd/snap-update-ns mr,

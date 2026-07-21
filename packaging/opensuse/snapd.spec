@@ -390,6 +390,12 @@ export SNAPD_SKIP_SLOW_TESTS=1
             install
 
 %if %{with selinux}
+# Install the CLI wrapper as /usr/bin/snap, replacing the symlink installed by
+# snapd.mk. The wrapper is a real binary carrying snappy_cli_exec_t so that
+# the SELinux domain transition to snappy_cli_t fires correctly on exec.
+rm -f %{buildroot}%{_bindir}/snap
+install -m 0755 %{indigo_srcdir}/cmd/snap-cli-wrap/snap-cli-wrap %{buildroot}%{_bindir}/snap
+
 # Install SELinux module
 install -D -p -m 0644 %{indigo_srcdir}/data/selinux/snappy.if \
     %{buildroot}%{_datadir}/selinux/devel/include/contrib/snappy.if

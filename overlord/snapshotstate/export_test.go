@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var (
@@ -52,6 +53,7 @@ var (
 	SetSnapshotOpInProgress = setSnapshotOpInProgress
 
 	DefaultAutomaticSnapshotExpiration = defaultAutomaticSnapshotExpiration
+	MapMountPointsInDataDirsToExcludes = mapMountPointsInDataDirsToExcludes
 )
 
 func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {
@@ -68,139 +70,71 @@ func (summaries snapshotSnapSummaries) AsMaps() []map[string]string {
 }
 
 func MockOsRemove(f func(string) error) (restore func()) {
-	old := osRemove
-	osRemove = f
-	return func() {
-		osRemove = old
-	}
+	return testutil.Mock(&osRemove, f)
 }
 
 func MockSnapstateAll(f func(*state.State) (map[string]*snapstate.SnapState, error)) (restore func()) {
-	old := snapstateAll
-	snapstateAll = f
-	return func() {
-		snapstateAll = old
-	}
+	return testutil.Mock(&snapstateAll, f)
 }
 
 func MockSnapstateCurrentInfo(f func(*state.State, string) (*snap.Info, error)) (restore func()) {
-	old := snapstateCurrentInfo
-	snapstateCurrentInfo = f
-	return func() {
-		snapstateCurrentInfo = old
-	}
+	return testutil.Mock(&snapstateCurrentInfo, f)
 }
 
 func MockSnapstateCheckChangeConflictMany(f func(*state.State, []string, string) error) (restore func()) {
-	old := snapstateCheckChangeConflictMany
-	snapstateCheckChangeConflictMany = f
-	return func() {
-		snapstateCheckChangeConflictMany = old
-	}
+	return testutil.Mock(&snapstateCheckChangeConflictMany, f)
 }
 
 func MockBackendIter(f func(context.Context, func(*backend.Reader) error) error) (restore func()) {
-	old := backendIter
-	backendIter = f
-	return func() {
-		backendIter = old
-	}
+	return testutil.Mock(&backendIter, f)
 }
 
 func MockBackendOpen(f func(string, uint64) (*backend.Reader, error)) (restore func()) {
-	old := backendOpen
-	backendOpen = f
-	return func() {
-		backendOpen = old
-	}
+	return testutil.Mock(&backendOpen, f)
 }
 
 func MockBackendList(f func(ctx context.Context, setID uint64, snapNames []string) ([]client.SnapshotSet, error)) (restore func()) {
-	old := backendList
-	backendList = f
-	return func() {
-		backendList = old
-	}
+	return testutil.Mock(&backendList, f)
 }
 
 func MockBackendRestore(f func(*backend.Reader, context.Context, snap.Revision, []string, backend.Logf, *dirs.SnapDirOptions) (*backend.RestoreState, error)) (restore func()) {
-	old := backendRestore
-	backendRestore = f
-	return func() {
-		backendRestore = old
-	}
+	return testutil.Mock(&backendRestore, f)
 }
 
 func MockBackendCheck(f func(*backend.Reader, context.Context, []string) error) (restore func()) {
-	old := backendCheck
-	backendCheck = f
-	return func() {
-		backendCheck = old
-	}
+	return testutil.Mock(&backendCheck, f)
 }
 
 func MockBackendRevert(f func(*backend.RestoreState)) (restore func()) {
-	old := backendRevert
-	backendRevert = f
-	return func() {
-		backendRevert = old
-	}
+	return testutil.Mock(&backendRevert, f)
 }
 
 func MockBackendCleanup(f func(*backend.RestoreState)) (restore func()) {
-	old := backendCleanup
-	backendCleanup = f
-	return func() {
-		backendCleanup = old
-	}
+	return testutil.Mock(&backendCleanup, f)
 }
 
 func MockBackendImport(f func(context.Context, uint64, io.Reader, *backend.ImportFlags) ([]string, error)) (restore func()) {
-	old := backendImport
-	backendImport = f
-	return func() {
-		backendImport = old
-	}
+	return testutil.Mock(&backendImport, f)
 }
 
 func MockBackendCleanupAbandonedImports(f func() (int, error)) (restore func()) {
-	old := backendCleanupAbandonedImports
-	backendCleanupAbandonedImports = f
-	return func() {
-		backendCleanupAbandonedImports = old
-	}
+	return testutil.Mock(&backendCleanupAbandonedImports, f)
 }
 
 func MockBackendEstimateSnapshotSize(f func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error)) (restore func()) {
-	old := backendEstimateSnapshotSize
-	backendEstimateSnapshotSize = f
-	return func() {
-		backendEstimateSnapshotSize = old
-	}
+	return testutil.Mock(&backendEstimateSnapshotSize, f)
 }
 
 func MockBackendNewSnapshotExport(f func(ctx context.Context, setID uint64) (se *SnapshotExport, err error)) (restore func()) {
-	old := backendNewSnapshotExport
-	backendNewSnapshotExport = f
-	return func() {
-		backendNewSnapshotExport = old
-	}
+	return testutil.Mock(&backendNewSnapshotExport, f)
 }
 
 func MockConfigGetSnapConfig(f func(*state.State, string) (*json.RawMessage, error)) (restore func()) {
-	old := configGetSnapConfig
-	configGetSnapConfig = f
-	return func() {
-		configGetSnapConfig = old
-	}
+	return testutil.Mock(&configGetSnapConfig, f)
 }
 
 func MockConfigSetSnapConfig(f func(*state.State, string, *json.RawMessage) error) (restore func()) {
-	old := configSetSnapConfig
-	configSetSnapConfig = f
-	return func() {
-		configSetSnapConfig = old
-	}
+	return testutil.Mock(&configSetSnapConfig, f)
 }
 
 // For testing only
@@ -209,9 +143,9 @@ func SetLastForgetExpiredSnapshotTime(mgr *SnapshotManager, t time.Time) {
 }
 
 func MockGetSnapDirOptions(f func(*state.State, string) (*dirs.SnapDirOptions, error)) (restore func()) {
-	old := getSnapDirOpts
-	getSnapDirOpts = f
-	return func() {
-		getSnapDirOpts = old
-	}
+	return testutil.Mock(&getSnapDirOpts, f)
+}
+
+func MockBackendMapSnapDataDirToSnapVar(f func(*snap.Info, *dirs.SnapDirOptions, []string) (map[string]string, error)) (restore func()) {
+	return testutil.Mock(&backendMapSnapDataDirToSnapVar, f)
 }

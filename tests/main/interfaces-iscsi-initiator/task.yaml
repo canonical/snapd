@@ -25,6 +25,18 @@ environment:
 
 prepare: |
   echo "Create test iSCSI configuration directory structure"
+  "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/ifaces
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/ifaces
+  "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/send_targets
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/send_targets
+  "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/fw
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/fw
+  "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/static
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/static
+  "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/isns
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/isns
+  "$TESTSTOOLS"/fs-state mock-dir /var/lib/iscsi/nodes
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /var/lib/iscsi/nodes
   "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/nodes
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/nodes
   "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/initiatorname.iscsi
@@ -59,6 +71,14 @@ execute: |
 
   echo "And the snap is able to access iSCSI nodes directory"
   "$TEST_SNAP".client -c "ls /etc/iscsi/nodes"
+  "$TEST_SNAP".client -c "ls /var/lib/iscsi/nodes"
+
+  echo "And the snap is able to access additional Open-iSCSI persistent state"
+  "$TEST_SNAP".client -c "ls /etc/iscsi/ifaces"
+  "$TEST_SNAP".client -c "ls /etc/iscsi/send_targets"
+  "$TEST_SNAP".client -c "ls /etc/iscsi/fw"
+  "$TEST_SNAP".client -c "ls /etc/iscsi/static"
+  "$TEST_SNAP".client -c "ls /etc/iscsi/isns"
 
   echo "And the snap is able to access iSCSI runtime directories"
   "$TEST_SNAP".client -c "mkdir -p /run/lock/iscsi"

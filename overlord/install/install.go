@@ -37,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
@@ -121,8 +122,12 @@ const (
 
 // Requirements returns the list of encryption support requirements.
 func (esi *EncryptionSupportInfo) Requirements() []EncryptionSupportRequirement {
+	return encryptionSupportRequirements(esi.seenAvailabilityCheckErrorKinds)
+}
+
+func encryptionSupportRequirements(preinstallErrors map[string]bool) []EncryptionSupportRequirement {
 	var requirements []EncryptionSupportRequirement
-	if esi.seenAvailabilityCheckErrorKinds[secboot.ErrorKindNoHardwareRootOfTrust] {
+	if preinstallErrors[secboot.ErrorKindNoHardwareRootOfTrust] {
 		requirements = append(requirements, EncryptionSupportRequirementVolumesAuth)
 	}
 	return requirements
@@ -158,6 +163,7 @@ var (
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
 	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
 	secbootCheckResult                 = (*secboot.PreinstallCheckContext).CheckResult
+	secbootLoadCheckResult             = secboot.LoadCheckResult
 	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
@@ -233,7 +239,7 @@ func MockSecbootCheckTPMKeySealingSupported(f func(tpmMode secboot.TPMProvisionM
 }
 
 // MockSecbootPreinstallCheck mocks secbootPreinstallCheck usage by the package for testing.
-func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+func MockSecbootPreinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootPreinstallCheck can only be mocked in tests")
 	old := secbootPreinstallCheck
 	secbootPreinstallCheck = f
@@ -537,7 +543,7 @@ func CheckHybridQuestingRelease(model *asserts.Model) (bool, error) {
 	return cmp >= 0, nil
 }
 
-func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
+func orderedCurrentBootImages(model *asserts.Model) ([]bootloader.BootFile, error) {
 	if model.HybridClassic() {
 		images, err := orderedCurrentBootImagesHybrid()
 		if err != nil {
@@ -549,7 +555,7 @@ func orderedCurrentBootImages(model *asserts.Model) ([]string, error) {
 	return nil, nil
 }
 
-func orderedCurrentBootImagesHybrid() ([]string, error) {
+func orderedCurrentBootImagesHybrid() ([]bootloader.BootFile, error) {
 	imageInfo := []struct {
 		name string
 		glob string
@@ -559,7 +565,7 @@ func orderedCurrentBootImagesHybrid() ([]string, error) {
 		{"kernel", filepath.Join(dirs.GlobalRootDir, "cdrom/casper/vmlinuz")},
 	}
 
-	var bootImagePaths []string
+	var bootImageFiles []bootloader.BootFile
 	for _, info := range imageInfo {
 		matches, err := filepath.Glob(info.glob)
 		if err != nil {
@@ -571,10 +577,10 @@ func orderedCurrentBootImagesHybrid() ([]string, error) {
 		if len(matches) > 1 {
 			return nil, fmt.Errorf("unexpected multiple matches for installer %s obtained using globbing pattern %q", info.name, info.glob)
 		}
-		bootImagePaths = append(bootImagePaths, matches[0])
+		bootImageFiles = append(bootImageFiles, bootloader.NewBootFile("", matches[0], bootloader.RoleRunMode))
 	}
 
-	return bootImagePaths, nil
+	return bootImageFiles, nil
 }
 
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
@@ -1115,4 +1121,35 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedContainer(cpi snap.Container
 		return "", "", 0, fmt.Errorf("cannot encode snap %q digest: %v", path, err)
 	}
 	return targetPath, sha3_384, uint64(size), nil
+}
+
+// PreinstallInfo holds preinstall check information persisted during install.
+type PreinstallInfo struct {
+	AcceptedErrors []string
+}
+
+// LoadPreinstallInfo loads persisted preinstall check information.
+func LoadPreinstallInfo() (*PreinstallInfo, error) {
+	checkResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
+	checkResult, err := secbootLoadCheckResult(checkResultPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// no preinstall info was saved.
+			return &PreinstallInfo{}, nil
+		}
+		return nil, err
+	}
+
+	return &PreinstallInfo{
+		AcceptedErrors: checkResult.AcceptedErrors(),
+	}, nil
+}
+
+// Requirements returns the encryption support requirements implied by the accepted errors.
+func (info *PreinstallInfo) Requirements() []EncryptionSupportRequirement {
+	acceptedErrors := make(map[string]bool, len(info.AcceptedErrors))
+	for _, err := range info.AcceptedErrors {
+		acceptedErrors[err] = true
+	}
+	return encryptionSupportRequirements(acceptedErrors)
 }

@@ -22,13 +22,9 @@ package seclog
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/snapcore/snapd/logger"
 )
-
-// unknown is the placeholder for empty fields in descriptions.
-const unknown = "<unknown>"
 
 // Level is the importance or severity of a log event.
 // The higher the level, the more severe the event.
@@ -59,69 +55,6 @@ func (l Level) String() string {
 	default:
 		return fmt.Sprintf("UNKNOWN(%d)", int(l))
 	}
-}
-
-// SnapdUser represents the identity of a user for security log events.
-type SnapdUser struct {
-	ID             int64     `json:"snapd-user-id"`
-	StoreUserName  string    `json:"store-user-name"`
-	StoreUserEmail string    `json:"store-user-email"`
-	Expiration     time.Time `json:"expiration"`
-}
-
-// String returns a colon-separated description of the user in the form
-// "<ID>:<StoreUserEmail>:<StoreUserName>". Fields that are unset use
-// "<unknown>" as a placeholder. A zero ID means unset.
-func (u SnapdUser) String() string {
-	id := unknown
-	if u.ID != 0 {
-		id = fmt.Sprintf("%d", u.ID)
-	}
-
-	email := unknown
-	if u.StoreUserEmail != "" {
-		email = u.StoreUserEmail
-	}
-
-	name := unknown
-	if u.StoreUserName != "" {
-		name = u.StoreUserName
-	}
-
-	return id + ":" + email + ":" + name
-}
-
-// Reason codes are stable identifiers for security audit events.
-const (
-	ReasonInvalidCredentials = "invalid-credentials"
-	ReasonTwoFactorRequired  = "two-factor-required"
-	ReasonTwoFactorFailed    = "two-factor-failed"
-	ReasonInvalidAuthData    = "invalid-auth-data"
-	ReasonPasswordPolicy     = "password-policy"
-	ReasonInternal           = "internal"
-)
-
-// Reason describes why a security event happened.
-type Reason struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-// String returns a colon-separated representation in the form
-// "<Code>:<Message>". Fields that are unset use "unknown" as a
-// placeholder.
-func (r Reason) String() string {
-	code := unknown
-	if r.Code != "" {
-		code = r.Code
-	}
-
-	message := unknown
-	if r.Message != "" {
-		message = r.Message
-	}
-
-	return code + ":" + message
 }
 
 // Event describes a structured security audit event.
@@ -216,6 +149,108 @@ func LogLoginFailure(user SnapdUser, reason Reason) {
 		Event{Category: "AUTHN", Name: "authn_login_failure", Level: LevelWarn},
 		fmt.Sprintf("User %s login failure: %s", user.String(), reason.String()),
 		Attr{Key: "user", Value: user},
+		Attr{Key: "error", Value: reason},
+	)
+}
+
+// LogAuthnTokenCreated logs a local snapd macaroon creation event using the
+// global security logger.
+func LogAuthnTokenCreated(user SnapdUser, tokenID int) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHN", Name: "authn_token_created", Level: LevelInfo},
+		fmt.Sprintf("Token created for user %s", user.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "token_id", Value: tokenID},
+	)
+}
+
+// LogAuthnTokenDeleted logs a local snapd macaroon deletion event using the
+// global security logger.
+func LogAuthnTokenDeleted(user SnapdUser, tokenID int) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHN", Name: "authn_token_delete", Level: LevelInfo},
+		fmt.Sprintf("Token deleted for user %s", user.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "token_id", Value: tokenID},
+	)
+}
+
+// LogUserCreated logs a user creation event using the global security logger.
+func LogUserCreated(user SnapdUser) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "USER", Name: "user_created", Level: LevelInfo},
+		fmt.Sprintf("Created user %s", user.String()),
+		Attr{Key: "user", Value: user},
+	)
+}
+
+// LogUserUpdated logs a user update event using the global security logger.
+func LogUserUpdated(user SnapdUser, changedFields []string) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "USER", Name: "user_updated", Level: LevelInfo},
+		fmt.Sprintf("Updated user %s", user.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "changed_fields", Value: changedFields},
+	)
+}
+
+// LogUserRemoved logs a user removal event using the global security logger.
+func LogUserRemoved(user SnapdUser) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "USER", Name: "user_removed", Level: LevelInfo},
+		fmt.Sprintf("Removed user %s", user.String()),
+		Attr{Key: "user", Value: user},
+	)
+}
+
+// LogAdminActivity logs an administrative API access event using the
+// global security logger. It is emitted when authorization succeeds (the
+// access gate passed), not when the API operation or handler succeeds.
+func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHZ", Name: "authz_admin", Level: LevelInfo},
+		fmt.Sprintf("User %s from %s accessed %s", user.String(), peer.String(), endpoint.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "peer", Value: peer},
+		Attr{Key: "endpoint", Value: endpoint},
+		Attr{Key: "authz_checks", Value: checks},
+	)
+}
+
+// LogUnauthorizedAccess logs an unauthorized access attempt using the
+// global security logger. It is emitted when authorization fails (the
+// access gate denied the request), not when the API operation or handler
+// fails after access was granted.
+func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks, reason Reason) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHZ", Name: "authz_fail", Level: LevelCritical},
+		fmt.Sprintf("User %s from %s attempted to access %s without authorization: %s",
+			user.String(), peer.String(), endpoint.String(), reason.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "peer", Value: peer},
+		Attr{Key: "endpoint", Value: endpoint},
+		Attr{Key: "authz_checks", Value: checks},
 		Attr{Key: "error", Value: reason},
 	)
 }

@@ -351,11 +351,13 @@ func MakeRecoverySystemBootable(model *asserts.Model, rootdir string, relativeRe
 }
 
 type makeRunnableOptions struct {
-	Standalone     bool
-	AfterDataReset bool
-	SeedDir        string
-	StateUnlocker  Unlocker
-	UseTokens      bool
+	Standalone    bool
+	SeedDir       string
+	StateUnlocker Unlocker
+
+	LegacyFactoryResetKeyPath bool
+	Reprovision               bool
+	UseTokens                 bool
 }
 
 func copyBootSnap(orig string, filename string, dstSnapBlobDir string) error {
@@ -472,7 +474,47 @@ func isSealModeenvLocked() bool {
 	return atomic.LoadInt32(&sealModeenvLocked) == 1
 }
 
-func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver, makeOpts makeRunnableOptions) error {
+func makeRunnableSystemSeal(modeenv *Modeenv, model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, makeOpts makeRunnableOptions) error {
+	tokens := UseTokens(model)
+	if tokens {
+		logger.Debugf("key data will be stored in tokens")
+	} else {
+		logger.Debugf("key data will be stored in files")
+	}
+
+	flags := sealKeyToModeenvFlags{
+		HookKeyProtectorFactory:   protector,
+		LegacyFactoryResetKeyPath: makeOpts.LegacyFactoryResetKeyPath,
+		Reprovision:               makeOpts.Reprovision,
+		SeedDir:                   makeOpts.SeedDir,
+		StateUnlocker:             makeOpts.StateUnlocker,
+		UseTokens:                 tokens,
+	}
+
+	if makeOpts.Standalone {
+		flags.SnapsDir = dirs.SnapBlobDirUnder(InstallHostWritableDir(model))
+	}
+
+	// seal the encryption key to the parameters specified in
+	// modeenv as well as optimum PCR configuration specified in the
+	// check result (when available)
+	if err := sealKeyToModeenv(
+		encryption.dataBootstrappedContainer,
+		encryption.saveBootstrappedContainer,
+		encryption.primaryKey,
+		encryption.volumesAuth,
+		encryption.checkResult,
+		model,
+		modeenv,
+		flags,
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup, makeOpts makeRunnableOptions) error {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return fmt.Errorf("internal error: cannot make pre-UC20 system runnable")
 	}
@@ -519,15 +561,9 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 
 	var currentTrustedBootAssets bootAssetsMap
 	var currentTrustedRecoveryBootAssets bootAssetsMap
-	var observerImpl *trustedAssetsInstallObserverImpl
-	if observer != nil {
-		impl, ok := observer.(*trustedAssetsInstallObserverImpl)
-		if !ok {
-			return fmt.Errorf("internal error: expected a trustedAssetsInstallObserverImpl")
-		}
-		observerImpl = impl
-		currentTrustedBootAssets = observerImpl.currentTrustedBootAssetsMap()
-		currentTrustedRecoveryBootAssets = observerImpl.currentTrustedRecoveryBootAssetsMap()
+	if bootAssets != nil {
+		currentTrustedBootAssets = bootAssets.TrackedAssets()
+		currentTrustedRecoveryBootAssets = bootAssets.TrackedRecoveryAssets()
 	}
 	recoverySystemLabel := bootWith.RecoverySystemLabel
 	// write modeenv on the ubuntu-data partition
@@ -666,42 +702,13 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		return fmt.Errorf("cannot write modeenv: %v", err)
 	}
 
-	if observer != nil && observerImpl.useEncryption {
+	if encryption != nil {
 		protector, err := HookKeyProtectorFactory(bootWith.Kernel)
 		if err != nil && !errors.Is(err, secboot.ErrNoKeyProtector) {
 			return fmt.Errorf("cannot check for fde-setup hook key protector: %v", err)
 		}
 
-		tokens := UseTokens(model)
-		if tokens {
-			logger.Debugf("key data will be stored in tokens")
-		} else {
-			logger.Debugf("key data will be stored in files")
-		}
-
-		flags := sealKeyToModeenvFlags{
-			HookKeyProtectorFactory: protector,
-			FactoryReset:            makeOpts.AfterDataReset,
-			SeedDir:                 makeOpts.SeedDir,
-			StateUnlocker:           makeOpts.StateUnlocker,
-			UseTokens:               tokens,
-		}
-		if makeOpts.Standalone {
-			flags.SnapsDir = snapBlobDir
-		}
-		// seal the encryption key to the parameters specified in
-		// modeenv as well as optimum PCR configuration specified in the
-		// check result (when available)
-		if err := sealKeyToModeenv(
-			observerImpl.dataBootstrappedContainer,
-			observerImpl.saveBootstrappedContainer,
-			observerImpl.primaryKey,
-			observerImpl.volumesAuth,
-			observerImpl.checkResult,
-			model,
-			modeenv,
-			flags,
-		); err != nil {
+		if err := makeRunnableSystemSeal(modeenv, model, protector, encryption, makeOpts); err != nil {
 			return err
 		}
 	}
@@ -712,8 +719,8 @@ func makeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
 	}
 
-	if observer != nil {
-		if err := observer.UpdateBootEntry(); err != nil {
+	if bootAssets != nil {
+		if err := bootAssets.UpdateBootEntry(); err != nil {
 			logger.Debugf("WARNING: %v", err)
 		}
 	}
@@ -772,8 +779,8 @@ func buildOptionalKernelCommandLine(model *asserts.Model, gadgetSnapOrDir string
 // something like boot.EnsureNextBootToRunMode(). This is to enable separately
 // setting up a run system and actually transitioning to it, with hooks, etc.
 // running in between.
-func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
-	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
+func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup) error {
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		SeedDir: dirs.SnapSeedDir,
 	})
 }
@@ -781,10 +788,10 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, observer Tr
 // MakeRunnableStandaloneSystem operates like MakeRunnableSystem but does
 // not assume that the run system being set up is related to the current
 // system. This is appropriate e.g when installing from a classic installer.
-func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver, unlocker Unlocker) error {
+func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup, unlocker Unlocker) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
-	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		Standalone:    true,
 		SeedDir:       dirs.SnapSeedDir,
 		StateUnlocker: unlocker,
@@ -793,10 +800,10 @@ func MakeRunnableStandaloneSystem(model *asserts.Model, bootWith *BootableSet, o
 
 // MakeRunnableStandaloneSystemFromInitrd is the same as MakeRunnableStandaloneSystem
 // but uses seed dir path expected in initrd.
-func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
+func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup) error {
 	// TODO consider merging this back into MakeRunnableSystem but need
 	// to consider the properties of the different input used for sealing
-	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
 		Standalone: true,
 		SeedDir:    filepath.Join(InitramfsRunMntDir, "ubuntu-seed"),
 	})
@@ -805,9 +812,28 @@ func MakeRunnableStandaloneSystemFromInitrd(model *asserts.Model, bootWith *Boot
 // MakeRunnableSystemAfterDataReset sets up the system to be able to boot, but it is
 // intended to be called from UC20 factory reset mode right before switching
 // back to the new run system.
-func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, observer TrustedAssetsInstallObserver) error {
-	return makeRunnableSystem(model, bootWith, observer, makeRunnableOptions{
-		AfterDataReset: true,
-		SeedDir:        dirs.SnapSeedDir,
+func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSet, bootAssets BootAssets, encryption *EncryptionSetup) error {
+	return makeRunnableSystem(model, bootWith, bootAssets, encryption, makeRunnableOptions{
+		LegacyFactoryResetKeyPath: true,
+		Reprovision:               true,
+		SeedDir:                   dirs.SnapSeedDir,
+	})
+}
+
+// MakeRunnableSystemReprovision make the systems currently running bootable again.
+// This is intended to repair the boot of a system that was booted for example
+// with a recovery key.
+func MakeRunnableSystemReprovision(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup) error {
+	sealModeenvLock()
+	defer sealModeenvUnlock()
+
+	modeenv, err := ReadModeenv("")
+	if err != nil {
+		return err
+	}
+
+	return makeRunnableSystemSeal(modeenv, model, protector, encryption, makeRunnableOptions{
+		Reprovision: true,
+		SeedDir:     dirs.SnapSeedDir,
 	})
 }

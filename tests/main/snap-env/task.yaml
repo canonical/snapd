@@ -20,6 +20,7 @@ prepare: |
         snap set system experimental.parallel-instances=true
     fi
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-tools "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop-file-ids
 
 restore: |
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
@@ -57,6 +58,7 @@ execute: |
     MATCH "^SNAP_CONTEXT=$CTX"                                            < snap-vars.txt
     # parallel-installs: $SNAP_NAME is always _the_ snap name
     MATCH '^SNAP_NAME=test-snapd-tools$'                                  < snap-vars.txt
+    MATCH '^SNAP_APP_NAME=env$'                                           < snap-vars.txt
     # parallel-install: name of a particular instance
     MATCH "^SNAP_INSTANCE_NAME=$NAME$"                                    < snap-vars.txt
     # parallel-installs: empty if none is set
@@ -67,11 +69,11 @@ execute: |
     # if on UC20+, then we should see an additional variable (SNAP_SAVE_DATA)
     if [[ "$SPREAD_SYSTEM" == ubuntu-core-2* ]]; then
         MATCH "^SNAP_SAVE_DATA=/var/lib/snapd/save/snap/$NAME$"           < snap-vars.txt
-        # 18 variables are expected on ubuntu-core
-        test "$(wc -l < snap-vars.txt)" -eq 18 || { cat snap-vars.txt; exit 1; }
+        # 19 variables are expected on ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 19 || { cat snap-vars.txt; exit 1; }
     else
-        # 17 variables are expected on non ubuntu-core
-        test "$(wc -l < snap-vars.txt)" -eq 17 || { cat snap-vars.txt; exit 1; }
+        # 18 variables are expected on non ubuntu-core
+        test "$(wc -l < snap-vars.txt)" -eq 18 || { cat snap-vars.txt; exit 1; }
     fi
 
     echo "Ensure that XDG environment variables are what we expect"
@@ -99,3 +101,19 @@ execute: |
     # parallel-installs: $HOME is set to instance specific path
     MATCH "^HOME=/root/snap/$NAME/x1$"                                                                      < misc-vars.txt
     test "$(wc -l < misc-vars.txt)" -eq 4 || { cat misc-vars.txt; exit 1; }
+
+    echo "Collect SNAP environment variables for snap with desktop metadata"
+    echo env | snap run --shell test-snapd-desktop-file-ids.cmd | grep -E '^SNAP_' | sort > snap-vars-desktop.txt
+    echo "Ensure that SNAP environment variables are what we expect"
+    MATCH '^SNAP_NAME=test-snapd-desktop-file-ids$' < snap-vars-desktop.txt
+    MATCH '^SNAP_APP_NAME=cmd$' < snap-vars-desktop.txt
+    MATCH '^SNAP_APP_COMMON_ID=org.example.Foo$' < snap-vars-desktop.txt
+    MATCH '^SNAP_APP_DESKTOP_FILE=/var/lib/snapd/desktop/applications/org.example.Foo.desktop$' < snap-vars-desktop.txt
+    # if on UC20+, then we should see an additional variable (SNAP_SAVE_DATA)
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-2* ]]; then
+        # 21 variables are expected on ubuntu-core
+        test "$(wc -l < snap-vars-desktop.txt)" -eq 21 || { cat snap-vars-desktop.txt; exit 1; }
+    else
+        # 20 variables are expected on non ubuntu-core
+        test "$(wc -l < snap-vars-desktop.txt)" -eq 20 || { cat snap-vars-desktop.txt; exit 1; }
+    fi

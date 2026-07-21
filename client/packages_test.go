@@ -27,7 +27,6 @@ import (
 	"os"
 	"time"
 
-	"golang.org/x/xerrors"
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
@@ -434,21 +433,21 @@ func (cs *clientSuite) TestAppInfoDaemonIsService(c *check.C) {
 func (cs *clientSuite) TestClientSectionsErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
 	_, err := cs.cli.Sections()
-	var e xerrors.Wrapper
+	var e interface{ Unwrap() error }
 	c.Assert(err, check.Implements, &e)
 }
 
 func (cs *clientSuite) TestClientCategoriesErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
 	_, err := cs.cli.Categories()
-	var e xerrors.Wrapper
+	var e interface{ Unwrap() error }
 	c.Assert(err, check.Implements, &e)
 }
 
 func (cs *clientSuite) TestClientFindOneErrIsWrapped(c *check.C) {
 	cs.err = errors.New("boom")
 	_, _, err := cs.cli.FindOne("snap")
-	var e xerrors.Wrapper
+	var e interface{ Unwrap() error }
 	c.Assert(err, check.Implements, &e)
 }
 
@@ -456,7 +455,7 @@ func (cs *clientSuite) TestClientSnapErrIsWrapped(c *check.C) {
 	// setting cs.err will trigger a "client.ClientError"
 	cs.err = errors.New("boom")
 	_, _, err := cs.cli.Snap("snap")
-	var e xerrors.Wrapper
+	var e interface{ Unwrap() error }
 	c.Assert(err, check.Implements, &e)
 }
 
@@ -467,14 +466,13 @@ func (cs *clientSuite) TestClientFindFromPathErrIsWrapped(c *check.C) {
 	err := os.WriteFile(client.TestStoreAuthFilename(os.Getenv("HOME")), []byte("rubbish"), 0644)
 	c.Assert(err, check.IsNil)
 
-	// check that all the functions that use snapsFromPath() get a
-	// wrapped error
+	// check that all the functions that use snapsFromPath() get a wrapped error
 	_, _, err = cs.cli.FindOne("snap")
-	c.Assert(xerrors.As(err, &e), check.Equals, true)
+	c.Assert(errors.As(err, &e), check.Equals, true)
 
 	_, _, err = cs.cli.Find(nil)
-	c.Assert(xerrors.As(err, &e), check.Equals, true)
+	c.Assert(errors.As(err, &e), check.Equals, true)
 
 	_, err = cs.cli.List([]string{"snap"}, nil)
-	c.Assert(xerrors.As(err, &e), check.Equals, true)
+	c.Assert(errors.As(err, &e), check.Equals, true)
 }

@@ -22,6 +22,7 @@ package servicestate
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
@@ -35,6 +36,7 @@ import (
 )
 
 var (
+	systemdVersionOnce  sync.Once
 	systemdVersionError error
 )
 
@@ -44,7 +46,6 @@ func checkSystemdVersion() {
 
 func init() {
 	snapstate.AddSnapToQuotaGroup = AddSnapToQuotaGroup
-	EnsureQuotaUsability()
 }
 
 // EnsureQuotaUsability is exported for unit tests from other packages to re-run
@@ -67,6 +68,7 @@ var resourcesCheckFeatureRequirements = func(r *quota.Resources) error {
 
 func quotaGroupsAvailable(st *state.State) error {
 	// check if the systemd version is too old
+	systemdVersionOnce.Do(checkSystemdVersion)
 	if systemdVersionError != nil {
 		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
 	}

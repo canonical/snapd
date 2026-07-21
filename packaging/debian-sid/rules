@@ -15,12 +15,11 @@ export DH_GOPKG := github.com/snapcore/snapd
 #export DEB_BUILD_OPTIONS=nocheck
 export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_BUILDPKG = $(strip $(addprefix $(DH_GOPKG)/, \
-    cmd/snap \
+    cmd/snapd \
     cmd/snap-exec \
     cmd/snap-seccomp \
     cmd/snap-update-ns \
     cmd/snapctl \
-    cmd/snapd \
     cmd/snapd-apparmor \
     ))
 # skip Go generate, all source code should have been committed
@@ -59,13 +58,11 @@ export GOMAXPROCS=2
 endif
 
 # check if we need to include the testkeys in the binary
-# TAGS are the go build tags for all binaries, SNAP_TAGS are for snap
+# TAGS are the go build tags for all binaries,  are for snap
 # build only.
 TAGS=nosecboot
-SNAP_TAGS=nosecboot nomanagers
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS+= withtestkeys
-	SNAP_TAGS+= withtestkeys
 endif
 
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
@@ -172,10 +169,10 @@ override_dh_auto_build: snapd.defines.mk
 	# dependencies from the distro, and this would require further updates to the
 	# go.mod file
 	GO111MODULE=off dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
-	# remove snap built by dh_auto_build and build it again using the right tags
-	rm -v $(CURDIR)/_build/bin/snap
+	# remove snapd built by dh_auto_build and build it again using the right tags
+	rm -v $(CURDIR)/_build/bin/snapd
 	GO111MODULE=off GOPATH=$(CURDIR)/_build \
-		$(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snap SNAPD_DEFINES_DIR=$(CURDIR)
+		$(MAKE) -f packaging/snapd.mk $(CURDIR)/_build/bin/snapd SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
@@ -299,7 +296,7 @@ snap.8:
 	# fix reproducible builds as reported by:
 	#   https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/snapd.html
 	# once golang-go-flags is fixed we can remove the "sed" expression
-	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
+	bash -c 'exec -a snap $(CURDIR)/_build/bin/snapd help --man' | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang

@@ -35,13 +35,19 @@ import (
 	sb "github.com/snapcore/secboot"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/restart"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -113,6 +119,137 @@ func (s *fdeMgrSuite) mockCurrentKeys(c *C, rkeys, unlockKeys []fdestate.Keyslot
 	}))
 }
 
+func (s *fdeMgrSuite) TestDoCheckResealHappy(c *C) {
+	const onClassic = false
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	s.startedManager(c, onClassic)
+
+	restore := snapstatetest.MockDeviceModel(boottest.MakeMockUC20Model())
+	defer restore()
+
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
+
+	resealChecks := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealChecks++
+		c.Check(rootdir, Equals, dirs.GlobalRootDir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts.DryRun, Equals, true)
+		return nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("check-reseal", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		Type: snap.TypeApp,
+	})
+	t.Set("finish-restart", true)
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.settle(c)
+
+	c.Check(resealChecks, Equals, 1)
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Err(), IsNil)
+	c.Check(restart.Pending(s.st), Equals, restart.RestartUnset)
+}
+
+func (s *fdeMgrSuite) TestDoCheckResealFailsWhenResealValidationFails(c *C) {
+	const onClassic = false
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	s.startedManager(c, onClassic)
+
+	restore := snapstatetest.MockDeviceModel(boottest.MakeMockUC20Model())
+	defer restore()
+
+	err := (&boot.Modeenv{Mode: "run"}).WriteTo(dirs.GlobalRootDir)
+	c.Assert(err, IsNil)
+
+	resealChecks := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealChecks++
+		c.Check(rootdir, Equals, dirs.GlobalRootDir)
+		c.Check(modeenv.Mode, Equals, "run")
+		c.Check(opts.DryRun, Equals, true)
+		return fmt.Errorf("cannot reseal")
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	t := s.st.NewTask("check-reseal", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		Type: snap.TypeApp,
+	})
+	t.Set("finish-restart", true)
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.settle(c)
+
+	c.Check(resealChecks, Equals, 1)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+	c.Assert(chg.Err(), NotNil)
+	c.Check(chg.Err().Error(), Matches, `(?ms).*cannot validate key reseal: cannot reseal.*`)
+	c.Check(restart.Pending(s.st), Equals, restart.RestartUnset)
+}
+
+func (s *fdeMgrSuite) TestDoCheckResealWaitsForRestart(c *C) {
+	const onClassic = false
+	s.AddCleanup(release.MockOnClassic(onClassic))
+	s.startedManager(c, onClassic)
+
+	restore := snapstatetest.MockDeviceModel(boottest.MakeMockUC20Model())
+	defer restore()
+
+	resealChecks := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, opts boot.ResealKeyToModeenvOptions, unlocker boot.Unlocker) error {
+		resealChecks++
+		return nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	_, err := restart.Manager(s.st, "boot-id-0", nil)
+	c.Assert(err, IsNil)
+	restart.MockPending(s.st, restart.RestartDaemon)
+
+	t := s.st.NewTask("check-reseal", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		Type: snap.TypeApp,
+	})
+	t.Set("finish-restart", true)
+	chg := s.st.NewChange("sample", "...")
+	chg.AddTask(t)
+
+	s.settle(c)
+
+	c.Check(resealChecks, Equals, 0)
+	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Assert(chg.Err(), IsNil)
+	c.Check(restart.Pending(s.st), Equals, restart.RestartDaemon)
+}
+
 func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 	const onClassic = true
 	manager := s.startedManager(c, onClassic)
@@ -129,6 +266,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 		expectedAdds, expectedDeletes []string
 		badRecoveryKeyID              bool
 		expiredRecoveryKeyID          bool
+		removeAllOnError              bool
 		errOn                         []string
 		expectedErr                   string
 	}
@@ -200,6 +338,66 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 			},
 			expectedErr: `insufficient capacity on container system-data`,
 		},
+		// test "remove-all-on-error"
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-3"},
+			},
+			removeAllOnError: true,
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-recovery-3",
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-2",
+			},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-2",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-3",
+			},
+			expectedErr: `cannot add recovery key slot \(container-role: "system-data", name: "tmp-default-recovery-3"\): add error on /dev/disk/by-uuid/data:tmp-default-recovery-3`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "some-key-1"}, // already exists
+				{ContainerRole: "system-data", Name: "tmp-default-recovery"},
+				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
+			},
+			removeAllOnError: true,
+			errOn:            []string{"add:/dev/disk/by-uuid/save:tmp-default-recovery"},
+			expectedAdds:     []string{"/dev/disk/by-uuid/data:tmp-default-recovery"},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:some-key-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery",
+				"/dev/disk/by-uuid/save:tmp-default-recovery",
+			},
+			expectedErr: `cannot add recovery key slot \(container-role: "system-save", name: "tmp-default-recovery"\): add error on /dev/disk/by-uuid/save:tmp-default-recovery`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-recovery-3"},
+			},
+			removeAllOnError: true,
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-recovery-3",    // to trigger clean up
+				"delete:/dev/disk/by-uuid/data:tmp-default-recovery-2", // to test best effort deletion
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-2",
+			},
+			// best effort deletion still applies
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-recovery-1",
+				"/dev/disk/by-uuid/data:tmp-default-recovery-3",
+			},
+			expectedErr: `cannot add recovery key slot \(container-role: "system-data", name: "tmp-default-recovery-3"\): add error on /dev/disk/by-uuid/data:tmp-default-recovery-3`,
+		},
 	}
 
 	for i, tc := range tcs {
@@ -229,6 +427,9 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 
 		task := s.st.NewTask("fde-add-recovery-keys", "test")
 		task.Set("keyslots", tc.keyslots)
+		if tc.removeAllOnError {
+			task.Set("remove-all-on-error", true)
+		}
 
 		var rkeyID string
 		var err error
@@ -684,6 +885,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		keyslots        []fdestate.KeyslotRef
 		authMode        device.AuthMode
 		noOpt           bool
+		sameAuth        bool
 		errOn           []string
 		expectedChanges []string
 		expectedUndos   []string
@@ -766,6 +968,19 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 			authMode:    device.AuthModeNone,
 			expectedErr: `internal error: unexpected auth-mode "none"`,
 		},
+		{
+			keyslots:        []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:        device.AuthModePassphrase,
+			sameAuth:        true,
+			expectedChanges: []string{"/dev/disk/by-uuid/data:default"},
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			authMode:    device.AuthModePassphrase,
+			sameAuth:    true,
+			errOn:       []string{"change:/dev/disk/by-uuid/data:default"},
+			expectedErr: `cannot change passphrase for \(container-role: "system-data", name: "default"\): change error on /dev/disk/by-uuid/data:default`,
+		},
 	}
 	for idx, tc := range tcs {
 		task := s.st.NewTask("fde-change-auth", "test")
@@ -775,6 +990,9 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		old, new := "old", "new"
 		if tc.authMode == device.AuthModePIN {
 			old, new = "1234", "4321"
+		}
+		if tc.sameAuth {
+			old, new = "same", "same"
 		}
 		if !tc.noOpt {
 			s.st.Unlock()
@@ -863,33 +1081,6 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 	}
 }
 
-func (s *fdeMgrSuite) TestDoChangeAuthKeysNoop(c *C) {
-	const onClassic = true
-	s.startedManager(c, onClassic)
-
-	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
-		panic("unexpected")
-	})()
-
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	task := s.st.NewTask("fde-change-auth", "test")
-	task.Set("keyslots", []fdestate.KeyslotRef{})
-	task.Set("auth-mode", device.AuthModePassphrase)
-
-	s.st.Unlock()
-	defer fdestate.MockChangeAuthOptionsInCache(s.st, "old", "old")()
-	s.st.Lock()
-
-	chg := s.st.NewChange("sample", "...")
-	chg.AddTask(task)
-
-	s.settle(c)
-
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-}
-
 func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 	const onClassic = true
 	s.startedManager(c, onClassic)
@@ -912,6 +1103,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		badAuthValue                  bool
 		recoveryMode                  bool
 		noop                          bool
+		removeAllOnError              bool
 		roles                         [][]string
 		expectedAdds, expectedDeletes []string
 		errOn                         []string
@@ -984,6 +1176,73 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			keyslots: []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
 			authMode: device.AuthModePassphrase,
 			noop:     true,
+		},
+		// test "remove-all-on-error"
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-3"},
+			},
+			removeAllOnError: true,
+			authMode:         device.AuthModePassphrase,
+			roles:            [][]string{{"run"}, {"run"}, {"run"}},
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-3",
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+			},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+				"/dev/disk/by-uuid/data:tmp-default-3",
+			},
+			expectedErr: `cannot add platform key slot \(container-role: "system-data", name: "tmp-default-3"\): add error on /dev/disk/by-uuid/data:tmp-default-3`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "default"}, // already exists
+				{ContainerRole: "system-data", Name: "tmp-default-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-2"},
+			},
+			removeAllOnError: true,
+			authMode:         device.AuthModePIN,
+			roles:            [][]string{{"run"}, {"run"}, {"run"}},
+			errOn:            []string{"add:/dev/disk/by-uuid/data:tmp-default-2"},
+			expectedAdds:     []string{"/dev/disk/by-uuid/data:tmp-default-1"},
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:default",
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+			},
+			expectedErr: `cannot add platform key slot \(container-role: "system-data", name: "tmp-default-2"\): add error on /dev/disk/by-uuid/data:tmp-default-2`,
+		},
+		{
+			keyslots: []fdestate.KeyslotRef{
+				{ContainerRole: "system-data", Name: "tmp-default-1"},
+				{ContainerRole: "system-data", Name: "tmp-default-2"},
+				{ContainerRole: "system-data", Name: "tmp-default-3"},
+			},
+			removeAllOnError: true,
+			authMode:         device.AuthModeNone,
+			noVolumesAuth:    true,
+			roles:            [][]string{{"run"}, {"run"}, {"run"}},
+			errOn: []string{
+				"add:/dev/disk/by-uuid/data:tmp-default-3",    // to trigger clean up
+				"delete:/dev/disk/by-uuid/data:tmp-default-2", // to test best effort deletion
+			},
+			expectedAdds: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-2",
+			},
+			// best effort deletion still applies
+			expectedDeletes: []string{
+				"/dev/disk/by-uuid/data:tmp-default-1",
+				"/dev/disk/by-uuid/data:tmp-default-3",
+			},
+			expectedErr: `cannot add platform key slot \(container-role: "system-data", name: "tmp-default-3"\): add error on /dev/disk/by-uuid/data:tmp-default-3`,
 		},
 	}
 
@@ -1106,6 +1365,9 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		task.Set("keyslots", tc.keyslots)
 		task.Set("auth-mode", tc.authMode)
 		task.Set("roles", roles)
+		if tc.removeAllOnError {
+			task.Set("remove-all-on-error", true)
+		}
 
 		chg := s.st.NewChange("sample", "...")
 		chg.AddTask(task)

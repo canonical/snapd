@@ -44,6 +44,9 @@ var AssembleAndSignInTest = assembleAndSign
 // decodePrivateKey exposed for tests
 var DecodePrivateKeyInTest = decodePrivateKey
 
+// readOpenPGPRSAPublicKey exposed for tests
+var ReadOpenPGPRSAPublicKeyInTest = readOpenPGPRSAPublicKey
+
 // NewDecoderStressed makes a Decoder with a stressed setup with the given buffer and maximum sizes.
 func NewDecoderStressed(r io.Reader, bufSize, maxHeadersSize, maxBodySize, maxSigSize int) *Decoder {
 	return (&Decoder{
@@ -302,6 +305,28 @@ var (
 	ParseHeaders = parseHeaders
 	AppendEntry  = appendEntry
 )
+
+// builtin assertion tests
+
+type BuiltinCheckParams struct {
+	Order           []string
+	ExpectedHeaders map[string]any
+}
+
+func AssembleBuiltinAssertion(assertType *AssertionType, headerBytes, body []byte, params BuiltinCheckParams) (Assertion, error) {
+	return assembleBuiltinAssertion(assertType, headerBytes, body, builtinCheckParams{
+		order:           params.Order,
+		expectedHeaders: params.ExpectedHeaders,
+	})
+}
+
+func MockBuiltinAssertions(assertions []Assertion) (restore func()) {
+	oldBuiltinAssertions := builtinAssertions
+	builtinAssertions = assertions
+	return func() {
+		builtinAssertions = oldBuiltinAssertions
+	}
+}
 
 // ParametersForGenerate exposes parametersForGenerate for tests.
 func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {

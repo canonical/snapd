@@ -53,12 +53,12 @@ func runKeySealRequests(key secboot.BootstrappedContainer, useTokens bool) []sec
 	}
 }
 
-func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factoryReset bool, useTokens bool) []secboot.SealKeyRequest {
+func fallbackKeySealRequests(key, saveKey secboot.BootstrappedContainer, factoryResetKeyPath bool, useTokens bool) []secboot.SealKeyRequest {
 	var dataFallbackKey, saveFallbackKey string
 	if !useTokens {
 		dataFallbackKey = device.FallbackDataSealedKeyUnder(boot.InitramfsSeedEncryptionKeyDir)
 
-		if factoryReset {
+		if factoryResetKeyPath {
 			// factory reset uses alternative sealed key location, such that
 			// until we boot into the run mode, both sealed keys are present
 			// on disk
@@ -145,7 +145,7 @@ func sealFallbackObjectKeys(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 	roleToBlName map[bootloader.Role]string,
-	factoryReset bool,
+	factoryResetKeyPath bool,
 	pcrHandle uint32,
 	useTokens bool,
 	keyRole string,
@@ -178,7 +178,7 @@ func sealFallbackObjectKeys(
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
 
-	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryReset, useTokens), sealKeyParams); err != nil {
+	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryResetKeyPath, useTokens), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
@@ -203,7 +203,7 @@ func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.
 		break
 	}
 
-	skrs := append(runKeySealRequests(key, params.UseTokens), fallbackKeySealRequests(key, saveKey, params.FactoryReset, params.UseTokens)...)
+	skrs := append(runKeySealRequests(key, params.UseTokens), fallbackKeySealRequests(key, saveKey, params.LegacyFactoryResetKeyPath, params.UseTokens)...)
 	if err := secbootSealKeysWithProtector(params.KeyProtectorFactory, skrs, &sealingParams); err != nil {
 		return err
 	}
@@ -252,7 +252,7 @@ func sealKeyForBootChainsBackend(
 	// we are preparing a new system, hence the TPM needs to be provisioned
 	lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
 	tpmProvisionMode := secboot.TPMProvisionFull
-	if params.FactoryReset {
+	if params.Reprovision {
 		tpmProvisionMode = secboot.TPMPartialReprovision
 	}
 	if err := secbootProvisionTPM(tpmProvisionMode, lockoutAuthFile); err != nil {
@@ -266,7 +266,7 @@ func sealKeyForBootChainsBackend(
 		return err
 	}
 
-	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, volumesAuth, checkResult, params.RoleToBlName, params.FactoryReset,
+	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, volumesAuth, checkResult, params.RoleToBlName, params.LegacyFactoryResetKeyPath,
 		handle, params.UseTokens, "recover")
 	if err != nil {
 		return err

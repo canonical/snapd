@@ -22,6 +22,8 @@ package secboot
 
 import (
 	"context"
+
+	"github.com/snapcore/snapd/bootloader"
 )
 
 type PreinstallCheckContext struct{}
@@ -33,7 +35,11 @@ const (
 
 const ActionNone = ""
 
-func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+func PreinstallCheck(ctx context.Context, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+	return nil, nil, errBuildWithoutSecboot
+}
+
+func PostinstallCheck(ctx context.Context, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
 	return nil, nil, errBuildWithoutSecboot
 }
 
@@ -51,4 +57,8 @@ func (c *PreinstallCheckContext) SaveCheckResult(filename string) error {
 
 func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) {
 	return nil, errBuildWithoutSecboot
+}
+
+func (cr *PreinstallCheckResult) AcceptedErrors() []string {
+	return nil
 }

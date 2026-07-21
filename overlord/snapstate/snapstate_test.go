@@ -83,6 +83,7 @@ func TestSnapManager(t *testing.T) { TestingT(t) }
 type observedSeedRefreshCandidates struct {
 	initial       [][]snapstate.SeedRefreshCandidate
 	prerequisites []snapstate.SeedRefreshCandidate
+	evictions     []snapstate.SeedRefreshEvictionPolicy
 }
 
 func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, func()) {
@@ -96,8 +97,9 @@ func mockSeedRefreshHooks(triggers []string) (*observedSeedRefreshCandidates, fu
 	var observed observedSeedRefreshCandidates
 	var currentSeedTS *snapstate.SeedRefreshTaskSet
 
-	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
+	snapstate.SeedRefreshTasks = func(st *state.State, _ snapstate.DeviceContext, candidates []snapstate.SeedRefreshCandidate, eviction snapstate.SeedRefreshEvictionPolicy) (*snapstate.SeedRefreshTaskSet, map[string]bool, error) {
 		observed.initial = append(observed.initial, candidates)
+		observed.evictions = append(observed.evictions, eviction)
 
 		added := make(map[string]bool, len(candidates))
 		for _, candidate := range candidates {
@@ -301,6 +303,7 @@ func (s *snapmgrBaseTest) SetUpTest(c *C) {
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
+	s.AddCleanup(snapstate.MockCheckSeedRefreshRemove(func(*state.State, *snap.Info, snapstate.DeviceContext) error { return nil }))
 	_, restore := mockSeedRefreshHooks(nil)
 	s.AddCleanup(restore)
 
@@ -822,6 +825,7 @@ func (s *snapmgrTestSuite) testRevertTasksFullFlags(flags fullFlags, c *C) {
 	c.Assert(taskKinds(tasks), DeepEquals, []string{
 		"prerequisites",
 		"prepare-snap",
+		"prerequisites",
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-current-snap",
@@ -935,6 +939,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	c.Assert(taskKinds(ts.Tasks()), DeepEquals, []string{
 		"prerequisites",
 		"prepare-snap",
+		"prerequisites",
 		"stop-snap-services",
 		"remove-aliases",
 		"unlink-current-snap",
@@ -6112,6 +6117,16 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			revno: snap.R(1),
 		},
 		{
+			op:    "list-non-snapctl-mounts-all",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
+			op:     "remove-snap-mount-units",
+			name:   "ubuntu-core",
+			origin: "mount-control",
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 		},
@@ -6215,6 +6230,16 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			op:    "remove-profiles:Doing",
 			name:  "ubuntu-core",
 			revno: snap.R(1),
+		},
+		{
+			op:    "list-non-snapctl-mounts-all",
+			name:  "ubuntu-core",
+			revno: snap.R(1),
+		},
+		{
+			op:     "remove-snap-mount-units",
+			name:   "ubuntu-core",
+			origin: "mount-control",
 		},
 		{
 			op:   "remove-snap-data",
@@ -6930,16 +6955,20 @@ func (s *snapmgrTestSuite) TestConflictSeedRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	chg := s.state.NewChange("refresh-snap", "...")
-	chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
-	chg.SetStatus(state.DoingStatus)
+	for _, kind := range []string{"refresh-snap", "revert-snap", "install-snap"} {
+		chg := s.state.NewChange(kind, "...")
+		chg.AddTask(s.state.NewTask("create-recovery-system", "..."))
+		chg.SetStatus(state.DoingStatus)
 
-	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
-	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
-	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+		err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+		c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{}, Commentf("change kind: %s", kind))
+		c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`, Commentf("change kind: %s", kind))
 
-	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
-	c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`)
+		err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+		c.Check(err, ErrorMatches, `seed refresh in progress, no other changes allowed until this is done`, Commentf("change kind: %s", kind))
+
+		chg.SetStatus(state.DoneStatus)
+	}
 }
 
 func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
@@ -10380,15 +10409,15 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 					// against the already-installed base and only wait on snapd
 					break
 				}
-				firstLocal := firstTaskAfterLocalModifications(c, sts.ts)
-				if baseFirstLocal := firstTaskAfterLocalModifications(c, baseTS); baseFirstLocal != nil {
-					c.Assert(waitsOnTransitively(firstLocal, baseFirstLocal), Equals, true)
+				mountSnap := findMountSnap(c, sts.ts)
+				if baseMount := findMountSnap(c, baseTS); baseMount != nil {
+					c.Assert(waitsOnTransitively(mountSnap, baseMount), Equals, true)
 				}
 				if findKindInTaskSet(sts.ts, "mount-snap") != nil {
 					firstPostMount := firstTaskAfterMount(c, sts.ts)
 					c.Assert(waitsOnTransitively(firstPostMount, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
 				} else {
-					c.Assert(waitsOnTransitively(firstLocal, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
+					c.Assert(waitsOnTransitively(mountSnap, baseTS.MaybeEdge(snapstate.MaybeRebootEdge)), Equals, true)
 				}
 			}
 		}
@@ -11368,7 +11397,7 @@ version: 1.0
 
 	// For snaps that skip configure, we expect the end-edge to be set to either of
 	// cleanup task, or start snap services
-	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
 		Revision: snap.R(8),
@@ -11408,7 +11437,7 @@ epoch: 1
 
 	// For snaps that skip configure, we expect the end-edge to be set to either of
 	// cleanup task, or start snap services
-	ts, _, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{SkipConfigure: true}, nil)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", "edge", snapstate.Flags{SkipConfigure: true}, nil)
 	c.Assert(err, IsNil)
 
 	var t *state.Task

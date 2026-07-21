@@ -28,6 +28,7 @@ SuccessExitStatus=42
 RestartPreventExitStatus=42
 KillMode=process
 KeyringMode=shared
+FileDescriptorStoreMax=1024
 
 [Install]
 WantedBy=multi-user.target

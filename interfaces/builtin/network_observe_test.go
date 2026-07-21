@@ -91,6 +91,23 @@ func (s *NetworkObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Check(seccompSpec.SnippetForTag("snap.other.app2"), testutil.Contains, "capset\n")
 }
 
+func (s *NetworkObserveInterfaceSuite) TestAppArmorSpecSystemdNetworkd(c *C) {
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app2"})
+
+	snippet := apparmorSpec.SnippetForTag("snap.other.app2")
+	c.Assert(snippet, testutil.Contains, "path=/org/freedesktop/network1")
+	c.Assert(snippet, testutil.Contains, "path=/org/freedesktop/network1/link/_*")
+	c.Assert(snippet, testutil.Contains, "interface=org.freedesktop.DBus.Properties")
+	c.Assert(snippet, testutil.Contains, "member=PropertiesChanged")
+	c.Assert(snippet, testutil.Contains, "member=Get{,All}")
+	c.Assert(snippet, testutil.Contains, "interface=org.freedesktop.network1.Manager")
+	c.Assert(snippet, testutil.Contains, "member={ListLinks,GetLinkByName,DescribeLink,Describe}")
+	c.Assert(snippet, testutil.Contains, "peer=(name=org.freedesktop.network1, label=unconfined)")
+}
+
 func (s *NetworkObserveInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

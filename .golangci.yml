@@ -94,10 +94,13 @@ linters:
         path: arch/arch_test.go
       - linters:
           - testpackage
+        path: asserts/extkeypairmgrimpl_test.go
+      - linters:
+          - testpackage
         path: asserts/findwildcard_test.go
       - linters:
           - testpackage
-        path: cmd/snapctl/main_test.go
+        path: cmd/snapctl/tool/snapctl/main_test.go
       - linters:
           - testpackage
         path: cmd/snap-update-ns/sorting_test.go

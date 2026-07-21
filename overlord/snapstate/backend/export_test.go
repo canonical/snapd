@@ -31,9 +31,12 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
+type IsUnderAnyDirOptions = isUnderAnyDirOptions
+
 var (
 	AddMountUnit       = addMountUnit
 	RemoveMountUnit    = removeMountUnit
+	IsUnderAnyDir      = isUnderAnyDir
 	RemoveIfEmpty      = removeIfEmpty
 	SnapDataDirs       = snapDataDirs
 	SnapCommonDataDirs = snapCommonDataDirs

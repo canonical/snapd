@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -56,6 +58,8 @@ var (
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 
 	getSnapDirOpts = snapstate.GetSnapDirOpts
+
+	backendMapSnapDataDirToSnapVar = backend.MapSnapDataDirToSnapVar
 )
 
 // SnapshotManager takes snapshots of active snaps
@@ -219,6 +223,7 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 	return snapshot, cur, cfg, nil
 }
 
+// Expects that the snap's applications and services are not running.
 func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	snapshot, cur, cfg, err := prepareSave(task)
 	if err != nil {
@@ -233,6 +238,9 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	if err := snapshot.excludeMountPoints(cur, opts); err != nil {
+		logger.Noticef("cannot exclude mount points: %v", err)
+	}
 	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, snapshot.Options, opts)
 	if err != nil {
 		st.Lock()
@@ -240,6 +248,63 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 		removeSnapshotState(st, snapshot.SetID)
 	}
 	return err
+}
+
+// mapMountPointsInDataDirsToExcludes converts absolute mount point paths
+// for a snap to $SNAP_DATA, $SNAP_COMMON, $SNAP_USER_DATA or $SNAP_USER_COMMON
+// patterns suitable for SnapshotOptions.Exclude. If a non-empty users slice
+// is provided, only those users directories are considered, otherwise all users
+// are considered for an empty users slice. Paths outside the snap's data
+// directories are skipped because they are not included in the snapshot.
+func mapMountPointsInDataDirsToExcludes(si *snap.Info, opts *dirs.SnapDirOptions, users []string, miEntries []*osutil.MountInfoEntry) ([]string, error) {
+	mappings, err := backendMapSnapDataDirToSnapVar(si, opts, users)
+	if err != nil {
+		return nil, err
+	}
+
+	var excludes []string
+	for _, e := range miEntries {
+		where := strings.TrimRight(e.MountDir, "/")
+		// The map iteration order does not matter here:
+		// the snap data directories are mutually exclusive, so at most one
+		// entry can match given mount point. The order of the returned excludes
+		// follows the order of miEntries.
+		for snapDataDir, snapVar := range mappings {
+			if where == snapDataDir {
+				// The mount point is exactly over a snap data directory, so
+				// the whole directory is excluded from the snapshot.
+				excludes = append(excludes, snapVar)
+				break
+			} else if strings.HasPrefix(where, snapDataDir+"/") {
+				excludes = append(excludes, snapVar+where[len(snapDataDir):])
+				break
+			}
+		}
+	}
+	return excludes, nil
+}
+
+// excludeMountPoints appends any currently active mount points under the
+// snap's data directories to s.Options.
+func (s *snapshotSetup) excludeMountPoints(si *snap.Info, opts *dirs.SnapDirOptions) error {
+	entries, err := osutil.LoadMountInfo()
+	if err != nil {
+		return fmt.Errorf("cannot load mount info: %v", err)
+	}
+	excludes, err := mapMountPointsInDataDirsToExcludes(si, opts, s.Users, entries)
+	if err != nil {
+		return fmt.Errorf("cannot map mount points to excludes: %v", err)
+	}
+	if len(excludes) == 0 {
+		return nil
+	}
+	if s.Options == nil {
+		s.Options = &snap.SnapshotOptions{}
+	}
+	if err := s.Options.MergeDynamicExcludes(excludes); err != nil {
+		return fmt.Errorf("internal error: cannot add mount point excludes for %q: %v", si.InstanceName(), err)
+	}
+	return nil
 }
 
 // prepareRestore does the steps of doRestore that require the state lock
@@ -297,6 +362,7 @@ func unmarshalSnapConfig(st *state.State, snapName string) (map[string]any, erro
 	return cfg, nil
 }
 
+// Expects that the snap's applications and services are not running.
 func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	snapshot, oldCfg, reader, err := prepareRestore(task)
 	if err != nil {
@@ -343,6 +409,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+// Expects that the snap's applications and services are not running.
 func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	var restoreState backend.RestoreState
 	var snapshot snapshotSetup

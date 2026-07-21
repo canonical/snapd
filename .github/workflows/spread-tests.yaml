@@ -74,9 +74,9 @@ jobs:
     # scopes.
     permissions:
       contents: read
+      packages: read
       pull-requests: read
       actions: read
-      packages: read
     env:
       SPREAD_EXPERIMENTAL_FEATURES: ${{ inputs.spread-experimental-features }}
       GH_TOKEN: ${{ github.token }}
@@ -510,7 +510,8 @@ jobs:
           # undesired changes elsewhere
           echo "Running command: $SPREAD $TESTS_TO_RUN"
           (
-            set -o pipefail 
+            set -o pipefail
+            setarch --addr-no-randomize -- \
             $SPREAD $SPREAD_FLAGS $TESTS_TO_RUN | \
               ./tests/lib/external/snapd-testing-tools/utils/log-filter $FILTER_PARAMS | \
               tee spread.log

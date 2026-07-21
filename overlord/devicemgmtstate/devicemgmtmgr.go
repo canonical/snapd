@@ -25,9 +25,12 @@
 package devicemgmtstate
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
@@ -46,6 +49,8 @@ const (
 
 	defaultExchangeLimit    = 10
 	defaultExchangeInterval = 6 * time.Hour
+
+	mgmtMessageIDKey = "mgmt-message-id"
 )
 
 var (
@@ -54,24 +59,36 @@ var (
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
 
+	awaitSubsystemRetryInterval = 30 * time.Second
+
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
 )
 
 // MessageHandler processes request messages of a specific kind.
 // Caller must hold state lock when using this interface.
 type MessageHandler interface {
-	// Validate checks subsystem-specific constraints (authorization, payload schema, etc).
+	// Validate checks subsystem-specific constraints.
 	Validate(st *state.State, msg *RequestMessage) error
 
-	// Apply processes a request-message and returns a change ID.
-	Apply(st *state.State, reqAs *RequestMessage) (changeID string, err error)
+	// Apply creates a change to process the message and returns its ID.
+	// Implementations must call MarkChangeForMessage on the created change before
+	// releasing the state lock.
+	Apply(st *state.State, msg *RequestMessage) (changeID string, err error)
 
-	// BuildResponse converts a completed change into a response body and status.
-	BuildResponse(chg *state.Change) (body map[string]any, status asserts.MessageStatus)
+	// ResultFromChange reads the completed change and returns the full result.
+	ResultFromChange(chg *state.Change) (body map[string]any, err error)
 }
 
-// ResponseMessageSigner can sign response-message assertions.
-type ResponseMessageSigner interface {
+// MarkChangeForMessage records the message ID on the change created by an Apply
+// implementation. It must be called after change creation and before releasing
+// the state lock, so that doApplyMessage can recover the change ID on retry
+// and not call the handler's Apply again.
+func MarkChangeForMessage(chg *state.Change, msg *RequestMessage) {
+	chg.Set(mgmtMessageIDKey, msg.ID())
+}
+
+// responseMessageSigner can sign response-message assertions.
+type responseMessageSigner interface {
 	SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
 }
 
@@ -90,11 +107,15 @@ type RequestMessage struct {
 	Body        string    `json:"body"`
 
 	ReceiveTime time.Time `json:"receive-time"`
+	Dispatched  bool      `json:"dispatched"`
 
-	Dispatched bool `json:"dispatched"`
+	// ApplyChangeID is set when Apply schedules async work.
+	ApplyChangeID string `json:"apply-change-id,omitempty"`
 
-	Status asserts.MessageStatus `json:"status,omitempty"`
-	Error  string                `json:"error,omitempty"`
+	// ResponseStatus and ResponseBody hold the final processing outcome.
+	// A non-empty ResponseStatus means the message has been fully processed.
+	ResponseStatus asserts.MessageStatus `json:"response-status,omitempty"`
+	ResponseBody   map[string]any        `json:"response-body,omitempty"`
 }
 
 // ID returns the full message identifier `BaseID[-SeqNum]`.
@@ -138,9 +159,50 @@ type deviceMgmtState struct {
 	LastExchangeTime time.Time `json:"last-exchange-time"`
 }
 
-// enqueueRequests queues incoming request messages for processing
+// getRequestMessage retrieves a request message from the state.
+func (ms *deviceMgmtState) getRequestMessage(id string) (*RequestMessage, error) {
+	baseID, seqStr, hasSeq := strings.Cut(id, "-")
+	seqNum := 0
+	if hasSeq {
+		seqNum, _ = strconv.Atoi(seqStr)
+	}
+
+	seq := ms.Sequences[baseID]
+	if seq == nil {
+		return nil, fmt.Errorf("cannot find sequence %q", baseID)
+	}
+
+	// TODO:GOVERSION:1.21: replace with slices.BinarySearchFunc
+	i := sort.Search(len(seq.Messages), func(i int) bool {
+		return seq.Messages[i].SeqNum >= seqNum
+	})
+	if i < len(seq.Messages) && seq.Messages[i].SeqNum == seqNum {
+		return seq.Messages[i], nil
+	}
+
+	return nil, fmt.Errorf("cannot find message %q", id)
+}
+
+// removeRequestMessage removes a processed request message from its sequence,
+// leaving the sequence entry in place so its Applied progress is preserved for
+// later messages in the same sequence.
+func (ms *deviceMgmtState) removeRequestMessage(msg *RequestMessage) {
+	seq := ms.Sequences[msg.BaseID]
+	if seq == nil {
+		return
+	}
+
+	for i, m := range seq.Messages {
+		if m.SeqNum == msg.SeqNum {
+			seq.Messages = append(seq.Messages[:i], seq.Messages[i+1:]...)
+			return
+		}
+	}
+}
+
+// enqueueRequestMessages queues incoming request messages for processing
 // and updates polling state accordingly.
-func (ms *deviceMgmtState) enqueueRequests(pollResp *store.MessageExchangeResponse) {
+func (ms *deviceMgmtState) enqueueRequestMessages(pollResp *store.MessageExchangeResponse) {
 	for _, msg := range pollResp.Messages {
 		reqMsg, err := parseRequestMessage(msg.Message)
 		if err != nil {
@@ -198,12 +260,12 @@ func (ms *deviceMgmtState) removeSequenceFromLRU(baseID string) {
 // DeviceMgmtManager handles device management operations.
 type DeviceMgmtManager struct {
 	state    *state.State
-	signer   ResponseMessageSigner
+	signer   responseMessageSigner
 	handlers map[string]MessageHandler
 }
 
 // Manager creates a new DeviceMgmtManager.
-func Manager(state *state.State, runner *state.TaskRunner, signer ResponseMessageSigner) *DeviceMgmtManager {
+func Manager(state *state.State, runner *state.TaskRunner, signer responseMessageSigner) *DeviceMgmtManager {
 	m := &DeviceMgmtManager{
 		state:    state,
 		signer:   signer,
@@ -217,6 +279,11 @@ func Manager(state *state.State, runner *state.TaskRunner, signer ResponseMessag
 	runner.AddHandler("queue-mgmt-response", m.doQueueResponse, nil)
 
 	return m
+}
+
+// RegisterHandler registers a MessageHandler for the given message kind.
+func (m *DeviceMgmtManager) RegisterHandler(kind string, h MessageHandler) {
+	m.handlers[kind] = h
 }
 
 // getState retrieves the current device management state, initializing if not present.
@@ -353,7 +420,7 @@ func (m *DeviceMgmtManager) doExchangeMessages(t *state.Task, tomb *tomb.Tomb) e
 		return err
 	}
 
-	ms.enqueueRequests(pollResp)
+	ms.enqueueRequestMessages(pollResp)
 
 	return nil
 }
@@ -410,8 +477,8 @@ func (m *DeviceMgmtManager) dispatchSequence(dispatchTask *state.Task, seq *sequ
 	dispatched := 0
 	awaitTask := dispatchTask
 	for _, msg := range seq.Messages {
-		// Skip messages already dispatched or that have reached a final status.
-		if msg.Dispatched || msg.Status != "" {
+		// Skip messages already dispatched or that have a final result.
+		if msg.Dispatched || msg.ResponseStatus != "" {
 			continue
 		}
 
@@ -432,8 +499,6 @@ func (m *DeviceMgmtManager) dispatchSequence(dispatchTask *state.Task, seq *sequ
 // the final task so callers can chain subsequent messages after it.
 func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *RequestMessage) *state.Task {
 	chg := prevTask.Change()
-	// TODO: add tests verifying that a failure in one message's task chain does not
-	// affect other messages (lanes provide this isolation, but it needs test coverage).
 	lane := m.state.NewLane()
 
 	addTask := func(kind, summary string) {
@@ -464,8 +529,8 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Chang
 	}
 
 	earliest := seq.Messages[0]
-	earliest.Status = asserts.MessageStatusRejected
-	earliest.Error = reason
+	earliest.ResponseStatus = asserts.MessageStatusRejected
+	earliest.ResponseBody = map[string]any{"message": reason}
 	seq.Messages = []*RequestMessage{earliest}
 
 	ms.removeSequenceFromLRU(baseID)
@@ -487,14 +552,151 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 
 // doApplyMessage dispatches the message to its subsystem handler for processing.
 func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	var msgID string
+	err = t.Get("message-id", &msgID)
+	if err != nil {
+		return err
+	}
+
+	msg, err := ms.getRequestMessage(msgID)
+	if err != nil {
+		return err
+	}
+
+	if msg.ResponseStatus != "" || msg.ApplyChangeID != "" {
+		// No-op if the message failed earlier in the pipeline or was already applied.
+		return nil
+	}
+
+	defer m.setState(ms)
+
+	// Check if a change was already created for this message before persisting its ApplyChangeID.
+	chg := findChangeByMgmtMessageID(m.state, msgID)
+	if chg != nil {
+		msg.ApplyChangeID = chg.ID()
+		return nil
+	}
+
+	handler, ok := m.handlers[msg.Kind]
+	if !ok {
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
+		return nil
+	}
+
+	chgID, err := handler.Apply(m.state, msg)
+	if err != nil {
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": err.Error()}
+	} else {
+		msg.ApplyChangeID = chgID
+	}
+
 	return nil
 }
 
 // doQueueResponse builds a response, signs it, and queues it for transmission on the next exchange.
-// Retries until subsystem change completes.
+// Retries until the subsystem change (if any) completes.
 func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
-	// TODO: implement this task, no-op for now.
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	ms, err := m.getState()
+	if err != nil {
+		return err
+	}
+
+	var msgID string
+	err = t.Get("message-id", &msgID)
+	if err != nil {
+		return err
+	}
+
+	msg, err := ms.getRequestMessage(msgID)
+	if err != nil {
+		// Message already processed on a prior run.
+		return nil
+	}
+
+	err = m.setMessageResponseFromChange(msg)
+	if err != nil {
+		return err
+	}
+
+	bodyBytes, err := json.Marshal(msg.ResponseBody)
+	if err != nil {
+		return fmt.Errorf("cannot marshal response body: %w", err)
+	}
+
+	// TODO: determine reasonable behavior for internal errors (e.g., signing or marshal failures).
+	// Since tasks are idempotent, a failed message will not be re-dispatched or re-applied on the
+	// next change, but the request message remains in state until doQueueResponse completes,
+	// so such failures leave it hanging indefinitely.
+
+	resAs, err := m.signer.SignResponseMessage(msg.AccountID, msg.ID(), msg.ResponseStatus, bodyBytes)
+	if err != nil {
+		return fmt.Errorf("cannot sign response message: %w", err)
+	}
+
+	ms.ReadyResponses[msg.ID()] = store.Message{
+		Format: "assertion",
+		Data:   string(asserts.Encode(resAs)),
+	}
+
+	// TODO: rejecting sequences currently happens in 2 ways:
+	// 1. doDispatchMessage can evict the sequence immediately if it's rejected early.
+	// 2. If it errors elsewhere (in validate, apply, or queue-response), we end
+	//    up not advancing Applied, which means we accumulate messages until we
+	//    hit the sequence cap.
+	// Refactor sequence rejection to always evict immediately.
+	if msg.SeqNum > 0 && msg.ResponseStatus == asserts.MessageStatusSuccess {
+		ms.Sequences[msg.BaseID].Applied = msg.SeqNum
+	}
+	ms.removeRequestMessage(msg)
+
+	m.setState(ms)
+
+	return nil
+}
+
+// setMessageResponseFromChange populates msg's response fields from the completed apply change.
+func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) error {
+	if msg.ResponseStatus != "" {
+		return nil
+	}
+
+	handler, ok := m.handlers[msg.Kind]
+	if !ok {
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot find handler for message kind %q", msg.Kind)}
+		return nil
+	}
+
+	change := m.state.Change(msg.ApplyChangeID)
+	if change == nil {
+		return fmt.Errorf("internal error: cannot find subsystem change %q", msg.ApplyChangeID)
+	}
+	if !change.Status().Ready() {
+		return &state.Retry{After: awaitSubsystemRetryInterval}
+	}
+
+	body, err := handler.ResultFromChange(change)
+	if err != nil {
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": fmt.Sprintf("cannot process message: %v", err)}
+	} else {
+		msg.ResponseStatus = asserts.MessageStatusSuccess
+		msg.ResponseBody = body
+	}
+
 	return nil
 }
 
@@ -532,4 +734,22 @@ func parseRequestMessage(msg store.Message) (*RequestMessage, error) {
 		Body:        string(reqAs.Body()),
 		ReceiveTime: timeNow(),
 	}, nil
+}
+
+// findChangeByMgmtMessageID scans all changes for one marked with the given
+// message ID via MarkChangeForMessage.
+func findChangeByMgmtMessageID(st *state.State, msgID string) *state.Change {
+	for _, chg := range st.Changes() {
+		var id string
+		err := chg.Get(mgmtMessageIDKey, &id)
+		if err != nil {
+			continue
+		}
+
+		if id == msgID {
+			return chg
+		}
+	}
+
+	return nil
 }

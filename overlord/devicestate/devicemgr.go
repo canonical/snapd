@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -73,11 +74,13 @@ var (
 	cloudInitStatus   = sysconfig.CloudInitStatus
 	restrictCloudInit = sysconfig.RestrictCloudInit
 
-	secbootMarkSuccessful = secboot.MarkSuccessful
+	secbootMarkSuccessful        = secboot.MarkSuccessful
+	secbootPreinstallCheckAction = (*secboot.PreinstallCheckContext).PreinstallCheckAction
 
 	osutilBootID = osutil.BootID
 
 	fdestateAttemptAutoRepairIfNeeded = fdestate.AttemptAutoRepairIfNeeded
+	fdestateGetRunBootChain           = fdestate.GetRunBootChain
 )
 
 var (
@@ -1271,6 +1274,20 @@ func (m *DeviceManager) ensureFDE() error {
 
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFDE")
 
+	model, err := m.Model()
+	if err != nil {
+		if errors.Is(err, state.ErrNoState) {
+			logger.Debugf("no model is available, skipping ensureFDE")
+			return nil
+		}
+		return err
+	}
+
+	runPostInstallChecks, err := install.CheckHybridQuestingRelease(model)
+	if err != nil {
+		return err
+	}
+
 	// FIXME: we should rename to something like "reset lockout"
 	lockoutResetErr := secbootMarkSuccessful()
 
@@ -1281,7 +1298,7 @@ func (m *DeviceManager) ensureFDE() error {
 	// FIXME: we need to check that a try kernel was attempted here and not attempt
 	// repair in that case.
 
-	if err := fdestateAttemptAutoRepairIfNeeded(m.state, lockoutResetErr); err != nil {
+	if err := fdestateAttemptAutoRepairIfNeeded(m.state, lockoutResetErr, runPostInstallChecks); err != nil {
 		return err
 	}
 
@@ -2646,6 +2663,18 @@ func (m *DeviceManager) SystemAndGadgetAndEncryptionInfo(
 	return m.systemAndGadgetAndEncryptionInfoWithAction(wantedSystemLabel, checkAction, encInfoFromCache)
 }
 
+// RunningSystemAndGadgetAndEncryptionInfo resolves the currently running system
+// and returns the system details (including its model assertion), the
+// currently installed gadget details and encryption support information.
+//
+// Since the system is running, the encryption support information
+// will reflect the result of post install checks, rather than pre
+// install ones.
+func (m *DeviceManager) RunningSystemAndGadgetAndEncryptionInfo() (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	var checkAction *secboot.PreinstallAction = nil
+	return m.runningSystemAndGadgetAndEncryptionInfoWithAction(checkAction)
+}
+
 // ApplyActionOnSystemAndGadgetAndEncryptionInfo resolves the target system by
 // label and evaluates encryption support after applying the provided action. It
 // returns the system details (including its model assertion), the gadget
@@ -2667,6 +2696,24 @@ func (m *DeviceManager) ApplyActionOnSystemAndGadgetAndEncryptionInfo(
 	}
 	const encInfoFromCache = false
 	return m.systemAndGadgetAndEncryptionInfoWithAction(wantedSystemLabel, checkAction, encInfoFromCache)
+}
+
+// ApplyActionOnRunningSystemAndGadgetAndEncryptionInfo resolves the
+// currently running system and evaluates encryption support after
+// applying the provided action. It returns the system details
+// (including its model assertion), the currently installed gadget
+// details and encryption support information.
+//
+// Since the system is running, the encryption support information
+// will reflect the result of post install checks, rather than pre
+// install ones.
+func (m *DeviceManager) ApplyActionOnRunningSystemAndGadgetAndEncryptionInfo(
+	checkAction *secboot.PreinstallAction,
+) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	if checkAction == nil {
+		return nil, nil, nil, errors.New("cannot apply empty action")
+	}
+	return m.runningSystemAndGadgetAndEncryptionInfoWithAction(checkAction)
 }
 
 // systemAndGadgetAndEncryptionInfoWithAction resolves the target system by
@@ -2732,6 +2779,132 @@ func (m *DeviceManager) systemAndGadgetAndEncryptionInfoWithAction(
 	}
 
 	return systemAndSnaps.System, gadgetInfo, encInfo, err
+}
+
+type reprovisionSetupData struct {
+	recoveryKeyID string
+	checkContext  *secboot.PreinstallCheckContext
+}
+
+type reprovisionSetupDataKey struct {
+}
+
+// GenerateReprovisionRecoveryKey generates a recovery key that is
+// stored in the reprovision setup cache. It returns the generated
+// recovery key. Subsequent call to reprovision will use this key.
+func GenerateReprovisionRecoveryKey(st *state.State) (rkey keys.RecoveryKey, err error) {
+	rkey, keyID, err := fdestateGenerateRecoveryKey(st)
+	if err != nil {
+		return keys.RecoveryKey{}, err
+	}
+
+	var data *reprovisionSetupData
+	cached := st.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		data = &reprovisionSetupData{recoveryKeyID: keyID}
+	} else {
+		var ok bool
+		data, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return keys.RecoveryKey{}, fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+		data.recoveryKeyID = keyID
+	}
+
+	st.Cache(reprovisionSetupDataKey{}, data)
+
+	return rkey, err
+}
+
+func (m *DeviceManager) runningSystemAndGadgetAndEncryptionInfoWithAction(
+	checkAction *secboot.PreinstallAction,
+) (*System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+	systemMode := m.SystemMode(SysAny)
+
+	defaultRecoverySystem, err := m.DefaultRecoverySystem()
+	if err != nil && !errors.Is(err, state.ErrNoState) {
+		return nil, nil, nil, err
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	var currentSys *currentSystem
+	currentSys, _ = currentSystemForMode(m.state, systemMode)
+	if currentSys == nil {
+		return nil, nil, nil, fmt.Errorf("no current system for mode %s", systemMode)
+	}
+
+	sys, err := systemFromSeed(currentSys.System, currentSys, defaultRecoverySystem)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	gadgetSnapInfo, err := snapstateGadgetInfo(m.state, deviceCtx)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("reading gadget information: %v", err)
+	}
+
+	gadgetInfo, err := gadget.ReadInfo(gadgetSnapInfo.MountDir(), nil)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	var data *reprovisionSetupData
+
+	cached := m.state.Cached(reprovisionSetupDataKey{})
+	if cached == nil {
+		data = &reprovisionSetupData{}
+	} else {
+		var ok bool
+		data, ok = cached.(*reprovisionSetupData)
+		if !ok {
+			return nil, nil, nil, fmt.Errorf("internal error: wrong data type for reprovisionSetupDataKey")
+		}
+	}
+
+	var checkContext *secboot.PreinstallCheckContext
+	var errorDetails []secboot.PreinstallErrorDetails
+	var checkErr error
+
+	if checkAction == nil {
+		bootChain, err := fdestateGetRunBootChain()
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		checkContext, errorDetails, checkErr = secbootPostinstallCheck(context.Background(), bootChain)
+	} else {
+		checkContext = data.checkContext
+		if checkContext == nil {
+			return nil, nil, nil, fmt.Errorf("cannot run check action without prior check")
+		}
+		errorDetails, checkErr = secbootPreinstallCheckAction(checkContext, context.Background(), checkAction)
+	}
+
+	encInfo := &install.EncryptionSupportInfo{
+		Disabled:      false,
+		StorageSafety: sys.Model.StorageSafety(),
+		Available:     checkErr == nil && len(errorDetails) == 0,
+		// FIXME: deal with hooks
+		Type:                    device.EncryptionTypeLUKS,
+		UnavailableErr:          checkErr,
+		UnavailableWarning:      "",
+		AvailabilityCheckErrors: errorDetails,
+		PassphraseAuthAvailable: true,
+		PINAuthAvailable:        true,
+	}
+
+	if checkErr == nil {
+		data.checkContext = checkContext
+		m.state.Cache(reprovisionSetupDataKey{}, data)
+	}
+
+	return sys, gadgetInfo, encInfo, nil
 }
 
 type systemAndEssentialSnaps struct {
@@ -3502,4 +3675,8 @@ func (m *DeviceManager) readCacheEncryptionSupportInfoLocked(systemLabel string)
 		}
 	}
 	return nil
+}
+
+var secbootPostinstallCheck = func(ctx context.Context, bootChain []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	return secboot.PostinstallCheck(ctx, bootChain)
 }

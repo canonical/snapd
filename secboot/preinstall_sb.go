@@ -26,10 +26,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdenv"
@@ -71,19 +73,7 @@ const (
 	ErrorKindNoHardwareRootOfTrust = string(sb_preinstall.ErrorKindNoHardwareRootOfTrust)
 )
 
-// PreinstallCheck runs preinstall checks using default check configuration and
-// TCG-compliant PCR profile generation options to evaluate whether the host
-// environment is an EFI system suitable for TPM-based Full Disk Encryption. The
-// caller must supply the current boot images in boot order via bootImagePaths.
-// On success, it returns the preinstall check context required for follow-up
-// preinstall checks with actions, and a list with details on all errors
-// identified by secboot (or nil if no errors were found). Any warnings
-// contained in the secboot result are logged. On failure, it returns the error
-// encountered while interpreting the secboot error.
-//
-// To support testing, when the system is running in a Virtual Machine, the check
-// configuration is modified to permit this to avoid an error.
-func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+func preinstallCheck(ctx context.Context, postInstall bool, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
 	// allow value-added-retailer drivers that are:
 	//  - listed as Driver#### load options
 	//  - referenced in the DriverOrder UEFI variable
@@ -94,13 +84,21 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 		checkFlags |= sb_preinstall.PermitVirtualMachine
 	}
 
+	if postInstall {
+		checkFlags |= sb_preinstall.PostInstallChecks
+	}
+
 	// do not customize TCG compliant PCR profile generation
 	profileOptionFlags := sb_preinstall.PCRProfileOptionsDefault
 
-	// create boot file images from provided paths
+	// create boot file images from provided boot image files
 	var bootImages []sb_efi.Image
-	for _, image := range bootImagePaths {
-		bootImages = append(bootImages, sb_efi.NewFileImage(image))
+	for _, image := range bootImageFiles {
+		fileImage, err := efiImageFromBootFile(&image)
+		if err != nil {
+			return nil, nil, err
+		}
+		bootImages = append(bootImages, fileImage)
 	}
 	checkContext := &PreinstallCheckContext{sbPreinstallNewRunChecksContext(checkFlags, bootImages, profileOptionFlags)}
 
@@ -111,7 +109,7 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 		if err != nil {
 			return nil, errorDetails, err
 		}
-		return checkContext, errorDetails, err
+		return checkContext, errorDetails, nil
 	}
 
 	if result.Warnings != nil {
@@ -121,6 +119,30 @@ func PreinstallCheck(ctx context.Context, bootImagePaths []string) (*PreinstallC
 	}
 
 	return checkContext, nil, nil
+}
+
+// PreinstallCheck runs preinstall checks using default check configuration and
+// TCG-compliant PCR profile generation options to evaluate whether the host
+// environment is an EFI system suitable for TPM-based Full Disk Encryption. The
+// caller must supply the current boot images in boot order via bootImageFiles.
+// On success, it returns the preinstall check context required for follow-up
+// preinstall checks with actions, and a list with details on all errors
+// identified by secboot (or nil if no errors were found). Any warnings
+// contained in the secboot result are logged. On failure, it returns the error
+// encountered while interpreting the secboot error.
+//
+// To support testing, when the system is running in a Virtual Machine, the check
+// configuration is modified to permit this to avoid an error.
+func PreinstallCheck(ctx context.Context, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+	const postInstall bool = false
+	return preinstallCheck(ctx, postInstall, bootImageFiles)
+}
+
+// PostinstallCheck re-runs almost the same checks as PreinstallCheck
+// but for an already installed instance.
+func PostinstallCheck(ctx context.Context, bootImageFiles []bootloader.BootFile) (*PreinstallCheckContext, []PreinstallErrorDetails, error) {
+	const postInstall bool = true
+	return preinstallCheck(ctx, postInstall, bootImageFiles)
 }
 
 // PreinstallCheckAction runs a follow-up preinstall check using the specified
@@ -187,6 +209,20 @@ func (cc *PreinstallCheckContext) CheckResult() (*PreinstallCheckResult, error) 
 	pcrProfileOpts := cc.sbRunChecksContext.ProfileOpts()
 
 	return &PreinstallCheckResult{sbCheckResult: result, sbPCRProfileOpts: pcrProfileOpts}, nil
+}
+
+// AcceptedErrors returns accepted preinstall check error kinds in stable order.
+func (cr *PreinstallCheckResult) AcceptedErrors() []string {
+	if cr.sbCheckResult == nil || len(cr.sbCheckResult.AcceptedErrors) == 0 {
+		return nil
+	}
+
+	acceptedErrors := make([]string, 0, len(cr.sbCheckResult.AcceptedErrors))
+	for err := range cr.sbCheckResult.AcceptedErrors {
+		acceptedErrors = append(acceptedErrors, string(err))
+	}
+	sort.Strings(acceptedErrors)
+	return acceptedErrors
 }
 
 func (cr *PreinstallCheckResult) save(filename string) error {

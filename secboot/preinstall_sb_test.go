@@ -33,6 +33,7 @@ import (
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -304,10 +305,22 @@ func (s *preinstallSuite) TestPreinstallCheckConfig(c *C) {
 
 // testPreinstallCheckAndAction is a helper to test PreinstallCheck and PreinstallCheckAction
 func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboot.PreinstallAction, detectErrors, failUnwrap bool) {
+	rootdir := c.MkDir()
+
 	bootImagePaths := []string{
-		"/cdrom/EFI/boot/bootXXX.efi",
-		"/cdrom/EFI/boot/grubXXX.efi",
-		"/cdrom/casper/vmlinuz",
+		filepath.Join(rootdir, "/cdrom/EFI/boot/bootXXX.efi"),
+		filepath.Join(rootdir, "/cdrom/EFI/boot/grubXXX.efi"),
+		filepath.Join(rootdir, "/cdrom/casper/vmlinuz"),
+	}
+
+	var bootImageFiles []bootloader.BootFile
+	for _, path := range bootImagePaths {
+		err := os.MkdirAll(filepath.Dir(path), 0755)
+		c.Assert(err, IsNil)
+		err = os.WriteFile(path, []byte{}, 0644)
+		c.Assert(err, IsNil)
+		// role is not important
+		bootImageFiles = append(bootImageFiles, bootloader.NewBootFile("", path, bootloader.RoleRecovery))
 	}
 
 	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", "exit 1")
@@ -387,7 +400,7 @@ func (s *preinstallSuite) testPreinstallCheckAndAction(c *C, checkAction *secboo
 	if checkAction == nil {
 		// test PreinstallCheck
 		expectedAction = sb_preinstall.ActionNone
-		checkContext, errorDetails, err = secboot.PreinstallCheck(context.Background(), bootImagePaths)
+		checkContext, errorDetails, err = secboot.PreinstallCheck(context.Background(), bootImageFiles)
 		if failUnwrap {
 			c.Assert(checkContext, IsNil)
 		} else {
@@ -565,4 +578,51 @@ func (s *preinstallSuite) TestLoadCheckResultInvalidJSON(c *C) {
 	checkResult, err := secboot.LoadCheckResult(filename)
 	c.Assert(checkResult, IsNil)
 	c.Assert(err, ErrorMatches, "cannot deserialize preinstall check result: .*")
+}
+
+func (s *preinstallSuite) TestAcceptedErrors(c *C) {
+	testCases := []struct {
+		name        string
+		checkResult *secboot.PreinstallCheckResult
+		expected    []string
+	}{
+		{
+			name:        "nil secboot check result",
+			checkResult: secboot.NewPreinstallCheckResult(nil, sb_preinstall.PCRProfileOptionsDefault),
+			expected:    nil,
+		},
+		{
+			name: "empty accepted errors",
+			checkResult: secboot.NewPreinstallCheckResult(
+				&sb_preinstall.CheckResult{AcceptedErrors: map[sb_preinstall.ErrorKind]json.RawMessage{}},
+				sb_preinstall.PCRProfileOptionsDefault,
+			),
+			expected: nil,
+		},
+		{
+			name: "accepted errors are returned as strings",
+			checkResult: secboot.NewPreinstallCheckResult(
+				&sb_preinstall.CheckResult{AcceptedErrors: map[sb_preinstall.ErrorKind]json.RawMessage{
+					sb_preinstall.ErrorKindNoHardwareRootOfTrust: nil,
+					sb_preinstall.ErrorKindTPMDeviceDisabled:     nil,
+				}},
+				sb_preinstall.PCRProfileOptionsDefault,
+			),
+			expected: []string{
+				secboot.ErrorKindNoHardwareRootOfTrust,
+				string(sb_preinstall.ErrorKindTPMDeviceDisabled),
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		acceptedErrors := tc.checkResult.AcceptedErrors()
+		if acceptedErrors == nil {
+			c.Check(acceptedErrors, DeepEquals, tc.expected, Commentf(tc.name))
+			continue
+		}
+
+		expected := append([]string(nil), tc.expected...)
+		c.Check(acceptedErrors, DeepEquals, expected, Commentf(tc.name))
+	}
 }

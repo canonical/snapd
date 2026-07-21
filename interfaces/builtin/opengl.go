@@ -98,6 +98,9 @@ const openglConnectedPlugAppArmor = `
 # of *.library-source files in *-driver-libs.
 /var/lib/snapd/lib/system/gpu/{,**} rm,
 
+# GPU libraries exported by WSL2
+/usr/lib/wsl/{,**} rm,
+
 # Allow access to all cards since a) this is common on hybrid systems, b) ARM
 # devices commonly have two devices (such as on the Raspberry Pi 4, one for KMS
 # and another that does not) and c) there is nothing saying that /dev/dri/card0
@@ -251,51 +254,80 @@ var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="kfd", KERNEL=="kfd"`,
 }
 
-// Those two are the same, but in theory they are separate and can move (or
-// could move) dependently. The first path is as seen on the initial mount
-// namespace of the host. The second path is as seen inside the per-snap mount
-// namespace.
+// The paths in the host namespace and the mount namespace are the same,
+// but in theory they are separate and can move (or could move) independently.
+// The first path is as seen on the initial mount namespace of the host.
+// The second path is as seen inside the per-snap mount namespace.
 const (
 	nvProfilesDirInHostNs  = "/usr/share/nvidia"
 	nvProfilesDirInMountNs = "/usr/share/nvidia"
+	wslDirInHostNs         = "/usr/lib/wsl"
+	wslDirInMountNs        = "/usr/lib/wsl"
 )
 
 func (iface *openglInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	spec.AddSnippet(openglConnectedPlugAppArmor)
 
-	// Allow mounting the Nvidia driver profiles directory
+	// Allow bind mounting the Nvidia driver profiles directory
 	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)
-	if !osutil.IsDirectory(hostNvProfilesDir) {
-		return nil
-	}
+	if osutil.IsDirectory(hostNvProfilesDir) {
 
-	spec.AddUpdateNSf(`	# Read-only access to Nvidia driver profiles in %[2]s
+		spec.AddUpdateNSf(`	# Read-only access to Nvidia driver profiles in %[2]s
 	mount options=(bind) /var/lib/snapd/hostfs%[1]s/ -> %[2]s/,
 	remount options=(bind, ro) %[2]s/,
 	umount %[2]s/,
 `, hostNvProfilesDir, nvProfilesDirInMountNs)
 
-	apparmor.GenWritableProfile(
-		spec.AddUpdateNSf,
-		nvProfilesDirInMountNs,
-		3,
-	)
+		apparmor.GenWritableProfile(
+			spec.AddUpdateNSf,
+			nvProfilesDirInMountNs,
+			3,
+		)
+	}
+
+	// Allow recursively bind mounting the wsl directory
+	hostWslDir := filepath.Join(dirs.GlobalRootDir, wslDirInHostNs)
+	if osutil.IsDirectory(hostWslDir) {
+		spec.AddUpdateNSf(`	# Access to WSL libs in %[2]s
+	mount options=(rbind) /var/lib/snapd/hostfs%[1]s/ -> %[2]s/,
+	umount %[2]s/,
+`, hostWslDir, wslDirInMountNs)
+
+		apparmor.GenWritableProfile(
+			spec.AddUpdateNSf,
+			wslDirInMountNs,
+			3,
+		)
+	}
 
 	return nil
 }
 
 func (iface *openglInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Do nothing if this doesn't exist on the host
+
+	// Bind mount the nvidia driver profiles directory
 	hostNvProfilesDir := filepath.Join(dirs.GlobalRootDir, nvProfilesDirInHostNs)
-	if !osutil.IsDirectory(hostNvProfilesDir) {
-		return nil
+	if osutil.IsDirectory(hostNvProfilesDir) {
+		spec.AddMountEntry(osutil.MountEntry{
+			Name:    filepath.Join("/var/lib/snapd/hostfs", hostNvProfilesDir),
+			Dir:     nvProfilesDirInMountNs,
+			Options: []string{"bind", "ro"},
+		})
 	}
 
-	spec.AddMountEntry(osutil.MountEntry{
-		Name:    filepath.Join("/var/lib/snapd/hostfs", hostNvProfilesDir),
-		Dir:     nvProfilesDirInMountNs,
-		Options: []string{"bind", "ro"},
-	})
+	/*
+		A recursive bind mount is required here because the wsl directory itself contains additional mounts.
+		The `ro` option can not be specified along with the `rbind` option, and is therefore omitted.
+		AppArmor should limit the directory to read-only, but AppArmor is not currently active on wsl2.
+	*/
+	hostWslDir := filepath.Join(dirs.GlobalRootDir, wslDirInHostNs)
+	if osutil.IsDirectory(hostWslDir) {
+		spec.AddMountEntry(osutil.MountEntry{
+			Name:    filepath.Join("/var/lib/snapd/hostfs", hostWslDir),
+			Dir:     wslDirInMountNs,
+			Options: []string{"rbind"},
+		})
+	}
 
 	return nil
 }

@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -49,18 +48,24 @@ var userCurrent = user.Current
 //
 // It ensures all SNAP_* override any pre-existing environment
 // variables.
-func ExtendEnvForRun(env osutil.Environment, info *snap.Info, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) {
+func ExtendEnvForRun(env osutil.Environment, info *snap.Info, app *snap.AppInfo, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) {
 	// Set various SNAP_ environment variables as well as some non-SNAP variables,
 	// depending on snap confinement mode. Note that this does not include environment
 	// set by snap-exec.
-	for k, v := range snapEnv(info, component, opts) {
+	for k, v := range snapEnv(info, app, component, opts) {
 		env[k] = v
 	}
 }
 
-func snapEnv(info *snap.Info, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) osutil.Environment {
+func snapEnv(info *snap.Info, app *snap.AppInfo, component *snap.ComponentInfo, opts *dirs.SnapDirOptions) osutil.Environment {
 	// Environment variables with basic properties of a snap.
 	env := basicEnv(info)
+
+	if app != nil {
+		for k, v := range appEnv(info, app) {
+			env[k] = v
+		}
+	}
 
 	if component != nil {
 		for k, v := range componentEnv(info, component) {
@@ -137,6 +142,26 @@ func basicEnv(info *snap.Info) osutil.Environment {
 		logger.Noticef("cannot determine existence of save data directory for snap %q: %v",
 			info.InstanceName(), err)
 	}
+
+	return env
+}
+
+// appEnv returns the app-level environment variables for a snap.
+func appEnv(info *snap.Info, app *snap.AppInfo) osutil.Environment {
+	env := osutil.Environment{
+		"SNAP_APP_NAME": app.Name,
+	}
+
+	if app.CommonID != "" {
+		env["SNAP_APP_COMMON_ID"] = app.CommonID
+	}
+	if df := app.DesktopFile(); df != "" && osutil.FileExists(df) {
+		env["SNAP_APP_DESKTOP_FILE"] = df
+	}
+	if app.BusName != "" {
+		env["SNAP_APP_BUS_NAME"] = app.BusName
+	}
+
 	return env
 }
 
@@ -210,13 +235,7 @@ func userEnv(info *snap.Info, home string, opts *dirs.SnapDirOptions) osutil.Env
 		"SNAP_USER_COMMON": info.UserCommonDataDir(home, opts),
 		"SNAP_USER_DATA":   info.UserDataDir(home, opts),
 	}
-	if info.NeedsClassic() {
-		// Snaps using classic confinement don't have an override for
-		// HOME but may have an override for XDG_RUNTIME_DIR.
-		if !features.ClassicPreservesXdgRuntimeDir.IsEnabled() {
-			env["XDG_RUNTIME_DIR"] = info.UserXdgRuntimeDir(sys.Geteuid())
-		}
-	} else {
+	if !info.NeedsClassic() {
 		// Snaps using strict or devmode confinement get an override for both
 		// HOME and XDG_RUNTIME_DIR.
 		env["HOME"] = info.UserDataDir(home, opts)

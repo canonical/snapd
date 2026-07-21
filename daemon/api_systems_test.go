@@ -313,6 +313,61 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(sys, check.DeepEquals, &daemon.SystemsResponse{})
 }
 
+func (s *systemsSuite) TestSystemsGetRunning(c *check.C) {
+	s.daemon(c)
+	s.expectAuthenticatedAccess()
+
+	mockGadgetInfo := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"pc": {
+				Schema:     "gpt",
+				Bootloader: "grub",
+				Structure: []gadget.VolumeStructure{
+					{
+						VolumeName: "foo",
+					},
+				},
+			},
+		},
+	}
+
+	mockEncryptionSupportInfo := &install.EncryptionSupportInfo{
+		Available: true,
+	}
+
+	defer daemon.MockDeviceManagerRunningSystemAndGadgetAndEncryptionInfo(func(m *devicestate.DeviceManager) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+		sys := &devicestate.System{
+			Model: s.seedModelForLabel20191119,
+			Label: "20191119",
+			Brand: s.Brands.Account("my-brand"),
+		}
+		return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
+
+	})()
+
+	req, err := http.NewRequest("GET", "/v2/systems?running=true", nil)
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+
+	c.Assert(rsp.Status, check.Equals, 200)
+	sys := rsp.Result.(client.SystemDetails)
+
+	c.Assert(sys, check.DeepEquals, client.SystemDetails{
+		Label: "20191119",
+		Model: s.seedModelForLabel20191119.Headers(),
+		Brand: snap.StoreAccount{
+			ID:          "my-brand",
+			Username:    "my-brand",
+			DisplayName: "My-brand",
+			Validation:  "unproven",
+		},
+		StorageEncryption: &client.StorageEncryption{
+			Support: "available",
+		},
+		Volumes: mockGadgetInfo.Volumes,
+	})
+}
+
 func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 	// modeenv must be mocked before daemon is initialized
 	m := boot.Modeenv{
@@ -1684,7 +1739,7 @@ func (s *systemsSuite) TestSystemInstallActionGenerateRecoveryKeyError(c *check.
 	c.Assert(err, check.IsNil)
 
 	rsp := s.errorReq(c, req, nil, actionIsExpected)
-	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.Message, check.Equals, `cannot generate recovery key for "20250529": boom!`)
 }
 
@@ -2126,7 +2181,7 @@ func (s *systemsSuite) TestSystemActionCheckPINError(c *check.C) {
 	}
 }
 
-func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
+func (s *systemsSuite) testSystemActionFixEncryptionSupport(c *check.C, runningSystem bool) {
 	s.mockSystemSeeds(c)
 	s.daemon(c)
 	s.expectRootAccess()
@@ -2211,31 +2266,57 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
 			PassphraseAuthAvailable: tc.passphraseAuthAvailable,
 		}
 
-		r := daemon.MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(func(
-			mgr *devicestate.DeviceManager,
-			label string,
-			checkAction *secboot.PreinstallAction,
-		) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
-			c.Check(label, check.Equals, "20191119")
-			c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
-				Action: "action-1",
-				Args: map[string]json.RawMessage{
-					"argn":  json.RawMessage(`"valuen"`),
-					"args1": json.RawMessage(`"value1"`),
-				},
+		if runningSystem {
+			r := daemon.MockDeviceManagerApplyActionOnRunningSystemAndGadgetAndEncryptionInfo(func(
+				mgr *devicestate.DeviceManager,
+				checkAction *secboot.PreinstallAction,
+			) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+				c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
+					Action: "action-1",
+					Args: map[string]json.RawMessage{
+						"argn":  json.RawMessage(`"valuen"`),
+						"args1": json.RawMessage(`"value1"`),
+					},
+				})
+				sys := &devicestate.System{
+					Model: s.seedModelForLabel20191119,
+					Label: "20191119",
+					Brand: s.Brands.Account("my-brand"),
+					OptionalContainers: devicestate.OptionalContainers{
+						Snaps:      []string{"snap1", "snap2"},
+						Components: map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
+					},
+				}
+				return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
 			})
-			sys := &devicestate.System{
-				Model: s.seedModelForLabel20191119,
-				Label: "20191119",
-				Brand: s.Brands.Account("my-brand"),
-				OptionalContainers: devicestate.OptionalContainers{
-					Snaps:      []string{"snap1", "snap2"},
-					Components: map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
-				},
-			}
-			return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
-		})
-		defer r()
+			defer r()
+		} else {
+			r := daemon.MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(func(
+				mgr *devicestate.DeviceManager,
+				label string,
+				checkAction *secboot.PreinstallAction,
+			) (*devicestate.System, *gadget.Info, *install.EncryptionSupportInfo, error) {
+				c.Check(label, check.Equals, "20191119")
+				c.Check(checkAction, check.DeepEquals, &secboot.PreinstallAction{
+					Action: "action-1",
+					Args: map[string]json.RawMessage{
+						"argn":  json.RawMessage(`"valuen"`),
+						"args1": json.RawMessage(`"value1"`),
+					},
+				})
+				sys := &devicestate.System{
+					Model: s.seedModelForLabel20191119,
+					Label: "20191119",
+					Brand: s.Brands.Account("my-brand"),
+					OptionalContainers: devicestate.OptionalContainers{
+						Snaps:      []string{"snap1", "snap2"},
+						Components: map[string][]string{"snap1": {"comp1"}, "snap2": {"comp2"}},
+					},
+				}
+				return sys, mockGadgetInfo, mockEncryptionSupportInfo, nil
+			})
+			defer r()
+		}
 
 		body := map[string]any{
 			"action":     "fix-encryption-support",
@@ -2249,7 +2330,11 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
 		b, err := json.Marshal(body)
 		c.Assert(err, check.IsNil)
 		buf := bytes.NewBuffer(b)
-		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+		path := "/v2/systems/20191119"
+		if runningSystem {
+			path = "/v2/systems"
+		}
+		req, err := http.NewRequest("POST", path, buf)
 		c.Assert(err, check.IsNil)
 		rsp := s.syncReq(c, req, nil, actionIsExpected)
 
@@ -2283,11 +2368,20 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
 	}
 }
 
+func (s *systemsSuite) TestSystemActionFixEncryptionSupport(c *check.C) {
+	const runningSystem = false
+	s.testSystemActionFixEncryptionSupport(c, runningSystem)
+}
+
+func (s *systemsSuite) TestSystemActionFixEncryptionSupportRunningSystem(c *check.C) {
+	const runningSystem = true
+	s.testSystemActionFixEncryptionSupport(c, runningSystem)
+}
+
 func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 	s.daemon(c)
 
 	for _, tc := range []struct {
-		noLabel        bool
 		fixAction      string
 		args           map[string]json.RawMessage
 		mockSupportErr error
@@ -2295,10 +2389,6 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 		expectedStatus int
 		expectedErrMsg string
 	}{
-		{
-			noLabel:        true,
-			expectedStatus: 400, expectedErrMsg: "system action requires the system label to be provided",
-		},
 		{
 			fixAction:      "omit", // omit instructs the test logic to not populate the fix action
 			expectedStatus: 400, expectedErrMsg: "fix action must be provided in request body for action \"fix-encryption-support\"",
@@ -2328,9 +2418,6 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 		}
 
 		route := "/v2/systems/20191119"
-		if tc.noLabel {
-			route = "/v2/systems"
-		}
 
 		restore := daemon.MockDeviceManagerApplyActionOnSystemAndGadgetAndEncryptionInfo(func(
 			dm *devicestate.DeviceManager,
@@ -2352,7 +2439,7 @@ func (s *systemsSuite) TestSystemActionFixEncryptionSupportErrors(c *check.C) {
 		req, err := http.NewRequest("POST", route, buf)
 		c.Assert(err, check.IsNil)
 
-		rspe := s.errorReq(c, req, nil, actionExpectedBool(!tc.noLabel))
+		rspe := s.errorReq(c, req, nil, actionExpectedBool(true))
 		c.Assert(rspe.Status, check.Equals, tc.expectedStatus)
 		c.Assert(rspe.Message, check.Matches, tc.expectedErrMsg)
 	}
@@ -3479,4 +3566,80 @@ func (s *systemsCreateSuite) TestCreateSystemActionOfflineJustValidationSets(c *
 	defer st.Unlock()
 
 	c.Check(st.Change(res.Change), check.NotNil)
+}
+
+func (s *systemsSuite) TestSystemGenerateRecoveryKeyOnSystem(c *check.C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	s.daemon(c)
+
+	defer daemon.MockDevicestateGenerateReprovisionRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, err error) {
+		c.Errorf("unexpected")
+		return keys.RecoveryKey{}, fmt.Errorf("unexpected")
+	})()
+
+	body := map[string]any{
+		"action": "generate-recovery-key",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsUnexpected)
+	c.Assert(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Message, check.Equals, `label should not be provided for generate-recovery-key action`)
+}
+
+func (s *systemsSuite) TestSystemCurrentSystemGenerateRecoveryKey(c *check.C) {
+	if (keys.RecoveryKey{}).String() == "not-implemented" {
+		c.Skip("needs working secboot recovery key")
+	}
+
+	s.daemon(c)
+
+	defer daemon.MockDevicestateGenerateReprovisionRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, err error) {
+		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'}, nil
+	})()
+
+	body := map[string]any{
+		"action": "generate-recovery-key",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, check.Equals, 200)
+
+	res := rsp.Result.(map[string]string)
+	c.Check(res, check.DeepEquals, map[string]string{
+		"recovery-key": "25970-28515-25974-31090-12593-12593-12593-12593",
+	})
+}
+
+func (s *systemsSuite) TestSystemCurrentSystemGenerateRecoveryKeyError(c *check.C) {
+	s.daemon(c)
+
+	defer daemon.MockDevicestateGenerateReprovisionRecoveryKey(func(st *state.State) (rkey keys.RecoveryKey, err error) {
+		return keys.RecoveryKey{}, errors.New("boom!")
+	})()
+
+	body := map[string]any{
+		"action": "generate-recovery-key",
+	}
+	b, err := json.Marshal(body)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(b)
+	req, err := http.NewRequest("POST", "/v2/systems", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Message, check.Equals, `cannot generate recovery key: boom!`)
 }

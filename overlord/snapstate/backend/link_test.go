@@ -759,7 +759,7 @@ func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C)
 	defer os.Chmod(d, 0755)
 
 	err := s.be.LinkSnap(s.info, mockDev, mockLinkContextWithStateUnlocker(), s.perfTimings)
-	c.Assert(err, ErrorMatches, `(?i).*symlink.*permission denied.*`)
+	c.Assert(err, ErrorMatches, `(?i).*mkdir /.*/hello/current.*: permission denied.*`)
 
 	c.Check(s.info.DataDir(), testutil.FileAbsent)
 	c.Check(filepath.Join(s.info.DataDir(), "..", "current"), testutil.FileAbsent)
@@ -799,7 +799,7 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 		StateUnlocker: func() (relock func()) { return func() {} },
 	}
 	err = s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("symlink %s /.*/snapd/current.*: permission denied", info.Revision))
+	c.Assert(err, ErrorMatches, fmt.Sprintf("mkdir /.*/snapd/current.*: permission denied"))
 
 	isUndo := false
 	reboot, err := s.be.MaybeSetNextBoot(info, mockDev, isUndo)

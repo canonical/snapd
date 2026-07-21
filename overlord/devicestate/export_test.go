@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/gadget/install"
@@ -172,24 +173,12 @@ func MockSnapstateUpdateOne(mock func(ctx context.Context, st *state.State, goal
 	return testutil.Mock(&snapstateUpdateOne, mock)
 }
 
-func MockSnapstateInstallOne(mock func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) (*snap.Info, *state.TaskSet, error)) (restore func()) {
-	return testutil.Mock(&snapstateInstallOne, mock)
-}
-
 func MockSnapstatePathUpdateGoal(mock func(snaps ...snapstate.PathSnap) snapstate.UpdateGoal) (restore func()) {
 	return testutil.Mock(&snapstatePathUpdateGoal, mock)
 }
 
-func MockSnapstateStoreInstallGoal(mock func(snaps ...snapstate.StoreSnap) snapstate.InstallGoal) (restore func()) {
-	return testutil.Mock(&snapstateStoreInstallGoal, mock)
-}
-
 func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snapstate.UpdateGoal) (restore func()) {
 	return testutil.Mock(&snapstateStoreUpdateGoal, mock)
-}
-
-func MockSnapstatePathInstallGoal(mock func(snapstate.PathSnap) snapstate.InstallGoal) (restore func()) {
-	return testutil.Mock(&snapstatePathInstallGoal, mock)
 }
 
 func MockSnapstateInstallComponents(mock func(ctx context.Context, st *state.State, names []string, info *snap.Info, vsets *snapasserts.ValidationSets, opts snapstate.Options) ([]*state.TaskSet, error)) (restore func()) {
@@ -394,13 +383,13 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
+func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error) (restore func()) {
 	restore = testutil.Backup(&bootMakeRunnable)
 	bootMakeRunnable = f
 	return restore
 }
 
-func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, obs boot.TrustedAssetsInstallObserver) error) (restore func()) {
+func MockBootMakeSystemRunnableAfterDataReset(f func(model *asserts.Model, bootWith *boot.BootableSet, bootAssets boot.BootAssets, encryption *boot.EncryptionSetup) error) (restore func()) {
 	restore = testutil.Backup(&bootMakeRunnableAfterDataReset)
 	bootMakeRunnableAfterDataReset = f
 	return restore
@@ -432,6 +421,10 @@ func MockInstallLogicPrepareRunSystemData(f func(mod *asserts.Model, gadgetDir s
 	r := testutil.Backup(&installLogicPrepareRunSystemData)
 	installLogicPrepareRunSystemData = f
 	return r
+}
+
+func MockCopyInstallModeHostname(f func(rootdir string) error) (restore func()) {
+	return testutil.Mock(&copyInstallModeHostname, f)
 }
 
 func MockInstallRun(f func(model gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
@@ -756,6 +749,33 @@ func MockOsutilBootID(bootID string) (restore func()) {
 	return testutil.Mock(&osutilBootID, func() (string, error) { return bootID, nil })
 }
 
-func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error) error) (restore func()) {
+func MockFdestateAttemptAutoRepairIfNeeded(f func(st *state.State, locktoutResetErr error, runPostInstallChecks bool) error) (restore func()) {
 	return testutil.Mock(&fdestateAttemptAutoRepairIfNeeded, f)
+}
+
+func MockSecbootPostinstallCheck(f func(ctx context.Context, bootChain []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+	old := secbootPostinstallCheck
+	secbootPostinstallCheck = f
+	return func() { secbootPostinstallCheck = old }
+}
+
+func MockFdestateGetRunBootChain(f func() ([]bootloader.BootFile, error)) (restore func()) {
+	old := fdestateGetRunBootChain
+	fdestateGetRunBootChain = f
+	return func() { fdestateGetRunBootChain = old }
+}
+
+func MockSecbootPreinstallCheckAction(f func(pcc *secboot.PreinstallCheckContext, ctx context.Context, action *secboot.PreinstallAction) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {
+	old := secbootPreinstallCheckAction
+	secbootPreinstallCheckAction = f
+	return func() {
+		secbootPreinstallCheckAction = old
+	}
+}
+
+type ReprovisionSetupDataKey = reprovisionSetupDataKey
+type ReprovisionSetupDataType = reprovisionSetupData
+
+func GetCachedReprovisionRecoveryKeyID(data *ReprovisionSetupDataType) string {
+	return data.recoveryKeyID
 }

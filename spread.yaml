@@ -257,9 +257,6 @@ backends:
                   storage: 20G
                   workers: 6
 
-            - amazon-linux-2-64:
-                  workers: 6
-                  storage: preserve-size
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
@@ -440,10 +437,6 @@ backends:
                 image: snapd-spread/debian-sid-64
                 workers: 6
 
-            - amazon-linux-2-64:
-                image: snapd-spread/amazon-linux-2-64
-                workers: 6
-                storage: 50G
             - amazon-linux-2023-64:
                 image: snapd-spread/amazon-linux-2023-64
                 workers: 6
@@ -724,9 +717,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - amazon-linux-2-64:
-                  username: ec2-user
-                  password: ec2-user
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -822,9 +812,6 @@ backends:
                   username: root
                   password: root
             - arch-linux-64:
-                  username: root
-                  password: root
-            - amazon-linux-2-64:
                   username: root
                   password: root
             - amazon-linux-2023-64:
@@ -1747,6 +1734,9 @@ suites:
             NESTED_SPREAD_TESTS: '$(HOST: echo "${NESTED_SPREAD_TESTS:-}")'
             # Indicates that by default snapd pkg is built from current
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            # Use the specified username or certificate for ssh connections to the nested vm
+            NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
+            NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -1774,7 +1764,12 @@ suites:
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
-            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+            if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+            else
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
+            fi
 
             # Build and install initramfs package
             if os.query is-ubuntu-ge 24.04; then
@@ -1820,6 +1815,9 @@ suites:
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Indicates that by default snapd pkg is built from current
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            # Use the specified username or certificate for ssh connections to the nested vm
+            NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
+            NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
@@ -1847,7 +1845,13 @@ suites:
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
-            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+            # Configure the ssh connection to the test vm
+            if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+            else
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
+            fi
 
             tests.nested prepare
             tests.nested build-image classic
@@ -1887,6 +1891,9 @@ suites:
             REMOTE_CFG_FILE: "$PROJECT_PATH/remote.setup.cfg"
             # Indicates that by default snapd pkg is built from current
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            # Use the specified username or certificate for ssh connections to the nested vm
+            NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
+            NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
@@ -1914,7 +1921,12 @@ suites:
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
-            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+            if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+            else
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
+            fi
 
             # Build and install initramfs package
             if os.query is-ubuntu-ge 24.04; then
@@ -1966,6 +1978,9 @@ suites:
             SPREAD_URL: https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz
             # Indicates that by default snapd pkg is built from current
             SNAPD_DEB_FROM_REPO: '$(HOST: echo "${SPREAD_SNAPD_DEB_FROM_REPO:-false}")'
+            # Use the specified username or certificate for ssh connections to the nested vm
+            NESTED_REMOTE_USER_NAME: '$(HOST: echo "${NESTED_REMOTE_USER_NAME:-user1}")'
+            NESTED_REMOTE_USER_CERT: '$(HOST: echo "${NESTED_REMOTE_USER_CERT:-}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
@@ -1995,7 +2010,12 @@ suites:
             dpkg -i "$GOHOME"/snapd_*.deb
 
             # Configure the ssh connection to the test vm
-            remote.setup config --host localhost --port 8022 --user user1 --pass ubuntu
+            if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
+                echo "$NESTED_REMOTE_USER_CERT" > $TESTSTMP/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
+            else
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
+            fi
 
             tests.nested prepare
             tests.nested build-image core
@@ -2063,7 +2083,6 @@ suites:
         systems:
             - arch-linux-*
             - opensuse-*
-            - amazon-linux-2-*
             - amazon-linux-2023-*
             - fedora-*
             - centos-*

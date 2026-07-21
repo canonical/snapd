@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -202,7 +203,7 @@ func MockSnapstateStoreUpdateGoal(mock func(snaps ...snapstate.StoreUpdate) snap
 	}
 }
 
-func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags, snapstate.PrereqTracker) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateInstallPath := snapstateInstallPath
 	snapstateInstallPath = mock
 	return func() {
@@ -397,6 +398,8 @@ var (
 	ErrToResponse      = errToResponse
 
 	MaxReadBuflen = maxReadBuflen
+
+	IsRequestFromSnapCmd = isRequestFromSnapCmd
 )
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
@@ -451,4 +454,14 @@ func MockDeviceStateSignConfdbControl(f func(m *devicestate.DeviceManager, group
 
 func MockDevicestateInstallPreseed(f func(st *state.State, label string, chroot string) (*state.Change, error)) (restore func()) {
 	return testutil.Mock(&devicestateInstallPreseed, f)
+}
+
+func ResetVirtualizationDetection() {
+	systemdVirtOnce = sync.Once{}
+	systemdVirt = ""
+}
+
+func ResetBuildIDDetection() {
+	buildIDOnce = sync.Once{}
+	buildID = "unknown"
 }

@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -197,16 +198,6 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 	// Check that "features" is map
 	featuresAll, ok := resultFeatures.(map[string]any)
 	c.Assert(ok, check.Equals, true)
-	// Ensure that Layouts exists and is feature.FeatureInfo
-	layoutsInfoRaw, exists := featuresAll[features.Layouts.String()]
-	c.Assert(exists, check.Equals, true)
-	layoutsInfo, ok := layoutsInfoRaw.(map[string]any)
-	c.Assert(ok, check.Equals, true, check.Commentf("%+v", layoutsInfoRaw))
-	// Ensure that Layouts is supported and enabled
-	c.Check(layoutsInfo["supported"], check.Equals, true)
-	_, exists = layoutsInfo["unsupported-reason"]
-	c.Check(exists, check.Equals, false)
-	c.Check(layoutsInfo["enabled"], check.Equals, true)
 	// Ensure that ParallelInstances exists and is a feature.FeatureInfo
 	parallelInstancesInfoRaw, exists := featuresAll[features.ParallelInstances.String()]
 	c.Assert(exists, check.Equals, true)
@@ -1250,6 +1241,10 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithoutModel(c *check.C) {
 		expectedStatus = status
 		expectedResponse["status"] = status
 		expectedResponse["auto-repair-result"] = "not-initialized"
+		expectedResponse["preinstall"] = map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		}
 	}
 
 	defer daemon.MockFdestateSystemState(func(s *state.State, model *asserts.Model) (*fdestate.FDESystemState, error) {
@@ -1258,12 +1253,20 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithoutModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusActive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements:   []install.EncryptionSupportRequirement{},
+					AcceptedErrors: map[string]any{},
+				},
 			}, nil
 
 		case "inactive":
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusInactive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements:   []install.EncryptionSupportRequirement{},
+					AcceptedErrors: map[string]any{},
+				},
 			}, nil
 		}
 
@@ -1325,6 +1328,12 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithModel(c *check.C) {
 		expectedStatus = status
 		expectedResponse["status"] = status
 		expectedResponse["auto-repair-result"] = "not-initialized"
+		expectedResponse["preinstall"] = map[string]any{
+			"requirements": []any{"volumes-auth"},
+			"accepted-errors": map[string]any{
+				"no-hardware-root-of-trust": nil,
+			},
+		}
 	}
 
 	defer daemon.MockFdestateSystemState(func(s *state.State, model *asserts.Model) (*fdestate.FDESystemState, error) {
@@ -1333,12 +1342,24 @@ func (s *generalSuite) TestSysInfoStorageEncHappyWithModel(c *check.C) {
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusActive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements: []install.EncryptionSupportRequirement{"volumes-auth"},
+					AcceptedErrors: map[string]any{
+						"no-hardware-root-of-trust": nil,
+					},
+				},
 			}, nil
 
 		case "inactive":
 			return &fdestate.FDESystemState{
 				Status:           fdestate.FDEStatusInactive,
 				AutoRepairResult: fdestate.AutoRepairNotInitialized,
+				Preinstall: fdestate.FDEPreinstallInfo{
+					Requirements: []install.EncryptionSupportRequirement{"volumes-auth"},
+					AcceptedErrors: map[string]any{
+						"no-hardware-root-of-trust": nil,
+					},
+				},
 			}, nil
 		}
 

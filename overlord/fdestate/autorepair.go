@@ -20,11 +20,16 @@
 package fdestate
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
@@ -34,8 +39,13 @@ import (
 )
 
 var (
+	bootloaderFind = bootloader.Find
+
+	bootReadModeenv = boot.ReadModeenv
+
 	secbootProvisionTPM        = secboot.ProvisionTPM
 	secbootShouldAttemptRepair = secboot.ShouldAttemptRepair
+	secbootPostinstallCheck    = secboot.PostinstallCheck
 
 	osutilBootID = osutil.BootID
 )
@@ -49,6 +59,10 @@ const (
 	AutoRepairFailedKeyslots          AutoRepairResult = "failed-keyslots"
 	AutoRepairFailedEncryptionSupport AutoRepairResult = "failed-encryption-support"
 	AutoRepairSuccess                 AutoRepairResult = "success"
+)
+
+const (
+	postInstallCheckTimeout = 2 * time.Minute
 )
 
 type repairState struct {
@@ -97,7 +111,116 @@ func getRepairAttemptResult(st *state.State) (*repairState, error) {
 	return rs.State, nil
 }
 
-func autoRepair(st *state.State) (AutoRepairResult, error) {
+// GetRunBootChain returns the boot chain expected to be used
+// for a normal "run" mode boot.
+//
+// The image files in the bootchain will either point a file in a snap
+// or to a file in the trusted boot asset cache. They will not
+// point to the effective path where the read from, though they
+// are expected to be the same, unless boot partition were compromised.
+func GetRunBootChain() ([]bootloader.BootFile, error) {
+	modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read modeenv: %w", err)
+	}
+
+	rbl, err := bootloaderFind(boot.InitramfsUbuntuSeedDir, &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find recovery bootloader: %w", err)
+	}
+
+	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
+	if !ok {
+		return nil, fmt.Errorf("internal error: recovery bootloader does not support trusted assets")
+	}
+
+	bl, err := bootloaderFind(boot.InitramfsUbuntuBootDir, &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot find run bootloader: %w", err)
+	}
+
+	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
+	if !ok {
+		return nil, fmt.Errorf("internal error: run bootloader does not support kernel extraction")
+	}
+
+	info, err := ebl.TryKernel()
+	if err != nil {
+		if err == bootloader.ErrNoTryKernelRef {
+			info, err = ebl.Kernel()
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	trustedAssets, err := tbl.TrustedAssets()
+	if err != nil {
+		return nil, err
+	}
+
+	kernelPath := info.MountFile()
+
+	runModeBootChains, err := tbl.BootChains(bl, kernelPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// runModeBootChains is all possible run boot chains, but only one should exist (there
+	// are legacy boot chains before we registered UEFI boot entries).
+	// The "BootFile"s for the gadget part points to identifier names instead of real path, so we
+	// need to resolve those. To resolve those we need to cross check with the modeenv, and then
+	// find the file in the cache. The last one, is the kernel and should be pointing to the right place.
+	for _, runModeBootChain := range runModeBootChains {
+		var chain []bootloader.BootFile
+
+		if len(runModeBootChain) == 0 {
+			// That is not possible for a boot chain to be size 0, because that would mean there is no
+			// kernel. We should not ignore this, there are bigger problems.
+			return nil, fmt.Errorf("internal error: no file in boot chain")
+		}
+
+		ignoreChain := false
+		for _, bf := range runModeBootChain[:len(runModeBootChain)-1] {
+			path := bf.Path
+			name, ok := trustedAssets[path]
+			if !ok {
+				return nil, fmt.Errorf("internal error: unknown trusted asset %s from boot chain", path)
+			}
+			var hashes []string
+			if bf.Role == bootloader.RoleRecovery {
+				hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
+			} else {
+				hashes, ok = modeenv.CurrentTrustedBootAssets[name]
+			}
+			if !ok {
+				ignoreChain = true
+				break
+			}
+
+			// In theory we should only have one hash here. Multiple would be when we are trying
+			// a boot chain, and this should have been cleaned. It should be safe to take the last one (newest).
+			if len(hashes) > 1 {
+				logger.Noticef("WARNING: multiple hashes for a trusted boot file were found.")
+			}
+			hash := hashes[len(hashes)-1]
+			p := filepath.Join(dirs.SnapBootAssetsDir, bl.Name(), fmt.Sprintf("%s-%s", name, hash))
+			chain = append(chain, bootloader.NewBootFile("", p, bf.Role))
+		}
+		if !ignoreChain {
+			return append(chain, runModeBootChain[len(runModeBootChain)-1]), nil
+		}
+	}
+
+	return nil, fmt.Errorf("cannot find the active boot chain")
+}
+
+func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, error) {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
 		return AutoRepairNotAttempted, err
@@ -106,8 +229,28 @@ func autoRepair(st *state.State) (AutoRepairResult, error) {
 	switch method {
 	case device.SealingMethodFDESetupHook:
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
-		// FIXME: re-run platform checks (post install checks?)
-		// Then maybe return AutoRepairFailedEncryptionSupport
+		if runPostInstallChecks {
+			images, err := GetRunBootChain()
+			if err != nil {
+				return AutoRepairNotAttempted, err
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), postInstallCheckTimeout)
+			defer cancel()
+
+			if _, details, err := secbootPostinstallCheck(ctx, images); len(details) > 0 || err != nil {
+				if err != nil {
+					logger.Noticef("WARNING: could not auto repair keyslots due to failed platform initialization: %v", err)
+				} else {
+					var messages []string
+					for _, detail := range details {
+						messages = append(messages, fmt.Sprintf("- %s", detail.Message))
+					}
+					logger.Noticef("WARNING: could not auto repair keyslots due to failed platform initialization:\n%s", strings.Join(messages, "\n"))
+				}
+				return AutoRepairFailedPlatformInit, nil
+			}
+		}
 
 		lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
 		if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
@@ -143,7 +286,7 @@ func autoRepair(st *state.State) (AutoRepairResult, error) {
 // of lockout reset and may attempt to repair keyslots. If the
 // auto-repair attempted has already occurred during the current boot,
 // this will do nothing.
-func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error) error {
+func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
 	if lockoutResetErr != nil {
 		// FIXME: we need to either try repair in some cases and save the
 		// error for the status API
@@ -188,7 +331,7 @@ func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error) error {
 		}
 	}
 
-	result, err := autoRepair(st)
+	result, err := autoRepair(st, runPostInstallChecks)
 	if err != nil {
 		return err
 	}

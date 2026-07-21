@@ -26,20 +26,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/randutil"
 )
 
 // AtomicWriteFlags are a bitfield of flags for AtomicWriteFile
 type AtomicWriteFlags uint
-
-const (
-	// AtomicWriteFollow makes AtomicWriteFile follow symlinks
-	AtomicWriteFollow AtomicWriteFlags = 1 << iota
-)
 
 // Allow disabling sync for testing. This brings massive improvements on
 // certain filesystems (like btrfs) and very much noticeable improvements in
@@ -69,7 +64,7 @@ type AtomicFile struct {
 //	It _might_ be implemented using O_TMPFILE (see open(2)).
 //
 // Note that it won't follow symlinks and will replace existing symlinks with
-// the real file, unless the AtomicWriteFollow flag is specified.
+// the real file. Also, umask is ignored when setting the file's permissions.
 //
 // It is the caller's responsibility to clean up on error, by calling Cancel().
 //
@@ -79,15 +74,11 @@ type AtomicFile struct {
 // Also note that there are a number of scenarios where Commit fails and then
 // Cancel also fails. In all these scenarios your filesystem was probably in a
 // rather poor state. Good luck.
-func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
-	if flags&AtomicWriteFollow != 0 {
-		if fn, err := os.Readlink(filename); err == nil || (fn != "" && os.IsNotExist(err)) {
-			if filepath.IsAbs(fn) {
-				filename = fn
-			} else {
-				filename = filepath.Join(filepath.Dir(filename), fn)
-			}
-		}
+func NewAtomicFile(filename string, perm os.FileMode, _ AtomicWriteFlags, uid sys.UserID, gid sys.GroupID) (aw *AtomicFile, err error) {
+	basename := filepath.Base(filename)
+	dirname := filepath.Dir(filename)
+	if strings.Contains(basename, "*") {
+		return nil, fmt.Errorf("cannot create tempfile for filename containing '*': %q", basename)
 	}
 	// The tilde is appended so that programs that inspect all files in some
 	// directory are more likely to ignore this file as an editor backup file.
@@ -96,21 +87,32 @@ func NewAtomicFile(filename string, perm os.FileMode, flags AtomicWriteFlags, ui
 	// aa-enforce. Tools from this package enumerate all profiles by loading
 	// parsing any file found in /etc/apparmor.d/, skipping only very specific
 	// suffixes, such as the one we selected below.
-	tmp := filename + "." + randutil.RandomString(12) + "~"
-
-	fd, err := os.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_EXCL, perm)
+	fd, err := os.CreateTemp(dirname, basename+".*~")
 	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			fd.Close()
+			os.Remove(fd.Name())
+		}
+	}()
+
+	// Chmod ignores umask
+	if err = fChmod(fd, perm); err != nil {
 		return nil, err
 	}
 
 	return &AtomicFile{
 		File:    fd,
 		target:  filename,
-		tmpname: tmp,
+		tmpname: fd.Name(),
 		uid:     uid,
 		gid:     gid,
 	}, nil
 }
+
+var fChmod = (*os.File).Chmod
 
 // ErrCannotCancel means the Commit operation failed at the last step, and
 // your luck has run out.
@@ -322,21 +324,22 @@ func AtomicRename(oldName, newName string) (err error) {
 	return err2
 }
 
-const maxLinkTries = 10
-
-func atomicLinkOp(target, linkPath string, op func(target, tmp string) error, kind string) error {
-	for tries := 0; tries < maxLinkTries; tries++ {
-		tmp := linkPath + "." + randutil.RandomString(12) + "~"
-		if err := op(target, tmp); err != nil {
-			if os.IsExist(err) {
-				continue
-			}
-			return err
-		}
-		defer os.Remove(tmp)
-		return AtomicRename(tmp, linkPath)
+func atomicLinkOp(target, linkPath string, op func(target, tmp string) error) error {
+	basename := filepath.Base(linkPath)
+	dirname := filepath.Dir(linkPath)
+	if strings.Contains(basename, "*") {
+		return fmt.Errorf("cannot create tempfile for link path containing '*': %q", basename)
 	}
-	return fmt.Errorf("cannot create a temporary %s", kind)
+	tmpDir, err := os.MkdirTemp(dirname, basename+".*~")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+	tmp := filepath.Join(tmpDir, "link")
+	if err := op(target, tmp); err != nil {
+		return err
+	}
+	return AtomicRename(tmp, linkPath)
 }
 
 // AtomicSymlink attempts to atomically create a symlink at linkPath, pointing
@@ -344,7 +347,7 @@ func atomicLinkOp(target, linkPath string, op func(target, tmp string) error, ki
 // the target, and then proceeds to rename it atomically, replacing the
 // linkPath.
 func AtomicSymlink(target, linkPath string) error {
-	return atomicLinkOp(target, linkPath, os.Symlink, "symlink")
+	return atomicLinkOp(target, linkPath, os.Symlink)
 }
 
 // AtomicLink attempts to atomically create a hardlink at linkPath, referencing
@@ -352,5 +355,5 @@ func AtomicSymlink(target, linkPath string) error {
 // to the target, and then proceeds to rename it atomically, replacing the
 // linkPath.
 func AtomicLink(target, linkPath string) error {
-	return atomicLinkOp(target, linkPath, os.Link, "link")
+	return atomicLinkOp(target, linkPath, os.Link)
 }

@@ -78,6 +78,7 @@ var (
 
 	SnapSeedDir   string
 	SnapDeviceDir string
+	SnapBPFFSDir  string
 
 	SnapAssertsDBDir      string
 	SnapCookieDir         string
@@ -636,6 +637,7 @@ func SetRootDir(rootdir string) {
 
 	SnapSeedDir = SnapSeedDirUnder(rootdir)
 	SnapDeviceDir = SnapDeviceDirUnder(rootdir)
+	SnapBPFFSDir = filepath.Join(rootdir, "/sys/fs/bpf/snap")
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
 	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)

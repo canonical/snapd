@@ -89,8 +89,9 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	am.storeSigning = assertstest.NewStoreStack("canonical", nil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   am.storeSigning.Trusted,
+		Backstore:       asserts.NewMemoryBackstore(),
+		Trusted:         am.storeSigning.Trusted,
+		OtherPredefined: asserts.Builtin(),
 	})
 	c.Assert(err, IsNil)
 	am.Db = db
@@ -100,6 +101,13 @@ func (am *AssertsMock) SetupAsserts(c *C, st *state.State, cleaner cleaner) {
 	st.Lock()
 	assertstate.ReplaceDB(st, am.Db)
 	st.Unlock()
+}
+
+func (am *AssertsMock) mockBaseDeclaration(c *C, st *state.State, headers []byte) (restore func()) {
+	restore = assertstest.MockBuiltinBaseDeclaration(headers)
+	// need to setup the database again to include the new base declaration
+	am.SetupAsserts(c, st, am.cleaner)
+	return restore
 }
 
 func (am *AssertsMock) mockModel(extraHeaders map[string]any) *asserts.Model {
@@ -1524,8 +1532,9 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckAllowed(c *C) {
 }
 
 func (s *interfaceManagerSuite) testConnectTaskCheck(c *C, setup func(), check func(*state.Change)) {
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -1565,7 +1574,7 @@ slots:
 func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeNoStore(c *C) {
 	s.MockModel(c, nil)
 
-	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+	s.testConnectTaskCheckDeviceScope(c, nil, func(change *state.Change) {
 		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by plug rule of interface "test".*`)
 		c.Check(change.Status(), Equals, state.ErrorStatus)
 
@@ -1580,7 +1589,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongStore(c *C) 
 		"store": "other-store",
 	})
 
-	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+	s.testConnectTaskCheckDeviceScope(c, nil, func(change *state.Change) {
 		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by plug rule of interface "test".*`)
 		c.Check(change.Status(), Equals, state.ErrorStatus)
 
@@ -1595,7 +1604,7 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightStore(c *C) 
 		"store": "my-store",
 	})
 
-	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+	s.testConnectTaskCheckDeviceScope(c, nil, func(change *state.Change) {
 		c.Assert(change.Err(), IsNil)
 		c.Check(change.Status(), Equals, state.DoneStatus)
 
@@ -1613,11 +1622,11 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeWrongFriendlyStor
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]any{
-		"friendly-stores": []any{"other-store"},
-	})
-
-	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+	s.testConnectTaskCheckDeviceScope(c, func() {
+		s.MockStore(c, s.state, "my-substore", map[string]any{
+			"friendly-stores": []any{"other-store"},
+		})
+	}, func(change *state.Change) {
 		c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by plug rule of interface "test".*`)
 		c.Check(change.Status(), Equals, state.ErrorStatus)
 
@@ -1632,11 +1641,11 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightFriendlyStor
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]any{
-		"friendly-stores": []any{"my-store"},
-	})
-
-	s.testConnectTaskCheckDeviceScope(c, func(change *state.Change) {
+	s.testConnectTaskCheckDeviceScope(c, func() {
+		s.MockStore(c, s.state, "my-substore", map[string]any{
+			"friendly-stores": []any{"my-store"},
+		})
+	}, func(change *state.Change) {
 		c.Assert(change.Err(), IsNil)
 		c.Check(change.Status(), Equals, state.DoneStatus)
 
@@ -1649,9 +1658,10 @@ func (s *interfaceManagerSuite) TestConnectTaskCheckDeviceScopeRightFriendlyStor
 	})
 }
 
-func (s *interfaceManagerSuite) testConnectTaskCheckDeviceScope(c *C, check func(*state.Change)) {
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+func (s *interfaceManagerSuite) testConnectTaskCheckDeviceScope(c *C, setup func(), check func(*state.Change)) {
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -1659,6 +1669,11 @@ slots:
     allow-connection: false
 `))
 	defer restore()
+
+	if setup != nil {
+		setup()
+	}
+
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 
 	s.MockSnapDecl(c, "producer", "one-publisher", nil)
@@ -3574,8 +3589,9 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedWhen
 func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBased(c *C, withDecl bool, check func(map[string]any, []*interfaces.ConnRef)) {
 	s.MockModel(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -3635,8 +3651,9 @@ slots:
 func (s *interfaceManagerSuite) TestProducerSetupProfilesWaitsForConsumerSetupProfilesAndConnectionIsMade(c *C) {
 	s.MockModel(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -3746,10 +3763,9 @@ slots:
 // model assertion to fulfill device scope constraints: here no store
 // in the model assertion fails an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeNoStore(c *C) {
-
 	s.MockModel(c, nil)
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, nil, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
 		c.Check(repoConns, HasLen, 0)
@@ -3760,12 +3776,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // model assertion to fulfill device scope constraints: here the wrong
 // store in the model assertion fails an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongStore(c *C) {
-
 	s.MockModel(c, map[string]any{
 		"store": "other-store",
 	})
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, nil, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
 		c.Check(repoConns, HasLen, 0)
@@ -3776,12 +3791,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // model assertion to fulfill device scope constraints: here the right
 // store in the model assertion passes an on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeRightStore(c *C) {
-
 	s.MockModel(c, map[string]any{
 		"store": "my-store",
 	})
 
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, nil, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
 		c.Check(conns, DeepEquals, map[string]any{
 			"consumer:plug producer:slot": map[string]any{"auto": true, "interface": "test",
@@ -3798,16 +3812,15 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // wrong "friendly store"s of the store in the model assertion fail an
 // on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeWrongFriendlyStore(c *C) {
-
 	s.MockModel(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]any{
-		"friendly-stores": []any{"other-store"},
-	})
-
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func() {
+		s.MockStore(c, s.state, "my-substore", map[string]any{
+			"friendly-stores": []any{"other-store"},
+		})
+	}, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure nothing is connected.
 		c.Check(conns, HasLen, 0)
 		c.Check(repoConns, HasLen, 0)
@@ -3819,16 +3832,15 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 // "friendly store" of the store in the model assertion passes an
 // on-store constraint.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScopeFriendlyStore(c *C) {
-
 	s.MockModel(c, map[string]any{
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]any{
-		"friendly-stores": []any{"my-store"},
-	})
-
-	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
+	s.testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c, func() {
+		s.MockStore(c, s.state, "my-substore", map[string]any{
+			"friendly-stores": []any{"my-store"},
+		})
+	}, func(conns map[string]any, repoConns []*interfaces.ConnRef) {
 		// Ensure that "test" plug is now saved in the state as auto-connected.
 		c.Check(conns, DeepEquals, map[string]any{
 			"consumer:plug producer:slot": map[string]any{"auto": true, "interface": "test",
@@ -3840,9 +3852,10 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedDevi
 	})
 }
 
-func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c *C, check func(map[string]any, []*interfaces.ConnRef)) {
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+func (s *interfaceManagerSuite) testDoSetupSnapSecurityAutoConnectsDeclBasedDeviceScope(c *C, setup func(), check func(map[string]any, []*interfaces.ConnRef)) {
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -3850,6 +3863,11 @@ slots:
     allow-auto-connection: false
 `))
 	defer restore()
+
+	if setup != nil {
+		setup()
+	}
+
 	// Add the producer snap
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 	s.MockSnapDecl(c, "producer", "one-publisher", nil)
@@ -4399,8 +4417,9 @@ slots:
 func (s *interfaceManagerSuite) testUpdateStaticAttributesRespectsSnapDeclaration(c *C, auto, byGadget bool, testUpdateVal string, shouldUpdate bool) {
 	// allow nothing in the base decl, as we'll later allow certain carve-outs
 	// in the snap decl
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6435,8 +6454,9 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 func (s *interfaceManagerSuite) TestCheckInterfacesDeny(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6456,8 +6476,9 @@ slots:
 
 func (s *interfaceManagerSuite) TestCheckInterfacesNoDenyIfNoDecl(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6478,8 +6499,9 @@ slots:
 func (s *interfaceManagerSuite) TestCheckInterfacesDisallowBasedOnSnapTypeNoSnapDecl(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6502,8 +6524,9 @@ slots:
 func (s *interfaceManagerSuite) TestCheckInterfacesAllowBasedOnSnapTypeNoSnapDecl(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6526,8 +6549,9 @@ slots:
 func (s *interfaceManagerSuite) TestCheckInterfacesAllow(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6555,8 +6579,9 @@ func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightStore(c *C) {
 		"store": "my-store",
 	})
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6586,8 +6611,9 @@ slots:
 func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeNoStore(c *C) {
 	deviceCtx := s.TrivialDeviceContext(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6619,8 +6645,9 @@ func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongStore(c *C) {
 		"store": "other-store",
 	})
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6652,12 +6679,9 @@ func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeRightFriendlyStore
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]any{
-		"friendly-stores": []any{"my-store"},
-	})
-
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6665,6 +6689,10 @@ slots:
     deny-installation: true
 `))
 	defer restore()
+
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"my-store"},
+	})
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
 	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
@@ -6689,12 +6717,9 @@ func (s *interfaceManagerSuite) TestCheckInterfacesDeviceScopeWrongFriendlyStore
 		"store": "my-substore",
 	})
 
-	s.MockStore(c, s.state, "my-substore", map[string]any{
-		"friendly-stores": []any{"other-store"},
-	})
-
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -6702,6 +6727,10 @@ slots:
     deny-installation: true
 `))
 	defer restore()
+
+	s.MockStore(c, s.state, "my-substore", map[string]any{
+		"friendly-stores": []any{"other-store"},
+	})
 	s.mockIface(&ifacetest.TestInterface{InterfaceName: "test"})
 
 	s.MockSnapDecl(c, "producer", "producer-publisher", map[string]any{
@@ -8678,8 +8707,9 @@ func (s *interfaceManagerSuite) TestDisconnectInterfacesRetrySetupProfiles(c *C)
 func (s *interfaceManagerSuite) setupAutoConnectGadget(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 
-	r := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	r := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -8976,8 +9006,9 @@ func (s *interfaceManagerSuite) TestAutoConnectGadgetConflictRetry(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestAutoConnectGadgetSkipUnknown(c *C) {
-	r := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	r := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -10909,8 +10940,9 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedAnyS
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBasedSlotNames(c *C) {
 	s.MockModel(c, nil)
 
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 plugs:
@@ -12745,8 +12777,9 @@ func (s *interfaceManagerSuite) setCompatEnabledFeature(c *C) {
 }
 
 func (s *interfaceManagerSuite) testConnectTaskCheckContent(c *C, setup func(), check func(*state.Change)) {
-	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+	restore := s.mockBaseDeclaration(c, s.state, []byte(`
 type: base-declaration
+account-id: system
 authority-id: canonical
 series: 16
 slots:
@@ -13835,9 +13868,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 	effectsTasks := tsks[len(tsks)-4:]
 
 	c.Check(effectsTasks[0].Kind(), Equals, "process-delayed-security-backend-effects")
-	logs := strings.Join(effectsTasks[0].Log(), "\n")
-	c.Check(logs, testutil.Contains, `skipping effects triggered by failed snap "producer2"`)
-	c.Check(logs, testutil.Contains, `scheduling delayed effects for snap "consumer1"`)
+	c.Check(effectsTasks[0].Log(), HasLen, 0)
 
 	// setup-profiles will be automatically injected by auto-connect
 	// before apply-delayed-snap-security-backend-effects for both the

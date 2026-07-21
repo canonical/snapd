@@ -111,7 +111,7 @@ The release process produces the following:
 - GitHub release https://github.com/canonical/snapd/releases
 - Cross-distro artifacts https://snapcraft.io/docs/reference/administration/distribution-support/
 
-*Note: documentation is produced separately from the [snap-docs repository](github.com/canonical/snap-docs)*
+*Note: documentation is produced separately from the [snap-docs repository](https://github.com/canonical/snap-docs)*
 
 ### Prerequisites
 
@@ -615,3 +615,5 @@ Prerequisites:
 Request that snapd QA promotes snapd to stable. The release is done progressively. Once the progressive release has completed, update the [snapd roadmap](https://forum.snapcraft.io/t/the-snapd-roadmap/1973).
 
 #### 2. Request move to `-updates`
+
+Once the move is complete, change all milestone bugs to "Fix released."

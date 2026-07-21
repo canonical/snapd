@@ -18,6 +18,18 @@ on:
   schedule:
     - cron: '30 4 * * 6'
 
+# Granted at workflow level so the reusable spread-tests.yaml `run-spread`
+# job (which declares `pull-requests: read` for `gh pr view`) can be called
+# from a private repo. Reusable workflows cannot elevate caller scopes; an
+# explicit `permissions:` block also resets unlisted scopes to `none`, so
+# `contents`, `packages` and `actions` are listed to preserve defaults
+# (checkout, image pulls, cross-run artifact downloads).
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+  actions: read
+
 jobs:
   set-inputs:
     runs-on: ubuntu-latest
@@ -199,6 +211,12 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: all-features
+
+      - name: Get spread results
+        uses: actions/download-artifact@v8
+        with:
+          path: spread-results-artifacts
+          pattern: spread-results-*
 
       - name: Create feature tags
         run: |

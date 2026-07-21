@@ -150,7 +150,7 @@ func (e *UnmatchedConstraintsError) Is(err error) bool {
 	return ok
 }
 
-func NewUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
+func newUnmatchedConstraintsError(view *View, requests, constraints []string) *UnmatchedConstraintsError {
 	return &UnmatchedConstraintsError{
 		view:        view.ID(),
 		requests:    requests,
@@ -1222,13 +1222,20 @@ func byAccessor(getAccs accGetter) func(x, y int) bool {
 
 		minLen := int(math.Min(float64(len(xPath)), float64(len(yPath))))
 		for i := 0; i < minLen; i++ {
-			partAcc := xPath[i].Access()
-			otherPart := yPath[i].Access()
-			if partAcc == otherPart {
+			xAcc := xPath[i]
+			yAcc := yPath[i]
+			if xAcc.Access() == yAcc.Access() {
 				continue
 			}
 
-			return partAcc < otherPart
+			// sort placeholders before literals so the latter override the former
+			xPlaceholder := xAcc.Type() == KeyPlaceholderType || xAcc.Type() == IndexPlaceholderType
+			yPlaceholder := yAcc.Type() == KeyPlaceholderType || yAcc.Type() == IndexPlaceholderType
+			if xPlaceholder != yPlaceholder {
+				return xPlaceholder
+			}
+
+			return xAcc.Access() < yAcc.Access()
 		}
 
 		return len(xPath) < len(yPath)
@@ -1651,6 +1658,12 @@ func namespaceResult(res any, unmatchedSuffix []Accessor) (any, error) {
 		return res, nil
 	}
 
+	// we use nil to indicate missing results in a list (if we just did not
+	// include them, the subsequent values would be out of order). Skip it
+	if res == nil {
+		return nil, nil
+	}
+
 	// check if the part is an unmatched placeholder which should have been filled
 	// by the databag with all possible values
 	switch part := unmatchedSuffix[0]; part.Type() {
@@ -1741,7 +1754,7 @@ func (e *UnconstrainedParamsError) Is(err error) bool {
 	return ok
 }
 
-func NewUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
+func newUnconstrainedParamsError(op string, unconstrained map[string][]string) error {
 	return &UnconstrainedParamsError{
 		operation:     op,
 		unconstrained: unconstrained,
@@ -1787,7 +1800,7 @@ func (v *View) checkUnconstrainedParams(op string, matches []requestMatch, const
 	}
 
 	if len(unconstrainedReqs) != 0 {
-		return NewUnconstrainedParamsError(op, unconstrainedReqs)
+		return newUnconstrainedParamsError(op, unconstrainedReqs)
 	}
 	return nil
 }
@@ -1841,7 +1854,7 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 
 	unusedConstraints := keys(constraintPlaceholders)
 	sort.Strings(unusedConstraints)
-	return NewUnmatchedConstraintsError(v, requests, unusedConstraints)
+	return newUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
 func getVisibilitiesToPrune(userAccess Access) []Visibility {
@@ -2158,6 +2171,7 @@ type requestMatch struct {
 // no entry is an exact match, one or more entries that the request matches a
 // prefix of. If no match is found, a NoMatchError is returned.
 func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, err error) {
+	requestToAccs := make(map[string][]Accessor)
 	for _, rule := range v.rules {
 		placeholders, unmatchedSuffix, ok := rule.match(accessors)
 		if !ok {
@@ -2167,13 +2181,18 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		if !rule.isReadable() {
 			continue
 		}
-
 		m := requestMatch{
 			storagePath:     rule.storagePath(placeholders),
 			unmatchedSuffix: unmatchedSuffix,
 			request:         rule.originalRequest,
 		}
 		matches = append(matches, m)
+
+		reqAccs := make([]Accessor, len(rule.request))
+		for i, acc := range rule.request {
+			reqAccs[i] = acc.(Accessor)
+		}
+		requestToAccs[rule.originalRequest] = reqAccs
 	}
 
 	if len(matches) == 0 {
@@ -2181,9 +2200,8 @@ func (v *View) matchGetRequest(accessors []Accessor) (matches []requestMatch, er
 		return nil, NewNoMatchError(v, "get", []string{request})
 	}
 
-	// sort matches by namespace (unmatched suffix) to ensure that nested matches
-	// are read after
-	getAccs := func(i int) []Accessor { return matches[i].unmatchedSuffix }
+	// sort matches by request to ensure that more specific and nested matches are read after
+	getAccs := func(i int) []Accessor { return requestToAccs[matches[i].request] }
 	sort.Slice(matches, byAccessor(getAccs))
 
 	return matches, nil
@@ -2635,6 +2653,7 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 	}
 
 	if matchAll {
+		var hasData bool
 		results := make([]any, 0, len(list))
 
 		for _, el := range list {
@@ -2660,16 +2679,20 @@ func getList(accessors []Accessor, keyIndex int, list []json.RawMessage, constra
 			var res any
 			if err := get(accessors, keyIndex+1, level, constraints, &res); err != nil {
 				if errors.Is(err, &NoDataError{}) {
+					// add a nil to maintain the order of nested results. When merging
+					// we'll check for nil values and skip them
+					results = append(results, nil)
 					continue
 				}
+
+				return err
 			}
 
-			if res != nil {
-				results = append(results, res)
-			}
+			hasData = true
+			results = append(results, res)
 		}
 
-		if len(results) == 0 {
+		if !hasData {
 			return &NoDataError{}
 		}
 
@@ -3164,17 +3187,6 @@ func (s JSONDatabag) Copy() JSONDatabag {
 	}
 
 	return JSONDatabag(copy)
-}
-
-// Overwrite replaces the entire databag with the provided data.
-func (s *JSONDatabag) Overwrite(data []byte) error {
-	var unmarshalledBag map[string]json.RawMessage
-	if err := json.Unmarshal(data, &unmarshalledBag); err != nil {
-		return err
-	}
-
-	*s = JSONDatabag(unmarshalledBag)
-	return nil
 }
 
 // JSONSchema is the Schema implementation corresponding to JSONDatabag and it's

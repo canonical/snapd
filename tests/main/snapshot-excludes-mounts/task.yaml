@@ -1,0 +1,260 @@
+summary: Snapshot excludes all mount points and restore preserves snapctl mounts
+
+details: |
+    When taking a snapshot of a snap that has active mount points under its
+    data directories ($SNAP_DATA, $SNAP_COMMON, $SNAP_USER_DATA,
+    $SNAP_USER_COMMON), snapd automatically excludes those mount points from
+    the snapshot. This prevents capturing data that was mounted into snap's
+    data directories.
+
+    When restoring a snapshot while snapctl mount points are still active, snapd
+    preserves snapctl mounts so that they remain accessible at their original
+    paths after restore completes. However, if there are any non-snapctl mounts
+    active under the snap's data directories, restore will fail.
+
+systems: [-ubuntu-14.04-*]
+
+environment:
+    SNAP_NAME: test-snapd-mount-control
+    SNAP_COMMON: /var/snap/$SNAP_NAME/common
+    SNAP_DATA: /var/snap/$SNAP_NAME/x1
+    SNAP_USER_COMMON: $HOME/snap/$SNAP_NAME/common
+    SNAP_USER_DATA: $HOME/snap/$SNAP_NAME/x1
+    MOUNT_SRC: /var/tmp/$SNAP_NAME
+    SNAPCTL_MOUNT_DEST_COMMON: $SNAP_COMMON/target1
+    SNAPCTL_MOUNT_DEST_DATA: $SNAP_DATA/target1
+    USER_MOUNT_DEST_COMMON: $SNAP_COMMON/target2
+    USER_MOUNT_DEST_DATA: $SNAP_DATA/target2
+    USER_MOUNT_DEST_USER_COMMON: $SNAP_USER_COMMON/target2
+    USER_MOUNT_DEST_USER_DATA: $SNAP_USER_DATA/target2
+    # tar invoked when creating snapshots triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+    TEST_CASE/v1: snap_save_excludes_all_mounts
+    TEST_CASE/v2: snap_remove_excludes_all_mounts
+    TEST_CASE/v3: snap_restore_preserves_snapctl_mounts
+    TEST_CASE/v4: snap_restore_fails_when_user_mounts
+
+prepare: |
+    echo "Install test snap with mount-control interface"
+    "${TESTSTOOLS}"/snaps-state install-local "${SNAP_NAME}"
+    tests.cleanup defer snap remove --purge "${SNAP_NAME}"
+    snap connect "${SNAP_NAME}":mntctl
+
+    echo "Create mount source with some data"
+    mkdir -p "${MOUNT_SRC}"
+    tests.cleanup defer rm -rf "${MOUNT_SRC}"
+    echo "mounted-data" > "${MOUNT_SRC}/mounted-data.txt"
+
+    echo "Write some files in the snap's data dirs (not under any mount point)"
+    echo "snap-common-data" > "${SNAP_COMMON}/data.txt"
+    echo "snap-data-data" > "${SNAP_DATA}/data.txt"
+
+    echo "Create snapctl mounts in global data directories"
+    mkdir -p "${SNAPCTL_MOUNT_DEST_COMMON}" "${SNAPCTL_MOUNT_DEST_DATA}"
+    tests.cleanup defer rm -rf "${SNAPCTL_MOUNT_DEST_COMMON}" "${SNAPCTL_MOUNT_DEST_DATA}"
+    "${SNAP_NAME}".cmd snapctl mount -o bind,rw "${MOUNT_SRC}" "${SNAPCTL_MOUNT_DEST_COMMON}"
+    tests.cleanup defer "\"${SNAP_NAME}\".cmd snapctl umount \"${SNAPCTL_MOUNT_DEST_COMMON}\" || true"
+    "${SNAP_NAME}".cmd snapctl mount -o bind,rw "${MOUNT_SRC}" "${SNAPCTL_MOUNT_DEST_DATA}"
+    tests.cleanup defer "\"${SNAP_NAME}\".cmd snapctl umount \"${SNAPCTL_MOUNT_DEST_DATA}\" || true"
+
+    echo "Verify snapctl global data dir mounts are active in the host namespace"
+    MATCH "${SNAPCTL_MOUNT_DEST_COMMON}" < /proc/self/mountinfo
+    MATCH "${SNAPCTL_MOUNT_DEST_DATA}" < /proc/self/mountinfo
+
+    echo "Write some files into the snapctl global data mount points; this data should NOT be snapshotted"
+    echo "should-not-appear-in-snapshot" > "${SNAPCTL_MOUNT_DEST_COMMON}/excluded-file-common.txt"
+    echo "should-not-appear-in-snapshot" > "${SNAPCTL_MOUNT_DEST_DATA}/excluded-file-data.txt"
+
+    # Note: user mounts are intentionally not set up for the snap_remove test
+    # case because `snap remove` will fail if there are any non-snapctl mounts under the
+    # snap's data directories, which will forget the automatic snapshot.
+    if [ "${TEST_CASE}" = "snap_save_excludes_all_mounts" ] || [ "${TEST_CASE}" = "snap_restore_fails_when_user_mounts" ]; then
+        echo "Set up user (non-snapctl) mounts in global and user data directories"
+        mkdir -p "${USER_MOUNT_DEST_COMMON}" "${USER_MOUNT_DEST_DATA}" "${USER_MOUNT_DEST_USER_COMMON}" "${USER_MOUNT_DEST_USER_DATA}"
+        tests.cleanup defer rm -rf "${USER_MOUNT_DEST_COMMON}" "${USER_MOUNT_DEST_DATA}" "${USER_MOUNT_DEST_USER_COMMON}" "${USER_MOUNT_DEST_USER_DATA}"
+        mount -o bind,rw "${MOUNT_SRC}" "${USER_MOUNT_DEST_COMMON}"
+        tests.cleanup defer "umount \"${USER_MOUNT_DEST_COMMON}\" || true"
+        mount -o bind,rw "${MOUNT_SRC}" "${USER_MOUNT_DEST_DATA}"
+        tests.cleanup defer "umount \"${USER_MOUNT_DEST_DATA}\" || true"
+        mount -o bind,rw "${MOUNT_SRC}" "${USER_MOUNT_DEST_USER_COMMON}"
+        tests.cleanup defer "umount \"${USER_MOUNT_DEST_USER_COMMON}\" || true"
+        mount -o bind,rw "${MOUNT_SRC}" "${USER_MOUNT_DEST_USER_DATA}"
+        tests.cleanup defer "umount \"${USER_MOUNT_DEST_USER_DATA}\" || true"
+
+        echo "Verify user mounts are active in the host namespace"
+        MATCH "${USER_MOUNT_DEST_COMMON}" < /proc/self/mountinfo
+        MATCH "${USER_MOUNT_DEST_DATA}" < /proc/self/mountinfo
+        MATCH "${USER_MOUNT_DEST_USER_COMMON}" < /proc/self/mountinfo
+        MATCH "${USER_MOUNT_DEST_USER_DATA}" < /proc/self/mountinfo
+
+        echo "Write some files into the user mount points; this data should NOT be snapshotted"
+        echo "should-not-appear-in-snapshot" > "${USER_MOUNT_DEST_COMMON}/excluded-file-common.txt"
+        echo "should-not-appear-in-snapshot" > "${USER_MOUNT_DEST_DATA}/excluded-file-data.txt"
+        echo "should-not-appear-in-snapshot" > "${USER_MOUNT_DEST_USER_COMMON}/excluded-file-user-common.txt"
+        echo "should-not-appear-in-snapshot" > "${USER_MOUNT_DEST_USER_DATA}/excluded-file-user-data.txt"
+    fi
+
+execute: |
+    then_snapshot_is_valid() {
+        local set_id=$1
+        echo "Verify snapshot ${set_id} is valid"
+        echo "${set_id}" | MATCH "^[0-9]+$"
+        snap saved --id="${set_id}" | MATCH "${SNAP_NAME}"
+        snap check-snapshot "${set_id}"
+    }
+
+    # Depending on TEST_CASE, either just snapctl mounts are expected to be excluded,
+    # or both snapctl and user mounts are expected to be excluded
+    then_snapshot_has_mount_point_excludes() {
+        local set_id=$1
+        echo "Verify snapshot ${set_id} has excludes for active mount points"
+        timeout 5 snap debug api "/v2/snapshots?set=${set_id}" | gojq -r '.result[0].snapshots[0].options.exclude[]' > options-exclude
+        tests.cleanup defer rm -f options-exclude
+        #shellcheck disable=SC2016
+        MATCH '^\$SNAP_COMMON/target1$' < options-exclude
+        #shellcheck disable=SC2016
+        MATCH '^\$SNAP_DATA/target1$' < options-exclude
+        if [ "${TEST_CASE}" = "snap_save_excludes_all_mounts" ]; then
+            #shellcheck disable=SC2016
+            MATCH '^\$SNAP_COMMON/target2$' < options-exclude
+            #shellcheck disable=SC2016
+            MATCH '^\$SNAP_DATA/target2$' < options-exclude
+            #shellcheck disable=SC2016
+            MATCH '^\$SNAP_USER_COMMON/target2$' < options-exclude
+            #shellcheck disable=SC2016
+            MATCH '^\$SNAP_USER_DATA/target2$' < options-exclude
+        fi
+    }
+
+    # Depending on TEST_CASE, either just snapctl mounts are expected to be excluded,
+    # or both snapctl and user mounts are expected to be excluded
+    then_restore_and_verify_excludes() {
+        local set_id=$1
+        echo "Restore snapshot ${set_id} and verify that data outside mount points is present"
+        snap restore "${set_id}" "${SNAP_NAME}"
+        MATCH "snap-common-data" < "${SNAP_COMMON}/data.txt"
+        MATCH "snap-data-data" < "${SNAP_DATA}/data.txt"
+
+        echo "and data inside snapctl mount points was not captured"
+        not test -e "${SNAPCTL_MOUNT_DEST_COMMON}/excluded-file-common.txt"
+        not test -e "${SNAPCTL_MOUNT_DEST_DATA}/excluded-file-data.txt"
+        if [ "${TEST_CASE}" = "snap_save_excludes_all_mounts" ]; then
+            echo "and data inside user mount points was not captured"
+            not test -e "${USER_MOUNT_DEST_COMMON}/excluded-file-common.txt"
+            not test -e "${USER_MOUNT_DEST_DATA}/excluded-file-data.txt"
+            not test -e "${USER_MOUNT_DEST_USER_COMMON}/excluded-file-user-common.txt"
+            not test -e "${USER_MOUNT_DEST_USER_DATA}/excluded-file-user-data.txt"
+        fi
+    }
+
+    test_snap_save_excludes_all_mounts() {
+        echo "Take a snapshot using snap save"
+        local set_id
+        set_id=$(snap save "${SNAP_NAME}" | cut -d\  -f1 | tail -n1)
+        tests.cleanup defer snap forget "${set_id}"
+
+        then_snapshot_is_valid "${set_id}"
+        then_snapshot_has_mount_point_excludes "${set_id}"
+
+        echo "Unmount before restoring snapshot"
+        "${SNAP_NAME}".cmd snapctl umount "${SNAPCTL_MOUNT_DEST_COMMON}"
+        "${SNAP_NAME}".cmd snapctl umount "${SNAPCTL_MOUNT_DEST_DATA}"
+        umount "${USER_MOUNT_DEST_COMMON}"
+        umount "${USER_MOUNT_DEST_DATA}"
+        umount "${USER_MOUNT_DEST_USER_COMMON}"
+        umount "${USER_MOUNT_DEST_USER_DATA}"
+        echo "Remove files to test restore"
+        rm "${SNAP_COMMON}/data.txt" "${SNAP_DATA}/data.txt"
+
+        then_restore_and_verify_excludes "${set_id}"
+    }
+
+    then_restore_and_verify_mounts() {
+        local set_id=$1
+        echo "Restore snapshot ${set_id} and verify that data outside mount points is present"
+        snap restore "${set_id}" "${SNAP_NAME}"
+        MATCH "snap-common-data" < "${SNAP_COMMON}/data.txt"
+        MATCH "snap-data-data" < "${SNAP_DATA}/data.txt"
+
+        echo "Verify mount units are active after restore"
+        UNIT_NAME="$(systemd-escape -p "${SNAPCTL_MOUNT_DEST_COMMON}").mount"
+        systemctl is-active --quiet "${UNIT_NAME}"
+        UNIT_NAME="$(systemd-escape -p "${SNAPCTL_MOUNT_DEST_DATA}").mount"
+        systemctl is-active --quiet "${UNIT_NAME}"
+
+        echo "Verify mount data is intact after restore"
+        MATCH "after-save-before-restore" < "${SNAPCTL_MOUNT_DEST_COMMON}/excluded-file-common.txt"
+        MATCH "after-save-before-restore" < "${SNAPCTL_MOUNT_DEST_DATA}/excluded-file-data.txt"
+        MATCH "mounted-data" < "${SNAPCTL_MOUNT_DEST_COMMON}/mounted-data.txt"
+        MATCH "mounted-data" < "${SNAPCTL_MOUNT_DEST_DATA}/mounted-data.txt"
+
+        echo "Verify no temporary artifacts remain after restore (no mounts were moved)"
+        test -z "$(find "/var/snap/${SNAP_NAME}" -maxdepth 1 -mindepth 1 ! -name x1 ! -name current ! -name common)"
+    }
+
+    test_snap_restore_preserves_snapctl_mounts() {
+        echo "Take a snapshot using snap save"
+        local set_id
+        set_id=$(snap save "${SNAP_NAME}" | cut -d\  -f1 | tail -n1)
+        tests.cleanup defer snap forget "${set_id}"
+
+        echo "Remove non-mount files to test restore"
+        rm "${SNAP_COMMON}/data.txt" "${SNAP_DATA}/data.txt"
+        echo "and update files in mounts to verify they are preserved across restore"
+        echo "after-save-before-restore" > "${SNAPCTL_MOUNT_DEST_COMMON}/excluded-file-common.txt"
+        echo "after-save-before-restore" > "${SNAPCTL_MOUNT_DEST_DATA}/excluded-file-data.txt"
+
+        then_restore_and_verify_mounts "${set_id}"
+    }
+
+    test_snap_restore_fails_when_user_mounts() {
+        echo "Take a snapshot using snap save"
+        local set_id
+        set_id=$(snap save "${SNAP_NAME}" | cut -d\  -f1 | tail -n1)
+        tests.cleanup defer snap forget "${set_id}"
+
+        echo "Remove non-mount files to test restore"
+        rm "${SNAP_COMMON}/data.txt" "${SNAP_DATA}/data.txt"
+
+        echo "Try to restore snapshot, this should fail due to active user mounts"
+        if snap restore "${set_id}" "${SNAP_NAME}"; then
+            echo "ERROR: snap restore succeeded but should have failed due to active user mounts"
+            exit 1
+        fi
+
+        echo "Verify that data outside mount points was not restored"
+        not test -e "${SNAP_COMMON}/data.txt"
+        not test -e "${SNAP_DATA}/data.txt"
+    }
+
+    test_snap_remove_excludes_all_mounts() {
+        if os.query is-core; then
+            echo "Enable automatic snapshot creation on remove"
+            snap set core snapshots.automatic.retention=24h
+            tests.cleanup defer snap unset core snapshots.automatic.retention
+        fi
+
+        local max_set_id_before
+        max_set_id_before=$(snap saved | tail -n+2 | cut -d\  -f1 | tail -n1)
+        max_set_id_before=${max_set_id_before:-0}
+
+        echo "Remove the snap; this should create an automatic snapshot"
+        snap remove "${SNAP_NAME}"
+        
+        local set_id
+        set_id=$(snap saved | tail -n+2 | cut -d\  -f1 | tail -n1)
+        set_id=${set_id:-0}
+        test "${set_id}" -gt "${max_set_id_before}"
+        tests.cleanup defer snap forget "${set_id}"
+
+        then_snapshot_is_valid "${set_id}"
+        then_snapshot_has_mount_point_excludes "${set_id}"
+
+        echo "Reinstall the snap to test restoring the snapshot taken on remove"
+        "${TESTSTOOLS}"/snaps-state install-local "${SNAP_NAME}"
+
+        then_restore_and_verify_excludes "${set_id}"
+    }
+
+    echo "Executing test_${TEST_CASE}"
+    test_${TEST_CASE}

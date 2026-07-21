@@ -329,14 +329,14 @@ func (s *installSuite) TestOrderedCurrentBootImagesHybrid(c *C) {
 	} {
 		s.mockHelperForOrderedCurrentBootImagesHybrid(c, true, tc.imageError, tc.errorBootImage)
 
-		bootImagePaths, err := install.OrderedCurrentBootImagesHybrid()
+		bootImageFiles, err := install.OrderedCurrentBootImagesHybrid()
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
 			c.Assert(err, IsNil)
 
-			for i, path := range bootImagePaths {
-				c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+			for i, path := range bootImageFiles {
+				c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 			}
 		}
 	}
@@ -385,15 +385,15 @@ func (s *installSuite) TestOrderedCurrentBootImages(c *C) {
 		}
 		modelMock := s.mockModel(modelMods)
 
-		bootImagePaths, err := install.OrderedCurrentBootImages(modelMock)
+		bootImageFiles, err := install.OrderedCurrentBootImages(modelMock)
 		if tc.expectedError != "" {
 			c.Assert(err, ErrorMatches, tc.expectedError)
 		} else {
 			c.Assert(err, IsNil)
 		}
 
-		for i, path := range bootImagePaths {
-			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		for i, path := range bootImageFiles {
+			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 		}
 	}
 }
@@ -431,6 +431,82 @@ func (s *installSuite) TestEncryptionSupportRequirements(c *C) {
 	})
 	c.Assert(encSupportInfo.Requirements(), HasLen, 1)
 	c.Assert(encSupportInfo.Requirements()[0], Equals, install.EncryptionSupportRequirementVolumesAuth)
+}
+
+func (s *installSuite) TestPreinstallInfoRequirements(c *C) {
+	preinstallInfo := install.PreinstallInfo{}
+
+	// nil accepted-errors list should not require volumes auth
+	c.Assert(preinstallInfo.Requirements(), HasLen, 0)
+
+	preinstallInfo.AcceptedErrors = []string{}
+	c.Assert(preinstallInfo.Requirements(), HasLen, 0)
+
+	preinstallInfo.AcceptedErrors = []string{"some-other-kind"}
+	c.Assert(preinstallInfo.Requirements(), HasLen, 0)
+
+	preinstallInfo.AcceptedErrors = []string{secboot.ErrorKindNoHardwareRootOfTrust}
+	c.Assert(preinstallInfo.Requirements(), HasLen, 1)
+	c.Assert(preinstallInfo.Requirements()[0], Equals, install.EncryptionSupportRequirementVolumesAuth)
+}
+
+func (s *installSuite) TestLoadPreinstallInfo(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
+	restore := install.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
+		checkResultJSON := `{
+			"result": {
+				"accepted-errors": {
+					"no-hardware-root-of-trust": null,
+					"running-in-vm": null
+				}
+			}
+		}`
+		var checkResult secboot.PreinstallCheckResult
+		err := json.Unmarshal([]byte(checkResultJSON), &checkResult)
+		c.Assert(err, IsNil)
+		return &checkResult, nil
+	})
+	defer restore()
+
+	info, err := install.LoadPreinstallInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info, DeepEquals, &install.PreinstallInfo{
+		AcceptedErrors: []string{
+			secboot.ErrorKindNoHardwareRootOfTrust,
+			"running-in-vm",
+		},
+	})
+	c.Assert(info.Requirements(), DeepEquals, []install.EncryptionSupportRequirement{"volumes-auth"})
+}
+
+func (s *installSuite) TestLoadPreinstallInfoNotExist(c *C) {
+	checkResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
+
+	restore := install.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
+		c.Check(filename, Equals, checkResultPath)
+		return nil, os.ErrNotExist
+	})
+	defer restore()
+
+	info, err := install.LoadPreinstallInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info, DeepEquals, &install.PreinstallInfo{})
+}
+
+func (s *installSuite) TestLoadPreinstallInfoLoadError(c *C) {
+	expectedErr := errors.New("boom")
+
+	restore := install.MockSecbootLoadCheckResult(func(filename string) (*secboot.PreinstallCheckResult, error) {
+		return nil, expectedErr
+	})
+	defer restore()
+
+	info, err := install.LoadPreinstallInfo()
+	c.Assert(info, IsNil)
+	c.Assert(err, Equals, expectedErr)
 }
 
 func (s *installSuite) TestPreinstallCheckSupported(c *C) {
@@ -637,12 +713,12 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 	}
 
 	// mock secboot.PreinstallCheck for Supported Ubuntu hybrid systems
-	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImagePaths []string) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
+	restore := install.MockSecbootPreinstallCheck(func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error) {
 		c.Assert(ctx, NotNil)
 		c.Assert(isSupportedUbuntuHybrid, Equals, true)
-		c.Assert(bootImagePaths, HasLen, len(relBootImagePaths))
-		for i, path := range bootImagePaths {
-			c.Assert(path, Matches, "*/"+relBootImagePaths[i])
+		c.Assert(bootImageFiles, HasLen, len(relBootImagePaths))
+		for i, path := range bootImageFiles {
+			c.Assert(path.Path, Matches, "*/"+relBootImagePaths[i])
 		}
 
 		if checkFailErrors == ErrorSecbootPreinstall {

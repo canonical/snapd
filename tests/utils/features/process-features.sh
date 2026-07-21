@@ -4,7 +4,7 @@ shopt -s nullglob
 
 work_dir="${WORK_DIR:-$(mktemp -d)}"
 run_id="${RUN_ID:-}"
-features="${FEATURES:-cmd,task,change,ensure,endpoint,interface}"
+features="${FEATURES:-coverage,cmd,task,change,ensure,endpoint,interface}"
 
 if ! [ -d "$work_dir/feature-tags-artifacts" ]; then
     if [ -z "$run_id" ]; then
@@ -26,7 +26,13 @@ if ! [ -f "$work_dir/all-features.json" ]; then
     mv "$work_dir/all-features/all-features.json" "$work_dir/all-features.json"
     rm -r "$work_dir/all-features"
 fi
-          
+if ! [ -d "$work_dir/spread-results-artifacts" ]; then
+    if [ -z "$run_id" ]; then
+        echo "RUN_ID is not set. Please set it to the ID of the GitHub Actions run to download artifacts from."
+        exit 1
+    fi
+    gh run download "$run_id" --pattern "spread-results-*" --dir "$work_dir/spread-results-artifacts"
+fi
 composedir="$work_dir/composed-tags"
 mkdir -p "$composedir"
 IFS=',' read -ra features <<< "$features"
@@ -70,5 +76,9 @@ done
     --dir "$composedir" \
     --output "$work_dir/final-feature-tags" \
     --replace-old-runs
+
+./tests/utils/features/runtimeadder.py \
+    --results-dir "$work_dir/spread-results-artifacts" \
+    --features-dir "$work_dir/final-feature-tags"
 
 ./tests/utils/features/feattranslator.py -f "$work_dir/all-features.json" -o "$work_dir/final-feature-tags/all-features.json"

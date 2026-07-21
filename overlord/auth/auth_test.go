@@ -20,7 +20,10 @@
 package auth_test
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,19 +32,29 @@ import (
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/seclog"
+	"github.com/snapcore/snapd/seclog/seclogtest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) { TestingT(t) }
 
 type authSuite struct {
-	state *state.State
+	state     *state.State
+	seclogBuf *bytes.Buffer
+
+	testutil.BaseTest
 }
 
 var _ = Suite(&authSuite{})
 
 func (as *authSuite) SetUpTest(c *C) {
+	as.BaseTest.SetUpTest(c)
 	as.state = state.New(nil)
+	as.seclogBuf = &bytes.Buffer{}
+	seclog.Setup(seclogtest.MockSecurityLogger(as.seclogBuf))
+	as.AddCleanup(func() { seclog.Setup(seclog.NewNopLogger()) })
 }
 
 func (s *authSuite) TestMacaroonSerialize(c *C) {
@@ -118,27 +131,6 @@ func (as *authSuite) TestNewUser(c *C) {
 		StoreDischarges: []string{"discharge"},
 	}
 	c.Check(user, DeepEquals, expected)
-}
-
-func (as *authSuite) TestNewUserSortsDischarges(c *C) {
-	as.state.Lock()
-	user, err := auth.NewUser(as.state, auth.NewUserParams{
-		Username:   "",
-		Email:      "email@test.com",
-		Macaroon:   "macaroon",
-		Discharges: []string{"discharge2", "discharge1"},
-	})
-	c.Assert(err, IsNil)
-	as.state.Unlock()
-
-	expected := []string{"discharge1", "discharge2"}
-	c.Check(user.StoreDischarges, DeepEquals, expected)
-
-	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
-	as.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(userFromState.StoreDischarges, DeepEquals, expected)
 }
 
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
@@ -600,4 +592,384 @@ func (as *authSuite) TestHasExpiredNoExpirationSetIsFalse(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(user.HasExpired(), Equals, false)
+}
+
+func (as *authSuite) TestChangedFieldsFieldMapping(c *C) {
+	// Verify that every UserState field is translated to the correct
+	// spec-defined name in the audit log. Comparison logic is tested
+	// in seclog/types_test.go.
+	prev := &auth.UserState{
+		ID: 1, Username: "a", Email: "a@a.com",
+		Macaroon: "m1", Discharges: []string{"d1"},
+		StoreMacaroon: "sm1", StoreDischarges: []string{"sd1"},
+		Expiration: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+	}
+	cur := &auth.UserState{
+		ID: 2, Username: "b", Email: "b@b.com",
+		Macaroon: "m2", Discharges: []string{"d2"},
+		StoreMacaroon: "sm2", StoreDischarges: []string{"sd2"},
+		Expiration: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+	}
+	c.Check(prev.ChangedFields(cur), DeepEquals, []string{
+		"expiration",
+		"local_discharges", "local_macaroon",
+		"snapd_user_id",
+		"store_discharges", "store_macaroon",
+		"store_user_email", "store_user_name",
+	})
+}
+
+func (as *authSuite) TestChangedFieldsNoChanges(c *C) {
+	u := &auth.UserState{
+		ID: 1, Username: "jdoe", Email: "j@d.com",
+		Macaroon: "m1", StoreMacaroon: "sm1",
+	}
+	c.Check(u.ChangedFields(u), HasLen, 0)
+}
+
+func (as *authSuite) TestChangedFieldsSliceOrderIndependent(c *C) {
+	// Slice fields with the same elements in different order must not
+	// produce a spurious entry in changed_fields.
+	a := &auth.UserState{
+		ID:              1,
+		Discharges:      []string{"a", "b", "c"},
+		StoreDischarges: []string{"x", "y"},
+	}
+	b := &auth.UserState{
+		ID:              1,
+		Discharges:      []string{"c", "a", "b"},
+		StoreDischarges: []string{"y", "x"},
+	}
+	c.Check(a.ChangedFields(b), HasLen, 0)
+}
+
+func (as *authSuite) TestChangedFieldsSingleField(c *C) {
+	a := &auth.UserState{
+		ID: 1, Email: "old@test.com",
+		StoreMacaroon: "sm1",
+	}
+	b := &auth.UserState{
+		ID: 1, Email: "new@test.com",
+		StoreMacaroon: "sm1",
+	}
+	c.Check(a.ChangedFields(b), DeepEquals, []string{"store_user_email"})
+}
+
+func (as *authSuite) TestChangedFieldsExpirationLocationIndependent(c *C) {
+	// Same instant expressed in UTC and a non-UTC fixed zone must not
+	// produce a spurious expiration entry in changed_fields.
+	instant := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	loc := time.FixedZone("UTC+10", 10*60*60)
+	a := &auth.UserState{ID: 1, Expiration: instant}
+	b := &auth.UserState{ID: 1, Expiration: instant.In(loc)}
+	c.Check(a.ChangedFields(b), HasLen, 0)
+}
+
+func (as *authSuite) TestChangedFieldsExpirationMonotonicIndependent(c *C) {
+	// time.Now() carries a monotonic clock reading. A round-trip through
+	// JSON strips it, leaving only the wall clock. Both must compare as
+	// equal so that re-loading a user does not produce a spurious
+	// expiration entry in changed_fields.
+	now := time.Now().Add(time.Hour)
+	a := &auth.UserState{ID: 1, Expiration: now}
+	b := &auth.UserState{ID: 1, Expiration: now.Round(0)}
+	c.Check(a.ChangedFields(b), HasLen, 0)
+}
+
+func (as *authSuite) TestNewUserLogsSecurityEvents(c *C) {
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	output := as.seclogBuf.String()
+	c.Check(output, testutil.Contains, "authn_token_created")
+	c.Check(output, testutil.Contains, "user_created")
+	c.Check(output, testutil.Contains, "Token created for user 1:jdoe@test.com:jdoe")
+	c.Check(output, testutil.Contains, "[token_id=1]")
+	c.Check(output, testutil.Contains, "jdoe")
+	c.Check(output, testutil.Contains, "jdoe@test.com")
+
+	tokenIdx := strings.Index(output, "authn_token_created")
+	userIdx := strings.Index(output, "user_created")
+	c.Check(tokenIdx >= 0 && userIdx > tokenIdx, Equals, true)
+}
+
+func (as *authSuite) TestNewUserErrorSkipsLogging(c *C) {
+	restore := auth.MockNewUserMacaroon(func(_ []byte, _ int) (string, error) {
+		return "", fmt.Errorf("cannot create macaroon for snapd user: mocked")
+	})
+	defer restore()
+
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	as.state.Unlock()
+	c.Assert(err, ErrorMatches, "cannot create macaroon for snapd user: mocked")
+	c.Check(as.seclogBuf.String(), Equals, "")
+}
+
+func (as *authSuite) TestIsSnapdMacaroon(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	storeMac := user.StoreMacaroon
+	as.state.Unlock()
+
+	c.Check(auth.IsSnapdMacaroon(user.Macaroon), Equals, true)
+	c.Check(auth.IsSnapdMacaroon(storeMac), Equals, false)
+	c.Check(auth.IsSnapdMacaroon(""), Equals, false)
+	c.Check(auth.IsSnapdMacaroon("not-a-macaroon"), Equals, false)
+}
+
+func (as *authSuite) TestUpdateUserLogsUpdated(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "old@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	user.Email = "new@test.com"
+	user.StoreMacaroon = "new-macaroon"
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(as.seclogBuf.String(), testutil.Contains, "user_updated")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "jdoe")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "new@test.com")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "store_user_email")
+	c.Check(as.seclogBuf.String(), testutil.Contains, "store_macaroon")
+}
+
+func (as *authSuite) TestUpdateUserNoChangeSkipsLog(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	// Call UpdateUser without changing any fields.
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	c.Check(as.seclogBuf.String(), Not(testutil.Contains), "user_updated")
+}
+
+func (as *authSuite) TestUpdateUserSnapdToStoreMacaroonLogsTokenDeleted(c *C) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Assert(err, IsNil)
+	serializedStoreMacaroon, err := auth.MacaroonSerialize(m)
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   serializedStoreMacaroon,
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	user.Macaroon = user.StoreMacaroon
+	user.Discharges = user.StoreDischarges
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	output := as.seclogBuf.String()
+	c.Check(output, testutil.Contains, "authn_token_delete")
+	c.Check(output, testutil.Contains, "user_updated")
+	c.Check(output, testutil.Contains, "local_macaroon")
+
+	tokenIdx := strings.Index(output, "authn_token_delete")
+	userIdx := strings.Index(output, "user_updated")
+	c.Check(tokenIdx >= 0 && userIdx > tokenIdx, Equals, true)
+}
+
+func (as *authSuite) TestUpdateUserSnapdMacaroonRotationLogsTokenLifecycle(c *C) {
+	rotatedMac, err := macaroon.New([]byte("rotated-secret"), "rotated-id", "snapd")
+	c.Assert(err, IsNil)
+	serializedRotatedMacaroon, err := auth.MacaroonSerialize(rotatedMac)
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+	c.Check(user.Macaroon, Not(Equals), serializedRotatedMacaroon)
+
+	as.seclogBuf.Reset()
+	user.Macaroon = serializedRotatedMacaroon
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	output := as.seclogBuf.String()
+	c.Check(output, testutil.Contains, "authn_token_delete")
+	c.Check(output, testutil.Contains, "authn_token_created")
+	c.Check(output, testutil.Contains, "user_updated")
+	c.Check(output, testutil.Contains, "local_macaroon")
+	c.Check(output, testutil.Contains, "[token_id=1]")
+
+	deleteIdx := strings.Index(output, "authn_token_delete")
+	createIdx := strings.Index(output, "authn_token_created")
+	userIdx := strings.Index(output, "user_updated")
+	c.Check(deleteIdx >= 0 && createIdx > deleteIdx && userIdx > createIdx, Equals, true)
+}
+
+func (as *authSuite) TestUpdateUserStoreToSnapdMacaroonLogsTokenCreated(c *C) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Assert(err, IsNil)
+	serializedStoreMacaroon, err := auth.MacaroonSerialize(m)
+	c.Assert(err, IsNil)
+
+	snapdMac, err := macaroon.New([]byte("snapd-secret"), "snapd-id", "snapd")
+	c.Assert(err, IsNil)
+	serializedSnapdMacaroon, err := auth.MacaroonSerialize(snapdMac)
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   serializedStoreMacaroon,
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+	user.Macaroon = user.StoreMacaroon
+	user.Discharges = user.StoreDischarges
+	err = auth.UpdateUser(as.state, user)
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	user.Macaroon = serializedSnapdMacaroon
+	err = auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	output := as.seclogBuf.String()
+	c.Check(output, Not(testutil.Contains), "authn_token_delete")
+	c.Check(output, testutil.Contains, "authn_token_created")
+	c.Check(output, testutil.Contains, "user_updated")
+	c.Check(output, testutil.Contains, "local_macaroon")
+	c.Check(output, testutil.Contains, "[token_id=1]")
+
+	createIdx := strings.Index(output, "authn_token_created")
+	userIdx := strings.Index(output, "user_updated")
+	c.Check(createIdx >= 0 && userIdx > createIdx, Equals, true)
+}
+
+func (as *authSuite) TestRemoveUserLogsRemoved(c *C) {
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	_, err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	output := as.seclogBuf.String()
+	c.Check(output, testutil.Contains, "authn_token_delete")
+	c.Check(output, testutil.Contains, "Token deleted for user 1:jdoe@test.com:jdoe")
+	c.Check(output, testutil.Contains, "[token_id=1]")
+	c.Check(output, testutil.Contains, "user_removed")
+	c.Check(output, testutil.Contains, "jdoe")
+	c.Check(output, testutil.Contains, "jdoe@test.com")
+
+	tokenIdx := strings.Index(output, "authn_token_delete")
+	userIdx := strings.Index(output, "user_removed")
+	c.Check(tokenIdx >= 0 && userIdx > tokenIdx, Equals, true)
+}
+
+func (as *authSuite) TestRemoveOldStyleUserSkipsTokenDelete(c *C) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Assert(err, IsNil)
+	serializedStoreMacaroon, err := auth.MacaroonSerialize(m)
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   serializedStoreMacaroon,
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+	user.Macaroon = user.StoreMacaroon
+	user.Discharges = user.StoreDischarges
+	err = auth.UpdateUser(as.state, user)
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	_, err = auth.RemoveUser(as.state, user.ID)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	output := as.seclogBuf.String()
+	c.Check(output, Not(testutil.Contains), "authn_token_delete")
+	c.Check(output, testutil.Contains, "user_removed")
+}
+
+func (as *authSuite) TestRemoveUserByUsernameLogsRemoved(c *C) {
+	as.state.Lock()
+	_, err := auth.NewUser(as.state, auth.NewUserParams{
+		Username:   "jdoe",
+		Email:      "jdoe@test.com",
+		Macaroon:   "macaroon",
+		Discharges: []string{"discharge"},
+	})
+	c.Assert(err, IsNil)
+
+	as.seclogBuf.Reset()
+	_, err = auth.RemoveUserByUsername(as.state, "jdoe")
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	output := as.seclogBuf.String()
+	c.Check(output, testutil.Contains, "authn_token_delete")
+	c.Check(output, testutil.Contains, "Token deleted for user 1:jdoe@test.com:jdoe")
+	c.Check(output, testutil.Contains, "[token_id=1]")
+	c.Check(output, testutil.Contains, "user_removed")
+	c.Check(output, testutil.Contains, "jdoe")
+	c.Check(output, testutil.Contains, "jdoe@test.com")
+
+	tokenIdx := strings.Index(output, "authn_token_delete")
+	userIdx := strings.Index(output, "user_removed")
+	c.Check(tokenIdx >= 0 && userIdx > tokenIdx, Equals, true)
 }

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	unix "syscall"
 
 	"github.com/snapcore/snapd/dirs"
@@ -70,56 +71,64 @@ func (b Backend) RemoveSnapSaveData(snapInfo *snap.Info, dev snap.Device) error 
 
 // RemoveSnapDataDir removes base snap data directories
 func (b Backend) RemoveSnapDataDir(info *snap.Info, hasOtherInstances bool, opts *dirs.SnapDirOptions) error {
-	if info.InstanceKey != "" {
-		// data directories of snaps with instance key are never used by
-		// other instances
-		dirs, err := snapBaseDataDirs(info.InstanceName(), opts)
+	removeBaseDataDirsFor := func(snapName string) error {
+		dirs, err := snapBaseDataDirs(snapName, opts)
 		if err != nil {
 			return err
 		}
 		var firstRemoveErr error
+		var firstErrDir string
 		for _, dir := range dirs {
 			// remove data symlink that could have been created by snap-run
 			// https://bugs.launchpad.net/snapd/+bug/2009617
 			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
+					// firstErrDir is not set here: it is needed only
+					// to list dir contents in case of ENOTEMPTY error
 					firstRemoveErr = err
 				}
 			}
 			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
 				if firstRemoveErr == nil {
 					firstRemoveErr = err
+					firstErrDir = dir
 				}
 			}
 		}
 		if firstRemoveErr != nil {
-			return fmt.Errorf("failed to remove snap %q base directory: %v", info.InstanceName(), firstRemoveErr)
+			dirContents := func() string {
+				if !errors.Is(firstRemoveErr, unix.ENOTEMPTY) {
+					return ""
+				}
+				d, err := os.Open(firstErrDir)
+				if err != nil {
+					return ""
+				}
+				defer d.Close()
+				const maxEntries = 10
+				names, err := d.Readdirnames(maxEntries)
+				if err != nil {
+					return ""
+				}
+				return "\ndir contents: [" + strings.Join(names, ", ") + "]"
+			}()
+			return fmt.Errorf("failed to remove snap %q base directory: %v%s", snapName, firstRemoveErr, dirContents)
+		}
+		return nil
+	}
+
+	if info.InstanceKey != "" {
+		// data directories of snaps with instance key are never used by
+		// other instances
+		if err := removeBaseDataDirsFor(info.InstanceName()); err != nil {
+			return err
 		}
 	}
 	if !hasOtherInstances {
 		// remove the snap base directory only if there are no other
 		// snap instances using it
-		dirs, err := snapBaseDataDirs(info.SnapName(), opts)
-		if err != nil {
+		if err := removeBaseDataDirsFor(info.SnapName()); err != nil {
 			return err
-		}
-		var firstRemoveErr error
-		for _, dir := range dirs {
-			// remove data symlink that could have been created by snap-run
-			// https://bugs.launchpad.net/snapd/+bug/2009617
-			if err := os.Remove(filepath.Join(dir, "current")); err != nil && !os.IsNotExist(err) {
-				if firstRemoveErr == nil {
-					firstRemoveErr = err
-				}
-			}
-			if err := os.Remove(dir); err != nil && !os.IsNotExist(err) {
-				if firstRemoveErr == nil {
-					firstRemoveErr = err
-				}
-			}
-		}
-		if firstRemoveErr != nil {
-			return fmt.Errorf("failed to remove snap %q base directory: %v", info.SnapName(), firstRemoveErr)
 		}
 	}
 
