@@ -83,7 +83,7 @@ X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
-ExecCondition=/usr/bin/snap routine user-service-precondition
+ExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
@@ -1058,8 +1058,7 @@ func (s *serviceUnitGenSuite) TestExecConditionUserDaemon(c *C) {
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(string(generatedWrapper), Matches, `(?s).*\nExecCondition=/usr/bin/snap routine user-service-precondition\n.*`)
-	c.Check(string(generatedWrapper), Not(Matches), `(?s).*error-exit-code.*`)
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1\n.*`)
 }
 
 func (s *serviceUnitGenSuite) TestExecConditionWithSuccessExitStatusIncluding1(c *C) {
@@ -1100,8 +1099,7 @@ func (s *serviceUnitGenSuite) TestExecConditionWithSuccessExitStatusExcluding1(c
 	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(string(generatedWrapper), Matches, `(?s).*\nExecCondition=/usr/bin/snap routine user-service-precondition\n.*`)
-	c.Check(string(generatedWrapper), Not(Matches), `(?s).*error-exit-code.*`)
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1\n.*`)
 	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=42 250\n.*`)
 }
 
