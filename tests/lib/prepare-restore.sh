@@ -376,6 +376,8 @@ prepare_project() {
         # no packaging setup for 14.04, we're no longer building the packages in
         # CI
         :
+    elif os.query is-ubuntu-ge 26.04; then
+        ln -sf packaging/ubuntu-26.04 debian
     elif os.query is-ubuntu; then
         # TODO generate packaging appropriate for a given ubuntu release
         ln -sf packaging/ubuntu-16.04 debian
