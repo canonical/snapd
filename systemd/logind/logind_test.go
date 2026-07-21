@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/logind"
+	"github.com/snapcore/snapd/systemd/logind"
 )
 
 // Hook up check.v1 into the "go test" runner
