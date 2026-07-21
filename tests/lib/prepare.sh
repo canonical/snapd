@@ -1701,7 +1701,7 @@ EOF
             # This is not needed in classic systems because the images already have ntp configured
             if [ -n "${NTP_SERVER:-}" ]; then
                 if [ -e /etc/systemd/timesyncd.conf ]; then
-                    TARGET_TIME_CONF="$(find "${BASE}-snap" -name timesyncd.conf)"
+                    TARGET_TIME_CONF="$(find "${BASE}-snap/etc" -name timesyncd.conf)"
                     if [ -z "$TARGET_TIME_CONF" ]; then
                         echo "File timesyncd.conf not found in core image"
                         exit 1
