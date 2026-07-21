@@ -45,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -169,8 +168,6 @@ func Main() {
 }
 
 func run() error {
-	snapdtool.ExecInSnapdOrCoreSnap()
-
 	if err := validateArgs(os.Args[1:]); err != nil {
 		return err
 	}

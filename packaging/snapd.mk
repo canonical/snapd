@@ -62,7 +62,7 @@ snap_mount_dir = /snap
 endif
 
 # The list of go binaries we are expected to build.
-go_binaries = $(addprefix $(builddir)/, snapd snapctl snap-seccomp snap-update-ns snap-exec snapd-apparmor)
+go_binaries = $(addprefix $(builddir)/, snapd snapctl snap-seccomp snap-update-ns snap-exec)
 
 GO_TAGS = nosecboot
 ifeq ($(with_testkeys),1)
@@ -128,7 +128,7 @@ prepare-debian-build-tree:
 # FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
 # random GNU build ID with something more predictable, use something similar to
 # https://pagure.io/go-rpm-macros/c/1980932bf3a21890a9571effaa23fbe034fd388d
-$(builddir)/snapd $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
+$(builddir)/snapd $(builddir)/snap-seccomp:
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
@@ -139,7 +139,7 @@ $(builddir)/snapd $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
 # Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
-$(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
+$(builddir)/snap-update-ns $(builddir)/snapctl:
 	go build -o $@ -buildmode=$(GO_STATIC_BUILDMODE) \
 		$(GO_MOD) \
 		$(if $(GO_TAGS),-tags "$(GO_TAGS)") \
@@ -154,7 +154,7 @@ $(builddir)/snap-update-ns $(builddir)/snap-exec $(builddir)/snapctl:
 .PHONY: check-static-binaries
 check-static-binaries:
 	@echo "Checking that critical binaries are statically linked..."
-	@for binary in snap-exec snap-update-ns snapctl; do \
+	@for binary in snap-update-ns snapctl; do \
 		if [ -f "$(builddir)/$$binary" ]; then \
 			if ! file "$(builddir)/$$binary" | grep -q -F static; then \
 				echo "ERROR: $$binary is dynamically linked, must be static"; \
@@ -199,17 +199,37 @@ $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedsta
 
 .PHONY: install
 
-# Install snapd, snapctl, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapd snapctl snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
+# Install snapd, snapctl, snap-{update-ns,seccomp} into /usr/lib/snapd/
+install:: $(addprefix $(builddir)/,snapd snapctl snap-update-ns snap-seccomp) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
-# Ensure /usr/bin/snapctl is a relative symlink to /usr/lib/snapd/snapctl
+# Ensure $(libexecdir)/snapd/snap-exec is a symlink to snapctl
+# (snap-exec is part of the multi-call snapctl binary)
+install:: | $(DESTDIR)$(libexecdir)/snapd
+	ln -v -s snapctl $|/snap-exec
+
+# Ensure /usr/bin/snapctl is a symlink to /usr/lib/snapd/snapctl
 install:: | $(DESTDIR)$(bindir)
 	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapctl $|/snapctl
 
 # Ensure /usr/bin/snap is a symlink to $(libexecdir)/snapd/snapd
 install:: | $(DESTDIR)$(bindir)
 	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd $|/snap
+
+# Ensure $(libexecdir)/snapd/snap-preseed is a symlink to $(libexecdir)/snapd/snapd-tool-wrap.
+# snapd-tool-wrap is installed by the autotools "make install" in cmd/; the
+# order-only prerequisite makes this dependency explicit and fails fast if the
+# wrapper binary is missing.
+install:: | $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $(DESTDIR)$(libexecdir)/snapd/snap-preseed
+
+# Ensure $(libexecdir)/snapd/snapd-apparmor is a symlink to $(libexecdir)/snapd/snapd-tool-wrap
+install:: | $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $(DESTDIR)$(libexecdir)/snapd/snapd-apparmor
+
+# Ensure $(libexecdir)/snapd/snap-gpio-helper is a symlink to $(libexecdir)/snapd/snapd-tool-wrap
+install:: | $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap
+	ln -v -s -r $(DESTDIR)$(libexecdir)/snapd/snapd-tool-wrap $(DESTDIR)$(libexecdir)/snapd/snap-gpio-helper
 
 # Generate and install man page for snap command.
 # The binary dispatches on argv[0]; invoke it as "snap" to get the CLI help.
@@ -263,12 +283,6 @@ install::
 install::
 	install -m 755 -d $(DESTDIR)$(localstatedir)/cache/snapd
 	install -m 755 -d $(DESTDIR)$(datadir)/polkit-1/actions
-
-# Do not ship snap-preseed. It is currently only useful on ubuntu and tailored
-# for preseeding of ubuntu cloud images due to certain assumptions about
-# runtime environment of the host and of the preseeded image.
-install::
-	rm -f $(DESTDIR)$(bindir)/snap-preseed
 
 ifeq ($(with_core_bits),0)
 # Remove systemd units that are only used on core devices.
@@ -336,19 +350,6 @@ check-trusted-account-keys:
 		strings $(builddir)/snap-bootstrap | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
 			{ echo "ERROR: snap-bootstrap store generic models key not found" >&2; exit 1; }; \
 		echo "  snap-bootstrap: OK (2 keys)"; \
-	fi
-	@# Check snap-preseed if it exists (Ubuntu 16.04+)
-	@if [ -f "$(builddir)/snap-preseed" ]; then \
-		count=$$(strings $(builddir)/snap-preseed | grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}"); \
-		if [ "$$count" -ne 2 ]; then \
-			echo "ERROR: Expected 2 public keys in snap-preseed, found $$count" >&2; \
-			exit 1; \
-		fi; \
-		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_ROOT_KEY)$$" || \
-			{ echo "ERROR: snap-preseed store root key not found" >&2; exit 1; }; \
-		strings $(builddir)/snap-preseed | grep -q "^public-key-sha3-384: $(SNAPD_STORE_GENERIC_MODELS_KEY)$$" || \
-			{ echo "ERROR: snap-preseed store generic models key not found" >&2; exit 1; }; \
-		echo "  snap-preseed: OK (2 keys)"; \
 	fi
 	@# Check snap-repair (3 keys expected: 2 common + 1 repair-root)
 	@if [ -f "$(builddir)/snap-repair" ]; then \

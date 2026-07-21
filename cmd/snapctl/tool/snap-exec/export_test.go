@@ -32,6 +32,7 @@ var (
 	Run              = run
 	ExecApp          = execApp
 	ExecHook         = execHook
+	LazyInit         = lazyInit
 )
 
 func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {

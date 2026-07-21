@@ -183,6 +183,8 @@ var templateCommon = `
 
   # For snappy reexec on 4.8+ kernels
   /usr/lib/snapd/snap-exec m,
+  # Support for merged snapctl and snap-exec binaries
+  /usr/lib/snapd/snapctl m,
 
   # For gdb support
   /usr/lib/snapd/snap-gdbserver-shim ixr,
@@ -931,6 +933,8 @@ var classicJailmodeSnippet = `
   # Same as above but accounting for the case when the
   # snapd snap is installed and executes the snap application.
   @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snap-exec rm,
+  # Support for merged snapctl and snap-exec binaries
+  @{INSTALL_DIR}/snapd/*/usr/lib/snapd/snapctl rm,
 `
 
 var ptraceTraceDenySnippet = `
