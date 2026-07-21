@@ -42,6 +42,8 @@ import (
 
 var RunMain = run
 
+var ExitCodeFromError = exitCodeFromError
+
 var (
 	Client = mkClient
 

@@ -451,10 +451,13 @@ func exitCodeFromError(err error) int {
 	var mksquashfsError squashfs.MksquashfsError
 	var cmdlineFlagsError *flags.Error
 	var unknownCmdError unknownCommandError
+	var userSessionPreconditionErr *userSessionPreconditionError
 
 	switch {
 	case err == nil:
 		return 0
+	case errors.As(err, &userSessionPreconditionErr):
+		return userSessionPreconditionErr.code
 	case client.IsRetryable(err):
 		return 10
 	case errors.As(err, &mksquashfsError):

@@ -61,9 +61,10 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeter(c *C) {
 	})
 	defer restore()
 
-	c.Assert(func() {
-		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
-	}, PanicMatches, `internal error: exitStatus\{1\} .*`)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
+	c.Assert(err, NotNil)
+	c.Check(snap.ExitCodeFromError(err), Equals, 1)
+	c.Check(err.Error(), Equals, "session is a greeter session")
 	c.Check(s.Stderr(), Equals, "")
 }
 
@@ -73,9 +74,10 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterWithErrorExitCode(c
 	})
 	defer restore()
 
-	c.Assert(func() {
-		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "3"})
-	}, PanicMatches, `internal error: exitStatus\{3\} .*`)
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "3"})
+	c.Assert(err, NotNil)
+	c.Check(snap.ExitCodeFromError(err), Equals, 3)
+	c.Check(err.Error(), Equals, "session is a greeter session")
 	c.Check(s.Stderr(), Equals, "")
 }
 
@@ -85,10 +87,11 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCod
 	})
 	defer restore()
 
-	c.Assert(func() {
-		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "0"})
-	}, PanicMatches, `internal error: exitStatus\{1\} .*`)
-	c.Check(s.Stderr(), Equals, "invalid --error-exit-code: must be in range 1-255")
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "0"})
+	c.Assert(err, NotNil)
+	c.Check(snap.ExitCodeFromError(err), Equals, 1)
+	c.Check(err.Error(), Equals, "invalid --error-exit-code: must be in range 1-255")
+	c.Check(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCode255(c *C) {
@@ -97,10 +100,11 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCod
 	})
 	defer restore()
 
-	c.Assert(func() {
-		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "256"})
-	}, PanicMatches, `internal error: exitStatus\{1\} .*`)
-	c.Check(s.Stderr(), Equals, "invalid --error-exit-code: must be in range 1-255")
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "256"})
+	c.Assert(err, NotNil)
+	c.Check(snap.ExitCodeFromError(err), Equals, 1)
+	c.Check(err.Error(), Equals, "invalid --error-exit-code: must be in range 1-255")
+	c.Check(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNoSession(c *C) {
@@ -109,10 +113,11 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionNoSession(c *C) {
 	})
 	defer restore()
 
-	c.Assert(func() {
-		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
-	}, PanicMatches, `internal error: exitStatus\{1\} .*`)
-	c.Check(s.Stderr(), Equals, "cannot determine session class: loginctl command [show-session auto -p Class] failed with exit status 1: No session for PID\n")
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
+	c.Assert(err, NotNil)
+	c.Check(snap.ExitCodeFromError(err), Equals, 1)
+	c.Check(err.Error(), Equals, "cannot determine session class: loginctl command [show-session auto -p Class] failed with exit status 1: No session for PID")
+	c.Check(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrorExitCode(c *C) {
@@ -121,8 +126,9 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrorExitCode
 	})
 	defer restore()
 
-	c.Assert(func() {
-		_, _ = snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "3"})
-	}, PanicMatches, `internal error: exitStatus\{3\} .*`)
-	c.Check(s.Stderr(), Equals, "cannot determine session class: loginctl command [show-session auto -p Class] failed with exit status 1: No session for PID\n")
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "3"})
+	c.Assert(err, NotNil)
+	c.Check(snap.ExitCodeFromError(err), Equals, 3)
+	c.Check(err.Error(), Equals, "cannot determine session class: loginctl command [show-session auto -p Class] failed with exit status 1: No session for PID")
+	c.Check(s.Stderr(), Equals, "")
 }
