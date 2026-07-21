@@ -1706,7 +1706,9 @@ EOF
                         echo "File timesyncd.conf not found in core image"
                         exit 1
                     fi
-                    cp /etc/systemd/timesyncd.conf "$TARGET_TIME_CONF"
+                    while IFS= read -r target; do
+                        cp /etc/systemd/timesyncd.conf "$target"
+                    done <<< "$TARGET_TIME_CONF"
                 fi
                 if [ -e "${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf" ]; then
                     echo "C /etc/chrony/sources.d/ci-proxy.sources" >>"${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf"
