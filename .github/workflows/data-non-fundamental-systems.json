@@ -116,7 +116,7 @@
         "runs-on": "['self-hosted', 'spread-enabled']",
         "group": "ubuntu-deb",
         "backend": "openstack",
-        "systems": "ubuntu-24.04-64",
+        "systems": "ubuntu-24.04-64 ubuntu-26.04-64",
         "tasks": "tests/...",
         "rules": "main"
       },
