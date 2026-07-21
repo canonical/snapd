@@ -20,6 +20,7 @@
 package logind_test
 
 import (
+	"context"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -50,24 +51,24 @@ func (s *logindSuite) TestSessionClass(c *C) {
 		"manager-early",
 		"none",
 	} {
-		restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+		restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
 			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 			return []byte("Class=" + class + "\n"), nil
 		})
 		defer restore()
 
-		got, err := logind.SessionClass()
+		got, err := logind.SessionClass(context.Background())
 		c.Assert(err, IsNil)
 		c.Check(got, Equals, class)
 
 		// Try without trailing \n
-		restore = logind.MockLoginctl(func(args ...string) ([]byte, error) {
+		restore = logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
 			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 			return []byte("Class=" + class), nil
 		})
 		defer restore()
 
-		got, err = logind.SessionClass()
+		got, err = logind.SessionClass(context.Background())
 		c.Assert(err, IsNil)
 		c.Check(got, Equals, class)
 	}
@@ -79,51 +80,51 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 	loginctlErr.SetExitCode(1)
 	loginctlErr.SetMsg([]byte("No session for PID"))
 
-	restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+	restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
 		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 		return nil, loginctlErr
 	})
 	defer restore()
 
-	_, err := logind.SessionClass()
+	_, err := logind.SessionClass(context.Background())
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "loginctl command .* failed with exit status 1: No session for PID")
 }
 
 func (s *logindSuite) TestSessionClassEmptyOutput(c *C) {
-	restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+	restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
 		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 		return []byte(""), nil
 	})
 	defer restore()
 
-	_, err := logind.SessionClass()
+	_, err := logind.SessionClass(context.Background())
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid property format from loginctl for Class .*")
+	c.Check(err, ErrorMatches, "invalid property format from loginctl for Class: .*")
 }
 
 func (s *logindSuite) TestSessionClassMalformedOutput(c *C) {
-	for _, output := range []string{"", "unexpected-no-equals\n", "foo=user\n", "Class=\n"} {
-		restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+	for _, output := range []string{"", "unexpected-no-equals\n", "foo=user\n", "Class=\n", "Class=foo=\n"} {
+		restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
 			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 			return []byte(output), nil
 		})
 		defer restore()
 
-		_, err := logind.SessionClass()
+		_, err := logind.SessionClass(context.Background())
 		c.Assert(err, NotNil)
-		c.Check(err, ErrorMatches, "invalid property format from loginctl for Class .*")
+		c.Check(err, ErrorMatches, "invalid property format from loginctl for Class: .*")
 	}
 }
 
 func (s *logindSuite) TestSessionClassWithWhitespace(c *C) {
-	restore := logind.MockLoginctl(func(args ...string) ([]byte, error) {
+	restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
 		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
 		return []byte("  Class=user  \n"), nil
 	})
 	defer restore()
 
-	got, err := logind.SessionClass()
+	got, err := logind.SessionClass(context.Background())
 	c.Assert(err, IsNil)
 	c.Check(got, Equals, "user")
 }
