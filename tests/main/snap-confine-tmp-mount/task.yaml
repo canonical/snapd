@@ -15,7 +15,9 @@ prepare: |
 
 restore: |
     tests.session -u test restore
+    chmod 0700 /tmp/snap-private-tmp && chown root:root /tmp/snap-private-tmp
     rm -f /tmp/snap-confine-stdout.log /tmp/snap-confine-stderr.log
+    rm -rf /tmp/snap-private-tmp/snap.test-snapd-sh
 
 debug: |
     # Print snap-confine stdout
@@ -43,9 +45,24 @@ execute: |
         SNAPD_SNAP_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
         SNAP_CONFINE="/snap/snapd/$SNAPD_SNAP_REV/usr/lib/snapd/snap-confine"
     fi
-    # execute snap-confine - this should create a private tmp dir as
-    # /tmp/snap-private-tmp/snap.test-snapd-sh/ - snap-confine outputs to
-    # stderr and id will output to stdout so capture each separately
+
+    # Test that snap-confine refuses to run when /tmp/snap-private-tmp
+    # has wrong ownership (group-owned by non-root).
+    chown root:users /tmp/snap-private-tmp
+    tests.session -u test exec sh -c "env -i SNAP_INSTANCE_NAME=test-snapd-sh $SNAP_CONFINE --base core snap.test-snapd-sh.sh /bin/true 2>&1" | MATCH "unexpected ownership"
+    chown root:root /tmp/snap-private-tmp
+
+    # Test that snap-confine refuses to run when /tmp/snap-private-tmp
+    # has wrong permissions (world-readable).
+    # note that error message is shared across the two cases.
+    chmod 0755 /tmp/snap-private-tmp
+    tests.session -u test exec sh -c "env -i SNAP_INSTANCE_NAME=test-snapd-sh $SNAP_CONFINE --base core snap.test-snapd-sh.sh /bin/true 2>&1" | MATCH "unexpected ownership / permissions"
+    chmod 0700 /tmp/snap-private-tmp
+
+    # Execute snap-confine with correct permissions - this should succeed
+    # and create a private tmp dir as /tmp/snap-private-tmp/snap.test-snapd-sh/
+    # snap-confine outputs to stderr and id will output to stdout so capture each
+    # separately
     tests.session -u test exec sh -c "env -i SNAPD_DEBUG=1 SNAP_INSTANCE_NAME=test-snapd-sh $SNAP_CONFINE --base core snap.test-snapd-sh.sh /bin/bash -c id 1>/tmp/snap-confine-stdout.log 2>/tmp/snap-confine-stderr.log"
 
     stat -c "%U %G %a" /tmp/snap-private-tmp | MATCH "root root 700"
