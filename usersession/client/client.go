@@ -281,8 +281,8 @@ func decodeServiceErrors(uid int, errorValue map[string]any, kind string) ([]Ser
 
 // ServiceInstruction is the json representation of possible arguments
 // for the user session rest api to control services. Arguments allowed for
-// start/stop/restart are all listed here, and closely reflect possible arguments
-// for similar options in the wrappers package.
+// start/stop/restart/enable/disable are all listed here, and closely reflect
+// possible arguments for similar options in the wrappers package.
 type ServiceInstruction struct {
 	Action   string   `json:"action"`
 	Services []string `json:"services,omitempty"`
@@ -318,13 +318,37 @@ func (client *Client) decodeControlResponses(responses []*response) (startFailur
 	return startFailures, stopFailures, err
 }
 
-func (client *Client) serviceControlCall(ctx context.Context, inst *ServiceInstruction) (startFailures, stopFailures []ServiceFailure, err error) {
+func (client *Client) decodeControlResponsesSingle(responses []*response, key string) ([]ServiceFailure, error) {
+	var failures []ServiceFailure
+	var err error
+	for _, resp := range responses {
+		if agentErr, ok := resp.err.(*Error); ok && agentErr.Kind == "service-control" {
+			if errorValue, ok := agentErr.Value.(map[string]any); ok {
+				if parsed, parseErr := decodeServiceErrors(resp.uid, errorValue, key); parseErr == nil && len(parsed) > 0 {
+					failures = append(failures, parsed...)
+				} else if parseErr != nil && err == nil {
+					err = parseErr
+				}
+			}
+		}
+		if resp.err != nil && err == nil {
+			err = resp.err
+		}
+	}
+	return failures, err
+}
+
+func (client *Client) serviceControlCallResponses(ctx context.Context, inst *ServiceInstruction) ([]*response, error) {
 	headers := map[string]string{"Content-Type": "application/json"}
 	reqBody, err := json.Marshal(inst)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	responses, err := client.doMany(ctx, "POST", "/v1/service-control", nil, headers, reqBody)
+	return client.doMany(ctx, "POST", "/v1/service-control", nil, headers, reqBody)
+}
+
+func (client *Client) serviceControlCall(ctx context.Context, inst *ServiceInstruction) (startFailures, stopFailures []ServiceFailure, err error) {
+	responses, err := client.serviceControlCallResponses(ctx, inst)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -429,6 +453,30 @@ func (client *Client) ServicesStop(ctx context.Context, services []string, disab
 		Disable:  disable,
 	})
 	return stopFailures, err
+}
+
+// ServicesEnable attempts to enable the services in `services`.
+func (client *Client) ServicesEnable(ctx context.Context, services []string) (enableFailures []ServiceFailure, err error) {
+	responses, err := client.serviceControlCallResponses(ctx, &ServiceInstruction{
+		Action:   "enable",
+		Services: services,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return client.decodeControlResponsesSingle(responses, "enable-errors")
+}
+
+// ServicesDisable attempts to disable the services in `services`.
+func (client *Client) ServicesDisable(ctx context.Context, services []string) (disableFailures []ServiceFailure, err error) {
+	responses, err := client.serviceControlCallResponses(ctx, &ServiceInstruction{
+		Action:   "disable",
+		Services: services,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return client.decodeControlResponsesSingle(responses, "disable-errors")
 }
 
 // ServicesRestart attempts to restart or reload active services in `services`.
