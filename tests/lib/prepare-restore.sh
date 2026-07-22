@@ -438,6 +438,20 @@ prepare_project() {
 
             # now we can attempt to purge the actual distro package via apt
             distro_purge_package snapd
+            # On ubuntu-26.04+ the snapd deb uses dh_installsystemd and
+            # dh_installsystemduser to enable units. The underlying
+            # deb-systemd-helper tool skips re-creating enable symlinks when
+            # its state files already exist from a prior install, even if the
+            # actual symlinks were removed. Clear the state so that the CI deb
+            # install behaves as a clean first installation and all snapd units
+            # (including snapd.apparmor.service and snapd.session-agent.socket)
+            # are properly enabled.
+            if os.query is-ubuntu-ge 26.04; then
+                find /var/lib/systemd/deb-systemd-helper-enabled \
+                    -name 'snapd*' -delete || true
+                find /var/lib/systemd/deb-systemd-user-helper-enabled \
+                    -name 'snapd*' -delete || true
+            fi
             # XXX: the original package's purge may have left socket units behind
             find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
                 systemctl stop "$(basename "$f")" || true
@@ -866,6 +880,12 @@ restore_suite() {
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
+        if os.query is-ubuntu-ge 26.04; then
+            find /var/lib/systemd/deb-systemd-helper-enabled \
+                -name 'snapd*' -delete || true
+            find /var/lib/systemd/deb-systemd-user-helper-enabled \
+                -name 'snapd*' -delete || true
+        fi
         if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
             # A snap-confine package never existed on openSUSE or Arch
             distro_purge_package snap-confine
