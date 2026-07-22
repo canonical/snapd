@@ -391,7 +391,9 @@ func (m *InterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int3
 	return prompting.OutcomeAllow, nil
 }
 
-// ShutDown signals the manager to reject new and pending Ask() calls.
+// ShutDown signals the manager to reject new and pending Ask() calls. It is
+// used to phase the closing process for the InterfacesRequestsManager. It
+// is not guaranteed to be called before Stop. ShutDown is idempotent.
 func (m *InterfacesRequestsManager) ShutDown() {
 	m.shutDownOnce.Do(func() {
 		close(m.snapdShuttingDown)
@@ -400,7 +402,9 @@ func (m *InterfacesRequestsManager) ShutDown() {
 }
 
 // Stop closes the listener, prompt DB, and rule DB. Stop is idempotent, and
-// the receiver cannot be started or used after it has been stopped.
+// the receiver cannot be started or used after it has been stopped. Stop will
+// successfully disconnects the InterfacesRequestsManager even when called
+// without first calling ShutDown.
 func (m *InterfacesRequestsManager) Stop() error {
 	m.tomb.Kill(nil)
 	// Kill causes the run loop to exit and call disconnect()
