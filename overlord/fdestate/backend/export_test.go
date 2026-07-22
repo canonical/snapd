@@ -28,9 +28,9 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type MemfdSecretState = memfdSecretState
+type MemfdSecretState = secretState
 
-func (s *memfdSecretState) Capacity() int {
+func (s *secretState) Capacity() uint64 {
 	return s.capacity()
 }
 
@@ -86,15 +86,10 @@ func MockUnixMunmap(f func(b []byte) error) (restore func()) {
 	return testutil.Mock(&unixMunmap, f)
 }
 
-func ResetSecretState() {
-	secretStateMu.RLock()
-	s := secretStateOnce
-	secretStateMu.RUnlock()
+func MockUnixMemfdSecret(f func(flags int) (fd int, err error)) (restore func()) {
+	return testutil.Mock(&unixMemfdSecret, f)
+}
 
-	if s != nil {
-		s.Close()
-		secretStateMu.Lock()
-		secretStateOnce = nil
-		secretStateMu.Unlock()
-	}
+func MockUnixMemfdCreate(f func(name string, flags int) (fd int, err error)) (restore func()) {
+	return testutil.Mock(&unixMemfdCreate, f)
 }

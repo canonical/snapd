@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -38,7 +40,7 @@ type secretStateSuite struct {
 
 	fdstoreFile *os.File
 	ops         []string
-	failOn      map[string]bool
+	failOn      map[string]error
 }
 
 var _ = Suite(&secretStateSuite{})
@@ -56,8 +58,8 @@ func dupFile(name fdstore.FdName, f *os.File) (*os.File, error) {
 func (s *secretStateSuite) fdstoreGet(name fdstore.FdName) (*os.File, error) {
 	s.ops = append(s.ops, fmt.Sprintf("fdstore-get: %s", name))
 
-	if s.failOn["fdstore-get"] {
-		return nil, fmt.Errorf("boom")
+	if s.failOn["fdstore-get"] != nil {
+		return nil, s.failOn["fdstore-get"]
 	}
 
 	if name == fdstore.FdNameMemfdSecretState && s.fdstoreFile != nil {
@@ -70,8 +72,8 @@ func (s *secretStateSuite) fdstoreGet(name fdstore.FdName) (*os.File, error) {
 func (s *secretStateSuite) fdstoreAdd(name fdstore.FdName, f *os.File) error {
 	s.ops = append(s.ops, fmt.Sprintf("fdstore-add: %s", name))
 
-	if s.failOn["fdstore-add"] {
-		return fmt.Errorf("boom")
+	if s.failOn["fdstore-add"] != nil {
+		return s.failOn["fdstore-add"]
 	}
 
 	if name != fdstore.FdNameMemfdSecretState {
@@ -92,8 +94,8 @@ func (s *secretStateSuite) fdstoreAdd(name fdstore.FdName, f *os.File) error {
 func (s *secretStateSuite) fdstoreRemove(name fdstore.FdName) error {
 	s.ops = append(s.ops, fmt.Sprintf("fdstore-remove: %s", name))
 
-	if s.failOn["fdstore-remove"] {
-		return fmt.Errorf("boom")
+	if s.failOn["fdstore-remove"] != nil {
+		return s.failOn["fdstore-remove"]
 	}
 
 	if name != fdstore.FdNameMemfdSecretState {
@@ -110,8 +112,8 @@ func (s *secretStateSuite) fdstoreRemove(name fdstore.FdName) error {
 func (s *secretStateSuite) mmap(fd int, offset int64, length int, prot int, flags int) ([]byte, error) {
 	s.ops = append(s.ops, fmt.Sprintf("mmap: %d", length))
 
-	if s.failOn["mmap"] {
-		return nil, fmt.Errorf("boom")
+	if s.failOn["mmap"] != nil {
+		return nil, s.failOn["mmap"]
 	}
 
 	return unix.Mmap(fd, offset, length, prot, flags)
@@ -120,25 +122,45 @@ func (s *secretStateSuite) mmap(fd int, offset int64, length int, prot int, flag
 func (s *secretStateSuite) munmap(b []byte) error {
 	s.ops = append(s.ops, fmt.Sprintf("munmap: %d", len(b)))
 
-	if s.failOn["munmap"] {
-		return fmt.Errorf("boom")
+	if s.failOn["munmap"] != nil {
+		return s.failOn["munmap"]
 	}
 
 	return unix.Munmap(b)
 }
 
-func (s *secretStateSuite) SetUpTest(c *C) {
-	backend.ResetSecretState()
+func (s *secretStateSuite) memfdSecret(flags int) (int, error) {
+	s.ops = append(s.ops, "memfd-secret")
 
+	if s.failOn["memfd-secret"] != nil {
+		return 0, s.failOn["memfd-secret"]
+	}
+
+	return unix.MemfdSecret(flags)
+}
+
+func (s *secretStateSuite) memfdCreate(name string, flags int) (int, error) {
+	s.ops = append(s.ops, fmt.Sprintf("memfd-create: %s", name))
+
+	if s.failOn["memfd-create"] != nil {
+		return 0, s.failOn["memfd-create"]
+	}
+
+	return unix.MemfdCreate(name, flags)
+}
+
+func (s *secretStateSuite) SetUpTest(c *C) {
 	s.fdstoreFile = nil
 	s.ops = []string{}
-	s.failOn = make(map[string]bool)
+	s.failOn = make(map[string]error)
 
 	s.AddCleanup(backend.MockFdstoreGet(s.fdstoreGet))
 	s.AddCleanup(backend.MockFdstoreAdd(s.fdstoreAdd))
 	s.AddCleanup(backend.MockFdstoreRemove(s.fdstoreRemove))
 	s.AddCleanup(backend.MockUnixMmap(s.mmap))
 	s.AddCleanup(backend.MockUnixMunmap(s.munmap))
+	s.AddCleanup(backend.MockUnixMemfdSecret(s.memfdSecret))
+	s.AddCleanup(backend.MockUnixMemfdCreate(s.memfdCreate))
 }
 
 func (s *secretStateSuite) TearDownTest(c *C) {
@@ -149,62 +171,48 @@ func (s *secretStateSuite) TearDownTest(c *C) {
 }
 
 func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) {
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
 
 	switch stateBackend {
 	case "memfd-secret":
 		// default behavior, OpenSecretState() will use the memfd-secret backend.
-	case "in-memory":
-		// force OpenSecretState() to use the in-memory fallback path.
-		s.failOn["fdstore-get"] = true
+
+	case "memfd-create":
+		// force OpenSecretStateFile() to use the memfd-create fallback path.
+		s.failOn["memfd-secret"] = unix.ENOSYS
 	default:
 		c.Fatalf("unsupported state backend: %s", stateBackend)
 	}
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
-
 	expectedOps := []string{}
+
+	expectedOps = append(expectedOps,
+		"fdstore-get: memfd-secret-state", // get the secret state file, doesn't exist
+		"memfd-secret",                    // create a new memfd-secret file
+	)
+	if stateBackend == "memfd-create" {
+		expectedOps = append(expectedOps, "memfd-create: secret-state") // fallback to memfd-create
+	}
+	expectedOps = append(expectedOps, "fdstore-add: memfd-secret-state") // add the new secret state file to fdstore
 
 	// Open and initialize the secret state
 	secretState, err := backend.OpenSecretState()
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
 
-	if stateBackend == "memfd-secret" {
-		if _, ok := secretState.(*backend.MemfdSecretState); !ok {
-			// On kernels without memfd_secret support (or where it is
-			// disabled), OpenSecretState will fall back to the in-memory
-			// implementation.
-			c.Skip("memfd-secret not supported")
-		}
+	if stateBackend == "memfd-secret" && strutil.ListContains(s.ops, "memfd-create: secret-state") {
+		// On kernels without memfd_secret support, OpenSecretStateFile will
+		// fallback to the memfd-create implementation.
+		c.Skip("memfd-secret is not supported")
 	}
 
-	if stateBackend == "in-memory" {
-		c.Assert(logbuf.String(), testutil.Contains, "cannot open memfd-secret backed secret state: cannot get memfd-secret state: boom")
-		c.Assert(logbuf.String(), testutil.Contains, "falling back to memory backed secret state instead")
-	}
-
-	if stateBackend == "memfd-secret" {
-		expectedOps = append(expectedOps,
-			// first try to get the memfd-secret-state from fdstore fails, and
-			// since it doesn't exist, it should create a new one, add it to
-			// fdstore and mmap it.
-			"fdstore-get: memfd-secret-state",
-			"fdstore-add: memfd-secret-state",
-			"mmap: 8192",
-		)
-	} else {
-		// fallback cleanup will attempt to remove the memfd-secret-state from fdstore
-		expectedOps = append(expectedOps,
-			"fdstore-get: memfd-secret-state", // fails and triggers fallback to in-memory
-			"fdstore-remove: memfd-secret-state",
-		)
-	}
+	expectedOps = append(expectedOps, "mmap: 8192")
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
-	// Secret state can only be opened once, so trying to open it again should fail
-	_, err = backend.OpenSecretState()
-	c.Check(err, ErrorMatches, "secret state already opened")
+	if stateBackend == "memfd-create" {
+		c.Assert(logbuf.String(), testutil.Contains, "cannot create memfd-secret (function not implemented), falling back to memfd-create")
+	}
 
 	// Get a non-existing key
 	var value string
@@ -241,11 +249,18 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 	err = secretState.Close()
 	c.Assert(err, IsNil)
 
+	expectedOps = append(expectedOps,
+		// closing the previous state unmaps its mapping, then reopening
+		// gets the existing memfd-secret-state from fdstore and mmaps it.
+		"munmap: 8192",
+	)
+	c.Assert(s.ops, DeepEquals, expectedOps)
+
 	// All operations should fail after closing the secret state
 	err = secretState.Set("key-3", "another-value")
 	c.Check(err, ErrorMatches, `internal error: attempt to set key "key-3" on closed state`)
 	err = secretState.Get("key-3", &val)
-	c.Check(err, ErrorMatches, `internal error: attempt to get key "key-3" on closed state`)
+	c.Check(err, ErrorMatches, `internal error: attempt to get key "key-3" from closed state`)
 	exists = secretState.Has("key-3")
 	c.Check(exists, Equals, false)
 
@@ -254,32 +269,23 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
 
-	if stateBackend == "memfd-secret" {
-		expectedOps = append(expectedOps,
-			// closing the previous state unmaps its mapping, then reopening
-			// gets the existing memfd-secret-state from fdstore and mmaps it.
-			"munmap: 8192",
-			"fdstore-get: memfd-secret-state",
-			"mmap: 8192",
-		)
-	} else {
-		// again, fallback cleanup will attempt to remove the memfd-secret-state from fdstore
-		expectedOps = append(expectedOps,
-			"fdstore-get: memfd-secret-state", // fails and triggers fallback to in-memory
-			"fdstore-remove: memfd-secret-state",
-		)
-	}
+	expectedOps = append(expectedOps,
+		"fdstore-get: memfd-secret-state",
+		"mmap: 8192",
+	)
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
 	// Check behavior after reopening.
 	val = ""
 	err = secretState.Get("key-2", &val)
-	if stateBackend == "memfd-secret" {
-		c.Check(err, IsNil)
-		c.Assert(val, Equals, "another-value")
-	} else {
-		c.Check(err, testutil.ErrorIs, state.ErrNoState)
-	}
+	c.Check(err, IsNil)
+	c.Assert(val, Equals, "another-value")
+
+	err = secretState.Close()
+	c.Assert(err, IsNil)
+	expectedOps = append(expectedOps,
+		"munmap: 8192",
+	)
 
 	// no more operations should have been done
 	c.Assert(s.ops, DeepEquals, expectedOps)
@@ -290,39 +296,57 @@ func (s *secretStateSuite) TestMemfdSecretStateHappyMemfdSecret(c *C) {
 	s.testMemfdSecretStateHappy(c, stateBackend)
 }
 
-func (s *secretStateSuite) TestMemfdSecretStateHappyInMemoryFallback(c *C) {
-	const stateBackend = "in-memory"
+func (s *secretStateSuite) TestMemfdSecretStateHappyMemfdCreate(c *C) {
+	const stateBackend = "memfd-create"
 	s.testMemfdSecretStateHappy(c, stateBackend)
 }
 
-func (s *secretStateSuite) TestMemfdSecretStateSetTooLarge(c *C) {
+func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend string) {
+	logbuf, restore := logger.MockDebugLogger()
+	defer restore()
+
+	switch stateBackend {
+	case "memfd-secret":
+		// default behavior, OpenSecretState() will use the memfd-secret backend.
+
+	case "memfd-create":
+		// force OpenSecretStateFile() to use the memfd-create fallback path.
+		s.failOn["memfd-secret"] = errors.New("boom!")
+	default:
+		c.Fatalf("unsupported state backend: %s", stateBackend)
+	}
+
 	expectedOps := []string{}
 
-	// Open and initialize the secret state
+	expectedOps = append(expectedOps,
+		"fdstore-get: memfd-secret-state", // get the secret state file, doesn't exist
+		"memfd-secret",                    // create a new memfd-secret file
+	)
+	if stateBackend == "memfd-create" {
+		expectedOps = append(expectedOps, "memfd-create: secret-state") // fallback to memfd-create
+	}
+	expectedOps = append(expectedOps, "fdstore-add: memfd-secret-state") // add the new secret state file to fdstore
+
 	secretState, err := backend.OpenSecretState()
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
 
-	if _, ok := secretState.(*backend.MemfdSecretState); !ok {
-		// On kernels without memfd_secret support (or where it is
-		// disabled), OpenSecretState will fall back to the in-memory
-		// implementation.
-		c.Skip("memfd-secret not supported")
+	if stateBackend == "memfd-secret" && strutil.ListContains(s.ops, "memfd-create: secret-state") {
+		// On kernels without memfd_secret support, OpenSecretStateFile will
+		// fallback to the memfd-create implementation.
+		c.Skip("memfd-secret is not supported by the kernel")
 	}
 
-	expectedOps = append(expectedOps,
-		// first try to get the memfd-secret-state from fdstore fails, and
-		// since it doesn't exist, it should create a new one, add it to
-		// fdstore and mmap it.
-		"fdstore-get: memfd-secret-state",
-		"fdstore-add: memfd-secret-state",
-		"mmap: 8192",
-	)
+	expectedOps = append(expectedOps, "mmap: 8192")
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
+	if stateBackend == "memfd-create" {
+		c.Assert(logbuf.String(), testutil.Contains, "cannot create memfd-secret (boom!), falling back to memfd-create")
+	}
+
 	memfdSecretState := secretState.(*backend.MemfdSecretState)
-	// capacity is fixed at (8KB - 128B) for the header
-	c.Assert(memfdSecretState.Capacity(), Equals, 1024*8-128)
+	// capacity is fixed at (8KB - 32B) for the header
+	c.Assert(memfdSecretState.Capacity(), Equals, uint64(1024*8-32))
 
 	// Setting a key with a value that does not fit in the fixed-size backing
 	// store fails.
@@ -337,7 +361,7 @@ func (s *secretStateSuite) TestMemfdSecretStateSetTooLarge(c *C) {
 	// The failed Set left no trace: the key was not stored and the capacity
 	// is unchanged.
 	c.Assert(secretState.Has("large-key"), Equals, false)
-	c.Assert(memfdSecretState.Capacity(), Equals, 1024*8-128)
+	c.Assert(memfdSecretState.Capacity(), Equals, uint64(1024*8-32))
 
 	// No growth-related operations should have been performed.
 	c.Assert(s.ops, DeepEquals, expectedOps)
@@ -357,4 +381,14 @@ func (s *secretStateSuite) TestMemfdSecretStateSetTooLarge(c *C) {
 		"munmap: 8192",
 	)
 	c.Assert(s.ops, DeepEquals, expectedOps)
+}
+
+func (s *secretStateSuite) TestMemfdSecretStateSetTooLargeMemfdSecret(c *C) {
+	const stateBackend = "memfd-secret"
+	s.testMemfdSecretStateSetTooLarge(c, stateBackend)
+}
+
+func (s *secretStateSuite) TestMemfdSecretStateSetTooLargeMemfdCreate(c *C) {
+	const stateBackend = "memfd-create"
+	s.testMemfdSecretStateSetTooLarge(c, stateBackend)
 }
