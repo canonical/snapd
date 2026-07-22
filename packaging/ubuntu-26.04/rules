@@ -155,9 +155,12 @@ override_dh_installsystemd:
 	dh_installsystemd -psnapd $(DH_SYSTEMD_START_OPTS) \
 	$(filter-out snapd.socket snapd.service snapd.mounts-pre.target, \
 	$(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
-	# TODO: call dh_installsystemduser if it becomes idempotent and stops
-	# making the symlink state sticky
-	# dh_installsystemduser -psnapd
+	# Handle user units (e.g. snapd.session-agent.socket). This must be
+	# called explicitly because override_dh_installsystemd suppresses the
+	# automatic dh_installsystemduser invocation. The deb-systemd-helper
+	# state files are cleared in the spread test suite prepare to ensure
+	# idempotent behaviour across VM reuse.
+	dh_installsystemduser -psnapd
 
 override_dh_clean:
 	dh_clean
