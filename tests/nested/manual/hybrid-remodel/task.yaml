@@ -19,7 +19,6 @@ environment:
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
   NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
-  NESTED_EXTRA_SNAPS_PATH: /var/tmp/work-dir/extra-snaps
 
 prepare: |
   VERSION="$(tests.nested show version)"
