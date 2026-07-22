@@ -734,6 +734,60 @@ func (sds *snapDeclSuite) TestSuggestedFormat(c *C) {
 			c.Check(fmtnum, Equals, 6)
 		}
 	}
+
+	headers = map[string]any{
+		"plugs": map[string]any{
+			"interface7": map[string]any{
+				"allow-installation": map[string]any{
+					"on-classic": []any{"ubuntu"},
+				},
+			},
+		},
+	}
+	fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+	c.Assert(err, IsNil)
+	c.Check(fmtnum, Equals, 1)
+
+	for _, sidePrefix := range []string{"plug", "slot"} {
+		headers = map[string]any{
+			sidePrefix + "s": map[string]any{
+				"interface7": map[string]any{
+					"allow-installation": map[string]any{
+						"on-classic": []any{"ubuntu/touch"},
+					},
+				},
+			},
+		}
+		fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+		c.Assert(err, IsNil)
+		c.Check(fmtnum, Equals, 7)
+
+		headers = map[string]any{
+			sidePrefix + "s": map[string]any{
+				"interface7": map[string]any{
+					"allow-installation": map[string]any{
+						"on-classic": []any{"ubuntu/*"},
+					},
+				},
+			},
+		}
+		fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+		c.Assert(err, IsNil)
+		c.Check(fmtnum, Equals, 7)
+
+		headers = map[string]any{
+			sidePrefix + "s": map[string]any{
+				"interface7": map[string]any{
+					"allow-auto-connection": map[string]any{
+						"on-classic": []any{"ubuntu/"},
+					},
+				},
+			},
+		}
+		fmtnum, err = asserts.SuggestFormat(asserts.SnapDeclarationType, headers, nil)
+		c.Assert(err, IsNil)
+		c.Check(fmtnum, Equals, 7)
+	}
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
