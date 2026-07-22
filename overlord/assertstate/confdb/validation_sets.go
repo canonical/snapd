@@ -346,7 +346,7 @@ func (c *ValsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transacti
 		return nil, fmt.Errorf("internal error: unexpected confdb-schema in validation-sets handler: %v", err)
 	}
 
-	seen := make(map[valsetRef]bool)
+	seen := make(map[atSequence]bool)
 	changes := &validationSetChanges{}
 	for _, path := range tx.AlteredPaths() {
 		if len(path) < 3 {
@@ -362,15 +362,15 @@ func (c *ValsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transacti
 
 		// deduplicate the ids since AlteredPaths() may return several specific paths
 		// under the same validation set (for mode and pinned-sequence, for example)
-		ref := valsetRef{accountID: path[1].Name(), name: path[2].Name()}
-		if seen[ref] {
+		seq := atSequence{accountID: path[1].Name(), name: path[2].Name()}
+		if seen[seq] {
 			continue
 		}
-		seen[ref] = true
+		seen[seq] = true
 
 		// separate changes into forgets, monitors and enforcement so we can check
 		// do enforcement checks before the other two
-		change, err := extractChangeData(view, tx, ref)
+		change, err := extractChangeData(view, tx, seq)
 		if err != nil {
 			return nil, err
 		}
@@ -380,14 +380,15 @@ func (c *ValsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transacti
 	return nil, changes.apply(st)
 }
 
-type valsetRef struct {
+// atSequence identifies a validation-set, optionally specifying a sequence.
+type atSequence struct {
 	accountID string
 	name      string
 
 	pinnedSeq int
 }
 
-func (r valsetRef) String() string {
+func (r atSequence) String() string {
 	var seqStr string
 	if r.pinnedSeq != 0 {
 		seqStr = "=" + strconv.Itoa(r.pinnedSeq)
@@ -397,19 +398,20 @@ func (r valsetRef) String() string {
 
 // valsetChange represents a change to a validation-set's tracking state.
 type valsetChange struct {
-	// kind can be "monitor", "enforce" or "forget"
+	// kind denotes the type of change which can be "monitor", "enforce" or "forget".
 	kind string
-	id   valsetRef
+	// valsetID identifies the validation-set, possibly pinning to a sequence.
+	valsetID atSequence
 }
 
 // extractChangeData extracts the validation set reference and change type
 // (enforce, monitor or forget) for the data modified through confdb.
-func extractChangeData(view *confdb.View, tx *confdbstate.Transaction, ref valsetRef) (valsetChange, error) {
+func extractChangeData(view *confdb.View, tx *confdbstate.Transaction, ref atSequence) (valsetChange, error) {
 	request := ref.accountID + "." + ref.name
 	result, err := view.Get(tx, request, nil, confdb.AdminAccess)
 	if err != nil {
 		if errors.Is(err, &confdb.NoDataError{}) {
-			return valsetChange{kind: "forget", id: ref}, nil
+			return valsetChange{kind: "forget", valsetID: ref}, nil
 		}
 		return valsetChange{}, fmt.Errorf("cannot read validation set %s/%s from confdb: %v", ref.accountID, ref.name, err)
 	}
@@ -442,26 +444,26 @@ func extractChangeData(view *confdb.View, tx *confdbstate.Transaction, ref valse
 		ref.pinnedSeq = int(v)
 	}
 
-	return valsetChange{kind: mode, id: ref}, nil
+	return valsetChange{kind: mode, valsetID: ref}, nil
 }
 
 // validationSetChanges collects the changes to be applied to validation-set
 // tracking state as part of a confdb commit.
 type validationSetChanges struct {
-	forgets  []valsetRef
-	monitors []valsetRef
-	enforces []valsetRef
+	forgets  []atSequence
+	monitors []atSequence
+	enforces []atSequence
 }
 
 // add buckets the given change into the appropriate slice.
 func (c *validationSetChanges) add(change valsetChange) {
 	switch change.kind {
 	case "forget":
-		c.forgets = append(c.forgets, change.id)
+		c.forgets = append(c.forgets, change.valsetID)
 	case "enforce":
-		c.enforces = append(c.enforces, change.id)
+		c.enforces = append(c.enforces, change.valsetID)
 	case "monitor":
-		c.monitors = append(c.monitors, change.id)
+		c.monitors = append(c.monitors, change.valsetID)
 	}
 }
 
