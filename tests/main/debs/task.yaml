@@ -11,6 +11,10 @@ details: |
 
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
+skip:
+    - reason: This test checks the locally-built deb content, which is not available when snapd is from the archive
+      if: tests.info is-snapd-from-archive
+
 execute: |
     echo "Ensure that our debs have the 'built-using' header"
     out=$(dpkg -I "$GOHOME"/snapd_*.deb)
@@ -23,6 +27,9 @@ execute: |
 
     # not running on 14.04 because we don't have user sessions there
     if not os.query is-trusty; then
-        echo "Ensure that the snapd.session-agent.socket symlinks is part of the deb and that it has the right (relative) target"
-        dpkg -c "$GOHOME"/snapd_*.deb |MATCH -- '-> \.\./snapd.session-agent.socket'
+        echo "Ensure that the snapd.session-agent.socket symlink is part of the deb and has the right (relative) target"
+        dpkg -c "$GOHOME"/snapd_*.deb | MATCH -- '-> \.\./snapd.session-agent.socket'
+
+        echo "Ensure that the snapd.session-agent.socket symlink exists on the filesystem"
+        test -L /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket
     fi
