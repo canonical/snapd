@@ -279,6 +279,7 @@ var templateCommon = `
   owner @{PROC}/@{pid}/loginuid r,
   owner @{PROC}/@{pid}/sessionid r,
   @{PROC}/@{pid}/smaps r,
+  @{PROC}/@{pid}/smaps_rollup r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
