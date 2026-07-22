@@ -89,7 +89,7 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCod
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "0"})
 	c.Assert(err, NotNil)
-	c.Check(snap.ExitCodeFromError(err), Equals, 1)
+	c.Check(snap.ExitCodeFromError(err), Equals, 2)
 	c.Check(err.Error(), Equals, "invalid --error-exit-code: must be in range 1-255")
 	c.Check(s.Stderr(), Equals, "")
 }
@@ -102,7 +102,7 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCod
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "256"})
 	c.Assert(err, NotNil)
-	c.Check(snap.ExitCodeFromError(err), Equals, 1)
+	c.Check(snap.ExitCodeFromError(err), Equals, 2)
 	c.Check(err.Error(), Equals, "invalid --error-exit-code: must be in range 1-255")
 	c.Check(s.Stderr(), Equals, "")
 }

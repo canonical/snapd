@@ -71,7 +71,7 @@ func (x *cmdRoutineUserServicePrecondition) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	if x.ErrorExitCode < 1 || x.ErrorExitCode > 255 {
-		return &userSessionPreconditionError{code: 1, msg: "invalid --error-exit-code: must be in range 1-255"}
+		return &userSessionPreconditionError{code: 2, msg: "invalid --error-exit-code: must be in range 1-255"}
 	}
 
 	class, err := logindSessionClass(context.Background())
