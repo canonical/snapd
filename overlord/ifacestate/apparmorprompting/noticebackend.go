@@ -208,7 +208,9 @@ type addNoticesInfo struct {
 // The notice key equals the info's prompt/rule ID, and the notice ID and type
 // are derived from the receiver.
 func (ntb *noticeTypeBackend) addNotices(infos []addNoticesInfo) error {
-	logger.Debugf("called addNotices() with %d notice infos", len(infos))
+	if len(infos) == 0 {
+		return nil
+	}
 	ntb.rwmu.Lock()
 	defer ntb.rwmu.Unlock()
 
@@ -319,12 +321,16 @@ func (ntb *noticeTypeBackend) doAddNotice(userID uint32, id prompting.IDType, da
 	newUserNotices := appendNotice(userNotices, newNotice, existingIndex, expiredCount)
 
 	ntb.userNotices[userID] = newUserNotices
-	ntb.idToNotice[noticeID] = newNotice
 
+	// Delete expired notices from the ID map before setting the new notice,
+	// in case an expired notice shares the same ID as the new notice (i.e.
+	// when re-recording an expired notice).
 	expiredNotices := userNotices[:expiredCount]
 	for _, expiredNotice := range expiredNotices {
 		delete(ntb.idToNotice, expiredNotice.ID())
 	}
+
+	ntb.idToNotice[noticeID] = newNotice
 
 	rollback = func() {
 		ntb.userNotices[userID] = userNotices

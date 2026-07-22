@@ -409,6 +409,12 @@ func (s *noticebackendSuite) TestAddNoticeAllExpired(c *C) {
 		// Check that the nesly (re-)recorded notice is the only one
 		c.Check(notices, HasLen, 1, Commentf("trying to add notice %s", id))
 		c.Check(notices[0].Key(), Equals, id.String())
+
+		// Check that the re-recorded notice is retrievable via BackendNotice,
+		// which uses the ID map. This catches a bug where re-recording an
+		// expired notice could leave it absent from the ID map.
+		noticeID := "prompt-" + id.String()
+		c.Check(promptBackend.BackendNotice(noticeID), NotNil, Commentf("could not find re-recorded notice with ID %s via BackendNotice", id))
 	}
 }
 
@@ -539,6 +545,15 @@ func (s *noticebackendSuite) TestAddNotices(c *C) {
 		default:
 			c.Check(afterNotices[i].LastData(), HasLen, 0)
 		}
+	}
+
+	// Check that all notices, including re-recorded expired ones, are
+	// retrievable via BackendNotice (which uses the ID map). This catches
+	// a bug where re-recording an expired notice could leave it absent from
+	// the ID map if expired notice cleanup ran after setting the new notice.
+	for _, id := range []uint32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+		noticeID := fmt.Sprintf("rule-%016X", id)
+		c.Check(ruleBackend.BackendNotice(noticeID), NotNil, Commentf("could not find notice with ID %d via BackendNotice", id))
 	}
 }
 
