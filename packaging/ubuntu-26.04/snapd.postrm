@@ -122,11 +122,6 @@ if [ "$1" = "purge" ]; then
     # Units may have been removed do a reload
     systemctl -q daemon-reload || true
 
-    # snapd session-agent
-    rm -f /etc/systemd/user/snapd.session-agent.socket
-    rm -f /etc/systemd/user/snapd.session-agent.service
-    rm -f /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
-
     # dbus activation configuration
     rm -f /etc/dbus-1/session.d/snapd.session-services.conf
     rm -f /etc/dbus-1/system.d/snapd.system-services.conf
