@@ -108,6 +108,12 @@ plugs:
       on-classic:
         - ubuntu
         - debian
+  plug-on-classic-variants:
+    allow-connection:
+      on-classic:
+        - ubuntu/touch
+        - debian/*
+        - fedora/
   plug-on-classic-false:
     allow-connection:
       on-classic: false
@@ -171,6 +177,12 @@ plugs:
       on-classic:
         - ubuntu
         - debian
+  install-plug-on-classic-variants:
+    allow-installation:
+      on-classic:
+        - ubuntu/touch
+        - debian/*
+        - fedora/
   install-plug-device-scope:
     allow-installation: false
   install-plug-name-bound:
@@ -239,6 +251,12 @@ slots:
       on-classic:
         - ubuntu
         - debian
+  slot-on-classic-variants:
+    allow-connection:
+      on-classic:
+        - ubuntu/touch
+        - debian/*
+        - fedora/
   slot-on-classic-false:
     allow-connection:
       on-classic: false
@@ -309,6 +327,12 @@ slots:
       on-classic:
         - ubuntu
         - debian
+  install-slot-on-classic-variants:
+    allow-installation:
+      on-classic:
+        - ubuntu/touch
+        - debian/*
+        - fedora/
   install-slot-device-scope:
     allow-installation: false
   install-slot-name-bound:
@@ -508,10 +532,12 @@ plugs:
 
    slot-on-classic-true:
    slot-on-classic-distros:
+   slot-on-classic-variants:
    slot-on-classic-false:
 
    plug-on-classic-true:
    plug-on-classic-distros:
+   plug-on-classic-variants:
    plug-on-classic-false:
 
    slots-arity-default:
@@ -707,10 +733,12 @@ slots:
 
    slot-on-classic-true:
    slot-on-classic-distros:
+   slot-on-classic-variants:
    slot-on-classic-false:
 
    plug-on-classic-true:
    plug-on-classic-distros:
+   plug-on-classic-variants:
    plug-on-classic-false:
 
    slots-arity-default:
@@ -1785,27 +1813,38 @@ func (s *policySuite) TestPlugOnClassicCheckConnection(c *C) {
 	defer r2()
 
 	tests := []struct {
-		distro string // "" => not classic
-		iface  string
-		err    string // "" => no error
+		classic bool
+		distro  string
+		variant string
+		iface   string
+		err     string // "" => no error
 	}{
-		{"ubuntu", "plug-on-classic-true", ""},
-		{"", "plug-on-classic-true", `connection not allowed by plug rule of interface "plug-on-classic-true"`},
-		{"", "plug-on-classic-false", ""},
-		{"ubuntu", "plug-on-classic-false", "connection not allowed.*"},
-		{"ubuntu", "plug-on-classic-distros", ""},
-		{"debian", "plug-on-classic-distros", ""},
-		{"", "plug-on-classic-distros", "connection not allowed.*"},
-		{"other", "plug-on-classic-distros", "connection not allowed.*"},
+		{classic: true, distro: "ubuntu", iface: "plug-on-classic-true"},
+		{iface: "plug-on-classic-true", err: `connection not allowed by plug rule of interface "plug-on-classic-true"`},
+		{iface: "plug-on-classic-false"},
+		{classic: true, distro: "ubuntu", iface: "plug-on-classic-false", err: "connection not allowed.*"},
+		{classic: true, distro: "ubuntu", iface: "plug-on-classic-distros"},
+		{classic: true, distro: "ubuntu", variant: "server", iface: "plug-on-classic-distros"},
+		{classic: true, distro: "debian", iface: "plug-on-classic-distros"},
+		{iface: "plug-on-classic-distros", err: "connection not allowed.*"},
+		{classic: true, distro: "other", iface: "plug-on-classic-distros", err: "connection not allowed.*"},
+		{classic: true, distro: "ubuntu", variant: "touch", iface: "plug-on-classic-variants"},
+		{classic: true, distro: "ubuntu", variant: "server", iface: "plug-on-classic-variants", err: "connection not allowed.*"},
+		{classic: true, distro: "debian", variant: "sid", iface: "plug-on-classic-variants"},
+		{classic: true, distro: "fedora", iface: "plug-on-classic-variants"},
+		{classic: true, distro: "fedora", variant: "workstation", iface: "plug-on-classic-variants", err: "connection not allowed.*"},
+		{iface: "plug-on-classic-variants", err: "connection not allowed.*"},
 	}
 
 	for _, t := range tests {
-		if t.distro == "" {
+		if !t.classic {
 			release.OnClassic = false
+			release.ReleaseInfo = release.OS{}
 		} else {
 			release.OnClassic = true
 			release.ReleaseInfo = release.OS{
-				ID: t.distro,
+				ID:        t.distro,
+				VariantID: t.variant,
 			}
 		}
 		cand := policy.ConnectCandidate{
@@ -1829,27 +1868,38 @@ func (s *policySuite) TestSlotOnClassicCheckConnection(c *C) {
 	defer r2()
 
 	tests := []struct {
-		distro string // "" => not classic
-		iface  string
-		err    string // "" => no error
+		classic bool
+		distro  string
+		variant string
+		iface   string
+		err     string // "" => no error
 	}{
-		{"ubuntu", "slot-on-classic-true", ""},
-		{"", "slot-on-classic-true", `connection not allowed by slot rule of interface "slot-on-classic-true"`},
-		{"", "slot-on-classic-false", ""},
-		{"ubuntu", "slot-on-classic-false", "connection not allowed.*"},
-		{"ubuntu", "slot-on-classic-distros", ""},
-		{"debian", "slot-on-classic-distros", ""},
-		{"", "slot-on-classic-distros", "connection not allowed.*"},
-		{"other", "slot-on-classic-distros", "connection not allowed.*"},
+		{classic: true, distro: "ubuntu", iface: "slot-on-classic-true"},
+		{iface: "slot-on-classic-true", err: `connection not allowed by slot rule of interface "slot-on-classic-true"`},
+		{iface: "slot-on-classic-false"},
+		{classic: true, distro: "ubuntu", iface: "slot-on-classic-false", err: "connection not allowed.*"},
+		{classic: true, distro: "ubuntu", iface: "slot-on-classic-distros"},
+		{classic: true, distro: "ubuntu", variant: "server", iface: "slot-on-classic-distros"},
+		{classic: true, distro: "debian", iface: "slot-on-classic-distros"},
+		{iface: "slot-on-classic-distros", err: "connection not allowed.*"},
+		{classic: true, distro: "other", iface: "slot-on-classic-distros", err: "connection not allowed.*"},
+		{classic: true, distro: "ubuntu", variant: "touch", iface: "slot-on-classic-variants"},
+		{classic: true, distro: "ubuntu", variant: "server", iface: "slot-on-classic-variants", err: "connection not allowed.*"},
+		{classic: true, distro: "debian", variant: "sid", iface: "slot-on-classic-variants"},
+		{classic: true, distro: "fedora", iface: "slot-on-classic-variants"},
+		{classic: true, distro: "fedora", variant: "workstation", iface: "slot-on-classic-variants", err: "connection not allowed.*"},
+		{iface: "slot-on-classic-variants", err: "connection not allowed.*"},
 	}
 
 	for _, t := range tests {
-		if t.distro == "" {
+		if !t.classic {
 			release.OnClassic = false
+			release.ReleaseInfo = release.OS{}
 		} else {
 			release.OnClassic = true
 			release.ReleaseInfo = release.OS{
-				ID: t.distro,
+				ID:        t.distro,
+				VariantID: t.variant,
 			}
 		}
 		cand := policy.ConnectCandidate{
@@ -1873,35 +1923,63 @@ func (s *policySuite) TestOnClassicInstallation(c *C) {
 	defer r2()
 
 	tests := []struct {
-		distro      string // "" => not classic
+		classic     bool
+		distro      string
+		variant     string
 		installYaml string
 		err         string // "" => no error
 	}{
-		{"", `name: install-snap
+		{installYaml: `name: install-snap
 version: 0
 slots:
-  install-slot-on-classic-distros:`, `installation not allowed by "install-slot-on-classic-distros" slot rule.*`},
-		{"debian", `name: install-snap
+  install-slot-on-classic-distros:`, err: `installation not allowed by "install-slot-on-classic-distros" slot rule.*`},
+		{classic: true, distro: "debian", variant: "sid", installYaml: `name: install-snap
 version: 0
 slots:
-  install-slot-on-classic-distros:`, ""},
-		{"", `name: install-snap
+  install-slot-on-classic-distros:`, err: ""},
+		{installYaml: `name: install-snap
 version: 0
 plugs:
-  install-plug-on-classic-distros:`, `installation not allowed by "install-plug-on-classic-distros" plug rule.*`},
-		{"debian", `name: install-snap
+  install-plug-on-classic-distros:`, err: `installation not allowed by "install-plug-on-classic-distros" plug rule.*`},
+		{classic: true, distro: "debian", variant: "sid", installYaml: `name: install-snap
 version: 0
 plugs:
-  install-plug-on-classic-distros:`, ""},
+  install-plug-on-classic-distros:`, err: ""},
+		{classic: true, distro: "ubuntu", variant: "touch", installYaml: `name: install-snap
+version: 0
+slots:
+  install-slot-on-classic-variants:`, err: ""},
+		{classic: true, distro: "ubuntu", variant: "server", installYaml: `name: install-snap
+version: 0
+slots:
+  install-slot-on-classic-variants:`, err: `installation not allowed by "install-slot-on-classic-variants" slot rule.*`},
+		{classic: true, distro: "fedora", installYaml: `name: install-snap
+version: 0
+slots:
+  install-slot-on-classic-variants:`, err: ""},
+		{classic: true, distro: "fedora", variant: "workstation", installYaml: `name: install-snap
+version: 0
+slots:
+  install-slot-on-classic-variants:`, err: `installation not allowed by "install-slot-on-classic-variants" slot rule.*`},
+		{classic: true, distro: "debian", variant: "sid", installYaml: `name: install-snap
+version: 0
+plugs:
+  install-plug-on-classic-variants:`, err: ""},
+		{classic: true, distro: "ubuntu", variant: "server", installYaml: `name: install-snap
+version: 0
+plugs:
+  install-plug-on-classic-variants:`, err: `installation not allowed by "install-plug-on-classic-variants" plug rule.*`},
 	}
 
 	for _, t := range tests {
-		if t.distro == "" {
+		if !t.classic {
 			release.OnClassic = false
+			release.ReleaseInfo = release.OS{}
 		} else {
 			release.OnClassic = true
 			release.ReleaseInfo = release.OS{
-				ID: t.distro,
+				ID:        t.distro,
+				VariantID: t.variant,
 			}
 		}
 

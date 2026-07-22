@@ -78,9 +78,18 @@ func checkOnClassic(c *asserts.OnClassicConstraint) error {
 		return fmt.Errorf("on-classic mismatch")
 	}
 	if c.Classic && len(c.SystemIDs) != 0 {
-		return checkID("operating system ID", release.ReleaseInfo.ID, c.SystemIDs, nil)
+		for _, systemID := range c.SystemIDs {
+			if checkOnClassicSystem(systemID, release.ReleaseInfo.ID, release.ReleaseInfo.VariantID) {
+				return nil
+			}
+		}
+		return fmt.Errorf("operating system does not match")
 	}
 	return nil
+}
+
+func checkOnClassicSystem(system asserts.OnClassicSystemConstraint, distroID, variantID string) bool {
+	return system.DistroID == distroID && (system.VariantID == variantID || system.VariantAny)
 }
 
 func checkOnCoreDesktop(c *asserts.OnCoreDesktopConstraint) error {
