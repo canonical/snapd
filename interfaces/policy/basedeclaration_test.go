@@ -854,7 +854,7 @@ var (
 		"nvme-control":              {"core"},
 		"ofono":                     {"app", "core"},
 		"online-accounts-service":   {"app"},
-		"orca-screen-reader":        {"app"},
+		"orca-screen-reader":        {"core"},
 		"power-control":             {"core"},
 		"ppp":                       {"core"},
 		"polkit-agent":              {"core"},
