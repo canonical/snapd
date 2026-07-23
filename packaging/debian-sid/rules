@@ -20,7 +20,6 @@ export DH_GOLANG_BUILDPKG = $(strip $(addprefix $(DH_GOPKG)/, \
     cmd/snap-seccomp \
     cmd/snap-update-ns \
     cmd/snapctl \
-    cmd/snapd-apparmor \
     ))
 # skip Go generate, all source code should have been committed
 export DH_GOLANG_GO_GENERATE=0
