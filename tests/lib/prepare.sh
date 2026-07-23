@@ -480,6 +480,16 @@ prepare_classic() {
         exit 1
     fi
 
+    if os.query is-ubuntu 26.04; then
+        # there was a known packaing problem on Ubuntu 26.04 where snapd would
+        # generate warnings right from the start
+        if dpkg -l snapd | MATCH '\s+2\.76\+ubuntu'; then
+            # clear known warnings
+            snap warnings
+            snap okay
+        fi
+    fi
+
     # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
