@@ -57,7 +57,7 @@ prepare: |
 
   # Fetch model
   model_version_string="${MODEL_VERSION//\./}"
-  curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
+  curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/main/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
   # Only keep relevant snaps
   gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
   mv classic-tmp.json classic.json
