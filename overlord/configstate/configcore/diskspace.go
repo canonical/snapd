@@ -20,20 +20,20 @@
 
 package configcore
 
-import "github.com/snapcore/snapd/strutil"
+import "github.com/snapcore/snapd/gadget/quantity"
 
 func init() {
-	supportedConfigurations["core.system.disk-space-reservation"] = true
+	supportedConfigurations["core.disk-reservation.size"] = true
 }
 
 func validateDiskSpaceReservation(tr RunTransaction) error {
-	reservation, err := coreCfg(tr, "system.disk-space-reservation")
+	reservation, err := coreCfg(tr, "disk-reservation.size")
 	if err != nil {
 		return err
 	}
 	if reservation == "" {
 		return nil
 	}
-	_, err = strutil.ParseByteSize(reservation)
+	_, err = quantity.ParseSize(reservation)
 	return err
 }

@@ -1686,7 +1686,7 @@ func (s *snapmgrTestSuite) TestRemoveConfigureDiskSpaceReservation(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-remove", true)
-	tr.Set("core", "system.disk-space-reservation", "2kB")
+	tr.Set("core", "disk-reservation.size", "2000")
 	tr.Commit()
 
 	snapstate.Set(s.state, "one", &snapstate.SnapState{
@@ -1702,7 +1702,7 @@ func (s *snapmgrTestSuite) TestRemoveConfigureDiskSpaceReservation(c *C) {
 	c.Assert(err, FitsTypeOf, &snapstate.InsufficientSpaceError{})
 
 	tr = config.NewTransaction(s.state)
-	tr.Set("core", "system.disk-space-reservation", "1kB")
+	tr.Set("core", "disk-reservation.size", "1000")
 	tr.Commit()
 
 	_, _, err = snapstate.RemoveMany(s.state, []string{"one"}, nil)
@@ -1762,7 +1762,9 @@ func (s *snapmgrTestSuite) TestRemoveManyDiskSpaceReservationZeroChecksSnapshotS
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-remove", true)
-	tr.Set("core", "system.disk-space-reservation", "0B")
+	// snap set stores plain numbers in their parsed form, so a zero
+	// reservation comes through as a number rather than a string
+	tr.Set("core", "disk-reservation.size", 0)
 	tr.Commit()
 
 	snapstate.Set(s.state, "one", &snapstate.SnapState{

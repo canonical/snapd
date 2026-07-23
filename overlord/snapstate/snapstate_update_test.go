@@ -7477,7 +7477,7 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceDefaultReservationHappy(c *C) {
 	featureFlag := true
 	failInstallSize := false
 	failDiskCheck := false
-	// No system.disk-space-reservation is set, so the default 5MB reservation is used.
+	// No disk-reservation.size is set, so the default 5MB reservation is used.
 	// The helper asserts required size == 123 + DefaultDiskSpaceReservation.
 	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
 	c.Check(err, IsNil)
@@ -7506,7 +7506,7 @@ func (s *snapmgrTestSuite) TestUpdateConfigureDiskSpaceReservation(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-refresh", true)
-	tr.Set("core", "system.disk-space-reservation", "2kB")
+	tr.Set("core", "disk-reservation.size", "2000")
 	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
@@ -7523,7 +7523,7 @@ func (s *snapmgrTestSuite) TestUpdateConfigureDiskSpaceReservation(c *C) {
 	c.Assert(err, FitsTypeOf, &snapstate.InsufficientSpaceError{})
 
 	tr = config.NewTransaction(s.state)
-	tr.Set("core", "system.disk-space-reservation", "1kB")
+	tr.Set("core", "disk-reservation.size", "1000")
 	tr.Commit()
 
 	_, err = snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
@@ -7554,7 +7554,9 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroChecksNormalSize(c 
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-refresh", true)
-	tr.Set("core", "system.disk-space-reservation", "0B")
+	// snap set stores plain numbers in their parsed form, so a zero
+	// reservation comes through as a number rather than a string
+	tr.Set("core", "disk-reservation.size", 0)
 	tr.Commit()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{

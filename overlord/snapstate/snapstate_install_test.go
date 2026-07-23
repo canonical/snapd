@@ -3789,7 +3789,7 @@ func (s *snapmgrTestSuite) TestInstallConfigureDiskSpaceReservation(c *C) {
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.check-disk-space-install", true)
-	tr.Set("core", "system.disk-space-reservation", "2kB")
+	tr.Set("core", "disk-reservation.size", "2000")
 	tr.Commit()
 
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -3797,7 +3797,7 @@ func (s *snapmgrTestSuite) TestInstallConfigureDiskSpaceReservation(c *C) {
 	c.Assert(err, FitsTypeOf, &snapstate.InsufficientSpaceError{})
 
 	tr = config.NewTransaction(s.state)
-	tr.Set("core", "system.disk-space-reservation", "1kB")
+	tr.Set("core", "disk-reservation.size", "1000")
 	tr.Commit()
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})

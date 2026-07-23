@@ -38,19 +38,21 @@ func (s *diskSpaceSuite) TestConfigureDiskSpaceReservation(c *C) {
 		err   string
 	}{
 		{value: ""},
-		{value: "0B"},
-		{value: "5242880B"},
-		{value: "5MB"},
-		{value: "1GB"},
-		{value: "5", err: `cannot parse "5": need a number with a unit as input`},
-		{value: "-1B", err: `cannot parse "-1B": size cannot be negative`},
-		{value: "bad", err: `cannot parse "bad": no numerical prefix`},
-		{value: "5MiB", err: `cannot parse "5MiB": try 'kB' or 'MB'`},
+		{value: "0"},
+		{value: 0},
+		{value: "5242880"},
+		{value: "5M"},
+		{value: "1G"},
+		{value: "0B", err: `invalid suffix "B"`},
+		{value: "5MB", err: `invalid suffix "MB"`},
+		{value: "5MiB", err: `invalid suffix "MiB"`},
+		{value: "-1", err: `size cannot be negative`},
+		{value: "bad", err: `no numerical prefix`},
 	} {
 		err := configcore.Run(classicDev, &mockConf{
 			state: s.state,
 			changes: map[string]any{
-				"system.disk-space-reservation": tc.value,
+				"disk-reservation.size": tc.value,
 			},
 		})
 		if tc.err != "" {
