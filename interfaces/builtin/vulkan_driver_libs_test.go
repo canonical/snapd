@@ -99,6 +99,9 @@ func (s *VulkanDriverLibsInterfaceSuite) SetUpTest(c *C) {
 	os.MkdirAll(filepath.Join(s.testRoot, dirs.DefaultSnapMountDir), 0755)
 	dirs.SetRootDir(s.testRoot)
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	// Most tests in this suite exercise classic-only code paths (ldconfig,
+	// symlinks). Default to classic so tests don't need per-test mocking.
+	s.AddCleanup(release.MockOnClassic(true))
 
 	s.plug, s.plugInfo = MockConnectedPlug(c, vulkanDriverLibsConsumerYaml,
 		&snap.SideInfo{Revision: snap.R(3)}, "vulkan")
@@ -239,6 +242,16 @@ func (s *VulkanDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2"),
 			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1"),
 		}})
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestLdconfigSpecOnCore(c *C) {
+	// ldconfig is skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &ldconfig.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.LibDirs(), HasLen, 0)
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
@@ -674,7 +687,20 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecBothLibraryAndCompsInLa
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
-	restore := release.MockOnClassic(true)
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_vulkan-provider_vulkan-slot_vulkan-driver-libs.library-source"): &osutil.MemoryFileState{
+			Content: []byte(filepath.Join(dirs.SnapMountDir, "vulkan-provider/5/lib1") + "\n" +
+				filepath.Join(dirs.SnapMountDir, "vulkan-provider/5/lib2") + "\n" +
+				filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "vulkan-provider"), "lib1") + "\n",
+			), Mode: 0644},
+	})
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestConfigfilesSpecOnCore(c *C) {
+	// configfiles export also runs on core
+	restore := release.MockOnClassic(false)
 	defer restore()
 
 	spec := &configfiles.Specification{}
@@ -688,11 +714,21 @@ func (s *VulkanDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	})
 }
 
+func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecOnCore(c *C) {
+	// Symlinks are skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), HasLen, 0)
+}
+
 func (s *VulkanDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, false)
-	c.Assert(si.ImplicitPlugOnCore, Equals, false)
+	c.Assert(si.ImplicitPlugOnCore, Equals, true)
 	c.Assert(si.ImplicitPlugOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows exposing vulkan driver libraries to the system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "vulkan-driver-libs")

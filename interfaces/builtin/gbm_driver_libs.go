@@ -39,10 +39,10 @@ import (
 
 const gbmDriverLibsSummary = `allows exposing GBM driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plugs only supported for the system snap (note this is checked on "system"
+// snap installation even though this is an implicit plug in that case) - in
+// the future we will allow snaps having this as plug and this declaration will
+// have to change.
 const gbmDriverLibsBaseDeclarationPlugs = `
   gbm-driver-libs:
     allow-installation:
@@ -111,6 +111,11 @@ func (iface *gbmDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 
 func (iface *gbmDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
+	// ldconfig is only used on classic; on core the libraries are exported
+	// via /var/lib/snapd/export instead.
+	if !release.OnClassic {
+		return nil
+	}
 	return addLdconfigLibDirs(spec, slot)
 }
 
@@ -128,6 +133,11 @@ func (iface *gbmDriverLibsInterface) TrackedDirectories() []string {
 }
 
 func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Symlinks are only created on classic; on core the libraries are
+	// exported via /var/lib/snapd/export instead.
+	if !release.OnClassic {
+		return nil
+	}
 	var clientDriver string
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
@@ -149,15 +159,8 @@ func (t *gbmDriverLibsInterface) PathPatterns() []string {
 
 func (iface *gbmDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
-
-	// Files used by snap-confine on classic
-	if release.OnClassic {
-		if err := addConfigfilesForSystemLibrarySourcePaths(gbmDriverLibs, spec, slot); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	// Files used by snap-confine on classic and core
+	return addConfigfilesForSystemLibrarySourcePaths(gbmDriverLibs, spec, slot)
 }
 
 func (iface *gbmDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
@@ -173,8 +176,8 @@ func init() {
 			summary:              gbmDriverLibsSummary,
 			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
-			// Not supported on core yet
-			implicitPlugOnCore:    false,
+			// Supported on core and classic
+			implicitPlugOnCore:    true,
 			implicitPlugOnClassic: true,
 		},
 	})
