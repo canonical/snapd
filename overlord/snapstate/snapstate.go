@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -175,8 +176,10 @@ func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
 }
 
 func diskSpaceReservation(tr *config.Transaction) uint64 {
-	var reservation string
-	err := tr.Get("core", "system.disk-space-reservation", &reservation)
+	// the value may be a string (e.g. "5M") or a plain number of bytes
+	// (e.g. 0), as snap set stores valid JSON values in their parsed form
+	var reservation any
+	err := tr.Get("core", "disk-reservation.size", &reservation)
 	if config.IsNoOption(err) {
 		return defaultDiskSpaceReservation
 	}
@@ -184,7 +187,7 @@ func diskSpaceReservation(tr *config.Transaction) uint64 {
 		return defaultDiskSpaceReservation
 	}
 
-	parsedReservation, err := strutil.ParseByteSize(reservation)
+	parsedReservation, err := quantity.ParseSize(fmt.Sprintf("%v", reservation))
 	if err != nil {
 		return defaultDiskSpaceReservation
 	}
