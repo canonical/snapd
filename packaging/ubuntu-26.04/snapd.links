@@ -1,10 +1,3 @@
 /usr/lib/snapd/snap-device-helper  /usr/lib/udev/snappy-app-dev
-# The symlink below must be shipped directly in the deb rather than relying on
-# dh_installsystemduser. Although dh_installsystemduser would call
-# deb-systemd-helper --user enable in the postinst (which creates the symlink in
-# /etc/systemd/user/sockets.target.wants/ at install time), deb-systemd-helper
-# skips re-creating the symlink on disk if its state file already exists from a
-# prior install, even if the actual symlink was removed.
-/usr/lib/systemd/user/snapd.session-agent.socket /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket
 usr/lib/snapd/snapctl usr/bin/snapctl
 usr/lib/snapd/snapd usr/bin/snap
