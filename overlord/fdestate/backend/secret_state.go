@@ -301,6 +301,8 @@ func openSecretStateFile() (*os.File, error) {
 			if err := fdstoreAdd(fdstore.FdNameMemfdSecretState, f); err != nil {
 				return nil, fmt.Errorf("cannot add secret state to fdstore: %w", err)
 			}
+		} else {
+			logger.Debugf("secret state will not persist across snapd restarts: systemd version too old to support fdstore")
 		}
 	} else if err != nil {
 		return nil, fmt.Errorf("cannot get secret state from fdstore: %w", err)
