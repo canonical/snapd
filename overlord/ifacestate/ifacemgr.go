@@ -21,9 +21,11 @@ package ifacestate
 
 import (
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/logger"
@@ -87,7 +89,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, noticeManager *
 		setupHooks(hookManager)
 	}
 
-	// Leave udevRetryTimeout at the default value, so that udev is initialized on first Ensure run.
+	// Leave udevRetryTimeout at the default value, so that udev is initialized
+	// on first Ensure run.
+
 	m := &InterfaceManager{
 		state: s,
 		repo:  interfaces.NewRepository(),
@@ -179,6 +183,17 @@ func (m *InterfaceManager) StartUp() error {
 
 	s.Lock()
 	defer s.Unlock()
+
+	// Ensure the snap-private-tmp directory exists. It is used by snap-confine
+	// to create per-snap private temporary rootfs directories (e.g.
+	// /tmp/snap-private-tmp/snap.rootfs_XXXXXX). This directory participates in
+	// the ping-pong protocol between snap-run and snapd: if snap-run cannot find
+	// it when checking for system-key mismatch, it treats the absence as a
+	// mismatch and waits for snapd to start, similar to the existing system-key
+	// mismatch protocol.
+	if err := os.MkdirAll(dirs.SnapPrivateTmpDir, 0700); err != nil {
+		return fmt.Errorf("cannot create %s: %w", dirs.SnapPrivateTmpDir, err)
+	}
 
 	// Check whether AppArmor prompting is supported and enabled. It is fine to
 	// do this once, as toggling the feature imposes a restart of snapd.
