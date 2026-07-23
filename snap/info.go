@@ -463,6 +463,11 @@ type StoreAccount struct {
 	Validation  string `json:"validation,omitempty"`
 }
 
+// IsVerified reports whether the store account is verified.
+func (a StoreAccount) IsVerified() bool {
+	return a.Validation == "verified"
+}
+
 // Layout describes a single element of the layout section.
 type Layout struct {
 	Snap *Info

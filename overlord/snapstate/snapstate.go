@@ -2252,6 +2252,9 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, *UpdateTaskSet
 		if err := AutoRefreshAssertions(st, userID); err != nil {
 			return nil, nil, err
 		}
+		
+		// Check if any installed snaps had their publisher validation dropped
+		CheckInstalledSnapsPublisherValidation(st)
 	}
 
 	tr := config.NewTransaction(st)
