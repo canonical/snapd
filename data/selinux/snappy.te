@@ -873,6 +873,8 @@ snappy_stream_connect(snappy_cli_t)
 userdom_search_user_tmp_dirs(snappy_cli_t)
 # create /run/user/<uid>/snap.<name> directories
 userdom_manage_tmp_dirs(snappy_cli_t)
+# the snap command probes for /tmp/snap-private-tmp presence
+allow snappy_cli_t snappy_tmp_t:dir getattr;
 
 # allow snappy_cli_t to exec() into the snapd binary which implements
 # snap CLI handler and other internal snapd tools
