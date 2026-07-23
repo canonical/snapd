@@ -245,6 +245,53 @@ func (s *SecLogSuite) TestLogUserRemoved(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "jdoe@test.com")
 }
 
+func (s *SecLogSuite) TestLogSystemUserCreated(c *C) {
+	opts := seclog.AddOptions{
+		RealUserName:        "Karl Popper",
+		Sudoer:              true,
+		ExtraUsers:          true,
+		ForcePasswordChange: false,
+		Known:               false,
+	}
+	seclog.LogSystemUserCreated("karl", opts, seclog.AddReasonAPIStoreEmail)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.buf.String(), testutil.Contains, "Created system user karl (api-store-email)")
+	c.Check(s.buf.String(), testutil.Contains, "karl")
+	c.Check(s.buf.String(), testutil.Contains, "Karl Popper")
+	c.Check(s.buf.String(), testutil.Contains, "Sudoer:true")
+	c.Check(s.buf.String(), testutil.Contains, "Known:false")
+	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-store-email"`)
+}
+
+func (s *SecLogSuite) TestLogSystemUserCreatedWithAssertion(c *C) {
+	opts := seclog.AddOptions{
+		Known: true,
+		Assertion: &seclog.Ref{
+			PrimaryKey: []string{"my-brand", "foo@bar.com"},
+			Revision:   0,
+		},
+	}
+	seclog.LogSystemUserCreated("example-user", opts, seclog.AddReasonAPIAssertion)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_created_system")
+	c.Check(s.buf.String(), testutil.Contains, "my-brand")
+	c.Check(s.buf.String(), testutil.Contains, "foo@bar.com")
+	c.Check(s.buf.String(), testutil.Contains, "Known:true")
+	c.Check(s.buf.String(), testutil.Contains, `add_reason="api-assertion"`)
+}
+
+func (s *SecLogSuite) TestLogSystemUserRemoved(c *C) {
+	opts := seclog.RemoveOptions{Force: true}
+	seclog.LogSystemUserRemoved("some-user", opts, seclog.RemoveReasonEnsureRemoveExpiredUser)
+
+	c.Check(s.buf.String(), testutil.Contains, "user_removed_system")
+	c.Check(s.buf.String(), testutil.Contains, "Removed system user some-user (ensure-remove-expired-user)")
+	c.Check(s.buf.String(), testutil.Contains, "some-user")
+	c.Check(s.buf.String(), testutil.Contains, "Force:true")
+	c.Check(s.buf.String(), testutil.Contains, `remove_reason="ensure-remove-expired-user"`)
+}
+
 // TestLogAdminActivity verifies that LogAdminActivity emits the expected event and attributes.
 func (s *SecLogSuite) TestLogAdminActivity(c *C) {
 	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}

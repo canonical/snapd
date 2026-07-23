@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -515,7 +516,7 @@ func processAutoImportAssertions(st *state.State, deviceSeed seed.Seed, db asser
 	}
 	// automatic user creation is meant to imply sudoers
 	const sudoer = true
-	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer)
+	_, err = createAllKnownSystemUsers(st, db, deviceSeed.Model(), nil, sudoer, seclog.AddReasonFirstbootSeedAutoImport)
 	return err
 }
 

@@ -210,6 +210,39 @@ func (p Peer) LogValue() slog.Value {
 	)
 }
 
+// LogValue implements [slog.LogValuer], allowing [Ref] to be used directly
+// as a structured log attribute value.
+func (r Ref) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("primary_key", r.PrimaryKey),
+		slog.Int("revision", r.Revision),
+	)
+}
+
+// LogValue implements [slog.LogValuer], allowing [AddOptions] to be
+// used directly as a structured log attribute value.
+func (o AddOptions) LogValue() slog.Value {
+	attrs := []slog.Attr{
+		slog.String("real_user_name", o.RealUserName),
+		slog.Bool("sudoer", o.Sudoer),
+		slog.Bool("extra_users", o.ExtraUsers),
+		slog.Bool("force_password_change", o.ForcePasswordChange),
+		slog.Bool("known", o.Known),
+	}
+	if o.Assertion != nil {
+		attrs = append(attrs, slog.Any("assertion", o.Assertion))
+	}
+	return slog.GroupValue(attrs...)
+}
+
+// LogValue implements [slog.LogValuer], allowing [RemoveOptions] to be
+// used directly as a structured log attribute value.
+func (o RemoveOptions) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Bool("force", o.Force),
+	)
+}
+
 // LogValue implements [slog.LogValuer], allowing [AuthzChecks] to be
 // used directly as a structured log attribute value.
 func (a AuthzChecks) LogValue() slog.Value {

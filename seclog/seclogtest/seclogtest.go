@@ -49,9 +49,36 @@ func MockSecurityLogger(buf *bytes.Buffer) seclog.SecurityLogger {
 func (m *mockLogger) LogEvent(event seclog.Event, description string, attrs ...seclog.Attr) {
 	fmt.Fprintf(m.buf, "%s %s", event.Name, description)
 	for _, a := range attrs {
-		fmt.Fprintf(m.buf, " [%s=%#v]", a.Key, a.Value)
+		fmt.Fprintf(m.buf, " [%s=%s]", a.Key, attrValueString(a.Value))
 	}
 	fmt.Fprintln(m.buf)
+}
+
+func attrValueString(v any) string {
+	switch val := v.(type) {
+	case seclog.AddOptions:
+		return formatAddOptions(val)
+	case *seclog.Ref:
+		if val == nil {
+			return "<nil>"
+		}
+		return formatRef(*val)
+	default:
+		return fmt.Sprintf("%#v", v)
+	}
+}
+
+func formatRef(r seclog.Ref) string {
+	return fmt.Sprintf("{primary_key:%v revision:%d}", r.PrimaryKey, r.Revision)
+}
+
+func formatAddOptions(o seclog.AddOptions) string {
+	assertion := ""
+	if o.Assertion != nil {
+		assertion = fmt.Sprintf(" Assertion:%s", formatRef(*o.Assertion))
+	}
+	return fmt.Sprintf("AddOptions{RealUserName:%q Sudoer:%v ExtraUsers:%v ForcePasswordChange:%v Known:%v%s}",
+		o.RealUserName, o.Sudoer, o.ExtraUsers, o.ForcePasswordChange, o.Known, assertion)
 }
 
 // MockSlogLogger returns a buffer and a constructor function matching the

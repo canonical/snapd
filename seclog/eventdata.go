@@ -222,3 +222,100 @@ func (u SnapdUser) String() string {
 
 	return id + ":" + email + ":" + name
 }
+
+// SystemUserAddReason identifies why a system user account was created.
+// Values follow {trigger}-create-user-from-{source} (with optional modifiers)
+// and describe where account details came from, not who invoked the operation.
+// They are logged as add_reason on user_created_system events.
+type SystemUserAddReason string
+
+// SystemUserAddReason values for user_created_system events.
+const (
+	// AddReasonAPIStoreEmail is set when POST /v2/users or POST /v2/create-user
+	// creates a system user with known: false; account details are looked up
+	// from the Snap Store by email.
+	AddReasonAPIStoreEmail SystemUserAddReason = "api-store-email"
+	// AddReasonAPIAssertion is set when POST /v2/users or POST /v2/create-user
+	// creates one user with known: true and an email; details come from a
+	// pre-imported system-user assertion selected by brand-id and email.
+	AddReasonAPIAssertion SystemUserAddReason = "api-assertion"
+	// AddReasonAPIAssertionAll is set when POST /v2/users or POST /v2/create-user
+	// creates every applicable system user with known: true and no email; details
+	// come from all valid pre-imported system-user assertions for the device
+	// model. This is the explicit admin path (e.g. snap create-user --known):
+	// sudoer is optional, and the request fails if the device is already managed.
+	AddReasonAPIAssertionAll SystemUserAddReason = "api-assertion-all"
+	// AddReasonAPIAssertionAllAutomatic is set when POST /v2/users
+	// or POST /v2/create-user is called with automatic: true. Like
+	// [AddReasonAPIAssertionAll], all applicable assertion-backed users are
+	// created, but this is the automation path: callers are typically
+	// background machinery (e.g. snap auto-import after a USB hardware event)
+	// rather than an operator. The API forces sudoer, respects
+	// core.users.create.automatic, and treats an already-managed device as a
+	// silent no-op instead of an error so repeated or late triggers do not
+	// fail noisily when provisioning has already succeeded.
+	AddReasonAPIAssertionAllAutomatic SystemUserAddReason = "api-assertion-all-automatic"
+	// AddReasonFirstbootSeedAutoImport is set during first boot on dangerous
+	// models when system-user assertions from the seed are auto-imported and
+	// applied (not via the user-admin API).
+	AddReasonFirstbootSeedAutoImport SystemUserAddReason = "firstboot-seed-auto-import"
+	// AddReasonEnsureSerialBoundAssertion is set when the device manager
+	// ensure loop creates users from serial-bound system-user assertions that
+	// could not be applied until after device registration.
+	AddReasonEnsureSerialBoundAssertion SystemUserAddReason = "ensure-serial-bound-assertion"
+)
+
+// SystemUserRemoveReason identifies why a system user account was removed.
+// Values follow {trigger}-remove-{cause} and describe the trigger, not who
+// invoked the operation. They are logged as remove_reason on
+// user_removed_system events.
+type SystemUserRemoveReason string
+
+// SystemUserRemoveReason values for user_removed_system events.
+const (
+	// RemoveReasonAPIRemoveUser is set when POST /v2/users (DELETE) or
+	// POST /v2/create-user remove-user removes the account explicitly.
+	RemoveReasonAPIRemoveUser SystemUserRemoveReason = "api-remove-user"
+	// RemoveReasonEnsureRemoveExpiredUser is set when the device manager ensure
+	// loop removes an account whose assertion or API-provided expiration time
+	// has passed.
+	RemoveReasonEnsureRemoveExpiredUser SystemUserRemoveReason = "ensure-remove-expired-user"
+)
+
+// Ref identifies an assertion by primary key. It mirrors the primary-key
+// portion of asserts.Ref but uses plain strings so seclog stays import-free.
+type Ref struct {
+	PrimaryKey []string `json:"primary_key"`
+	// Revision is the assertion revision applied when the user was created.
+	// It supplements the ref; the ref itself is the store-shared identity.
+	Revision int `json:"revision,omitempty"`
+}
+
+// AddOptions holds the options recorded for a system user creation event.
+// JSON tags match the security audit specification field names.
+type AddOptions struct {
+	// RealUserName is the display name from the GECOS field of the created
+	// account. devicestate populates Gecos as "email,display-name" for
+	// osutil.AddUser; this field is the portion after the comma.
+	RealUserName string `json:"real_user_name"`
+	// Sudoer is true when the account was created with sudo privileges.
+	Sudoer bool `json:"sudoer"`
+	// ExtraUsers is true when the account was created in the extrausers
+	// database (Ubuntu Core) rather than /etc/passwd.
+	ExtraUsers bool `json:"extra_users"`
+	// ForcePasswordChange is true when the user must change their password
+	// on first login.
+	ForcePasswordChange bool `json:"force_password_change"`
+	// Known is true when the account was created from a system-user assertion
+	// rather than from a store email lookup.
+	Known bool `json:"known"`
+	// Assertion is set when Known is true; identifies the system-user assertion used.
+	Assertion *Ref `json:"assertion,omitempty"`
+}
+
+// RemoveOptions holds the options recorded for a system user removal event.
+// JSON tags match the security audit specification field names.
+type RemoveOptions struct {
+	// Force is true when the account was removed even if it was logged in.
+	Force bool `json:"force"`
+}
