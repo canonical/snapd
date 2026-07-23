@@ -65,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/snapstate/tasktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -324,6 +325,27 @@ func seedRefreshCandidateFromTaskSet(c *C, ts *state.TaskSet) snapstate.SeedRefr
 	}
 
 	if err := t.Get("component-setup-tasks", &candidate.ComponentSetupTaskIDs); err != nil && !errors.Is(err, state.ErrNoState) {
+		c.Assert(err, IsNil)
+	}
+
+	return candidate
+}
+
+func seedRefreshCandidateFromTaskRef(c *C, snapRef tasktest.TaskRef) snapstate.SeedRefreshCandidate {
+	setupTask, err := snapRef.With("snap-setup").Last().Resolve()
+	c.Assert(err, IsNil)
+
+	snapsup, err := snapstate.TaskSnapSetup(setupTask)
+	c.Assert(err, IsNil)
+
+	candidate := snapstate.SeedRefreshCandidate{
+		InstanceName: snapsup.InstanceName(),
+	}
+	if !snapsup.ComponentExclusiveOperation {
+		candidate.SnapSetupTaskIDs = []string{setupTask.ID()}
+	}
+
+	if err := setupTask.Get("component-setup-tasks", &candidate.ComponentSetupTaskIDs); err != nil && !errors.Is(err, state.ErrNoState) {
 		c.Assert(err, IsNil)
 	}
 
@@ -20123,52 +20145,57 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefresh(c *C) {
 		seedRefreshSnap{name: "some-app", snapID: "some-app-id", snapType: "app", base: "core18"},
 	)
 
-	uts, _ := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
+	_, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
 		{InstanceName: "kernel"},
 		{InstanceName: "core18"},
 		{InstanceName: "some-app"},
 	})
-	taskSetsBySnap, seedTS := parseSeedRefreshTaskSets(uts)
 
-	baseTS := mustTaskSetForSnap(c, taskSetsBySnap, "core18")
-	kernelTS := mustTaskSetForSnap(c, taskSetsBySnap, "kernel")
-	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
+	graph, err := tasktest.NewGraph(chg.Tasks())
+	c.Assert(err, IsNil)
+
+	base := graph.Where(tasktest.Snap("core18"))
+	kernel := graph.Where(tasktest.Snap("kernel"))
+	app := graph.Where(tasktest.Snap("some-app"))
+
 	c.Assert(observed.initial, HasLen, 1)
 	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
-		seedRefreshCandidateFromTaskSet(c, kernelTS),
-		seedRefreshCandidateFromTaskSet(c, baseTS),
-		seedRefreshCandidateFromTaskSet(c, appTS),
+		seedRefreshCandidateFromTaskRef(c, kernel),
+		seedRefreshCandidateFromTaskRef(c, base),
+		seedRefreshCandidateFromTaskRef(c, app),
 	})
 	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
 
-	c.Assert(seedTS, NotNil)
-	c.Check(taskSetsShareLane(baseTS, kernelTS), Equals, true)
-	c.Check(taskSetsShareLane(baseTS, appTS), Equals, false)
-	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(baseTS))
+	baseLink := base.Kind("link-snap")
+	kernelLink := kernel.Kind("link-snap")
+	seedCreate := graph.Kind("create-recovery-system")
+	seedFinalize := graph.Kind("finalize-recovery-system")
 
-	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
-
-	lastBeforeLocalBase, err := baseTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
+	err = graph.Assert(
+		tasktest.LanesEqual(baseLink, kernelLink, seedCreate, seedFinalize),
+		tasktest.LanesDisjoint(baseLink, app.Kind("link-snap")),
+		tasktest.Ordered(
+			base.Before(
+				base.Kind("prerequisites").With("prerequisites-sync"),
+			).Last(),
+			seedCreate,
+		),
+		tasktest.Ordered(
+			kernel.Before(
+				kernel.Kind("prerequisites").With("prerequisites-sync"),
+			).Last(),
+			kernelLink,
+			seedCreate,
+			base.Last(),
+			kernel.Last(),
+			seedFinalize,
+		),
+		tasktest.Resolves(
+			seedCreate.Has("restart-boundary", restart.RestartBoundaryDirectionDo),
+			kernelLink.Without("restart-boundary"),
+		),
+	)
 	c.Assert(err, IsNil)
-	lastBeforeLocalKernel, err := kernelTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-
-	for _, t := range []*state.Task{lastBeforeLocalBase, lastBeforeLocalKernel} {
-		c.Check(waitsOnTransitively(seedCreate, t), Equals, true)
-	}
-
-	kernelLinkTask, err := kernelTS.Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	c.Check(kernelLinkTask.HaltTasks(), testutil.Contains, seedCreate)
-
-	for _, ts := range []*state.TaskSet{baseTS, kernelTS} {
-		end, err := ts.Edge(snapstate.EndEdge)
-		c.Assert(err, IsNil)
-		c.Check(waitsOnTransitively(seedEnd, end), Equals, true)
-	}
-
-	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
-	c.Check(hasDoRestartBoundary(kernelLinkTask), Equals, false)
 }
 
 func (s *snapmgrTestSuite) testUpdateWithGoalSeedRefreshBeforeLocalModificationsModelSnap(c *C, classic bool) {
@@ -20358,12 +20385,12 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 		seedRefreshSnap{name: "some-app", snapID: "some-app-id", snapType: "app", base: "core18"},
 	)
 
-	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{InstanceName: "some-app"}})
-	taskSetsBySnap, seedTS := parseSeedRefreshTaskSets(uts)
-	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
-	c.Assert(seedTS, NotNil)
+	_, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{InstanceName: "some-app"}})
+	graph, err := tasktest.NewGraph(chg.Tasks())
+	c.Assert(err, IsNil)
+	app := graph.Where(tasktest.Snap("some-app"))
 
-	appSnapSetupTask, err := appTS.Edge(snapstate.SnapSetupEdge)
+	appSnapSetupTask, err := app.With("snap-setup").Last().Resolve()
 	c.Assert(err, IsNil)
 
 	appSnapSetup, err := snapstate.TaskSnapSetup(appSnapSetupTask)
@@ -20372,25 +20399,27 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 
 	s.settle(c)
 
-	seedCreate, seedFinalize, _ := splitSeedRefreshTasks(c, seedTS)
-	c.Assert(observed.prerequisites, HasLen, 1)
-	c.Assert(observed.prerequisites[0].SnapSetupTaskIDs, HasLen, 1)
-
-	providerSnapSetupTask := s.state.Task(observed.prerequisites[0].SnapSetupTaskIDs[0])
-	c.Assert(providerSnapSetupTask, NotNil)
-
-	providerSnapSetup, err := snapstate.TaskSnapSetup(providerSnapSetupTask)
+	graph, err = tasktest.NewGraph(chg.Tasks())
 	c.Assert(err, IsNil)
-	c.Check(providerSnapSetup.InstanceName(), Equals, "content-provider")
-	c.Check(observed.prerequisites, testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
-		InstanceName:     providerSnapSetup.InstanceName(),
-		SnapSetupTaskIDs: []string{providerSnapSetupTask.ID()},
-	}})
+	provider := graph.Where(tasktest.Snap("content-provider"))
+	seedCreate := graph.Kind("create-recovery-system")
+	seedFinalize := graph.Kind("finalize-recovery-system")
 
-	// ensure create-recovery-system waits on the LastBeforeLocalModificationsEdge for content-provider
-	c.Check(waitTasksContainKindForSnap(c, seedCreate, "content-provider", "validate-snap"), Equals, true)
-	// ensure finalize-recovery-system waits on the EndEdge for content-provider
-	c.Check(waitTasksContainKindForSnap(c, seedFinalize, "content-provider", "run-hook"), Equals, true)
+	c.Assert(observed.prerequisites, HasLen, 1)
+	c.Check(observed.prerequisites, testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
+		seedRefreshCandidateFromTaskRef(c, provider),
+	})
+
+	err = graph.Assert(
+		tasktest.Ordered(
+			provider.Before(
+				provider.Kind("prerequisites").With("prerequisites-sync"),
+			).All(),
+			seedCreate,
+		),
+		tasktest.Ordered(provider.All(), seedFinalize),
+	)
+	c.Check(err, IsNil)
 
 	s.mockRestartAndSettle(c, chg)
 
@@ -20616,101 +20645,86 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshBeforeLocalModifications
 		seedRefreshSnap{name: "some-other-snap", snapID: "some-other-snap-id", snapType: "app", base: "core18"},
 	)
 
-	uts, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
+	_, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{
 		{InstanceName: "snapd"},
 		{InstanceName: "kernel"},
 		{InstanceName: "core18"},
 		{InstanceName: "some-app"},
 		{InstanceName: "some-other-snap"},
 	})
-	taskSetsBySnap, seedTS := parseSeedRefreshTaskSets(uts)
 
-	snapdTS := mustTaskSetForSnap(c, taskSetsBySnap, "snapd")
-	baseTS := mustTaskSetForSnap(c, taskSetsBySnap, "core18")
-	kernelTS := mustTaskSetForSnap(c, taskSetsBySnap, "kernel")
-	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
-	nonSeedAppTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-other-snap")
+	graph, err := tasktest.NewGraph(chg.Tasks())
+	c.Assert(err, IsNil)
+	snapd := graph.Where(tasktest.Snap("snapd"))
+	base := graph.Where(tasktest.Snap("core18"))
+	kernel := graph.Where(tasktest.Snap("kernel"))
+	app := graph.Where(tasktest.Snap("some-app"))
+	nonSeedApp := graph.Where(tasktest.Snap("some-other-snap"))
 
 	c.Assert(observed.initial, HasLen, 1)
 	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
-		seedRefreshCandidateFromTaskSet(c, snapdTS),
-		seedRefreshCandidateFromTaskSet(c, kernelTS),
-		seedRefreshCandidateFromTaskSet(c, baseTS),
-		seedRefreshCandidateFromTaskSet(c, appTS),
-		seedRefreshCandidateFromTaskSet(c, nonSeedAppTS),
+		seedRefreshCandidateFromTaskRef(c, snapd),
+		seedRefreshCandidateFromTaskRef(c, kernel),
+		seedRefreshCandidateFromTaskRef(c, base),
+		seedRefreshCandidateFromTaskRef(c, app),
+		seedRefreshCandidateFromTaskRef(c, nonSeedApp),
 	})
 
-	c.Assert(seedTS, NotNil)
-	c.Check(taskSetsShareLane(snapdTS, baseTS, kernelTS, appTS), Equals, true)
-	c.Check(taskSetsShareLane(baseTS, nonSeedAppTS), Equals, false)
-	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(snapdTS))
+	seedCreate := graph.Kind("create-recovery-system")
+	seedFinalize := graph.Kind("finalize-recovery-system")
+	kernelLink := kernel.Kind("link-snap")
+	nonSeedAppBegin := nonSeedApp.First()
+	nonSeedAppLastBeforeLocalModifications := nonSeedApp.Before(
+		nonSeedApp.Kind("prerequisites").With("prerequisites-sync"),
+	).Last()
 
-	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
-
-	kernelLinkTask, err := kernelTS.Edge(snapstate.MaybeRebootEdge)
-	c.Assert(err, IsNil)
-	c.Check(kernelLinkTask.HaltTasks(), testutil.Contains, seedCreate)
-
-	for _, ts := range []*state.TaskSet{snapdTS, baseTS, kernelTS, appTS} {
-		end, err := ts.Edge(snapstate.EndEdge)
-		c.Assert(err, IsNil)
-		c.Check(waitsOnTransitively(seedEnd, end), Equals, true)
-	}
-
-	c.Check(hasDoRestartBoundary(seedCreate), Equals, true)
-	c.Check(hasDoRestartBoundary(kernelLinkTask), Equals, false)
-
-	snapdEnd, err := snapdTS.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
-	baseBegin, err := baseTS.Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-
-	c.Check(baseBegin.WaitTasks(), testutil.Contains, snapdEnd)
-
-	snapdLastBefore, err := snapdTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-	baseLastBefore, err := baseTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-
-	// assert seed creation waits on before-local-modification tasks of seed snaps.
-	for _, lastBeforeLocal := range []*state.Task{snapdLastBefore, baseLastBefore} {
-		c.Check(waitsOnTransitively(seedCreate, lastBeforeLocal), Equals, true)
-	}
-
-	nonSeedAppFirstPrereq, _ := findPrereqTasksForSnap(c, chg, "some-other-snap")
-	nonSeedAppLastBefore, err := nonSeedAppTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-
-	// assert seed creation waits only on initial prerequisites tasks of non-seed snaps.
-	c.Check(waitsOnTransitively(seedCreate, nonSeedAppFirstPrereq), Equals, true)
-	c.Check(waitsOnTransitively(seedCreate, nonSeedAppLastBefore), Equals, false)
-	for _, lane := range seedCreate.Lanes() {
-		c.Check(nonSeedAppFirstPrereq.Lanes(), testutil.Contains, lane)
-		c.Check(nonSeedAppLastBefore.Lanes(), Not(testutil.Contains), lane)
-	}
-
-	baseMount := findKindInTaskSet(baseTS, "mount-snap")
-	c.Assert(baseMount, NotNil)
-	c.Check(waitsOnTransitively(baseMount, snapdEnd), Equals, true)
-	c.Check(waitsOnTransitively(baseMount, snapdLastBefore), Equals, true)
-
-	lastEssentialSnapTask, err := kernelTS.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
-
-	// model app performs before-local-modification tasks before seed creation, but
-	// doesn't perform any local modifications until all essential snaps are complete.
-	firstLocalModApp := firstTaskAfterLocalModifications(c, appTS)
-	c.Check(firstLocalModApp.WaitTasks(), testutil.Contains, lastEssentialSnapTask)
-
-	// non-seed app performs its initial prerequisite check before seed creation,
-	// but defers post-prerequisite work until all essential snaps are complete.
-	firstPostPrereqsNonSeedApp := firstTaskAfterPrerequisites(c, nonSeedAppTS)
-	c.Check(firstPostPrereqsNonSeedApp.WaitTasks(), testutil.Contains, lastEssentialSnapTask)
-
-	// ensure that seed finalize task doesn't wait on non-seed snap
-	nonSeedAppEndTask, err := nonSeedAppTS.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
-	c.Check(waitsOnTransitively(seedEnd, nonSeedAppEndTask), Equals, false)
+	err = graph.Assert(
+		tasktest.LanesEqual(
+			snapd.Kind("link-snap"),
+			base.Kind("link-snap"),
+			kernelLink,
+			app.Kind("link-snap"),
+			seedCreate,
+			seedFinalize,
+		),
+		tasktest.LanesDisjoint(base.Kind("link-snap"), nonSeedApp.Kind("link-snap")),
+		tasktest.Ordered(snapd.All(), base.All()),
+		tasktest.Ordered(
+			base.Before(
+				base.Kind("prerequisites").With("prerequisites-sync"),
+			).All(),
+			seedCreate,
+			base.Last(),
+			seedFinalize,
+		),
+		tasktest.Ordered(
+			kernel.Before(
+				kernel.Kind("prerequisites").With("prerequisites-sync"),
+			).All(),
+			kernelLink,
+			seedCreate,
+		),
+		tasktest.Ordered(
+			app.Before(
+				app.Kind("prerequisites").With("prerequisites-sync"),
+			).All(),
+			seedCreate,
+			kernel.Last(),
+			app.Kind("prerequisites").With("prerequisites-sync"),
+			app.Last(),
+			seedFinalize,
+		),
+		tasktest.Ordered(nonSeedAppBegin, seedCreate, nonSeedAppLastBeforeLocalModifications),
+		tasktest.LanesSubset(seedCreate, nonSeedAppBegin),
+		tasktest.LanesDisjoint(nonSeedAppLastBeforeLocalModifications, seedCreate),
+		tasktest.Ordered(kernel.All(), nonSeedApp.Kind("download-snap")),
+		tasktest.Unordered(nonSeedApp.Last(), seedFinalize),
+		tasktest.Resolves(
+			seedCreate.Has("restart-boundary", restart.RestartBoundaryDirectionDo),
+			kernelLink.Without("restart-boundary"),
+		),
+	)
+	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshUndo(c *C) {
@@ -21602,39 +21616,39 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoEssentialsWithAddition
 		}}
 	}
 
-	uts, _ := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{
+	_, chg := runSeedRefreshUpdate(c, s.state, s.user.ID, []snapstate.StoreUpdate{{
 		InstanceName:         "some-app",
 		AdditionalComponents: []string{"standard-component"},
 	}})
-	taskSetsBySnap, seedTS := parseSeedRefreshTaskSets(uts)
-
-	appTS := mustTaskSetForSnap(c, taskSetsBySnap, "some-app")
-	appSnapSetupTask, err := appTS.Edge(snapstate.SnapSetupEdge)
+	graph, err := tasktest.NewGraph(chg.Tasks())
+	c.Assert(err, IsNil)
+	app := graph.Where(tasktest.Snap("some-app"))
+	appSnapSetupTask, err := app.With("snap-setup").Last().Resolve()
 	c.Assert(err, IsNil)
 
 	var appCompSetupTaskIDs []string
 	c.Assert(appSnapSetupTask.Get("component-setup-tasks", &appCompSetupTaskIDs), IsNil)
 	c.Assert(appCompSetupTaskIDs, HasLen, 1)
 	c.Assert(observed.initial, HasLen, 1)
-	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
-		InstanceName:          "some-app",
-		SnapSetupTaskIDs:      []string{appSnapSetupTask.ID()},
-		ComponentSetupTaskIDs: appCompSetupTaskIDs,
-	}})
+	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
+		seedRefreshCandidateFromTaskRef(c, app),
+	})
 	c.Check(observed.evictions, DeepEquals, []snapstate.SeedRefreshEvictionPolicy{{SeedsToRetain: 1}})
 
-	c.Assert(seedTS, NotNil)
-	c.Check(taskSetLanes(seedTS), testutil.DeepUnsortedMatches, taskSetLanes(appTS))
-
-	seedCreate, seedEnd, _ := splitSeedRefreshTasks(c, seedTS)
-
-	appLastBefore, err := appTS.Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-	c.Check(seedCreate.WaitTasks(), testutil.Contains, appLastBefore)
-
-	appEndTask, err := appTS.Edge(snapstate.EndEdge)
-	c.Assert(err, IsNil)
-	c.Check(waitsOnTransitively(seedEnd, appEndTask), Equals, true)
+	seedCreate := graph.Kind("create-recovery-system")
+	seedFinalize := graph.Kind("finalize-recovery-system")
+	err = graph.Assert(
+		tasktest.LanesEqual(app.Kind("link-snap"), seedCreate, seedFinalize),
+		tasktest.Ordered(
+			app.Before(
+				app.Kind("prerequisites").With("prerequisites-sync"),
+			).All(),
+			seedCreate,
+			app.Last(),
+			seedFinalize,
+		),
+	)
+	c.Check(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshSkippedWhileParentSeedRefreshNotReady(c *C) {

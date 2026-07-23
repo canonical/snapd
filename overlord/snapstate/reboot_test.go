@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
+	"github.com/snapcore/snapd/overlord/snapstate/tasktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -75,16 +76,23 @@ func (s *rebootSuite) snapInstallTaskSetForSnapSetup(snapName, base string, snap
 	prepareSnap.Set("snap-setup", snapsup)
 	prepareSnap.WaitFor(prereq)
 	prereqSync := s.state.NewTask("prerequisites", "...")
+	prereqSync.Set("prerequisites-sync", true)
+	prereqSync.Set("snap-setup-task", prepareSnap.ID())
 	prereqSync.WaitFor(prepareSnap)
 	mountSnap := s.state.NewTask("mount-snap", "...")
+	mountSnap.Set("snap-setup-task", prepareSnap.ID())
 	mountSnap.WaitFor(prereqSync)
 	unlinkSnap := s.state.NewTask("unlink-snap", "...")
+	unlinkSnap.Set("snap-setup-task", prepareSnap.ID())
 	unlinkSnap.WaitFor(mountSnap)
 	linkSnap := s.state.NewTask("link-snap", "...")
+	linkSnap.Set("snap-setup-task", prepareSnap.ID())
 	linkSnap.WaitFor(unlinkSnap)
 	autoConnect := s.state.NewTask("auto-connect", "...")
+	autoConnect.Set("snap-setup-task", prepareSnap.ID())
 	autoConnect.WaitFor(linkSnap)
 	startServices := s.state.NewTask("start-snap-services", "...")
+	startServices.Set("snap-setup-task", prepareSnap.ID())
 	startServices.WaitFor(autoConnect)
 	ts := state.NewTaskSet(prereq, prepareSnap, prereqSync, mountSnap, unlinkSnap, linkSnap, autoConnect, startServices)
 
@@ -876,12 +884,15 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefresh(c *C) {
 	)
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
-	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
 
-	snapdEnd, err := stss[0].TaskSet().Edge(snapstate.EndEdge)
+	graph, err := tasktest.NewGraph(s.state.AllTasksForTests())
 	c.Assert(err, IsNil)
 
-	c.Check(waitsOnTransitively(seedCreate, snapdEnd), Equals, true)
+	err = graph.Assert(tasktest.Ordered(
+		graph.Where(tasktest.Snap("snapd")).All(),
+		graph.Kind("create-recovery-system"),
+	))
+	c.Check(err, IsNil)
 }
 
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefreshBeforeLocalModificationsDeps(c *C) {
@@ -900,7 +911,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefreshBeforeLocalM
 		s.snapInstallTaskSetForSnapSetup("core20", "", snap.TypeBase),
 		s.snapInstallTaskSetForSnapSetup("some-app", "", snap.TypeApp),
 	}
-	seedTS, err := snapstate.ArrangeRebootAndUpdateSeed(
+	_, err := snapstate.ArrangeRebootAndUpdateSeed(
 		s.state,
 		stss,
 		snapstate.SeedRefreshEvictionPolicy{
@@ -909,27 +920,36 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdSeedRefreshBeforeLocalM
 		snapstate.Options{DeviceCtx: s.deviceCtx(c)},
 	)
 	c.Assert(err, IsNil)
-	seedCreate, _, _ := splitSeedRefreshTasks(c, seedTS)
 
-	snapdLastBefore, err := stss[0].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-	baseLastBefore, err := stss[1].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
-	c.Assert(err, IsNil)
-	appBegin, err := stss[2].TaskSet().Edge(snapstate.BeginEdge)
-	c.Assert(err, IsNil)
-	appLastBefore, err := stss[2].TaskSet().Edge(snapstate.LastBeforeLocalModificationsEdge)
+	graph, err := tasktest.NewGraph(s.state.AllTasksForTests())
 	c.Assert(err, IsNil)
 
-	for _, lastBefore := range []*state.Task{snapdLastBefore, baseLastBefore} {
-		c.Check(waitsOnTransitively(seedCreate, lastBefore), Equals, true)
-	}
+	snapd := graph.Where(tasktest.Snap("snapd"))
+	base := graph.Where(tasktest.Snap("core20"))
+	app := graph.Where(tasktest.Snap("some-app"))
+	seedCreate := graph.Kind("create-recovery-system")
 
-	c.Check(waitsOnTransitively(seedCreate, appBegin), Equals, true)
-	c.Check(waitsOnTransitively(seedCreate, appLastBefore), Equals, false)
-	for _, lane := range seedCreate.Lanes() {
-		c.Check(appBegin.Lanes(), testutil.Contains, lane)
-		c.Check(appLastBefore.Lanes(), Not(testutil.Contains), lane)
-	}
+	appBegin := app.First()
+	appLastBeforeLocalModifications := app.Before(
+		app.Kind("prerequisites").With("prerequisites-sync"),
+	).Last()
+
+	err = graph.Assert(
+		tasktest.Ordered(
+			snapd.Before(
+				snapd.Kind("prerequisites").With("prerequisites-sync"),
+			).Last(),
+			base.Before(
+				base.Kind("prerequisites").With("prerequisites-sync"),
+			).Last(),
+			seedCreate,
+		),
+		tasktest.Ordered(appBegin, seedCreate, appLastBeforeLocalModifications),
+		tasktest.LanesSubset(appLastBeforeLocalModifications, appBegin),
+		tasktest.LanesSubset(seedCreate, appBegin),
+		tasktest.LanesDisjoint(appLastBeforeLocalModifications, seedCreate),
+	)
+	c.Check(err, IsNil)
 }
 
 func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSnapdAndEssentialSeedRefreshNoCycle(c *C) {
