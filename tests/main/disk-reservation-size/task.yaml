@@ -59,7 +59,7 @@ execute: |
 
   # Set reservation larger than free space
   snap set system disk-reservation.size=100M
-  if snap install test-snapd-tools 2>install-error.txt; then
+  if "$TESTSTOOLS"/snaps-state install-local test-snapd-tools 2>install-error.txt; then
     echo "expected install to fail with large reservation"
     exit 1
   fi
@@ -71,13 +71,13 @@ execute: |
   # meaningful reservation, proving only the snap size is required
   NEWSIZE=$(($(get_disk_usage) + 3))
   resize "${NEWSIZE}M"
-  snap install test-snapd-tools
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
   snap remove --purge test-snapd-tools
 
   echo "=== Test 3: Unset reservation uses default 5MB ==="
   snap unset system disk-reservation.size
   # Still ~3MB free, so the default 5MB reservation makes the install fail
-  if snap install test-snapd-tools 2>install-error.txt; then
+  if "$TESTSTOOLS"/snaps-state install-local test-snapd-tools 2>install-error.txt; then
     echo "expected install to fail with default reservation and tight space"
     exit 1
   fi
@@ -85,7 +85,7 @@ execute: |
   # With ~8MB free the snap plus the 5MB default reservation fits
   NEWSIZE=$(($(get_disk_usage) + 8))
   resize "${NEWSIZE}M"
-  snap install test-snapd-tools
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
   snap remove --purge test-snapd-tools
 
   echo "=== Test 4: Configured positive reservation is respected ==="
@@ -96,12 +96,12 @@ execute: |
 
   # 10MB reservation + snap size fits in ~15MB
   snap set system disk-reservation.size=10M
-  snap install test-snapd-tools
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
   snap remove --purge test-snapd-tools
 
   # 20MB reservation + snap size does not fit in ~15MB
   snap set system disk-reservation.size=20M
-  if snap install test-snapd-tools 2>install-error.txt; then
+  if "$TESTSTOOLS"/snaps-state install-local test-snapd-tools 2>install-error.txt; then
     echo "expected install to fail with 20MB reservation"
     exit 1
   fi

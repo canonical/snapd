@@ -62,6 +62,7 @@ const (
 	RevertHidden = revertHidden
 	DisableHome  = disableHome
 	RevertFull   = revertFull
+	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -128,8 +129,6 @@ var (
 	CurrentSnaps = currentSnaps
 
 	HasOtherInstances = hasOtherInstances
-
-	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
 
 	AffectedByRefresh = affectedByRefresh
 
