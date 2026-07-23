@@ -31,7 +31,6 @@ const orcaScreenReaderBaseDeclarationSlots = `
   orca-screen-reader:
     allow-installation:
       slot-snap-type:
-        - app
         - core
     deny-connection:
       on-classic: false
