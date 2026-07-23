@@ -170,7 +170,11 @@ func (s *secretStateSuite) TearDownTest(c *C) {
 	}
 }
 
-func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) {
+func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, fdstoreSupported bool) {
+	if !fdstoreSupported {
+		s.failOn["fdstore-get"] = fdstore.ErrUnsupportedSystemdVersion
+	}
+
 	logbuf, restore := logger.MockDebugLogger()
 	defer restore()
 
@@ -188,18 +192,23 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 	expectedOps := []string{}
 
 	expectedOps = append(expectedOps,
-		"fdstore-get: memfd-secret-state", // get the secret state file, doesn't exist
+		"fdstore-get: memfd-secret-state", // try to get the secret state file
 		"memfd-secret",                    // create a new memfd-secret file
 	)
 	if stateBackend == "memfd-create" {
 		expectedOps = append(expectedOps, "memfd-create: secret-state") // fallback to memfd-create
 	}
-	expectedOps = append(expectedOps, "fdstore-add: memfd-secret-state") // add the new secret state file to fdstore
+
+	if fdstoreSupported {
+		expectedOps = append(expectedOps, "fdstore-add: memfd-secret-state") // add the new secret state file to fdstore
+	}
 
 	// Open and initialize the secret state
 	secretState, err := backend.OpenSecretState()
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
+
+	s.AddCleanup(func() { secretState.Close() }) // ensure the secret state is closed at the end of the test
 
 	if stateBackend == "memfd-secret" && strutil.ListContains(s.ops, "memfd-create: secret-state") {
 		// On kernels without memfd_secret support, OpenSecretStateFile will
@@ -269,17 +278,28 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
 
-	expectedOps = append(expectedOps,
-		"fdstore-get: memfd-secret-state",
-		"mmap: 8192",
-	)
+	expectedOps = append(expectedOps, "fdstore-get: memfd-secret-state")
+	if !fdstoreSupported {
+		// recreate the memfd-secret file if fdstore is not supported
+		expectedOps = append(expectedOps, "memfd-secret")
+		if stateBackend == "memfd-create" {
+			expectedOps = append(expectedOps, "memfd-create: secret-state")
+		}
+	}
+	expectedOps = append(expectedOps, "mmap: 8192")
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
 	// Check behavior after reopening.
 	val = ""
 	err = secretState.Get("key-2", &val)
-	c.Check(err, IsNil)
-	c.Assert(val, Equals, "another-value")
+	if fdstoreSupported {
+		c.Check(err, IsNil)
+		c.Assert(val, Equals, "another-value")
+	} else {
+		// if fdstore is not supported, the memfd-secret file is recreated
+		// on reopening and the previous state is lost.
+		c.Check(err, testutil.ErrorIs, state.ErrNoState)
+	}
 
 	err = secretState.Close()
 	c.Assert(err, IsNil)
@@ -293,12 +313,26 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string) 
 
 func (s *secretStateSuite) TestMemfdSecretStateHappyMemfdSecret(c *C) {
 	const stateBackend = "memfd-secret"
-	s.testMemfdSecretStateHappy(c, stateBackend)
+	const fdstoreSupported = true
+	s.testMemfdSecretStateHappy(c, stateBackend, fdstoreSupported)
+}
+
+func (s *secretStateSuite) TestMemfdSecretStateHappyMemfdSecretFdstoreUnsupported(c *C) {
+	const stateBackend = "memfd-secret"
+	const fdstoreSupported = false
+	s.testMemfdSecretStateHappy(c, stateBackend, fdstoreSupported)
 }
 
 func (s *secretStateSuite) TestMemfdSecretStateHappyMemfdCreate(c *C) {
 	const stateBackend = "memfd-create"
-	s.testMemfdSecretStateHappy(c, stateBackend)
+	const fdstoreSupported = true
+	s.testMemfdSecretStateHappy(c, stateBackend, fdstoreSupported)
+}
+
+func (s *secretStateSuite) TestMemfdSecretStateHappyMemfdCreateFdstoreUnsupported(c *C) {
+	const stateBackend = "memfd-create"
+	const fdstoreSupported = false
+	s.testMemfdSecretStateHappy(c, stateBackend, fdstoreSupported)
 }
 
 func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend string) {
@@ -319,7 +353,7 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 	expectedOps := []string{}
 
 	expectedOps = append(expectedOps,
-		"fdstore-get: memfd-secret-state", // get the secret state file, doesn't exist
+		"fdstore-get: memfd-secret-state", // try to get the secret state file
 		"memfd-secret",                    // create a new memfd-secret file
 	)
 	if stateBackend == "memfd-create" {
@@ -330,6 +364,8 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 	secretState, err := backend.OpenSecretState()
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
+
+	s.AddCleanup(func() { secretState.Close() }) // ensure the secret state is closed at the end of the test
 
 	if stateBackend == "memfd-secret" && strutil.ListContains(s.ops, "memfd-create: secret-state") {
 		// On kernels without memfd_secret support, OpenSecretStateFile will

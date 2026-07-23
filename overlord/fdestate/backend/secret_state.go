@@ -272,7 +272,8 @@ func (s *secretState) closeLocked() error {
 
 func openSecretStateFile() (*os.File, error) {
 	f, err := fdstoreGet(fdstore.FdNameMemfdSecretState)
-	if errors.Is(err, fdstore.ErrNotFound) {
+	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupportedSystemdVersion) {
+		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupportedSystemdVersion)
 		fd, err := unixMemfdSecret(0)
 		if err != nil {
 			// fallback to memfd-create if memfd-secret is not supported
@@ -291,8 +292,15 @@ func openSecretStateFile() (*os.File, error) {
 		if err := f.Truncate(secretStateSize); err != nil {
 			return nil, fmt.Errorf("cannot truncate secret state file: %w", err)
 		}
-		if err := fdstoreAdd(fdstore.FdNameMemfdSecretState, f); err != nil {
-			return nil, fmt.Errorf("cannot add secret state to fdstore: %w", err)
+
+		if fdstoreSupported {
+			// only add to the fdstore if systemd supports it. If the systemd
+			// version is too old, we will just use the memfd without adding
+			// it to the fdstore, persistence across snapd restarts will be
+			// lost but it is better than crashing.
+			if err := fdstoreAdd(fdstore.FdNameMemfdSecretState, f); err != nil {
+				return nil, fmt.Errorf("cannot add secret state to fdstore: %w", err)
+			}
 		}
 	} else if err != nil {
 		return nil, fmt.Errorf("cannot get secret state from fdstore: %w", err)
