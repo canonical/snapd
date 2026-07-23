@@ -4,6 +4,9 @@ set -e
 
 case "$1" in
     configure)
+        # Create the private tmp directory for snap-confine
+        install -d -m 0700 /tmp/snap-private-tmp
+
         # Ensure that the void directory has correct permissions.
         chmod 111 /var/lib/snapd/void
 
