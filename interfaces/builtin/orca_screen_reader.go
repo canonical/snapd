@@ -83,7 +83,8 @@ func (iface *orcaScreenReaderInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 }
 
 func (iface *orcaScreenReaderInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
-	return false
+	// allow what declarations allowed
+	return true
 }
 
 func init() {
