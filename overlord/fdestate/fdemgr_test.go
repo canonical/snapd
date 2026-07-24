@@ -385,6 +385,8 @@ func (s *fdeMgrSuite) TestUpdate(c *C) {
 	c.Check(containerRole.Models[0].Model(), Equals, "mock-model")
 	c.Check(containerRole.BootModes, DeepEquals, []string{"run"})
 	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
+	// PCR handle is not changed
+	c.Check(runRecoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(41))
 }
 
 func (s *fdeMgrSuite) TestUpdateReseal(c *C) {
