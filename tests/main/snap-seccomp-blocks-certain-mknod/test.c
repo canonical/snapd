@@ -26,6 +26,7 @@ static void test_mknod(const char *dir, const char *name, mode_t mode, const cha
     snprintf(path, sizeof(path), "%s/%s", dir, name);
     unlink(path);
 
+#ifdef SYS_mknod
     /* Use S_IFIFO (named pipe) as the file type: creating FIFOs does not
      * require CAP_MKNOD, so it works in a confined snap without extra
      * privileges.
@@ -37,6 +38,11 @@ static void test_mknod(const char *dir, const char *name, mode_t mode, const cha
         printf("mknod %s: succeeded\n", label);
         unlink(path);
     }
+#else
+    /* mknod is not available on this architecture (e.g. arm64); skip. */
+    (void)mode;
+    printf("mknod %s: skipped (no SYS_mknod)\n", label);
+#endif
 }
 
 static void test_mknodat(const char *dir, const char *name, mode_t mode, const char *label)
