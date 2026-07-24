@@ -63,6 +63,7 @@ var (
 	sbKeyDataChangePassphrase = (*sb.KeyData).ChangePassphrase
 	sbKeyDataChangePIN        = (*sb.KeyData).ChangePIN
 	sbKeyDataPlatformName     = (*sb.KeyData).PlatformName
+	sbKeyDataRecoverKeys      = (*sb.KeyData).RecoverKeys
 
 	sbWithVolumeName                       = sb_luks2.WithVolumeName
 	sbWithExternalKeyData                  = sb.WithExternalKeyData
@@ -617,6 +618,59 @@ func DeleteKeys(node string, matches map[string]bool) error {
 // DeleteContainerKey deletes a key slot on a LUKS2 container.
 func DeleteContainerKey(devicePath, slotName string) error {
 	return sbDeleteLUKS2ContainerKey(devicePath, slotName)
+}
+
+// TestProtectorKey verifies the given protector key is able to unlock
+// a specific slot on an encrypted container.
+func TestProtectorKey(ctx context.Context, devicePath, slotName string, protectorKey []byte) (bool, error) {
+	container, err := sbFindStorageContainer(ctx, devicePath)
+	if err != nil {
+		return false, err
+	}
+
+	containerReader, err := container.OpenRead(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer containerReader.Close()
+
+	known, err := containerReader.ListKeyslotNames(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	slot, err := containerReader.ReadKeyslot(ctx, slotName)
+	if err != nil {
+		for _, k := range known {
+			if slotName == k {
+				return false, err
+			}
+		}
+		// Key was not here
+		return false, nil
+	}
+
+	if slot.Type() != sb.KeyslotTypePlatform {
+		return false, fmt.Errorf("unexpected key slot type")
+	}
+
+	kd, err := sb.ReadKeyData(slot.Data())
+	if err != nil {
+		return false, err
+	}
+
+	diskKey, err := func() (sb.DiskUnlockKey, error) {
+		sbSetProtectorKeys(protectorKey)
+		defer sbSetProtectorKeys()
+		diskKey, _, err := sbKeyDataRecoverKeys(kd)
+		return diskKey, err
+	}()
+
+	if err != nil {
+		return false, err
+	}
+
+	return sbTestLUKS2ContainerKey(devicePath, diskKey[:]), nil
 }
 
 func findPrimaryKey(devicePath string) ([]byte, error) {

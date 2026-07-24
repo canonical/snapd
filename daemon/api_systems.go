@@ -54,7 +54,7 @@ var systemsCmd = &Command{
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
 	POST:        postSystemsAction,
-	Actions:     []string{"reboot", "create", "install", "fix-encryption-support", "generate-recovery-key"},
+	Actions:     []string{"reboot", "create", "install", "reprovision", "fix-encryption-support", "generate-recovery-key"},
 	WriteAccess: rootAccess{},
 }
 
@@ -225,6 +225,7 @@ var (
 	devicestateRemoveRecoverySystem           = devicestate.RemoveRecoverySystem
 	devicestateGeneratePreInstallRecoveryKey  = devicestate.GeneratePreInstallRecoveryKey
 	devicestateGenerateReprovisionRecoveryKey = devicestate.GenerateReprovisionRecoveryKey
+	devicestateReprovision                    = devicestate.Reprovision
 )
 
 func getSystemDetails(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -360,6 +361,11 @@ func postSystemsActionJSON(c *Command, r *http.Request) Response {
 		return postSystemActionCheckPINQuality(c, systemLabel, &req)
 	case "fix-encryption-support":
 		return postSystemActionFixEncryptionSupport(c, systemLabel, &req)
+	case "reprovision":
+		if systemLabel != "" {
+			return BadRequest("label should not be provided for reprovision action")
+		}
+		return postSystemActionReprovision(c, &req)
 	case "generate-recovery-key":
 		if systemLabel != "" {
 			return BadRequest("label should not be provided for generate-recovery-key action")
@@ -889,6 +895,20 @@ func postSystemActionFixEncryptionSupport(c *Command, systemLabel string, req *s
 
 	details := systemDetailsFrom(sys, gadgetInfo, encryptionInfo)
 	return SyncResponse(*details)
+}
+
+func postSystemActionReprovision(c *Command, req *systemActionRequest) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	chg, err := devicestateReprovision(st)
+	if err != nil {
+		return errToResponse(err, nil, BadRequest, "unexpected error: %v", err)
+	}
+	ensureStateSoon(st)
+
+	return AsyncResponse(nil, chg.ID())
 }
 
 func postSystemActionGenerateRecoveryKey(c *Command, req *systemActionRequest) Response {
