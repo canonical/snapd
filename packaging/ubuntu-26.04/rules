@@ -147,6 +147,10 @@ override_dh_installsystemd:
 	# Due to https://github.com/systemd/systemd/issues/8102 
 	# debhelper supporting --remaining like behaviour here would
 	# have been useful
+	# Enable snapd.apparmor first so that it is enabled before snapd.service
+	# is started; snapd checks whether snapd.apparmor is enabled at startup
+	# and emits a warning if it is not.
+	dh_installsystemd -psnapd --no-start snapd.apparmor.service
 	# (Re-)start socket first
 	dh_installsystemd -psnapd $(DH_SYSTEMD_START_OPTS) snapd.socket
 	# Then service
@@ -155,6 +159,12 @@ override_dh_installsystemd:
 	dh_installsystemd -psnapd $(DH_SYSTEMD_START_OPTS) \
 	$(filter-out snapd.socket snapd.service snapd.mounts-pre.target, \
 	$(notdir $(wildcard debian/snapd$(SYSTEMD_UNITS_DESTDIR)/*)))
+	# Handle user units (e.g. snapd.session-agent.socket). This must be
+	# called explicitly because override_dh_installsystemd suppresses the
+	# automatic dh_installsystemduser invocation. The deb-systemd-helper
+	# state files are cleared in the spread test suite prepare to ensure
+	# idempotent behaviour across VM reuse.
+	dh_installsystemduser -psnapd
 
 override_dh_clean:
 	dh_clean

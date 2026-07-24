@@ -115,7 +115,7 @@
 
 
 Name:           snapd
-Version:        2.76
+Version:        2.76.3
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -455,6 +455,9 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %service_add_pre %{systemd_services_list}
 
 %post
+# Create the private tmp directory for snap-confine
+install -d -m 0700 /tmp/snap-private-tmp
+
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
@@ -511,6 +514,10 @@ fi
 
 %post selinux
 %selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/snappy.pp.bz2
+# Ensure the private tmp directory for snap-confine exists and has the correct
+# SELinux label now that the policy module is loaded
+install -d -m 0700 /tmp/snap-private-tmp
+restorecon /tmp/snap-private-tmp || :
 
 %preun selinux
 %selinux_relabel_pre -s %{selinuxtype}

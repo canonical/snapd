@@ -1,3 +1,45 @@
+snapd (2.76.3) resolute; urgency=medium
+
+  * New upstream release, LP: #2158301
+    - FDE: support keyboard configuration at install-time for first-boot
+    - FDE: re-enable passphrases/PINs at install-time
+    - FDE: require volumes authentication if HWROT is missing
+    - FDE: bump secboot to rev 457b03a16d19
+    - FDE: use new secboot API for reprovision TPM
+    - Cross-distro: modify SELinux policy to use
+      init_named_socket_activation() for allowing systemd to start snapd
+      through socket activation
+    - packaging: make sure that usr/bin/snap is built with correct build
+      tags on debian sid
+    - Ensure profiles are setup before running prepare-{slot, plug}*
+      hooks
+
+ -- Katie May <katie.may@canonical.com>  Tue, 07 Jul 2026 10:06:48 +0200
+
+snapd (2.76.2) resolute; urgency=medium
+
+  * New upstream release, LP: #2159940
+    - interfaces: steam-support, docker-support | fix mountinfo denial
+
+ -- Katie May <katie.may@canonical.com>  Tue, 07 Jul 2026 08:38:51 +0200
+
+snapd (2.76.1) resolute; urgency=medium
+
+  * New upstream release, LP: #2157692
+    - LP: #2067006 CVE-2024-5300
+    - CVE-2026-3888
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Thu, 25 Jun 2026 13:09:05 +0200
+
+snapd (2.76.1) resolute; urgency=medium
+
+  * New upstream release, LP: #2157692
+    - LP: #2067006 CVE-2024-5300
+    - CVE-2026-3888
+    - SNAPDENG-36017
+
+ -- Ernest Lotter <ernest.lotter@canonical.com>  Sat, 20 Jun 2026 10:27:54 +0200
+
 snapd (2.76) resolute; urgency=medium
 
   * New upstream release, LP: #2154498

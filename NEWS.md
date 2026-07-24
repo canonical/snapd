@@ -1,3 +1,20 @@
+# New in snapd 2.76.3
+* FDE: support keyboard configuration at install-time for first-boot
+* FDE: re-enable passphrases/PINs at install-time
+* FDE: require volumes authentication if HWROT is missing
+* FDE: bump secboot to rev 457b03a16d19
+* FDE: use new secboot API for reprovision TPM
+* Cross-distro: modify SELinux policy to use init_named_socket_activation() for allowing systemd to start snapd through socket activation
+* packaging: make sure that usr/bin/snap is built with correct build tags on debian sid
+* Ensure profiles are setup before running prepare-{slot, plug}* hooks
+
+# New in snapd 2.76.2
+* interfaces: steam-support, docker-support | fix mountinfo denial
+
+# New in snapd 2.76.1
+* LP: #2067006 CVE-2024-5300
+* CVE-2026-3888
+
 # New in snapd 2.76
 * assertions: add helper for validating integrity data
 * assertions: drop incorrect/non-standard Ed25519 support

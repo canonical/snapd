@@ -178,9 +178,9 @@ execute: |
       remote.exec "sudo test -e /var/lib/snapd/device/fde/marker"
       remote.exec "sudo blkid /dev/disk/by-label/ubuntu-data-enc" | MATCH crypto_LUKS
 
-      # 25.10+ systems are not permitted to use /v2/system-recovery-keys, it can only
+      # 26.04+ systems are not permitted to use /v2/system-recovery-keys, it can only
       # show the recovery key at the point where it gets created.
-      if os.query is_ubuntu_lt 25.10; then
+      if os.query is_ubuntu_lt 26.04; then
           echo "Ensure recovery keys are available on classic FDE too"
           # We check for the key twice (see LP#2036631)
           #shellcheck disable=SC2034
@@ -204,7 +204,7 @@ execute: |
       # check that on an already provisioned system the API will give a
       # sensible reason why the system cannot be installed without further
       # action.
-      if os.query is_ubuntu_ge 25.10; then
+      if os.query is_ubuntu_ge 26.04; then
            # satisfy preinstall check need for locating boot images
            remote.exec "sudo mkdir -p /cdrom/EFI/boot/"
            remote.exec "sudo touch /cdrom/EFI/boot/bootx64.efi"
@@ -214,7 +214,7 @@ execute: |
       fi
       remote.exec "sudo snap debug api /v2/systems/classic" > system
       gojq '.result."storage-encryption".support' < system | MATCH "unavailable"
-      if os.query is_ubuntu_ge 25.10; then
+      if os.query is_ubuntu_ge 26.04; then
           gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: error with TPM2 device: one or more of the TPM hierarchies is already owned"
       else
           gojq '.result."storage-encryption"."unavailable-reason"' < system | MATCH "not encrypting device storage as checking TPM gave: the TPM is in DA lockout mode"

@@ -5,6 +5,7 @@ _set_snap_confine_caps() {
 ## arg 1:  the new package version
 post_install() {
   _set_snap_confine_caps
+  install -d -m 0700 /tmp/snap-private-tmp
 
   echo
   echo 'To use snapd start/enable the snapd.socket'
@@ -45,6 +46,7 @@ pre_upgrade() {
 
 post_upgrade() {
   _set_snap_confine_caps
+  install -d -m 0700 /tmp/snap-private-tmp
 
   /usr/bin/systemctl daemon-reload > /dev/null 2>&1 || :
 

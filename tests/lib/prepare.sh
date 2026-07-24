@@ -480,6 +480,16 @@ prepare_classic() {
         exit 1
     fi
 
+    if os.query is-ubuntu 26.04; then
+        # there was a known packaing problem on Ubuntu 26.04 where snapd would
+        # generate warnings right from the start
+        if dpkg -l snapd | MATCH '\s+2\.76\+ubuntu'; then
+            # clear known warnings
+            snap warnings
+            snap okay
+        fi
+    fi
+
     # Some systems (google:ubuntu-16.04-64) ship with a broken sshguard
     # unit. Stop the broken unit to not confuse the "degraded-boot" test.
     #
@@ -620,8 +630,8 @@ prepare_classic() {
         # installed packages to make sure we do not re-install it again.
         if ( os.query is-ubuntu || os.query is-debian ) && tests.pkgs is-installed lxd-installer; then
             extra=
-            if os.query is-ubuntu-ge 25.10; then
-                # the following dependency is in place in 25.10:
+            if os.query is-ubuntu-ge 26.04; then
+                # the following dependency is in place in 26.04:
                 # ubuntu-server:amd64 Depends lxd-installer
                 #
                 # NOTE: this will leave some packages without explicit
@@ -1706,7 +1716,9 @@ EOF
                         echo "File timesyncd.conf not found in core image"
                         exit 1
                     fi
-                    cp /etc/systemd/timesyncd.conf "$TARGET_TIME_CONF"
+                    while IFS= read -r target; do
+                        cp /etc/systemd/timesyncd.conf "$target"
+                    done <<< "$TARGET_TIME_CONF"
                 fi
                 if [ -e "${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf" ]; then
                     echo "C /etc/chrony/sources.d/ci-proxy.sources" >>"${BASE}-snap/usr/lib/tmpfiles.d/core-writable.conf"

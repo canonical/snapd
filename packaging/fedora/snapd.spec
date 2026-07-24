@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.76
+Version:        2.76.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -949,6 +949,9 @@ make -C data -k check
 %endif
 
 %post
+# Create the private tmp directory for snap-confine
+install -d -m 0700 /tmp/snap-private-tmp
+
 %if 0%{?rhel} == 7
 %sysctl_apply 99-snap.conf
 %endif
@@ -1006,6 +1009,10 @@ fi
 %post selinux
 %selinux_modules_install %{_datadir}/selinux/packages/snappy.pp.bz2
 %selinux_relabel_post
+# Ensure the private tmp directory for snap-confine exists and has the correct
+# SELinux label now that the policy module is loaded
+install -d -m 0700 /tmp/snap-private-tmp
+restorecon /tmp/snap-private-tmp || :
 
 %posttrans selinux
 %selinux_relabel_post
@@ -1018,6 +1025,36 @@ fi
 %endif
 
 %changelog
+* Tue Jul 07 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.76.3
+ - FDE: support keyboard configuration at install-time for first-boot
+ - FDE: re-enable passphrases/PINs at install-time
+ - FDE: require volumes authentication if HWROT is missing
+ - FDE: bump secboot to rev 457b03a16d19
+ - FDE: use new secboot API for reprovision TPM
+ - Cross-distro: modify SELinux policy to use
+   init_named_socket_activation() for allowing systemd to start snapd
+   through socket activation
+ - packaging: make sure that usr/bin/snap is built with correct build
+   tags on debian sid
+ - Ensure profiles are setup before running prepare-{slot, plug}*
+   hooks
+
+* Tue Jul 07 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.76.2
+ - interfaces: steam-support, docker-support | fix mountinfo denial
+
+* Thu Jun 25 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.76.1
+ - LP: #2067006 CVE-2024-5300
+ - CVE-2026-3888
+
+* Sat Jun 20 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.76.1
+ - LP: #2067006 CVE-2024-5300
+ - CVE-2026-3888
+ - SNAPDENG-36017
+
 * Thu May 28 2026 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.76
  - assertions: add helper for validating integrity data

@@ -86,7 +86,12 @@ func (s *DevLxdInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := apparmor.NewSpecification(appSet)
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+	// VM instances expose the socket directly at /dev/lxd/sock
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/lxd/sock rw,\n")
+	// Container instances: LXD bind-mounts /var/snap/lxd/common/lxd/devlxd/ into
+	// the container as /dev/lxd/. AppArmor resolves through the bind mount and
+	// checks the host-side path, so both paths are required.
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/var/snap/lxd/common/lxd/devlxd/sock rw,\n")
 }
 
 func (s *DevLxdInterfaceSuite) TestSecCompSpec(c *C) {

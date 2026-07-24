@@ -16,6 +16,9 @@ skip:
     - reason: This test needs test keys to be trusted
       if: |
         [ "$TRUST_TEST_KEYS" = "false" ]
+    - reason: Known packaging bug in snapd 2.76+ubuntu26.04
+      if: |
+        os.query is-ubuntu 26.04 && ( dpkg -l snapd | MATCH '\s+2\.76\+ubuntu' )
 
 prepare: |
     snap pack "$TESTSLIB/snaps/basic18"

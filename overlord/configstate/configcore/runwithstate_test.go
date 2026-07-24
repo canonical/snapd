@@ -112,7 +112,7 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 	task := r.state.NewTask("configure", "configure")
 	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), task)
 
-	c.Assert(tr.Set("core", "experimental.dbus-activation", true), IsNil)
+	c.Assert(tr.Set("core", "experimental.quota-groups", true), IsNil)
 
 	r.state.Unlock()
 	c.Assert(configcore.Run(coreDev, tr), IsNil)
@@ -120,10 +120,10 @@ func (r *graduatedSuite) TestConfigureDefaultEnabledExperimentalFeature(c *C) {
 
 	tr.Commit()
 
-	msg := "feature dbus-activation is enabled by default and will be permanently enabled in a future release"
+	msg := "feature quota-groups is enabled by default and will be permanently enabled in a future release"
 
 	var enabled bool
-	err := tr.Get("core", "experimental.dbus-activation", &enabled)
+	err := tr.Get("core", "experimental.quota-groups", &enabled)
 	c.Check(err, IsNil)
 	c.Check(enabled, Equals, true)
 
@@ -167,7 +167,7 @@ func (r *graduatedSuite) TestPruneGraduatedExperimentalConfig(c *C) {
 	for _, feature := range features.Graduated() {
 		c.Assert(setupTr.Set("core", "experimental."+feature, true), IsNil)
 	}
-	c.Assert(setupTr.Set("core", "experimental.dbus-activation", true), IsNil)
+	c.Assert(setupTr.Set("core", "experimental.parallel-instances", true), IsNil)
 	setupTr.Commit()
 
 	tr := configcore.NewRunTransaction(config.NewTransaction(r.state), nil)
@@ -181,7 +181,7 @@ func (r *graduatedSuite) TestPruneGraduatedExperimentalConfig(c *C) {
 	}
 
 	var enabled bool
-	err := tr.Get("core", "experimental.dbus-activation", &enabled)
+	err := tr.Get("core", "experimental.parallel-instances", &enabled)
 	c.Check(err, IsNil)
 	c.Check(enabled, Equals, true)
 }

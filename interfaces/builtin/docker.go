@@ -30,7 +30,8 @@ const dockerBaseDeclarationSlots = `
     deny-installation:
       slot-snap-type:
         - app
-    deny-connection: true
+    deny-connection:
+      on-classic: false
     deny-auto-connection: true
 `
 

@@ -5,11 +5,17 @@ details: |
     the snapd code from the local branch.
 
     This test verifies that the debs have the 'built-using' header. It also
-    checks that Apparmor & Seccomp are compiled (only in Ubuntu), that
-    the snapd.session-agent.socket symlink is part of the deb and that
-    it has the right (relative) target.
+    checks that Apparmor & Seccomp are compiled (only in Ubuntu), and that
+    the snapd.session-agent.socket is properly enabled. On Ubuntu >= 26.04
+    this is done via dh_installsystemduser (postinst calls deb-systemd-helper
+    --user enable, creating the symlink in /etc/systemd/user/). On older
+    distros a static symlink is shipped in the deb via snapd.links.
 
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
+
+skip:
+    - reason: This test checks the locally-built deb content, which is not available when snapd is from the archive
+      if: tests.info is-snapd-from-archive
 
 execute: |
     echo "Ensure that our debs have the 'built-using' header"
@@ -23,6 +29,15 @@ execute: |
 
     # not running on 14.04 because we don't have user sessions there
     if not os.query is-trusty; then
-        echo "Ensure that the snapd.session-agent.socket symlinks is part of the deb and that it has the right (relative) target"
-        dpkg -c "$GOHOME"/snapd_*.deb |MATCH -- '-> \.\./snapd.session-agent.socket'
+        if os.query is-ubuntu-ge 26.04; then
+            # deb-systemd-helper invokes systemctl and 'enable' symlinks are created under /etc
+            echo "Ensure the symlink exists in /etc/systemd/user/sockets.target.wants/"
+            test -L /etc/systemd/user/sockets.target.wants/snapd.session-agent.socket
+        else
+            echo "Ensure the snapd.session-agent.socket symlink is shipped in the deb"
+            dpkg -c "$GOHOME"/snapd_*.deb | MATCH -- '-> \.\./snapd.session-agent.socket'
+
+            echo "Ensure the symlink exists in /usr/lib/systemd/user/sockets.target.wants/"
+            test -L /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket
+        fi
     fi

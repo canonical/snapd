@@ -164,21 +164,6 @@ var templateCommon = `
   /run/systemd/users/[0-9]* r,
   /etc/default/nss r,
 
-  # libnss-systemd (subset from nameservice abstraction)
-  #
-  #   https://systemd.io/USER_GROUP_API/
-  #   https://systemd.io/USER_RECORD/
-  #   https://www.freedesktop.org/software/systemd/man/nss-systemd.html
-  #
-  # Allow User/Group lookups via common VarLink socket APIs. Applications need
-  # to either consult all of them or the io.systemd.Multiplexer frontend.
-  /run/systemd/userdb/ r,
-  /run/systemd/userdb/io.systemd.Multiplexer rw,
-  /run/systemd/userdb/io.systemd.DynamicUser rw,        # systemd-exec users
-  /run/systemd/userdb/io.systemd.Home rw,               # systemd-home dirs
-  /run/systemd/userdb/io.systemd.NameServiceSwitch rw,  # UNIX/glibc NSS
-  /run/systemd/userdb/io.systemd.Machine rw,            # systemd-machined
-
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
 
   # For snappy reexec on 4.8+ kernels
@@ -279,6 +264,7 @@ var templateCommon = `
   owner @{PROC}/@{pid}/loginuid r,
   owner @{PROC}/@{pid}/sessionid r,
   @{PROC}/@{pid}/smaps r,
+  @{PROC}/@{pid}/smaps_rollup r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
@@ -312,7 +298,7 @@ var templateCommon = `
   /sys/fs/cgroup/memory/{,user.slice/}memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.limit_in_bytes r,
   /sys/fs/cgroup/memory/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.stat r,
-  /sys/fs/cgroup/system.slice/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.max r,
+  /sys/fs/cgroup/system.slice/snap.@{SNAP_INSTANCE_NAME}{,.*}/memory.{high,max} r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,**/}snap.@{SNAP_INSTANCE_NAME}{,.*}/cpu.cfs_{period,quota}_us r,
   /sys/fs/cgroup/cpu,cpuacct/{,user.slice/}cpu.shares r,
