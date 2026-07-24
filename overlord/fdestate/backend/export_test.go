@@ -74,10 +74,6 @@ func MockFdstoreGet(f func(name fdstore.FdName) (*os.File, error)) (restore func
 	return testutil.Mock(&fdstoreGet, f)
 }
 
-func MockFdstoreRemove(f func(name fdstore.FdName) error) (restore func()) {
-	return testutil.Mock(&fdstoreRemove, f)
-}
-
 func MockUnixMmap(f func(fd int, offset int64, length int, prot int, flags int) ([]byte, error)) (restore func()) {
 	return testutil.Mock(&unixMmap, f)
 }
