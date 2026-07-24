@@ -83,6 +83,21 @@ func (s *grubAssetsTestSuite) TestGrubRecoveryConf(c *C) {
 	)
 }
 
+func (s *grubAssetsTestSuite) TestGrubRecoveryHybridConf(c *C) {
+	s.testGrubConfigContains(c, "grub-recovery-hybrid.cfg", 2,
+		`menuentry "Continue to run mode"`,
+		`menuentry 'UEFI Firmware Settings'`,
+		`if [ "$snapd_recovery_mode" != "run" ]; then`,
+	)
+
+	config := string(assets.Internal("grub-recovery-hybrid.cfg"))
+	// recovery modes are not supported yet, so do not show them on hybrid systems.
+	c.Check(config, Not(testutil.Contains), `menuentry "Recover using`)
+	c.Check(config, Not(testutil.Contains), `menuentry "Install using`)
+	c.Check(config, Not(testutil.Contains), `menuentry "Factory reset using`)
+	c.Check(config, testutil.Contains, `chainloader (loop)/kernel.efi snapd_recovery_mode=$snapd_recovery_mode`)
+}
+
 func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetEditions(c *C) {
 	for _, tc := range []struct {
 		asset   string
@@ -157,6 +172,7 @@ func (s *grubAssetsTestSuite) TestGrubAssetsWereRegenerated(c *C) {
 	}{
 		{"grub.cfg", "data/grub.cfg"},
 		{"grub-recovery.cfg", "data/grub-recovery.cfg"},
+		{"grub-recovery-hybrid.cfg", "data/grub-recovery-hybrid.cfg"},
 	} {
 		assetData := assets.Internal(tc.asset)
 		c.Assert(assetData, NotNil)

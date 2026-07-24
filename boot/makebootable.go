@@ -247,7 +247,8 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet,
 	opts := &bootloader.Options{
 		PrepareImageTime: true,
 		// setup the recovery bootloader
-		Role: bootloader.RoleRecovery,
+		Role:         bootloader.RoleRecovery,
+		HybridSystem: model.HybridClassic(),
 	}
 	if err := configureBootloader(rootdir, opts, bootWith, ModeInstall, bootFlags); err != nil {
 		return fmt.Errorf("cannot install bootloader: %v", err)

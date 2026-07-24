@@ -378,6 +378,61 @@ version: 5.0
 
 }
 
+func (s *makeBootable20Suite) TestMakeBootableImage20HybridClassic(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockClassicWithModesModel()
+
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryHybridCfgAsset := "#grub-recovery-hybrid cfg from assets"
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", "#grub-recovery cfg"},
+		{"grub.conf", "#grub cfg"},
+		{"meta/snap.yaml", gadgetSnapYaml},
+		{"meta/gadget.yaml", gadgetYaml},
+	})
+	restore := assets.MockInternal("grub-recovery-hybrid.cfg", []byte(grubRecoveryHybridCfgAsset))
+	defer restore()
+
+	seedSnapsDir := filepath.Join(s.rootdir, "/snaps")
+	err := os.MkdirAll(seedSnapsDir, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDir, baseInfo.Filename())
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 5.0
+`, snap.R(5), [][]string{
+		{"kernel.efi", "I'm a kernel.efi"},
+	})
+	kernelInSeed := filepath.Join(seedSnapsDir, kernelInfo.Filename())
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	label := "20191209"
+	recoverySystemDir := filepath.Join("/systems", label)
+	bootWith := &boot.BootableSet{
+		Base:                baseInfo,
+		BasePath:            baseInSeed,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelInSeed,
+		RecoverySystemDir:   recoverySystemDir,
+		RecoverySystemLabel: label,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+		Recovery:            true,
+	}
+
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, nil)
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(s.rootdir, "EFI/ubuntu/grub.cfg"), testutil.FileEquals, grubRecoveryHybridCfgAsset)
+}
+
 func (s *makeBootable20Suite) testMakeBootableImage20CustomKernelArgs(c *C, whichFile, content, errMsg string) {
 	bootloader.Force(nil)
 	model := boottest.MakeMockUC20Model()
