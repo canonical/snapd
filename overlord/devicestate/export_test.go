@@ -824,7 +824,7 @@ func MockSecbootDeleteContainerKey(f func(disk string, name string) error) (rest
 	return testutil.Mock(&secbootDeleteContainerKey, f)
 }
 
-func MockBootMakeRunnableReprovision(f func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup) error) (restore func()) {
+func MockBootMakeRunnableReprovision(f func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState boot.InitialFDEState) error) (restore func()) {
 	return testutil.Mock(&bootMakeRunnableReprovision, f)
 }
 

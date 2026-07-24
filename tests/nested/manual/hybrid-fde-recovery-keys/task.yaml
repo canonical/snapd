@@ -292,6 +292,23 @@ execute: |
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change}\s+Done"
 
+  remote.exec "sudo cat /var/lib/snapd/state.json" >new-state.json
+
+  primary_alg="$(jq '.data.fde."primary-keys"."0".digest.alg' state.json)"
+  primary_digest="$(jq '.data.fde."primary-keys"."0".digest.digest' state.json)"
+  primary_salt="$(jq '.data.fde."primary-keys"."0".digest.salt' state.json)"
+  test "${primary_alg}" = '"sha256"'
+  test -n "${primary_digest}"
+  test -n "${primary_salt}"
+
+  recover_pkey="$(jq '.data.fde."keyslot-roles".recover."primary-key-id"' state.json)"
+  run_pkey="$(jq '.data.fde."keyslot-roles".run."primary-key-id"' state.json)"
+  runrecover_pkey="$(jq '.data.fde."keyslot-roles"."run+recover"."primary-key-id"' state.json)"
+
+  test "${recover_pkey}" = "0"
+  test "${run_pkey}" = "0"
+  test "${runrecover_pkey}" = "0"
+
   # We should be able to boot without recovery key now
   tests.nested vm set-recovery-key ""
   tests.nested vm stop
@@ -317,6 +334,23 @@ execute: |
   reprovision_change_2="$(gojq --raw-output '.change' <reprovision-2.resp)"
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_2}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change_2}\s+Done"
+
+  remote.exec "sudo cat /var/lib/snapd/state.json" >new-state.json
+
+  primary_alg="$(jq '.data.fde."primary-keys"."0".digest.alg' state.json)"
+  primary_digest="$(jq '.data.fde."primary-keys"."0".digest.digest' state.json)"
+  primary_salt="$(jq '.data.fde."primary-keys"."0".digest.salt' state.json)"
+  test "${primary_alg}" = '"sha256"'
+  test -n "${primary_digest}"
+  test -n "${primary_salt}"
+
+  recover_pkey="$(jq '.data.fde."keyslot-roles".recover."primary-key-id"' state.json)"
+  run_pkey="$(jq '.data.fde."keyslot-roles".run."primary-key-id"' state.json)"
+  runrecover_pkey="$(jq '.data.fde."keyslot-roles"."run+recover"."primary-key-id"' state.json)"
+
+  test "${recover_pkey}" = "0"
+  test "${run_pkey}" = "0"
+  test "${runrecover_pkey}" = "0"
 
   tests.nested vm stop
   tests.nested vm start

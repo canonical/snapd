@@ -76,7 +76,7 @@ func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, opts Reseal
 type MockSealKeyToModeenvFlags = sealKeyToModeenvFlags
 
 // MockSealKeyToModeenv is used for testing from other packages.
-func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags) error) (restore func()) {
+func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags, fdeState InitialFDEState) error) (restore func()) {
 	old := sealKeyToModeenv
 	sealKeyToModeenv = f
 	return func() {
@@ -119,6 +119,7 @@ func sealKeyToModeenvImpl(
 	model *asserts.Model,
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
+	fdeState InitialFDEState,
 ) error {
 	if !isSealModeenvLocked() {
 		return fmt.Errorf("internal error: cannot seal without the seal modeenv lock")
@@ -147,7 +148,7 @@ func sealKeyToModeenvImpl(
 		defer relock()
 	}
 
-	return sealKeyToModeenvForMethod(method, key, saveKey, primaryKey, volumesAuth, checkResult, model, modeenv, flags)
+	return sealKeyToModeenvForMethod(method, key, saveKey, primaryKey, volumesAuth, checkResult, model, modeenv, flags, fdeState)
 }
 
 type BootChains struct {
@@ -183,6 +184,10 @@ type SealKeyForBootChainsParams struct {
 	KeyProtectorFactory secboot.KeyProtectorFactory
 }
 
+type InitialFDEState interface {
+	UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, pcrHandle uint32) error
+}
+
 func sealKeyForBootChainsImpl(
 	method device.SealingMethod,
 	key, saveKey secboot.BootstrappedContainer,
@@ -190,6 +195,7 @@ func sealKeyForBootChainsImpl(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 	params *SealKeyForBootChainsParams,
+	fdeState InitialFDEState,
 ) error {
 	return fmt.Errorf("FDE manager backend was not built in")
 }
@@ -205,6 +211,7 @@ func sealKeyToModeenvForMethod(
 	model *asserts.Model,
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
+	fdeState InitialFDEState,
 ) error {
 	params := &SealKeyForBootChainsParams{
 		LegacyFactoryResetKeyPath: flags.LegacyFactoryResetKeyPath,
@@ -287,7 +294,7 @@ func sealKeyToModeenvForMethod(
 		params.RoleToBlName[bootloader.RoleRunMode] = bl.Name()
 	}
 
-	return SealKeyForBootChains(method, key, saveKey, primaryKey, volumesAuth, checkResult, params)
+	return SealKeyForBootChains(method, key, saveKey, primaryKey, volumesAuth, checkResult, params, fdeState)
 }
 
 var resealKeyToModeenv = resealKeyToModeenvImpl

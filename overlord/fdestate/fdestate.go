@@ -20,6 +20,8 @@ package fdestate
 
 import (
 	"crypto"
+	"crypto/hmac"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"sort"
@@ -177,22 +179,43 @@ type FdeState struct {
 
 const fdeStateKey = "fde"
 
-func initializeState(st *state.State) error {
+func InitialState(primaryKey []byte) (FdeState, error) {
 	var s FdeState
-	err := st.Get(fdeStateKey, &s)
-	if err == nil {
-		// TODO:FDEM: Do we need to do something in recover?
-		return nil
+
+	var saltArray [32]byte
+	if _, err := rand.Read(saltArray[:]); err != nil {
+		return s, err
 	}
 
-	if !errors.Is(err, state.ErrNoState) {
-		return err
+	h := hmac.New(secboot.HashAlg(defaultHashAlg).New, saltArray[:])
+	h.Write(primaryKey)
+
+	digest := KeyDigest{
+		Algorithm: secboot.HashAlg(defaultHashAlg),
+		Salt:      saltArray[:],
+		Digest:    h.Sum(nil),
 	}
 
-	disks, err := GetEncryptedContainers(st)
-	if err != nil {
-		return fmt.Errorf("cannot get encrypted disks: %w", err)
+	s.PrimaryKeys = map[int]PrimaryKeyInfo{
+		0: PrimaryKeyInfo{Digest: digest},
 	}
+	s.KeyslotRoles = map[string]KeyslotRoleInfo{
+		"run": {
+			PrimaryKeyID: 0,
+		},
+		"run+recover": {
+			PrimaryKeyID: 0,
+		},
+		"recover": {
+			PrimaryKeyID: 0,
+		},
+	}
+
+	return s, nil
+}
+
+func buildInitialState(disks []backend.EncryptedContainer) (FdeState, error) {
+	var s FdeState
 
 	s.PrimaryKeys = map[int]PrimaryKeyInfo{}
 	// Note that Parameters will be updated on first update
@@ -217,7 +240,7 @@ func initializeState(st *state.State) error {
 			digest, err := getPrimaryKeyDigest(disk.DevPath())
 			if err != nil {
 				if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
-					return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", disk.DevPath(), err)
+					return s, fmt.Errorf("cannot obtain primary key digest for data device %s: %w", disk.DevPath(), err)
 				}
 				logger.Noticef("cannot obtain primary key digest for data device %s: %v", disk.DevPath(), err)
 			} else {
@@ -227,11 +250,11 @@ func initializeState(st *state.State) error {
 			sameDigest, err := statePrimaryKey.Digest.verifyPrimaryKeyDigest(disk.DevPath())
 			if err != nil {
 				if !errors.Is(err, secboot.ErrKernelKeyNotFound) {
-					return fmt.Errorf("cannot obtain primary key digest for data device %s: %w", disk.DevPath(), err)
+					return s, fmt.Errorf("cannot obtain primary key digest for data device %s: %w", disk.DevPath(), err)
 				}
 				logger.Noticef("cannot obtain primary key digest for data device %s: %v", disk.DevPath(), err)
 			} else if !sameDigest {
-				return fmt.Errorf("primary key for data and save partition are not the same")
+				return s, fmt.Errorf("primary key for data and save partition are not the same")
 			}
 		}
 
@@ -252,7 +275,7 @@ func initializeState(st *state.State) error {
 			// we hint what is the best way to parse it.
 			handle, err := secbootGetPCRHandle(disk.DevPath(), keyName, legacyKey, hintExpectFDEHook)
 			if err != nil {
-				return fmt.Errorf("cannot obtain counter handle for %s (default): %w", disk.DevPath(), err)
+				return s, fmt.Errorf("cannot obtain counter handle for %s (default): %w", disk.DevPath(), err)
 			}
 			var profiles []string
 			switch keyName {
@@ -267,11 +290,33 @@ func initializeState(st *state.State) error {
 					role.TPM2PCRPolicyRevocationCounter = handle
 					s.KeyslotRoles[profile] = role
 				} else if role.TPM2PCRPolicyRevocationCounter != handle {
-					return fmt.Errorf("found multiple revocation count for run keys")
+					return s, fmt.Errorf("found multiple revocation count for run keys")
 				}
 			}
 		}
 	}
+
+	return s, nil
+}
+
+func initializeState(st *state.State) error {
+	var s FdeState
+	err := st.Get(fdeStateKey, &s)
+	if err == nil {
+		// TODO:FDEM: Do we need to do something in recover?
+		return nil
+	}
+
+	if !errors.Is(err, state.ErrNoState) {
+		return err
+	}
+
+	disks, err := GetEncryptedContainers(st)
+	if err != nil {
+		return fmt.Errorf("cannot get encrypted disks: %w", err)
+	}
+
+	s, err = buildInitialState(disks)
 
 	_, hasStatePrimaryKey := s.PrimaryKeys[0]
 	if !hasStatePrimaryKey {
@@ -279,6 +324,33 @@ func initializeState(st *state.State) error {
 	}
 
 	st.Set(fdeStateKey, s)
+
+	return nil
+}
+
+func (s *FdeState) UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte, pcrHandle uint32) error {
+	roleInfo, hasRole := s.KeyslotRoles[role]
+	if !hasRole {
+		return fmt.Errorf("cannot find keyslot role %s", role)
+	}
+
+	var convertedModels []*Model
+	for _, model := range models {
+		convertedModels = append(convertedModels, newModel(model))
+	}
+
+	if roleInfo.Parameters == nil {
+		roleInfo.Parameters = make(map[string]KeyslotRoleParameters)
+	}
+	roleInfo.Parameters[containerRole] = KeyslotRoleParameters{
+		Models:         convertedModels,
+		BootModes:      bootModes,
+		TPM2PCRProfile: tpmPCRProfile,
+	}
+
+	roleInfo.TPM2PCRPolicyRevocationCounter = pcrHandle
+
+	s.KeyslotRoles[role] = roleInfo
 
 	return nil
 }
