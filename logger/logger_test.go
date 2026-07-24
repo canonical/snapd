@@ -91,6 +91,8 @@ func (s *LogSuite) TestBootSetup(c *C) {
 	// env shenanigans
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+	restoreProcCmdline := logger.ProcCmdlineMustMock(false)
+	defer restoreProcCmdline()
 
 	oldTerm, hadTerm := os.LookupEnv("TERM")
 	defer func() {
