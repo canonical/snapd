@@ -253,13 +253,35 @@ execute: |
 
   # Now we test reprovision
 
-  # First step is for the client to verify the result of post install
+  wait_for_auto_repair_state() {
+    save_state="${1}"
+    expected="${2}"
+    # shellcheck disable=SC2034
+    for try in {0..120}; do
+      api_get_v2_system_info_storage_encrypted >"${save_state}"
+      gojq -r '.result."auto-repair-result"' <"${save_state}" >last-autorepair-result
+      if MATCH "${expected}" <last-autorepair-result; then
+        break
+      elif MATCH not-initialized <last-autorepair-result; then
+        sleep 1
+      else
+        break
+      fi
+    done
+    MATCH "${expected}" <last-autorepair-result
+  }
+
+  # First step we wait for auto-repair to tell us that reprovision is needed
+  wait_for_auto_repair_state autorepair-post-clear.json not-attempted
+  api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | MATCH 'require-reprovision'
+
+  # Second step is for the client to verify the result of post install
   # checks, and eventually resolve any issues.
   remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
   # TODO:FDEM: We should have a way to check fix-encryption-support, for example by not allowing VMs by default.
   # echo '{"action": "fix-encryption-support", "fix-action": "proceed"}' | sudo remote.exec "snap debug api -X POST -H 'Content-Type: application/json' /v2/systems"
 
-  # Second step of reprovision is generate a new recovery key
+  # Third step of reprovision is generate a new recovery key
   echo '{"action":"generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision.resp
   gojq --raw-output '.result."recovery-key"' < rkey-reprovision.resp > rkey-reprovision.out
 
@@ -270,6 +292,23 @@ execute: |
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change}\s+Done"
 
+  remote.exec "sudo cat /var/lib/snapd/state.json" >new-state.json
+
+  primary_alg="$(jq '.data.fde."primary-keys"."0".digest.alg' state.json)"
+  primary_digest="$(jq '.data.fde."primary-keys"."0".digest.digest' state.json)"
+  primary_salt="$(jq '.data.fde."primary-keys"."0".digest.salt' state.json)"
+  test "${primary_alg}" = '"sha256"'
+  test -n "${primary_digest}"
+  test -n "${primary_salt}"
+
+  recover_pkey="$(jq '.data.fde."keyslot-roles".recover."primary-key-id"' state.json)"
+  run_pkey="$(jq '.data.fde."keyslot-roles".run."primary-key-id"' state.json)"
+  runrecover_pkey="$(jq '.data.fde."keyslot-roles"."run+recover"."primary-key-id"' state.json)"
+
+  test "${recover_pkey}" = "0"
+  test "${run_pkey}" = "0"
+  test "${runrecover_pkey}" = "0"
+
   # We should be able to boot without recovery key now
   tests.nested vm set-recovery-key ""
   tests.nested vm stop
@@ -278,6 +317,11 @@ execute: |
   api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
 
   # Let's do a reprovision with a provision TPM.
+  wait_for_auto_repair_state autorepair-just-reboot.json not-attempted
+  # The system is working correctly so reprovision is not recommended
+  api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | NOMATCH 'require-reprovision'
+
+  # ... but we are still gonna do it!
   remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
   # TODO:FDEM: We should have a way to check fix-encryption-support, for example by not allowing VMs by default.
   # echo '{"action": "fix-encryption-support", "fix-action": "proceed"}' | sudo remote.exec "snap debug api -X POST -H 'Content-Type: application/json' /v2/systems"
@@ -290,6 +334,23 @@ execute: |
   reprovision_change_2="$(gojq --raw-output '.change' <reprovision-2.resp)"
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_2}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change_2}\s+Done"
+
+  remote.exec "sudo cat /var/lib/snapd/state.json" >new-state.json
+
+  primary_alg="$(jq '.data.fde."primary-keys"."0".digest.alg' state.json)"
+  primary_digest="$(jq '.data.fde."primary-keys"."0".digest.digest' state.json)"
+  primary_salt="$(jq '.data.fde."primary-keys"."0".digest.salt' state.json)"
+  test "${primary_alg}" = '"sha256"'
+  test -n "${primary_digest}"
+  test -n "${primary_salt}"
+
+  recover_pkey="$(jq '.data.fde."keyslot-roles".recover."primary-key-id"' state.json)"
+  run_pkey="$(jq '.data.fde."keyslot-roles".run."primary-key-id"' state.json)"
+  runrecover_pkey="$(jq '.data.fde."keyslot-roles"."run+recover"."primary-key-id"' state.json)"
+
+  test "${recover_pkey}" = "0"
+  test "${run_pkey}" = "0"
+  test "${runrecover_pkey}" = "0"
 
   tests.nested vm stop
   tests.nested vm start

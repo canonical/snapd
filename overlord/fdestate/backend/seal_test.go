@@ -213,7 +213,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 
 		// set mock key sealing
 		sealKeysCalls := 0
-		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
+		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, secboot.SerializedPCRProfile, error) {
 			c.Check(params.AllowInsufficientDmaProtection, Equals, tc.onCore)
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 			c.Check(params.PCRPolicyCounterHandle, Equals, uint32(42))
@@ -293,7 +293,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			}
 			c.Assert(params.ModelParams[0].Model.Model(), Equals, modelName)
 
-			return nil, tc.sealErr
+			return nil, nil, tc.sealErr
 		})
 		defer restore()
 
@@ -388,7 +388,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 			InstallHostWritableDir:    filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 			UseTokens:                 !tc.disableTokens,
 		}
-		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, volumesAuth, checkResult, params)
+		err := boot.SealKeyForBootChains(device.SealingMethodTPM, myKey, myKey2, nil, volumesAuth, checkResult, params, nil)
 
 		c.Check(provisionCalls, Equals, tc.expProvisionCalls)
 		c.Check(sealKeysCalls, Equals, tc.expSealCalls)
@@ -591,7 +591,7 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 		PrimaryKey:             []byte{1, 2, 3, 4},
 		KeyProtectorFactory:    mockFactory,
 	}
-	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, nil, nil, params)
+	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, dataContainer, saveContainer, nil, nil, nil, params, nil)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
@@ -675,7 +675,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 		BootChains:             bootChains,
 		InstallHostWritableDir: filepath.Join(boot.InstallUbuntuDataDir, "system-data"),
 	}
-	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, nil, nil, params)
+	err := boot.SealKeyForBootChains(device.SealingMethodFDESetupHook, key, saveKey, nil, nil, nil, params, nil)
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data")), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)

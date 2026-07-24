@@ -413,10 +413,13 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		volumesAuth,
 		checkResult)
 
+	fdeState, err := fdestate.InitialState(primaryKey)
+
 	err = bootMakeRunnableReprovision(
 		deviceCtx.Model(),
 		keyProtector,
 		encryptionParams,
+		&fdeState,
 	)
 
 	if err != nil {
@@ -424,12 +427,15 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Step 7. Swap the state
-	// TODO: Actually swap the state. And move it after step 6.
 	var oldState any
 	errGetState := st.Get("fde", &oldState)
 	if errGetState != nil && !errors.Is(errGetState, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot get the fde state %v", err)
 	}
+	// In case the write of protector key fails but we lose power
+	// before we can revert, having a nil fde state will make the
+	// system rebuild it on reboot instead of having a state that
+	// does not match.
 	st.Set("fde", nil)
 
 	// Step 6. write the protector key
@@ -439,6 +445,7 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		}
 		return fmt.Errorf("cannot save the system-save key: %v", err)
 	}
+	st.Set("fde", fdeState)
 	// swapping the protector key is the sign we have finished
 	revertReprovisionAttemptOnError = false
 

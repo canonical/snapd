@@ -1494,7 +1494,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		_, err := secboot.SealKeys(myKeys, &myParams)
+		_, _, err := secboot.SealKeys(myKeys, &myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
@@ -1983,7 +1983,7 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
 	}
 
-	_, err := secboot.SealKeys(myKeys, &myParams)
+	_, _, err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
 }
 
@@ -5917,23 +5917,39 @@ func (s *secbootSuite) TestShouldAttemptRepairDegraded(c *C) {
 
 	// Incorrect user auth should not cause repair
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncorrectUserAuth
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
-		sb.KeyslotErrorInvalidKeyData,
 		sb.KeyslotErrorInvalidPrimaryKey,
 		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
 	} {
 		state.Activations["a"].KeyslotErrors["b"] = failure
 
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
+	}
+
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorInvalidKeyData,
+	} {
+		state.Activations["a"].KeyslotErrors["b"] = failure
+
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+			PermitManual:       true,
+		})
 	}
 
 	state.Activations["a"].KeyslotErrors["b"] = sb.KeyslotErrorIncompatibleRoleParams
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	actions = secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{AttemptRepair: true})
 }
 
 func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
@@ -5953,21 +5969,103 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 		},
 	}
 
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
 
 	for _, failure := range []sb.KeyslotErrorType{
 		// No repair cases since we need reprovision instead
-		//sb.KeyslotErrorInvalidKeyData,
+		sb.KeyslotErrorInvalidKeyData,
 		sb.KeyslotErrorInvalidPrimaryKey,
-		sb.KeyslotErrorPlatformFailure,
 		sb.KeyslotErrorUnknown,
 	} {
 		state.Activations["a"].KeyslotErrors["a"] = failure
-		c.Check(secboot.ShouldAttemptRepair(state), Equals, false)
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+		})
+	}
+
+	for _, failure := range []sb.KeyslotErrorType{
+		sb.KeyslotErrorPlatformFailure,
+	} {
+		state.Activations["a"].KeyslotErrors["a"] = failure
+		actions = secboot.ShouldAttemptRepair(state, nil)
+		c.Check(actions, DeepEquals, secboot.RemedialActions{
+			RequireReprovision: true,
+			PermitManual:       true,
+		})
 	}
 
 	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
-	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+	c.Check(secboot.ShouldAttemptRepair(state, nil).AttemptRepair, Equals, true)
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairNoRepair(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, nil)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorLocked(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrTPMLockout)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequirePlatformReset: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorAnyError(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, fmt.Errorf("some-unknown-error"))
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		RequireReprovision: true,
+	})
+}
+
+func (s *secbootSuite) TestShouldAttemptRepairLockoutErrorUninitialized(c *C) {
+	state := &secboot.ActivateState{}
+	state.Activations = map[string]*sb.ContainerActivateState{
+		"a": {
+			Status: sb.ActivationSucceededWithPlatformKey,
+			KeyslotErrors: map[string]sb.KeyslotErrorType{
+				"a": sb.KeyslotErrorNone,
+			},
+		},
+	}
+
+	actions := secboot.ShouldAttemptRepair(state, sb_tpm2.ErrLockoutAuthNotInitialized)
+	c.Check(actions, DeepEquals, secboot.RemedialActions{
+		AttemptRepair: true,
+	})
 }
 
 func (s *secbootSuite) TestGetPCRHandleFromToken(c *C) {

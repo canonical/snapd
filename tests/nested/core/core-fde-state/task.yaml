@@ -4,7 +4,11 @@ details: |
     This test checks checks that the FDE state is correctly
     initialized on first boot.
 
-systems: [ubuntu-20.04-64, ubuntu-22.04-64, ubuntu-24.04-64]
+systems:
+  - ubuntu-20.04-64
+  - ubuntu-22.04-64
+  - ubuntu-24.04-64
+  - ubuntu-26.04-64
 
 execute: |
     echo "Wait for the system to be seeded first"

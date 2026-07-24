@@ -96,18 +96,21 @@ func sealRunObjectKeys(
 	pcrHandle uint32,
 	useTokens bool,
 	keyRole string,
+	fdeState boot.InitialFDEState,
 ) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
 		return nil, fmt.Errorf("cannot prepare for key sealing: %v", err)
 	}
 
+	var models []secboot.ModelForSealing
+
 	hasClassicModel := false
 	for _, m := range modelParams {
 		if m.Model.Classic() {
 			hasClassicModel = true
-			break
 		}
+		models = append(models, m.Model)
 	}
 
 	sealKeyParams := &secboot.SealKeysParams{
@@ -130,9 +133,15 @@ func sealRunObjectKeys(
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	primaryKey, err := secbootSealKeys(runKeySealRequests(key, useTokens), sealKeyParams)
+	primaryKey, pcrProfile, err := secbootSealKeys(runKeySealRequests(key, useTokens), sealKeyParams)
 	if err != nil {
 		return nil, fmt.Errorf("cannot seal the encryption keys: %v", err)
+	}
+
+	if fdeState != nil {
+		if err := fdeState.UpdateParameters(keyRole, "all", []string{"run", "recover"}, models, pcrProfile, pcrHandle); err != nil {
+			return nil, err
+		}
 	}
 
 	return primaryKey, nil
@@ -149,6 +158,7 @@ func sealFallbackObjectKeys(
 	pcrHandle uint32,
 	useTokens bool,
 	keyRole string,
+	fdeState boot.InitialFDEState,
 ) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
@@ -156,12 +166,14 @@ func sealFallbackObjectKeys(
 		return fmt.Errorf("cannot prepare for fallback key sealing: %v", err)
 	}
 
+	var models []secboot.ModelForSealing
+
 	hasClassicModel := false
 	for _, m := range modelParams {
 		if m.Model.Classic() {
 			hasClassicModel = true
-			break
 		}
+		models = append(models, m.Model)
 	}
 
 	sealKeyParams := &secboot.SealKeysParams{
@@ -177,15 +189,25 @@ func sealFallbackObjectKeys(
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
-
-	if _, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryResetKeyPath, useTokens), sealKeyParams); err != nil {
+	_, pcrProfile, err := secbootSealKeys(fallbackKeySealRequests(key, saveKey, factoryResetKeyPath, useTokens), sealKeyParams)
+	if err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
+	}
+
+	if fdeState != nil {
+		// FIXME: we should create different pcr profile for ech.
+		if err := fdeState.UpdateParameters(keyRole, "ubuntu-save", []string{"recover", "factory-reset"}, models, pcrProfile, pcrHandle); err != nil {
+			return err
+		}
+		if err := fdeState.UpdateParameters(keyRole, "ubuntu-data", []string{"recover"}, models, pcrProfile, pcrHandle); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams) error {
+func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams, fdeState boot.InitialFDEState) error {
 	if method != device.SealingMethodFDESetupHook {
 		return fmt.Errorf("internal error: sealKeyForBootChainsHook called with unsupported method %q", method)
 	}
@@ -198,8 +220,12 @@ func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.
 		sealingParams.AuxKeyFile = filepath.Join(boot.InstallHostFDESaveDir, "aux-key")
 	}
 
+	var models []secboot.ModelForSealing
 	for _, runChain := range params.RunModeBootChains {
 		sealingParams.Model = runChain.ModelForSealing()
+		models = append(models, runChain.ModelForSealing())
+		// We assume that factory-reset/installation/reprovision always reseal with one unique model.
+		// FIMXE: for reprovision, we might need to actually clean up the modeenv.
 		break
 	}
 
@@ -224,6 +250,18 @@ func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.
 		}
 	}
 
+	if fdeState != nil {
+		if err := fdeState.UpdateParameters("run+recover", "all", []string{"run", "recover"}, models, nil, 0); err != nil {
+			return err
+		}
+		if err := fdeState.UpdateParameters("recover", "ubuntu-save", []string{"recover", "factory-reset"}, models, nil, 0); err != nil {
+			return err
+		}
+		if err := fdeState.UpdateParameters("recover", "ubuntu-data", []string{"recover"}, models, nil, 0); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -234,10 +272,11 @@ func sealKeyForBootChainsBackend(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 	params *boot.SealKeyForBootChainsParams,
+	fdeState boot.InitialFDEState,
 ) error {
 	if method == device.SealingMethodFDESetupHook {
 		// volumes authentication is not supported when using secboot hooks
-		return sealKeyForBootChainsHook(method, key, saveKey, params)
+		return sealKeyForBootChainsHook(method, key, saveKey, params, fdeState)
 	}
 
 	pbc := boot.ToPredictableBootChains(append(params.RunModeBootChains, params.RecoveryBootChains...))
@@ -261,13 +300,13 @@ func sealKeyForBootChainsBackend(
 
 	// TODO:FDEM: refactor sealing functions to take a struct instead of so many
 	// parameters
-	primaryKey, err = sealRunObjectKeys(key, pbc, primaryKey, volumesAuth, checkResult, params.RoleToBlName, handle, params.UseTokens, "run+recover")
+	primaryKey, err = sealRunObjectKeys(key, pbc, primaryKey, volumesAuth, checkResult, params.RoleToBlName, handle, params.UseTokens, "run+recover", fdeState)
 	if err != nil {
 		return err
 	}
 
 	err = sealFallbackObjectKeys(key, saveKey, rpbc, primaryKey, volumesAuth, checkResult, params.RoleToBlName, params.LegacyFactoryResetKeyPath,
-		handle, params.UseTokens, "recover")
+		handle, params.UseTokens, "recover", fdeState)
 	if err != nil {
 		return err
 	}
@@ -314,7 +353,7 @@ func MockSecbootProvisionTPM(f func(mode secboot.TPMProvisionMode, lockoutAuthFi
 	}
 }
 
-func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error)) (restore func()) {
+func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, secboot.SerializedPCRProfile, error)) (restore func()) {
 	old := secbootSealKeys
 	secbootSealKeys = f
 	return func() {
