@@ -43,9 +43,8 @@ var (
 )
 
 var (
-	fdstoreAdd    = fdstore.Add
-	fdstoreGet    = fdstore.Get
-	fdstoreRemove = fdstore.Remove
+	fdstoreAdd = fdstore.Add
+	fdstoreGet = fdstore.Get
 
 	unixMemfdSecret = unix.MemfdSecret
 	unixMemfdCreate = unix.MemfdCreate
@@ -92,16 +91,16 @@ type secretStateHeader struct {
 	size    uint64
 }
 
-func initSecretStateHeader(data []byte) secretStateHeader {
+func initSecretStateHeader(b []byte) secretStateHeader {
 	header := secretStateHeader{
-		magic: binary.LittleEndian.Uint32(data[0:4]),
+		magic: binary.LittleEndian.Uint32(b[0:4]),
 	}
 	if header.magic != secretStateHeaderMagic {
 		// unknown magic, wipe the whole file to avoid leaking
 		// secrets from previous usage.
 		// TODO:GOVERSION: use clear() once we are on go>=1.21
-		for i := range data {
-			data[i] = 0
+		for i := range b {
+			b[i] = 0
 		}
 
 		// initialize header
@@ -110,18 +109,18 @@ func initSecretStateHeader(data []byte) secretStateHeader {
 			version: 1,
 			size:    0,
 		}
-		header.writeTo(data[:secretStateHeaderSize])
+		header.writeTo(b[:secretStateHeaderSize])
 	} else {
-		header.version = binary.LittleEndian.Uint16(data[4:6])
-		header.size = binary.LittleEndian.Uint64(data[6:14])
+		header.version = binary.LittleEndian.Uint16(b[4:6])
+		header.size = binary.LittleEndian.Uint64(b[6:14])
 	}
 	return header
 }
 
-func (h *secretStateHeader) writeTo(data []byte) {
-	binary.LittleEndian.PutUint32(data[0:4], h.magic)
-	binary.LittleEndian.PutUint16(data[4:6], h.version)
-	binary.LittleEndian.PutUint64(data[6:14], h.size)
+func (h *secretStateHeader) writeTo(b []byte) {
+	binary.LittleEndian.PutUint32(b[0:4], h.magic)
+	binary.LittleEndian.PutUint16(b[4:6], h.version)
+	binary.LittleEndian.PutUint64(b[6:14], h.size)
 }
 
 type customData map[string]*json.RawMessage
@@ -155,27 +154,32 @@ func (data customData) set(key string, value any) {
 	data[key] = &entryJSON
 }
 
+type stateLockChecker interface {
+	// EnsureLocked panics if the state lock is not held.
+	EnsureLocked()
+}
+
 type secretState struct {
 	f      *os.File
-	st     *state.State
 	data   customData
 	header secretStateHeader
 	mmap   []byte
 
 	closed bool
+	// TODO: once state.State exposes an exported method to check that the state
+	// lock is held (e.g. state.EnsureLocked), use it instead.
+	stateChecker stateLockChecker
 }
 
 func (s *secretState) ensureLocked() {
 	if s == nil {
 		return
 	}
-	if s.st == nil {
-		logger.Panicf("internal error: secret state has no associated state.State")
+	if s.stateChecker == nil {
+		logger.Panicf("internal error: secret state has no associated state lock checker")
 	}
 
-	// TODO: once state.State exposes an exported method to check that the state
-	// lock is held (e.g. state.EnsureLocked), use it instead.
-	s.st.Cached(struct{}{}) // ensure the state lock is held, panic if not
+	s.stateChecker.EnsureLocked() // ensure the state lock is held, panic if not
 }
 
 func (s *secretState) Get(key string, value any) error {
@@ -319,11 +323,13 @@ func openSecretStateFile() (*os.File, error) {
 
 // OpenSecretState returns the memfd-secret backed state used to store
 // secrets that can persist through snapd restarts. If memfd-secret is
-// not supported, it falls back to using memfd-create.
+// not supported, it falls back to using memfd-create. SecretState
+// uses passed stateChecker to ensure that the caller holds the state
+// lock while accessing the secret state.
 //
 // Note that only a single instance of the secret state should be opened
 // at a time.
-func OpenSecretState(st *state.State) (retState SecretState, retErr error) {
+func OpenSecretState(stateChecker stateLockChecker) (retState SecretState, retErr error) {
 	f, err := openSecretStateFile()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open secret state file: %w", err)
@@ -363,11 +369,11 @@ func OpenSecretState(st *state.State) (retState SecretState, retErr error) {
 	}()
 
 	s := &secretState{
-		f:      f,
-		st:     st,
-		data:   make(customData),
-		header: initSecretStateHeader(mmap),
-		mmap:   mmap,
+		f:            f,
+		stateChecker: stateChecker,
+		data:         make(customData),
+		header:       initSecretStateHeader(mmap),
+		mmap:         mmap,
 	}
 
 	if s.header.version != 1 {
