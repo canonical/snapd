@@ -5,20 +5,6 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-static const char *errno_name(int e)
-{
-    switch (e) {
-    case EACCES:     return "EACCES";
-    case EPERM:      return "EPERM";
-    case ENOSYS:     return "ENOSYS";
-    case EOPNOTSUPP: return "EOPNOTSUPP";
-    case EINVAL:     return "EINVAL";
-    case ENOENT:     return "ENOENT";
-    case EEXIST:     return "EEXIST";
-    default:         return strerror(e);
-    }
-}
-
 static void test_creat(const char *dir, const char *name, int mode, const char *label)
 {
     char path[4096];
@@ -28,7 +14,7 @@ static void test_creat(const char *dir, const char *name, int mode, const char *
 #ifdef SYS_creat
     int fd = (int)syscall(SYS_creat, path, mode);
     if (fd < 0) {
-        printf("creat %s: %s\n", label, errno_name(errno));
+        printf("creat %s: %s\n", label, strerror(errno));
     } else {
         printf("creat %s: succeeded\n", label);
         close(fd);

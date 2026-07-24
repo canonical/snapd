@@ -6,20 +6,6 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-static const char *errno_name(int e)
-{
-    switch (e) {
-    case EACCES:     return "EACCES";
-    case EPERM:      return "EPERM";
-    case ENOSYS:     return "ENOSYS";
-    case EOPNOTSUPP: return "EOPNOTSUPP";
-    case EINVAL:     return "EINVAL";
-    case ENOENT:     return "ENOENT";
-    case EEXIST:     return "EEXIST";
-    default:         return strerror(e);
-    }
-}
-
 /* Create a plain file at path and return an open fd, or -1 on error. */
 static int make_file(const char *path)
 {
@@ -36,7 +22,7 @@ static void test_chmod(const char *path, mode_t mode, const char *label)
 #ifdef SYS_chmod
     int ret = (int)syscall(SYS_chmod, path, mode);
     if (ret < 0) {
-        printf("chmod %s: %s\n", label, errno_name(errno));
+        printf("chmod %s: %s\n", label, strerror(errno));
     } else {
         printf("chmod %s: succeeded\n", label);
     }
@@ -51,7 +37,7 @@ static void test_fchmod(int fd, mode_t mode, const char *label)
 {
     int ret = (int)syscall(SYS_fchmod, fd, mode);
     if (ret < 0) {
-        printf("fchmod %s: %s\n", label, errno_name(errno));
+        printf("fchmod %s: %s\n", label, strerror(errno));
     } else {
         printf("fchmod %s: succeeded\n", label);
     }
@@ -61,7 +47,7 @@ static void test_fchmodat(const char *path, mode_t mode, const char *label)
 {
     int ret = (int)syscall(SYS_fchmodat, AT_FDCWD, path, mode, 0);
     if (ret < 0) {
-        printf("fchmodat %s: %s\n", label, errno_name(errno));
+        printf("fchmodat %s: %s\n", label, strerror(errno));
     } else {
         printf("fchmodat %s: succeeded\n", label);
     }
@@ -72,7 +58,7 @@ static void test_fchmodat2(const char *path, mode_t mode, const char *label)
 #ifdef SYS_fchmodat2
     int ret = (int)syscall(SYS_fchmodat2, AT_FDCWD, path, mode, 0);
     if (ret < 0) {
-        printf("fchmodat2 %s: %s\n", label, errno_name(errno));
+        printf("fchmodat2 %s: %s\n", label, strerror(errno));
     } else {
         printf("fchmodat2 %s: succeeded\n", label);
     }

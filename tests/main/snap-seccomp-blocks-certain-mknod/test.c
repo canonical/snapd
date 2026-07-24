@@ -6,20 +6,6 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-static const char *errno_name(int e)
-{
-    switch (e) {
-    case EACCES:     return "EACCES";
-    case EPERM:      return "EPERM";
-    case ENOSYS:     return "ENOSYS";
-    case EOPNOTSUPP: return "EOPNOTSUPP";
-    case EINVAL:     return "EINVAL";
-    case ENOENT:     return "ENOENT";
-    case EEXIST:     return "EEXIST";
-    default:         return strerror(e);
-    }
-}
-
 static void test_mknod(const char *dir, const char *name, mode_t mode, const char *label)
 {
     char path[4096];
@@ -32,7 +18,7 @@ static void test_mknod(const char *dir, const char *name, mode_t mode, const cha
      * Call the raw mknod syscall directly to bypass any libc wrapper. */
     int ret = (int)syscall(SYS_mknod, path, S_IFIFO | mode, 0);
     if (ret < 0) {
-        printf("mknod %s: %s\n", label, errno_name(errno));
+        printf("mknod %s: %s\n", label, strerror(errno));
     } else {
         printf("mknod %s: succeeded\n", label);
         unlink(path);
@@ -48,7 +34,7 @@ static void test_mknodat(const char *dir, const char *name, mode_t mode, const c
     /* Same as test_mknod but exercises the mknodat syscall. */
     int ret = (int)syscall(SYS_mknodat, AT_FDCWD, path, S_IFIFO | mode, 0);
     if (ret < 0) {
-        printf("mknodat %s: %s\n", label, errno_name(errno));
+        printf("mknodat %s: %s\n", label, strerror(errno));
     } else {
         printf("mknodat %s: succeeded\n", label);
         unlink(path);
