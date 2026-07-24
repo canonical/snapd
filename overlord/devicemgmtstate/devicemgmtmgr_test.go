@@ -421,7 +421,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 			Messages: []store.MessageWithToken{
 				s.makeStoreRequestMessage(c, "someId", "test-kind", "token-123"),
 			},
-			TotalPendingMessages: 0,
+			TotalPendingMessages: 1,
 		}, nil
 	})
 
@@ -525,7 +525,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
 					},
 				},
 			},
-			TotalPendingMessages: 0,
+			TotalPendingMessages: 1,
 		}, nil
 	})
 
@@ -552,7 +552,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateMessage(c *C) {
 				msg,
 				{Token: "token-2", Message: msg.Message},
 			},
-			TotalPendingMessages: 0,
+			TotalPendingMessages: 2,
 		}, nil
 	})
 
@@ -564,6 +564,42 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateMessage(c *C) {
 	c.Assert(err, IsNil)
 	// The duplicate should have been dropped, leaving one message in the sequence.
 	c.Assert(ms.Sequences["someId"].Messages, HasLen, 1)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateSequencedMessagePastApplied(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// Set state as it would appear after message seqA-2 has been fully processed.
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	ms.Sequences["seqA"] = &devicemgmtstate.SequenceState{Applied: 2}
+	ms.SequenceLRU = []string{"seqA"}
+	ms.LastReceivedToken = "token-2"
+	s.mgr.SetState(ms)
+
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		c.Check(req.After, Equals, "token-2") // Ack receipt of seqA-2
+
+		// Redeliver seqA-2.
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "seqA-2", "test-kind", "token-2"),
+			},
+			TotalPendingMessages: 1,
+		}, nil
+	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	// The redelivered message must be dropped.
+	c.Assert(ms.Sequences["seqA"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["seqA"].Applied, Equals, 2)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDeviceNotSeeded(c *C) {
