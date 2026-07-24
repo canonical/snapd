@@ -28,6 +28,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 
@@ -64,7 +65,18 @@ const (
 
 // SecretState is an interface for storing secrets than cannot be persisted
 // to disk.
+//
+// Similar to state.State, The lock returned by Lock must be held while calling
+// Get, Has, Set and Close. It is a runtime error (panic) to call those methods
+// without holding the lock.
 type SecretState interface {
+	// Lock acquires the state lock, which must be held while calling
+	// Get, Has, Set and Close.
+	Lock()
+
+	// Unlock releases the state lock.
+	Unlock()
+
 	// Get unmarshals the stored value associated with the provided key
 	// into the value parameter.
 	// It returns state.ErrNoState if there is no entry for key.
@@ -161,12 +173,34 @@ type secretState struct {
 
 	closed bool
 
-	mu sync.RWMutex
+	mu  sync.Mutex
+	muC int32
+}
+
+func (s *secretState) Lock() {
+	s.mu.Lock()
+	atomic.AddInt32(&s.muC, 1)
+}
+
+func (s *secretState) Unlock() {
+	atomic.AddInt32(&s.muC, -1)
+	s.mu.Unlock()
+}
+
+func (s *secretState) reading() {
+	if atomic.LoadInt32(&s.muC) != 1 {
+		panic("internal error: accessing secret state without lock")
+	}
+}
+
+func (s *secretState) writing() {
+	if atomic.LoadInt32(&s.muC) != 1 {
+		panic("internal error: accessing secret state without lock")
+	}
 }
 
 func (s *secretState) Get(key string, value any) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.reading()
 
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to get key %q from closed state", key)
@@ -176,8 +210,7 @@ func (s *secretState) Get(key string, value any) error {
 }
 
 func (s *secretState) Has(key string) bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.reading()
 
 	if s.closed {
 		return false
@@ -187,8 +220,7 @@ func (s *secretState) Has(key string) bool {
 }
 
 func (s *secretState) Set(key string, value any) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.writing()
 
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to set key %q on closed state", key)
@@ -236,18 +268,12 @@ func (s *secretState) capacity() uint64 {
 }
 
 func (s *secretState) Close() error {
-	if s == nil {
-		return nil
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+	s.writing()
 	return s.closeLocked()
 }
 
 func (s *secretState) closeLocked() error {
-	if s.closed {
+	if s == nil || s.closed {
 		return nil
 	}
 
@@ -376,6 +402,9 @@ func OpenSecretState() (retState SecretState, retErr error) {
 		}
 	}
 
-	runtime.SetFinalizer(s, (*secretState).Close)
+	// The finalizer runs on the GC goroutine without holding the state lock.
+	// It only runs once the state is unreachable, so no other goroutine can
+	// be accessing it and it can release the resources directly.
+	runtime.SetFinalizer(s, (*secretState).closeLocked)
 	return s, nil
 }
