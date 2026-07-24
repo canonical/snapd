@@ -27,7 +27,7 @@ static int make_file(const char *path)
     unlink(path);
     int fd = open(path, O_CREAT | O_WRONLY, 0644);
     if (fd < 0) {
-        fprintf(stderr, "open %s: %s\n", path, errno_name(errno));
+        fprintf(stderr, "open %s: %s\n", path, strerror(errno));
     }
     return fd;
 }
