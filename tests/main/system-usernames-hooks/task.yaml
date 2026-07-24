@@ -1,0 +1,18 @@
+summary: exercise snap hooks using system-usernames
+
+details: |
+    Exercise a scenario in which a snap that uses system-usernames carries
+    hooks. Make sure that hooks are able to exercise functionality provided by
+    system-usernames.
+
+prepare: |
+    tests.cleanup defer "$TESTSTOOLS"/user-state remove-with-group snap_daemon
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    test-snapd-sh.sh -c 'setpriv --clear-groups \
+            --reuid snap_daemon \
+            --regid snap_daemon -- \
+            id'
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
