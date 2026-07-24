@@ -472,6 +472,7 @@ jobs:
           fi
 
           export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
+          export SPREAD_REMOTE_STORE=enterprise
 
           # This could be the case when either there are not systems for a group or
           # the list of tests to run is empty
