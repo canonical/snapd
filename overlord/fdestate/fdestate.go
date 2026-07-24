@@ -20,6 +20,8 @@ package fdestate
 
 import (
 	"crypto"
+	"crypto/hmac"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"sort"
@@ -177,6 +179,43 @@ type FdeState struct {
 
 const fdeStateKey = "fde"
 
+// InitialState creates an initial state containing only information
+// about the main primary key.
+func InitialState(primaryKey []byte) (FdeState, error) {
+	var s FdeState
+
+	var saltArray [32]byte
+	if _, err := rand.Read(saltArray[:]); err != nil {
+		return s, err
+	}
+
+	h := hmac.New(defaultHashAlg.New, saltArray[:])
+	h.Write(primaryKey)
+
+	digest := KeyDigest{
+		Algorithm: secboot.HashAlg(defaultHashAlg),
+		Salt:      saltArray[:],
+		Digest:    h.Sum(nil),
+	}
+
+	s.PrimaryKeys = map[int]PrimaryKeyInfo{
+		0: {Digest: digest},
+	}
+	s.KeyslotRoles = map[string]KeyslotRoleInfo{
+		"run": {
+			PrimaryKeyID: 0,
+		},
+		"run+recover": {
+			PrimaryKeyID: 0,
+		},
+		"recover": {
+			PrimaryKeyID: 0,
+		},
+	}
+
+	return s, nil
+}
+
 func initializeState(st *state.State) error {
 	var s FdeState
 	err := st.Get(fdeStateKey, &s)
@@ -283,7 +322,9 @@ func initializeState(st *state.State) error {
 	return nil
 }
 
-func (s *FdeState) updateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+// UpdateParameters updates the parameters for given keyslot role and
+// container role.
+func (s *FdeState) UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
 	roleInfo, hasRole := s.KeyslotRoles[role]
 	if !hasRole {
 		return fmt.Errorf("cannot find keyslot role %s", role)
@@ -308,6 +349,21 @@ func (s *FdeState) updateParameters(role string, containerRole string, bootModes
 	return nil
 }
 
+// UpdatePCRHandle updates the policy revocation counter handler for
+// a given keyslot role.
+func (s *FdeState) UpdatePCRHandle(role string, pcrHandle uint32) error {
+	roleInfo, hasRole := s.KeyslotRoles[role]
+	if !hasRole {
+		return fmt.Errorf("cannot find keyslot role %s", role)
+	}
+
+	roleInfo.TPM2PCRPolicyRevocationCounter = pcrHandle
+
+	s.KeyslotRoles[role] = roleInfo
+
+	return nil
+}
+
 func updateParameters(st *state.State, role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
 	var s FdeState
 	err := st.Get(fdeStateKey, &s)
@@ -315,7 +371,7 @@ func updateParameters(st *state.State, role string, containerRole string, bootMo
 		return err
 	}
 
-	if err := s.updateParameters(role, containerRole, bootModes, models, tpmPCRProfile); err != nil {
+	if err := s.UpdateParameters(role, containerRole, bootModes, models, tpmPCRProfile); err != nil {
 		return err
 	}
 
