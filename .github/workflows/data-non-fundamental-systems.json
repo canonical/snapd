@@ -122,9 +122,9 @@
       },
       {
         "runs-on": "['self-hosted', 'spread-enabled']",
-        "group": "ubuntu-interim",
+        "group": "ubuntu-daily",
         "backend": "openstack",
-        "systems": "ubuntu-25.10-64",
+        "systems": "ubuntu-26.10-64",
         "tasks": "tests/...",
         "rules": "main"
       },
@@ -162,9 +162,9 @@
       },
       {
         "runs-on": "['ubuntu-latest']",
-        "group": "questing (garden)",
+        "group": "stonking (garden)",
         "backend": "garden",
-        "systems": "ubuntu-25.10-64",
+        "systems": "ubuntu-26.10-64",
         "tasks": "tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy",
         "rules": ""
       },

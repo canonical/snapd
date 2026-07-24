@@ -644,24 +644,6 @@ pkg_dependencies_ubuntu_classic(){
                 echo "linux-tools-$PKGDB_KERNEL_VERSION"
             fi
             ;;
-        ubuntu-25.*)
-            # bpftool is part of linux-tools package
-            # ubuntu-25.04+ systemd-dev is optional
-            echo "
-                dbus-user-session
-                fwupd
-                golang
-                gperf
-                libvirt-daemon-system
-                lz4
-                qemu-system
-                qemu-utils
-                systemd-dev
-                "
-            if [ "${PKGDB_DO_NOT_SEARCH_FOR_KERNEL_PACKAGES:-0}" -eq 0 ]; then
-                echo "linux-tools-$PKGDB_KERNEL_VERSION"
-            fi
-            ;;
         ubuntu-26.*)
             echo "
                 util-linux-extra
