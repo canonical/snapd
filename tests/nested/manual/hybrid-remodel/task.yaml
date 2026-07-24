@@ -4,11 +4,16 @@ details: |
   This test remodels on a hybrid system to install a new kernel snap and new
   application snaps.
 
-systems: [ubuntu-22.04-64, ubuntu-24.04-64]
+systems: [ubuntu-22.04-64, ubuntu-24.04-64, ubuntu-26.04-64]
 
 environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_REPACK_KERNEL_SNAP: true
+  # TODO: remove once component-backed driver-libs slots are ignored when the
+  # referenced components are not installed. The 26/beta pc-kernel advertises
+  # gbm-driver-libs via $SNAP_COMPONENT(...), but this test seeds only the main
+  # kernel snap.
+  NESTED_KERNEL_REMOVE_COMPONENTS: true
 
   NESTED_SIGN_SNAPS_FAKESTORE: true
   # for the fake store
@@ -20,24 +25,11 @@ prepare: |
 
   snap install --edge test-snapd-swtpm
 
-  # The rev1 model used by this test adds one application snap. Keep the
-  # selected snap name/id in sync with developer1-${VERSION}-classic-dangerous-rev1.json.
-  #
-  # On 22 we use jq-core22 (existing store snap), while on 24 we use the
-  # test-owned core24 equivalent test-snapd-jq-core24.
-  case "${VERSION}" in
-    22)
-      snap_app_name=jq-core22
-      snap_app_id="vFTrGWyktbEDwuYJjdsZykV270mqcNz8"
-      app_channel="latest/edge"
-    ;;
-    24)
-      snap_app_name=test-snapd-jq-core24
-      snap_app_id="zBAzEImJzOAoGxmoG5o6Tl6ELZXMeUlt"
-      app_channel="latest/stable"
-    ;;
-  esac
-  snap download --channel="${app_channel}" "${snap_app_name}" --basename="${snap_app_name}"
+  # The rev1 model used by this test adds one application snap. Keep the snap
+  # name in sync with developer1-${VERSION}-classic-dangerous-rev1.json.
+  snap_app_name="test-snapd-sh-core${VERSION}"
+  snap_app_id="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+  snap pack "${TESTSLIB}/snaps/${snap_app_name}" --filename="${snap_app_name}.snap"
 
   "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
   for key in "${TESTSLIB}"/assertions/{testrootorg-store.account-key,developer1.account,developer1.account-key}; do
@@ -78,23 +70,53 @@ prepare: |
   # Re-sign the kernel to force a reseal
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  KEY_NAME=$(nested_get_snakeoil_key)
   sha256sum pc-kernel/kernel.efi
-  SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-  SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+  case "${VERSION}" in
+    26)
+      # ensure that refreshing the kernel triggers a reseal
+      quiet apt install -y systemd-boot-efi systemd-ukify
+      objcopy -O binary -j .initrd pc-kernel/kernel.efi initrd.img
+      objcopy -O binary -j .linux pc-kernel/kernel.efi linux
+      /usr/lib/systemd/ukify build \
+        --linux=linux \
+        --initrd=initrd.img \
+        --section=.spread:hybrid-remodel \
+        --output=pc-kernel/kernel.efi
+      objdump -h pc-kernel/kernel.efi | grep '[.]spread'
+      rm initrd.img linux
+
+      # we must use the test keys that are recognized by secboot. it seems that
+      # the test-snapd-ovmf keys do not work.
+      SNAKEOIL_KEY="${PROJECT_PATH}/core-initrd/26.10/snakeoil/PkKek-1-snakeoil.key"
+      SNAKEOIL_CERT="${PROJECT_PATH}/core-initrd/26.10/snakeoil/PkKek-1-snakeoil.pem"
+    ;;
+    *)
+      KEY_NAME=$(nested_get_snakeoil_key)
+      SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+      SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+    ;;
+  esac
   nested_secboot_sign_kernel pc-kernel "${SNAKEOIL_KEY}" "${SNAKEOIL_CERT}"
   sha256sum pc-kernel/kernel.efi
 
   snap pack pc-kernel --filename="${extra_snaps}/pc-kernel-oem.snap"
 
   rm -rf pc-kernel
-  "${TESTSTOOLS}"/store-state make-snap-installable --noack --revision 3 "${NESTED_FAKESTORE_BLOB_DIR}" "${extra_snaps}/pc-kernel-oem.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+  "${TESTSTOOLS}"/store-state make-snap-installable --noack --revision 3 \
+    --extra-decl-json "${TESTSLIB}/assertions/pc-kernel-snap-decl-extras.json" \
+    "${NESTED_FAKESTORE_BLOB_DIR}" "${extra_snaps}/pc-kernel-oem.snap" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
 
-  if [ "$VERSION" == 22 ]; then
-    PC_VERSION="23.10"
-  else
-    PC_VERSION="${VERSION}.04"
-  fi
+  case "${VERSION}" in
+    22)
+      PC_VERSION="23.10"
+    ;;
+    24)
+      PC_VERSION="24.04"
+    ;;
+    26)
+      PC_VERSION="26.10"
+    ;;
+  esac
   snap download --basename=pc --channel="classic-${PC_VERSION}/stable" pc
 
   unsquashfs -d pc pc.snap
@@ -102,6 +124,9 @@ prepare: |
   case "${VERSION}" in
     24)
       sed -i 's/^base: core22$/base: core24/' pc/meta/snap.yaml
+    ;;
+    26)
+      sed -i 's/^base: core24$/base: core26/' pc/meta/snap.yaml
     ;;
   esac
   mkdir -p pc/meta/hooks/
@@ -166,6 +191,11 @@ execute: |
 
   remote.push "${TESTSLIB}/assertions/developer1-${VERSION}-classic-dangerous-rev1.model"
 
+  has_system_seed=false
+  if remote.exec "grep -qE '^[[:space:]]*role:[[:space:]]+system-seed[[:space:]]*$' /snap/pc/current/meta/gadget.yaml"; then
+    has_system_seed=true
+  fi
+
   # remodel and reboot. we need to reboot because we swapped the kernel snap
   change_id=$(remote.exec "sudo snap remodel --no-wait developer1-${VERSION}-classic-dangerous-rev1.model")
   retry -n 100 --wait 5 remote.exec "snap tasks ${change_id} | grep 'INFO Task set to wait until a system restart allows to continue'"
@@ -174,18 +204,24 @@ execute: |
   boot_id="$(tests.nested boot-id)"
   remote.exec 'sudo reboot' || true
   remote.wait-for reboot "${boot_id}"
+
+  if [ "${has_system_seed}" = true ]; then
+    # a remodel with a recovery system first tests it, then requests another
+    # reboot to start using the new kernel.
+    retry -n 100 --wait 5 remote.exec 'test -f /run/reboot-required'
+    boot_id="$(tests.nested boot-id)"
+    remote.exec 'sudo reboot' || true
+    remote.wait-for reboot "${boot_id}"
+  fi
+
   remote.exec snap watch "${change_id}"
   remote.exec 'snap changes' | MATCH "${change_id}\s+Done.+Refresh model assertion from revision 0 to 1"
 
-  # Verify remodel installed the app snap added in rev1 (jq-core22 on 22,
-  # test-snapd-jq-core24 on 24).
-  remote.exec "snap list" | MATCH "jq-core${VERSION}"
+  # Verify remodel installed the app snap added in rev1.
+  remote.exec "snap list" | MATCH "test-snapd-sh-core${VERSION}"
 
   case "$VERSION" in
-    22|24)
+    22|24|26)
       remote.exec 'snap list pc-kernel' | awk 'NR != 1 { print $4 }' | MATCH "${VERSION}-oem/stable"
       ;;
   esac
-
-  # TODO: once we support installing recovery systems during the hybrid install,
-  # we should switch this test to use a gadget that does not use "system-seed-null"

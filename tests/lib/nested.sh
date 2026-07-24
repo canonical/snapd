@@ -562,7 +562,7 @@ nested_is_generic_image() {
 }
 
 nested_get_extra_snaps_path() {
-    echo "/tmp/extra-snaps"
+    echo "${NESTED_WORK_DIR}/extra-snaps"
 }
 
 nested_get_assets_path() {

@@ -1751,13 +1751,13 @@ func (w *Writer) checkSnapsAccessor() error {
 
 // BootSnaps returns the seed snaps involved in the boot process.
 // It can be invoked only after Downloaded returns complete ==
-// true. It returns an error for classic models as for those no snaps
-// participate in boot before user space.
+// true. It returns an error for non-hybrid classic models as for those no
+// snaps participate in boot before user space.
 func (w *Writer) BootSnaps() ([]*SeedSnap, error) {
 	if err := w.checkSnapsAccessor(); err != nil {
 		return nil, err
 	}
-	if w.model.Classic() {
+	if w.model.Classic() && !w.model.HybridClassic() {
 		return nil, fmt.Errorf("no snaps participating in boot on classic")
 	}
 	var bootSnaps []*SeedSnap

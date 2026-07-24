@@ -1640,6 +1640,97 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerEnsureTriedRecoverySystemHybridClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20-hybrid", map[string]any{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   s.ss.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   s.ss.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+		},
+	})
+	c.Assert(s.model.HybridClassic(), Equals, true)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-20-hybrid",
+		Serial: "serialserialserial",
+	})
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+	const gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1G
+      - name: ubuntu-boot
+        role: system-boot
+        type: 83,F9E14625-EF3E-4200-AFEF-AEBD407460C4
+        size: 1G
+      - name: ubuntu-data
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 2G
+`
+	gadgetPath := filepath.Join(snap.MinimalPlaceInfo("pc", snap.R(1)).MountDir(), "meta/gadget.yaml")
+	c.Assert(os.WriteFile(gadgetPath, []byte(gadgetYaml), 0644), IsNil)
+	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(deviceCtx.Classic(), Equals, true)
+	c.Check(deviceCtx.IsCoreBoot(), Equals, true)
+	gadgetData, err := devicestate.CurrentGadgetData(s.state, deviceCtx)
+	c.Assert(err, IsNil)
+	c.Assert(gadgetData.Info.HasRole(gadget.SystemSeed), Equals, true)
+
+	err = s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	modeenv, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, "1234")
+	c.Assert(modeenv.Write(), IsNil)
+
+	s.state.Unlock()
+	err = s.mgr.Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	var tried []string
+	err = s.state.Get("tried-systems", &tried)
+	c.Assert(err, IsNil)
+
+	c.Check(tried, DeepEquals, []string{"1234"})
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":              "core20_3.snap",
+		"snap_kernel":            "pc-kernel_2.snap",
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy(c *C) {
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
