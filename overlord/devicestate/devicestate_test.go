@@ -3174,7 +3174,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncrypted(c *C) 
 	defer release.MockOnClassic(false)
 
 	s.state.Lock()
-	s.state.Set("seeded", true)
+	devicestatetest.MarkInitialized(s.state)
 	s.state.Unlock()
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
@@ -3296,7 +3296,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetEncryptedError(c
 	defer release.MockOnClassic(false)
 
 	s.state.Lock()
-	s.state.Set("seeded", true)
+	devicestatetest.MarkInitialized(s.state)
 	s.state.Unlock()
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
@@ -3338,7 +3338,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsurePostFactoryResetUnencrypted(c *C
 	defer release.MockOnClassic(false)
 
 	s.state.Lock()
-	s.state.Set("seeded", true)
+	devicestatetest.MarkInitialized(s.state)
 	s.state.Unlock()
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, false)
 	defer restore()
@@ -3760,7 +3760,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := devicestate.EnsureAutoImportAssertions(s.mgr, nil)
 	c.Check(err, IsNil)
 
 	// ensure state has not been changed
@@ -3768,6 +3768,28 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionClassic(c *C) {
 	err = s.state.Get("asserts-early-auto-imported", &autoImported)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 	c.Assert(autoImported, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestEnsureSkipsEarlyAutoImportWhenSeededStateInvalid(c *C) {
+	called := false
+	restore := devicestate.MockProcessAutoImportAssertion(func(*state.State, seed.Seed, asserts.RODatabase, func(batch *asserts.Batch) error) error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.mockSystemMode(c, "run")
+
+	s.state.Lock()
+	s.cacheDeviceCore20Seed(c)
+	s.state.Set("seeded", "invalid")
+	s.state.Unlock()
+
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+	err := s.mgr.Ensure()
+	c.Check(err, ErrorMatches, `(?s).*could not unmarshal state entry "seeded".*`)
+	c.Check(called, Equals, false)
 }
 
 func (s *deviceMgrSuite) testHandleAutoImportAssertionInstallModes(c *C, mode string) {
@@ -3780,9 +3802,11 @@ func (s *deviceMgrSuite) testHandleAutoImportAssertionInstallModes(c *C, mode st
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
 	s.state.Set("seeded", nil)
+	deviceSeed := devicestate.EarlyDeviceSeed(s.mgr)
 	s.state.Unlock()
 
-	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Assert(deviceSeed, NotNil)
+	err := devicestate.EnsureAutoImportAssertions(s.mgr, deviceSeed)
 	c.Check(err, IsNil)
 
 	s.state.Lock()
@@ -3816,9 +3840,11 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionWhenDone(c *C) {
 	s.state.Set("asserts-early-auto-imported", true)
 	s.cacheDeviceCore20Seed(c)
 	s.seeding()
+	deviceSeed := devicestate.EarlyDeviceSeed(s.mgr)
 	s.state.Unlock()
 
-	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	c.Assert(deviceSeed, NotNil)
+	err := devicestate.EnsureAutoImportAssertions(s.mgr, deviceSeed)
 	c.Check(err, IsNil)
 
 	// check state has not changed
@@ -3838,7 +3864,7 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionNoSeedCache(c *C) {
 
 	s.mockSystemMode(c, "run")
 
-	err := devicestate.EnsureAutoImportAssertions(s.mgr)
+	err := devicestate.EnsureAutoImportAssertions(s.mgr, nil)
 	c.Check(err, IsNil)
 
 	// ensure state has not been changed
@@ -3866,6 +3892,8 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionFailed(c *C) {
 	logbuf, restore := logger.MockLogger()
 	defer restore()
 
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 	err := s.mgr.Ensure()
 	c.Check(err, IsNil)
 
@@ -3889,9 +3917,12 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionAlreadySeeded(c *C) {
 
 	s.state.Lock()
 	s.cacheDeviceCore20Seed(c)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{Brand: "my-brand", Model: "my-model", Serial: "serialserialserial"})
 	s.state.Set("seeded", true)
 	s.state.Unlock()
 
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 	devicestate.SetEarlyBootLocaleConfigUpdatedRan(s.mgr, true)
 
 	err := s.mgr.Ensure()
@@ -3915,6 +3946,8 @@ func (s *deviceMgrSuite) TestHandleAutoImportAssertionHappy(c *C) {
 	s.seeding()
 	s.state.Unlock()
 
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 	err := s.mgr.Ensure()
 	c.Check(err, IsNil)
 
