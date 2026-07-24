@@ -1,0 +1,108 @@
+summary: Check that disk-reservation.size option controls disk space checks.
+
+details: |
+  Verify the tri-state behavior of the disk-reservation.size option:
+    - Unset (nil): uses the default 5MB reservation
+    - 0: checks run with no extra reservation (only snap size required)
+    - >0: checks run with the configured reservation added to snap size
+  The checks are gated behind the experimental check-disk-space feature
+  flags, which are all enabled by this test.
+
+# this test remounts /var/lib/snapd which is too intrusive for core.
+systems: [-ubuntu-core-*]
+
+environment:
+  TMPFSMOUNT: /var/lib/snapd
+  # filling tmpfs mounted under /var/lib/snapd triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
+  SUFFICIENT_SIZE: 100M
+
+prepare: |
+  systemctl stop snapd.{socket,service}
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+  snapd.tool exec snap-mgmt --purge
+  mkdir -p "$SNAP_MOUNT_DIR"
+  mount -t tmpfs tmpfs -o size="$SUFFICIENT_SIZE",mode=0755 "$TMPFSMOUNT"
+
+  systemctl start snapd.{socket,service}
+  snap wait system seed.loaded
+
+restore: |
+  systemctl stop snapd.{socket,service}
+  SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  snapd.tool exec snap-mgmt --purge
+  mkdir -p "$SNAP_MOUNT_DIR"
+  umount -l "$TMPFSMOUNT"
+  systemctl start snapd.{socket,service}
+
+execute: |
+  resize() {
+    mount -o remount,size="$1",mode=0755 "$TMPFSMOUNT"
+  }
+
+  get_disk_usage() {
+    df -B1048576 "$TMPFSMOUNT" | tail -1 | awk '{print $3}'
+  }
+
+  echo "Enabling experimental disk space checks"
+  snap set system experimental.check-disk-space-install=true
+  snap set system experimental.check-disk-space-refresh=true
+  snap set system experimental.check-disk-space-remove=true
+
+  echo "=== Test 1: Large reservation causes install failure ==="
+  resize "$SUFFICIENT_SIZE"
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+  # Leave ~50MB free
+  NEWSIZE=$(($(get_disk_usage) + 50))
+  resize "${NEWSIZE}M"
+
+  # Set reservation larger than free space
+  snap set system disk-reservation.size=100M
+  if "$TESTSTOOLS"/snaps-state install-local test-snapd-tools 2>install-error.txt; then
+    echo "expected install to fail with large reservation"
+    exit 1
+  fi
+  MATCH "due to low disk space" < install-error.txt
+
+  echo "=== Test 2: 0 reservation allows install with tight space ==="
+  snap set system disk-reservation.size=0
+  # Leave ~3MB free: enough for the tiny snap alone, but less than any
+  # meaningful reservation, proving only the snap size is required
+  NEWSIZE=$(($(get_disk_usage) + 3))
+  resize "${NEWSIZE}M"
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
+  snap remove --purge test-snapd-tools
+
+  echo "=== Test 3: Unset reservation uses default 5MB ==="
+  snap unset system disk-reservation.size
+  # Still ~3MB free, so the default 5MB reservation makes the install fail
+  if "$TESTSTOOLS"/snaps-state install-local test-snapd-tools 2>install-error.txt; then
+    echo "expected install to fail with default reservation and tight space"
+    exit 1
+  fi
+  MATCH "due to low disk space" < install-error.txt
+  # With ~8MB free the snap plus the 5MB default reservation fits
+  NEWSIZE=$(($(get_disk_usage) + 8))
+  resize "${NEWSIZE}M"
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
+  snap remove --purge test-snapd-tools
+
+  echo "=== Test 4: Configured positive reservation is respected ==="
+  resize "$SUFFICIENT_SIZE"
+  # Leave ~15MB free
+  NEWSIZE=$(($(get_disk_usage) + 15))
+  resize "${NEWSIZE}M"
+
+  # 10MB reservation + snap size fits in ~15MB
+  snap set system disk-reservation.size=10M
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
+  snap remove --purge test-snapd-tools
+
+  # 20MB reservation + snap size does not fit in ~15MB
+  snap set system disk-reservation.size=20M
+  if "$TESTSTOOLS"/snaps-state install-local test-snapd-tools 2>install-error.txt; then
+    echo "expected install to fail with 20MB reservation"
+    exit 1
+  fi
+  MATCH "due to low disk space" < install-error.txt
