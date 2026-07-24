@@ -79,6 +79,16 @@ type MessageHandler interface {
 	ResultFromChange(chg *state.Change) (body map[string]any, err error)
 }
 
+// UnauthorizedError is returned by MessageHandler.Validate when the operator
+// does not have permission to perform the requested action.
+type UnauthorizedError struct {
+	Operator string
+}
+
+func (e *UnauthorizedError) Error() string {
+	return fmt.Sprintf("cannot perform action: operator %q is not authorized", e.Operator)
+}
+
 // MarkChangeForMessage records the message ID on the change created by an Apply
 // implementation. It must be called after change creation and before releasing
 // the state lock, so that doApplyMessage can recover the change ID on retry
@@ -269,7 +279,7 @@ func Manager(state *state.State, runner *state.TaskRunner, signer responseMessag
 	m := &DeviceMgmtManager{
 		state:    state,
 		signer:   signer,
-		handlers: make(map[string]MessageHandler),
+		handlers: map[string]MessageHandler{},
 	}
 
 	runner.AddHandler("exchange-mgmt-messages", m.doExchangeMessages, nil)
