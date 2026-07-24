@@ -5,13 +5,14 @@ details: |
   change on Ubuntu Core. The test refreshes the kernel, base, and a
   non-essential model snap, checks that the refreshed recovery system is
   recorded, and verifies the refreshed recovery system boots with the refreshed
-  snaps.
+  snaps. It also verifies that an installed optional snap that is absent from
+  the original seed is not added to the refreshed seed.
 
 systems:
   - -ubuntu-1*
 
 environment:
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-{VERSION}-with-app-dangerous.model
+  NESTED_CUSTOM_MODEL: $(pwd)/seed-refresh.model
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
@@ -41,11 +42,39 @@ prepare: |
   version="$(tests.nested show version)"
   base_snap="core${version}"
   test_snap_name="test-snapd-sh-core${version}"
-  model_json="$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.json"
+  optional_snap_name="test-snapd-seed-optional"
+
+  case "${version}" in
+    20) base_id="DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q" ;;
+    22) base_id="amcUKQILKXHHTlmSa7NMdnXSx02dNeeT" ;;
+    24) base_id="dwTAh7MZZ01zyriOZErqd1JynQLiOGvM" ;;
+    26) base_id="cUqM61hRuZAJYmIS898Ux66VY61gBbZf" ;;
+    *)
+      echo "unsupported Core version: ${version}"
+      exit 1
+      ;;
+  esac
+
+  model_json="$(pwd)/model.json"
+  sed \
+    -e "s/@@VERSION@@/${version}/g" \
+    -e "s/@@BASE@@/${base_snap}/g" \
+    -e "s/@@BASE_ID@@/${base_id}/g" \
+    -e "s/@@REQUIRED_SNAP@@/${test_snap_name}/g" \
+    model.json.in > "${model_json}"
+
   test_snap_id="$(gojq -r --arg name "${test_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
+  optional_snap_id="$(gojq -r --arg name "${optional_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
   test -n "${test_snap_id}"
+  test -n "${optional_snap_id}"
+
+  gendeveloper1 sign-model < "${model_json}" > seed-refresh.model
 
   test_snap_path="$("${TESTSTOOLS}/snaps-state" pack-local "${test_snap_name}")"
+
+  sed "s/@@BASE@@/${base_snap}/g" optional-snap/meta/snap.yaml.in > optional-snap/meta/snap.yaml
+  snap pack --filename="${optional_snap_name}.snap" optional-snap
+  optional_snap_path="$(pwd)/${optional_snap_name}.snap"
 
   tests.nested prepare-essential-snaps
 
@@ -58,10 +87,16 @@ prepare: |
     "${test_snap_path}" \
     "${test_snap_id}"
 
+  "${TESTSTOOLS}/store-state" make-snap-installable --noack \
+    --revision 1 \
+    "${NESTED_FAKESTORE_BLOB_DIR}" \
+    "${optional_snap_path}" \
+    "${optional_snap_id}"
+
   snapd_snap="$(echo /tmp/extra-snaps/snapd_*.snap)"
 
   export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
-  ubuntu-image snap --image-size 10G "$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.model" \
+  ubuntu-image snap --image-size 10G seed-refresh.model \
     --snap /tmp/extra-snaps/pc.snap \
     --snap /tmp/extra-snaps/pc-kernel.snap \
     --snap "${snapd_snap}" \
@@ -100,14 +135,17 @@ execute: |
   version="$(tests.nested show version)"
   base_snap="core${version}"
   test_snap_name="test-snapd-sh-core${version}"
-  model_json="$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.json"
+  optional_snap_name="test-snapd-seed-optional"
+  model_json="$(pwd)/model.json"
   base_id="$(gojq -r --arg name "${base_snap}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
   kernel_id="$(gojq -r '.snaps[] | select(.name == "pc-kernel") | .id' "${model_json}")"
   test_snap_id="$(gojq -r --arg name "${test_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
+  optional_snap_id="$(gojq -r --arg name "${optional_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
   test_snap_path="$("${TESTSTOOLS}/snaps-state" pack-local "${test_snap_name}")"
   test -n "${base_id}"
   test -n "${kernel_id}"
   test -n "${test_snap_id}"
+  test -n "${optional_snap_id}"
 
   make_fake_store_revision() {
     local source_snap="$1"
@@ -181,9 +219,26 @@ execute: |
     done
   }
 
+  assert_seed_snap_absent() {
+    local system_label="$1"
+    local assertions="/run/mnt/ubuntu-seed/systems/${system_label}/assertions/snaps"
+
+    remote.exec "sudo snap debug api /v2/systems/${system_label}" > system-details.json
+    test "$(gojq --arg snap "${optional_snap_name}" '[.result["available-optional"].snaps[]? | select(. == $snap)] | length' system-details.json)" = 0
+    remote.exec "! test -e /run/mnt/ubuntu-seed/snaps/${optional_snap_name}_*.snap"
+    remote.exec "! sudo grep -Fxq 'snap-id: ${optional_snap_id}' ${assertions}"
+  }
+
+  remote.exec "sudo snap install ${optional_snap_name}"
+  assert_live_snap_revisions "${optional_snap_name}=1"
+
   remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > seeded-systems-before.json
   orig_seed_label="$(gojq -r '.[0].system' seeded-systems-before.json)"
   latest_seed_label=""
+
+  # the optional snap is installed on the run system but was not included in
+  # the original seed
+  assert_seed_snap_absent "${orig_seed_label}"
 
   remote.exec 'sudo snap set core experimental.seed-refresh=true'
 
@@ -210,6 +265,7 @@ execute: |
 
   # verify the refreshed snaps are present in the seed
   remote.exec "test -d /run/mnt/ubuntu-seed/systems/${latest_seed_label}"
+  assert_seed_snap_absent "${latest_seed_label}"
   assert_seed_snap_revisions_present "${latest_seed_label}" "${base_snap}=${revision}" "pc-kernel=${revision}" "${test_snap_name}=${revision}"
   assert_seed_snap_revisions_present "${orig_seed_label}" "${base_snap}=1" pc-kernel=1 "${test_snap_name}=1"
 
