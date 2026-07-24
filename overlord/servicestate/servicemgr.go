@@ -45,7 +45,7 @@ import (
 )
 
 func init() {
-	swfeats.RegisterEnsure("ServiceManager", "ensureSnapServicesUpdated")
+	swfeats.RegisterEnsure("ServiceManager", "ensureSnapServicesUpdatedAfterSeed")
 }
 
 // ServiceManager is responsible for starting and stopping snap services.
@@ -90,20 +90,10 @@ func MockEnsuredSnapServices(mgr *ServiceManager, ensured bool) (restore func())
 	}
 }
 
-func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
+func (m *ServiceManager) ensureSnapServicesUpdatedAfterSeed(deviceCtx snapstate.DeviceContext) (err error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 	if m.ensuredSnapSvcs {
-		return nil
-	}
-
-	// only run after we are seeded
-	var seeded bool
-	err = m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
 		return nil
 	}
 
@@ -127,7 +117,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		return err
 	}
 
-	logger.Trace("ensure", "manager", "ServiceManager", "func", "ensureSnapServicesUpdated")
+	logger.Trace("ensure", "manager", "ServiceManager", "func", "ensureSnapServicesUpdatedAfterSeed")
 
 	snapsMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 
@@ -156,11 +146,6 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	}
 
 	// set RequireMountedSnapdSnap if we are on UC18+ only
-	deviceCtx, err := snapstate.DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		return err
-	}
-
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		ensureOpts.RequireMountedSnapdSnap = true
 	}
@@ -208,7 +193,18 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 
 // Ensure implements StateManager.Ensure.
 func (m *ServiceManager) Ensure() error {
-	if err := m.ensureSnapServicesUpdated(); err != nil {
+	m.state.Lock()
+	seeded, err := snapstate.SystemSeeded(m.state)
+	if err != nil || !seeded {
+		m.state.Unlock()
+		return err
+	}
+	deviceCtx, err := snapstate.DeviceCtx(m.state, nil, nil)
+	m.state.Unlock()
+	if err != nil {
+		return err
+	}
+	if err := m.ensureSnapServicesUpdatedAfterSeed(deviceCtx); err != nil {
 		return err
 	}
 	return nil
