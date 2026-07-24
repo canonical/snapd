@@ -132,8 +132,119 @@ static void test_nsfs_fs_id(void) {
     g_assert_cmpint(buf.f_type, ==, NSFS_MAGIC);
 }
 
+// Check that sc_running_kernel_is_6_18() agrees with a straightforward
+// uname(2) reading done independently here, so that the two never drift
+// apart from each other on whatever kernel the test happens to run on.
+static void test_sc_running_kernel_is_6_18(void) {
+    struct utsname uts;
+    g_assert_cmpint(uname(&uts), ==, 0);
+    int major = 0, minor = 0;
+    g_assert_cmpint(sscanf(uts.release, "%d.%d", &major, &minor), ==, 2);
+    bool expected = major == 6 && minor == 18;
+    g_assert_cmpint(sc_running_kernel_is_6_18(), ==, expected);
+}
+
+// Check that sc_ensure_mount_ns_id_ordered() enforces its precondition that
+// a helper process has already been forked for this group.
+static void test_sc_ensure_mount_ns_id_ordered_no_helper(void) {
+    struct sc_mount_ns *group = sc_alloc_mount_ns();
+    g_test_queue_free(group);
+
+    if (g_test_subprocess()) {
+        sc_ensure_mount_ns_id_ordered(group);
+        g_assert_not_reached();
+    }
+    g_test_trap_subprocess(NULL, 0, 0);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("*precondition failed: we don't have a helper process*");
+}
+
+// Check that sc_read_mnt_ns_id() dies on a genuine ioctl failure (as opposed
+// to ENOTTY/EINVAL, which mean "not supported" and are reported via a false
+// return instead, see the comment above the function).
+static void test_sc_read_mnt_ns_id_bad_fd(void) {
+    if (g_test_subprocess()) {
+        uint64_t ns_id = 0;
+        // -1 is never a valid file descriptor, so the ioctl below fails with
+        // EBADF, which sc_read_mnt_ns_id() must treat as a real error.
+        sc_read_mnt_ns_id(-1, &ns_id);
+        g_assert_not_reached();
+    }
+    g_test_trap_subprocess(NULL, 0, 0);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("*cannot query mount namespace id*");
+}
+
+// Check that sc_read_mnt_ns_id() can read our own, real mount namespace id.
+// This exercises the ioctl wrapper without needing any special privilege:
+// every process can read /proc/self/ns/mnt.
+static void test_sc_read_mnt_ns_id_self(void) {
+    int fd = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
+    g_assert_cmpint(fd, !=, -1);
+    uint64_t ns_id = 0;
+    bool supported = sc_read_mnt_ns_id(fd, &ns_id);
+    close(fd);
+    if (!supported) {
+        // NS_GET_ID is unavailable on kernels older than the ones affected
+        // by the ordering bug this whole file works around.
+        g_test_skip("NS_GET_ID is not supported by this kernel");
+        return;
+    }
+    g_assert_cmpuint(ns_id, !=, 0);
+}
+
+// Check the common case end-to-end: a helper forked just before we unshare
+// a fresh mount namespace should, overwhelmingly, already be ordered before
+// it, and sc_ensure_mount_ns_id_ordered() should return without needing to
+// exercise its CPU-sweep fallback (which, if it did trigger, would still be
+// expected to terminate -- see the comment above the function). On kernels
+// outside the affected 6.18.y series this is a no-op by construction (see
+// sc_running_kernel_is_6_18()), so the test still passes there, it just
+// doesn't exercise anything beyond that early return.
+//
+// This needs real CAP_SYS_ADMIN in the same user namespace as the helper
+// process, like the real code always has by the time it gets here: using
+// unshare(CLONE_NEWUSER) to fake privilege, as some other tests in this
+// suite do to run unprivileged, does not work here specifically, because it
+// would leave the helper behind in a different (the real, original) user
+// namespace, and opening its /proc/<pid>/ns/mnt across that boundary fails
+// with EACCES regardless of what capabilities we hold in our new one.
+static void test_sc_ensure_mount_ns_id_ordered_common_case(void) {
+    if (geteuid() != 0) {
+        g_test_skip("this test only runs as root");
+        return;
+    }
+
+    struct sc_mount_ns *group = sc_alloc_mount_ns();
+    g_test_queue_free(group);
+
+    pid_t pid = fork();
+    g_assert_cmpint(pid, !=, -1);
+    if (pid == 0) {
+        // helper: stay in the namespace we were forked in and wait to be
+        // killed by the parent.
+        prctl(PR_SET_PDEATHSIG, SIGKILL, 0, 0, 0);
+        pause();
+        _exit(0);
+    }
+    group->child = pid;
+
+    g_assert_cmpint(unshare(CLONE_NEWNS), ==, 0);
+
+    sc_ensure_mount_ns_id_ordered(group);
+
+    kill(pid, SIGKILL);
+    int status = 0;
+    waitpid(pid, &status, 0);
+}
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/ns/sc_alloc_mount_ns", test_sc_alloc_mount_ns);
     g_test_add_func("/ns/sc_open_mount_ns", test_sc_open_mount_ns);
     g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
+    g_test_add_func("/ns/sc_running_kernel_is_6_18", test_sc_running_kernel_is_6_18);
+    g_test_add_func("/ns/sc_ensure_mount_ns_id_ordered_no_helper", test_sc_ensure_mount_ns_id_ordered_no_helper);
+    g_test_add_func("/ns/sc_read_mnt_ns_id_bad_fd", test_sc_read_mnt_ns_id_bad_fd);
+    g_test_add_func("/ns/sc_read_mnt_ns_id_self", test_sc_read_mnt_ns_id_self);
+    g_test_add_func("/ns/sc_ensure_mount_ns_id_ordered_common_case", test_sc_ensure_mount_ns_id_ordered_common_case);
 }
