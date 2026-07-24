@@ -58,7 +58,6 @@ type fakeInterfacesRequestsManager struct {
 	iface                string
 	pid                  int32
 	cgroup               string
-	snapdShuttingDown    <-chan struct{}
 	id                   prompting.IDType // used for prompt ID or rule ID
 	ruleConstraintsJSON  prompting.ConstraintsJSON
 	constraintsPatchJSON prompting.ConstraintsJSON
@@ -69,13 +68,12 @@ type fakeInterfacesRequestsManager struct {
 	clientActivity       bool
 }
 
-func (m *fakeInterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string, snapdShuttingDown <-chan struct{}) (prompting.OutcomeType, error) {
+func (m *fakeInterfacesRequestsManager) Ask(uid uint32, iface, snap string, pid int32, cgroup string) (prompting.OutcomeType, error) {
 	m.userID = uid
 	m.iface = iface
 	m.snap = snap
 	m.pid = pid
 	m.cgroup = cgroup
-	m.snapdShuttingDown = snapdShuttingDown
 	return m.ask, m.err
 }
 
@@ -733,7 +731,6 @@ func (s *promptingSuite) TestPostInterfacesRequestsHappy(c *C) {
 	c.Check(s.manager.snap, Equals, expectedSnap)
 	c.Check(s.manager.pid, Equals, fakePID)
 	c.Check(s.manager.cgroup, Equals, fakeCgroup)
-	c.Check(s.manager.snapdShuttingDown, NotNil)
 
 	// Check return value
 	responseBody, ok := rsp.Result.(daemon.PostInterfacesRequestsResponse)

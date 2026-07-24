@@ -140,6 +140,10 @@ func MockCreateInterfacesRequestsManager(new func(noticeMgr *notices.NoticeManag
 	return testutil.Mock(&createInterfacesRequestsManager, new)
 }
 
+func MockInterfacesRequestsManagerShutDown(new func(m *apparmorprompting.InterfacesRequestsManager)) (restore func()) {
+	return testutil.Mock(&interfacesRequestsManagerShutDown, new)
+}
+
 func MockInterfacesRequestsManagerStop(new func(m *apparmorprompting.InterfacesRequestsManager) error) (restore func()) {
 	return testutil.Mock(&interfacesRequestsManagerStop, new)
 }
