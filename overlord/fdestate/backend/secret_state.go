@@ -27,8 +27,6 @@ import (
 	"math"
 	"os"
 	"runtime"
-	"sync"
-	"sync/atomic"
 
 	"golang.org/x/sys/unix"
 
@@ -66,17 +64,9 @@ const (
 // SecretState is an interface for storing secrets than cannot be persisted
 // to disk.
 //
-// Similar to state.State, The lock returned by Lock must be held while calling
-// Get, Has, Set and Close. It is a runtime error (panic) to call those methods
-// without holding the lock.
+// SecretState piggybacks on the main state.State lock: the caller must
+// hold the state lock while calling Get, Has, Set and Close.
 type SecretState interface {
-	// Lock acquires the state lock, which must be held while calling
-	// Get, Has, Set and Close.
-	Lock()
-
-	// Unlock releases the state lock.
-	Unlock()
-
 	// Get unmarshals the stored value associated with the provided key
 	// into the value parameter.
 	// It returns state.ErrNoState if there is no entry for key.
@@ -167,41 +157,29 @@ func (data customData) set(key string, value any) {
 
 type secretState struct {
 	f      *os.File
+	st     *state.State
 	data   customData
 	header secretStateHeader
 	mmap   []byte
 
 	closed bool
-
-	mu  sync.Mutex
-	muC int32
 }
 
-func (s *secretState) Lock() {
-	s.mu.Lock()
-	atomic.AddInt32(&s.muC, 1)
-}
-
-func (s *secretState) Unlock() {
-	atomic.AddInt32(&s.muC, -1)
-	s.mu.Unlock()
-}
-
-func (s *secretState) reading() {
-	if atomic.LoadInt32(&s.muC) != 1 {
-		panic("internal error: accessing secret state without lock")
+func (s *secretState) ensureLocked() {
+	if s == nil {
+		return
 	}
-}
-
-func (s *secretState) writing() {
-	if atomic.LoadInt32(&s.muC) != 1 {
-		panic("internal error: accessing secret state without lock")
+	if s.st == nil {
+		logger.Panicf("internal error: secret state has no associated state.State")
 	}
+
+	// TODO: once state.State exposes an exported method to check that the state
+	// lock is held (e.g. state.EnsureLocked), use it instead.
+	s.st.Cached(struct{}{}) // ensure the state lock is held, panic if not
 }
 
 func (s *secretState) Get(key string, value any) error {
-	s.reading()
-
+	s.ensureLocked()
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to get key %q from closed state", key)
 	}
@@ -210,8 +188,7 @@ func (s *secretState) Get(key string, value any) error {
 }
 
 func (s *secretState) Has(key string) bool {
-	s.reading()
-
+	s.ensureLocked()
 	if s.closed {
 		return false
 	}
@@ -220,8 +197,7 @@ func (s *secretState) Has(key string) bool {
 }
 
 func (s *secretState) Set(key string, value any) error {
-	s.writing()
-
+	s.ensureLocked()
 	if s.closed {
 		return fmt.Errorf("internal error: attempt to set key %q on closed state", key)
 	}
@@ -273,7 +249,7 @@ func (s *secretState) capacity() uint64 {
 }
 
 func (s *secretState) Close() error {
-	s.writing()
+	s.ensureLocked()
 	return s.closeLocked()
 }
 
@@ -347,7 +323,7 @@ func openSecretStateFile() (*os.File, error) {
 //
 // Note that only a single instance of the secret state should be opened
 // at a time.
-func OpenSecretState() (retState SecretState, retErr error) {
+func OpenSecretState(st *state.State) (retState SecretState, retErr error) {
 	f, err := openSecretStateFile()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open secret state file: %w", err)
@@ -388,6 +364,7 @@ func OpenSecretState() (retState SecretState, retErr error) {
 
 	s := &secretState{
 		f:      f,
+		st:     st,
 		data:   make(customData),
 		header: initSecretStateHeader(mmap),
 		mmap:   mmap,
