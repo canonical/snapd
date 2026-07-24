@@ -264,7 +264,12 @@ func (s *secretState) Set(key string, value any) error {
 }
 
 func (s *secretState) capacity() uint64 {
-	return uint64(len(s.mmap)) - secretStateHeaderSize
+	l := uint64(len(s.mmap))
+	if l >= secretStateHeaderSize {
+		return l - secretStateHeaderSize
+	}
+	// unlikely
+	return 0
 }
 
 func (s *secretState) Close() error {
