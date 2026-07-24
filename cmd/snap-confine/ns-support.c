@@ -24,7 +24,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
+#ifdef HAVE_LINUX_NSFS_H
 #include <linux/nsfs.h>
+#endif
 #include <sched.h>
 #include <signal.h>
 #include <stdint.h>
@@ -923,6 +925,13 @@ bool sc_is_mount_ns_in_use(const char *snap_instance) {
 // practice (see sc_ensure_mount_ns_id_ordered), this is only a defensive
 // upper bound against looping forever if something unexpected is going on.
 #define SC_NS_ID_ORDER_MAX_SWEEPS 4
+
+#ifndef NSIO
+// NSIO is the ioctl "namespace" identifier defined in linux/nsfs.h.
+// If the header is not available (old kernel headers), define it ourselves.
+// Value from include/uapi/linux/nsfs.h in the Linux kernel source.
+#define NSIO 0xb7
+#endif
 
 #ifndef NS_GET_ID
 // NS_GET_ID was only added to linux/nsfs.h fairly recently (alongside the
