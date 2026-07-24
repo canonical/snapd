@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	installLogic "github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/release"
@@ -77,7 +78,7 @@ func (s *deviceMgrInstallAPISuite) SetUpTest(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.state.Set("seeded", true)
+	devicestatetest.MarkInitialized(s.state)
 }
 
 func unpackSnap(snapBlob, targetDir string) error {
