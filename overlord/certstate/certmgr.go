@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"gopkg.in/tomb.v2"
@@ -93,8 +94,8 @@ func (m *CertManager) Ensure() error {
 	}
 
 	// Expect the system to be seeded, otherwise we ignore this.
-	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
+	seeded, err := snapstate.SystemSeeded(st)
+	if err != nil {
 		return err
 	}
 	if !seeded {

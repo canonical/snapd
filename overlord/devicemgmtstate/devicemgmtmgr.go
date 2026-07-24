@@ -386,6 +386,10 @@ func (m *DeviceMgmtManager) setState(ms *deviceMgmtState) {
 func (m *DeviceMgmtManager) Ensure() error {
 	m.state.Lock()
 	defer m.state.Unlock()
+	seeded, err := snapstate.SystemSeeded(m.state)
+	if err != nil || !seeded {
+		return err
+	}
 
 	ms, err := m.getState()
 	if err != nil {
