@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	"errors"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -221,4 +223,78 @@ func (s *deviceCtxSuite) TestDeviceCtxFromStateTooEarly(c *C) {
 	s.st.Set("seeded", true)
 	_, err = snapstate.DeviceCtxFromState(s.st, nil)
 	c.Assert(err, DeepEquals, expectedErr)
+}
+
+func (s *deviceCtxSuite) TestSystemSeeded(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	seeded, err := snapstate.SystemSeeded(s.st)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, false)
+
+	s.st.Set("seeded", true)
+	seeded, err = snapstate.SystemSeeded(s.st)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
+}
+
+func (s *deviceCtxSuite) TestDeviceCtxForEnsureUsesAcknowledgedContext(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	acknowledged := &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
+	early := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(nil)}
+	defer snapstatetest.MockDeviceContext(acknowledged)()
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+		return early, nil
+	})()
+
+	deviceCtx, err := snapstate.DeviceCtxForEnsure(s.st)
+	c.Assert(err, IsNil)
+	c.Check(deviceCtx, Equals, acknowledged)
+}
+
+func (s *deviceCtxSuite) TestDeviceCtxForEnsureUsesEarlyContextBeforeSeeding(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	early := &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
+	defer snapstatetest.MockDeviceContext(nil)()
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+		return early, nil
+	})()
+
+	deviceCtx, err := snapstate.DeviceCtxForEnsure(s.st)
+	c.Assert(err, IsNil)
+	c.Check(deviceCtx, Equals, early)
+}
+
+func (s *deviceCtxSuite) TestDeviceCtxForEnsureDoesNotUseEarlyContextAfterSeeding(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.st.Set("seeded", true)
+	defer snapstatetest.MockDeviceContext(nil)()
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+		c.Error("unexpected early context lookup")
+		return nil, nil
+	})()
+
+	_, err := snapstate.DeviceCtxForEnsure(s.st)
+	c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+}
+
+func (s *deviceCtxSuite) TestDeviceCtxForEnsurePropagatesEarlyContextError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	earlyErr := errors.New("cannot load early seed")
+	defer snapstatetest.MockDeviceContext(nil)()
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+		return nil, earlyErr
+	})()
+
+	_, err := snapstate.DeviceCtxForEnsure(s.st)
+	c.Check(err, Equals, earlyErr)
 }

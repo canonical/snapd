@@ -56,10 +56,51 @@ var (
 	DeviceCtx func(st *state.State, task *state.Task, providedDeviceCtx DeviceContext) (DeviceContext, error)
 )
 
+// EarlyDeviceCtxForEnsure is a hook setup by devicestate to resolve a device
+// context from the selected seed before the model assertion is acknowledged.
+// It is only for Ensure and StartUp decisions. Callers must hold the state lock.
+var EarlyDeviceCtxForEnsure func(st *state.State) (DeviceContext, error)
+
 // Hook setup by devicestate to know whether a remodeling is in progress.
 var (
 	RemodelingChange func(st *state.State) *state.Change
 )
+
+// SystemSeeded reports whether the system has completed seeding. Callers must
+// hold the state lock.
+func SystemSeeded(st *state.State) (bool, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if errors.Is(err, state.ErrNoState) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return seeded, nil
+}
+
+// DeviceCtxForEnsure resolves the acknowledged device context, or, while the
+// system is unseeded, an early context from the selected seed. Callers must
+// hold the state lock.
+func DeviceCtxForEnsure(st *state.State) (DeviceContext, error) {
+	deviceCtx, deviceCtxErr := DeviceCtx(st, nil, nil)
+	if deviceCtxErr == nil || !errors.Is(deviceCtxErr, state.ErrNoState) {
+		return deviceCtx, deviceCtxErr
+	}
+
+	seeded, err := SystemSeeded(st)
+	if err != nil || seeded {
+		if err != nil {
+			return nil, err
+		}
+		return nil, deviceCtxErr
+	}
+	if EarlyDeviceCtxForEnsure == nil {
+		return nil, state.ErrNoState
+	}
+	return EarlyDeviceCtxForEnsure(st)
+}
 
 // ModelFromTask returns a model assertion through the device context for the task.
 func ModelFromTask(task *state.Task) (*asserts.Model, error) {
@@ -77,9 +118,8 @@ func ModelFromTask(task *state.Task) (*asserts.Model, error) {
 // DeviceContext is passed in. It will again return a conflict error
 // during remodeling unless the providedDeviceCtx is for it.
 func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (DeviceContext, error) {
-	var seeded bool
-	err := st.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
+	seeded, err := SystemSeeded(st)
+	if err != nil {
 		return nil, err
 	}
 	if chg := RemodelingChange(st); chg != nil {
