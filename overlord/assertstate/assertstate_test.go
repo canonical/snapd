@@ -6315,3 +6315,53 @@ func (s *assertMgrSuite) TestValidatedIntegrityDataErrorNoRevisionsFound(c *C) {
 		expErr:         regexp.QuoteMeta("no snap-revision assertion found that matches (snap-id=snap-id-1, snap-revision=10)."),
 	})
 }
+
+func (s *assertMgrSuite) TestFetchAccountKeyOK(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	assertstate.ReplaceDB(s.state, db)
+
+	keyID := s.dev1AcctKey.PublicKeyID()
+
+	// not found locally
+	_, err = assertstate.AccountKey(s.state, keyID)
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+
+	err = assertstate.FetchAccountKey(s.state, 0, keyID)
+	c.Assert(err, IsNil)
+
+	// found after fetch
+	_, err = assertstate.AccountKey(s.state, keyID)
+	c.Assert(err, IsNil)
+}
+
+func (s *assertMgrSuite) TestFetchAccountKeyError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	assertstate.ReplaceDB(s.state, db)
+
+	err = assertstate.FetchAccountKey(s.state, 0, "no-such-key-id")
+	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
+}
