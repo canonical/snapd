@@ -372,14 +372,14 @@ type Disk interface {
 	DiskModel() string
 }
 
-// RemedialActions is a set of action recommended to repair detected
+// RemedialActions is a set of actions recommended to repair detected
 // issues with FDE state.
 type RemedialActions struct {
 	// AttemptRepair tells whether an auto-repair should be attempted.
 	// If the attempt fails, then it means a reprovision is required.
 	AttemptRepair bool
 	// RequireReprovision tells whether issues require a reprovision
-	// and it was detected that auto repair would not be enough.
+	// and it was detected that auto-repair would not be enough.
 	RequireReprovision bool
 	// PermitManual signals that there are some issues that could
 	// be fixed by administrator.
