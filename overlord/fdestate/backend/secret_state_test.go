@@ -208,7 +208,12 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
 
-	s.AddCleanup(func() { secretState.Close() }) // ensure the secret state is closed at the end of the test
+	// ensure the secret state is closed at the end of the test
+	s.AddCleanup(func() {
+		secretState.Lock()
+		defer secretState.Unlock()
+		secretState.Close()
+	})
 
 	if stateBackend == "memfd-secret" && strutil.ListContains(s.ops, "memfd-create: secret-state") {
 		// On kernels without memfd_secret support, OpenSecretStateFile will
@@ -223,6 +228,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 		c.Assert(logbuf.String(), testutil.Contains, "cannot create memfd-secret (function not implemented), falling back to memfd-create")
 	}
 
+	secretState.Lock()
 	// Get a non-existing key
 	var value string
 	err = secretState.Get("non-existing", &value)
@@ -257,6 +263,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	// Close the secret state
 	err = secretState.Close()
 	c.Assert(err, IsNil)
+	secretState.Unlock()
 
 	expectedOps = append(expectedOps,
 		// closing the previous state unmaps its mapping, then reopening
@@ -266,12 +273,14 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
 	// All operations should fail after closing the secret state
+	secretState.Lock()
 	err = secretState.Set("key-3", "another-value")
 	c.Check(err, ErrorMatches, `internal error: attempt to set key "key-3" on closed state`)
 	err = secretState.Get("key-3", &val)
 	c.Check(err, ErrorMatches, `internal error: attempt to get key "key-3" from closed state`)
 	exists = secretState.Has("key-3")
 	c.Check(exists, Equals, false)
+	secretState.Unlock()
 
 	// Reopen the secret state and check that the previous key is still there
 	secretState, err = backend.OpenSecretState()
@@ -291,7 +300,9 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 
 	// Check behavior after reopening.
 	val = ""
+	secretState.Lock()
 	err = secretState.Get("key-2", &val)
+	secretState.Unlock()
 	if fdstoreSupported {
 		c.Check(err, IsNil)
 		c.Assert(val, Equals, "another-value")
@@ -301,7 +312,9 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 		c.Check(err, testutil.ErrorIs, state.ErrNoState)
 	}
 
+	secretState.Lock()
 	err = secretState.Close()
+	secretState.Unlock()
 	c.Assert(err, IsNil)
 	expectedOps = append(expectedOps,
 		"munmap: 8192",
@@ -365,7 +378,12 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
 
-	s.AddCleanup(func() { secretState.Close() }) // ensure the secret state is closed at the end of the test
+	// ensure the secret state is closed at the end of the test
+	s.AddCleanup(func() {
+		secretState.Lock()
+		defer secretState.Unlock()
+		secretState.Close()
+	})
 
 	if stateBackend == "memfd-secret" && strutil.ListContains(s.ops, "memfd-create: secret-state") {
 		// On kernels without memfd_secret support, OpenSecretStateFile will
@@ -390,6 +408,7 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 	for i := range largeValue {
 		largeValue[i] = byte(i % 256)
 	}
+	secretState.Lock()
 	err = secretState.Set("large-key", largeValue)
 	c.Assert(err, ErrorMatches, `cannot set key "large-key": insufficient capacity in secret state`)
 	c.Assert(err, testutil.ErrorIs, backend.ErrInsufficientCapacity)
@@ -397,19 +416,24 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 	// The failed Set left no trace: the key was not stored and the capacity
 	// is unchanged.
 	c.Assert(secretState.Has("large-key"), Equals, false)
+	secretState.Unlock()
 	c.Assert(memfdSecretState.Capacity(), Equals, uint64(1024*8-32))
 
 	// No growth-related operations should have been performed.
 	c.Assert(s.ops, DeepEquals, expectedOps)
 
 	// A value that fits can still be set afterwards.
+	secretState.Lock()
 	c.Assert(secretState.Set("small-key", "value"), IsNil)
 	var val string
 	c.Assert(secretState.Get("small-key", &val), IsNil)
 	c.Assert(val, Equals, "value")
+	secretState.Unlock()
 
 	// Close the secret state
+	secretState.Lock()
 	err = secretState.Close()
+	secretState.Unlock()
 	c.Assert(err, IsNil)
 
 	expectedOps = append(expectedOps,
@@ -427,4 +451,31 @@ func (s *secretStateSuite) TestMemfdSecretStateSetTooLargeMemfdSecret(c *C) {
 func (s *secretStateSuite) TestMemfdSecretStateSetTooLargeMemfdCreate(c *C) {
 	const stateBackend = "memfd-create"
 	s.testMemfdSecretStateSetTooLarge(c, stateBackend)
+}
+
+func (s *secretStateSuite) TestMemfdSecretStateMethodsPanicWithoutLock(c *C) {
+	secretState, err := backend.OpenSecretState()
+	c.Assert(err, IsNil)
+	c.Assert(secretState, NotNil)
+
+	// ensure the secret state is closed at the end of the test
+	s.AddCleanup(func() {
+		secretState.Lock()
+		defer secretState.Unlock()
+		secretState.Close()
+	})
+
+	var val string
+	methods := []func(){
+		func() { secretState.Get("foo", &val) },
+		func() { secretState.Has("foo") },
+		func() { secretState.Set("foo", "bar") },
+		func() { secretState.Close() },
+	}
+
+	// All methods panic when the state lock is not held.
+	for i, f := range methods {
+		c.Logf("testing method #%d without lock held", i)
+		c.Assert(f, PanicMatches, "internal error: accessing secret state without lock")
+	}
 }
