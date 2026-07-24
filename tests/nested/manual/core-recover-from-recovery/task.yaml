@@ -10,7 +10,9 @@ details: |
 # used recovery keys, and that we can reprovision and reseal then
 # reboot without recovery keys.
 
-systems: [ubuntu-24.04-64]
+systems:
+  - ubuntu-24.04-64
+  - ubuntu-26.04-64
 
 environment:
     NESTED_ENABLE_TPM: "true"
@@ -123,8 +125,19 @@ execute: |
     fi
 
     if [ "${CLEAR_TPM}" = true ]; then
-      # For now we do not have reprovision implemented
-      exit 0
+      wait_for_auto_repair_state pre-repair-state.json not-attempted
+      api_get_v2_system_info_storage_encrypted | gojq -c '.result.recommendations' | MATCH 'require-reprovision'
+
+      remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+
+      echo '{"action":"generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision.resp
+      gojq --raw-output '.result."recovery-key"' < rkey-reprovision.resp > rkey-reprovision.out
+
+      echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >reprovision.resp
+
+      reprovision_change="$(gojq --raw-output '.change' <reprovision.resp)"
+      retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change}\s+(Done|Undone|Error)'"
+      remote.exec sudo snap changes | MATCH "^${reprovision_change}\s+Done"
     fi
 
     tests.nested vm set-recovery-key ""

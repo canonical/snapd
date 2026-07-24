@@ -371,3 +371,21 @@ type Disk interface {
 	PartitionWithFsLabel(string) (Partition, error)
 	DiskModel() string
 }
+
+// RemedialActions is a set of actions recommended to repair detected
+// issues with FDE state.
+type RemedialActions struct {
+	// AttemptRepair tells whether an auto-repair should be attempted.
+	// If the attempt fails, then it means a reprovision is required.
+	AttemptRepair bool
+	// RequireReprovision tells whether issues require a reprovision
+	// and it was detected that auto-repair would not be enough.
+	RequireReprovision bool
+	// PermitManual signals that there are some issues that could
+	// be fixed by administrator.
+	PermitManual bool
+	// RequirePlatformReset tells that the platform is owned by another
+	// system, we lost ownership of the platform. In that case
+	// the security device (e.g. TPM) needs to be cleared.
+	RequirePlatformReset bool
+}

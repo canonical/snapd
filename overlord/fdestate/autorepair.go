@@ -61,12 +61,21 @@ const (
 	AutoRepairSuccess                 AutoRepairResult = "success"
 )
 
+type RecommendedRemedialAction string
+
+const (
+	RecommendedRemedialActionPermitManual         RecommendedRemedialAction = "permit-manual"
+	RecommendedRemedialActionRequireReprovision   RecommendedRemedialAction = "require-reprovision"
+	RecommendedRemedialActionRequirePlatformReset RecommendedRemedialAction = "require-platform-reset"
+)
+
 const (
 	postInstallCheckTimeout = 2 * time.Minute
 )
 
 type repairState struct {
-	Result AutoRepairResult `json:"result"`
+	Result          AutoRepairResult            `json:"result"`
+	Recommendations []RecommendedRemedialAction `json:"recommendations,omitempty"`
 }
 
 type repairStateForBoot struct {
@@ -248,11 +257,12 @@ func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, e
 					}
 					logger.Noticef("WARNING: could not auto repair keyslots due to failed platform initialization:\n%s", strings.Join(messages, "\n"))
 				}
-				return AutoRepairFailedPlatformInit, nil
+				return AutoRepairFailedEncryptionSupport, nil
 			}
 		}
 
 		lockoutAuthFile := device.TpmLockoutAuthUnder(boot.InstallHostFDESaveDir)
+		// TODO: possibly we do not need to rotate the authorization keys for a repair...
 		if err := secbootProvisionTPM(secboot.TPMPartialReprovision, lockoutAuthFile); err != nil {
 			logger.Noticef("WARNING: could not repair platform: %v", err)
 			return AutoRepairFailedPlatformInit, nil
@@ -287,12 +297,6 @@ func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, e
 // auto-repair attempted has already occurred during the current boot,
 // this will do nothing.
 func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
-	if lockoutResetErr != nil {
-		// FIXME: we need to either try repair in some cases and save the
-		// error for the status API
-		return lockoutResetErr
-	}
-
 	// let's get the result from previous attempt during the
 	// current boot
 	previousResult, err := getRepairAttemptResult(st)
@@ -314,19 +318,32 @@ func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostIn
 		}
 		if unlockedState.UbuntuData.UnlockKey != "recovery" && unlockedState.UbuntuSave.UnlockKey != "recovery" {
 			setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
-			return nil
+			return lockoutResetErr
 		}
 	} else if os.IsNotExist(err) {
 		logger.Noticef("WARNING: the system booted with an old initrd without unlocked status reporting")
 		setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
-		return nil
+		return lockoutResetErr
 	} else if err != nil {
 		logger.Noticef("WARNING: error while getting activation state: %v", err)
 		setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
-		return nil
+		return lockoutResetErr
 	} else {
-		if !secbootShouldAttemptRepair(s) {
-			setRepairAttemptResult(st, &repairState{Result: AutoRepairNotAttempted})
+		remedialActions := secbootShouldAttemptRepair(s, lockoutResetErr)
+		if !remedialActions.AttemptRepair {
+			var recommendations []RecommendedRemedialAction
+
+			if remedialActions.RequireReprovision {
+				recommendations = append(recommendations, RecommendedRemedialActionRequireReprovision)
+			}
+			if remedialActions.PermitManual {
+				recommendations = append(recommendations, RecommendedRemedialActionPermitManual)
+			}
+
+			setRepairAttemptResult(st, &repairState{
+				Result:          AutoRepairNotAttempted,
+				Recommendations: recommendations,
+			})
 			return nil
 		}
 	}
@@ -335,7 +352,15 @@ func AttemptAutoRepairIfNeeded(st *state.State, lockoutResetErr error, runPostIn
 	if err != nil {
 		return err
 	}
-	setRepairAttemptResult(st, &repairState{Result: result})
+
+	var recommendations []RecommendedRemedialAction
+	if result != AutoRepairSuccess {
+		recommendations = append(recommendations, RecommendedRemedialActionRequireReprovision)
+	}
+	setRepairAttemptResult(st, &repairState{
+		Result:          result,
+		Recommendations: recommendations,
+	})
 
 	return nil
 }
