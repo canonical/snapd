@@ -2,6 +2,21 @@
 
 set -e
 
+start_systemd_userdbd_socket() {
+    if [ ! -r /etc/os-release ]; then
+        return
+    fi
+
+    . /etc/os-release
+    if [ "$ID" != ubuntu ] || ! dpkg --compare-versions "$VERSION_ID" ge 24.04; then
+        return
+    fi
+
+    if [ -e /lib/systemd/system/systemd-userdbd.socket ] || [ -e /usr/lib/systemd/system/systemd-userdbd.socket ]; then
+        deb-systemd-invoke start systemd-userdbd.socket || true
+    fi
+}
+
 case "$1" in
     configure)
         # Create the private tmp directory for snap-confine
@@ -20,6 +35,8 @@ case "$1" in
 
         # ensure required caps on snap-confine
         setcap -q - /usr/lib/snapd/snap-confine < /usr/lib/snapd/snap-confine.caps
+
+        start_systemd_userdbd_socket
         ;;
 esac
 

@@ -128,7 +128,12 @@ prepare-debian-build-tree:
 # FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
 # random GNU build ID with something more predictable, use something similar to
 # https://pagure.io/go-rpm-macros/c/1980932bf3a21890a9571effaa23fbe034fd388d
-$(builddir)/snapd $(builddir)/snap-seccomp $(builddir)/snapd-apparmor:
+SNAPD_DYNAMIC_GO_BINARIES := snapd snap-seccomp snapd-apparmor
+ifeq ($(WITH_USERDB_PROXY),true)
+SNAPD_DYNAMIC_GO_BINARIES += snap-userdb-proxy
+endif
+
+$(addprefix $(builddir)/,$(SNAPD_DYNAMIC_GO_BINARIES)):
 	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
 		-buildmode=pie \
 		-ldflags="$(EXTRA_GO_LDFLAGS)" \
@@ -200,7 +205,7 @@ $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedsta
 .PHONY: install
 
 # Install snapd, snapctl, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapd snapctl snap-exec snap-update-ns snap-seccomp snapd-apparmor) | $(DESTDIR)$(libexecdir)/snapd
+install:: $(addprefix $(builddir)/,$(SNAPD_DYNAMIC_GO_BINARIES) snapctl snap-exec snap-update-ns) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a relative symlink to /usr/lib/snapd/snapctl

@@ -950,6 +950,48 @@ EOF
     rm -rf "$UNPACK_DIR"
 }
 
+# repack_base_with_libnss_systemd takes a path to a pristine base snap and a
+# target path, and repacks the base with libnss-systemd and a tweaked /etc/nsswitch.conf.
+# NOTE: libnss is taken from the deb cache so the base and host ABI must be compatible.
+repack_base_with_libnss_systemd() {
+    local BASE_SNAP="$1"
+    local TARGET="$2"
+
+    # TODO: skip if the base already has what we need
+    if ! os.query is-ubuntu; then
+      # TODO: investigate support for other distros
+      echo "cannot repack base on non-Ubuntu systems"
+      return 1
+    fi
+
+    local UNPACK_DIR
+    UNPACK_DIR="$(mktemp -d)"
+    unsquashfs -no-progress -f -d "$UNPACK_DIR" "$BASE_SNAP"
+
+    local PKG_DIR
+    PKG_DIR="$(mktemp -d)"
+    (
+        cd "$PKG_DIR"
+
+        # download the package, extract it and copy into the base
+        apt-get download libnss-systemd
+        local DEB
+        DEB=$(ls libnss-systemd_*.deb)
+        dpkg-deb -x "$DEB" .
+
+        local DST_DIR="$UNPACK_DIR/usr/lib/x86_64-linux-gnu"
+        mkdir -p "$DST_DIR"
+        cp ./usr/lib/x86_64-linux-gnu/libnss_systemd* "$DST_DIR"
+
+        # configure nsswitch.conf with the systemd source for passwd and group
+        sed -i -E "s/^(group:[[:space:]].*)$/\\1 systemd/" "$UNPACK_DIR/etc/nsswitch.conf"
+        sed -i -E "s/^(passwd:[[:space:]].*)$/\\1 systemd/" "$UNPACK_DIR/etc/nsswitch.conf"
+    )
+
+    snap pack --filename="$TARGET" "$UNPACK_DIR"
+    rm -rf "$UNPACK_DIR" "$PKG_DIR"
+}
+
 repack_kernel_snap() {
     local TARGET=$1
     local VERSION

@@ -42,6 +42,11 @@ DH_SYSTEMD_START_OPTS=--restart-after-upgrade
 
 SYSTEMD_UNITS_DESTDIR:=$(or $(shell pkg-config --variable=systemdsystemunitdir systemd),$(error pkg-config did not return systemdsystemunitdir))
 
+WITH_USERDB_PROXY:=true
+ifeq ($(WITH_USERDB_PROXY),true)
+	SUBSTVARS += -Vuserdbd:Depends="systemd-userdbd"
+endif
+
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
@@ -291,6 +296,9 @@ endif
 debian/snapd.install: SYSTEMD_LIBDIR=$(shell pkg-config --variable=systemdutildir systemd)
 debian/snapd.install: debian/snapd.install.in
 	sed 's,@systemd-lib@,$(SYSTEMD_LIBDIR),g' $< >$@.tmp
+	if [ "$(WITH_USERDB_PROXY)" != true ]; then \
+		sed -i '/snap-userdb-proxy/d' $@.tmp; \
+	fi
 	mv $@.tmp $@
 
 override_dh_install: debian/snapd.install
@@ -316,12 +324,16 @@ override_dh_install: debian/snapd.install
 	rm -f ${CURDIR}/debian/tmp/usr/bin/info
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
+	if [ "$(WITH_USERDB_PROXY)" != true ]; then \
+		rm -f ${CURDIR}/debian/tmp/usr/bin/snap-userdb-proxy; \
+	fi
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the
 	# ubuntu/14.04 release branch adds/changes bits here
 	$(MAKE) -C data install DESTDIR=$(CURDIR)/debian/snapd/ \
-		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR)
+		SYSTEMDSYSTEMUNITDIR=$(SYSTEMD_UNITS_DESTDIR) \
+		WITH_USERDB_PROXY=$(WITH_USERDB_PROXY)
 	# We called this apps-bin-path.sh instead of snapd.sh, and
 	# it's a conf file so we're stuck with it
 	mv debian/snapd/etc/profile.d/snapd.sh debian/snapd/etc/profile.d/apps-bin-path.sh

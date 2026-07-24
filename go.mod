@@ -39,6 +39,7 @@ require (
 
 require (
 	github.com/cilium/ebpf v0.9.1
+	github.com/varlink/go v0.4.0
 	go.etcd.io/bbolt v1.3.9
 )
 

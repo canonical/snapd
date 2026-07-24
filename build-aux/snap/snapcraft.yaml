@@ -344,6 +344,7 @@ parts:
             lib/snapd/snap-recovery-chooser
             lib/snapd/snap-repair
             lib/snapd/snap-seccomp
+            lib/snapd/snap-userdb-proxy
             lib/snapd/snap-update-ns
             lib/snapd/snapctl
             lib/snapd/snapd-apparmor

@@ -376,6 +376,81 @@ prepare: |
     snap install test-snapd-sh
     tests.cleanup defer snap remove --purge test-snapd-sh
 
+    # On systems that ship systemd >= v245 (Ubuntu 24.04+), also install a snap
+    # on a base that has been patched to include libnss-systemd and an
+    # nsswitch.conf that lists "systemd" as a source for passwd and group. This
+    # snap can look up users via the systemd userdb varlink socket in
+    # /run/systemd/userdb/, thereby seeing users defined by NSS backends
+    # configured on the host.
+    #
+    # The base must match the host Ubuntu release so that repack_base_with_libnss_systemd
+    # produces a shared library that is ABI-compatible with the base's glibc.
+    case "$SPREAD_SYSTEM" in
+        ubuntu-22.04-*)
+            base_snap=core22
+            test_snap=test-snapd-sh-core22
+            ;;
+        ubuntu-24.04-*)
+            base_snap=core24
+            test_snap=test-snapd-sh-core24
+            ;;
+        ubuntu-26.04-*)
+            base_snap=core26
+            test_snap=test-snapd-sh-core26
+            ;;
+        *)
+            base_snap=
+            test_snap=
+            ;;
+    esac
+
+    # repack the base to include libnss_systemd and tweak for testing
+    if [ -n "$base_snap" ]; then
+        snap install --edge "$test_snap"
+        tests.cleanup defer snap remove --purge "$test_snap"
+
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+
+        pristine_path=$(ls /var/lib/snapd/snaps/${base_snap}_*.snap)
+        repack_base_with_libnss_systemd "$pristine_path" "$PWD/${base_snap}-nss.snap"
+        snap install --dangerous "$PWD/${base_snap}-nss.snap"
+
+        rm -f "$PWD/${base_snap}-nss.snap"
+        tests.cleanup defer snap revert "$base_snap"
+
+        # systemd-userdbd was not shipped prior to 24.04
+        if os.query is-ubuntu-ge 24.04; then
+            tests.pkgs install systemd-userdbd
+            systemctl enable --now systemd-userdbd.socket
+        fi
+
+        # TODO: fix installation
+        go build -o /usr/lib/snapd/snap-userdb-proxy github.com/snapcore/snapd/cmd/snap-userdb-proxy
+        tests.cleanup defer rm -f /usr/lib/snapd/snap-userdb-proxy
+
+        install -m 0644 "$SPREAD_PATH"/data/systemd/snapd.userdb-proxy.socket \
+            /etc/systemd/system/snapd.userdb-proxy.socket
+        sed 's:@libexecdir@:/usr/lib:g' \
+            "$SPREAD_PATH"/data/systemd/snapd.userdb-proxy.service.in \
+            > /etc/systemd/system/snapd.userdb-proxy.service
+        chmod 0644 /etc/systemd/system/snapd.userdb-proxy.service
+        install -m 0644 "$SPREAD_PATH"/data/systemd-tmpfiles/snapd-userdb.conf \
+            /usr/lib/tmpfiles.d/snapd-userdb.conf
+        tests.cleanup defer rm -f \
+            /etc/systemd/system/snapd.userdb-proxy.socket \
+            /etc/systemd/system/snapd.userdb-proxy.service \
+            /usr/lib/tmpfiles.d/snapd-userdb.conf
+
+        systemctl daemon-reload
+        systemd-tmpfiles --create /usr/lib/tmpfiles.d/snapd-userdb.conf
+        systemctl enable --now snapd.userdb-proxy.socket
+        tests.cleanup defer systemctl disable --now snapd.userdb-proxy.socket
+
+        systemctl is-active snapd.userdb-proxy.socket | MATCH '^active$'
+        test -S /run/systemd/userdb/io.snapcraft.UserDBProxy
+    fi
+
 restore: |
     tests.pkgs list-installed > installed-final.pkgs
     comm -13 installed-initial.pkgs installed-final.pkgs > installed-in-test.pkgs
@@ -405,6 +480,24 @@ execute: |
         exit 0
     fi
 
-    # TODO: Switch from NOMATCH to MATCH when snapd is able to see users by other NSS ID providers.
-    #       Currently, we expect the ldap user to not be visible (https://bugs.launchpad.net/ubuntu/+source/snapd/+bug/1963864).
-    snap run --shell test-snapd-sh.sh -c "getent passwd" | NOMATCH "$(getent passwd "$nss_user")"
+    # systemd-userdbd is only available on 24.04+, so it's expected that
+    # previous releases cannot lookup users from nss backends (we still repack
+    # core22 and run getent to show that the snap still can't see the test user).
+    case "$SPREAD_SYSTEM" in
+        ubuntu-22.04-*) test_snap=test-snapd-sh-core22 ;;
+        ubuntu-24.04-*) test_snap=test-snapd-sh-core24 ;;
+        ubuntu-26.04-*) test_snap=test-snapd-sh-core26 ;;
+        *)              exit 0;;
+    esac
+
+    # TODO: the user/group record API returns x for the password field but
+    # getent on the host returns *.
+    expected="$nss_user:[x|*]"
+
+    # It's expected that this only works for distros as recent as Noble because
+    # older ones do not ship io.systemd.NameServiceSwitch in systemd-userdbd
+    if os.query is-ubuntu-ge 24.04; then
+      snap run --shell "$test_snap".sh -c "getent passwd" | MATCH "$expected"
+    else
+      snap run --shell "$test_snap".sh -c "getent passwd" | NOMATCH "$expected"
+    fi
