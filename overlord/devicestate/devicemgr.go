@@ -91,7 +91,8 @@ var (
 )
 
 func init() {
-	swfeats.RegisterEnsure("DeviceManager", "ensureOperational")
+	swfeats.RegisterEnsure("DeviceManager", "ensureOperationalAfterSeed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureClassicModelAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureSeeded")
 	swfeats.RegisterEnsure("DeviceManager", "ensureAutoImportAssertionsWithEarlySeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessedAfterSeed")
@@ -666,7 +667,28 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) ensureOperational() error {
+func (m *DeviceManager) ensureClassicModelAfterSeed() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.SystemMode(SysAny) != "run" {
+		return nil
+	}
+
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+	if device.Serial != "" || device.Brand != "" && device.Model != "" {
+		return nil
+	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureClassicModelAfterSeed")
+
+	return setClassicFallbackModel(m.state, device)
+}
+
+func (m *DeviceManager) ensureOperationalAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -686,7 +708,7 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureOperational")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureOperationalAfterSeed")
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
@@ -703,22 +725,8 @@ func (m *DeviceManager) ensureOperational() error {
 	//   or no model): we wait to have some snaps installed or be
 	//   in the process to install some
 
-	var seeded bool
-	err = m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
 	if device.Brand == "" || device.Model == "" {
-		if !release.OnClassic || !seeded {
-			return nil
-		}
-		// we are on classic and seeded but there is no model:
-		// use a fallback model!
-		err := setClassicFallbackModel(m.state, device)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("internal error: device brand or model are unset after seeding")
 	}
 
 	if m.noRegister {
@@ -777,14 +785,6 @@ func (m *DeviceManager) ensureOperational() error {
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
-		// if have a gadget wait until seeded to proceed
-		if !seeded {
-			// this will be run again, so eventually when the system is
-			// seeded the code below runs
-			return nil
-
-		}
-
 		gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
 		if err != nil {
 			return err
@@ -2088,15 +2088,13 @@ func (m *DeviceManager) Ensure() error {
 		deviceSeed := m.earlyDeviceSeed
 		m.state.Unlock()
 
-		operationalAttempted := false
-		var operationalErr error
+		var classicModelErr error
 		// Seeded classic systems may still need the generic-classic fallback
 		// before an acknowledged device context can be resolved.
 		if seeded && release.OnClassic && errors.Is(deviceCtxErr, state.ErrNoState) {
-			operationalAttempted = true
-			operationalErr = m.ensureOperational()
-			if operationalErr != nil {
-				errs = append(errs, operationalErr)
+			classicModelErr = m.ensureClassicModelAfterSeed()
+			if classicModelErr != nil {
+				errs = append(errs, classicModelErr)
 			}
 
 			m.state.Lock()
@@ -2105,7 +2103,7 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if deviceCtxErr != nil && (!errors.Is(deviceCtxErr, state.ErrNoState) || seeded) &&
-			!(operationalErr != nil && errors.Is(deviceCtxErr, state.ErrNoState)) {
+			!(classicModelErr != nil && errors.Is(deviceCtxErr, state.ErrNoState)) {
 			errs = append(errs, deviceCtxErr)
 		}
 
@@ -2130,29 +2128,29 @@ func (m *DeviceManager) Ensure() error {
 		if seededErr != nil {
 			errs = append(errs, seededErr)
 		} else if seeded {
-			if err := m.ensureTriedRecoverySystem(deviceCtx); err != nil {
-				errs = append(errs, err)
-			}
 			if err := m.ensureSeedInConfigAfterSeed(); err != nil {
 				errs = append(errs, err)
 			}
-			if err := m.ensurePostFactoryReset(); err != nil {
-				errs = append(errs, err)
-			}
-			if err := m.ensureExpiredUsersRemovedAfterSeed(); err != nil {
-				errs = append(errs, err)
-			}
-			if deviceCtx != nil {
+			if deviceCtx == nil {
+				errs = append(errs, fmt.Errorf("internal error: device context is nil after seeding"))
+			} else {
+				if err := m.ensureTriedRecoverySystem(deviceCtx); err != nil {
+					errs = append(errs, err)
+				}
 				if err := m.ensureCloudInitRestricted(); err != nil {
 					errs = append(errs, err)
 				}
 				if err := m.ensureFDE(deviceCtx); err != nil {
 					errs = append(errs, err)
 				}
-				if !operationalAttempted {
-					if err := m.ensureOperational(); err != nil {
-						errs = append(errs, err)
-					}
+				if err := m.ensureOperationalAfterSeed(); err != nil {
+					errs = append(errs, err)
+				}
+				if err := m.ensurePostFactoryReset(); err != nil {
+					errs = append(errs, err)
+				}
+				if err := m.ensureExpiredUsersRemovedAfterSeed(); err != nil {
+					errs = append(errs, err)
 				}
 				if err := m.ensureInstalledAfterSeed(deviceCtx); err != nil {
 					errs = append(errs, err)

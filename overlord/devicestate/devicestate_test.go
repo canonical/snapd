@@ -599,6 +599,94 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededAlsoOnClassic(c *C) {
 	c.Assert(called, Equals, true)
 }
 
+func (s *deviceMgrSuite) TestEnsureClassicModelAfterSeed(c *C) {
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	err := devicestate.EnsureClassicModelAfterSeed(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "generic")
+	c.Check(device.Model, Equals, "generic-classic")
+
+	_, err = s.db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "generic",
+		"model":    "generic-classic",
+	})
+	c.Check(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestEnsureClassicModelAfterSeedPreservesGuards(c *C) {
+	devicestate.SetSystemMode(s.mgr, "install")
+	err := devicestate.EnsureClassicModelAfterSeed(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "")
+	c.Check(device.Model, Equals, "")
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{Serial: "serial"})
+	s.state.Unlock()
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	err = devicestate.EnsureClassicModelAfterSeed(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	device, err = devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "")
+	c.Check(device.Model, Equals, "")
+}
+
+func (s *deviceMgrSuite) TestEnsureClassicModelAfterSeedKeepsExistingIdentity(c *C) {
+	s.state.Lock()
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	s.state.Unlock()
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	err := devicestate.EnsureClassicModelAfterSeed(s.mgr)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	device, err := devicestatetest.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "my-brand")
+	c.Check(device.Model, Equals, "my-model")
+}
+
+func (s *deviceMgrSuite) TestEnsureClassicModelAfterSeedErrorNotDuplicated(c *C) {
+	release.OnClassic = true
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	untrustedDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	assertstate.ReplaceDB(s.state, untrustedDB)
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, NotNil)
+	c.Check(err, ErrorMatches, `(?s)devicemgr:.*cannot install "generic-classic" fallback model assertion: .*`)
+	c.Check(strings.Contains(err.Error(), state.ErrNoState.Error()), Equals, false)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 	restore := devicestate.MockPopulateStateFromSeed(s.mgr, func(sLabel, sMode string, tm timings.Measurer) (ts []*state.TaskSet, err error) {
 		c.Assert(sLabel, Equals, "")
@@ -4213,6 +4301,62 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupCallbacks(c *C) {
 
 	c.Check(callA.called, Equals, 1)
 	c.Check(callB.called, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestEnsureRunsCloudInitFDEOperationalAfterSeedInOrder(c *C) {
+	defer release.MockOnClassic(false)()
+
+	s.state.Lock()
+	s.makeModelAssertionInState(c, "canonical", "classic-alt-store", map[string]any{
+		"classic": "true",
+		"store":   "alt-store",
+	})
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "classic-alt-store",
+	})
+	s.seeding()
+	s.state.Unlock()
+
+	devicestate.SetEnsureBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+
+	var calls []string
+	defer devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
+		calls = append(calls, "cloud-init")
+		return sysconfig.CloudInitRestrictedBySnapd, nil
+	})()
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
+		calls = append(calls, "fde")
+		for _, chg := range st.Changes() {
+			c.Check(chg.Kind(), Not(Equals), "become-operational")
+		}
+		return nil
+	})()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	c.Check(calls, HasLen, 0)
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	var operational *state.Change
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			operational = chg
+			break
+		}
+	}
+	s.state.Unlock()
+	c.Assert(operational, NotNil)
+	calls = append(calls, "operational")
+	c.Check(calls, DeepEquals, []string{"cloud-init", "fde", "operational"})
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureFDE(c *C) {

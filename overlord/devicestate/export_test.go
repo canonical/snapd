@@ -207,6 +207,10 @@ func EnsureSeeded(m *DeviceManager) error {
 	return m.ensureSeeded()
 }
 
+func EnsureClassicModelAfterSeed(m *DeviceManager) error {
+	return m.ensureClassicModelAfterSeed()
+}
+
 func EnsureCloudInitRestricted(m *DeviceManager) error {
 	return m.ensureCloudInitRestricted()
 }
