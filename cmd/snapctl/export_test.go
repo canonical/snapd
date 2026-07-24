@@ -19,10 +19,17 @@
 
 package main
 
-import (
-	"github.com/snapcore/snapd/cmd/snapctl/tool/snap-exec"
-)
+import "github.com/snapcore/snapd/testutil"
 
-func main() {
-	snap_exec.Main()
+// Main exposes the unexported main() for testing.
+var Main = main
+
+// MockSnapExecMain replaces the snap-exec entry point for the duration of a test.
+func MockSnapExecMain(f func()) (restore func()) {
+	return testutil.Mock(&snapExecMain, f)
+}
+
+// MockSnapctlMain replaces the snapctl entry point for the duration of a test.
+func MockSnapctlMain(f func()) (restore func()) {
+	return testutil.Mock(&snapctlMain, f)
 }
