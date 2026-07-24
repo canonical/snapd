@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
+#include <mntent.h>
 #include <sched.h>
 #include <signal.h>
 #include <string.h>
@@ -318,6 +319,68 @@ static bool homedirs_are_mounted(sc_mountinfo *mi, char **homedirs, int num_home
     return all_seen;
 }
 
+// layout_data_mounts_are_consistent checks whether layout bind mounts whose
+// source is under the snap's data directory still refer to the same inode as
+// what is currently mounted at their destination inside the namespace.
+//
+// A layout bind mount becomes stale when its source directory is moved,
+// replaced, or deleted on the host (e.g. by snapshot restore, or by any snap
+// app, hook, or service): the bind mount at the layout destination keeps
+// referencing the original source inode, while the source path itself now
+// names a different inode on the host. Comparing the inode of the source path
+// against the inode seen at the destination detects this divergence.
+//
+// Must be called from inside the preserved namespace (after setns).
+static bool layout_data_mounts_are_consistent(const sc_invocation *inv) {
+    char fstab_path[PATH_MAX] = {0};
+    sc_must_snprintf(fstab_path, sizeof fstab_path, "/var/lib/snapd/mount/snap.%s.fstab", inv->snap_instance);
+
+    FILE *fstab SC_CLEANUP(sc_cleanup_file) = setmntent(fstab_path, "r");
+    if (fstab == NULL) {
+        if (errno == ENOENT) {
+            /* No mount profile means no layout mounts to check. */
+            return true;
+        }
+        die("cannot open mount profile %s", fstab_path);
+    }
+
+    /* Build the prefix for snap data paths: /var/snap/<snap_instance>/ */
+    char snap_data_prefix[PATH_MAX] = {0};
+    sc_must_snprintf(snap_data_prefix, sizeof snap_data_prefix, "/var/snap/%s/", inv->snap_instance);
+
+    struct mntent *entry;
+    while ((entry = getmntent(fstab)) != NULL) {
+        /* Only check layout bind mounts whose source is under the snap data
+         * dir. Tmpfs layout entries have "tmpfs" as the source and won't
+         * match the prefix. */
+        if (hasmntopt(entry, "x-snapd.origin=layout") == NULL) {
+            continue;
+        }
+        if (!sc_startswith(entry->mnt_fsname, snap_data_prefix)) {
+            continue;
+        }
+
+        struct stat src_st, dst_st;
+        if (stat(entry->mnt_fsname, &src_st) != 0) {
+            /* Source path no longer exists on the host side. */
+            debug("layout mount source %s is missing, namespace is stale", entry->mnt_fsname);
+            return false;
+        }
+        if (stat(entry->mnt_dir, &dst_st) != 0) {
+            /* Destination not accessible in the namespace. */
+            debug("layout mount destination %s is not accessible, namespace is stale", entry->mnt_dir);
+            return false;
+        }
+        if (src_st.st_dev != dst_st.st_dev || src_st.st_ino != dst_st.st_ino) {
+            debug("layout mount source %s and destination %s differ, namespace is stale", entry->mnt_fsname,
+                  entry->mnt_dir);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // Inspect the namespace and check if we should discard it.
 static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t base_snap_dev) {
     sc_mountinfo *mi SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
@@ -336,6 +399,13 @@ static bool should_discard_current_ns(const struct sc_invocation *inv, dev_t bas
     // changed: so this code will check that all homedirs are mounted in the
     // namespace.
     if (!homedirs_are_mounted(mi, inv->homedirs, inv->num_homedirs)) {
+        return true;
+    }
+    // A layout bind mount sourced from the snap's data directory becomes stale
+    // when the source directory is moved, replaced, or deleted on the host
+    // (e.g. by snapshot restore, or by any snap app, hook, or service). Check
+    // that the inode at each such destination still matches its source.
+    if (!layout_data_mounts_are_consistent(inv)) {
         return true;
     }
 
