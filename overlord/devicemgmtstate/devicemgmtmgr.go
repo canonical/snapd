@@ -183,9 +183,9 @@ func (ms *deviceMgmtState) getRequestMessage(id string) (*RequestMessage, error)
 	return nil, fmt.Errorf("cannot find message %q", id)
 }
 
-// removeRequestMessage removes a processed request message from its sequence,
-// leaving the sequence entry in place so its Applied progress is preserved for
-// later messages in the same sequence.
+// removeRequestMessage removes a processed request message from its sequence.
+// For a sequenced message, the sequence entry is left in place so its Applied
+// progress is preserved for later messages in the same sequence.
 func (ms *deviceMgmtState) removeRequestMessage(msg *RequestMessage) {
 	seq := ms.Sequences[msg.BaseID]
 	if seq == nil {
@@ -195,6 +195,12 @@ func (ms *deviceMgmtState) removeRequestMessage(msg *RequestMessage) {
 	for i, m := range seq.Messages {
 		if m.SeqNum == msg.SeqNum {
 			seq.Messages = append(seq.Messages[:i], seq.Messages[i+1:]...)
+
+			// Unsequenced messages have no Applied progress to carry forward.
+			if msg.SeqNum == 0 && len(seq.Messages) == 0 {
+				delete(ms.Sequences, msg.BaseID)
+			}
+
 			return
 		}
 	}

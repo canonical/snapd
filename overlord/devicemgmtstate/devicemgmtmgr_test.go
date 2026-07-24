@@ -165,7 +165,7 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 			return chg.ID(), nil
 		},
 		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return map[string]any{"key": "value"}, nil
+			return map[string]any{"values": "ok"}, nil
 		},
 	})
 }
@@ -1412,7 +1412,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageMessageNotFound(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find message "seqA-2"`)
 }
 
-func (s *deviceMgmtMgrSuite) TestDoQueueResponseOK(c *C) {
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSequencedOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -1422,18 +1422,6 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseOK(c *C) {
 				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
 			},
 		}, nil
-	})
-
-	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(*state.State, *devicemgmtstate.RequestMessage) error { return nil },
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			devicemgmtstate.MarkChangeForMessage(chg, msg)
-			return chg.ID(), nil
-		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return map[string]any{"values": "ok"}, nil
-		},
 	})
 
 	s.mgr.MockSigner(&mockSigner{
@@ -1459,10 +1447,49 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseOK(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
+	// The sequence entry is kept because Applied must be preserved.
 	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 1)
+
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
-	c.Check(ms.Sequences["mesg"].Applied, Equals, 1)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseUnsequencedOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "mesg", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.MockSigner(&mockSigner{
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	// Unsequenced messages have no Applied progress to carry forward.
+	c.Check(ms.Sequences, HasLen, 0)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["mesg"].Format, Equals, "assertion")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseStatusAlreadyKnown(c *C) {
@@ -1529,8 +1556,9 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseStatusAlreadyKnown(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
-	c.Assert(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseIdempotent(c *C) {
@@ -1642,9 +1670,10 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
-	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
@@ -1748,7 +1777,8 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseNoHandlerForMessageKind(c *C) {
 	ms, err = s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	c.Check(ms.Sequences["msg1"].Messages, HasLen, 0)
+	c.Check(ms.Sequences, HasLen, 0)
+
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
 }
@@ -1831,6 +1861,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 
 	ms, err = s.mgr.GetState()
 	c.Assert(err, IsNil)
+
 	c.Check(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
 }
@@ -1878,6 +1909,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
+
 	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
 }
 
