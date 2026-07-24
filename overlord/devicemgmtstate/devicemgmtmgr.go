@@ -812,10 +812,16 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 
 	// handler.ResultFromChange may drop the state lock internally. Concurrent tasks
 	// in other lanes may have mutated the state in that window, so re-read before mutating.
-	ms, _, err = m.getMessageAndState(msgID)
+	responseStatus := msg.ResponseStatus
+	responseBody := msg.ResponseBody
+
+	ms, msg, err = m.getMessageAndState(msgID)
 	if err != nil {
 		return err
 	}
+
+	msg.ResponseStatus = responseStatus
+	msg.ResponseBody = responseBody
 
 	bodyBytes, err := json.Marshal(msg.ResponseBody)
 	if err != nil {
