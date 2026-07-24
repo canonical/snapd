@@ -272,9 +272,14 @@ func (ms *deviceMgmtState) enqueueRequestMessages(pollResp *store.MessageExchang
 	}
 
 	if len(pollResp.Messages) > 0 {
+		// Record the token of the last message as the ack position. It will be
+		// sent on the next exchange to advance the store's queue pointer.
 		token := pollResp.Messages[len(pollResp.Messages)-1].Token
 		ms.LastReceivedToken = token
 	} else {
+		// No messages were returned: the store has already advanced the queue
+		// pointer from the previous exchange. Clear the token so the next
+		// exchange sends no ack, since there is nothing new to acknowledge.
 		ms.LastReceivedToken = ""
 	}
 
@@ -628,21 +633,20 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return nil
 	}
 
-	err = assertstateFetchAccountKey(m.state, 0, a.SignKeyID())
-	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+	fetched, err := m.ensureAccountKey(a.SignKeyID())
+	if err != nil {
 		// TODO: need to distinguish between:
 		//  - transient errors (like store unreachable) - retry
 		//  - permanent errors - determine whether to fail the task or reject the message.
 		return err
 	}
-
-	// assertstateFetchAccountKey may drop the state lock to fetch the key
-	// from the store if it is not available locally.
-	// Concurrent tasks in other lanes may have mutated the state in that window,
-	// so re-read before mutating.
-	ms, msg, err = m.getMessageAndState(msgID)
-	if err != nil {
-		return err
+	if fetched {
+		// The state lock was dropped during the store fetch. Concurrent tasks in
+		// other lanes may have mutated state in that window, so re-read before mutating.
+		ms, msg, err = m.getMessageAndState(msgID)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = assertstate.DB(m.state).Check(a)
@@ -700,6 +704,25 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 	}
 
 	return nil
+}
+
+// ensureAccountKey fetches the account-key assertion for signKeyID from the
+// store if it is not already in the local database.
+func (m *DeviceMgmtManager) ensureAccountKey(signKeyID string) (fetched bool, err error) {
+	_, err = assertstate.AccountKey(m.state, signKeyID)
+	if err == nil {
+		return false, nil
+	}
+	if !errors.Is(err, &asserts.NotFoundError{}) {
+		return false, err
+	}
+
+	err = assertstateFetchAccountKey(m.state, 0, signKeyID)
+	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
+		return true, err
+	}
+
+	return true, nil
 }
 
 // doApplyMessage dispatches the message to its subsystem handler for processing.

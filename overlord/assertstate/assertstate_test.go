@@ -6335,18 +6335,14 @@ func (s *assertMgrSuite) TestFetchAccountKeyOK(c *C) {
 	keyID := s.dev1AcctKey.PublicKeyID()
 
 	// not found locally
-	_, err = assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
-		"public-key-sha3-384": keyID,
-	})
+	_, err = assertstate.AccountKey(s.state, keyID)
 	c.Assert(err, testutil.ErrorIs, &asserts.NotFoundError{})
 
 	err = assertstate.FetchAccountKey(s.state, 0, keyID)
 	c.Assert(err, IsNil)
 
-	// found
-	_, err = assertstate.DB(s.state).Find(asserts.AccountKeyType, map[string]string{
-		"public-key-sha3-384": keyID,
-	})
+	// found after fetch
+	_, err = assertstate.AccountKey(s.state, keyID)
 	c.Assert(err, IsNil)
 }
 

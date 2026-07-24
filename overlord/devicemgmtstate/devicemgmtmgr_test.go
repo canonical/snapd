@@ -1186,6 +1186,44 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageOK(c *C) {
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus("")) // message wasn't rejected
 }
 
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageAccountKeyFetchedFromStoreOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	// Remove the account key from the local DB so ensureAccountKey must fetch.
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeStack.Trusted,
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.st, db)
+
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
+		err := db.Add(s.storeStack.StoreAccountKey(""))
+		c.Assert(err, IsNil)
+		return nil
+	}))
+
+	s.runner.AddHandler("apply-mgmt-message", noopTask, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus("")) // message wasn't rejected
+}
+
 func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadRawAssertion(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -1243,6 +1281,14 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
 			},
 		}, nil
 	})
+
+	// Remove the account key from the local DB so ensureAccountKey reaches the fetch.
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeStack.Trusted,
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.st, db)
 
 	fetchErr := fmt.Errorf("store unavailable")
 	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
