@@ -8,6 +8,21 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+static const char *errno_name(int e) __attribute__((unused));
+static const char *errno_name(int e)
+{
+    switch (e) {
+    case EACCES:     return "EACCES";
+    case EPERM:      return "EPERM";
+    case ENOSYS:     return "ENOSYS";
+    case EOPNOTSUPP: return "EOPNOTSUPP";
+    case EINVAL:     return "EINVAL";
+    case ENOENT:     return "ENOENT";
+    case EEXIST:     return "EEXIST";
+    default:         return strerror(e);
+    }
+}
+
 /* Test SYS_open with O_CREAT.  On architectures without SYS_open (e.g. arm64)
  * the test is skipped; SYS_openat (always present) provides the coverage
  * for those architectures via test_openat() below. */
@@ -20,7 +35,7 @@ static void test_open(const char *dir, const char *name, int mode, const char *l
 #ifdef SYS_open
     int fd = (int)syscall(SYS_open, path, O_CREAT | O_WRONLY, mode);
     if (fd < 0) {
-        printf("open %s: %s\n", label, strerror(errno));
+        printf("open %s: %s\n", label, errno_name(errno));
     } else {
         printf("open %s: succeeded\n", label);
         close(fd);
@@ -42,7 +57,7 @@ static void test_openat(const char *dir, const char *name, int mode, const char 
 
     int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_CREAT | O_WRONLY, mode);
     if (fd < 0) {
-        printf("openat %s: %s\n", label, strerror(errno));
+        printf("openat %s: %s\n", label, errno_name(errno));
     } else {
         printf("openat %s: succeeded\n", label);
         close(fd);
@@ -61,11 +76,11 @@ static void finish_tmpfile(int fd, const char *dir, const char *name, const char
     snprintf(destpath, sizeof(destpath), "%s/tmpfile-%s-%s", dir, name, label);
 
     if (linkat(AT_FDCWD, procpath, AT_FDCWD, destpath, AT_SYMLINK_FOLLOW) < 0) {
-        printf("%s tmpfile %s: linkat: %s\n", name, label, strerror(errno));
+        printf("%s tmpfile %s: linkat: %s\n", name, label, errno_name(errno));
     } else {
         struct stat st;
         if (stat(destpath, &st) < 0) {
-            printf("%s tmpfile %s: stat: %s\n", name, label, strerror(errno));
+            printf("%s tmpfile %s: stat: %s\n", name, label, errno_name(errno));
             unlink(destpath);
             close(fd);
             return;
@@ -88,7 +103,7 @@ static void test_open_tmpfile(const char *dir, int mode, const char *label)
         if (errno == EOPNOTSUPP || errno == EINVAL) {
             printf("open tmpfile %s: skipped (O_TMPFILE not supported)\n", label);
         } else {
-            printf("open tmpfile %s: %s\n", label, strerror(errno));
+            printf("open tmpfile %s: %s\n", label, errno_name(errno));
         }
         return;
     }
@@ -128,7 +143,7 @@ static void test_openat2(const char *dir, const char *name, int mode, const char
         if (errno == ENOSYS) {
             printf("openat2 %s: skipped (no SYS_openat2)\n", label);
         } else {
-            printf("openat2 %s: %s\n", label, strerror(errno));
+            printf("openat2 %s: %s\n", label, errno_name(errno));
         }
         return;
     }
@@ -149,7 +164,7 @@ static void test_openat_tmpfile(const char *dir, int mode, const char *label)
         if (errno == EOPNOTSUPP || errno == EINVAL) {
             printf("openat tmpfile %s: skipped (O_TMPFILE not supported)\n", label);
         } else {
-            printf("openat tmpfile %s: %s\n", label, strerror(errno));
+            printf("openat tmpfile %s: %s\n", label, errno_name(errno));
         }
         return;
     }
