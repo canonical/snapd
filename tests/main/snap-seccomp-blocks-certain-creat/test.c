@@ -5,6 +5,7 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#ifdef SYS_creat
 static const char *errno_name(int e)
 {
     switch (e) {
@@ -18,6 +19,7 @@ static const char *errno_name(int e)
     default:         return strerror(e);
     }
 }
+#endif
 
 static void test_creat(const char *dir, const char *name, int mode, const char *label)
 {
