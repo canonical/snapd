@@ -152,6 +152,14 @@ func ReplaceDeviceCtxHook(deviceCtxHook func(st *state.State, task *state.Task, 
 	}
 }
 
+func ReplaceEarlyDeviceCtxForEnsureHook(earlyDeviceCtxHook func(st *state.State) (snapstate.DeviceContext, error)) (restore func()) {
+	oldHook := snapstate.EarlyDeviceCtxForEnsure
+	snapstate.EarlyDeviceCtxForEnsure = earlyDeviceCtxHook
+	return func() {
+		snapstate.EarlyDeviceCtxForEnsure = oldHook
+	}
+}
+
 func UseFallbackDeviceModel() (restore func()) {
 	return MockDeviceModel(sysdb.GenericClassicModel())
 }
