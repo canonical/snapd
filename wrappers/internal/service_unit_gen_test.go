@@ -83,6 +83,7 @@ X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
+ExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1
 ExecStart=/usr/bin/snap run snap.app
 SyslogIdentifier=snap.app
 Restart=%s
@@ -1039,4 +1040,106 @@ func (s *serviceUnitGenSuite) TestSuccessExitStatusNotPresent(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(string(generatedWrapper), Not(Matches), `(?s).*SuccessExitStatus.*`)
+}
+
+func (s *serviceUnitGenSuite) TestExecConditionUserDaemon(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.UserDaemon,
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1\n.*`)
+}
+
+func (s *serviceUnitGenSuite) TestExecConditionWithSuccessExitStatusIncluding1(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:              "app",
+		Command:           "bin/foo start",
+		Daemon:            "simple",
+		DaemonScope:       snap.UserDaemon,
+		SuccessExitStatus: []string{"1", "2"},
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 3\n.*`)
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=1 2\n.*`)
+}
+
+func (s *serviceUnitGenSuite) TestExecConditionWithSuccessExitStatusExcluding1(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:              "app",
+		Command:           "bin/foo start",
+		Daemon:            "simple",
+		DaemonScope:       snap.UserDaemon,
+		SuccessExitStatus: []string{"42", "250"},
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nExecCondition=/usr/bin/snap routine user-service-precondition --error-exit-code 1\n.*`)
+	c.Check(string(generatedWrapper), Matches, `(?s).*\nSuccessExitStatus=42 250\n.*`)
+}
+
+func (s *serviceUnitGenSuite) TestExecConditionNotPresentForSystemDaemon(c *C) {
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.SystemDaemon,
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Not(Matches), `(?s).*ExecCondition.*`)
+}
+
+func (s *serviceUnitGenSuite) TestExecConditionAllCodesOccupied(c *C) {
+	allCodes := make([]string, 0, 255)
+	for i := 1; i <= 255; i++ {
+		allCodes = append(allCodes, fmt.Sprintf("%d", i))
+	}
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:              "app",
+		Command:           "bin/foo start",
+		Daemon:            "simple",
+		DaemonScope:       snap.UserDaemon,
+		SuccessExitStatus: allCodes,
+	}
+
+	_, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Check(err, ErrorMatches, `cannot find available exit code for user-service-precondition: all exit codes 1-255 are in success-exit-status`)
 }
