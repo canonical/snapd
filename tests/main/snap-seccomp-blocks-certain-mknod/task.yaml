@@ -23,14 +23,18 @@ execute: |
     snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-mknod \$SNAP_COMMON" > output.txt
     cat output.txt
 
-    # mknod with setuid bit (mode S_IFIFO|4644) must be denied
-    MATCH 'mknod setuid: EACCES' < output.txt
-
-    # mknod with setgid bit (mode S_IFIFO|2644) must be denied
-    MATCH 'mknod setgid: EACCES' < output.txt
-
-    # mknod with normal mode (mode S_IFIFO|0644) must succeed
-    MATCH 'mknod normal: succeeded' < output.txt
+    # mknod setuid/setgid must be denied; sticky and normal must succeed
+    # (skipped gracefully on architectures that don't have SYS_mknod, e.g. arm64)
+    if grep -qE 'mknod setuid: skipped' output.txt; then
+        echo "SYS_mknod is not available, all mknod tests should be skipped"
+        MATCH 'mknod setuid: skipped' < output.txt
+        MATCH 'mknod setgid: skipped' < output.txt
+        MATCH 'mknod normal: skipped' < output.txt
+    else
+        MATCH 'mknod setuid: EACCES' < output.txt
+        MATCH 'mknod setgid: EACCES' < output.txt
+        MATCH 'mknod normal: succeeded' < output.txt
+    fi
 
     # mknodat with setuid bit must be denied
     MATCH 'mknodat setuid: EACCES' < output.txt

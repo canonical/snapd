@@ -1,0 +1,60 @@
+summary: Ensure that the kernel-sched-ext-control interface works.
+
+details: |
+    The kernel-sched-ext-control interface allows a snap to run sched_ext BPF CPU
+    schedulers. It grants access to BPF type information (BTF), the sched_ext
+    control filesystem, and the BPF filesystem for pinning maps/programs.
+
+    A snap which defines the kernel-sched-ext-control plug must be shown in the
+    interfaces list. The plug must not be auto-connected on install and must
+    be able to be reconnected.
+
+    A snap declaring a plug on this interface must be able to read
+    /sys/kernel/btf/vmlinux, /sys/fs/bpf/ and /sys/kernel/sched_ext/ when
+    the plug is connected, and must be denied access to
+    /sys/kernel/sched_ext/state when disconnected.
+
+skip:
+    - reason: sched_ext was merged in Linux 6.12
+      if: os.query is-kernel-lt 6.12
+    - reason: CONFIG_SCHED_CLASS_EXT is not enabled on this kernel
+      if: |
+        ! ([ -f "/boot/config-$(uname -r)" ] && grep -q "CONFIG_SCHED_CLASS_EXT=y" "/boot/config-$(uname -r)") && \
+        ! ([ -f /proc/config.gz ] && zcat /proc/config.gz | grep -q "CONFIG_SCHED_CLASS_EXT=y")
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+execute: |
+    echo "The interface is not connected by default"
+    snap interfaces -i kernel-sched-ext-control | MATCH '^- +test-snapd-sh:kernel-sched-ext-control'
+
+    echo "Run the snap to establish known state"
+    test-snapd-sh.with-kernel-sched-ext-control-plug -c true
+
+    echo "When the plug is connected"
+    snap connect test-snapd-sh:kernel-sched-ext-control
+
+    echo "Then the snap is able to read the BTF type information"
+    test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/kernel/btf/vmlinux"
+
+    echo "Then the snap is able to list the BPF filesystem"
+    test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/fs/bpf/"
+
+    echo "Then the snap is able to access the sched_ext filesystem"
+    test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/kernel/sched_ext/"
+
+    if [ "$(snap debug confinement)" = partial ] ; then
+        exit 0
+    fi
+
+    echo "Then the snap is not able to list the snap BPF folder"
+    not test-snapd-sh.with-kernel-sched-ext-control-plug -c "ls /sys/fs/bpf/snap" 2> access.error
+    MATCH "Permission denied" < access.error
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-sh:kernel-sched-ext-control
+
+    echo "Then the snap is no longer able to read /sys/kernel/sched_ext/state"
+    not test-snapd-sh.with-kernel-sched-ext-control-plug -c "cat /sys/kernel/sched_ext/state" 2> access.error
+    MATCH "Permission denied" < access.error

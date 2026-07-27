@@ -66,7 +66,7 @@ execute: |
     #####################################################################################
     # The upgrades array contains the distros that we will be upgrading to.
     # To manually supply the upgrades, uncomment this next line with desired versions.
-    # upgrades=(24.04 25.10 26.04)
+    # upgrades=(24.04 26.04 26.10)
     #####################################################################################
 
     # Don't fail the test if the distro is missing the latest snapd version. Sometimes one distro
