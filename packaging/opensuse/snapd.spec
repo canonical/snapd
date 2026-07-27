@@ -514,6 +514,10 @@ fi
 
 %post selinux
 %selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/snappy.pp.bz2
+# Ensure the private tmp directory for snap-confine exists and has the correct
+# SELinux label now that the policy module is loaded
+install -d -m 0700 /tmp/snap-private-tmp
+restorecon /tmp/snap-private-tmp || :
 
 %preun selinux
 %selinux_relabel_pre -s %{selinuxtype}

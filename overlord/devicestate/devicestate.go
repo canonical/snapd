@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -78,6 +79,7 @@ var (
 	installStepFinishChangeKind                 = swfeats.RegisterChangeKind("install-step-finish")
 	installStepSetupStorageEncryptionChangeKind = swfeats.RegisterChangeKind("install-step-setup-storage-encryption")
 	installStepTargetPreseedChangeKind          = swfeats.RegisterChangeKind("install-step-preseed")
+	reprovisionKind                             = swfeats.RegisterChangeKind("fde-reprovision")
 )
 
 // findModel returns the device model assertion.
@@ -2696,4 +2698,23 @@ func checkInstallChangeConflict(st *state.State) error {
 		}
 	}
 	return nil
+}
+
+// Reprovision reprovisions TPM (if used) and re-creates all minimum
+// keyslots on encrypted disks and removes all the old keyslots.
+// GenerateReprovisionRecoveryKey is expected to have been called
+// prior to this. Reprovision will fail if post install checks
+// fail. A call to RunningSystemAndGadgetAndEncryptionInfo is expected
+// before in order to verify the post install checks and eventually
+// remediate the issues.
+func Reprovision(st *state.State) (*state.Change, error) {
+	if err := fdestate.CheckFDEChangeConflict(st); err != nil {
+		return nil, err
+	}
+
+	chg := st.NewChange(reprovisionKind, fmt.Sprintf("Reprovision security device and encrypted disks"))
+	reprovisionTask := st.NewTask("fde-reprovision", fmt.Sprintf("Reprovision security device and encrypted disks"))
+	chg.AddTask(reprovisionTask)
+
+	return chg, nil
 }
