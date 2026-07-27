@@ -102,8 +102,8 @@ launch() {
 
 default_remote() {
     remote=ubuntu
-    # No official image for 26.04 yet
-    if os.query is-ubuntu 26.04; then
+    # No official image for 26.10 yet
+    if os.query is-ubuntu 26.10; then
         remote=ubuntu-daily
     fi
     echo "$remote"

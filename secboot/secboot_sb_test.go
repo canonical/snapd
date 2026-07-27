@@ -5969,3 +5969,211 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
 	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
 }
+
+func (s *secbootSuite) TestGetPCRHandleFromToken(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return &myFakeKeyData{platformName: "tpm2", handle: 42}, nil
+	})()
+
+	handle, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenNotTPM(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return &myFakeKeyData{platformName: "not-tpm2", handle: 42}, nil
+	})()
+
+	handle, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(0))
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenErrorReader(c *C) {
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return nil, fmt.Errorf("boom")
+	})()
+
+	_, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, ErrorMatches, `boom`)
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenErrorRead(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return nil, fmt.Errorf("boom")
+	})()
+
+	_, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, ErrorMatches, `cannot read key data for slot 'the-slot': boom`)
+}
+
+type mockKeyslot struct {
+	t    sb.KeyslotType
+	name string
+	data []byte
+}
+
+func (m *mockKeyslot) Type() sb.KeyslotType {
+	return m.t
+}
+
+func (m *mockKeyslot) Name() string {
+	return m.name
+}
+
+func (m *mockKeyslot) Priority() int {
+	return 0
+}
+
+func (m *mockKeyslot) Data() sb.KeyDataReader {
+	return newFakeKeyDataReader(m.name, m.data)
+}
+
+type mockStorageContainerReader struct {
+	keyslots map[string]*mockKeyslot
+}
+
+func (m *mockStorageContainerReader) Container() sb.StorageContainer {
+	return nil
+}
+
+func (m *mockStorageContainerReader) ListKeyslotNames(ctx context.Context) ([]string, error) {
+	var names []string
+	for name := range m.keyslots {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+func (m *mockStorageContainerReader) ReadKeyslot(ctx context.Context, name string) (sb.Keyslot, error) {
+	ret, ok := m.keyslots[name]
+	if ok {
+		return ret, nil
+	} else {
+		return ret, fmt.Errorf("some error")
+	}
+}
+
+func (m *mockStorageContainerReader) Close() error {
+	return nil
+}
+
+type mockStorageContainerWithReader struct {
+	reader *mockStorageContainerReader
+}
+
+func (m *mockStorageContainerWithReader) Path() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) BackendName() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) CredentialName() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) Activate(ctx context.Context, ks sb.Keyslot, key []byte, cfg sb.ActivateConfigGetter) error {
+	return fmt.Errorf("unexpected")
+}
+
+func (m *mockStorageContainerWithReader) Deactivate(ctx context.Context) error {
+	return fmt.Errorf("unexpected")
+}
+
+func (m *mockStorageContainerWithReader) OpenRead(ctx context.Context) (sb.StorageContainerReader, error) {
+	return m.reader, nil
+}
+
+func (s *secbootSuite) TestTestProtectorKey(c *C) {
+	storage := &mockStorageContainerWithReader{
+		reader: &mockStorageContainerReader{
+			keyslots: map[string]*mockKeyslot{
+				"the-slot": {
+					t:    sb.KeyslotTypePlatform,
+					name: "the-slot",
+					data: []byte(`{}`),
+				},
+			},
+		},
+	}
+	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
+		c.Check(path, Equals, "/dev/foo")
+		return storage, nil
+	})()
+
+	isRightProtectorKey := false
+	defer secboot.MockSetProtectorKeys(func(keys ...[]byte) {
+		for _, key := range keys {
+			if len(key) == 4 &&
+				key[0] == 1 &&
+				key[1] == 2 &&
+				key[2] == 3 &&
+				key[3] == 4 {
+				isRightProtectorKey = true
+				return
+			}
+		}
+		isRightProtectorKey = false
+	})()
+
+	defer secboot.MockSbKeyDataRecoverKeys(func(d *sb.KeyData) (sb.DiskUnlockKey, sb.PrimaryKey, error) {
+		if isRightProtectorKey {
+			return []byte{1, 1, 1, 1}, []byte{0}, nil
+		} else {
+			return []byte{2, 2, 2, 2}, []byte{1}, nil
+		}
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKey(func(devicePath string, key []byte) bool {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return len(key) == 4 &&
+			key[0] == 1 &&
+			key[1] == 1 &&
+			key[2] == 1 &&
+			key[3] == 1
+	})()
+
+	works, err := secboot.TestProtectorKey(context.Background(), "/dev/foo", "the-slot", []byte{1, 2, 3, 4})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, true)
+
+	works, err = secboot.TestProtectorKey(context.Background(), "/dev/foo", "the-slot", []byte{5, 6, 7, 8})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, false)
+
+	works, err = secboot.TestProtectorKey(context.Background(), "/dev/foo", "unknown", []byte{1, 2, 3, 4})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, false)
+}
