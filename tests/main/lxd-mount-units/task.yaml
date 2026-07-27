@@ -24,7 +24,7 @@ execute: |
 
     # Define the core snap for the current system
     core_snap=core20
-    if os.query is-ubuntu-gt 22.04; then
+    if os.query is-ubuntu-ge 22.04; then
         core_snap=core22
     fi
 

@@ -20,6 +20,7 @@
 package seclog
 
 import (
+	"bytes"
 	"fmt"
 	"sync/atomic"
 	"syscall"
@@ -78,13 +79,20 @@ func OpenAuditWriter() (*AuditWriter, error) {
 	return &AuditWriter{fd: fd, opened: true}, nil
 }
 
-// Write sends payload as an AUDIT_TRUSTED_APP netlink message.
-// The returned byte count reflects only the original payload length.
-// Concurrent use requires external synchronization.
+// Write sends payload as an AUDIT_TRUSTED_APP netlink message. Each call must
+// carry a complete, well-formed message; partial writes are not supported.
+// Trailing whitespace is stripped before the payload is sent. The returned
+// byte count reflects the original payload length. Concurrent use requires
+// external synchronization.
 func (aw *AuditWriter) Write(payload []byte) (int, error) {
 	if !aw.opened {
 		return 0, fmt.Errorf("cannot send audit message: not open")
 	}
+	n := len(payload)
+	// Strip trailing whitespace; should the payload be constructed by a logger
+	// that appends a newline (e.g. slog), we remove it here since the audit
+	// subsystem does not expect it.
+	payload = bytes.TrimRight(payload, " \t\r\n")
 	msg := aw.buildMessage(payload)
 	addr := &syscall.SockaddrNetlink{
 		Family: syscall.AF_NETLINK,
@@ -94,7 +102,7 @@ func (aw *AuditWriter) Write(payload []byte) (int, error) {
 	if err := sys.Sendto(aw.fd, msg, 0, addr); err != nil {
 		return 0, fmt.Errorf("cannot send audit message: %v", err)
 	}
-	return len(payload), nil
+	return n, nil
 }
 
 // Close closes the underlying netlink socket.

@@ -24,16 +24,22 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/magic.h>
+#ifdef HAVE_LINUX_NSFS_H
+#include <linux/nsfs.h>
+#endif
 #include <sched.h>
 #include <signal.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/eventfd.h>
 #include <sys/file.h>
+#include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
+#include <sys/utsname.h>
 #include <sys/vfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -911,4 +917,217 @@ bool sc_is_mount_ns_in_use(const char *snap_instance) {
         occupied = sc_cgroup_freezer_occupied(snap_instance);
     }
     return occupied;
+}
+
+// Maximum number of full sweeps across every allowed CPU we're willing to
+// perform while looking for one whose local mount-namespace-id batch has
+// already advanced past the helper's. One sweep should always be enough in
+// practice (see sc_ensure_mount_ns_id_ordered), this is only a defensive
+// upper bound against looping forever if something unexpected is going on.
+#define SC_NS_ID_ORDER_MAX_SWEEPS 4
+
+#ifndef NSIO
+// NSIO is the ioctl "namespace" identifier defined in linux/nsfs.h.
+// If the header is not available (old kernel headers), define it ourselves.
+// Value from include/uapi/linux/nsfs.h in the Linux kernel source.
+#define NSIO 0xb7
+#endif
+
+#ifndef NS_GET_ID
+// NS_GET_ID was only added to linux/nsfs.h fairly recently (alongside the
+// mnt_ns_tree/ns_id unification work this whole file works around). We may
+// build against headers older than that even though the kernel we actually
+// run on is new enough to support it, so define it ourselves rather than
+// require it at compile time. Value matches the current definition:
+// #define NS_GET_ID _IOR(NSIO, 13, __u64) -- NSIO itself has been present
+// in linux/nsfs.h since that header was first introduced, long before
+// NS_GET_ID, so it is safe to rely on it already being defined here.
+#define NS_GET_ID _IOR(NSIO, 13, __u64)
+#endif
+
+// Read the mount namespace id of the namespace referenced by mnt_fd, using
+// the NS_GET_ID ioctl. Returns false (leaving *ns_id_out untouched) if the
+// kernel doesn't support the ioctl at all, which is the case on kernels
+// older than the ones affected by the ordering bug this works around.
+//
+// Both errno checks below are about detecting "not supported", not a real
+// failure, but they rest on different footing -- traced against the fs/
+// nsfs.c ns_ioctl() implementation as of the kernel that introduced this:
+//
+//   - ENOTTY is the confirmed, real signal. ns_ioctl() starts with
+//     `if (!nsfs_ioctl_valid(ioctl)) return -ENOIOCTLCMD;` and -ENOIOCTLCMD
+//     is a kernel-internal "not mine" marker that the generic VFS ioctl
+//     dispatcher turns into -ENOTTY before it reaches userspace. On a
+//     kernel old enough that NS_GET_ID isn't in nsfs_ioctl_valid()'s
+//     recognized set at all, this is exactly what we will see.
+//
+//   - EINVAL is a defensive hedge, not something NS_GET_ID actually
+//     returns in the kernel this was written against. Its case body
+//     (`id = ns->ns_id; return put_user(id, idp);`) has no conditional
+//     EINVAL path of its own -- that only exists for the separate
+//     NS_GET_MNTNS_ID alias, which checks `ns->ns_type != CLONE_NEWNS`
+//     before falling through into the same code. We call NS_GET_ID
+//     directly, so that check never applies to us. EINVAL is kept here
+//     only because it is a commonly overloaded "unsupported" signal
+//     elsewhere in ioctl handling and kernel behavior here is not
+//     something we want to have to keep re-auditing on every version --
+//     if some kernel we have not looked at returns EINVAL for an
+//     unrelated reason, we would rather silently skip this best-effort
+//     workaround than die() incorrectly.
+static bool sc_read_mnt_ns_id(int mnt_fd, uint64_t *ns_id_out) {
+    uint64_t ns_id = 0;
+    if (ioctl(mnt_fd, NS_GET_ID, &ns_id) < 0) {
+        if (errno == ENOTTY || errno == EINVAL) {
+            return false;
+        }
+        die("cannot query mount namespace id");
+    }
+    *ns_id_out = ns_id;
+    return true;
+}
+
+// Returns true if the running kernel is on the 6.18.y stable series, the
+// only one affected by the mnt_ns_loop() ordering bug this file works
+// around (see the comment above sc_ensure_mount_ns_id_ordered's caller in
+// snap-confine.c for the exact commit range). Presence of the NS_GET_ID
+// ioctl is not a substitute for this check: unlike the bug, the ioctl
+// itself is not removed once 6.19 fixes the underlying id allocation, so
+// checking for it alone would keep applying this workaround indefinitely
+// on every later kernel too.
+static bool sc_running_kernel_is_6_18(void) {
+    struct utsname uts;
+    if (uname(&uts) < 0) {
+        die("cannot query kernel version");
+    }
+    int major = 0, minor = 0;
+    if (sscanf(uts.release, "%d.%d", &major, &minor) != 2) {
+        return false;
+    }
+    return major == 6 && minor == 18;
+}
+
+// High level strategy: the kernel's ordering check is a per-CPU condition,
+// not a global one, so there is no way to compute the right CPU up front --
+// pinning to some fixed CPU chosen ahead of time is not a substitute for
+// this (verified experimentally: a namespace created on a fixed CPU can be
+// ordered *before* one created moments earlier on some other CPU just as
+// easily as after, so a static pin can turn today's rare failure into an
+// always-reproducible one). Instead:
+//   - check whether the condition already holds; the common case needs no
+//     workaround at all
+//   - if not, pin to another CPU and re-unshare, then check again
+//   - repeat, cycling through every CPU we're allowed to run on, until the
+//     condition becomes true on one of them
+// This terminates because the CPU that originally allocated the helper's id
+// must, by construction, have since advanced its local batch past it.
+void sc_ensure_mount_ns_id_ordered(struct sc_mount_ns *group) {
+    if (group->child == 0) {
+        die("precondition failed: we don't have a helper process");
+    }
+
+    if (!sc_running_kernel_is_6_18()) {
+        // Only the 6.18.y series ever allocates mount namespace ids in a
+        // way that can violate mnt_ns_loop()'s ordering assumption. Outside
+        // that range we trust the kernel's normal invariant undisturbed
+        // instead of probing NS_GET_ID and possibly triggering the sweep
+        // below for an unrelated reason.
+        return;
+    }
+
+    char helper_ns_path[PATH_MAX] = {0};
+    sc_must_snprintf(helper_ns_path, sizeof helper_ns_path, "/proc/%d/ns/mnt", (int)group->child);
+    int helper_fd SC_CLEANUP(sc_cleanup_close) = -1;
+    helper_fd = open(helper_ns_path, O_RDONLY | O_CLOEXEC);
+    if (helper_fd < 0) {
+        die("cannot open %s", helper_ns_path);
+    }
+
+    uint64_t helper_ns_id = 0;
+    if (!sc_read_mnt_ns_id(helper_fd, &helper_ns_id)) {
+        // NS_GET_ID isn't supported here, so this kernel predates the
+        // ordering bug we're working around (it was introduced together
+        // with the ioctl). Nothing to do.
+        return;
+    }
+
+    int self_fd SC_CLEANUP(sc_cleanup_close) = -1;
+    self_fd = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
+    if (self_fd < 0) {
+        die("cannot open /proc/self/ns/mnt");
+    }
+    uint64_t self_ns_id = 0;
+    if (!sc_read_mnt_ns_id(self_fd, &self_ns_id)) {
+        return;
+    }
+
+    if (self_ns_id > helper_ns_id) {
+        // Already safe, this is the overwhelmingly common case.
+        return;
+    }
+
+    debug(
+        "mount namespace id %llu is not ordered after helper's %llu, "
+        "working around kernel mnt_ns_loop() ordering bug (see "
+        "https://bugs.launchpad.net/bugs/2161539)",
+        (unsigned long long)self_ns_id, (unsigned long long)helper_ns_id);
+
+    cpu_set_t allowed_cpus;
+    CPU_ZERO(&allowed_cpus);
+    if (sched_getaffinity(0, sizeof allowed_cpus, &allowed_cpus) < 0) {
+        die("cannot query current CPU affinity");
+    }
+
+    bool ordered = false;
+    for (int sweep = 0; !ordered && sweep < SC_NS_ID_ORDER_MAX_SWEEPS; sweep++) {
+        for (int cpu = 0; !ordered && cpu < CPU_SETSIZE; cpu++) {
+            if (!CPU_ISSET(cpu, &allowed_cpus)) {
+                continue;
+            }
+
+            cpu_set_t candidate;
+            CPU_ZERO(&candidate);
+            CPU_SET(cpu, &candidate);
+            if (sched_setaffinity(0, sizeof candidate, &candidate) < 0) {
+                // The CPU may have gone offline concurrently, or some other
+                // transient condition applies. Try the next one.
+                continue;
+            }
+
+            if (unshare(CLONE_NEWNS) < 0) {
+                die("cannot re-unshare the mount namespace");
+            }
+
+            // The namespace changed, so /proc/self/ns/mnt now refers to a
+            // different object -- the previously opened descriptor is
+            // stale and must be reopened.
+            sc_cleanup_close(&self_fd);
+            self_fd = open("/proc/self/ns/mnt", O_RDONLY | O_CLOEXEC);
+            if (self_fd < 0) {
+                die("cannot open /proc/self/ns/mnt");
+            }
+            if (!sc_read_mnt_ns_id(self_fd, &self_ns_id)) {
+                die("internal error: NS_GET_ID stopped working across re-unshare");
+            }
+
+            ordered = self_ns_id > helper_ns_id;
+        }
+    }
+
+    // Restore the affinity mask the process had on entry, whether or not we
+    // succeeded: this is a one-time bring-up cost, not something the
+    // application should keep paying by staying pinned to a single CPU for
+    // the rest of its life.
+    if (sched_setaffinity(0, sizeof allowed_cpus, &allowed_cpus) < 0) {
+        die("cannot restore original CPU affinity");
+    }
+
+    if (!ordered) {
+        die("cannot find a mount namespace id ordered after the capture helper's "
+            "(%llu) after %d sweeps across all allowed CPUs; this should not "
+            "happen -- see https://bugs.launchpad.net/bugs/2161539",
+            (unsigned long long)helper_ns_id, SC_NS_ID_ORDER_MAX_SWEEPS);
+    }
+
+    debug("mount namespace id is now %llu, safely ordered after helper's %llu", (unsigned long long)self_ns_id,
+          (unsigned long long)helper_ns_id);
 }
