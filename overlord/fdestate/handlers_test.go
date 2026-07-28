@@ -875,7 +875,7 @@ func (s *fdeMgrSuite) TestDoRenameKeysRenameAlreadyExists(c *C) {
 
 func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 	const onClassic = true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
 	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default-recovery"}}, nil)
 
 	s.st.Lock()
@@ -885,6 +885,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		keyslots        []fdestate.KeyslotRef
 		authMode        device.AuthMode
 		noOpt           bool
+		expired         bool
 		sameAuth        bool
 		errOn           []string
 		expectedChanges []string
@@ -928,7 +929,12 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
 			noOpt:       true,
-			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
+			expectedErr: "cannot find authentication options in memory: unexpected system restart",
+		},
+		{
+			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "default"}},
+			expired:     true,
+			expectedErr: "authentication options have expired",
 		},
 		{
 			keyslots:    []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "not-found"}},
@@ -994,10 +1000,14 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 		if tc.sameAuth {
 			old, new = "same", "same"
 		}
+		changeAuthID := fmt.Sprintf("change-auth-%d", idx)
+		task.Set("change-auth-id", changeAuthID)
 		if !tc.noOpt {
-			s.st.Unlock()
-			defer fdestate.MockChangeAuthOptionsInCache(s.st, old, new)()
-			s.st.Lock()
+			opts := &fdestate.ExpiringChangeAuthOptions{Old: old, New: new}
+			if tc.expired {
+				opts.Expiration = time.Now().Add(-time.Hour)
+			}
+			c.Assert(m.SecretState().Set(changeAuthID, opts), IsNil)
 		}
 
 		changeCalls := make(map[string]int, 0)
@@ -1066,16 +1076,19 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 			c.Check(chg.Status(), Equals, state.DoneStatus)
 			if !tc.noOpt {
 				// Auth options are removed on completion
-				c.Assert(fdestate.GetChangeAuthOptionsFromCache(s.st), IsNil)
+				var opts fdestate.ExpiringChangeAuthOptions
+				err := m.SecretState().Get(changeAuthID, &opts)
+				c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
 			}
 		} else {
 			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
 - test \(%s\)`, tc.expectedErr))
 			if !tc.noOpt {
 				// Auth options are kept to account for re-runs
-				opts := fdestate.GetChangeAuthOptionsFromCache(s.st)
-				c.Assert(opts.New(), Equals, new)
-				c.Assert(opts.Old(), Equals, old)
+				var opts fdestate.ExpiringChangeAuthOptions
+				c.Assert(m.SecretState().Get(changeAuthID, &opts), IsNil)
+				c.Assert(opts.New, Equals, new)
+				c.Assert(opts.Old, Equals, old)
 			}
 		}
 	}
@@ -1083,7 +1096,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 
 func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 	const onClassic = true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
 
 	model := s.mockBootAssetsStateForModeenv(c)
 	s.mockDeviceInState(model, "run")
@@ -1288,6 +1301,13 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
 
 		var volumesAuth *device.VolumesAuthOptions
+		var volumesAuthID string
+		switch tc.authMode {
+		case device.AuthModePassphrase, device.AuthModePIN:
+			// authentication options survive snapd restart in state.json,
+			// so the id is always carried by the task.
+			volumesAuthID = fmt.Sprintf("volumes-auth-%d", i)
+		}
 		if !tc.noVolumesAuth {
 			volumesAuth = &device.VolumesAuthOptions{Mode: tc.authMode}
 			switch tc.authMode {
@@ -1296,11 +1316,12 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			case device.AuthModePIN:
 				volumesAuth.PIN = "1234"
 			}
-			s.st.Cache(fdestate.VolumesAuthOptionsKey(), volumesAuth)
 			if tc.badAuthValue {
 				volumesAuth.Passphrase = ""
 				volumesAuth.PIN = ""
 			}
+			opts := &fdestate.ExpiringVolumesAuthOptions{VolumesAuthOptions: *volumesAuth}
+			c.Assert(m.SecretState().Set(volumesAuthID, opts), IsNil)
 		}
 
 		defer fdestate.MockSecbootAddContainerTPMProtectedKey(func(devicePath string, slotName string, params *secboot.ProtectKeyParams) error {
@@ -1365,6 +1386,9 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		task.Set("keyslots", tc.keyslots)
 		task.Set("auth-mode", tc.authMode)
 		task.Set("roles", roles)
+		if volumesAuthID != "" {
+			task.Set("volumes-auth-id", volumesAuthID)
+		}
 		if tc.removeAllOnError {
 			task.Set("remove-all-on-error", true)
 		}
@@ -1382,13 +1406,19 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 				c.Check(resealCalls, Equals, 1, cmt)
 			}
 			// volumes auth is removed
-			c.Assert(s.st.Cached(fdestate.VolumesAuthOptionsKey()), IsNil)
+			if volumesAuthID != "" {
+				var opts fdestate.ExpiringVolumesAuthOptions
+				err := m.SecretState().Get(volumesAuthID, &opts)
+				c.Assert(errors.Is(err, state.ErrNoState), Equals, true, cmt)
+			}
 		} else {
 			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
 - test \(%s\)`, tc.expectedErr), cmt)
 			if !tc.noVolumesAuth {
 				// volumes auth is kept to account for re-runs
-				c.Assert(s.st.Cached(fdestate.VolumesAuthOptionsKey()), Equals, volumesAuth)
+				var opts fdestate.ExpiringVolumesAuthOptions
+				c.Assert(m.SecretState().Get(volumesAuthID, &opts), IsNil, cmt)
+				c.Check(opts.VolumesAuthOptions, DeepEquals, *volumesAuth, cmt)
 			}
 		}
 
@@ -1407,7 +1437,9 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		// clean up
 		c.Assert(os.RemoveAll(filepath.Join(dirs.SnapBootstrapRunDir, "unlocked.json")), IsNil, cmt)
 		s.st.Cache(fdestate.CachedActivateStateKey{}, nil)
-		s.st.Cache(fdestate.VolumesAuthOptionsKey(), nil)
+		if volumesAuthID != "" {
+			m.SecretState().Set(volumesAuthID, nil)
+		}
 		var fdeState fdestate.FdeState
 		c.Assert(s.st.Get("fde", &fdeState), IsNil)
 		delete(fdeState.KeyslotRoles["run"].Parameters, "system-data")
