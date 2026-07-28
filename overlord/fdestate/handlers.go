@@ -141,7 +141,8 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 		return err
 	}
 
-	rkeyInfo, err := m.recoveryKeyCache.Key(recoveryKeyID)
+	var rkeyInfo RecoveryKeyInfo
+	err = m.secretState.Get(recoveryKeyID, &rkeyInfo)
 	if err != nil {
 		return fmt.Errorf("cannot find recovery key with id %q: %v", recoveryKeyID, err)
 	}
@@ -162,7 +163,7 @@ func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err erro
 	}
 	// avoid re-runs in case of abrupt shutdown since all key slots are now added.
 	t.SetStatus(state.DoneStatus)
-	m.recoveryKeyCache.RemoveKey(recoveryKeyID)
+	m.secretState.Set(recoveryKeyID, nil) // remove recovery key from cache to avoid re-use
 
 	return nil
 }

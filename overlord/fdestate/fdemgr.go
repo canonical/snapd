@@ -24,8 +24,6 @@ package fdestate
 import (
 	"crypto"
 	"crypto/hmac"
-	"crypto/sha1"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -40,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snapdenv"
@@ -48,7 +47,7 @@ import (
 
 var (
 	backendResealKeyForBootChains        = backend.ResealKeyForBootChains
-	backendNewInMemoryRecoveryKeyCache   = backend.NewInMemoryRecoveryKeyCache
+	randutilRandomString                 = randutil.RandomString
 	disksDMCryptUUIDFromMountPoint       = disks.DMCryptUUIDFromMountPoint
 	bootHostUbuntuDataForMode            = boot.HostUbuntuDataForMode
 	keysNewRecoveryKey                   = keys.NewRecoveryKey
@@ -79,7 +78,7 @@ type FDEManager struct {
 	preseed bool
 	mode    string
 
-	recoveryKeyCache backend.RecoveryKeyCache
+	secretState backend.SecretState
 }
 
 type fdeMgrKey struct{}
@@ -119,7 +118,11 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		}
 	}
 
-	m.recoveryKeyCache = backendNewInMemoryRecoveryKeyCache()
+	secretState, err := backend.OpenSecretState(m)
+	if err != nil {
+		return nil, err
+	}
+	m.secretState = secretState
 
 	st.Lock()
 	defer st.Unlock()
@@ -216,6 +219,10 @@ func (m *FDEManager) Reinitialize() {
 	osutil.MustBeTestBinary("Reinitialize can only be called from tests")
 	m.initErr = ErrNotInitialized
 	m.DeviceInitialized()
+}
+
+func (m *FDEManager) EnsureLocked() {
+	m.state.Cache(struct{}{}, nil) // ensure the state lock is held, panic if not
 }
 
 type unlockedStateManager struct {
@@ -679,60 +686,68 @@ func (m *FDEManager) ensureParametersLoadedWithMaybeReseal(role, containerRole s
 
 const recoveryKeyExpireAfter = 5 * time.Minute
 
-func recoveryKeyID(rkey keys.RecoveryKey) (string, error) {
-	hash := sha1.New()
-	n, err := hash.Write(rkey[:])
-	if err != nil {
-		return "", err
-	}
-	if n != len(rkey) {
-		return "", fmt.Errorf("internal error: %d bytes written, expected %d", n, len(rkey))
-	}
-	keyDigest := base64.URLEncoding.EncodeToString(hash.Sum(nil))
-	return keyDigest[:10], nil
-}
-
-// GenerateRecoveryKey generates a recovery key and its corresponding id
-// with an expiration time `recoveryKeyExpireAfter`.
-func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
-	if m.recoveryKeyCache == nil {
-		return keys.RecoveryKey{}, "", errors.New("internal error: recoveryKeyCache is nil")
-	}
-
+func (m *FDEManager) newSecretID(prefix string) (string, error) {
 	const maxRetries = 10
 	var retryCnt int
 	for {
 		if retryCnt >= maxRetries {
-			return keys.RecoveryKey{}, "", errors.New("internal error: cannot generate recovery key: max retries reached")
+			return "", errors.New("internal error: cannot generate secret key: max retries reached")
 		}
-		rkey, err = keysNewRecoveryKey()
-		if err != nil {
-			return keys.RecoveryKey{}, "", fmt.Errorf("internal error: cannot generate recovery key: %v", err)
+		secretID := fmt.Sprintf("%s:%s", prefix, randutilRandomString(10))
+		// check for secret-id hash collision
+		if m.secretState.Has(secretID) {
+			// collision detected, retry
+			retryCnt++
+			continue
 		}
-		keyID, err = recoveryKeyID(rkey)
-		if err != nil {
-			return keys.RecoveryKey{}, "", err
-		}
-		// check for key-id hash collision
-		_, err := m.recoveryKeyCache.Key(keyID)
-		if errors.Is(err, backend.ErrNoRecoveryKey) {
-			// no collision
-			break
-		}
-		if err != nil {
-			return keys.RecoveryKey{}, "", err
-		}
-		// collision detected, retry
-		retryCnt++
+		return secretID, nil
+	}
+}
+
+func (m *FDEManager) newRecoveryKeyID() (string, error) {
+	return m.newSecretID("rkey")
+}
+
+type RecoveryKeyInfo struct {
+	Key keys.RecoveryKey `json:"key"`
+	// Expiration indicates the expiration date for the recovery key.
+	// If unset, this means that the key will never expire.
+	Expiration time.Time `json:"expiration,omitzero"`
+}
+
+func (rkeyInfo *RecoveryKeyInfo) Expired(currTime time.Time) bool {
+	if rkeyInfo.Expiration.IsZero() {
+		return false
+	}
+	return currTime.After(rkeyInfo.Expiration)
+}
+
+// GenerateRecoveryKey generates a recovery key and its corresponding id
+// with an expiration time `recoveryKeyExpireAfter`.
+//
+// The state needs to be locked by the caller.
+func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
+	if m.secretState == nil {
+		return keys.RecoveryKey{}, "", errors.New("internal error: secretState is nil")
 	}
 
-	rkeyInfo := backend.CachedRecoverKey{
+	keyID, err = m.newRecoveryKeyID()
+	if err != nil {
+		return keys.RecoveryKey{}, "", err
+	}
+
+	rkey, err = keysNewRecoveryKey()
+	if err != nil {
+		return keys.RecoveryKey{}, "", fmt.Errorf("internal error: cannot generate recovery key: %v", err)
+	}
+
+	rkeyInfo := &RecoveryKeyInfo{
 		Key:        rkey,
 		Expiration: timeNow().Add(recoveryKeyExpireAfter),
 	}
 
-	if err := m.recoveryKeyCache.AddKey(keyID, rkeyInfo); err != nil {
-		return keys.RecoveryKey{}, "", err
+	if err := m.secretState.Set(keyID, rkeyInfo); err != nil {
+		return keys.RecoveryKey{}, "", fmt.Errorf("internal error: cannot store recovery key: %v", err)
 	}
 
 	return rkey, keyID, nil
@@ -755,16 +770,17 @@ func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, 
 func GetRecoveryKey(st *state.State, keyID string) (rkey keys.RecoveryKey, err error) {
 	mgr := fdeMgr(st)
 
-	if mgr.recoveryKeyCache == nil {
-		return keys.RecoveryKey{}, errors.New("internal error: recoveryKeyCache is nil")
+	if mgr.secretState == nil {
+		return keys.RecoveryKey{}, errors.New("internal error: secretState is nil")
 	}
 
-	rkeyInfo, err := mgr.recoveryKeyCache.Key(keyID)
+	var rkeyInfo RecoveryKeyInfo
+	err = mgr.secretState.Get(keyID, &rkeyInfo)
 	if err != nil {
 		return keys.RecoveryKey{}, err
 	}
 	// generated recovery key can only be used once.
-	if err := mgr.recoveryKeyCache.RemoveKey(keyID); err != nil {
+	if err := mgr.secretState.Set(keyID, nil); err != nil {
 		return keys.RecoveryKey{}, err
 	}
 

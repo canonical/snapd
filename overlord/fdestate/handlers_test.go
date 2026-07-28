@@ -296,7 +296,7 @@ func (s *fdeMgrSuite) TestDoAddRecoveryKeys(c *C) {
 				{ContainerRole: "system-save", Name: "tmp-default-recovery"},
 			},
 			badRecoveryKeyID: true,
-			expectedErr:      `cannot find recovery key with id "bad-id": no recovery key entry for key-id`,
+			expectedErr:      `cannot find recovery key with id "bad-id": no state entry for key "bad-id"`,
 		},
 		{
 			keyslots: []fdestate.KeyslotRef{
