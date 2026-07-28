@@ -153,7 +153,7 @@ func (data customData) set(key string, value any) {
 	data[key] = &entryJSON
 }
 
-type stateLockChecker interface {
+type StateLockChecker interface {
 	// EnsureLocked panics if the state lock is not held.
 	EnsureLocked()
 }
@@ -167,7 +167,7 @@ type secretState struct {
 	closed bool
 	// TODO: once state.State exposes an exported method to check that the state
 	// lock is held (e.g. state.EnsureLocked), use it instead.
-	stateChecker stateLockChecker
+	stateChecker StateLockChecker
 }
 
 func (s *secretState) ensureLocked() {
@@ -330,7 +330,7 @@ func openSecretStateFile() (*os.File, error) {
 //
 // Note that only a single instance of the secret state should be opened
 // at a time.
-func OpenSecretState(stateChecker stateLockChecker) (retState SecretState, retErr error) {
+func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retErr error) {
 	f, err := openSecretStateFile()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open secret state file: %w", err)
