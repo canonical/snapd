@@ -22,6 +22,7 @@ package backend_test
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
 
 	"golang.org/x/sys/unix"
@@ -42,6 +43,7 @@ type secretStateSuite struct {
 	ops              []string
 	failOn           map[string]error
 	stateLockChecker *mockStateLockChecker
+	fdstore          fdstore.Store
 }
 
 var _ = Suite(&secretStateSuite{})
@@ -54,6 +56,33 @@ func (m *mockStateLockChecker) EnsureLocked() {
 	if !m.locked {
 		panic("internal error: accessing state without lock")
 	}
+}
+
+type mockFdstore struct {
+	get func(name fdstore.FdName) (*os.File, error)
+	add func(name fdstore.FdName, f *os.File) error
+}
+
+func (m *mockFdstore) Add(name fdstore.FdName, f *os.File) error {
+	if m.add == nil {
+		return errors.New("mockFdstore.Add() not implemented")
+	}
+	return m.add(name, f)
+}
+
+func (m *mockFdstore) Get(name fdstore.FdName) (*os.File, error) {
+	if m.get == nil {
+		return nil, errors.New("mockFdstore.Get() not implemented")
+	}
+	return m.get(name)
+}
+
+func (m *mockFdstore) Remove(name fdstore.FdName) error {
+	return errors.New("mockFdstore.Remove() not implemented")
+}
+
+func (m *mockFdstore) ActivationListeners() ([]net.Listener, error) {
+	return nil, errors.New("mockFdstore.ActivationListeners() not implemented")
 }
 
 func dupFile(name fdstore.FdName, f *os.File) (*os.File, error) {
@@ -148,8 +177,12 @@ func (s *secretStateSuite) SetUpTest(c *C) {
 	s.failOn = make(map[string]error)
 	s.stateLockChecker = &mockStateLockChecker{}
 
-	s.AddCleanup(backend.MockFdstoreGet(s.fdstoreGet))
-	s.AddCleanup(backend.MockFdstoreAdd(s.fdstoreAdd))
+	s.AddCleanup(backend.MockFdstoreNew(func() fdstore.Store {
+		return &mockFdstore{
+			get: s.fdstoreGet,
+			add: s.fdstoreAdd,
+		}
+	}))
 	s.AddCleanup(backend.MockUnixMmap(s.mmap))
 	s.AddCleanup(backend.MockUnixMunmap(s.munmap))
 	s.AddCleanup(backend.MockUnixMemfdSecret(s.memfdSecret))

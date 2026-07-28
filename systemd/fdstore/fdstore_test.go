@@ -113,7 +113,8 @@ func (s *fdstoreTestSuite) TestGet(c *C) {
 
 	s.lastDupFd = 1998
 
-	file, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	store := fdstore.New()
+	file, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(1999))
 	c.Check(file.Name(), Equals, "memfd-secret-state")
@@ -125,18 +126,18 @@ func (s *fdstoreTestSuite) TestGet(c *C) {
 	c.Assert(os.Getenv("LISTEN_FDNAMES"), Equals, "")
 
 	// more checks
-	file, err = fdstore.Get("no-fd") // doesn't exist
+	file, err = store.Get("no-fd") // doesn't exist
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "no-fd": file descriptor not found`)
 	c.Assert(err, testutil.ErrorIs, fdstore.ErrNotFound)
 	c.Check(file, IsNil)
-	file, err = fdstore.Get("invalid") // should have been pruned by initialization
+	file, err = store.Get("invalid") // should have been pruned by initialization
 	c.Check(file, IsNil)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "invalid": file descriptor not found`)
-	file, err = fdstore.Get("snapd.socket") // sockets are not returned
+	file, err = store.Get("snapd.socket") // sockets are not returned
 	c.Assert(err, ErrorMatches, `internal error: cannot get file descriptor named "snapd.socket": socket found, use ActivationListeners instead`)
 	c.Check(file, IsNil)
 
-	file, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
+	file, err = store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(2000))
 	c.Check(file.Name(), Equals, "memfd-secret-state")
@@ -154,7 +155,8 @@ func (s *fdstoreTestSuite) TestGetLowSystemdVersionError(c *C) {
 	restore := systemd.MockSystemdVersion(235, nil)
 	defer restore()
 
-	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	store := fdstore.New()
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
 	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
 }
@@ -164,11 +166,12 @@ func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
 	os.Setenv("LISTEN_FDS", "3")
 	os.Setenv("LISTEN_FDNAMES", "snapd.socket:memfd-secret-state:snapd.socket")
 
+	store := fdstore.New()
 	// PID mismatch ignores passed fds
-	listeners, err := fdstore.ActivationListeners()
+	listeners, err := store.ActivationListeners()
 	c.Check(err, IsNil)
 	c.Check(listeners, IsNil)
-	_, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
+	_, err = store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	// passed environment variables are cleared
@@ -178,9 +181,10 @@ func (s *fdstoreTestSuite) TestInitBadPIDError(c *C) {
 }
 
 func (s *fdstoreTestSuite) TestInitNoFds(c *C) {
-	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	store := fdstore.New()
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
-	listeners, err := fdstore.ActivationListeners()
+	listeners, err := store.ActivationListeners()
 	c.Check(err, IsNil)
 	c.Check(listeners, IsNil)
 }
@@ -190,9 +194,10 @@ func (s *fdstoreTestSuite) TestInitEnvMismatchError(c *C) {
 	os.Setenv("LISTEN_FDS", "2")
 	os.Setenv("LISTEN_FDNAMES", "snapd.socket:other.socket:memfd-secret-state")
 
-	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	store := fdstore.New()
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
-	listeners, err := fdstore.ActivationListeners()
+	listeners, err := store.ActivationListeners()
 	c.Check(err, IsNil)
 	c.Check(listeners, IsNil)
 }
@@ -200,25 +205,26 @@ func (s *fdstoreTestSuite) TestInitEnvMismatchError(c *C) {
 func (s *fdstoreTestSuite) TestAdd(c *C) {
 	s.lastDupFd = 1973
 
-	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	store := fdstore.New()
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), IsNil)
+	c.Check(store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), IsNil)
 	// 7 is duplicated as 1974
 	c.Check(s.duplicatedFds, DeepEquals, []int{7})
 
-	file, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	file, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(1975))
 	c.Check(s.duplicatedFds, DeepEquals, []int{7, 1974})
 
 	// but only once
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(8, "")), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
+	c.Check(store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(8, "")), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
 	// also, cannot add unknown fds
-	c.Check(fdstore.Add(fdstore.FdName("unknown"), os.NewFile(9, "")), ErrorMatches, `cannot add file descriptor to fdstore: unknown file descriptor name "unknown"`)
+	c.Check(store.Add(fdstore.FdName("unknown"), os.NewFile(9, "")), ErrorMatches, `cannot add file descriptor to fdstore: unknown file descriptor name "unknown"`)
 	// also, cannot add socket fds
-	c.Check(fdstore.Add(fdstore.FdName("snapd.socket"), os.NewFile(10, "")), ErrorMatches, "cannot add file descriptor to fdstore: sockets are not allowed")
-	c.Check(fdstore.Add(fdstore.FdName("some-svc.socket"), os.NewFile(10, "")), ErrorMatches, "cannot add file descriptor to fdstore: sockets are not allowed")
+	c.Check(store.Add(fdstore.FdName("snapd.socket"), os.NewFile(10, "")), ErrorMatches, "cannot add file descriptor to fdstore: sockets are not allowed")
+	c.Check(store.Add(fdstore.FdName("some-svc.socket"), os.NewFile(10, "")), ErrorMatches, "cannot add file descriptor to fdstore: sockets are not allowed")
 
 	c.Check(s.sdNotifyCalls, DeepEquals, []string{
 		"sd-notify-with-fds: FDSTORE=1\nFDNAME=memfd-secret-state [1974]",
@@ -231,9 +237,10 @@ func (s *fdstoreTestSuite) TestAddExistingFdError(c *C) {
 
 	s.lastDupFd = 1999
 
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
+	store := fdstore.New()
+	c.Check(store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
 
-	file, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	file, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(2000))
 	c.Check(s.duplicatedFds, DeepEquals, []int{3})
@@ -246,22 +253,23 @@ func (s *fdstoreTestSuite) TestAddSdNotifyError(c *C) {
 
 	s.errOn = []string{"sd-notify-with-fds: FDSTORE=1\nFDNAME=memfd-secret-state [2027]"}
 
-	_, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	store := fdstore.New()
+	_, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	c.Check(s.closeFds, DeepEquals, []int(nil))
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: boom!`)
+	c.Check(store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: boom!`)
 	// duplicated (as 2027) before sd-notify error
 	c.Check(s.duplicatedFds, DeepEquals, []int{7})
 	// duplicated fd should be closed on error
 	c.Check(s.closeFds, DeepEquals, []int{2027})
 
-	_, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
+	_, err = store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot get file descriptor named "memfd-secret-state": file descriptor not found`)
 
 	// 8 is duplicated as 2028
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(8, "")), IsNil)
-	file, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	c.Check(store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(8, "")), IsNil)
+	file, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(2029)) // 2029 is duplicated from 2028 (which is duplicate from 8)
 	c.Check(s.duplicatedFds, DeepEquals, []int{7, 8, 2028})
@@ -271,7 +279,8 @@ func (s *fdstoreTestSuite) TestAddLowSystemdVersionError(c *C) {
 	restore := systemd.MockSystemdVersion(235, nil)
 	defer restore()
 
-	err := fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
+	store := fdstore.New()
+	err := store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, ""))
 	c.Assert(err, ErrorMatches, `cannot add file descriptor to fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
 	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
 
@@ -284,33 +293,34 @@ func (s *fdstoreTestSuite) TestRemove(c *C) {
 
 	s.lastDupFd = 1000
 
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
+	store := fdstore.New()
+	c.Check(store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), ErrorMatches, `cannot add file descriptor to fdstore: "memfd-secret-state" already exists`)
 
-	file, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	file, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(1001))
 	c.Check(s.duplicatedFds, DeepEquals, []int{3})
 
 	c.Check(s.closeFds, DeepEquals, []int(nil))
-	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), IsNil)
+	c.Check(store.Remove(fdstore.FdNameMemfdSecretState), IsNil)
 	c.Check(s.closeFds, DeepEquals, []int{3})
 
 	// cannot remove again
-	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, `cannot remove file descriptor from fdstore: file descriptor not found`)
+	c.Check(store.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, `cannot remove file descriptor from fdstore: file descriptor not found`)
 
-	c.Check(fdstore.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), IsNil)
+	c.Check(store.Add(fdstore.FdNameMemfdSecretState, os.NewFile(7, "")), IsNil)
 	// 7 is duplicated as 1002
 	c.Check(s.duplicatedFds, DeepEquals, []int{3, 7})
 
-	file, err = fdstore.Get(fdstore.FdNameMemfdSecretState)
+	file, err = store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(1003))
 	c.Check(s.duplicatedFds, DeepEquals, []int{3, 7, 1002})
 
 	// cannot remove socket fds
-	c.Check(fdstore.Remove(fdstore.FdName("snapd.socket")), ErrorMatches, "cannot remove file descriptor from fdstore: sockets cannot be removed")
+	c.Check(store.Remove(fdstore.FdName("snapd.socket")), ErrorMatches, "cannot remove file descriptor from fdstore: sockets cannot be removed")
 	// or unknown fds
-	c.Check(fdstore.Remove(fdstore.FdName("unknown")), ErrorMatches, `cannot remove file descriptor from fdstore: file descriptor not found`)
+	c.Check(store.Remove(fdstore.FdName("unknown")), ErrorMatches, `cannot remove file descriptor from fdstore: file descriptor not found`)
 
 	c.Check(s.sdNotifyCalls, DeepEquals, []string{
 		"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state",
@@ -329,9 +339,10 @@ func (s *fdstoreTestSuite) TestRemoveSdNotifyError(c *C) {
 
 	s.errOn = []string{"sd-notify: FDSTOREREMOVE=1\nFDNAME=memfd-secret-state"}
 
-	c.Check(fdstore.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, "boom!")
+	store := fdstore.New()
+	c.Check(store.Remove(fdstore.FdNameMemfdSecretState), ErrorMatches, "boom!")
 
-	file, err := fdstore.Get(fdstore.FdNameMemfdSecretState)
+	file, err := store.Get(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, IsNil)
 	c.Check(file.Fd(), Equals, uintptr(1001))
 	c.Check(s.duplicatedFds, DeepEquals, []int{3})
@@ -346,7 +357,8 @@ func (s *fdstoreTestSuite) TestRemoveLowSystemdVersionError(c *C) {
 	restore := systemd.MockSystemdVersion(235, nil)
 	defer restore()
 
-	err := fdstore.Remove(fdstore.FdNameMemfdSecretState)
+	store := fdstore.New()
+	err := store.Remove(fdstore.FdNameMemfdSecretState)
 	c.Assert(err, ErrorMatches, `cannot remove file descriptor from fdstore: unsupported systemd version: systemd version 235 is too old \(expected at least 236\)`)
 	c.Assert(err, testutil.ErrorIs, fdstore.ErrUnsupportedSystemdVersion)
 
@@ -373,7 +385,8 @@ func (s *fdstoreTestSuite) TestActivationListeners(c *C) {
 	})
 	defer restore()
 
-	listeners, err := fdstore.ActivationListeners()
+	store := fdstore.New()
+	listeners, err := store.ActivationListeners()
 	c.Assert(err, IsNil)
 	c.Assert(listeners, HasLen, 3)
 	sort.Slice(listeners, func(i, j int) bool {
@@ -384,7 +397,7 @@ func (s *fdstoreTestSuite) TestActivationListeners(c *C) {
 	c.Check(listeners[2].(*fakeListener).String(), Equals, "snapd.socket (6)")
 
 	// another time
-	listeners, err = fdstore.ActivationListeners()
+	listeners, err = store.ActivationListeners()
 	c.Assert(err, IsNil)
 	c.Assert(listeners, HasLen, 3)
 	sort.Slice(listeners, func(i, j int) bool {
@@ -405,7 +418,8 @@ func (s *fdstoreTestSuite) TestActivationListenersMissingFdNamesEnv(c *C) {
 
 	// make sure that older versions of systemd (e.g. v219 on amazon-linux-2)
 	// are supported where the $LISTEN_FDNAMES env var is not passed.
-	listeners, err := fdstore.ActivationListeners()
+	store := fdstore.New()
+	listeners, err := store.ActivationListeners()
 	c.Assert(err, IsNil)
 	c.Assert(listeners, HasLen, 4)
 	sort.Slice(listeners, func(i, j int) bool {
@@ -450,7 +464,8 @@ func (s *fdstoreTestSuite) TestActivationListenersCleansUpCollectedListenersOnEr
 	})
 	defer restore()
 
-	listeners, err := fdstore.ActivationListeners()
+	store := fdstore.New()
+	listeners, err := store.ActivationListeners()
 	c.Assert(err, ErrorMatches, "boom")
 	c.Check(listeners, IsNil)
 	c.Assert(created, HasLen, 1)

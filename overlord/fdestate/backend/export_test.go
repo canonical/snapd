@@ -20,11 +20,8 @@
 package backend
 
 import (
-	"os"
-
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/secboot"
-	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,14 +61,6 @@ func MockSecbootPCRPolicyCounterHandles(f func(uk secboot.UpdatedKeys) []uint32)
 	return func() {
 		secbootPCRPolicyCounterHandles = old
 	}
-}
-
-func MockFdstoreAdd(f func(name fdstore.FdName, f *os.File) error) (restore func()) {
-	return testutil.Mock(&fdstoreAdd, f)
-}
-
-func MockFdstoreGet(f func(name fdstore.FdName) (*os.File, error)) (restore func()) {
-	return testutil.Mock(&fdstoreGet, f)
 }
 
 func MockUnixMmap(f func(fd int, offset int64, length int, prot int, flags int) ([]byte, error)) (restore func()) {

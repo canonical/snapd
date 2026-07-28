@@ -31,6 +31,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd/fdstore"
@@ -43,9 +44,7 @@ var (
 )
 
 var (
-	fdstoreAdd = fdstore.Add
-	fdstoreGet = fdstore.Get
-
+	fdstoreNew      = fdstore.New
 	unixMemfdSecret = unix.MemfdSecret
 	unixMemfdCreate = unix.MemfdCreate
 	unixMmap        = unix.Mmap
@@ -282,7 +281,9 @@ func (s *secretState) closeLocked() error {
 }
 
 func openSecretStateFile() (*os.File, error) {
-	f, err := fdstoreGet(fdstore.FdNameMemfdSecretState)
+	fds := fdstoreNew()
+
+	f, err := fds.Get(fdstore.FdNameMemfdSecretState)
 	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupportedSystemdVersion) {
 		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupportedSystemdVersion)
 		fd, err := unixMemfdSecret(0)
@@ -309,7 +310,7 @@ func openSecretStateFile() (*os.File, error) {
 			// version is too old, we will just use the memfd without adding
 			// it to the fdstore, persistence across snapd restarts will be
 			// lost but it is better than crashing.
-			if err := fdstoreAdd(fdstore.FdNameMemfdSecretState, f); err != nil {
+			if err := fds.Add(fdstore.FdNameMemfdSecretState, f); err != nil {
 				return nil, fmt.Errorf("cannot add secret state to fdstore: %w", err)
 			}
 		} else {
@@ -395,4 +396,13 @@ func OpenSecretState(stateChecker stateLockChecker) (retState SecretState, retEr
 	// be accessing it and it can release the resources directly.
 	runtime.SetFinalizer(s, (*secretState).closeLocked)
 	return s, nil
+}
+
+func MockFdstoreNew(f func() fdstore.Store) (restore func()) {
+	osutil.MustBeTestBinary("fdstoreNew only can be mocked in tests")
+	old := fdstoreNew
+	fdstoreNew = f
+	return func() {
+		fdstoreNew = old
+	}
 }
