@@ -155,6 +155,7 @@ func (s *systemVolumesSuite) TestSystemVolumesActionGenerateRecoveryKey(c *C) {
 	called := 0
 	s.AddCleanup(daemon.MockFdeMgrGenerateRecoveryKey(func(fdemgr *fdestate.FDEManager) (rkey keys.RecoveryKey, keyID string, err error) {
 		called++
+		s.d.Overlord().State().Cache(struct{}{}, nil) // panic if lock is not held
 		c.Assert(fdemgr, NotNil)
 		return keys.RecoveryKey{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '1', '1', '1', '1', '1', '1', '1', '1'}, "key-id-1", nil
 	}))

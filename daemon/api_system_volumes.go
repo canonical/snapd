@@ -318,6 +318,10 @@ func postSystemVolumesActionJSON(c *Command, r *http.Request) Response {
 func postSystemVolumesActionGenerateRecoveryKey(c *Command) Response {
 	fdemgr := c.d.overlord.FDEManager()
 
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	rkey, keyID, err := fdeMgrGenerateRecoveryKey(fdemgr)
 	if err != nil {
 		return InternalError(err.Error())

@@ -76,8 +76,8 @@ func MockBackendResealKeysForSignaturesDBUpdate(f func(updateState backend.FDESt
 	return restore
 }
 
-func MockBackendNewInMemoryRecoveryKeyCache(f func() backend.RecoveryKeyCache) (restore func()) {
-	return testutil.Mock(&backendNewInMemoryRecoveryKeyCache, f)
+func MockRandutilRandomString(f func(length int) string) (restore func()) {
+	return testutil.Mock(&randutilRandomString, f)
 }
 
 func MockKeysNewRecoveryKey(f func() (keys.RecoveryKey, error)) (restore func()) {
@@ -90,7 +90,8 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 
 var NewModel = newModel
 
-func (m *FDEManager) IsFunctional() error { return m.isFunctional() }
+func (m *FDEManager) IsFunctional() error              { return m.isFunctional() }
+func (m *FDEManager) SecretState() backend.SecretState { return m.secretState }
 
 func MockBootHostUbuntuDataForMode(f func(mode string, mod gadget.Model) ([]string, error)) (restore func()) {
 	old := bootHostUbuntuDataForMode

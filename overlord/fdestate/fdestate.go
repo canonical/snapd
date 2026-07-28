@@ -483,14 +483,12 @@ func (k KeyslotRef) Validate(keyslotType KeyslotType) error {
 }
 
 func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
-	rkeyInfo, err := fdemgr.recoveryKeyCache.Key(recoveryKeyID)
+	var rkeyInfo RecoveryKeyInfo
+	err := fdemgr.secretState.Get(recoveryKeyID, &rkeyInfo)
 	if err != nil {
-		if errors.Is(err, backend.ErrNoRecoveryKey) {
-			// This might mean that the recovery key id is not valid or snapd
-			// restarted and the associated recovery key was lost from the cache.
-			//
-			// TODO:FDEM: Mitigate snapd restart case by introducing an alternative secret
-			// backend that survives restarts.
+		if errors.Is(err, state.ErrNoState) {
+			// This might mean that the recovery key id is not valid or system
+			// rebooted and the associated recovery key was lost from the cache.
 			return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonNotFound}
 		}
 		return err

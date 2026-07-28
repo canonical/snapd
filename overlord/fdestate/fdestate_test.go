@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate"
-	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -109,11 +108,11 @@ func (s *fdeMgrSuite) TestAddRecoveryKey(c *C) {
 	manager := s.startedManager(c, onClassic)
 	s.mockCurrentKeys(c, []fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key"}}, nil)
 
-	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
-	c.Assert(err, IsNil)
-
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
+	c.Assert(err, IsNil)
 
 	ts, err := fdestate.AddRecoveryKey(s.st, recoveryKeyID, []fdestate.KeyslotRef{
 		{ContainerRole: "system-data", Name: "default-recovery"},
@@ -143,23 +142,8 @@ func (s *fdeMgrSuite) TestAddRecoveryKey(c *C) {
 }
 
 func (s *fdeMgrSuite) TestAddRecoveryKeyErrors(c *C) {
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
-		return &mockRecoveryKeyCache{
-			getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-				switch keyID {
-				case "good-key-id":
-					return backend.CachedRecoverKey{Expiration: time.Now().Add(100 * time.Hour)}, nil
-				case "expired-key-id":
-					return backend.CachedRecoverKey{Expiration: time.Now().Add(-100 * time.Hour)}, nil
-				default:
-					return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
-				}
-			},
-		}
-	})()
-
 	const onClassic = true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
 	s.mockCurrentKeys(c,
 		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-1"}},
 		[]fdestate.KeyslotRef{{ContainerRole: "system-data", Name: "some-key-2"}},
@@ -169,6 +153,9 @@ func (s *fdeMgrSuite) TestAddRecoveryKeyErrors(c *C) {
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	c.Assert(m.SecretState().Set("good-key-id", &fdestate.RecoveryKeyInfo{Expiration: time.Now().Add(100 * time.Hour)}), IsNil)
+	c.Assert(m.SecretState().Set("expired-key-id", &fdestate.RecoveryKeyInfo{Expiration: time.Now().Add(-100 * time.Hour)}), IsNil)
 
 	// no key slots
 	_, err := fdestate.AddRecoveryKey(s.st, "good-key-id", nil)
@@ -308,11 +295,11 @@ func (s *fdeMgrSuite) testReplaceRecoveryKey(c *C, defaultKeyslots bool) {
 	onClassic := true
 	manager := s.startedManager(c, onClassic)
 
-	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
-	c.Assert(err, IsNil)
-
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	_, recoveryKeyID, err := manager.GenerateRecoveryKey()
+	c.Assert(err, IsNil)
 
 	var ts *state.TaskSet
 	if defaultKeyslots {
@@ -377,22 +364,6 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyDefaultKeyslots(c *C) {
 }
 
 func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
-	mockStore := &mockRecoveryKeyCache{
-		getRecoveryKey: func(keyID string) (rkeyInfo backend.CachedRecoverKey, err error) {
-			switch keyID {
-			case "good-key-id":
-				return backend.CachedRecoverKey{Expiration: time.Now().Add(100 * time.Hour)}, nil
-			case "expired-key-id":
-				return backend.CachedRecoverKey{Expiration: time.Now().Add(-100 * time.Hour)}, nil
-			default:
-				return backend.CachedRecoverKey{}, backend.ErrNoRecoveryKey
-			}
-		},
-	}
-	defer fdestate.MockBackendNewInMemoryRecoveryKeyCache(func() backend.RecoveryKeyCache {
-		return mockStore
-	})()
-
 	// mock no existing key slots, except one non-recovery keyslot
 	defer fdestate.MockDisksDMCryptUUIDFromMountPoint(func(mountpoint string) (string, error) {
 		switch mountpoint {
@@ -415,12 +386,15 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 
 	// initialize fde manager
 	onClassic := true
-	s.startedManager(c, onClassic)
+	m := s.startedManager(c, onClassic)
 
 	keyslots := []fdestate.KeyslotRef{{ContainerRole: "system-save", Name: "default-recovery"}}
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	c.Assert(m.SecretState().Set("good-key-id", &fdestate.RecoveryKeyInfo{Expiration: time.Now().Add(100 * time.Hour)}), IsNil)
+	c.Assert(m.SecretState().Set("expired-key-id", &fdestate.RecoveryKeyInfo{Expiration: time.Now().Add(-100 * time.Hour)}), IsNil)
 
 	// invalid recovery key id
 	_, err := fdestate.ReplaceRecoveryKey(s.st, "bad-key-id", keyslots)

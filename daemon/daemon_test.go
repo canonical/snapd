@@ -22,6 +22,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	fdestatebackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/restart"
@@ -55,6 +57,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -70,6 +73,24 @@ type daemonSuite struct {
 }
 
 var _ = check.Suite(&daemonSuite{})
+
+type mockFdstore struct{}
+
+func (m *mockFdstore) Add(name fdstore.FdName, f *os.File) error {
+	return nil
+}
+
+func (m *mockFdstore) Get(name fdstore.FdName) (*os.File, error) {
+	return nil, fdstore.ErrNotFound
+}
+
+func (m *mockFdstore) Remove(name fdstore.FdName) error {
+	return errors.New("mockFdstore.Remove() not implemented")
+}
+
+func (m *mockFdstore) ActivationListeners() ([]net.Listener, error) {
+	return nil, errors.New("mockFdstore.ActivationListeners() not implemented")
+}
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
@@ -88,6 +109,9 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(MockRebootNoticeWait(0))
 
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
+
+	// mock fdstore so that FDEManager initialization doesn't fail
+	s.AddCleanup(fdestatebackend.MockFdstoreNew(func() fdstore.Store { return &mockFdstore{} }))
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
