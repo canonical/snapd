@@ -20,7 +20,9 @@
 package daemon_test
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -35,7 +37,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	fdestatebackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/standby"
+	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -49,6 +53,24 @@ type snapdSuite struct {
 
 var _ = Suite(&snapdSuite{})
 
+type mockFdstore struct{}
+
+func (m *mockFdstore) Add(name fdstore.FdName, f *os.File) error {
+	return nil
+}
+
+func (m *mockFdstore) Get(name fdstore.FdName) (*os.File, error) {
+	return nil, fdstore.ErrNotFound
+}
+
+func (m *mockFdstore) Remove(name fdstore.FdName) error {
+	return errors.New("mockFdstore.Remove() not implemented")
+}
+
+func (m *mockFdstore) ActivationListeners() ([]net.Listener, error) {
+	return nil, errors.New("mockFdstore.ActivationListeners() not implemented")
+}
+
 func (s *snapdSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	for _, d := range []string{"/var/lib/snapd", "/run"} {
@@ -59,6 +81,9 @@ func (s *snapdSuite) SetUpTest(c *C) {
 
 	restore := osutil.MockMountInfo("")
 	s.AddCleanup(restore)
+
+	// mock fdstore so that FDEManager initialization doesn't fail
+	s.AddCleanup(fdestatebackend.MockFdstoreNew(func() fdstore.Store { return &mockFdstore{} }))
 }
 
 func (s *snapdSuite) TestSyscheckFailGoesIntoDegradedMode(c *C) {
