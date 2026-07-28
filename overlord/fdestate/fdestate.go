@@ -707,11 +707,12 @@ func ReplaceRecoveryKey(st *state.State, recoveryKeyID string, keyslotRefs []Key
 	return ts, nil
 }
 
-type changeAuthOptions struct {
-	old, new string
-}
+type expiringChangeAuthOptions struct {
+	expiringSecretMixin
 
-type changeAuthOptionsKey struct{}
+	Old string `json:"old"`
+	New string `json:"new"`
+}
 
 // ChangeAuth creates a taskset that changes the PIN or
 // passphrase for the specified target key slots.
@@ -784,10 +785,15 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	}
 
 	// Auth data must be in memory to avoid leaking credentials.
-	if st.Cached(changeAuthOptionsKey{}) != nil {
-		logger.Noticef("WARNING: authentication change options already exists in memory")
+	changeAuthID, err := mgr.newChangeAuthID()
+	if err != nil {
+		return nil, err
 	}
-	st.Cache(changeAuthOptionsKey{}, &changeAuthOptions{old: old, new: new})
+	opts := &expiringChangeAuthOptions{Old: old, New: new}
+	opts.Expiration = timeNow().Add(secretExpireAfter)
+	if err := mgr.secretState.Set(changeAuthID, opts); err != nil {
+		return nil, fmt.Errorf("cannot store authentication options: %v", err)
+	}
 
 	ts := state.NewTaskSet()
 
@@ -801,6 +807,7 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 	changeAuth := st.NewTask("fde-change-auth", summary)
 	changeAuth.Set("keyslots", keyslotRefs)
 	changeAuth.Set("auth-mode", authMode)
+	changeAuth.Set("change-auth-id", changeAuthID)
 	ts.AddTask(changeAuth)
 
 	return ts, nil
@@ -817,7 +824,11 @@ func SystemEncryptedFromState(st *state.State) (bool, error) {
 	return encrypted, nil
 }
 
-type volumesAuthOptionsKey struct{}
+type expiringVolumesAuthOptions struct {
+	expiringSecretMixin
+
+	device.VolumesAuthOptions
+}
 
 // ReplacePlatformKey creates a taskset that replaces the
 // platform protected key for the specified target key slots.
@@ -912,20 +923,25 @@ func ReplacePlatformKey(st *state.State, volumesAuth *device.VolumesAuthOptions,
 		tmpKeyslotRoles[tmpKeyslotRef.String()] = kd.Roles()
 	}
 
-	if volumesAuth != nil {
-		// Auth data must be in memory to avoid leaking credentials.
-		if st.Cached(volumesAuthOptionsKey{}) != nil {
-			logger.Noticef("WARNING: authentication options already exists in memory")
-		}
-		st.Cache(volumesAuthOptionsKey{}, volumesAuth)
-	}
-
 	ts := state.NewTaskSet()
 
 	addTemporaryKeys := st.NewTask("fde-add-platform-keys", fmt.Sprintf("Add temporary %s key slots", keyType))
 	addTemporaryKeys.Set("keyslots", tmpKeyslotRefs)
 	addTemporaryKeys.Set("auth-mode", authMode)
 	addTemporaryKeys.Set("roles", tmpKeyslotRoles)
+	if volumesAuth != nil {
+		// Auth data must be in memory to avoid leaking credentials.
+		volumesAuthID, err := mgr.newVolumesAuthID()
+		if err != nil {
+			return nil, err
+		}
+		opts := &expiringVolumesAuthOptions{VolumesAuthOptions: *volumesAuth}
+		opts.Expiration = timeNow().Add(secretExpireAfter)
+		if err := mgr.secretState.Set(volumesAuthID, opts); err != nil {
+			return nil, fmt.Errorf("cannot store authentication options: %v", err)
+		}
+		addTemporaryKeys.Set("volumes-auth-id", volumesAuthID)
+	}
 	// Force remove all tmp keyslots during cleanup in case of erroring
 	// after a re-run (e.g. after system or snapd restart) where we might
 	// have lost the credentials (e.g. passphrase) stored in-memory after

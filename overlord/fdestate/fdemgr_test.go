@@ -813,10 +813,8 @@ func (s *fdeMgrSuite) TestGetEncryptedContainers(c *C) {
 
 func (s *fdeMgrSuite) TestRecoveryKeyExpired(c *C) {
 	now := time.Now()
-	rkey := fdestate.RecoveryKeyInfo{
-		Key:        [16]byte{1, 2, 3, 4},
-		Expiration: now,
-	}
+	rkey := fdestate.RecoveryKeyInfo{Key: [16]byte{1, 2, 3, 4}}
+	rkey.Expiration = now
 
 	c.Check(rkey.Expired(now.Add(time.Nanosecond)), Equals, true)
 	c.Check(rkey.Expired(now.Add(-time.Nanosecond)), Equals, false)
@@ -877,10 +875,9 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKey(c *C) {
 	defer s.st.Unlock()
 
 	// mock existing key in the state to simulate collision
-	c.Assert(m.SecretState().Set("rkey:1", &fdestate.RecoveryKeyInfo{
-		Key:        expectedKeys[0].key,
-		Expiration: expectedKeys[0].expiration,
-	}), IsNil)
+	mockRecoveryKeyInfo := fdestate.RecoveryKeyInfo{Key: expectedKeys[0].key}
+	mockRecoveryKeyInfo.Expiration = time.Now().Add(time.Minute) // not expired
+	c.Assert(m.SecretState().Set("rkey:1", &mockRecoveryKeyInfo), IsNil)
 
 	rkey, keyID, err := fdestate.GenerateRecoveryKey(s.st)
 	c.Assert(err, IsNil)
@@ -907,7 +904,9 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKeyMaxRetriesError(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	c.Assert(m.SecretState().Set("rkey:collision", &fdestate.RecoveryKeyInfo{Expiration: time.Now().Add(100 * time.Hour)}), IsNil)
+	rkeyInfo := fdestate.RecoveryKeyInfo{}
+	rkeyInfo.Expiration = time.Now().Add(100 * time.Hour) // not expired
+	c.Assert(m.SecretState().Set("rkey:collision", &rkeyInfo), IsNil)
 
 	_, _, err := fdestate.GenerateRecoveryKey(s.st)
 	c.Assert(err, ErrorMatches, "internal error: cannot generate secret key: max retries reached")
@@ -916,14 +915,13 @@ func (s *fdeMgrSuite) TestGenerateRecoveryKeyMaxRetriesError(c *C) {
 func (s *fdeMgrSuite) TestGetRecoveryKey(c *C) {
 	mockRecoveryKeyInfo := fdestate.RecoveryKeyInfo{
 		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '1'},
-		// not expired
-		Expiration: time.Now().Add(time.Minute),
 	}
+	mockRecoveryKeyInfo.Expiration = time.Now().Add(time.Minute) // not expired
+
 	mockRecoveryKeyInfoExpired := fdestate.RecoveryKeyInfo{
 		Key: [16]byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '2'},
-		// not expired
-		Expiration: time.Now().Add(-time.Minute),
 	}
+	mockRecoveryKeyInfoExpired.Expiration = time.Now().Add(-time.Minute) // expired
 
 	// initialize fde manager
 	m, err := fdestate.Manager(s.st, s.runner)
