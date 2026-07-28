@@ -684,7 +684,7 @@ func (m *FDEManager) ensureParametersLoadedWithMaybeReseal(role, containerRole s
 	}, method)
 }
 
-const recoveryKeyExpireAfter = 5 * time.Minute
+const secretExpireAfter = 5 * time.Minute
 
 func (m *FDEManager) newSecretID(prefix string) (string, error) {
 	const maxRetries = 10
@@ -708,22 +708,35 @@ func (m *FDEManager) newRecoveryKeyID() (string, error) {
 	return m.newSecretID("rkey")
 }
 
-type RecoveryKeyInfo struct {
-	Key keys.RecoveryKey `json:"key"`
-	// Expiration indicates the expiration date for the recovery key.
-	// If unset, this means that the key will never expire.
+func (m *FDEManager) newChangeAuthID() (string, error) {
+	return m.newSecretID("change-auth")
+}
+
+func (m *FDEManager) newVolumesAuthID() (string, error) {
+	return m.newSecretID("volumes-auth")
+}
+
+type expiringSecretMixin struct {
+	// Expiration indicates the expiration date for the secret.
+	// If unset, this means that the secret will never expire.
 	Expiration time.Time `json:"expiration,omitzero"`
 }
 
-func (rkeyInfo *RecoveryKeyInfo) Expired(currTime time.Time) bool {
-	if rkeyInfo.Expiration.IsZero() {
+func (m *expiringSecretMixin) Expired(currTime time.Time) bool {
+	if m.Expiration.IsZero() {
 		return false
 	}
-	return currTime.After(rkeyInfo.Expiration)
+	return currTime.After(m.Expiration)
+}
+
+type RecoveryKeyInfo struct {
+	expiringSecretMixin
+
+	Key keys.RecoveryKey `json:"key"`
 }
 
 // GenerateRecoveryKey generates a recovery key and its corresponding id
-// with an expiration time `recoveryKeyExpireAfter`.
+// with an expiration time `secretExpireAfter`.
 //
 // The state needs to be locked by the caller.
 func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string, err error) {
@@ -741,10 +754,8 @@ func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 		return keys.RecoveryKey{}, "", fmt.Errorf("internal error: cannot generate recovery key: %v", err)
 	}
 
-	rkeyInfo := &RecoveryKeyInfo{
-		Key:        rkey,
-		Expiration: timeNow().Add(recoveryKeyExpireAfter),
-	}
+	rkeyInfo := &RecoveryKeyInfo{Key: rkey}
+	rkeyInfo.Expiration = timeNow().Add(secretExpireAfter)
 
 	if err := m.secretState.Set(keyID, rkeyInfo); err != nil {
 		return keys.RecoveryKey{}, "", fmt.Errorf("internal error: cannot store recovery key: %v", err)
@@ -754,7 +765,7 @@ func (m *FDEManager) GenerateRecoveryKey() (rkey keys.RecoveryKey, keyID string,
 }
 
 // GenerateRecoveryKey generates a recovery key and its corresponding id
-// with an expiration time `recoveryKeyExpireAfter`.
+// with an expiration time `secretExpireAfter`.
 //
 // The state needs to be locked by the caller.
 func GenerateRecoveryKey(st *state.State) (rkey keys.RecoveryKey, keyID string, err error) {
