@@ -491,12 +491,7 @@ nested_cleanup_env() {
 }
 
 nested_get_image_channel() {
-    if nested_is_core_26_system; then
-        # TODO: Remove when it becomes available in the other channels
-        echo "edge"
-    else
-        echo "${NESTED_CORE_CHANNEL}"
-    fi
+    echo "${NESTED_CORE_CHANNEL}"
 }
 
 nested_get_base_channel() {
@@ -517,12 +512,7 @@ nested_get_kernel_channel() {
 }
 
 nested_get_gadget_channel() {
-    if nested_is_core_26_system; then
-        # TODO: Remove when it becomes available in the other channels
-        echo "edge"
-    else
-        echo "${NESTED_GADGET_CHANNEL}"
-    fi
+    echo "${NESTED_GADGET_CHANNEL}"
 }
 
 nested_get_image_name_base() {
