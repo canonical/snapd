@@ -37,6 +37,10 @@ var (
 	MgmtMessageIDKey = mgmtMessageIDKey
 )
 
+func MockFetchAccountKey(f func(st *state.State, userID int, signKeyID string) error) func() {
+	return testutil.Mock(&assertstateFetchAccountKey, f)
+}
+
 func MockMaxSequences(n int) func() {
 	return testutil.Mock(&maxSequences, n)
 }
@@ -48,7 +52,7 @@ func MockMaxBlockedMessagesPerSequence(n int) func() {
 type SequenceState = sequenceState
 type DeviceMgmtState = deviceMgmtState
 
-type ResponseMessageSigner = responseMessageSigner
+type DeviceBackend = deviceBackend
 
 func (m *DeviceMgmtManager) GetState() (*DeviceMgmtState, error) {
 	ms, err := m.getState()
@@ -59,8 +63,8 @@ func (m *DeviceMgmtManager) SetState(ms *DeviceMgmtState) {
 	m.setState(ms)
 }
 
-func (m *DeviceMgmtManager) MockSigner(signer responseMessageSigner) {
-	m.signer = signer
+func (m *DeviceMgmtManager) MockBackend(backend deviceBackend) {
+	m.device = backend
 }
 
 func (m *DeviceMgmtManager) ShouldExchangeMessages(ms *DeviceMgmtState) bool {
