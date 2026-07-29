@@ -1813,7 +1813,7 @@ nested_prepare_tools() {
     TOOLS_PATH=/writable/test-tools
     if ! remote.exec "test -d $TOOLS_PATH" &>/dev/null; then
         remote.exec "sudo mkdir -p $TOOLS_PATH"
-        remote.exec "sudo chown user1:user1 $TOOLS_PATH"
+        remote.exec "sudo chown $NESTED_REMOTE_USER_NAME:$NESTED_REMOTE_USER_NAME $TOOLS_PATH"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
