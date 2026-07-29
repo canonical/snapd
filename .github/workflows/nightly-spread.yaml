@@ -3,7 +3,7 @@ name: Nightly spread executions
 # See https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onschedule
 on:
   schedule:
-    # usual nightly run, google tests, and experimental features
+    # usual nightly run and experimental features
     - cron: '0 2 * * *'
     # spread run from json fundamental, non-fundamental, and nested
     - cron: '0 3 * * *'
@@ -16,7 +16,7 @@ on:
         description: Job to run
         options:
           - spread-nightly
-          - spread-nightly-google
+          - spread-nightly-openstack
           - spread-test-build-from-current
           - spread-test-experimental
           - spread-test-openstack
@@ -52,12 +52,12 @@ jobs:
       rules: ''
       use-snapd-snap-from-master: true
 
-  spread-nightly-google:
-    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-google') }}
+  spread-nightly-garden:
+    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-openstack') }}
     uses: ./.github/workflows/spread-tests.yaml
     secrets: inherit
     with:
-      runs-on: '["self-hosted", "spread-enabled"]'
+      runs-on: ubuntu-latest
       group: ${{ matrix.group }}
       backend: ${{ matrix.backend }}
       systems: ${{ matrix.systems }}
@@ -70,24 +70,12 @@ jobs:
       matrix:
         include:
           - group: jammy
-            backend: google
+            backend: garden
             systems: 'ubuntu-22.04-64'
             tasks: 'tests/main/apparmor-prompting-integration-tests tests/main/interfaces-requests-activates-handlers'
-          - group: google
-            backend: google
+          - group: garden
+            backend: garden
             systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-core
-            backend: google-core
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-distro
-            backend: google-distro
-            systems: 'ALL'
-            tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
-          - group: google-arm
-            backend: google-distro
-            systems: 'ubuntu-22.04-arm-64 ubuntu-core-24-arm-64'
             tasks: 'tests/main/microk8s-smoke tests/main/download-timeout tests/main/snap-network-errors tests/main/snapd-snap:lxd tests/main/apparmor-prompting-support tests/main/proxy'
 
   spread-test-build-from-current:
