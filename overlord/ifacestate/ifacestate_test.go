@@ -12732,6 +12732,29 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatch(c *C) {
 	c.Check(chg.ID(), Equals, chg2.ID())
 }
 
+func (s *interfaceManagerSuite) TestSystemKeyMismatchRegenerationInProgress(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// there is no system key on disk, so consulting the advice directly would
+	// fail
+	c.Assert(interfaces.RemoveSystemKey(), IsNil)
+
+	// simulate an in-progress regeneration change (not ready yet)
+	chg := s.state.NewChange("regenerate-security-profiles", "Regenerate security profiles")
+	t := s.state.NewTask("regenerate-security-profiles", "Regenerate security profiles")
+	chg.AddTask(t)
+	c.Assert(chg.IsReady(), Equals, false)
+
+	// despite the missing key, we are pointed at the in-progress change to wait
+	// for, instead of getting an error
+	advised, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, "")
+	c.Assert(err, IsNil)
+	c.Assert(advised, NotNil)
+	c.Check(advised.ID(), Equals, chg.ID())
+}
+
 func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {
 	mockedSkS := `{
 "version": 9999,
