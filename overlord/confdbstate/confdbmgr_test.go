@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/confdbstate"
+	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
@@ -351,7 +352,7 @@ func (s *confdbTestSuite) TestManagerOk(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, runner)
 	c.Assert(err, IsNil)
 
-	mgr := confdbstate.Manager(s.state, hookMgr, runner)
+	mgr := confdbstate.Manager(s.state, hookMgr, runner, devicemgmtstate.Manager(s.state, runner, nil), nil)
 	s.o.AddManager(mgr)
 
 	err = s.o.Settle(5 * time.Second)

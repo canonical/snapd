@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -55,8 +54,7 @@ const (
 )
 
 var (
-	timeNow                    = time.Now
-	assertstateFetchAccountKey = assertstate.FetchAccountKey
+	timeNow = time.Now
 
 	maxSequences                  = 256
 	maxBlockedMessagesPerSequence = 8
@@ -64,6 +62,14 @@ var (
 	awaitSubsystemRetryInterval = 30 * time.Second
 
 	deviceMgmtExchangeChangeKind = swfeats.RegisterChangeKind("device-management-exchange")
+
+	// AssertstateDB, AssertstateAccountKey and AssertstateFetchAccountKey are
+	// wired to the corresponding assertstate helpers by
+	// assertstate.delayedCrossMgrInit. They exist to break the import cycle
+	// assertstate -> confdbstate -> devicemgmtstate -> assertstate.
+	AssertstateDB              func(s *state.State) asserts.RODatabase
+	AssertstateAccountKey      func(st *state.State, signKeyID string) (*asserts.AccountKey, error)
+	AssertstateFetchAccountKey func(st *state.State, userID int, signKeyID string) error
 )
 
 // deviceBackend provides device identity and response message signing.
@@ -319,7 +325,7 @@ func Manager(state *state.State, runner *state.TaskRunner, backend deviceBackend
 	m := &DeviceMgmtManager{
 		state:    state,
 		device:   backend,
-		handlers: make(map[string]MessageHandler),
+		handlers: map[string]MessageHandler{},
 	}
 
 	runner.AddHandler("exchange-mgmt-messages", m.doExchangeMessages, nil)
@@ -660,7 +666,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		}
 	}
 
-	err = assertstate.DB(m.state).Check(a)
+	err = AssertstateDB(m.state).Check(a)
 	if err != nil {
 		rejectMsg(fmt.Sprintf("cannot verify message signature: %v", err))
 		return nil
@@ -720,7 +726,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 // ensureAccountKey fetches the account-key assertion for signKeyID from the
 // store if it is not already in the local database.
 func (m *DeviceMgmtManager) ensureAccountKey(signKeyID string) (fetched bool, err error) {
-	_, err = assertstate.AccountKey(m.state, signKeyID)
+	_, err = AssertstateAccountKey(m.state, signKeyID)
 	if err == nil {
 		return false, nil
 	}
@@ -728,7 +734,7 @@ func (m *DeviceMgmtManager) ensureAccountKey(signKeyID string) (fetched bool, er
 		return false, err
 	}
 
-	err = assertstateFetchAccountKey(m.state, 0, signKeyID)
+	err = AssertstateFetchAccountKey(m.state, 0, signKeyID)
 	if err != nil && !errors.Is(err, &asserts.NotFoundError{}) {
 		return true, err
 	}

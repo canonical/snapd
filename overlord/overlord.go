@@ -210,15 +210,17 @@ func New(restartHandler restart.Handler) (*Overlord, error) {
 
 	o.addManager(cmdstate.Manager(s, o.runner))
 	o.addManager(snapshotstate.Manager(s, o.runner))
-	o.addManager(confdbstate.Manager(s, hookMgr, o.runner))
+
+	deviceMgmtMgr := devicemgmtstate.Manager(s, o.runner, deviceMgr)
+	o.addManager(deviceMgmtMgr)
+
+	o.addManager(confdbstate.Manager(s, hookMgr, o.runner, deviceMgmtMgr, deviceMgr))
 	o.addManager(certstate.Manager(s, o.runner))
 
 	if err := configstateInit(s, hookMgr); err != nil {
 		return nil, err
 	}
 	healthstate.Init(hookMgr)
-
-	o.addManager(devicemgmtstate.Manager(s, o.runner, deviceMgr))
 
 	// the shared task runner should be added last!
 	o.stateEng.AddManager(o.runner)
