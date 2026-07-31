@@ -33,8 +33,27 @@ execute: |
         echo "Restoring the snapd snap"
         snap revert snapd
 
+        # refresh the core20 base
+        current_channel=$(snap info core20 | awk '/^tracking:/{print $2}')
+        current_track="${current_channel%/*}"
+        current_risk="${current_channel##*/}"
+ 
+        stable_channel="${current_track}/stable"
+        if [ "$current_risk" = "stable" ]; then
+            refresh_channel="${current_track}/edge"
+        else
+            refresh_channel="$stable_channel"
+        fi
+
+        current_revision=$(snap info core20 | awk -v ch="${current_channel}:" '$1 == ch { print $3 }')
+        refresh_revision=$(snap info core20 | awk -v ch="${refresh_channel}:" '$1 == ch { print $3 }')
+        if [ "$current_revision" = "$refresh_revision" ]; then
+            echo "core20 current channel (${current_channel}) and refresh channel (${refresh_channel}) are on the same revision (${refresh_revision}); skipping reboot maintenance check"
+            exit 0
+        fi
+
         echo "Testing maintenance message for system reboots"
-        snap refresh core20 --channel=stable --amend &
+        snap refresh core20 --channel="$refresh_channel" --amend &
         retry -n 20 --wait 0.5 sh -c 'snap debug api '/v2/changes?select=all' | gojq ".maintenance" | MATCH "system is restarting"'
         wait
 
