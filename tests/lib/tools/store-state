@@ -3,7 +3,7 @@
 set -e
 
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
-ENTERPRISE_STORE_ID=tNHLyNjAZfQIxZGNtWQ7rXTlCWLvmwa6
+ENTERPRISE_STORE_ID=heS0H76dk4bNRuKjR7wla9I1ImsE7AGr
 
 show_help() {
     echo "usage: store-state setup-fake-store <DIR>"
