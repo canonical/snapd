@@ -146,6 +146,7 @@ func (s *DesktopInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner @{HOME}/.config/gtk-3.0/{*.css,**/*.css} r,")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "owner @{HOME}/.config/gtk-4.0/{*.css,**/*.css} r,")
 	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow access to xdg-desktop-portal and xdg-document-portal")
+	c.Check(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "interface=org.freedesktop.DBus.Peer\n      member=Ping\n      peer=(name=org.freedesktop.portal.IBus),")
 
 	// check desktop interface uses correct label for Mutter when provided
 	// by the system

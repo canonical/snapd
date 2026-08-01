@@ -442,6 +442,14 @@ dbus (send)
       member=CreateInputContext
       peer=(name=org.freedesktop.portal.IBus),
 
+# Allow IBus to verify that the portal is responsive before connecting
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus
+      interface=org.freedesktop.DBus.Peer
+      member=Ping
+      peer=(name=org.freedesktop.portal.IBus),
+
 dbus (send, receive)
       bus=session
       path=/org/freedesktop/IBus/InputContext_[0-9]*
