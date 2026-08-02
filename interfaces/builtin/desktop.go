@@ -456,6 +456,14 @@ dbus (send, receive)
       interface=org.freedesktop.IBus.InputContext
       peer=(label=unconfined),
 
+# Allow IBus to initialize and update input context properties
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus/InputContext_[0-9]*
+      interface=org.freedesktop.DBus.Properties
+      member={Get,GetAll,Set}
+      peer=(label=unconfined),
+
 # Allow access to the Fcitx portal, supported by fcitx/fcitx5
 dbus (send)
       bus=session
