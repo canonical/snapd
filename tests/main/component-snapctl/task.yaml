@@ -1,7 +1,8 @@
-summary: Test snapctl install/remove
+summary: Test snapctl install/remove/components
 
 details: |
-  Verifies that snactl install/remove works from snap apps and from snaps hooks.
+  Verifies that snapctl install, remove, and components work from snap apps and
+  from snap hooks.
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*, fedora-*]
 
@@ -13,6 +14,11 @@ execute: |
   # test command installs and removes components using snapctl (ephemeral context)
   test-snap-components-snapctl
 
+  echo "Check snapctl components before any components are installed"
+  snap run --shell test-snap-components-snapctl -c "snapctl components" > comps.out
+  MATCH "\+one\s+available\s+test" < comps.out
+  MATCH "\+two\s+available\s+test" < comps.out
+
   # run install from configure hook (non-ephemeral context)
   snap set test-snap-components-snapctl command="install +one+two"
 
@@ -20,8 +26,23 @@ execute: |
   MATCH "First component" < "$SNAP_MOUNT_DIR/test-snap-components-snapctl/components/$snap_rev/one/meta/component.yaml"
   MATCH "Second component" < "$SNAP_MOUNT_DIR/test-snap-components-snapctl/components/$snap_rev/two/meta/component.yaml"
 
+  echo "Check snapctl components after installing both"
+  snap run --shell test-snap-components-snapctl -c "snapctl components" > comps.out
+  MATCH "\+one\s+installed\s+test" < comps.out
+  MATCH "\+two\s+installed\s+test" < comps.out
+
+  echo "Check snapctl components works from configure hook"
+  snap set test-snap-components-snapctl command="components"
+  MATCH "\+one\s+installed\s+test" < /var/snap/test-snap-components-snapctl/current/configure.log
+  MATCH "\+two\s+installed\s+test" < /var/snap/test-snap-components-snapctl/current/configure.log
+
   snap set test-snap-components-snapctl command="remove +one+two"
   test ! -d "$SNAP_MOUNT_DIR"/test-snap-components-snapctl/components/
+
+  echo "Check snapctl components after removing both"
+  snap run --shell test-snap-components-snapctl -c "snapctl components" > comps.out
+  MATCH "\+one\s+available\s+test" < comps.out
+  MATCH "\+two\s+available\s+test" < comps.out
 
   echo "Check already installed snap exits with code 0"
   snap run --shell test-snap-components-snapctl -c "snapctl install +one" 1>stdout.out 2>stderr.out
@@ -29,6 +50,9 @@ execute: |
   test ! -s stderr.out
   snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+one\s+installed\s+test"
   snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+two\s+available\s+test"
+  snap run --shell test-snap-components-snapctl -c "snapctl components" > comps.out
+  MATCH "\+one\s+installed\s+test" < comps.out
+  MATCH "\+two\s+available\s+test" < comps.out
 
   snap run --shell test-snap-components-snapctl -c "snapctl install +one" 1>stdout.out 2>stderr.out
   test ! -s stdout.out
@@ -40,6 +64,9 @@ execute: |
   MATCH "snapctl: component \"one\" is already installed" < stderr.out
   snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+one\s+installed\s+test"
   snap components test-snap-components-snapctl | MATCH "test-snap-components-snapctl\+two\s+installed\s+test"
+  snap run --shell test-snap-components-snapctl -c "snapctl components" > comps.out
+  MATCH "\+one\s+installed\s+test" < comps.out
+  MATCH "\+two\s+installed\s+test" < comps.out
 
   snap run --shell test-snap-components-snapctl -c "snapctl install +one +two" 1>stdout.out 2>stderr.out
   test ! -s stdout.out
