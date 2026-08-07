@@ -38,33 +38,28 @@ execute: |
         snap revert snapd
 
         # Refresh core20 to a different revision so the change requests a reboot.
-        # Installed rev via readlink (same pattern as snapd above).
-        # x1 = local/unasserted CI core20: amend to stable. Otherwise pick first
-        # store risk (stable -> candidate -> beta -> edge) whose revision differs
-        # from installed. If none differ, skip reboot maintenance check.
+        # Installed rev via readlink (same pattern as snapd above). Pick first
+        # store risk (stable -> candidate -> beta -> edge) whose revision
+        # differs from installed. If none differ, skip reboot maintenance check.
         installed_revision=$(readlink /snap/core20/current)
         if [ -z "$installed_revision" ]; then
             echo "cannot resolve installed core20 revision"
             exit 1
         fi
 
-        if [ "$installed_revision" = "x1" ]; then
-            refresh_channel="stable"
-        else
-            refresh_channel=
-            for risk in stable candidate beta edge; do
-                # snap info channel lines: <channel>: <version> <date> (<revision>) ...
-                revision=$(snap info core20 | awk -v risk="$risk" '
-                    $1 == risk":" || $1 == "latest/"risk":" { print $4; exit }
-                ' | sed -e 's/[()]//g')
-                if [ -n "$revision" ] && [ "$revision" != "$installed_revision" ]; then
-                    refresh_channel="$risk"
-                    break
-                fi
-            done
-            if [ -z "$refresh_channel" ]; then
-                exit 0
+        refresh_channel=
+        for risk in stable candidate beta edge; do
+            # snap info channel lines: <channel>: <version> <date> (<revision>) ...
+            revision=$(snap info core20 | awk -v risk="$risk" '
+                $1 == risk":" || $1 == "latest/"risk":" { print $4; exit }
+            ' | sed -e 's/[()]//g')
+            if [ -n "$revision" ] && [ "$revision" != "$installed_revision" ]; then
+                refresh_channel="$risk"
+                break
             fi
+        done
+        if [ -z "$refresh_channel" ]; then
+            exit 0
         fi
 
         echo "Testing maintenance message for system reboots"
