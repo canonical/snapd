@@ -18,6 +18,10 @@ restore: |
     echo "$(grep -v 'SNAPD_SHUTDOWN_DELAY=1' /etc/environment)" > /etc/environment
     systemctl restart snapd
 
+debug: |
+    snap info snapd || true
+    snap info core20 || true
+
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         current=$(readlink /snap/snapd/current)
@@ -33,23 +37,34 @@ execute: |
         echo "Restoring the snapd snap"
         snap revert snapd
 
-        # refresh the core20 base
-        current_channel=$(snap info core20 | awk '/^tracking:/{print $2}')
-        current_track="${current_channel%/*}"
-        current_risk="${current_channel##*/}"
- 
-        stable_channel="${current_track}/stable"
-        if [ "$current_risk" = "stable" ]; then
-            refresh_channel="${current_track}/edge"
-        else
-            refresh_channel="$stable_channel"
+        # Refresh core20 to a different revision so the change requests a reboot.
+        # Installed rev via readlink (same pattern as snapd above).
+        # x1 = local/unasserted CI core20: amend to stable. Otherwise pick first
+        # store risk (stable -> candidate -> beta -> edge) whose revision differs
+        # from installed. If none differ, skip reboot maintenance check.
+        installed_revision=$(readlink /snap/core20/current)
+        if [ -z "$installed_revision" ]; then
+            echo "cannot resolve installed core20 revision"
+            exit 1
         fi
 
-        current_revision=$(snap info core20 | awk -v ch="${current_channel}:" '$1 == ch { print $3 }')
-        refresh_revision=$(snap info core20 | awk -v ch="${refresh_channel}:" '$1 == ch { print $3 }')
-        if [ "$current_revision" = "$refresh_revision" ]; then
-            echo "core20 current channel (${current_channel}) and refresh channel (${refresh_channel}) are on the same revision (${refresh_revision}); skipping reboot maintenance check"
-            exit 0
+        if [ "$installed_revision" = "x1" ]; then
+            refresh_channel="stable"
+        else
+            refresh_channel=
+            for risk in stable candidate beta edge; do
+                # snap info channel lines: <channel>: <version> <date> (<revision>) ...
+                revision=$(snap info core20 | awk -v risk="$risk" '
+                    $1 == risk":" || $1 == "latest/"risk":" { print $4; exit }
+                ' | sed -e 's/[()]//g')
+                if [ -n "$revision" ] && [ "$revision" != "$installed_revision" ]; then
+                    refresh_channel="$risk"
+                    break
+                fi
+            done
+            if [ -z "$refresh_channel" ]; then
+                exit 0
+            fi
         fi
 
         echo "Testing maintenance message for system reboots"
