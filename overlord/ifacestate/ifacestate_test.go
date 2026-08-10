@@ -5723,7 +5723,6 @@ slots:
 	change := s.addRemoveSnapSecurityChange("consumer")
 	s.se.Ensure()
 	s.se.Wait()
-	s.se.ShutDown()
 	s.se.Stop()
 
 	// Change succeeds
@@ -7243,7 +7242,6 @@ func (s *interfaceManagerSuite) TestManagerTransitionConnectionsCore(c *C) {
 	s.state.Unlock()
 	s.se.Ensure()
 	s.se.Wait()
-	s.se.ShutDown()
 	s.se.Stop()
 	s.state.Lock()
 
@@ -9290,7 +9288,6 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 	for i := 0; i < 5; i++ {
 		c.Assert(s.se.Ensure(), IsNil)
 	}
-	s.se.ShutDown()
 	s.se.Stop()
 
 	c.Assert(u.ConnectCalls, Equals, 1)
