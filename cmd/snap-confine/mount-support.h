@@ -41,6 +41,7 @@
  * trust store.
  **/
 #define SC_MANAGED_CA_CERTS_DIR "/var/lib/snapd/pki/v1/merged"
+#define SC_MANAGED_CA_GENERATION_DIR "/var/lib/snapd/pki/v1/published"
 #define SC_SYSTEM_CA_CERTS_DIR "/etc/ssl/certs"
 
 /**

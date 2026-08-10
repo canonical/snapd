@@ -281,6 +281,39 @@ static char *create_fake_managed_generation(const char *managed_dir, const char 
     return published_dir;
 }
 
+static char *create_fake_rootfs(bool with_system_certs_dir) {
+    char *rootfs_dir = g_dir_make_tmp(NULL, NULL);
+    g_assert_nonnull(rootfs_dir);
+    g_test_queue_free(rootfs_dir);
+    g_test_queue_destroy((GDestroyNotify)rm_rf_tmp, rootfs_dir);
+
+    char *ssl_dir = g_build_filename(rootfs_dir, "etc", "ssl", NULL);
+    g_assert_cmpint(g_mkdir_with_parents(ssl_dir, 0755), ==, 0);
+    g_free(ssl_dir);
+
+    if (with_system_certs_dir) {
+        char *certs_dir = g_build_filename(rootfs_dir, "etc", "ssl", "certs", NULL);
+        g_assert_cmpint(g_mkdir_with_parents(certs_dir, 0755), ==, 0);
+        g_free(certs_dir);
+    }
+
+    return rootfs_dir;
+}
+
+static void test_managed_ca_certs_mount_supported__present_target(void) {
+    char *rootfs_dir = create_fake_rootfs(true);
+
+    sc_invocation inv = {.rootfs_dir = rootfs_dir};
+    g_assert_true(managed_ca_certs_mount_supported(&inv, SC_DISTRO_CORE_OTHER));
+}
+
+static void test_managed_ca_certs_mount_supported__missing_target(void) {
+    char *rootfs_dir = create_fake_rootfs(false);
+
+    sc_invocation inv = {.rootfs_dir = rootfs_dir};
+    g_assert_false(managed_ca_certs_mount_supported(&inv, SC_DISTRO_CORE_OTHER));
+}
+
 // When the info file does not exist and there is no current generation, the
 // namespace can be reused.
 static void test_managed_ca_cert_db_changed__no_info_file(void) {
@@ -290,7 +323,7 @@ static void test_managed_ca_cert_db_changed__no_info_file(void) {
     (void)managed_dir;
 
     sc_invocation inv = {.snap_instance = "test-snap"};
-    g_assert_false(managed_ca_cert_db_changed(&inv));
+    g_assert_false(managed_ca_cert_db_changed(&inv, true));
 }
 
 // When the info file exists but no generation is recorded while the host now
@@ -298,14 +331,15 @@ static void test_managed_ca_cert_db_changed__no_info_file(void) {
 static void test_managed_ca_cert_db_changed__no_generation_key(void) {
     const char *ns_dir = sc_test_use_fake_ns_dir();
     const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
+    char *rootfs_dir = create_fake_rootfs(true);
 
     char *published_dir = create_fake_managed_generation(managed_dir, "gen-1");
     g_test_queue_free(published_dir);
 
     write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\n");
 
-    sc_invocation inv = {.snap_instance = "test-snap"};
-    g_assert_true(managed_ca_cert_db_changed(&inv));
+    sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
+    g_assert_true(managed_ca_cert_db_changed(&inv, true));
 }
 
 // When the recorded generation matches the current generation, the function
@@ -313,6 +347,7 @@ static void test_managed_ca_cert_db_changed__no_generation_key(void) {
 static void test_managed_ca_cert_db_changed__generation_unchanged(void) {
     const char *ns_dir = sc_test_use_fake_ns_dir();
     const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
+    char *rootfs_dir = create_fake_rootfs(true);
 
     char *published_dir = create_fake_managed_generation(managed_dir, "gen-1");
     g_test_queue_free(published_dir);
@@ -324,8 +359,8 @@ static void test_managed_ca_cert_db_changed__generation_unchanged(void) {
     snprintf(info_content, sizeof info_content, "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
     write_file(ns_dir, "snap.test-snap.info", info_content);
 
-    sc_invocation inv = {.snap_instance = "test-snap"};
-    g_assert_false(managed_ca_cert_db_changed(&inv));
+    sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
+    g_assert_false(managed_ca_cert_db_changed(&inv, true));
 }
 
 // When the generation is unchanged but the namespace still exposes some other
@@ -333,6 +368,7 @@ static void test_managed_ca_cert_db_changed__generation_unchanged(void) {
 static void test_managed_ca_cert_db_changed__generation_unchanged_missing_mount(void) {
     const char *ns_dir = sc_test_use_fake_ns_dir();
     const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
+    char *rootfs_dir = create_fake_rootfs(true);
 
     char *published_dir = create_fake_managed_generation(managed_dir, "gen-1");
     g_test_queue_free(published_dir);
@@ -346,8 +382,33 @@ static void test_managed_ca_cert_db_changed__generation_unchanged_missing_mount(
 
     write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
 
-    sc_invocation inv = {.snap_instance = "test-snap"};
-    g_assert_true(managed_ca_cert_db_changed(&inv));
+    sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
+    g_assert_true(managed_ca_cert_db_changed(&inv, true));
+}
+
+// When the base rootfs has no /etc/ssl/certs mount target, a preserved
+// namespace without the managed CA overlay can still be reused.
+static void test_managed_ca_cert_db_changed__generation_unchanged_missing_target(void) {
+    const char *ns_dir = sc_test_use_fake_ns_dir();
+    const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
+    char *rootfs_dir = create_fake_rootfs(false);
+
+    char *published_dir = create_fake_managed_generation(managed_dir, "gen-1");
+    g_test_queue_free(published_dir);
+
+    char *base_certs = g_build_filename(managed_dir, "base-certs", NULL);
+    g_assert_cmpint(g_mkdir_with_parents(base_certs, 0755), ==, 0);
+    g_test_queue_free(base_certs);
+
+    g_test_queue_destroy((GDestroyNotify)sc_set_system_ca_certs_dir, (gpointer)SC_SYSTEM_CA_CERTS_DIR);
+    sc_set_system_ca_certs_dir(base_certs);
+
+    write_file(ns_dir, "snap.test-snap.info", "base-snap-name=fedora29\nmanaged-ca-certs-generation=gen-1\n");
+
+    sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
+    bool expect_managed_ca_certs_mount = managed_ca_certs_mount_supported(&inv, SC_DISTRO_CORE_OTHER);
+    g_assert_false(expect_managed_ca_certs_mount);
+    g_assert_false(managed_ca_cert_db_changed(&inv, expect_managed_ca_certs_mount));
 }
 
 // When the host generation differs from what was recorded, the function
@@ -355,14 +416,15 @@ static void test_managed_ca_cert_db_changed__generation_unchanged_missing_mount(
 static void test_managed_ca_cert_db_changed__generation_changed(void) {
     const char *ns_dir = sc_test_use_fake_ns_dir();
     const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
+    char *rootfs_dir = create_fake_rootfs(true);
 
     char *published_dir = create_fake_managed_generation(managed_dir, "gen-2");
     g_test_queue_free(published_dir);
 
     write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
 
-    sc_invocation inv = {.snap_instance = "test-snap"};
-    g_assert_true(managed_ca_cert_db_changed(&inv));
+    sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
+    g_assert_true(managed_ca_cert_db_changed(&inv, true));
 }
 
 // When a generation was recorded but the current managed CA cert path is not a
@@ -370,6 +432,7 @@ static void test_managed_ca_cert_db_changed__generation_changed(void) {
 static void test_managed_ca_cert_db_changed__legacy_directory_layout(void) {
     const char *ns_dir = sc_test_use_fake_ns_dir();
     const char *managed_dir = sc_test_use_fake_managed_ca_certs_dir();
+    char *rootfs_dir = create_fake_rootfs(true);
 
     char *merged = g_build_filename(managed_dir, "merged", NULL);
     g_assert_cmpint(g_mkdir_with_parents(merged, 0755), ==, 0);
@@ -377,8 +440,8 @@ static void test_managed_ca_cert_db_changed__legacy_directory_layout(void) {
 
     write_file(ns_dir, "snap.test-snap.info", "base-snap-name=core24\nmanaged-ca-certs-generation=gen-1\n");
 
-    sc_invocation inv = {.snap_instance = "test-snap"};
-    g_assert_true(managed_ca_cert_db_changed(&inv));
+    sc_invocation inv = {.snap_instance = "test-snap", .rootfs_dir = rootfs_dir};
+    g_assert_true(managed_ca_cert_db_changed(&inv, true));
 }
 
 static void __attribute__((constructor)) init(void) {
@@ -390,6 +453,10 @@ static void __attribute__((constructor)) init(void) {
     g_test_add_func("/ns/sc_read_mnt_ns_id_bad_fd", test_sc_read_mnt_ns_id_bad_fd);
     g_test_add_func("/ns/sc_read_mnt_ns_id_self", test_sc_read_mnt_ns_id_self);
     g_test_add_func("/ns/sc_ensure_mount_ns_id_ordered_common_case", test_sc_ensure_mount_ns_id_ordered_common_case);
+    g_test_add_func("/ns/managed_ca_certs_mount_supported/present_target",
+                    test_managed_ca_certs_mount_supported__present_target);
+    g_test_add_func("/ns/managed_ca_certs_mount_supported/missing_target",
+                    test_managed_ca_certs_mount_supported__missing_target);
     g_test_add_func("/ns/managed_ca_cert_db_changed/no_info_file", test_managed_ca_cert_db_changed__no_info_file);
     g_test_add_func("/ns/managed_ca_cert_db_changed/no_generation_key",
                     test_managed_ca_cert_db_changed__no_generation_key);
@@ -397,6 +464,8 @@ static void __attribute__((constructor)) init(void) {
                     test_managed_ca_cert_db_changed__generation_unchanged);
     g_test_add_func("/ns/managed_ca_cert_db_changed/generation_unchanged_missing_mount",
                     test_managed_ca_cert_db_changed__generation_unchanged_missing_mount);
+    g_test_add_func("/ns/managed_ca_cert_db_changed/generation_unchanged_missing_target",
+                    test_managed_ca_cert_db_changed__generation_unchanged_missing_target);
     g_test_add_func("/ns/managed_ca_cert_db_changed/generation_changed",
                     test_managed_ca_cert_db_changed__generation_changed);
     g_test_add_func("/ns/managed_ca_cert_db_changed/legacy_directory_layout",
