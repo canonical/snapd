@@ -110,6 +110,19 @@ nested_wait_for_snap_command() {
     done
 }
 
+nested_wait_for_snap_seeded() {
+    # Retry since snap may briefly disappear during the initial snapd restart.
+    local attempts=0
+    until remote.exec "sudo snap wait system seed.loaded"; do
+        attempts=$(( attempts + 1 ))
+        if [ "$attempts" = 3 ]; then
+            echo "failed to wait for snap wait command to return successfully"
+            return 1
+        fi
+        sleep 1
+    done
+}
+
 nested_check_unit_stays_active() {
     local nested_unit="${1:-$NESTED_VM}"
     local retry=${2:-5}
@@ -1520,19 +1533,7 @@ nested_start_core_vm_unit() {
         fi
         # Wait for the snap command to be available
         nested_wait_for_snap_command 120 1
-        # Wait for snap seeding to be done
-        # retry this wait command up to 3 times since we sometimes see races 
-        # where the snap command appears, then immediately disappears and then 
-        # re-appears immediately after and so the next command fails
-        attempts=0
-        until remote.exec "sudo snap wait system seed.loaded"; do
-            attempts=$(( attempts + 1))
-            if [ "$attempts" = 3 ]; then
-                echo "failed to wait for snap wait command to return successfully"
-                return 1
-            fi
-            sleep 1
-        done
+        nested_wait_for_snap_seeded
         # Copy tools to be used on tests
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
@@ -1796,6 +1797,8 @@ nested_start_classic_vm() {
 
     # Copy tools to be used on tests
     nested_wait_for_ssh
+    nested_wait_for_snap_command 120 1
+    nested_wait_for_snap_seeded
     nested_prepare_tools
     nested_setup_vm
 }
