@@ -3630,7 +3630,11 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 
-		// XXX: also remove sequence files?
+		// remove sequence file
+		seqFilePath := filepath.Join(dirs.SnapSeqDir, snapsup.InstanceName()+".json")
+		if err := os.Remove(seqFilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 
 		// remove the snap from any quota groups it may have been in, otherwise
 		// that quota group may get into an inconsistent state
