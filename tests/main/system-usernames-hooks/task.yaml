@@ -10,9 +10,14 @@ prepare: |
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    MATCH 'running install hook' < /var/snap/test-snapd-sh/common/hook.log
+    # file is created and its ownership is set in the install hook
+    stat --printf '%U' /var/snap/test-snapd-sh/common/data/foo | MATCH snap_daemon
+
     test-snapd-sh.sh -c 'setpriv --clear-groups \
             --reuid snap_daemon \
             --regid snap_daemon -- \
             id'
-
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    MATCH 'running post-refresh hook' < /var/snap/test-snapd-sh/common/hook.log
+    MATCH 'post refresh' < /var/snap/test-snapd-sh/common/data/foo
