@@ -227,6 +227,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "20a0",
 		ProductIDPattern: "42d4",
 	},
+	{
+		Name:             "Gemalto eToken Fusion",
+		VendorIDPattern:  "08e6",
+		ProductIDPattern: "34d2",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `
