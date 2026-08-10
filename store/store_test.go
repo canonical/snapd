@@ -419,6 +419,12 @@ func (s *baseStoreSuite) SetUpTest(c *C) {
 			Factor:  1,
 		},
 	)))
+	store.MockRefreshRetryStrategy(&s.BaseTest, retry.LimitCount(5, retry.LimitTime(1*time.Second,
+		retry.Exponential{
+			Initial: 1 * time.Millisecond,
+			Factor:  1,
+		},
+	)))
 }
 
 type storeTestSuite struct {
@@ -1533,6 +1539,31 @@ func (s *storeTestSuite) TestInfo500(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world": got unexpected HTTP status code 500 via GET to "http://.*?/info/hello-world.*"`)
 	c.Assert(n, Equals, 5)
+}
+
+// retrying 408 is specific to snap-action, info should still fail fast
+func (s *storeTestSuite) TestInfo408NotRetried(c *C) {
+	var n = 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", infoPathPattern)
+		n++
+		w.WriteHeader(408)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+		DetailFields: []string{},
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	_, err := sto.SnapInfo(s.ctx, store.SnapSpec{Name: "hello-world"}, nil)
+	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world": got unexpected HTTP status code 408 via GET to "http://.*?/info/hello-world.*"`)
+	c.Check(n, Equals, 1)
 }
 
 func (s *storeTestSuite) TestInfo500Once(c *C) {
