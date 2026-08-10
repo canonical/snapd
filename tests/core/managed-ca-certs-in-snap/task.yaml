@@ -10,36 +10,54 @@ systems: [ubuntu-core-*]
 
 environment:
     CERT_NAME: spread-managed-ca-snap
+    CERT_CONFIG: spread-managed-ca-snap.conf
+    CERT_PEM: ca-snap.pem
+    CERT_KEY: ca-snap.key
+    SERVER_LOG: ca-snap-server.log
+
+prepare: |
+    echo "Install confined core24 network consumer snap"
+    "$TESTSTOOLS"/snaps-state install-local network-consumer-core24
+
+    echo "Create a temporary custom CA certificate (also used as server cert)"
+    cat > "$CERT_CONFIG" <<'EOF'
+    [req]
+    prompt = no
+    distinguished_name = dn
+    x509_extensions = cert_ext
+
+    [dn]
+    CN = localhost
+
+    [cert_ext]
+    basicConstraints = critical, CA:true
+    keyUsage = critical, keyCertSign, cRLSign, digitalSignature
+    subjectAltName = @alt_names
+
+    [alt_names]
+    DNS.1 = localhost
+    EOF
 
 restore: |
     snap unset system "pki.certs.custom.${CERT_NAME}" || true
     snap remove --purge network-consumer-core24 || true
 
 execute: |
-    CERT_PEM="$(mktemp)"
-    CERT_KEY="$(mktemp)"
-    SERVER_LOG="$(mktemp)"
     HTTPS_PORT=18443
     HTTPS_PID=""
-    trap 'if [ -n "$HTTPS_PID" ]; then kill "$HTTPS_PID" 2>/dev/null || true; fi' EXIT
-
     MANAGED_CA_CERTS="/var/lib/snapd/pki/v1/merged/ca-certificates.crt"
+
+    # cleanup the HTTPS server
+    trap 'if [ -n "$HTTPS_PID" ]; then kill "$HTTPS_PID" 2>/dev/null || true; fi;' EXIT
 
     if ! command -v openssl >/dev/null; then
         echo "openssl is required for certificate generation"
         exit 1
     fi
 
-    echo "Install confined core24 network consumer snap"
-    "$TESTSTOOLS"/snaps-state install-local network-consumer-core24
-
-    echo "Create a temporary custom CA certificate (also used as server cert)"
     openssl req -x509 -newkey rsa:2048 -nodes -sha256 \
-        -subj "/CN=localhost" \
         -days 2 \
-        -addext "basicConstraints=critical,CA:TRUE" \
-        -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature" \
-        -addext "subjectAltName=DNS:localhost" \
+        -config "$CERT_CONFIG" \
         -keyout "$CERT_KEY" -out "$CERT_PEM" >/dev/null 2>&1
 
     echo "Start local HTTPS endpoint"
@@ -49,6 +67,7 @@ execute: |
 
     echo "Ensure TLS request from confinement fails before CA is trusted"
     not network-consumer-core24.network-consumer "https://localhost:${HTTPS_PORT}" >before-ca.log 2>&1
+    grep -Eiq 'error|certificate|verify|tls|ssl|x509' before-ca.log
 
     echo "Inject custom CA certificate into managed database"
     snap unset system "pki.certs.custom.${CERT_NAME}" || true
@@ -72,3 +91,13 @@ execute: |
     MANAGED_SHA="$(sha256sum "$MANAGED_CA_CERTS" | awk '{print $1}')"
     BASE_SHA="$(sha256sum "$BASE_CA_CERTS" | awk '{print $1}')"
     test "$MANAGED_SHA" != "$BASE_SHA"
+
+    echo "Remove custom CA and wait for the managed bundle to stop trusting it"
+    snap unset system "pki.certs.custom.${CERT_NAME}"
+    retry -n 40 --wait 0.5 sh -c "! openssl verify -CAfile '$MANAGED_CA_CERTS' '$CERT_PEM' >/dev/null 2>&1"
+
+    echo "Ensure TLS request from confinement fails again after CA removal"
+    # This also checks that the next launch does not keep trusting the previous
+    # managed CA generation via a stale preserved namespace.
+    not network-consumer-core24.network-consumer "https://localhost:${HTTPS_PORT}" >after-unset-ca.log 2>&1
+    grep -Eiq 'error|certificate|verify|tls|ssl|x509' after-unset-ca.log
