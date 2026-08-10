@@ -4,7 +4,7 @@ details: |
     Verify the boot-state tool works properly. This tool is used to
     simplify the tests when working with the different boot managers.
 
-backends: [google, qemu]
+backends: [openstack, qemu]
 
 execute: |
     # Check help
