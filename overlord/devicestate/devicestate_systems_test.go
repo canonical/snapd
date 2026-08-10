@@ -4349,7 +4349,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsSeedAllowlistExcludesOptionalSnap(c *C) {
 	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, testCreateRecoverySystemValidationSetsOptions{
 		PreInstallOptionalSnap: true,
-		SeedAllowlist: &devicestate.SeedAllowlist{
+		Allowlist: &devicestate.SeedAllowlist{
 			Snaps: []string{"core20", "pc", "pc-kernel", "snapd"},
 		},
 	})
@@ -4359,7 +4359,7 @@ type testCreateRecoverySystemValidationSetsOptions struct {
 	MarkDefault                        bool
 	RequireOptionalSnapInValidationSet bool
 	PreInstallOptionalSnap             bool
-	SeedAllowlist                      *devicestate.SeedAllowlist
+	Allowlist                          *devicestate.SeedAllowlist
 }
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, opts testCreateRecoverySystemValidationSetsOptions) {
@@ -4624,7 +4624,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ValidationSets: validationSets,
 		TestSystem:     true,
 		MarkDefault:    opts.MarkDefault,
-		SeedAllowlist:  opts.SeedAllowlist,
+		Allowlist:      opts.Allowlist,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -4654,7 +4654,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	var runModeSnaps []string
-	if opts.RequireOptionalSnapInValidationSet || (opts.PreInstallOptionalSnap && opts.SeedAllowlist == nil) {
+	if opts.RequireOptionalSnapInValidationSet || (opts.PreInstallOptionalSnap && opts.Allowlist == nil) {
 		runModeSnaps = []string{"other-required"}
 	}
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted, runModeSnaps...)
@@ -4682,7 +4682,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 	// verify that new files are tracked correctly
 	expectedFiles := []string{"snapd_13.snap", "pc-kernel_11.snap", "core20_12.snap", "pc_10.snap"}
-	if opts.RequireOptionalSnapInValidationSet || (opts.PreInstallOptionalSnap && opts.SeedAllowlist == nil) {
+	if opts.RequireOptionalSnapInValidationSet || (opts.PreInstallOptionalSnap && opts.Allowlist == nil) {
 		expectedFiles = append(expectedFiles, "other-required_14.snap")
 	}
 
@@ -6293,7 +6293,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ValidationSets:  []*asserts.ValidationSet{vset.(*asserts.ValidationSet)},
 		LocalSnaps:      localSnaps,
 		LocalComponents: localComponents,
-		SeedAllowlist:   opts.allowlist,
+		Allowlist:       opts.allowlist,
 		Offline:         true,
 		TestSystem:      true,
 		MarkDefault:     true,

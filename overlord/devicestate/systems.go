@@ -236,7 +236,7 @@ type setupInfoGetter struct {
 }
 
 func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentRef, snapInfo *snap.Info) (info *snap.ComponentInfo, path string, present bool, err error) {
-	if allowlist := ig.setup.SeedAllowlist; allowlist != nil {
+	if allowlist := ig.setup.Allowlist; allowlist != nil {
 		if !strutil.ListContains(allowlist.Components[cref.SnapName], cref.ComponentName) {
 			return nil, "", false, nil
 		}
@@ -325,7 +325,7 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 }
 
 func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.Info, path string, present bool, err error) {
-	if allowlist := ig.setup.SeedAllowlist; allowlist != nil {
+	if allowlist := ig.setup.Allowlist; allowlist != nil {
 		if !strutil.ListContains(allowlist.Snaps, name) {
 			return nil, "", false, nil
 		}

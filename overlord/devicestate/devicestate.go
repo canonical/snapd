@@ -1673,9 +1673,9 @@ type recoverySystemSetup struct {
 	// LocalComponents is a list of components that should be used to create the
 	// recovery system.
 	LocalComponents []snapstate.PathComponent `json:"local-components,omitempty"`
-	// SeedAllowlist identifies the snaps and components that may be used
-	// to create the recovery system.
-	SeedAllowlist *SeedAllowlist `json:"seed-allowlist,omitempty"`
+	// Allowlist identifies the snaps and components that may be used to create
+	// the recovery system.
+	Allowlist *SeedAllowlist `json:"allowlist,omitempty"`
 	// TestSystem is set to true if the new recovery system should
 	// not be verified by rebooting into the new system. Once the system is
 	// created, it will immediately be considered a valid recovery system.
@@ -1781,10 +1781,10 @@ func SeedRefreshTasks(
 	}
 
 	ts, err := createRecoverySystemTasks(st, label, snapsups, compsups, CreateRecoverySystemOptions{
-		SeedAllowlist: &seedAllowlist,
-		TestSystem:    true,
-		MarkDefault:   true,
-		SeedRefresh:   true,
+		Allowlist:   &seedAllowlist,
+		TestSystem:  true,
+		MarkDefault: true,
+		SeedRefresh: true,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -1843,13 +1843,13 @@ func UpdateSeedRefreshChange(seedTS *snapstate.SeedRefreshTasks, dctx snapstate.
 	if err != nil {
 		return false, err
 	}
-	if setup.SeedAllowlist == nil {
+	if setup.Allowlist == nil {
 		return false, errors.New("internal error: seed-refresh recovery system setup is missing seed allowlist")
 	}
 
 	// we've already calculated which candidates are allowed to go into the
 	// seed. avoid opening the seed again by using that list
-	if !strutil.ListContains(setup.SeedAllowlist.Snaps, candidate.InstanceName) {
+	if !strutil.ListContains(setup.Allowlist.Snaps, candidate.InstanceName) {
 		return false, nil
 	}
 
@@ -1890,6 +1890,15 @@ func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.Devic
 	return nil
 }
 
+// seedRefreshPolicy returns closures that define the seed refresh policy. The
+// returned triggers function defines which snaps will trigger the seed refresh.
+// The allowlist function returns which snaps and components are allowed in the
+// final seed. This allowlist is composed of required model snaps/components and
+// optional model snaps/components that are present in the current seed.
+//
+// This function returns closures to help avoid opening the seed in as many
+// cases as possible. The closures share the state needed from the seed, so
+// we'll open the seed at most once.
 func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (triggers func(string) (bool, error), allowlist func() (SeedAllowlist, error)) {
 	required := make(map[string]*asserts.ModelSnap)
 	optional := make(map[string]*asserts.ModelSnap)
@@ -2149,7 +2158,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks, co
 		ComponentSetupTasks: compSetupTasks,
 		LocalSnaps:          opts.LocalSnaps,
 		LocalComponents:     opts.LocalComponents,
-		SeedAllowlist:       opts.SeedAllowlist,
+		Allowlist:           opts.Allowlist,
 		TestSystem:          opts.TestSystem,
 		MarkDefault:         opts.MarkDefault,
 		SeedRefresh:         opts.SeedRefresh,
@@ -2206,9 +2215,9 @@ type CreateRecoverySystemOptions struct {
 	// recovery system.
 	LocalComponents []snapstate.PathComponent
 
-	// SeedAllowlist identifies the snaps and components that may be used
-	// to create the recovery system. A nil allowlist permits all containers.
-	SeedAllowlist *SeedAllowlist
+	// Allowlist identifies the snaps and components that may be used to create
+	// the recovery system. A nil allowlist permits all containers.
+	Allowlist *SeedAllowlist
 
 	// TestSystem is set to true if the new recovery system should be verified
 	// by rebooting into the new system, prior to marking it as a valid recovery

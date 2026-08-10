@@ -2221,7 +2221,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksSkipsOpeningSeed(c *C) {
 
 	var setup devicestate.RecoverySystemSetup
 	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
-	c.Check(setup.SeedAllowlist, DeepEquals, &devicestate.SeedAllowlist{
+	c.Check(setup.Allowlist, DeepEquals, &devicestate.SeedAllowlist{
 		Snaps: []string{"core24", "pc", "pc-kernel", "snap-1", "snapd"},
 	})
 }
@@ -2327,7 +2327,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 		"directory":             filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"snap-setup-tasks":      []any{tSnap1.ID(), tSnap2.ID()},
 		"component-setup-tasks": []any{tComp1.ID()},
-		"seed-allowlist": map[string]any{
+		"allowlist": map[string]any{
 			"snaps": []any{"core24", "pc", "pc-kernel", "snap-1", "snap-2", "snapd"},
 		},
 		"mark-default": true,
@@ -2418,7 +2418,7 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAllowlistUsesCurrentSeedOptio
 
 	var setup devicestate.RecoverySystemSetup
 	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
-	c.Check(setup.SeedAllowlist, DeepEquals, &devicestate.SeedAllowlist{
+	c.Check(setup.Allowlist, DeepEquals, &devicestate.SeedAllowlist{
 		Snaps: []string{"core24", "optional-present", "pc", "pc-kernel", "required-app", "snapd"},
 		Components: map[string][]string{
 			"optional-present": {"optional-present-comp", "required-comp"},
@@ -2634,7 +2634,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 		Directory:           filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "20260227"),
 		SnapSetupTasks:      []string{snap1Task.ID()},
 		ComponentSetupTasks: []string{"comp-1"},
-		SeedAllowlist:       &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
+		Allowlist:           &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
 	})
 	finalize := s.state.NewTask("finalize-recovery-system", "...")
 	finalize.Set("recovery-system-setup-task", create.ID())
@@ -2677,7 +2677,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 	c.Assert(create.Get("recovery-system-setup", &setup), IsNil)
 	c.Check(setup.SnapSetupTasks, DeepEquals, []string{snap1Task.ID(), snap2Task.ID()})
 	c.Check(setup.ComponentSetupTasks, DeepEquals, []string{"comp-1", "comp-2", "comp-3"})
-	c.Check(setup.SeedAllowlist, DeepEquals, &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}})
+	c.Check(setup.Allowlist, DeepEquals, &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}})
 }
 
 func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeErrorsWithoutSeedAllowlist(c *C) {
@@ -2770,7 +2770,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeComponentExclusive(c *C) {
 		Directory:           filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "20260227"),
 		SnapSetupTasks:      []string{snap1Task.ID()},
 		ComponentSetupTasks: []string{compTask1.ID()},
-		SeedAllowlist:       &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
+		Allowlist:           &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
 	})
 	finalize := s.state.NewTask("finalize-recovery-system", "...")
 	finalize.Set("recovery-system-setup-task", create.ID())
@@ -2834,7 +2834,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeSkipsOptionalSnapNotInCurren
 		Label:          "20260227",
 		Directory:      filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "20260227"),
 		SnapSetupTasks: []string{snap1Task.ID()},
-		SeedAllowlist:  &devicestate.SeedAllowlist{Snaps: []string{"snap-1"}},
+		Allowlist:      &devicestate.SeedAllowlist{Snaps: []string{"snap-1"}},
 	})
 	finalize := s.state.NewTask("finalize-recovery-system", "...")
 	finalize.Set("recovery-system-setup-task", create.ID())
@@ -2922,7 +2922,7 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeUsesPendingSeedRefreshTasks(
 		Label:          "20260227",
 		Directory:      filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "20260227"),
 		SnapSetupTasks: []string{currentSnapTask.ID()},
-		SeedAllowlist:  &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
+		Allowlist:      &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
 	})
 	currentFinalize := s.state.NewTask("finalize-recovery-system", "...")
 	currentFinalize.Set("recovery-system-setup-task", currentCreate.ID())
