@@ -14,6 +14,8 @@ execute: |
     # file is created and its ownership is set in the install hook
     stat --printf '%U' /var/snap/test-snapd-sh/common/data/foo | MATCH snap_daemon
 
+    # this is correct but shellcheck < 0.7.2 would flag it
+    # shellcheck disable=SC1004
     test-snapd-sh.sh -c 'setpriv --clear-groups \
             --reuid snap_daemon \
             --regid snap_daemon -- \
