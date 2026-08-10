@@ -19,6 +19,15 @@
 
 package builtin
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/snap"
+)
+
 const microcephSupportSummary = `allows operating as the MicroCeph service`
 
 const microcephSupportBaseDeclarationPlugs = `
@@ -58,14 +67,61 @@ const microcephSupportConnectedPlugAppArmor = `
 deny /usr/bin/sudo x,
 `
 
+const microcephSupportConnectedPlugAppArmorUserIdentitySwitching = `
+# Description: allow a confined SMB server to assume the identity of
+# authenticated users when serving files.
+capability setuid,
+capability setgid,
+`
+
+const microcephSupportConnectedPlugSecCompUserIdentitySwitching = `
+# smbd assumes the authenticated user's supplementary groups on every
+# identity transition; the default template only allows the zero-length
+# (clear groups) form of setgroups.
+setgroups
+setgroups32
+`
+
+type microcephSupportInterface struct {
+	commonInterface
+}
+
+func (iface *microcephSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	spec.AddSnippet(microcephSupportConnectedPlugAppArmor)
+
+	var userIdentitySwitching bool
+	_ = plug.Attr("user-identity-switching", &userIdentitySwitching)
+	if userIdentitySwitching {
+		spec.AddSnippet(microcephSupportConnectedPlugAppArmorUserIdentitySwitching)
+	}
+	return nil
+}
+
+func (iface *microcephSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var userIdentitySwitching bool
+	_ = plug.Attr("user-identity-switching", &userIdentitySwitching)
+	if userIdentitySwitching {
+		spec.AddSnippet(microcephSupportConnectedPlugSecCompUserIdentitySwitching)
+	}
+	return nil
+}
+
+func (iface *microcephSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	if v, ok := plug.Attrs["user-identity-switching"]; ok {
+		if _, ok = v.(bool); !ok {
+			return fmt.Errorf("microceph-support plug requires bool with 'user-identity-switching'")
+		}
+	}
+	return nil
+}
+
 func init() {
-	registerIface(&commonInterface{
-		name:                  "microceph-support",
-		summary:               microcephSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  microcephSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  microcephSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: microcephSupportConnectedPlugAppArmor,
-	})
+	registerIface(&microcephSupportInterface{commonInterface{
+		name:                 "microceph-support",
+		summary:              microcephSupportSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationSlots: microcephSupportBaseDeclarationSlots,
+		baseDeclarationPlugs: microcephSupportBaseDeclarationPlugs,
+	}})
 }
