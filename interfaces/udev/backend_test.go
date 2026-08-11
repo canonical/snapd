@@ -659,3 +659,53 @@ func (s *backendSuite) TestPreseed(c *C) {
 
 	c.Check(s.udevadmCmd.Calls(), HasLen, 0)
 }
+
+func (s *backendSuite) TestRemovingSnapRemovesUdevTagDirs(c *C) {
+	// give the snap udev rules so the rules file is created on install
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("sample")
+		return nil
+	}
+
+	tagsDir := filepath.Join(dirs.GlobalRootDir, "run/udev/tags")
+
+	// simulate tag dirs left behind by udev for snap.samba.smbd and a hook
+	snapTagDir := filepath.Join(tagsDir, "snap_samba_smbd")
+	hookTagDir := filepath.Join(tagsDir, "snap_samba_hook_configure")
+	c.Assert(os.MkdirAll(snapTagDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(hookTagDir, 0755), IsNil)
+
+	// a tag dir for a different snap must not be touched
+	otherTagDir := filepath.Join(tagsDir, "snap_other_app")
+	c.Assert(os.MkdirAll(otherTagDir, 0755), IsNil)
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
+	s.RemoveSnap(c, snapInfo)
+
+	c.Check(snapTagDir, testutil.FileAbsent)
+	c.Check(hookTagDir, testutil.FileAbsent)
+	c.Check(otherTagDir, testutil.FilePresent)
+}
+
+func (s *backendSuite) TestRemovingSnapLeavesNonEmptyUdevTagDir(c *C) {
+	// give the snap udev rules so the rules file is created on install
+	s.Iface.UDevPermanentSlotCallback = func(spec *udev.Specification, slot *snap.SlotInfo) error {
+		spec.AddSnippet("sample")
+		return nil
+	}
+
+	tagsDir := filepath.Join(dirs.GlobalRootDir, "run/udev/tags")
+
+	// simulate a tag dir that still has a device entry (e.g. input subsystem
+	// device not processed by udevadm trigger --subsystem-nomatch=input)
+	snapTagDir := filepath.Join(tagsDir, "snap_samba_smbd")
+	c.Assert(os.MkdirAll(snapTagDir, 0755), IsNil)
+	c.Assert(os.WriteFile(filepath.Join(snapTagDir, "c13:64"), nil, 0644), IsNil)
+
+	snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1, 0)
+	// RemoveSnap must not fail even though the tag dir is not empty
+	s.RemoveSnap(c, snapInfo)
+
+	// non-empty dir is left in place
+	c.Check(snapTagDir, testutil.FilePresent)
+}

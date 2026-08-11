@@ -48,6 +48,9 @@ type Backend struct {
 	isContainer bool
 }
 
+// udevTagsDir is the directory where udev maintains per-tag device lists.
+const udevTagsDir = "/run/udev/tags"
+
 // Initialize does nothing.
 func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
 	if opts != nil && opts.Preseed {
@@ -229,7 +232,22 @@ func (b *Backend) Remove(snapName string) error {
 	// subsystemTriggers appropriately. ATM, it is always going to be empty
 	// on disconnect.
 	if needReload {
-		return b.reloadRules(nil)
+		if err := b.reloadRules(nil); err != nil {
+			return err
+		}
+
+		// Remove empty udev tag directories left behind for this snap.
+		// After reloadRules/udevadm-trigger, udev removes device entries
+		// from the tag dirs for re-evaluated subsystems; we sweep what
+		// remains. Dirs that are still non-empty (e.g. input devices
+		// skipped by --subsystem-nomatch=input) are left alone — /run is
+		// ephemeral and will be cleaned up on reboot.
+		tagPrefix := udevTag(snap.SecurityTag(snapName)) + "_"
+		matches, _ := filepath.Glob(filepath.Join(dirs.GlobalRootDir, udevTagsDir, tagPrefix+"*"))
+		for _, dir := range matches {
+			// ignore errors
+			os.Remove(dir)
+		}
 	}
 	return nil
 }
