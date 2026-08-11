@@ -653,11 +653,6 @@ jobs:
                 exit 1
             fi
             echo "Results sent successfully"
-
-            echo "Getting predictions for failed tests"
-            wget -q -O predict https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/src/client/predict
-            chmod +x predict
-            ./predict results.json
         else
             echo "No spread results log found, skipping sending results to Test-Predictor"
         fi

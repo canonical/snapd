@@ -14,6 +14,7 @@ jobs:
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
+      TEST_PREDICTOR_URL: http://test-predictor.snapd.canonical.com:5000
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -122,52 +123,10 @@ jobs:
 
       - name: Echo collected output
         run: |
-          # generate report
-          (
-          date
-
-          # The 'skip spread' label was added to the pull request
-          if gh api /repos/${{ github.repository }}/issues/"$(cat pr_number)" | jq '.labels.[].name' | grep -iq '"skip spread"'; then
-            echo "## Spread tests skipped"
-            exit 0
-          fi
-          echo "The following results are from: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}"
-
-          # There are no logged spread failures
-          if ! ls spread-results-${{ github.event.workflow_run.id }}-*/*.json &> /dev/null; then
-              echo '## No spread failures reported'
-
-          else
-            # Consolidate all json files into one
-            jq -s '{items: (map(.items[]) )}' spread-results-${{ github.event.workflow_run.id }}*/*.json > consolidated-report.json
-
-            echo "## Failures:"
-            if [[ $(jq -r '.items[] | select(.verb == "preparing" and .success == false)' consolidated-report.json) ]]; then
-              echo "### Preparing:"
-              jq -r '.items[] | select(.verb == "preparing" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |\
-                  awk ' { print "- " $0 }'
-            fi
-            if [[ $(jq -r '.items[] | select(.verb == "executing" and .success == false)' consolidated-report.json) ]]; then
-              echo "### Executing:"
-              jq -r '.items[] | select(.verb == "executing" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |\
-                  awk ' { print "- " $0 }'
-            fi
-            if [[ $(jq -r '.items[] | select(.verb == "restoring" and .success == false)' consolidated-report.json) ]]; then
-              echo "### Restoring:"
-              jq -r '.items[] | select(.verb == "restoring" and .success == false) | "\(.backend):\(.system):\(.name)\(if .variant != "" then ":\(.variant)" else "" end)"' consolidated-report.json |\
-                  awk ' { print "- " $0 }'
-            fi
-          fi
-          ) > report
-
-          if find . -name skipped_tests_list.txt | grep -q .; then
-            echo "## Skipped tests from [snapd-testing-skip](https://github.com/canonical/snapd-testing-skip)" >> report
-            echo "*If you wish to have any of the below tests run in your PR, in your PR description, add 'unskip:' followed by a copy-and-pasted list of the below tests you wish to run (unskip plus test list must be valid yaml)*" >> report
-            find . -name skipped_tests_list.txt -exec cat {} \; | tr ' ' '\n' | grep . | sed 's/:[^/:]*$//' | sort -u | awk '{print "- "$1}' >> report
-          fi
-
-          # display the report
-          grep -n '' report
+          bash .github/scripts/test-predictor-reporter.sh \
+            "${{ github.repository }}" \
+            "${{ github.event.workflow_run.id }}" \
+            "${{ github.event.workflow_run.run_attempt }}"
 
       - name: Comment report to PR
         run: |
