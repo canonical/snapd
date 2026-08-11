@@ -141,6 +141,13 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 
 var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, nil, assembleTestOnly2, 0}
 
+var CustomTestType *AssertionType
+
+func validateCustomTest(assert Assertion) error {
+	_, err := checkIntWithDefault(assert.Headers(), "count", 0)
+	return err
+}
+
 // TestOnlyDecl is a test-only assertion that mimics snap-declaration
 // relations with other assertions.
 type TestOnlyDecl struct {
@@ -252,6 +259,11 @@ func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType
 	maxSupportedFormat[TestOnlyType.Name] = 1
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
+	CustomTestType = RegisterCustomType(
+		"custom-test",
+		[]string{"id"},
+		validateCustomTest,
+	)
 	typeRegistry[TestOnlyNoAuthorityType.Name] = TestOnlyNoAuthorityType
 	typeRegistry[TestOnlyNoAuthorityPKType.Name] = TestOnlyNoAuthorityPKType
 	formatAnalyzer[TestOnlyType] = func(headers map[string]any, _ []byte) (int, error) {

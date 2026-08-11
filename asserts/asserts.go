@@ -194,6 +194,50 @@ var typeRegistry = map[string]*AssertionType{
 	ResponseMessageType.Name:      ResponseMessageType,
 }
 
+// RegisterCustomType registers a custom signed assertion type.
+//
+// It must be called during package initialization.
+// The validator, when non-nil, is called when an assertion of this type is
+// assembled.
+// RegisterCustomType panics if name or primaryKey is empty or name is already
+// registered.
+func RegisterCustomType(
+	name string,
+	primaryKey []string,
+	validator func(Assertion) error,
+) *AssertionType {
+	if name == "" {
+		panic("custom assertion type name cannot be empty")
+	}
+	if len(primaryKey) == 0 {
+		panic(fmt.Sprintf(
+			"custom assertion type %q must have a primary key",
+			name,
+		))
+	}
+	if Type(name) != nil {
+		panic(fmt.Sprintf("assertion type %q is already registered", name))
+	}
+
+	assertType := &AssertionType{
+		Name:       name,
+		PrimaryKey: primaryKey,
+		assembler: func(assert assertionBase) (Assertion, error) {
+			custom := &assert
+			if validator != nil {
+				err := validator(custom)
+				if err != nil {
+					return nil, err
+				}
+			}
+			return custom, nil
+		},
+	}
+	assertType.validate()
+	typeRegistry[name] = assertType
+	return assertType
+}
+
 // Type returns the AssertionType with name or nil
 func Type(name string) *AssertionType {
 	return typeRegistry[name]

@@ -42,6 +42,50 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
+func (as *assertsSuite) TestCustomTypeValidator(c *C) {
+	encoded := "type: custom-test\n" +
+		"authority-id: canonical\n" +
+		"id: one\n" +
+		"count: invalid\n" +
+		"sign-key-sha3-384: " + testPrivKey1.PublicKey().ID() + "\n\n" +
+		"AXNpZw=="
+
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(
+		err,
+		ErrorMatches,
+		`assertion custom-test: "count" header is not an integer: invalid`,
+	)
+}
+
+func (as *assertsSuite) TestRegisterCustomTypeErrors(c *C) {
+	c.Check(
+		func() {
+			asserts.RegisterCustomType("", []string{"id"}, nil)
+		},
+		PanicMatches,
+		"custom assertion type name cannot be empty",
+	)
+	c.Check(
+		func() {
+			asserts.RegisterCustomType("missing-primary-key", nil, nil)
+		},
+		PanicMatches,
+		`custom assertion type "missing-primary-key" must have a primary key`,
+	)
+	c.Check(
+		func() {
+			asserts.RegisterCustomType(
+				asserts.CustomTestType.Name,
+				[]string{"id"},
+				nil,
+			)
+		},
+		PanicMatches,
+		`assertion type "custom-test" is already registered`,
+	)
+}
+
 func (as *assertsSuite) TestTypeMaxSupportedFormat(c *C) {
 	c.Check(asserts.Type("test-only").MaxSupportedFormat(), Equals, 1)
 }
@@ -55,6 +99,7 @@ func (as *assertsSuite) TestTypeNames(c *C) {
 		"cluster",
 		"confdb-control",
 		"confdb-schema",
+		"custom-test",
 		"device-session-request",
 		"hardware-identity",
 		"model",
