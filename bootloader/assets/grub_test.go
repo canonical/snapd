@@ -91,11 +91,11 @@ func (s *grubAssetsTestSuite) TestGrubRecoveryHybridConf(c *C) {
 	)
 
 	config := string(assets.Internal("grub-recovery-hybrid.cfg"))
-	// recovery modes are not supported yet, so do not show them on hybrid systems.
+	// only the selected recovery mode should be shown on hybrid systems.
 	c.Check(config, Not(testutil.Contains), `menuentry "Recover using`)
 	c.Check(config, Not(testutil.Contains), `menuentry "Install using`)
 	c.Check(config, Not(testutil.Contains), `menuentry "Factory reset using`)
-	c.Check(config, testutil.Contains, `chainloader (loop)/kernel.efi snapd_recovery_mode=$snapd_recovery_mode`)
+	c.Check(config, testutil.Contains, `chainloader (loop)/kernel.efi snapd_recovery_mode=$3 snapd_recovery_system=$4`)
 }
 
 func (s *grubAssetsTestSuite) TestGrubCmdlineSnippetEditions(c *C) {
