@@ -174,7 +174,7 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 			attrs: []seclog.Attr{
 				{Key: "peer", Value: seclog.Peer{Socket: "/run/snapd.socket"}},
 				{Key: "endpoint", Value: seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}},
-				{Key: "reason_granted", Value: seclog.ReasonGrantedRootAuth},
+				{Key: "reason_granted", Value: seclog.GrantRootAuth},
 			},
 			wantKeys: []string{
 				"datetime", "level", "description",
@@ -185,7 +185,7 @@ func (s *SlogSuite) TestLogEventKeyOrder(c *C) {
 			attrs: []seclog.Attr{
 				{Key: "peer", Value: seclog.Peer{Socket: "/run/snapd.socket"}},
 				{Key: "endpoint", Value: seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}},
-				{Key: "reason_denied", Value: seclog.ReasonDeniedUserAuthDenied},
+				{Key: "reason_denied", Value: seclog.DenialUserAuth},
 			},
 			wantKeys: []string{
 				"datetime", "level", "description",

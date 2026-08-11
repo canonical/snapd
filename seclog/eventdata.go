@@ -195,32 +195,36 @@ func (e Endpoint) String() string {
 	return method + ":" + path + ":" + action
 }
 
-// ReasonGranted values identify the mechanism that granted access for
-// authz_admin events. They are passed to [LogAdminActivity] as the
-// reasonGranted argument and emitted as reason_granted.
+// GrantReason identifies why access was granted for authz_admin events.
+// It is passed to [LogAdminActivity] as grantReason and emitted as
+// reason_granted.
 //
 // When access was granted via a snap interface connection, the value is
 // expanded by appending the interface name and plug or slot side, in the
 // form " <interface>+<plug|slot>" (e.g. "root-auth desktop-launch+plug").
 // The same postfix may apply to any of the base values when an interface
 // also contributed to the grant.
+type GrantReason string
+
 const (
-	ReasonGrantedUserAuth   = "user-auth"
-	ReasonGrantedRootAuth   = "root-auth"
-	ReasonGrantedPolkitAuth = "polkit-auth"
+	GrantUserAuth   GrantReason = "user-auth"
+	GrantRootAuth   GrantReason = "root-auth"
+	GrantPolkitAuth GrantReason = "polkit-auth"
 )
 
-// ReasonDenied values identify why access was denied for authz_fail events.
-// They are passed to [LogUnauthorizedAccess] as the reasonDenied argument
-// and emitted as reason_denied.
+// DenialReason identifies why access was denied for authz_fail events.
+// It is passed to [LogUnauthorizedAccess] as denialReason and emitted as
+// reason_denied.
+type DenialReason string
+
 const (
-	ReasonDeniedNoPeerCredentials    = "no-peer-credentials"
-	ReasonDeniedSocketNotPermitted   = "socket-not-permitted"
-	ReasonDeniedMissingInterfacePlug = "missing-interface-plug"
-	ReasonDeniedMissingInterfaceSlot = "missing-interface-slot"
-	ReasonDeniedUserAuthDenied       = "user-auth-denied"
-	ReasonDeniedRootAuthDenied       = "root-auth-denied"
-	ReasonDeniedPolkitAuthDenied     = "polkit-auth-denied"
+	DenialNoPeerCredentials    DenialReason = "no-peer-credentials"
+	DenialSocketNotPermitted   DenialReason = "socket-not-permitted"
+	DenialMissingInterfacePlug DenialReason = "missing-interface-plug"
+	DenialMissingInterfaceSlot DenialReason = "missing-interface-slot"
+	DenialUserAuth             DenialReason = "user-auth-denied"
+	DenialRootAuth             DenialReason = "root-auth-denied"
+	DenialPolkitAuth           DenialReason = "polkit-auth-denied"
 )
 
 // String returns a colon-separated description of the user in the form

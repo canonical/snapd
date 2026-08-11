@@ -174,6 +174,18 @@ func (r Reason) LogValue() slog.Value {
 	)
 }
 
+// LogValue implements [slog.LogValuer], allowing [GrantReason] to be
+// used directly as a structured log attribute value.
+func (r GrantReason) LogValue() slog.Value {
+	return slog.StringValue(string(r))
+}
+
+// LogValue implements [slog.LogValuer], allowing [DenialReason] to be
+// used directly as a structured log attribute value.
+func (r DenialReason) LogValue() slog.Value {
+	return slog.StringValue(string(r))
+}
+
 // LogValue implements [slog.LogValuer], allowing [SnapdUser] to be
 // used directly as a structured log attribute value.
 func (u SnapdUser) LogValue() slog.Value {

@@ -228,7 +228,7 @@ func (s *SecLogSuite) TestLogAdminActivity(c *C) {
 		Path:   "/v2/snaps",
 		Action: "install",
 	}
-	seclog.LogAdminActivity(user, peer, endpoint, seclog.ReasonGrantedRootAuth)
+	seclog.LogAdminActivity(user, peer, endpoint, seclog.GrantRootAuth)
 
 	c.Check(s.buf.String(), testutil.Contains, "authz_admin")
 	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
@@ -248,7 +248,7 @@ func (s *SecLogSuite) TestLogUnauthorizedAccess(c *C) {
 	peer := seclog.Peer{Socket: "/run/snapd.socket", UID: 1000, PID: 12345}
 	endpoint := seclog.Endpoint{Method: "DELETE", Path: "/v2/snaps/core"}
 
-	seclog.LogUnauthorizedAccess(user, peer, endpoint, seclog.ReasonDeniedUserAuthDenied)
+	seclog.LogUnauthorizedAccess(user, peer, endpoint, seclog.DenialUserAuth)
 
 	c.Check(s.buf.String(), testutil.Contains, "authz_fail")
 	c.Check(s.buf.String(), testutil.Contains, "from /run/snapd.socket")
