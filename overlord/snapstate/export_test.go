@@ -55,13 +55,13 @@ var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
 
 const (
-	None         = none
-	Full         = full
-	Hidden       = hidden
-	Home         = home
-	RevertHidden = revertHidden
-	DisableHome  = disableHome
-	RevertFull   = revertFull
+	None                        = none
+	Full                        = full
+	Hidden                      = hidden
+	Home                        = home
+	RevertHidden                = revertHidden
+	DisableHome                 = disableHome
+	RevertFull                  = revertFull
 	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
 )
 
