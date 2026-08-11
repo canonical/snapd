@@ -70,8 +70,14 @@ func (x *cmdRoutineUserServicePrecondition) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	if x.ErrorExitCode < 1 || x.ErrorExitCode > 255 {
-		return &userSessionPreconditionError{code: 2, msg: "invalid --error-exit-code: must be in range 1-255"}
+	// We want to avoid exiting with code 255, because systemd interprets that
+	// as indicating that the unit should be marked as failed, rather than
+	// simply skipped. The systemd.service manpage states:
+	// "if an ExecCondition= command exits with 255 or abnormally (e.g.
+	// timeout, killed by a signal, etc.), the unit will be considered
+	// failed (and remaining commands will be skipped)."
+	if x.ErrorExitCode < 1 || x.ErrorExitCode > 254 {
+		return &userSessionPreconditionError{code: 2, msg: "invalid --error-exit-code: must be in range 1-254"}
 	}
 
 	class, err := logindSessionClass(context.Background())
