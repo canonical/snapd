@@ -369,6 +369,22 @@ WantedBy={{.ServicesTarget}}
 		if err != nil {
 			return nil, err
 		}
+		// XXX: if snapd is reverted to a revision which does not support the
+		// `snap routine user-service-precondition` subcommand, then there is
+		// a window of time between when the `snap` binary is replaced on disk
+		// and when the first `Ensure()` runs after snapd daemon startup which
+		// updates unit service file content. If something causes a user daemon
+		// service to try to start during this window of time, it will cause an
+		// "unknown command" error which will cause the `ExecCondition` to be
+		// false, so the unit won't run until it is restarted again after the
+		// `Ensure()`. But snapd doesn't start other snaps' services during
+		// this window of time, so it would only be caused by a new systemd user
+		// session starting services in this window, or something manually
+		// trying to start services. And again, it's only ever an issue when
+		// reverting to an older snapd which doesn't understand the new
+		// `user-service-precondition` subcommand, which will cease to be a
+		// relevant situation after one or two snapd releases. So no need for a
+		// workaround.
 		wrapperData.ExecCondition = fmt.Sprintf("/usr/bin/snap routine user-service-precondition --error-exit-code %d", errExitCode)
 	default:
 		panic("unknown snap.DaemonScope")
