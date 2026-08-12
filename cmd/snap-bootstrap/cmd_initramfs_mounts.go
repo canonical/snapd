@@ -534,6 +534,21 @@ func doInstall(mst *initramfsMountsState, model *asserts.Model, sysSnaps map[sna
 		return err
 	}
 
+	if useEncryption {
+		// Only when a system has been "made bootable" are the
+		// unlock keys all generated. So we need to wait for
+		// that moment in order to commit keys to the keyring
+		saveBootstrappedContainer := installedSystem.BootstrappedContainerForRole[gadget.SystemSave]
+		dataBootstrappedContainer := installedSystem.BootstrappedContainerForRole[gadget.SystemData]
+
+		if saveBootstrappedContainer != nil {
+			saveBootstrappedContainer.CommitUsedKey()
+		}
+		if dataBootstrappedContainer != nil {
+			dataBootstrappedContainer.CommitUsedKey()
+		}
+	}
+
 	dataMountOpts := setUbuntuCoreDataMountOptions(systemdMountOptions{
 		Bind: true,
 	})

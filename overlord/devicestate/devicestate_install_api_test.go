@@ -758,6 +758,18 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		c.Check(saveBootstrappedContainer.Slots["default-recovery"], DeepEquals, []byte{'r', 'e', 'c', 'o', 'v', 'e', 'r', 'y', '-', '7', 0, 0, 0, 0, 0, 0})
 	}
 
+	if opts.encrypted {
+		encSetupData := devicestate.GetEncryptionSetupDataFromCache(s.state, label)
+		bootstrappedContainersForRole := install.BootstrappedContainersForRole(encSetupData)
+		c.Assert(bootstrappedContainersForRole, HasLen, 2)
+
+		dataBootstrappedContainer := bootstrappedContainersForRole[gadget.SystemData].(*secboot.MockBootstrappedContainer)
+		c.Check(dataBootstrappedContainer.KeyCommitted, Equals, true)
+
+		saveBootstrappedContainer := bootstrappedContainersForRole[gadget.SystemSave].(*secboot.MockBootstrappedContainer)
+		c.Check(saveBootstrappedContainer.KeyCommitted, Equals, true)
+	}
+
 	// install-time extra snapd kernel command line fragments are persisted to
 	// the installed system's ubuntu-save device dir
 	fragmentsFile := filepath.Join(boot.InstallHostDeviceSaveDir, "kcmdline-extra-snapd-fragments.json")
