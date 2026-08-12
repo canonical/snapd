@@ -87,6 +87,13 @@ func runTool(toolName string, toolMain func(), fullArgv []string) {
 	if strutil.ListContains(reexecTools, toolName) {
 		// reexec, if enabled, must be applied **before** any args modifications
 		snapdtool.ExecInSnapdOrCoreSnap()
+
+		// Clean up the execution environment should any of the tools be
+		// invoked with the FIPS dispatch mechanism (snap-fips-dispatch
+		// sets SNAPD_FIPS_BOOTSTRAP=1 and related vars before exec'ing
+		// snapd-fips). Drop those env vars so they are not forwarded to
+		// the tool or any processes it spawns.
+		snapdtool.MaybeCompleteFIPSSetup()
 	}
 
 	// Set argv[0] to the tool name and strip the original argv[1] (the tool
