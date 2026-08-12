@@ -45,9 +45,6 @@ var (
 	}
 
 	// list of snapd tools that expect reexec
-	//
-	// could use a simple list instead of adding to a map to avoid exporting
-	// types to the test suite
 	reexecTools = []string{
 		"snapd-apparmor",
 		"snap-gpio-helper",
@@ -92,7 +89,9 @@ func runTool(toolName string, toolMain func(), fullArgv []string) {
 		snapdtool.ExecInSnapdOrCoreSnap()
 	}
 
-	// Strip argv[1] (the tool name) so the tool sees its own args.
+	// Set argv[0] to the tool name and strip the original argv[1] (the tool
+	// name passed by the C wrapper) so the tool sees its own args and help
+	// output shows the tool name.
 	os.Args = append([]string{toolName}, fullArgv[2:]...)
 
 	toolMain()
