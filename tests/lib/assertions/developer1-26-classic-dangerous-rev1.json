@@ -3,11 +3,11 @@
     "authority-id": "developer1",
     "series": "16",
     "brand-id": "developer1",
-    "model": "developer1-24-classic-dangerous",
+    "model": "developer1-26-classic-dangerous",
     "architecture": "amd64",
     "timestamp": "2024-04-09T22:00:00+00:00",
     "grade": "dangerous",
-    "base": "core24",
+    "base": "core26",
     "classic": "true",
     "distribution": "ubuntu",
     "revision": "1",
@@ -16,21 +16,21 @@
     ],
     "snaps": [
         {
-            "default-channel": "24/edge",
+            "default-channel": "26/edge",
             "id": "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
             "name": "pc",
             "type": "gadget"
         },
         {
-            "default-channel": "24-oem/stable",
+            "default-channel": "26-oem/stable",
             "id": "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
             "name": "pc-kernel",
             "type": "kernel"
         },
         {
             "default-channel": "latest/edge",
-            "id": "dwTAh7MZZ01zyriOZErqd1JynQLiOGvM",
-            "name": "core24",
+            "id": "cUqM61hRuZAJYmIS898Ux66VY61gBbZf",
+            "name": "core26",
             "type": "base"
         },
         {
@@ -41,7 +41,7 @@
         },
         {
             "default-channel": "latest/stable",
-            "name": "test-snapd-sh-core24",
+            "name": "test-snapd-sh-core26",
             "type": "app"
         }
     ]
