@@ -191,7 +191,7 @@ func (s *snapConfSuite) TestGetConfBadKey(c *check.C) {
 	s.daemon(c)
 	// TODO: this one in particular should really be a 400 also
 	result := s.runGetConf(c, "test-snap", []string{"."}, 500)
-	c.Check(result, check.DeepEquals, map[string]any{"message": `invalid option name: ""`})
+	c.Check(result, check.DeepEquals, map[string]any{"message": `invalid option name (must only use lowercase letters, digits, and hyphens): ""`})
 }
 
 const configYaml = `
