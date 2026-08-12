@@ -354,14 +354,14 @@ var setGetTests = [][]setGetOp{{
 	`getunder one={"two":{"three":3}}`,
 }, {
 	// Invalid option names.
-	`set BAD=1 => invalid field name: must be dash separated lowercase alphanumerics: "BAD"`,
-	`set 42=1 => invalid field name: must be dash separated lowercase alphanumerics: "42"`,
-	`set .bad=1 => invalid field name: must be dash separated lowercase alphanumerics: ""`,
-	`set bad.=1 => invalid field name: must be dash separated lowercase alphanumerics: ""`,
-	`set bad..bad=1 => invalid field name: must be dash separated lowercase alphanumerics: ""`,
-	`set one.bad--bad.two=1 => invalid field name: must be dash separated lowercase alphanumerics: "bad--bad"`,
-	`set one.-bad.two=1 => invalid field name: must be dash separated lowercase alphanumerics: "-bad"`,
-	`set one.bad-.two=1 => invalid field name: must be dash separated lowercase alphanumerics: "bad-"`,
+	`set BAD=1 => invalid option name: must be dash separated lowercase alphanumerics: "BAD"`,
+	`set 42=1 => invalid option name: must be dash separated lowercase alphanumerics: "42"`,
+	`set .bad=1 => invalid option name: must be dash separated lowercase alphanumerics: ""`,
+	`set bad.=1 => invalid option name: must be dash separated lowercase alphanumerics: ""`,
+	`set bad..bad=1 => invalid option name: must be dash separated lowercase alphanumerics: ""`,
+	`set one.bad--bad.two=1 => invalid option name: must be dash separated lowercase alphanumerics: "bad--bad"`,
+	`set one.-bad.two=1 => invalid option name: must be dash separated lowercase alphanumerics: "-bad"`,
+	`set one.bad-.two=1 => invalid option name: must be dash separated lowercase alphanumerics: "bad-"`,
 	// Invalid keys nested in JSON objects.
 	`set one={"Bad":1} => invalid field name: must be dash separated lowercase alphanumerics: "Bad"`,
 	`set one={"bad_key":1} => invalid field name: must be dash separated lowercase alphanumerics: "bad_key"`,
@@ -631,7 +631,7 @@ func (s *transactionSuite) TestExternalGetError(c *C) {
 		err := config.RegisterExternalConfig("some-snap", tc, func(key string) (any, error) {
 			return nil, nil
 		})
-		c.Assert(err, ErrorMatches, "cannot register external config: invalid field name.*")
+		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name.*")
 	}
 }
 
@@ -875,10 +875,10 @@ func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
 
 func (s *transactionSuite) TestOverlapsWithExternalConfigErr(c *C) {
 	_, err := config.OverlapsWithExternalConfig("invalid#", "valid")
-	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid field name: must be dash separated lowercase alphanumerics: "invalid#"`)
+	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name: must be dash separated lowercase alphanumerics: "invalid#"`)
 
 	_, err = config.OverlapsWithExternalConfig("valid", "invalid#")
-	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid field name: must be dash separated lowercase alphanumerics: "invalid#"`)
+	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid option name: must be dash separated lowercase alphanumerics: "invalid#"`)
 }
 
 func (s *transactionSuite) TestOverlapsWithExternalConfig(c *C) {

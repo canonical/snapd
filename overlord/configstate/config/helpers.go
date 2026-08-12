@@ -42,7 +42,7 @@ func ParseKey(key string) (subkeys []string, err error) {
 	subkeys = strings.Split(key, ".")
 	for _, subkey := range subkeys {
 		if !validKey.MatchString(subkey) {
-			return nil, fmt.Errorf("invalid field name: must be dash separated lowercase alphanumerics: %q", subkey)
+			return nil, fmt.Errorf("invalid option name: must be dash separated lowercase alphanumerics: %q", subkey)
 		}
 	}
 	return subkeys, nil
