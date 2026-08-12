@@ -1253,7 +1253,14 @@ prepare: |
     download.max_silent_tries = 20
     EOF
 
-        # Make sure docs are installed with the packages
+        # Make sure docs are installed with the packages. Newer systems use a
+        # vendor drop-in under /usr/etc, while older ones keep the setting in
+        # /etc/zypp/zypp.conf.
+        mkdir -p /etc/zypp/zypp.conf.d
+        cat <<-EOF > /etc/zypp/zypp.conf.d/excludedocs.conf
+    [main]
+    rpm.install.excludedocs = no
+    EOF
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
 
         # TODO: enable enforcing mode
