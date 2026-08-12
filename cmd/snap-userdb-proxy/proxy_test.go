@@ -81,14 +81,9 @@ func (s *proxySuite) TestPeerIsConfinedSnapLabels(c *C) {
 }
 
 func (s *proxySuite) TestProxyRejectsNonSnapPeer(c *C) {
-	cliConn, cancel := s.setupProxyAndClient(c, "unused")
+	cliConn, cancel := s.setupProxyAndClientWithPeerLabel(c, "unused", "unconfined")
 	defer cancel()
 	defer cliConn.Close()
-
-	restore := proxy.MockGetsockoptPeerSec(func(*net.UnixConn) (string, error) {
-		return "unconfined", nil
-	})
-	defer restore()
 
 	req := []byte(`{"method":"io.systemd.UserDatabase.GetUserRecord","parameters":{"service":"io.snapcraft.UserDBProxy","userName":"test-user"}}` + "\x00")
 	_, err := cliConn.Write(req)
@@ -105,12 +100,12 @@ func (s *proxySuite) TestProxyRejectsNonSnapPeer(c *C) {
 }
 
 func (s *proxySuite) TestProxyRejectsOversizedMessage(c *C) {
+	restore := proxy.MockMaxMessageSize(10)
+	defer restore()
+
 	cliConn, cancel := s.setupProxyAndClient(c, "unused")
 	defer cancel()
 	defer cliConn.Close()
-
-	restore := proxy.MockMaxMessageSize(10)
-	defer restore()
 
 	content := make([]byte, 15)
 	_, err := rand.Read(content)
@@ -276,10 +271,13 @@ func (s *proxySuite) TestProxyUnknownMethod(c *C) {
 // startProxyClient creates a proxy to the supplied address and returns a
 // connection to that proxy.
 func (s *proxySuite) setupProxyAndClient(c *C, addr string) (net.Conn, context.CancelFunc) {
+	return s.setupProxyAndClientWithPeerLabel(c, addr, "snap.hello.hello")
+}
+
+func (s *proxySuite) setupProxyAndClientWithPeerLabel(c *C, addr, label string) (net.Conn, context.CancelFunc) {
 	restore := proxy.MockGetsockoptPeerSec(func(*net.UnixConn) (string, error) {
-		return "snap.hello.hello", nil
+		return label, nil
 	})
-	s.AddCleanup(restore)
 
 	sockPath := filepath.Join(c.MkDir(), "proxy.sock")
 	l, err := net.Listen("unix", sockPath)
@@ -290,11 +288,23 @@ func (s *proxySuite) setupProxyAndClient(c *C, addr string) (net.Conn, context.C
 	c.Assert(err, IsNil)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go p.Serve(ctx, l)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- p.Serve(ctx, l)
+	}()
 
 	conn, err := net.Dial("unix", sockPath)
 	c.Assert(err, IsNil)
-	return conn, cancel
+	return conn, func() {
+		cancel()
+		select {
+		case err := <-serveDone:
+			c.Check(err, IsNil)
+		case <-time.After(time.Second):
+			c.Fatal("proxy.Serve did not stop")
+		}
+		restore()
+	}
 }
 
 // unixPair returns a pair of connected AF_UNIX sockets for tests that
