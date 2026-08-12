@@ -23,7 +23,7 @@ test_predictor_url="${test_predictor_url%/}"
 	# There are no downloaded spread results artifacts.
 	if ! ls spread-results-"${workflow_run_id}"-*/*.json &>/dev/null; then
 		echo '## No spread result artifacts found'
-		echo 'No spread results JSON artifacts were available for this workflow run, so spread failures could not be reported.'
+		echo 'No spread results JSON artifacts were available for this workflow run, so spread failures (if any) could not be reported.'
 
 	else
 		python3 "${parser}" consolidate consolidated-report.json spread-results-"${workflow_run_id}"*/*.json
