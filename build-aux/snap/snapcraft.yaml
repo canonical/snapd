@@ -457,13 +457,13 @@ parts:
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd" "${CRAFT_PART_INSTALL}/usr/bin/snap"
       # link usr/lib/snapd/snap-exec -> usr/lib/snapd/snapctl (multi-call binary)
       ln -v -s snapctl "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-exec"
-      # link snapd-tool-wrap -> snap-preseed (C tool wrapper multi-call)
+      # link snap-preseed -> snapd-tool-wrap (C tool wrapper multi-call)
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-preseed"
-      # link snapd-tool-wrap -> snapd-apparmor (C tool wrapper multi-call)
+      # link snapd-apparmor -> snapd-tool-wrap (C tool wrapper multi-call)
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-apparmor"
-      # link snapd-tool-wrap -> snap-gpio-helper (C tool wrapper multi-call)
+      # link snap-gpio-helper -> snapd-tool-wrap (C tool wrapper multi-call)
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-gpio-helper"
 
