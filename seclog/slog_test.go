@@ -18,18 +18,6 @@
  *
  */
 
-// slog.go coverage (all tests in this file):
-//   NewSlogLogger, LogEvent envelope  → TestNewSlogLogger, TestLogEventEnvelope
-//   Key order                           → TestLogEventKeyOrder
-//   Level filtering                     → TestLevelFiltering
-//   Write failure handling              → TestWriteFailure*
-//   SnapdUser.LogValue                  → TestSnapdUserLogValue
-//   Reason.LogValue                     → TestReasonLogValue
-//   Peer.LogValue                       → TestPeerLogValue,
-//                                         TestPeerLogValueSecurityLabelsKeyOrder,
-//                                         TestPeerLogValueEmptySecurityLabels
-//   Endpoint.LogValue                   → TestEndpointLogValue
-
 package seclog_test
 
 import (
