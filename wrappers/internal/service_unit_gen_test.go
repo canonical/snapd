@@ -1123,8 +1123,8 @@ func (s *serviceUnitGenSuite) TestExecConditionNotPresentForSystemDaemon(c *C) {
 }
 
 func (s *serviceUnitGenSuite) TestExecConditionAllCodesOccupied(c *C) {
-	allCodes := make([]string, 0, 255)
-	for i := 1; i <= 255; i++ {
+	allCodes := make([]string, 0, 254)
+	for i := 1; i <= 254; i++ {
 		allCodes = append(allCodes, fmt.Sprintf("%d", i))
 	}
 	service := &snap.AppInfo{
@@ -1141,5 +1141,5 @@ func (s *serviceUnitGenSuite) TestExecConditionAllCodesOccupied(c *C) {
 	}
 
 	_, err := internal.GenerateSnapServiceUnitFile(service, nil)
-	c.Check(err, ErrorMatches, `cannot find available exit code for user-service-precondition: all exit codes 1-255 are in success-exit-status`)
+	c.Check(err, ErrorMatches, `cannot find available exit code for user-service-precondition: all exit codes 1-254 are in success-exit-status`)
 }
