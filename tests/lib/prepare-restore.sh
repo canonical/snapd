@@ -227,6 +227,11 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if os.query is-classic && [ -n "$TAG_FEATURES" ]; then
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        add_to_grub_kernel_cmdline "tag.features=1"
+    fi
     if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
         "$TESTSTOOLS"/snapd-state cancel-autorefresh
 
@@ -790,6 +795,10 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    if [ -n "$TAG_FEATURES" ]; then
+        "$TESTSLIB"/collect-artifacts.sh features --after-suite-prepare
+    fi
 }
 
 restore_suite_each() {
@@ -889,6 +898,10 @@ restore_suite() {
 	if tests.pkgs is-installed snap-confine; then
             distro_purge_package snap-confine
         fi
+    fi
+    if [ -n "$TAG_FEATURES" ]; then
+        journalctl --rotate || true
+        journalctl --vacuum-time=1s || true
     fi
 }
 

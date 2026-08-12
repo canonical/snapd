@@ -206,6 +206,20 @@ save_installed_core_snap() {
     fi
 }
 
+add_to_grub_kernel_cmdline() {
+    local params=$1
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        if [ -f "/etc/default/grub.d/99-spread-kcmdline.cfg" ]; then
+            echo "/etc/default/grub.d/99-spread-kcmdline.cfg already exists" >&2
+            exit 1
+        fi
+        cat <<EOF | sudo tee /etc/default/grub.d/99-spread-kcmdline.cfg
+GRUB_CMDLINE_LINUX_DEFAULT="\${GRUB_CMDLINE_LINUX_DEFAULT} $params"
+EOF
+        update-grub
+        REBOOT
+    fi
+}
 
 # update_core_snap_for_classic_reexec modifies the core snap for snapd re-exec
 # by injecting binaries from the installed snapd deb built from our modified code.
@@ -586,7 +600,6 @@ prepare_classic() {
 
         prepare_reexec_override
         prepare_state_lock "SNAPD PROJECT"
-        prepare_tag_features
         prepare_memory_limit_override
         disable_refreshes
 
@@ -1404,6 +1417,29 @@ EOF
     cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 }
 
+repack_gadget_w_feature_tagging_core_18() {
+    channel=$1
+    repack_dir=$2
+    snap download --basename=pc --channel="18/${channel}" pc
+    unsquashfs -d pc-gadget pc.snap
+    # UC18 boot is still driven by grub config from the gadget, so
+    # update linux cmdline entries there as well.
+    for grub_cfg in pc-gadget/grub.conf pc-gadget/grub.cfg; do
+        if [ -f "$grub_cfg" ] && ! grep -q "tag.features=1" "$grub_cfg"; then
+            sed -i 's/^\([[:space:]]*linux[[:space:]].*\)$/\1 tag.features=1/' "$grub_cfg"
+        fi
+    done
+    cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+    snap pack --filename=pc-repacked.snap pc-gadget 
+    mv pc-repacked.snap "$repack_dir"/pc-repacked.snap
+    echo "$repack_dir/pc-repacked.snap"
+}
+
 setup_reflash_magic() {
     # install the stuff we need
     distro_install_package kpartx busybox-static
@@ -1581,6 +1617,10 @@ EOF
             EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel.snap"
             chmod 0600 pc-kernel.snap
         fi
+        if [ -n "$TAG_FEATURES" ] && is_test_target_core 18; then
+            snap="$(repack_gadget_w_feature_tagging_core_18 "$GADGET_CHANNEL" "$IMAGE_HOME")"
+            EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $snap"
+        fi
     fi
 
     if is_test_target_core_ge 20; then
@@ -1628,17 +1668,28 @@ EOF
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
+        cmdlinefeat=""
+        if [ -n "$TAG_FEATURES" ]; then
+            cmdlinefeat=" tag.features=1"
+            cat >> pc-gadget/meta/gadget.yaml << EOF
+defaults:
+  system:
+    journal:
+      persistent: true
+EOF
+        fi
+
         if [[ "$SPREAD_BACKEND" =~ google ]] || [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 
             # can read more easily than tty1 for example
-            for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1"; do
+            for cmd in "console=ttyS0" "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1" "panic=-1$cmdlinefeat"; do
                 echo "$cmd" >> pc-gadget/cmdline.full
             done
         else
             # but for other backends, just add the additional debugging things
             # on top of whatever the gadget currently is configured to use
-            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1"; do
+            for cmd in "dangerous" "systemd.journald.forward_to_console=1" "rd.systemd.journald.forward_to_console=1$cmdlinefeat"; do
                 echo "$cmd" >> pc-gadget/cmdline.extra
             done
         fi
@@ -1910,34 +1961,6 @@ EOF
     fi
 }
 
-prepare_tag_features(){
-    CONF_FILE="/etc/systemd/system/snapd.service.d/99-feature-tags.conf"
-    RESTART=false
-
-    if [ -n "$TAG_FEATURES" ]; then
-        # Generate the config file when it does not exist and when the threshold has changed different
-        if ! [ -f "$CONF_FILE" ]; then
-            cat <<EOF > "$CONF_FILE"
-[Service]
-Environment=SNAPPY_TESTING=1
-Environment=SNAPD_TRACE=1
-Environment=SNAPD_JSON_LOGGING=1
-EOF
-            RESTART=true
-        fi
-    elif [ -f "$CONF_FILE" ]; then
-        rm -f "$CONF_FILE"
-        RESTART=true
-    fi
-
-    if [ "$RESTART" = "true" ]; then
-        # the service setting may have changed in the service so we need
-        # to ensure snapd is reloaded
-        systemctl daemon-reload
-        systemctl restart snapd
-    fi
-}
-
 # prepare_ubuntu_core will prepare ubuntu-core 16+
 prepare_ubuntu_core() {
     # Configure the proxy in the system when it is required
@@ -2064,7 +2087,6 @@ prepare_ubuntu_core() {
         remove_disabled_snaps
         prepare_memory_limit_override
         prepare_state_lock "SNAPD PROJECT"
-        prepare_tag_features
         setup_experimental_features
         systemctl stop snapd.service snapd.socket
         save_snapd_state
