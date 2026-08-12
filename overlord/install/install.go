@@ -747,6 +747,13 @@ func PrepareEncryptedSystemData(
 	// make note of the encryption keys and auth options, and the check result
 	trustedInstallObserver.SetEncryptionParams(dataBootstrappedContainer, saveBootstrappedContainer, primaryKey, volumesAuth, checkResult)
 
+	if saveBootstrappedContainer != nil {
+		saveBootstrappedContainer.CommitUsedKey()
+	}
+	if dataBootstrappedContainer != nil {
+		dataBootstrappedContainer.CommitUsedKey()
+	}
+
 	return nil
 }
 

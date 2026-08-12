@@ -368,6 +368,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	saveContainer.RegisterKeyAsUsed(primaryKey, unlockPlainKey)
+
 	kernelInfo, err := snapstateKernelInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
@@ -451,6 +453,10 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 	st.Set("fde", fdeState)
 	// swapping the protector key is the sign we have finished
 	revertReprovisionAttemptOnError = false
+
+	// It is now safe to replace the keys in kernel keyring.
+	saveContainer.CommitUsedKey()
+	dataContainer.CommitUsedKey()
 
 	// Steps:
 	//   8. Erase nv counters associated to the old keys
