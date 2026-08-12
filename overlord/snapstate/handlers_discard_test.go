@@ -21,7 +21,6 @@ package snapstate_test
 
 import (
 	"os"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -301,7 +300,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapRemovesSeqFileOnLastRevision(c *C) {
 	snapstate.Set(s.state, "foo", snapst)
 	c.Assert(snapstate.WriteSeqFile("foo", snapst), IsNil)
 
-	seqFilePath := filepath.Join(dirs.SnapSeqDir, "foo.json")
+	seqFilePath := snap.SequenceFile("foo")
 	c.Assert(seqFilePath, testutil.FilePresent)
 
 	t := s.state.NewTask("discard-snap", "test")
@@ -336,7 +335,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapKeepsSeqFileForNonLastRevision(c *C)
 	snapstate.Set(s.state, "foo", snapst)
 	c.Assert(snapstate.WriteSeqFile("foo", snapst), IsNil)
 
-	seqFilePath := filepath.Join(dirs.SnapSeqDir, "foo.json")
+	seqFilePath := snap.SequenceFile("foo")
 	c.Assert(seqFilePath, testutil.FilePresent)
 
 	t := s.state.NewTask("discard-snap", "test")
