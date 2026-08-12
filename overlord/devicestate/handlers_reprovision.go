@@ -368,6 +368,11 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// Note: the default keyslot unlock key for dataContainer
+	// will be generated and registered in the sealing of keys
+	// within call to boot.MakeRunnableReprovision.
+	saveContainer.RegisterKeyAsUsed(primaryKey, unlockPlainKey)
+
 	kernelInfo, err := snapstateKernelInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
@@ -453,6 +458,10 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 
 	// Step 7. swap the state
 	st.Set("fde", fdeState)
+
+	// It is now safe to replace the keys in kernel keyring.
+	saveContainer.CommitUsedKey()
+	dataContainer.CommitUsedKey()
 
 	// Steps:
 	//   8. Erase nv counters associated to the old keys
