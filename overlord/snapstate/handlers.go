@@ -3630,7 +3630,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 
-		// remove sequence file
 		seqFilePath := snap.SequenceFile(snapsup.InstanceName())
 		if err := os.Remove(seqFilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
