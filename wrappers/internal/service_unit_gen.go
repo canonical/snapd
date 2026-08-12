@@ -88,7 +88,9 @@ func ensureMinSystemdDuration(app *snap.AppInfo, in timeout.Timeout, field strin
 // determine the --error-exit-code argument for the
 // "snap routine user-service-precondition" ExecCondition stanza, ensuring it
 // does not collide with any of the app's success exit status codes. Returns
-// an error if all codes 1-255 are occupied.
+// an error if all codes 1-254 are occupied. We don't consider 255 because
+// systemd treats code 255 as an indication that the unit should be marked as
+// failed, rather than simply skipped.
 func userServicePreconditionErrorExitCode(successExitStatus []string) (int, error) {
 	codes := make(map[int]bool)
 	for _, s := range successExitStatus {
@@ -96,12 +98,12 @@ func userServicePreconditionErrorExitCode(successExitStatus []string) (int, erro
 			codes[code] = true
 		}
 	}
-	for i := 1; i <= 255; i++ {
+	for i := 1; i <= 254; i++ {
 		if !codes[i] {
 			return i, nil
 		}
 	}
-	return 0, fmt.Errorf("cannot find available exit code for user-service-precondition: all exit codes 1-255 are in success-exit-status")
+	return 0, fmt.Errorf("cannot find available exit code for user-service-precondition: all exit codes 1-254 are in success-exit-status")
 }
 
 func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOptions) ([]byte, error) {
