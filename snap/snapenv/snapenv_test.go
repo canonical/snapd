@@ -70,7 +70,7 @@ var mockSnapInfoWithComponents = &snap.Info{
 		Revision: snap.R(17),
 	},
 	Components: map[string]*snap.Component{
-		"comp1": &snap.Component{
+		"comp1": {
 			Name: "comp1",
 			Type: "standard",
 		},
