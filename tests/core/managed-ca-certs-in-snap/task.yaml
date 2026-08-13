@@ -50,11 +50,6 @@ execute: |
     # cleanup the HTTPS server
     trap 'if [ -n "$HTTPS_PID" ]; then kill "$HTTPS_PID" 2>/dev/null || true; fi;' EXIT
 
-    if ! command -v openssl >/dev/null; then
-        echo "openssl is required for certificate generation"
-        exit 1
-    fi
-
     openssl req -x509 -newkey rsa:2048 -nodes -sha256 \
         -days 2 \
         -config "$CERT_CONFIG" \

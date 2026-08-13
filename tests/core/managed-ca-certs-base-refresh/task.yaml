@@ -1,0 +1,133 @@
+summary: Verify managed CA visibility across model base refresh and revert
+
+details: |
+    Install a strict shell snap built against the current model base, inject a
+    custom CA into the managed certificate database, and verify that the snap
+    still sees the managed bundle before and after a rebooting model base
+    refresh and the subsequent revert.
+
+# Let's just run this on a single system for now as it's a slow test
+systems:
+  - ubuntu-core-24-*
+
+environment:
+    CERT_NAME: spread-managed-ca-base-refresh
+    CERT_PEM: ca-base-refresh.pem
+    CERT_KEY: ca-base-refresh.key
+
+prepare: |
+    . /etc/os-release
+    CORE_SNAP="core${VERSION_ID}"
+    readlink "/snap/$CORE_SNAP/current" > core.rev
+
+restore: |
+    . /etc/os-release
+    CORE_SNAP="core${VERSION_ID}"
+    SH_SNAP="test-snapd-sh-${CORE_SNAP}"
+
+    snap unset system "pki.certs.custom.${CERT_NAME}" || true
+    snap remove --purge "$SH_SNAP" || true
+
+execute: |
+    . /etc/os-release
+    CORE_SNAP="core${VERSION_ID}"
+    SH_SNAP="test-snapd-sh-${CORE_SNAP}"
+    SNAPD_CA_BUNDLE="/var/lib/snapd/pki/v1/merged/ca-certificates.crt"
+    CORE_CA_BUNDLE="/snap/${CORE_SNAP}/current/etc/ssl/certs/ca-certificates.crt"
+
+    wait_for_snapd_ready() {
+        snap wait system seed.loaded
+        retry -n 30 --wait 1 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
+    }
+
+    wait_and_verify_change() {
+        local CH_ID="$1"
+
+        snap watch "$CH_ID" || true
+        snap changes | MATCH "$CH_ID\\s+Done"
+        snap change "$CH_ID" > tasks.done
+        NOMATCH '^Error' < tasks.done
+        NOMATCH '^Undone' < tasks.done
+        NOMATCH '^Wait' < tasks.done
+        retry -n 30 --wait 1 sh -c 'systemctl is-system-running | MATCH "(running|degraded)"'
+    }
+
+    verify_managed_bundle_visible() {
+        local SNAPD_BUNDLE_SHA CORE_BUNDLE_SHA SNAPD_CERT_ID CORE_CERT_ID SNAP_CERT_ID
+
+        test -s "$SNAPD_CA_BUNDLE"
+        test -s "$CORE_CA_BUNDLE"
+        openssl verify -CAfile "$SNAPD_CA_BUNDLE" "$CERT_PEM" >/dev/null 2>&1
+
+        SNAPD_BUNDLE_SHA="$(sha256sum "$SNAPD_CA_BUNDLE" | awk '{print $1}')"
+        CORE_BUNDLE_SHA="$(sha256sum "$CORE_CA_BUNDLE" | awk '{print $1}')"
+        SNAPD_CERT_ID="$(stat -Lc '%d:%i' /var/lib/snapd/pki/v1/merged)"
+        CORE_CERT_ID="$(stat -Lc '%d:%i' "/snap/${CORE_SNAP}/current/etc/ssl/certs")"
+        # Compare the mounted certs directory identity from inside the snap.
+        # Directly reading the bundle file is not required for this coverage.
+        SNAP_CERT_ID="$("${SH_SNAP}.sh" -c "stat -Lc '%d:%i' /etc/ssl/certs")"
+
+        test "$SNAPD_BUNDLE_SHA" != "$CORE_BUNDLE_SHA"
+        test "$SNAP_CERT_ID" = "$SNAPD_CERT_ID"
+        test "$SNAP_CERT_ID" != "$CORE_CERT_ID"
+    }
+
+    wait_for_snapd_ready
+
+    if [ "$SPREAD_REBOOT" -eq 0 ]; then
+        echo "Install shell snap built against the current model base"
+        "$TESTSTOOLS"/snaps-state install-local "$SH_SNAP"
+        "${SH_SNAP}.sh" -c 'echo hello' | MATCH hello
+
+        echo "Create a temporary custom CA certificate"
+        openssl req -x509 -newkey rsa:2048 -nodes -sha256 \
+            -subj "/CN=snapd-spread-ca-base-refresh" \
+            -days 2 \
+            -keyout "$CERT_KEY" -out "$CERT_PEM" >/dev/null 2>&1
+
+        echo "Inject custom CA certificate into the managed database"
+        snap unset system "pki.certs.custom.${CERT_NAME}" || true
+        snap set system "pki.certs.custom.${CERT_NAME}.content=$(cat "$CERT_PEM")"
+
+        retry -n 40 --wait 0.5 sh -c "openssl verify -CAfile '$SNAPD_CA_BUNDLE' '$CERT_PEM' >/dev/null 2>&1"
+
+        echo "Ensure the shell snap sees the managed certificate bundle"
+        verify_managed_bundle_visible
+
+        echo "Refresh the current model base with a locally modified copy"
+        cp "/var/lib/snapd/snaps/${CORE_SNAP}_$(cat core.rev).snap" "${CORE_SNAP}-refresh.snap"
+        printf '\0' >> "${CORE_SNAP}-refresh.snap"
+
+        snap install "$PWD/${CORE_SNAP}-refresh.snap" --dangerous --no-wait > refresh-change-id
+        test -n "$(cat refresh-change-id)"
+
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+        REBOOT
+    elif [ "$SPREAD_REBOOT" -eq 1 ]; then
+        CH_ID="$(cat refresh-change-id)"
+        wait_and_verify_change "$CH_ID"
+
+        MATCH 'Update certificate database' < tasks.done
+        [ "$(grep -c 'Update certificate database' tasks.done)" -eq 1 ]
+
+        echo "Ensure the shell snap still sees the managed certificate bundle after refresh"
+        verify_managed_bundle_visible
+
+        snap revert "$CORE_SNAP" --no-wait > revert-change-id
+        retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
+        REBOOT
+    elif [ "$SPREAD_REBOOT" -eq 2 ]; then
+        CH_ID="$(cat revert-change-id)"
+        wait_and_verify_change "$CH_ID"
+
+        MATCH 'Update certificate database' < tasks.done
+        [ "$(grep -c 'Update certificate database' tasks.done)" -eq 1 ]
+
+        test "$(readlink "/snap/$CORE_SNAP/current")" = "$(cat core.rev)"
+
+        echo "Ensure the shell snap still sees the managed certificate bundle after revert"
+        verify_managed_bundle_visible
+    else
+        echo "unexpected reboot"
+        exit 1
+    fi

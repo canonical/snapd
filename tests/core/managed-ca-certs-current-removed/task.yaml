@@ -1,0 +1,74 @@
+summary: Discard preserved namespace when the certs symlink disappears
+
+details: |
+    Create a preserved mount namespace that already mounts a managed CA
+    generation and records that generation in snap.testsnap.info. After
+    removing the certificate current symlink, the next launch must discard that
+    namespace and recreate it without snapd managed certs.
+
+environment:
+    MERGED_PATH: /var/lib/snapd/pki/v1/merged
+    MERGED_BACKUP: /var/lib/snapd/pki/v1/merged.spread-disabled
+
+skip:
+    - reason: Unshare command doesn't support saving the namespace
+      if: |
+        unshare --mount=/something true 2>&1 | grep "option '--mount' doesn't allow an argument"
+
+prepare: |
+    if ! [ -L /var/lib/snapd/pki/v1/merged ]; then
+        echo "the merged certificates path (/var/lib/snapd/pki/v1/merged) must exist"
+        exit 1
+    fi
+
+    echo "Install test snap"
+    rm -rf testsnap
+    cp -a ../../main/snap-ns-forward-compat/testsnap .
+    mkdir -p testsnap/import
+    "$TESTSTOOLS"/snaps-state install-local testsnap
+
+restore: |
+    if [ -L "$MERGED_BACKUP" ] && ! [ -e "$MERGED_PATH" ]; then
+        mv "$MERGED_BACKUP" "$MERGED_PATH"
+    fi
+
+    snap remove --purge testsnap || true
+    rm -rf testsnap
+    rm -f /run/snapd/ns/snap.testsnap.fstab /run/snapd/ns/snap.testsnap.info /run/snapd/ns/testsnap.mnt
+
+execute: |
+    echo "Creating a mount namespace whose root is a tmpfs"
+    mkdir -p /run/snapd/ns/
+    mount -o bind --make-private /run/snapd/ns/ /run/snapd/ns/
+    touch /run/snapd/ns/testsnap.mnt
+    MOUNT_TMPDIR="$(mktemp -d --tmpdir test-ns.XXXXXX)"
+    tests.cleanup defer rmdir "$MOUNT_TMPDIR"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    export SNAP_MOUNT_DIR
+    unshare --mount=/run/snapd/ns/testsnap.mnt --propagation unchanged \
+        ../../main/snap-ns-forward-compat/setup_mount_namespace.sh "$MOUNT_TMPDIR"
+
+    echo 'tmpfs / tmpfs x-snapd.origin=rootfs 0 0' > /run/snapd/ns/snap.testsnap.fstab
+
+    CURRENT_CA_GENERATION="$(readlink "$MERGED_PATH")"
+    CURRENT_CA_GENERATION="${CURRENT_CA_GENERATION##*/}"
+    test -n "$CURRENT_CA_GENERATION"
+    {
+      echo 'base-snap-name=core20'
+      echo "managed-ca-certs-generation=${CURRENT_CA_GENERATION}"
+    } > /run/snapd/ns/snap.testsnap.info
+
+    echo "Confirm the handcrafted namespace is reused while merged exists"
+    SNAPD_DEBUG=1 testsnap.cmd test -f /this-is-our-rootfs
+    MATCH '^managed-ca-certs-generation=' < /run/snapd/ns/snap.testsnap.info
+
+    echo "Remove the merged selector and verify the preserved namespace is discarded"
+    rm -f "$MERGED_BACKUP"
+    mv "$MERGED_PATH" "$MERGED_BACKUP"
+    test ! -e "$MERGED_PATH"
+
+    SNAPD_DEBUG=1 testsnap.cmd test ! -f /this-is-our-rootfs
+
+    test -f /run/snapd/ns/snap.testsnap.info
+    MATCH '^base-snap-name=core20$' < /run/snapd/ns/snap.testsnap.info
+    NOMATCH '^managed-ca-certs-generation=' < /run/snapd/ns/snap.testsnap.info
