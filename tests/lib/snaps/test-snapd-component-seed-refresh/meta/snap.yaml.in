@@ -15,6 +15,3 @@ components:
     type: test
   comp-not-in-model:
     type: test
-apps:
-  test-snapd-component-seed-refresh:
-    command: test

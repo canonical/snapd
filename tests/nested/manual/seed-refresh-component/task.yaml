@@ -182,7 +182,8 @@ execute: |
       "${test_snap_name}+comp-optional-not-in-seed"
       "${test_snap_name}+comp-not-in-model"
   )
-  model_json="$TESTSLIB/assertions/developer1-${version}-components-seed-refresh-dangerous.json"
+
+  model_json="$(pwd)/model.json"
   test_snap_id="$(gojq -r --arg name "${test_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
   test_snap_path="$(echo "${extra_snaps_path}/${test_snap_name}_"*".snap")"
   test -n "${test_snap_id}"
@@ -341,14 +342,14 @@ execute: |
   remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["seeded-systems"]' > seeded-systems.json
   remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data["default-recovery-system"]' > default-recovery-system.json
 
+  latest_seed_label="$(gojq -r '.[0].system' seeded-systems.json)"
+  test -n "${latest_seed_label}"
   if [ "$SNAP_PRESENCE" = "optional_not_in_seed" ]; then
       # verify no seed refresh was triggered
       test "$(gojq -r '.[0].system' seeded-systems.json)" = "${orig_seed_label}"
       test "$(gojq '[.[] | select(."seed-refresh" == true)] | length' seeded-systems.json)" = 0
   else
       # verify seed-refresh recorded and promoted the new recovery system
-      latest_seed_label="$(gojq -r '.[0].system' seeded-systems.json)"
-      test -n "${latest_seed_label}"
       test "${latest_seed_label}" != "${orig_seed_label}"
       test "$(gojq -r '.[0]["seed-refresh"]' seeded-systems.json)" = true
       test "$(gojq -r '.[1].system' seeded-systems.json)" = "${orig_seed_label}"
@@ -359,8 +360,10 @@ execute: |
       remote.exec "test -d /run/mnt/ubuntu-seed/systems/${latest_seed_label}"
   fi
 
+  assertions="/run/mnt/ubuntu-seed/systems/${latest_seed_label}/assertions/snaps"
   if [ "$SNAP_PRESENCE" = "optional_not_in_seed" ]; then
       remote.exec "! ls /var/lib/snapd/seed/snaps/${test_snap_name}_*.snap 2>/dev/null"
+      remote.exec "awk -v RS='\n\n' '/snap-id: ${test_snap_id}/ && /snap-revision: .*/' ${assertions}" | NOMATCH '.'
   else
       assert_seed_snap_and_comp_revisions_present "${orig_seed_label}"  "${test_snap_name}=1"
       latest_snap_revision=2
@@ -369,20 +372,12 @@ execute: |
       fi
       assert_seed_snap_and_comp_revisions_present "${latest_seed_label}" "${test_snap_name}=${latest_snap_revision}"
 
-      assertions="/run/mnt/ubuntu-seed/systems/${latest_seed_label}/assertions/snaps"
       for comp in "${component_names[@]}"; do
           case "$comp" in
-          # "comp-optional-not-in-seed" )
-          #     # components optional not in the seed should have the revision from the model
-          #     remote.exec "awk -v RS='\n\n' '/resource-name: ${comp}/ && /resource-revision: 1/' ${assertions}" | MATCH '.'
-          #     remote.exec "test -f /var/lib/snapd/seed/snaps/${test_snap_name}+${comp}_1.comp"
-          #     remote.exec "awk -v RS='\n\n' '/resource-name: ${comp}/ && /resource-revision: 2/' ${assertions}" | NOMATCH '.'
-          #     remote.exec "! ls /var/lib/snapd/seed/snaps/${test_snap_name}+${comp}_2.comp 2>/dev/null"
-          #     ;;
-          "comp-not-in-model")
-          "comp-optional-not-in-seed")
+          "comp-not-in-model" | "comp-optional-not-in-seed")
               # components not in the model should not be seeded
               remote.exec "! ls /var/lib/snapd/seed/snaps/${test_snap_name}+${comp}_*.comp 2>/dev/null"
+              remote.exec "awk -v RS='\n\n' '/resource-name: ${comp}/ && /resource-revision: .*/' ${assertions}" | NOMATCH '.'
               ;;
           "comp-optional-in-seed" | "comp-required")
               # required and optional in seed components should be seeded with
