@@ -84,6 +84,12 @@ var (
 	settleTimeout = testutil.HostScaledTimeout(30 * time.Second)
 )
 
+type modelComponent struct {
+	Name      string
+	Presence  string
+	NotInSeed bool
+}
+
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrBaseSuite struct {
@@ -2299,9 +2305,9 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1"},
 		{"name": "snap-2", "presence": "optional"},
-	}, map[string][]map[string]string{
+	}, map[string][]modelComponent{
 		"snap-1": {
-			{"name": "comp1", "presence": "optional"},
+			modelComponent{Name: "comp1", Presence: "optional"},
 		},
 	}, "snap-2")
 
@@ -2334,6 +2340,9 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasks(c *C) {
 		"component-setup-tasks": []any{tComp1.ID()},
 		"allowlist": map[string]any{
 			"snaps": []any{"core24", "pc", "pc-kernel", "snap-1", "snap-2", "snapd"},
+			"components": map[string]any{
+				"snap-1": []any{"comp1"},
+			},
 		},
 		"mark-default": true,
 		"seed-refresh": true,
@@ -2353,73 +2362,38 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksAllowlistUsesCurrentSeedOptio
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// set up the current seeded-system entry. seed.Open is replaced below so
-	// that optional snap and component membership can be controlled directly.
-	s.setupSeedRefreshSeedAndContext(c, []map[string]string{
+	// set up the current seeded-system entry.
+	dctx := s.setupSeedRefreshSeedAndContext(c, []map[string]string{
 		{"name": "snapd", "type": "snapd"},
 		{"name": "core24", "type": "base", "default-channel": "24"},
 		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
-	}, nil)
-
-	model := s.brands.Model("my-brand", "seed-refresh-model", map[string]any{
-		"architecture": "amd64",
-		"base":         "core24",
-		"grade":        "dangerous",
-		"snaps": []any{
-			map[string]any{"name": "snapd", "type": "snapd"},
-			map[string]any{"name": "core24", "type": "base"},
-			map[string]any{"name": "pc-kernel", "type": "kernel"},
-			map[string]any{"name": "pc", "type": "gadget"},
-			map[string]any{
-				"name": "required-app",
-				"components": map[string]any{
-					"required-comp":         "required",
-					"optional-present-comp": "optional",
-					"optional-absent-comp":  "optional",
-				},
-			},
-			map[string]any{
-				"name":     "optional-present",
-				"presence": "optional",
-				"components": map[string]any{
-					"required-comp":         "required",
-					"optional-present-comp": "optional",
-					"optional-absent-comp":  "optional",
-				},
-			},
-			map[string]any{
-				"name":       "optional-absent",
-				"presence":   "optional",
-				"components": map[string]any{"required-comp": "required"},
-			},
+		{"name": "required-app"},
+		{"name": "optional-present", "presence": "optional"},
+		{"name": "optional-absent", "presence": "optional"},
+	}, map[string][]modelComponent{
+		"required-app": {
+			modelComponent{Name: "required-comp", Presence: "required"},
+			modelComponent{Name: "optional-present-comp", Presence: "optional"},
+			modelComponent{Name: "optional-absent-comp", Presence: "optional", NotInSeed: true},
 		},
-	})
-
-	seedOpenCalls := 0
-	restore := devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
-		seedOpenCalls++
-		return &fakeSeedCopier{
-			fakeSeed: fakeSeed{},
-			optionalContainers: seed.OptionalContainers{
-				Snaps: []string{"optional-present"},
-				Components: map[string][]string{
-					"required-app":     {"optional-present-comp"},
-					"optional-present": {"optional-present-comp"},
-				},
-			},
-		}, nil
-	})
-	defer restore()
+		"optional-present": {
+			modelComponent{Name: "required-comp", Presence: "required"},
+			modelComponent{Name: "optional-present-comp", Presence: "optional"},
+			modelComponent{Name: "optional-absent-comp", Presence: "optional", NotInSeed: true},
+		},
+		"optional-absent": {
+			modelComponent{Name: "required-comp", Presence: "required"},
+		},
+	}, "optional-present")
 
 	requiredTask := s.state.NewTask("fake-download", "...")
-	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, &snapstatetest.TrivialDeviceContext{DeviceModel: model}, []snapstate.SeedRefreshCandidate{{
+	seedTS, added, err := devicestate.SeedRefreshTasks(s.state, dctx, []snapstate.SeedRefreshCandidate{{
 		InstanceName: "required-app", SnapSetupTaskIDs: []string{requiredTask.ID()},
 	}}, snapstate.SeedRefreshEvictionPolicy{SeedsToRetain: 1})
 	c.Assert(err, IsNil)
 	c.Assert(seedTS, NotNil)
 	c.Check(added, DeepEquals, map[string]bool{"required-app": true})
-	c.Check(seedOpenCalls, Equals, 1)
 
 	var setup devicestate.RecoverySystemSetup
 	c.Assert(seedTS.Create.Get("recovery-system-setup", &setup), IsNil)
@@ -2443,9 +2417,9 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksSkipsComponentExclusiveOption
 		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1", "presence": "optional"},
-	}, map[string][]map[string]string{
+	}, map[string][]modelComponent{
 		"snap-1": {
-			{"name": "comp1", "presence": "required"},
+			modelComponent{Name: "comp1", Presence: "required"},
 		},
 	})
 
@@ -2540,11 +2514,11 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksOptionalSnapInSeedWithCompone
 		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1", "presence": "optional"},
-	}, map[string][]map[string]string{
+	}, map[string][]modelComponent{
 		"snap-1": {
-			{"name": "comp1", "presence": "optional"},
-			{"name": "comp2", "presence": "optional", "optional": "not-in-seed"},
-			{"name": "comp3", "presence": "required"},
+			modelComponent{Name: "comp1", Presence: "optional"},
+			modelComponent{Name: "comp2", Presence: "optional", NotInSeed: true},
+			modelComponent{Name: "comp3", Presence: "required"},
 		},
 	}, "snap-1")
 
@@ -2613,11 +2587,11 @@ func (s *deviceMgrSuite) TestCreateSeedRefreshTasksRequiredSnapWithComponents(c 
 		{"name": "pc-kernel", "type": "kernel", "default-channel": "24"},
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1"},
-	}, map[string][]map[string]string{
+	}, map[string][]modelComponent{
 		"snap-1": {
-			{"name": "comp1", "presence": "optional"},
-			{"name": "comp2", "presence": "optional", "optional": "not-in-seed"},
-			{"name": "comp3", "presence": "required"},
+			modelComponent{Name: "comp1", Presence: "optional"},
+			modelComponent{Name: "comp2", Presence: "optional", NotInSeed: true},
+			modelComponent{Name: "comp3", Presence: "required"},
 		},
 	})
 
@@ -2819,13 +2793,13 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1"},
 		{"name": "snap-2", "presence": "optional"},
-	}, map[string][]map[string]string{
+	}, map[string][]modelComponent{
 		"snap-1": {
-			{"name": "comp3", "presence": "required"},
+			modelComponent{Name: "comp3", Presence: "required"},
 		},
 		"snap-2": {
-			{"name": "comp1", "presence": "optional"},
-			{"name": "comp2", "presence": "optional"},
+			modelComponent{Name: "comp1", Presence: "optional"},
+			modelComponent{Name: "comp2", Presence: "optional"},
 		},
 	}, "snap-2", "snap-3")
 	restore := devicestate.MockSeedOpen(func(seedDir, label string) (seed.Seed, error) {
@@ -2842,7 +2816,13 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 		Directory:           filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "20260227"),
 		SnapSetupTasks:      []string{snap1Task.ID()},
 		ComponentSetupTasks: []string{"comp-1"},
-		Allowlist:           &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
+		Allowlist: &devicestate.SeedAllowlist{
+			Snaps: []string{"snap-1", "snap-2"},
+			Components: map[string][]string{
+				"snap-1": {"comp3"},
+				"snap-2": {"comp1", "comp2"},
+			},
+		},
 	})
 	finalize := s.state.NewTask("finalize-recovery-system", "...")
 	finalize.Set("recovery-system-setup-task", create.ID())
@@ -2885,7 +2865,13 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChange(c *C) {
 	c.Assert(create.Get("recovery-system-setup", &setup), IsNil)
 	c.Check(setup.SnapSetupTasks, DeepEquals, []string{snap1Task.ID(), snap2Task.ID()})
 	c.Check(setup.ComponentSetupTasks, DeepEquals, []string{"comp-1", "comp-2", "comp-3"})
-	c.Check(setup.Allowlist, DeepEquals, &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}})
+	c.Check(setup.Allowlist, DeepEquals, &devicestate.SeedAllowlist{
+		Snaps: []string{"snap-1", "snap-2"},
+		Components: map[string][]string{
+			"snap-1": {"comp3"},
+			"snap-2": {"comp1", "comp2"},
+		},
+	})
 }
 
 func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeErrorsWithoutSeedAllowlist(c *C) {
@@ -2968,10 +2954,10 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeComponentExclusive(c *C) {
 		{"name": "pc", "type": "gadget", "default-channel": "24"},
 		{"name": "snap-1"},
 		{"name": "snap-2", "presence": "optional"},
-	}, map[string][]map[string]string{
+	}, map[string][]modelComponent{
 		"snap-2": {
-			{"name": "comp1", "presence": "optional"},
-			{"name": "comp2", "presence": "optional"},
+			modelComponent{Name: "comp1", Presence: "optional"},
+			modelComponent{Name: "comp2", Presence: "optional"},
 		},
 	}, "snap-2")
 	snap1Task := s.state.NewTask("fake-download", "...")
@@ -2983,7 +2969,12 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeComponentExclusive(c *C) {
 		Directory:           filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "20260227"),
 		SnapSetupTasks:      []string{snap1Task.ID()},
 		ComponentSetupTasks: []string{compTask1.ID()},
-		Allowlist:           &devicestate.SeedAllowlist{Snaps: []string{"snap-1", "snap-2"}},
+		Allowlist: &devicestate.SeedAllowlist{
+			Snaps: []string{"snap-1", "snap-2"},
+			Components: map[string][]string{
+				"snap-2": {"comp1", "comp2"},
+			},
+		},
 	})
 	finalize := s.state.NewTask("finalize-recovery-system", "...")
 	finalize.Set("recovery-system-setup-task", create.ID())
@@ -3003,6 +2994,12 @@ func (s *deviceMgrSuite) TestUpdateSeedRefreshChangeComponentExclusive(c *C) {
 	c.Assert(create.Get("recovery-system-setup", &setup), IsNil)
 	c.Check(setup.SnapSetupTasks, DeepEquals, []string{snap1Task.ID()})
 	c.Check(setup.ComponentSetupTasks, DeepEquals, []string{compTask1.ID(), compTask2.ID()})
+	c.Check(setup.Allowlist, DeepEquals, &devicestate.SeedAllowlist{
+		Snaps: []string{"snap-1", "snap-2"},
+		Components: map[string][]string{
+			"snap-2": {"comp1", "comp2"},
+		},
+	})
 }
 
 func (s *deviceMgrSuite) TestCreateSeedRefreshTasksSkipsOptionalSnapNotInCurrentSeed(c *C) {
@@ -3197,7 +3194,12 @@ func seedRefreshSnapYAML(name, snapType string) string {
 	return fmt.Sprintf("name: %s\nversion: 1\ntype: %s%s", name, snapType, base)
 }
 
-func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string]string, components map[string][]map[string]string, optionals ...string) snapstate.DeviceContext {
+// setupSeedRefreshSeedAndContext is a helper function that returns
+// the device context generated by creating a model containing the provided
+// snaps and components. It also creates the correct seed. Optional snaps
+// are included in the seed if listed in optionals and optional components
+// are included in the seed if modelComponent.NotInSeed if false.
+func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string]string, components map[string][]modelComponent, optionals ...string) snapstate.DeviceContext {
 	seed20 := &seedtest.TestingSeed20{
 		SeedSnaps: seedtest.SeedSnaps{
 			StoreSigning: s.storeSigning,
@@ -3243,18 +3245,18 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 		optionalInSeed := sn["presence"] == "optional"
 
 		comps := components[sn["name"]]
-		compsInSeed := make([]map[string]string, 0, len(comps))
+		compsInSeed := make([]modelComponent, 0, len(comps))
 
 		for _, comp := range comps {
-			if comp["presence"] == "optional" && comp["optional"] != "not-in-seed" {
+			if comp.Presence == "optional" && !comp.NotInSeed {
 				optSnap.Components = append(optSnap.Components,
-					seedwriter.OptionsComponent{Name: comp["name"]})
+					seedwriter.OptionsComponent{Name: comp.Name})
 				optionalInSeed = true
 			}
-			if comp["optional"] == "not-in-seed" {
+			if comp.NotInSeed {
 				continue
 			}
-			c.Logf("component in seed %q", snap.SnapComponentName(sn["name"], comp["name"]))
+			c.Logf("component in seed %q", snap.SnapComponentName(sn["name"], comp.Name))
 			compsInSeed = append(compsInSeed, comp)
 		}
 		if len(compsInSeed) > 0 {
@@ -3263,12 +3265,12 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 			b.WriteString(seedRefreshSnapYAML(sn["name"], sn["type"]))
 			b.WriteString("\ncomponents:")
 			for _, comp := range compsInSeed {
-				if comp["optional"] == "not-in-seed" {
+				if comp.NotInSeed {
 					continue
 				}
-				fmt.Fprintf(&b, "\n  %s:\n    type: standard", comp["name"])
-				compRevisions[comp["name"]] = snap.R(1)
-				cname := snap.SnapComponentName(sn["name"], comp["name"])
+				fmt.Fprintf(&b, "\n  %s:\n    type: standard", comp.Name)
+				compRevisions[comp.Name] = snap.R(1)
+				cname := snap.SnapComponentName(sn["name"], comp.Name)
 				seedtest.SampleSnapYaml[cname] = fmt.Sprintf("component: %s\ntype: standard\nversion: 1.0", cname)
 			}
 			seed20.MakeAssertedSnapWithComps(c, b.String(), files, snap.R(1), compRevisions, "my-brand", seed20.StoreSigning.Database)
@@ -3292,7 +3294,7 @@ func (s *deviceMgrSuite) setupSeedRefreshSeedAndContext(c *C, snaps []map[string
 		if comps, found := components[sn["name"]]; found {
 			modelComps := make(map[string]any, len(comps))
 			for _, comp := range comps {
-				modelComps[comp["name"]] = comp["presence"]
+				modelComps[comp.Name] = comp.Presence
 			}
 			modelSnap["components"] = modelComps
 		}
