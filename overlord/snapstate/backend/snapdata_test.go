@@ -175,6 +175,73 @@ func (s *snapdataSuite) TestSnapCommonDataDirs(c *C) {
 	})
 }
 
+// TestSnapDataDirsSkipsInaccessibleHomeDir verifies that home directories
+// that cannot be accessed (e.g. NFS with root_squash) are omitted from
+// the returned list so that callers do not encounter permission errors.
+func (s *snapdataSuite) TestSnapDataDirsSkipsInaccessibleHomeDir(c *C) {
+	homedir1 := filepath.Join(dirs.GlobalRootDir, "home_nfs", "user1")
+	homedir2 := filepath.Join(dirs.GlobalRootDir, "home", "user2")
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "1000", HomeDir: homedir1},
+			{Uid: "1001", HomeDir: homedir2},
+		}, nil
+	})
+	defer restore()
+
+	// homedir1 is chmod'd to 0000 to simulate NFS root_squash (EACCES).
+	// homedir2 is accessible normally.
+	c.Assert(os.MkdirAll(homedir1, 0755), IsNil)
+	c.Assert(os.Chmod(homedir1, 0000), IsNil)
+	defer os.Chmod(homedir1, 0755)
+	c.Assert(os.MkdirAll(homedir2, 0755), IsNil)
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	result, err := backend.SnapDataDirs(info, nil)
+	c.Assert(err, IsNil)
+	// user1's dir is excluded; user2's and system dirs are present.
+	c.Check(result, DeepEquals, []string{
+		filepath.Join(homedir2, "snap", "hello", "10"),
+		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "10"),
+		filepath.Join(dirs.SnapDataDir, "hello", "10"),
+	})
+}
+
+// TestSnapCommonDataDirsSkipsInaccessibleHomeDir verifies that home directories
+// that cannot be accessed (e.g. NFS with root_squash) are omitted from
+// the returned list, while XDG runtime dirs (not under home) are still included.
+func (s *snapdataSuite) TestSnapCommonDataDirsSkipsInaccessibleHomeDir(c *C) {
+	homedir1 := filepath.Join(dirs.GlobalRootDir, "home_nfs", "user1")
+	homedir2 := filepath.Join(dirs.GlobalRootDir, "home", "user2")
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "1000", Gid: "1000", HomeDir: homedir1},
+			{Uid: "1001", Gid: "1001", HomeDir: homedir2},
+		}, nil
+	})
+	defer restore()
+
+	// homedir1 is chmod'd to 0000 to simulate NFS root_squash (EACCES).
+	// homedir2 is accessible normally.
+	c.Assert(os.MkdirAll(homedir1, 0755), IsNil)
+	c.Assert(os.Chmod(homedir1, 0000), IsNil)
+	defer os.Chmod(homedir1, 0755)
+	c.Assert(os.MkdirAll(homedir2, 0755), IsNil)
+
+	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	result, err := backend.SnapCommonDataDirs(info, nil)
+	c.Assert(err, IsNil)
+	c.Check(result, DeepEquals, []string{
+		// user1's home-based common dir is excluded (home inaccessible)
+		filepath.Join(homedir2, "snap", "hello", "common"),
+		filepath.Join(dirs.GlobalRootDir, "root", "snap", "hello", "common"),
+		// user1's XDG runtime dir is still included (not under home)
+		filepath.Join(dirs.XdgRuntimeDirBase, "1000", "snap.hello"),
+		filepath.Join(dirs.XdgRuntimeDirBase, "1001", "snap.hello"),
+		filepath.Join(dirs.SnapDataDir, "hello", "common"),
+	})
+}
+
 func (s *snapdataSuite) TestRemoveSnapCommonData(c *C) {
 	homedir := filepath.Join(dirs.GlobalRootDir, "home", "user1")
 	usr := &user.User{Uid: "1000", Gid: "1000", HomeDir: homedir}

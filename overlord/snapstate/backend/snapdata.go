@@ -25,7 +25,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	unix "syscall"
+
+	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -160,6 +161,14 @@ func removeDirs(dirs []string) error {
 	return nil
 }
 
+// canAccess reports whether the process is not denied access to dir.
+// unix.Access uses the real UID, so on NFS with root_squash it correctly
+// reflects the nobody mapping.
+func canAccess(dir string) bool {
+	err := unix.Access(dir, unix.R_OK|unix.W_OK|unix.X_OK)
+	return !errors.Is(err, unix.EACCES)
+}
+
 // snapBaseDataDirs returns the list of base data directories for the given snap.
 func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, error) {
 	// collect the directories, homes first — only for verified users
@@ -171,6 +180,9 @@ func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, err
 	for _, usr := range users {
 		if usr.Uid == "0" {
 			// root is ordered explicitly below
+			continue
+		}
+		if !canAccess(usr.HomeDir) {
 			continue
 		}
 		found = append(found, snap.UserSnapDir(usr.HomeDir, snapName, opts))
@@ -197,6 +209,9 @@ func snapDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) 
 			// root is ordered explicitly below
 			continue
 		}
+		if !canAccess(usr.HomeDir) {
+			continue
+		}
 		found = append(found, info.UserDataDir(usr.HomeDir, opts))
 	}
 
@@ -219,6 +234,9 @@ func snapCommonDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 	for _, usr := range users {
 		if usr.Uid == "0" {
 			// root is ordered explicitly below
+			continue
+		}
+		if !canAccess(usr.HomeDir) {
 			continue
 		}
 		found = append(found, info.UserCommonDataDir(usr.HomeDir, opts))
