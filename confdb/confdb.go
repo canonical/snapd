@@ -324,6 +324,11 @@ func (s *Schema) ID() SchemaID {
 	}
 }
 
+// IsSystem returns true if the schema represents a system builtin confdb-schema.
+func (s *Schema) IsSystem() bool {
+	return s.Account == "system"
+}
+
 // GetViewsAffectedByPath returns all the views in the confdb schema that have
 // visibility into a storage path.
 func (s *Schema) GetViewsAffectedByPath(path []Accessor) []*View {

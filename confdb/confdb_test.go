@@ -197,6 +197,24 @@ func (*viewSuite) TestNewConfdb(c *C) {
 	}
 }
 
+func (*viewSuite) TestSchemaIsSystem(c *C) {
+	views := map[string]any{
+		"foo": map[string]any{
+			"rules": []any{
+				map[string]any{"storage": "foo"},
+			},
+		},
+	}
+
+	db, err := confdb.NewSchema("system", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Check(db.IsSystem(), Equals, true)
+
+	db, err = confdb.NewSchema("other", "foo", views, confdb.NewJSONSchema())
+	c.Assert(err, IsNil)
+	c.Check(db.IsSystem(), Equals, false)
+}
+
 func (s *viewSuite) TestMissingRequestDefaultsToStorage(c *C) {
 	databag := confdb.NewJSONDatabag()
 	views := map[string]any{

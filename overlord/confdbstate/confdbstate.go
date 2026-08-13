@@ -478,13 +478,22 @@ func WriteConfdbFromSnap(hookCtx *hookstate.Context, view *confdb.View, values m
 }
 
 func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, callingSnap string) (ts *state.TaskSet, commitTask, clearTxTask *state.Task, err error) {
-	custodians, custodianPlugs, err := getCustodianPlugsForView(st, view)
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	var custodians []string
+	var custodianPlugs map[string]*snap.PlugInfo
+	if !view.Schema().IsSystem() {
+		custodians, custodianPlugs, err = getCustodianPlugsForView(st, view)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 
-	if len(custodianPlugs) == 0 {
-		return nil, nil, nil, fmt.Errorf("cannot write confdb view %s: no custodian snap connected", view.ID())
+		if len(custodianPlugs) == 0 {
+			return nil, nil, nil, fmt.Errorf("cannot write confdb view %s: no custodian snap connected", view.ID())
+		}
+	} else {
+		// fail early if there is no appropriate subsystem handler
+		if _, ok := systemHandlers[tx.ConfdbName]; !ok {
+			return nil, nil, nil, fmt.Errorf("cannot write confdb system/%s: no internal handler", view.Schema().Name)
+		}
 	}
 
 	paths := tx.AlteredPaths()
@@ -524,7 +533,7 @@ func createChangeConfdbTasks(st *state.State, tx *Transaction, view *confdb.View
 			linkTask(chgViewTask)
 		}
 
-		if hookPrefix == "save-view-" && mightAffectEph && !saveViewHookPresent {
+		if hookPrefix == "save-view-" && mightAffectEph && !saveViewHookPresent && !view.Schema().IsSystem() {
 			return nil, nil, nil, fmt.Errorf("cannot write confdb view %s: write might change ephemeral data but no custodians has a save-view hook", view.ID())
 		}
 	}
@@ -949,13 +958,23 @@ func ReadConfdb(ctx context.Context, st *state.State, view *confdb.View, request
 // load-view or query-view hooks, nil is returned. If there are hooks to run,
 // a clear-confdb-tx task is also scheduled to remove the ongoing transaction at the end.
 func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, requests []string, constraints map[string]any) (*state.TaskSet, *state.Task, error) {
-	custodians, custodianPlugs, err := getCustodianPlugsForView(st, view)
-	if err != nil {
-		return nil, nil, err
-	}
+	var custodians []string
+	var custodianPlugs map[string]*snap.PlugInfo
+	if !view.Schema().IsSystem() {
+		var err error
+		custodians, custodianPlugs, err = getCustodianPlugsForView(st, view)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	if len(custodians) == 0 {
-		return nil, nil, fmt.Errorf("cannot read confdb view %s: no custodian snap connected", view.ID())
+		if len(custodians) == 0 {
+			return nil, nil, fmt.Errorf("cannot read confdb view %s: no custodian snap connected", view.ID())
+		}
+	} else {
+		// fail early if there is no appropriate subsystem handler
+		if _, ok := systemHandlers[tx.ConfdbName]; !ok {
+			return nil, nil, fmt.Errorf("cannot read confdb system/%s: no internal handler", view.Schema().Name)
+		}
 	}
 
 	ts := state.NewTaskSet()
@@ -992,7 +1011,7 @@ func createLoadConfdbTasks(st *state.State, tx *Transaction, view *confdb.View, 
 		}
 
 		// there must be least one load-view hook if we're accessing ephemeral data
-		if hookPrefix == "load-view-" && mightAffectEph && !loadViewHookPresent {
+		if hookPrefix == "load-view-" && mightAffectEph && !loadViewHookPresent && !view.Schema().IsSystem() {
 			return nil, nil, fmt.Errorf("cannot schedule tasks to read view %s: read might cover ephemeral data but no custodian has a load-view hook", view.ID())
 		}
 	}
