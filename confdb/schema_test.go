@@ -952,7 +952,7 @@ func (*schemaSuite) TestBadAliasName(c *C) {
 		{
 			alias:  "-foo",
 			ref:    "-foo",
-			errMsg: `cannot parse alias name "-foo": must match ^[a-z](?:-?[a-z0-9])*$`,
+			errMsg: `cannot parse alias name "-foo": must match ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			alias: "foo",

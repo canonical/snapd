@@ -119,12 +119,12 @@ func (s *confdbSuite) TestConfdbSanitizePlug(c *C) {
 		{
 			account: "my-acc",
 			view:    "0-foo/bar",
-			err:     `confdb plug must have a valid "view" attribute: invalid confdb name: 0-foo does not match '^[a-z](?:-?[a-z0-9])*$'`,
+			err:     `confdb plug must have a valid "view" attribute: invalid confdb name: 0-foo does not match '^[a-zA-Z](?:-?[a-zA-Z0-9])*$'`,
 		},
 		{
 			account: "my-acc",
 			view:    "foo/0-bar",
-			err:     `confdb plug must have a valid "view" attribute: invalid view name: 0-bar does not match '^[a-z](?:-?[a-z0-9])*$'`,
+			err:     `confdb plug must have a valid "view" attribute: invalid view name: 0-bar does not match '^[a-zA-Z](?:-?[a-zA-Z0-9])*$'`,
 		},
 		{
 			account: "_my-acc",

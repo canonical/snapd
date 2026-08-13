@@ -297,7 +297,7 @@ var (
 	validIndexPlaceholder = regexp.MustCompile(fmt.Sprintf("^\\[{%s}\\]$", subkeyRegex))
 	// TODO: decide on what the format should be for aliases in schemas
 	validAliasName = validSubkey
-	subkeyRegex    = "[a-z](?:-?[a-z0-9])*"
+	subkeyRegex    = "[a-zA-Z](?:-?[a-zA-Z0-9])*"
 )
 
 // SchemaID identifies a confdb schema.

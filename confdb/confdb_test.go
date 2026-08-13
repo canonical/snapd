@@ -74,8 +74,11 @@ func (*viewSuite) TestNewConfdb(c *C) {
 			err: `cannot define confdb schema: no views`,
 		},
 		{
+			confdb: map[string]any{"view": map[string]any{"rules": []any{map[string]any{"request": "FOO", "storage": "FOO-BAR"}}}},
+		},
+		{
 			confdb: map[string]any{"0-a": map[string]any{}},
-			err:    `cannot define view "0-a": name must conform to [a-z](?:-?[a-z0-9])*`,
+			err:    `cannot define view "0-a": name must conform to [a-zA-Z](?:-?[a-zA-Z0-9])*`,
 		},
 		{
 			confdb: map[string]any{"bar": "baz"},
@@ -231,7 +234,7 @@ func (s *viewSuite) TestConfdbSchemaWithSample(c *C) {
 				map[string]any{"request": "ssids", "storage": "wifi.ssids"},
 				map[string]any{"access": "read-write", "request": "ssid", "storage": "wifi.ssid"},
 				map[string]any{"access": "write", "request": "password", "storage": "wifi.psk"},
-				map[string]any{"access": "read", "request": "status", "storage": "wifi.status"},
+				map[string]any{"access": "read", "request": "STATUS", "storage": "wifi.status"},
 				map[string]any{"request": "private.{key}", "storage": "wifi.{key}"},
 			},
 		},
@@ -861,39 +864,39 @@ func (s *viewSuite) TestViewRequestAndStorageValidation(c *C) {
 		},
 		{
 			testName: "invalid character in request: $",
-			request:  "a.b$", storage: "bad", err: `invalid request "a.b$": subkey "b$" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "a.b$", storage: "bad", err: `invalid request "a.b$": subkey "b$" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "invalid character in storage path: é",
-			request:  "a.b", storage: "a.é", err: `invalid storage "a.é": subkey "é" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "a.b", storage: "a.é", err: `invalid storage "a.é": subkey "é" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "invalid character in request: _",
-			request:  "a.b_c", storage: "a.b-c", err: `invalid request "a.b_c": subkey "b_c" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "a.b_c", storage: "a.b-c", err: `invalid request "a.b_c": subkey "b_c" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "invalid leading dash",
-			request:  "-a", storage: "a", err: `invalid request "-a": subkey "-a" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "-a", storage: "a", err: `invalid request "-a": subkey "-a" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "invalid trailing dash",
-			request:  "a", storage: "a-", err: `invalid storage "a-": subkey "a-" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "a", storage: "a-", err: `invalid storage "a-": subkey "a-" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "missing closing curly bracket",
-			request:  "{a{", storage: "a", err: `invalid request "{a{": subkey "{a{" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "{a{", storage: "a", err: `invalid request "{a{": subkey "{a{" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "missing opening curly bracket",
-			request:  "a", storage: "}a}", err: `invalid storage "}a}": subkey "}a}" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "a", storage: "}a}", err: `invalid storage "}a}": subkey "}a}" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "curly brackets not wrapping subkey",
-			request:  "a", storage: "a.b{a}c", err: `invalid storage "a.b{a}c": subkey "b{a}c" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "a", storage: "a.b{a}c", err: `invalid storage "a.b{a}c": subkey "b{a}c" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "invalid whitespace character",
-			request:  "a. .c", storage: "a.b", err: `invalid request "a. .c": subkey " " must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			request:  "a. .c", storage: "a.b", err: `invalid request "a. .c": subkey " " must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			testName: "invalid terminating [ character",
@@ -3004,35 +3007,35 @@ func (*viewSuite) TestSetValidateValue(c *C) {
 	tcs := []testcase{
 		{
 			value: map[string]any{"-foo": 2},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "-foo" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-foo" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: map[string]any{"foo--bar": 2},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo--bar" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo--bar" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: map[string]any{"foo-": 2},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "foo-" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: map[string]any{"foo": map[string]any{"-bar": 2}},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "-bar" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-bar" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: map[string]any{"foo": map[string]any{"bar": map[string]any{"baz-": 2}}},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "baz-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "baz-" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: []any{map[string]any{"foo": 2}, map[string]any{"bar-": 2}},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: []any{nil, map[string]any{"bar-": 2}},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "bar-" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: map[string]any{"foo": nil, "bar": map[string]any{"-baz": 2}},
-			error: `cannot set "foo" through confdb view acc/foo/bar: key "-baz" doesn't conform to required format: ^[a-z](?:-?[a-z0-9])*$`,
+			error: `cannot set "foo" through confdb view acc/foo/bar: key "-baz" doesn't conform to required format: ^[a-zA-Z](?:-?[a-zA-Z0-9])*$`,
 		},
 		{
 			value: map[string]any{},
@@ -4122,7 +4125,7 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 		{
 			// actual replacement character in the string is valid UTF-8
 			path: "foo�",
-			err:  `subkey "foo�" must conform to base format "[a-z](?:-?[a-z0-9])*"`,
+			err:  `subkey "foo�" must conform to base format "[a-zA-Z](?:-?[a-zA-Z0-9])*"`,
 		},
 		{
 			path: "foo[{n}][.bar={baz}",
@@ -4130,11 +4133,11 @@ func (*viewSuite) TestParsePathsWithFieldFilters(c *C) {
 		},
 		{
 			path: "foo[{n}][._foo={abc}].some",
-			err:  "invalid field filter [._foo={abc}]: both field and placeholder name must conform to ^[a-z](?:-?[a-z0-9])*$",
+			err:  "invalid field filter [._foo={abc}]: both field and placeholder name must conform to ^[a-zA-Z](?:-?[a-zA-Z0-9])*$",
 		},
 		{
 			path: "foo[{n}][.foo={0foo}].some",
-			err:  "invalid field filter [.foo={0foo}]: both field and placeholder name must conform to ^[a-z](?:-?[a-z0-9])*$",
+			err:  "invalid field filter [.foo={0foo}]: both field and placeholder name must conform to ^[a-zA-Z](?:-?[a-zA-Z0-9])*$",
 		},
 		{
 			path: "foo[.bar={bar}]baz",
