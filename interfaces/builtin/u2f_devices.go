@@ -43,6 +43,11 @@ type u2fDevice struct {
 // https://github.com/Yubico/libu2f-host/blob/master/70-u2f.rules
 var u2fDevices = []u2fDevice{
 	{
+		Name:             "Authentrend ATKey",
+		VendorIDPattern:  "31bb",
+		ProductIDPattern: "0620|0621|0622|0625|0635|0711|0713",
+	},
+	{
 		Name:             "Tokey 3 FIDO",
 		VendorIDPattern:  "0d7a",
 		ProductIDPattern: "0200",

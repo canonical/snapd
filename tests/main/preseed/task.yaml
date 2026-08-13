@@ -48,7 +48,7 @@ restore: |
 
 execute: |
   LXD_BASE_SNAP=core20
-  if os.query is-ubuntu-gt 22.04; then
+  if os.query is-ubuntu-gt 20.04; then
       LXD_BASE_SNAP=core22
   fi
 

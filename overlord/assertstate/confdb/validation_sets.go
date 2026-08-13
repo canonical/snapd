@@ -27,7 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
-	confdbpkg "github.com/snapcore/snapd/confdb"
+	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -226,14 +226,14 @@ func (c *ValsetsConfdbHandler) SchemaName() string {
 // Databag reads all validation set tracking from the state and returns a
 // confdb.JSONDatabag structured as described in the system/validation-sets
 // confdb-schema. State must be locked by caller.
-func (c *ValsetsConfdbHandler) Databag(st *state.State) (confdbpkg.JSONDatabag, error) {
+func (c *ValsetsConfdbHandler) Databag(st *state.State) (confdb.JSONDatabag, error) {
 	sets, err := assertstate.ValidationSets(st)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(sets) == 0 {
-		return confdbpkg.NewJSONDatabag(), nil
+		return confdb.NewJSONDatabag(), nil
 	}
 
 	db := assertstate.DB(st)
@@ -337,6 +337,169 @@ func buildSnapsEntry(snaps []*asserts.ValidationSetSnap) []map[string]any {
 	return result
 }
 
-func (c *ValsetsConfdbHandler) Commit(*state.State, *confdbstate.Transaction) ([]*state.TaskSet, error) {
-	return nil, errors.New("not implemented yet")
+// Commit translates the changes in the Transaction into validation-set state.
+// State must be locked by caller. Changes are not persisted atomically across
+// all kinds and validation sets (see apply for more details).
+func (c *ValsetsConfdbHandler) Commit(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+	view, err := confdbstate.GetView(st, "system", "validation-sets", "admin")
+	if err != nil {
+		return nil, fmt.Errorf("internal error: unexpected confdb-schema in validation-sets handler: %v", err)
+	}
+
+	seen := make(map[atSequence]bool)
+	changes := &validationSetChanges{}
+	for _, path := range tx.AlteredPaths() {
+		if len(path) < 3 {
+			// shouldn't be possible as confdb-schema doesn't allow it
+			return nil, fmt.Errorf("internal error: unexpected storage path: %v", confdb.JoinAccessors(path))
+		}
+
+		// Databag() will need changes if we add v2 paths in the confdb-schema, so
+		// fail here to flag the issue
+		if path[0].Name() != "v1" {
+			return nil, fmt.Errorf("internal error: cannot write to system/validation-sets: unsupported storage version %q", path[0].Name())
+		}
+
+		// deduplicate the ids since AlteredPaths() may return several specific paths
+		// under the same validation set (for mode and pinned-sequence, for example)
+		seq := atSequence{accountID: path[1].Name(), name: path[2].Name()}
+		if seen[seq] {
+			continue
+		}
+		seen[seq] = true
+
+		// separate changes into forgets, monitors and enforcement so we can check
+		// do enforcement checks before the other two
+		change, err := extractChangeData(view, tx, seq)
+		if err != nil {
+			return nil, err
+		}
+		changes.add(change)
+	}
+
+	return nil, changes.apply(st)
+}
+
+// atSequence identifies a validation-set, optionally specifying a sequence.
+type atSequence struct {
+	accountID string
+	name      string
+
+	pinnedSeq int
+}
+
+func (r atSequence) String() string {
+	var seqStr string
+	if r.pinnedSeq != 0 {
+		seqStr = "=" + strconv.Itoa(r.pinnedSeq)
+	}
+	return r.accountID + "/" + r.name + seqStr
+}
+
+// valsetChange represents a change to a validation-set's tracking state.
+type valsetChange struct {
+	// kind denotes the type of change which can be "monitor", "enforce" or "forget".
+	kind string
+	// valsetID identifies the validation-set, possibly pinning to a sequence.
+	valsetID atSequence
+}
+
+// extractChangeData extracts the validation set reference and change type
+// (enforce, monitor or forget) for the data modified through confdb.
+func extractChangeData(view *confdb.View, tx *confdbstate.Transaction, ref atSequence) (valsetChange, error) {
+	request := ref.accountID + "." + ref.name
+	result, err := view.Get(tx, request, nil, confdb.AdminAccess)
+	if err != nil {
+		if errors.Is(err, &confdb.NoDataError{}) {
+			return valsetChange{kind: "forget", valsetID: ref}, nil
+		}
+		return valsetChange{}, fmt.Errorf("cannot read validation set %s/%s from confdb: %v", ref.accountID, ref.name, err)
+	}
+
+	val, ok := result.(map[string]any)
+	if !ok {
+		return valsetChange{}, fmt.Errorf("internal error: unexpected result type %T for validation set %s/%s", result, ref.accountID, ref.name)
+	}
+
+	// extract mode
+	var mode string
+	if rawMode, ok := val["mode"]; ok {
+		if modeStr, ok := rawMode.(string); ok {
+			mode = modeStr
+		}
+	}
+
+	if mode != "monitor" && mode != "enforce" {
+		// the schema already validates the mode so this should be impossible
+		return valsetChange{}, fmt.Errorf(`internal error: mode must be present as either "monitor" or "enforce": got %v`, val["mode"])
+	}
+
+	// extract pinned-sequence, if any is set
+	if rawSeq, ok := val["pinned-sequence"]; ok {
+		v, ok := rawSeq.(float64)
+		if !ok {
+			// writes are validated against the storage schema so shouldn't be possible
+			return valsetChange{}, fmt.Errorf(`internal error: "pinned-sequence" should be an int, got %v`, rawSeq)
+		}
+		ref.pinnedSeq = int(v)
+	}
+
+	return valsetChange{kind: mode, valsetID: ref}, nil
+}
+
+// validationSetChanges collects the changes to be applied to validation-set
+// tracking state as part of a confdb commit.
+type validationSetChanges struct {
+	forgets  []atSequence
+	monitors []atSequence
+	enforces []atSequence
+}
+
+// add buckets the given change into the appropriate slice.
+func (c *validationSetChanges) add(change valsetChange) {
+	switch change.kind {
+	case "forget":
+		c.forgets = append(c.forgets, change.valsetID)
+	case "enforce":
+		c.enforces = append(c.enforces, change.valsetID)
+	case "monitor":
+		c.monitors = append(c.monitors, change.valsetID)
+	}
+}
+
+// apply persists the collected changes starting with enforcement, then monitoring
+// and finally forgetting (sorted by likelihood of failing). Enforcement changes
+// are atomic but other kinds are not. Failures to enforce do not change the
+// state or asserts DB, but failures to monitor do not rollback previous monitor
+// or enforcement changes.
+func (c *validationSetChanges) apply(st *state.State) error {
+	if len(c.enforces) > 0 {
+		snaps, ignoreValidation, err := snapstate.InstalledSnaps(st)
+		if err != nil {
+			return err
+		}
+
+		enforceStrings := make([]string, 0, len(c.enforces))
+		for _, ref := range c.enforces {
+			enforceStrings = append(enforceStrings, ref.String())
+		}
+
+		if err := assertstate.TryEnforcedValidationSets(st, enforceStrings, 0, snaps, ignoreValidation); err != nil {
+			return fmt.Errorf("cannot enforce validation sets: %v", err)
+		}
+	}
+
+	for _, ref := range c.monitors {
+		if _, err := assertstate.MonitorValidationSet(st, ref.accountID, ref.name, ref.pinnedSeq, 0); err != nil {
+			return fmt.Errorf("cannot monitor validation set %s/%s: %v", ref.accountID, ref.name, err)
+		}
+	}
+
+	for _, ref := range c.forgets {
+		opts := assertstate.ForgetValidationSetOpts{}
+		if err := assertstate.ForgetValidationSet(st, ref.accountID, ref.name, opts); err != nil {
+			return fmt.Errorf("cannot forget validation set %s/%s: %v", ref.accountID, ref.name, err)
+		}
+	}
+	return nil
 }

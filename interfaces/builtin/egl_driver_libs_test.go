@@ -254,6 +254,10 @@ func (s *EglDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
+	// ldconfig is only active on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
@@ -263,6 +267,16 @@ func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1"),
 			filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "lib2"),
 		}})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestLdconfigSpecOnCore(c *C) {
+	// ldconfig is skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &ldconfig.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.LibDirs(), HasLen, 0)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
@@ -406,8 +420,36 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksToComp2(c *C) {
 	})
 }
 
+func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecOnCore(c *C) {
+	// Symlinks are skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), HasLen, 0)
+}
+
 func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	// configfiles export runs on classic
 	restore := release.MockOnClassic(true)
+	defer restore()
+
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_egl-provider_egl-slot_egl-driver-libs.library-source"): &osutil.MemoryFileState{
+			Content: []byte(filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib1") + "\n" +
+				filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2") + "\n" +
+				filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "egl-provider"), "lib1") + "\n" +
+				filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "egl-provider"), "lib2") + "\n"),
+			Mode: 0644},
+	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpecOnCore(c *C) {
+	// configfiles export also runs on core
+	restore := release.MockOnClassic(false)
 	defer restore()
 
 	spec := &configfiles.Specification{}
@@ -464,7 +506,7 @@ func (s *EglDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, false)
-	c.Assert(si.ImplicitPlugOnCore, Equals, false)
+	c.Assert(si.ImplicitPlugOnCore, Equals, true)
 	c.Assert(si.ImplicitPlugOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows exposing EGL driver libraries to the system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "egl-driver-libs")

@@ -73,8 +73,9 @@ prepare: |
 
   tests.nested prepare-essential-snaps
 
-  mv "${test_snap_path}" "$(tests.nested get extra-snaps-path)/"
-  test_snap_path="$(tests.nested get extra-snaps-path)/$(basename "${test_snap_path}")"
+  extra_snaps="$(tests.nested get extra-snaps-path)"
+  mv "${test_snap_path}" "${extra_snaps}/"
+  test_snap_path="${extra_snaps}/$(basename "${test_snap_path}")"
 
   "${TESTSTOOLS}/store-state" make-snap-installable --noack \
     --revision 1 \
@@ -82,14 +83,14 @@ prepare: |
     "${test_snap_path}" \
     "${test_snap_id}"
 
-  snapd_snap="$(echo /tmp/extra-snaps/snapd_*.snap)"
+  snapd_snap="$(echo "${extra_snaps}"/snapd_*.snap)"
 
   export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
   ubuntu-image snap --image-size 10G "$TESTSLIB/assertions/developer1-${version}-with-app-dangerous.model" \
-    --snap /tmp/extra-snaps/pc.snap \
-    --snap /tmp/extra-snaps/pc-kernel.snap \
+    --snap "${extra_snaps}/pc.snap" \
+    --snap "${extra_snaps}/pc-kernel.snap" \
     --snap "${snapd_snap}" \
-    --snap "/tmp/extra-snaps/${base_snap}.snap" \
+    --snap "${extra_snaps}/${base_snap}.snap" \
     --snap "${test_snap_path}"
 
   image_dir=$(tests.nested get images-path)

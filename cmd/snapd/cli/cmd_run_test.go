@@ -3313,6 +3313,102 @@ func (s *RunSuite) TestSystemKeyMismatchTrivial(c *check.C) {
 	c.Check(n, check.Equals, 0)
 }
 
+func (s *RunSuite) TestPrivateTmpMissingWakesSnapd(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// Remove the private tmp directory - it's created by SetUpTest but
+	// this test needs it missing to trigger the wake-up behavior.
+	c.Assert(os.RemoveAll(dirs.SnapPrivateTmpDir), check.IsNil)
+
+	// system-key on disk - matches what we derive
+	s.AddCleanup(interfaces.MockSystemKey(`
+{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"]
+}`))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), check.IsNil)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			fmt.Fprintln(w, `{"type": "sync", "result": null}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 1)
+}
+
+func (s *RunSuite) TestSystemKeyMismatchErrorWakesSnapd(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	// Remove the system key file so that SystemKeyMismatch returns an error
+	// (ErrSystemKeyMissing) rather than a mismatch.
+	c.Assert(interfaces.RemoveSystemKey(), check.IsNil)
+
+	// Remove snap-private-tmp too, but it shouldn't matter since err != nil
+	// already forces us into the wake-snapd path.
+	c.Assert(os.RemoveAll(dirs.SnapPrivateTmpDir), check.IsNil)
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.URL.Path, check.Equals, "/v2/system-info")
+			c.Check(r.URL.RawQuery, check.Equals, "")
+			fmt.Fprintln(w, `{"type": "sync", "result": null}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+
+	// mock installed snap
+	snaptest.MockSnapCurrent(c, string(mockYamlForNameBase("snapname", "")), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	// redirect exec
+	execCalls := 0
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execCalls++
+		return nil
+	})
+	defer restorer()
+
+	// and run it!
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Check(execCalls, check.Equals, 1)
+	c.Check(n, check.Equals, 1)
+}
+
 func (s *RunSuite) mockSystemKeyMismatch(c *check.C) {
 	// system-key on disk
 	s.AddCleanup(interfaces.MockSystemKey(`

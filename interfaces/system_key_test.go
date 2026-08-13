@@ -656,6 +656,34 @@ func (s *systemKeySuite) TestSystemKeyMismatchAdviceTrivial(c *C) {
 	c.Check(act, Equals, interfaces.SystemKeyMismatchActionNone)
 }
 
+func (s *systemKeySuite) TestSystemKeyMismatchAdviceExcludesParserFeatures(c *C) {
+	// snapd's on-disk key has apparmor-parser-features populated, because only
+	// snapd runs apparmor_parser to obtain them when it writes the key.
+	mockedSkS := `{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"],
+"apparmor-parser-features": ["cap-audit-read", "qipcrtr-socket"]
+}`
+	s.AddCleanup(interfaces.MockSystemKey(mockedSkS))
+	c.Assert(interfaces.WriteSystemKey(interfaces.SystemKeyExtraData{}), IsNil)
+
+	// a client (e.g. "snap run") always sends a key with an empty
+	// apparmor-parser-features field, since it never invokes the parser.
+	clientSk, err := interfaces.SystemKeyFromString(`{
+"build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",
+"apparmor-features": ["caps", "dbus"],
+"apparmor-parser-features": null
+}`)
+	c.Assert(err, IsNil)
+
+	// despite the differing apparmor-parser-features field, the keys must be
+	// considered matching and no regeneration advised, otherwise every client
+	// request would trigger a regeneration (LP: #2161845)
+	act, err := interfaces.SystemKeyMismatchAdvice(clientSk)
+	c.Assert(err, IsNil)
+	c.Check(act, Equals, interfaces.SystemKeyMismatchActionNone)
+}
+
 func (s *systemKeySuite) TestSystemKeyMismatchAdviceNFSHome(c *C) {
 	mockedSkS := `{
 "build-id": "7a94e9736c091b3984bd63f5aebfc883c4d859e0",

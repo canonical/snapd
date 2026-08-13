@@ -25,7 +25,9 @@ if [ -e /var/lib/dpkg/info/snapd.postrm ]; then
     sed -i 's#echo "Final directory cleanup"#umount /snap || true#' /var/lib/dpkg/info/snapd.postrm
 fi
 
-apt autoremove --purge -y snapd ubuntu-core-launcher
+apt autoremove --purge -y snapd
+# ubuntu-core-launcher is a transitional package and removed in recent distros
+apt autoremove --purge -y ubuntu-core-launcher || true
 apt update
 
 # requires the snapd deb to already have been "lxd file push"d into the 

@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/fdestate"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
@@ -100,6 +101,10 @@ func (s *activateStateSuite) TestActivateStateHappy(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "active",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 
 	// Let's check the file is cached
@@ -140,6 +145,10 @@ func (s *activateStateSuite) TestActivateStateHappyWithAutoRepairState(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "active",
 		"auto-repair-result": "success",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 
 	// Let's check the file is cached
@@ -181,6 +190,10 @@ func (s *activateStateSuite) TestActivateStateDegraded(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "degraded",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 
 	// Let's check the file is cached
@@ -210,6 +223,10 @@ func (s *activateStateSuite) TestActivateStateInactive(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "inactive",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 }
 
@@ -241,6 +258,10 @@ func (s *activateStateSuite) TestActivateStateRecovery(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "recovery",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 }
 
@@ -260,6 +281,10 @@ func (s *activateStateSuite) TestActivateStateNoActivateState(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "indeterminate",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 }
 
@@ -310,6 +335,10 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSONStateHybridModel(c *
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "indeterminate",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 }
 
@@ -338,6 +367,10 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSONClassicModel(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "inactive",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
 }
 
@@ -357,7 +390,76 @@ func (s *activateStateSuite) TestActivateStateNoUnlockedJSONNoModel(c *C) {
 	c.Check(systemState, SerializesTo, map[string]any{
 		"status":             "indeterminate",
 		"auto-repair-result": "not-initialized",
+		"preinstall": map[string]any{
+			"requirements":    []any{},
+			"accepted-errors": map[string]any{},
+		},
 	})
+}
+
+func (s *activateStateSuite) testActivateStateIncludesPreinstallRequirements(c *C, noHWROT bool) {
+	defer fdestate.MockBootLoadDiskUnlockState(func(name string) (*boot.DiskUnlockState, error) {
+		c.Check(name, Equals, "unlocked.json")
+
+		s := &secboot.ActivateState{}
+		s.Activations = map[string]*sb.ContainerActivateState{
+			"data-cred-id": {
+				Status: sb.ActivationSucceededWithPlatformKey,
+			},
+			"save-cred-id": {
+				Status: sb.ActivationSucceededWithPlatformKey,
+			},
+		}
+		return &boot.DiskUnlockState{State: s}, nil
+	})()
+
+	defer fdestate.MockInstallLoadPreinstallInfo(func() (*install.PreinstallInfo, error) {
+		if noHWROT {
+			return &install.PreinstallInfo{
+				AcceptedErrors: []string{secboot.ErrorKindNoHardwareRootOfTrust},
+			}, nil
+		}
+		return &install.PreinstallInfo{
+			AcceptedErrors: []string{"running-in-vm"},
+		}, nil
+	})()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	systemState, err := fdestate.SystemState(st, nil)
+	c.Assert(err, IsNil)
+
+	if noHWROT {
+		c.Check(systemState, SerializesTo, map[string]any{
+			"status":             "active",
+			"auto-repair-result": "not-initialized",
+			"preinstall": map[string]any{
+				"requirements":    []any{"volumes-auth"},
+				"accepted-errors": map[string]any{secboot.ErrorKindNoHardwareRootOfTrust: nil},
+			},
+		})
+	} else {
+		c.Check(systemState, SerializesTo, map[string]any{
+			"status":             "active",
+			"auto-repair-result": "not-initialized",
+			"preinstall": map[string]any{
+				"requirements":    []any{},
+				"accepted-errors": map[string]any{"running-in-vm": nil},
+			},
+		})
+	}
+}
+
+func (s *activateStateSuite) TestActivateStateIncludesPreinstallRequirements(c *C) {
+	const noHWROT = false
+	s.testActivateStateIncludesPreinstallRequirements(c, noHWROT)
+}
+
+func (s *activateStateSuite) TestActivateStateIncludesPreinstallRequirementsNoHWROT(c *C) {
+	const noHWROT = true
+	s.testActivateStateIncludesPreinstallRequirements(c, noHWROT)
 }
 
 func (s *activateStateSuite) TestActivateStateErrorUnlockedJSON(c *C) {

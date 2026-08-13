@@ -164,7 +164,7 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 		}
 
 		view := confdbAssert.Schema().View(viewName)
-		paths := tx.alteredPaths()
+		paths := tx.AlteredPaths()
 		mightAffectEph, err := view.WriteAffectsEphemeral(paths)
 		if err != nil {
 			return fmt.Errorf("cannot commit transaction: cannot check for ephemeral paths: %v", err)

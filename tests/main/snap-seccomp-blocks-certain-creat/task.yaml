@@ -1,0 +1,37 @@
+summary: Ensure that the snap-seccomp blocks creat with setuid/setgid mode
+
+details: |
+    Check that it is not allowed to creat a file with the setuid or setgid mode
+    bit set using the creat system call.
+    Check that creating a file with a normal mode is still allowed.
+
+# ubuntu-core: excluded because there is no gcc there
+systems: [-ubuntu-core-*]
+
+prepare: |
+    echo "Install a helper snap (for seccomp confinement testing)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+    echo "Compile and prepare the test program"
+    # Because we use the snap data directory we don't need to clean it up
+    # manually as all snaps and their data are reset after each test.
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -static -Wall -Wextra -Werror ./test.c -o /var/snap/test-snapd-sh/common/test-creat
+
+execute: |
+    snap run test-snapd-sh.sh -c "\$SNAP_COMMON/test-creat \$SNAP_COMMON" > output.txt
+    cat output.txt
+
+    # creat with setuid bit (mode 4644) must be denied
+    # (skipped gracefully on architectures that don't have SYS_creat, e.g. arm64)
+    if grep -E -q 'creat setuid: skipped' output.txt; then
+        echo "SYS_creat is not available, all creat tests should be skipped"
+        MATCH 'creat setuid: skipped' < output.txt
+        MATCH 'creat setgid: skipped' < output.txt
+        MATCH 'creat normal: skipped' < output.txt
+    else
+        MATCH 'creat setuid: EACCES' < output.txt
+        MATCH 'creat setgid: EACCES' < output.txt
+        MATCH 'creat normal: succeeded' < output.txt
+    fi

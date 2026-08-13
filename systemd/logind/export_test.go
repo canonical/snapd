@@ -17,12 +17,16 @@
  *
  */
 
-package main
+package logind
 
-import (
-	"github.com/snapcore/snapd/cmd/snapctl/tool/snap-exec"
-)
+func (e *Error) SetCmd(cmd []string) {
+	e.cmd = cmd
+}
 
-func main() {
-	snap_exec.Main()
+func (e *Error) SetMsg(msg []byte) {
+	e.msg = msg
+}
+
+func (e *Error) SetExitCode(i int) {
+	e.exitCode = i
 }

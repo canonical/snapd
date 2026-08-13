@@ -20,9 +20,26 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+
+	"github.com/snapcore/snapd/cmd/snapctl/tool/snap-exec"
 	"github.com/snapcore/snapd/cmd/snapctl/tool/snapctl"
 )
 
+var (
+	snapExecMain = snap_exec.Main
+	snapctlMain  = snapctl.Main
+)
+
 func main() {
-	snapctl.Main()
+	argv0 := filepath.Base(os.Args[0])
+
+	// dispatch the binary multi entry point
+	switch argv0 {
+	case "snap-exec":
+		snapExecMain()
+	default: // "snapctl"
+		snapctlMain()
+	}
 }

@@ -1,4 +1,4 @@
-summary: Test secboot efi preinstall check used for TPM backed FDE on hybrid Ubuntu 25.10+ system.
+summary: Test secboot efi preinstall check used for TPM backed FDE on hybrid Ubuntu 26.04+ system.
 
 details: |
   This test prepares an encrypted hybrid Ubuntu system seed and test that the
@@ -10,9 +10,9 @@ systems: [-ubuntu-1*, -ubuntu-20*, -ubuntu-22*]
 
 environment:
   # System seed
-  MODEL_VERSION: "25.10"
-  GADGET_VERSION: "classic-25.10"
-  KERNEL_VERSION: "25.10"
+  MODEL_VERSION: "26.04"
+  GADGET_VERSION: "classic-26.04"
+  KERNEL_VERSION: "26.04"
 
   # Installation environment for TPM backed FDE
   NESTED_ENABLE_TPM: true
@@ -57,7 +57,7 @@ prepare: |
 
   # Fetch model
   model_version_string="${MODEL_VERSION//\./}"
-  curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/master/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
+  curl -q https://raw.githubusercontent.com/canonical/models/refs/heads/main/ubuntu-classic-"${model_version_string}"-amd64-dangerous.json > classic.json
   # Only keep relevant snaps
   gojq 'del(.snaps[] | select(.name | test("^(pc|pc-kernel|core.*|snapd)$") | not))' classic.json > classic-tmp.json
   mv classic-tmp.json classic.json
@@ -89,10 +89,10 @@ prepare: |
   remote.exec "sudo cp snapd-override.conf /etc/systemd/system/snapd.service.d/"
   remote.exec "sudo systemctl daemon-reload"
 
-  # The secboot preinstall check is only available on Ubuntu 25.10+ install environment targeting
+  # The secboot preinstall check is only available on Ubuntu 26.04+ install environment targeting
   # a hybrid Ubuntu system. Fake the Ubuntu Version ID if required.
-  if os.query is_ubuntu_lt 25.10; then
-    remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=\"25.10\"/' /etc/os-release"
+  if os.query is_ubuntu_lt 26.04; then
+    remote.exec "sudo sed -i 's/^VERSION_ID=.*/VERSION_ID=\"26.04\"/' /etc/os-release"
   fi
 
   # Restart to ensure the snapd override and modified release version ID is taken into account

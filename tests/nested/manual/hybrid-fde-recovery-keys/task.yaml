@@ -78,8 +78,8 @@ restore: |
   "$TESTSTOOLS"/store-state teardown-fake-store "$STORE_DIR"
 
 execute: |
-  # The APIs tested here shouldn't be available on anything before 25.10
-  if os.query is-ubuntu-lt 25.10; then
+  # The APIs tested here shouldn't be available on anything before 26.04
+  if os.query is-ubuntu-lt 26.04; then
     remote.exec sudo snap debug api /v2/system-volumes | gojq .result.message | MATCH "this action is not supported on this system"
     exit 0
   fi
@@ -251,5 +251,53 @@ execute: |
 
   api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "recovery"
 
-  # TODO:FDEM: Grow test to check that we can reprovision and reseal
-  # then reboot without recovery keys
+  # Now we test reprovision
+
+  # First step is for the client to verify the result of post install
+  # checks, and eventually resolve any issues.
+  remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+  # TODO:FDEM: We should have a way to check fix-encryption-support, for example by not allowing VMs by default.
+  # echo '{"action": "fix-encryption-support", "fix-action": "proceed"}' | sudo remote.exec "snap debug api -X POST -H 'Content-Type: application/json' /v2/systems"
+
+  # Second step of reprovision is generate a new recovery key
+  echo '{"action":"generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision.resp
+  gojq --raw-output '.result."recovery-key"' < rkey-reprovision.resp > rkey-reprovision.out
+
+  # Last step: execute the reprovision
+  echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >reprovision.resp
+
+  reprovision_change="$(gojq --raw-output '.change' <reprovision.resp)"
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change}\s+(Done|Undone|Error)'"
+  remote.exec sudo snap changes | MATCH "^${reprovision_change}\s+Done"
+
+  # We should be able to boot without recovery key now
+  tests.nested vm set-recovery-key ""
+  tests.nested vm stop
+  tests.nested vm start
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
+
+  # Let's do a reprovision with a provision TPM.
+  remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
+  # TODO:FDEM: We should have a way to check fix-encryption-support, for example by not allowing VMs by default.
+  # echo '{"action": "fix-encryption-support", "fix-action": "proceed"}' | sudo remote.exec "snap debug api -X POST -H 'Content-Type: application/json' /v2/systems"
+
+  echo '{"action":"generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision-2.resp
+  gojq --raw-output '.result."recovery-key"' < rkey-reprovision-2.resp > rkey-reprovision-2.out
+
+  echo '{"action":"reprovision"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >reprovision-2.resp
+
+  reprovision_change_2="$(gojq --raw-output '.change' <reprovision-2.resp)"
+  retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_2}\s+(Done|Undone|Error)'"
+  remote.exec sudo snap changes | MATCH "^${reprovision_change_2}\s+Done"
+
+  tests.nested vm stop
+  tests.nested vm start
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "active"
+
+  # Let's test the recovery key from reprovision
+  tests.nested vm set-recovery-key "$(cat rkey-reprovision-2.out)"
+  clear_tpm_and_reboot
+
+  api_get_v2_system_info_storage_encrypted | gojq '.result.status' | MATCH "recovery"

@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
@@ -1533,6 +1534,8 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingNotAdd
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20ValidationSetTrackingFailsUnmetCriterias(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+
 	vsb, err := s.StoreSigning.Sign(asserts.ValidationSetType, map[string]any{
 		"type":         "validation-set",
 		"authority-id": "canonical",

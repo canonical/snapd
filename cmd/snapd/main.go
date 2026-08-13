@@ -45,9 +45,6 @@ var (
 	}
 
 	// list of snapd tools that expect reexec
-	//
-	// could use a simple list instead of adding to a map to avoid exporting
-	// types to the test suite
 	reexecTools = []string{
 		"snapd-apparmor",
 		"snap-gpio-helper",
@@ -90,9 +87,18 @@ func runTool(toolName string, toolMain func(), fullArgv []string) {
 	if strutil.ListContains(reexecTools, toolName) {
 		// reexec, if enabled, must be applied **before** any args modifications
 		snapdtool.ExecInSnapdOrCoreSnap()
+
+		// Clean up the execution environment should any of the tools be
+		// invoked with the FIPS dispatch mechanism (snap-fips-dispatch
+		// sets SNAPD_FIPS_BOOTSTRAP=1 and related vars before exec'ing
+		// snapd-fips). Drop those env vars so they are not forwarded to
+		// the tool or any processes it spawns.
+		snapdtool.MaybeCompleteFIPSSetup()
 	}
 
-	// Strip argv[1] (the tool name) so the tool sees its own args.
+	// Set argv[0] to the tool name and strip the original argv[1] (the tool
+	// name passed by the C wrapper) so the tool sees its own args and help
+	// output shows the tool name.
 	os.Args = append([]string{toolName}, fullArgv[2:]...)
 
 	toolMain()

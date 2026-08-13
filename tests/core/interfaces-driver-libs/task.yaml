@@ -1,0 +1,62 @@
+summary: Test driver-libs interfaces on Ubuntu Core
+
+details: |
+    Verify that egl-driver-libs and cuda-driver-libs connections can be
+    established on Ubuntu Core 26, that the correct .library-source export
+    files are written to /var/lib/snapd/export/, that classic-specific
+    backends (ldconfig, EGL symlinks) are not activated, and that cleanup
+    works on disconnect and snap remove.
+
+systems: [ubuntu-core-26-64]
+
+environment:
+  PROVIDER_SNAP: libs-provider-core26
+  COMP1: comp1
+  COMP2: comp2
+
+prepare: |
+  snap pack "$PROVIDER_SNAP"
+  snap pack "$COMP1"
+  snap pack "$COMP2"
+
+restore: |
+  snap remove --purge "$PROVIDER_SNAP" || true
+
+execute: |
+  SNAP_MNT=/snap/"$PROVIDER_SNAP"
+  COMPS_MNT="$SNAP_MNT"/components/mnt
+  export_egl=/var/lib/snapd/export/system_"$PROVIDER_SNAP"_egl-driver-libs_egl-driver-libs.library-source
+  export_cuda=/var/lib/snapd/export/system_"$PROVIDER_SNAP"_cuda-driver-libs_cuda-driver-libs.library-source
+
+  snap install --dangerous "$PROVIDER_SNAP"_*.snap
+  snap install --dangerous \
+      "$PROVIDER_SNAP"+"$COMP1"_*.comp \
+      "$PROVIDER_SNAP"+"$COMP2"_*.comp
+
+  snap connect system:cuda-driver-libs "$PROVIDER_SNAP":cuda-driver-libs
+  snap connect system:egl-driver-libs "$PROVIDER_SNAP":egl-driver-libs
+
+  # .library-source export files must exist and contain component mount paths
+  MATCH "$COMPS_MNT"/"$COMP1"/x1/libs < "$export_cuda"
+  MATCH "$COMPS_MNT"/"$COMP2"/x1/libs < "$export_cuda"
+  MATCH "$COMPS_MNT"/"$COMP1"/x1/libs < "$export_egl"
+  MATCH "$COMPS_MNT"/"$COMP2"/x1/libs < "$export_egl"
+
+  # Classic-specific backends must NOT be active on Core
+  not test -f /etc/ld.so.conf.d/snap.system.conf
+  not ls /etc/glvnd/egl_vendor.d/*snap* 2>/dev/null
+
+  # TODO: verify export/data/ ICD files once the support is added
+
+  # Disconnect both interfaces and verify .library-source files are cleaned up
+  snap disconnect system:egl-driver-libs "$PROVIDER_SNAP":egl-driver-libs
+  snap disconnect system:cuda-driver-libs "$PROVIDER_SNAP":cuda-driver-libs
+  not test -f "$export_egl"
+  not test -f "$export_cuda"
+
+  # Reconnect, then remove the snap and verify cleanup
+  snap connect system:cuda-driver-libs "$PROVIDER_SNAP":cuda-driver-libs
+  snap connect system:egl-driver-libs "$PROVIDER_SNAP":egl-driver-libs
+  snap remove "$PROVIDER_SNAP"
+  not test -f "$export_egl"
+  not test -f "$export_cuda"

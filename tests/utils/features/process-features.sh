@@ -4,7 +4,7 @@ shopt -s nullglob
 
 work_dir="${WORK_DIR:-$(mktemp -d)}"
 run_id="${RUN_ID:-}"
-features="${FEATURES:-cmd,task,change,ensure,endpoint,interface}"
+features="${FEATURES:-coverage,cmd,task,change,ensure,endpoint,interface}"
 
 if ! [ -d "$work_dir/feature-tags-artifacts" ]; then
     if [ -z "$run_id" ]; then

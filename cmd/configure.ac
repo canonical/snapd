@@ -23,6 +23,8 @@ AC_SYS_LARGEFILE
 AC_CHECK_HEADERS([fcntl.h limits.h stdlib.h string.h sys/mount.h unistd.h])
 AC_CHECK_HEADERS([sys/quota.h], [], [AC_MSG_ERROR(sys/quota.h unavailable)])
 AC_CHECK_HEADERS([xfs/xqm.h], [], [AC_MSG_ERROR(xfs/xqm.h unavailable)])
+# Check for linux/nsfs.h, used for namespace probing workarounds (optional)
+AC_CHECK_HEADERS([linux/nsfs.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
@@ -84,7 +86,7 @@ AS_IF([test "x$with_unit_tests" = "xyes"], [
 AS_IF([test "x$enable_apparmor" = "xyes"], [
     # Expect AppArmor 5 when building as a snap under snapcraft
     AS_IF([test "x$SNAPCRAFT_PROJECT_NAME" = "xsnapd"], [
-        PKG_CHECK_MODULES([APPARMOR], [libapparmor = 5.0.1], [
+        PKG_CHECK_MODULES([APPARMOR], [libapparmor = 5.0.2], [
             AC_DEFINE([HAVE_APPARMOR], [1], [Build with apparmor 5 support])], [
             AC_MSG_ERROR([unable to find apparmor 5 for snap build of snapd])])], [
         PKG_CHECK_MODULES([APPARMOR], [libapparmor], [

@@ -65,6 +65,10 @@ func (s *BaseSnapSuite) readPassword(fd int) ([]byte, error) {
 func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
+	// Create the snap-private-tmp directory so that tests that don't
+	// explicitly need it to be missing get a clean system-key match
+	// without hitting the private-tmp missing check.
+	c.Assert(os.MkdirAll(dirs.SnapPrivateTmpDir, 0700), IsNil)
 
 	path := os.Getenv("PATH")
 	s.AddCleanup(func() {

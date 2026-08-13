@@ -1640,6 +1640,98 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerEnsureTriedRecoverySystemHybridClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	restore = devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20-hybrid", map[string]any{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   s.ss.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "pc",
+				"id":   s.ss.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+		},
+	})
+	c.Assert(s.model.HybridClassic(), Equals, true)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-20-hybrid",
+		Serial: "serialserialserial",
+	})
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+	const gadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        size: 1G
+      - name: ubuntu-boot
+        role: system-boot
+        type: 83,F9E14625-EF3E-4200-AFEF-AEBD407460C4
+        size: 1G
+      - name: ubuntu-data
+        role: system-data
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 2G
+`
+	gadgetPath := filepath.Join(snap.MinimalPlaceInfo("pc", snap.R(1)).MountDir(), "meta/gadget.yaml")
+	c.Assert(os.WriteFile(gadgetPath, []byte(gadgetYaml), 0644), IsNil)
+	deviceCtx, err := devicestate.DeviceCtx(s.state, nil, nil)
+	c.Assert(err, IsNil)
+	c.Check(deviceCtx.Classic(), Equals, true)
+	c.Check(deviceCtx.IsCoreBoot(), Equals, true)
+	gadgetData, err := devicestate.CurrentGadgetData(s.state, deviceCtx)
+	c.Assert(err, IsNil)
+	c.Assert(gadgetData.Info.HasRole(gadget.SystemSeed), Equals, true)
+
+	err = s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	modeenv, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, "1234")
+	c.Assert(modeenv.Write(), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc", "default"), 0755), IsNil)
+
+	s.state.Unlock()
+	err = s.mgr.Ensure()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	var tried []string
+	err = s.state.Get("tried-systems", &tried)
+	c.Assert(err, IsNil)
+
+	c.Check(tried, DeepEquals, []string{"1234"})
+	c.Check(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snap_core":              "core20_3.snap",
+		"snap_kernel":            "pc-kernel_2.snap",
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy(c *C) {
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
@@ -4254,10 +4346,20 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	})
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsSeedAllowlistExcludesOptionalSnap(c *C) {
+	s.testDeviceManagerCreateRecoverySystemValidationSetsHappy(c, testCreateRecoverySystemValidationSetsOptions{
+		PreInstallOptionalSnap: true,
+		Allowlist: &devicestate.SeedAllowlist{
+			Snaps: []string{"core20", "pc", "pc-kernel", "snapd"},
+		},
+	})
+}
+
 type testCreateRecoverySystemValidationSetsOptions struct {
 	MarkDefault                        bool
 	RequireOptionalSnapInValidationSet bool
 	PreInstallOptionalSnap             bool
+	Allowlist                          *devicestate.SeedAllowlist
 }
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsHappy(c *C, opts testCreateRecoverySystemValidationSetsOptions) {
@@ -4522,6 +4624,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ValidationSets: validationSets,
 		TestSystem:     true,
 		MarkDefault:    opts.MarkDefault,
+		Allowlist:      opts.Allowlist,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(chg, NotNil)
@@ -4551,7 +4654,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
 
 	var runModeSnaps []string
-	if opts.RequireOptionalSnapInValidationSet || opts.PreInstallOptionalSnap {
+	if opts.RequireOptionalSnapInValidationSet || (opts.PreInstallOptionalSnap && opts.Allowlist == nil) {
 		runModeSnaps = []string{"other-required"}
 	}
 	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted, runModeSnaps...)
@@ -4579,7 +4682,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 	// verify that new files are tracked correctly
 	expectedFiles := []string{"snapd_13.snap", "pc-kernel_11.snap", "core20_12.snap", "pc_10.snap"}
-	if opts.RequireOptionalSnapInValidationSet || opts.PreInstallOptionalSnap {
+	if opts.RequireOptionalSnapInValidationSet || (opts.PreInstallOptionalSnap && opts.Allowlist == nil) {
 		expectedFiles = append(expectedFiles, "other-required_14.snap")
 	}
 
@@ -5915,6 +6018,58 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValid
 	})
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedAllowlistExcludesOptionalComponents(c *C) {
+	s.state.Lock()
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(22),
+	})
+	s.makeSnapInState(c, "snap-with-components", snap.R(12), nil, map[string]snap.Revision{
+		"comp-1": snap.R(23),
+	})
+	s.state.Unlock()
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs: []string{
+			"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "core20_3.snap", "pc_1.snap", "snap-with-components_12.snap",
+		},
+		runModeSnaps:      []string{"snap-with-components"},
+		snapsToProvide:    []string{"pc-kernel-with-kmods"},
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+		allowlist: &devicestate.SeedAllowlist{
+			Snaps: []string{"core20", "pc", "pc-kernel-with-kmods", "snap-with-components", "snapd"},
+		},
+	})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSeedAllowlistSelectsOptionalComponents(c *C) {
+	s.state.Lock()
+	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
+		"kmod": snap.R(22),
+	})
+	s.makeSnapInState(c, "snap-with-components", snap.R(12), nil, map[string]snap.Revision{
+		"comp-1": snap.R(23),
+	})
+	s.state.Unlock()
+
+	s.testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c, testCreateRecoverySystemValidationSetsOfflineWithComponents{
+		blobs: []string{
+			"snapd_4.snap", "pc-kernel-with-kmods_11.snap", "pc-kernel-with-kmods+kmod_22.comp",
+			"core20_3.snap", "pc_1.snap", "snap-with-components_12.snap",
+		},
+		runModeSnaps:      []string{"snap-with-components"},
+		snapsToProvide:    []string{"pc-kernel-with-kmods"},
+		kmodModelPresence: "optional",
+		kmodVsetPresence:  "optional",
+		allowlist: &devicestate.SeedAllowlist{
+			Snaps: []string{"core20", "pc", "pc-kernel-with-kmods", "snap-with-components", "snapd"},
+			Components: map[string][]string{
+				"pc-kernel-with-kmods": {"kmod"},
+			},
+		},
+	})
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponentsUseLocalOverInstalled(c *C) {
 	s.state.Lock()
 	s.makeSnapInState(c, "pc-kernel-with-kmods", snap.R(11), nil, map[string]snap.Revision{
@@ -5948,6 +6103,7 @@ type testCreateRecoverySystemValidationSetsOfflineWithComponents struct {
 	componentsToProvide []naming.ComponentRef
 	kmodModelPresence   string
 	kmodVsetPresence    string
+	allowlist           *devicestate.SeedAllowlist
 }
 
 func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValidationSetsOfflineWithComponents(c *C, opts testCreateRecoverySystemValidationSetsOfflineWithComponents) {
@@ -6137,6 +6293,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 		ValidationSets:  []*asserts.ValidationSet{vset.(*asserts.ValidationSet)},
 		LocalSnaps:      localSnaps,
 		LocalComponents: localComponents,
+		Allowlist:       opts.allowlist,
 		Offline:         true,
 		TestSystem:      true,
 		MarkDefault:     true,

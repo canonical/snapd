@@ -23,6 +23,12 @@ prepare: |
   # ensure no other refreshes interfere with the test
   snap refresh
   snap install test-snapd-sh
+  # linger is needed so snapd.session-agent.socket is active for the test user to receive notifications
+  # notifications are only checked on ubuntu classic (see execute section)
+  if os.query is-ubuntu && os.query is-classic; then
+    tests.session prepare -u test
+    tests.cleanup defer tests.session restore -u test
+  fi
 
 restore: |
   snap remove --purge test-snapd-sh || true

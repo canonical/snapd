@@ -258,6 +258,32 @@ func (s *AuditSuite) TestBuildMessageEmptyPayload(c *C) {
 	c.Check(totalLen, Equals, uint32(20))
 }
 
+func (s *AuditSuite) TestWriteStripsTrailingWhitespace(c *C) {
+	for _, tc := range []struct {
+		input string
+		want  string
+	}{
+		{"{\"foo\":\"bar\"}\n", "{\"foo\":\"bar\"}"},
+		{"{\"foo\":\"bar\"} \t\r\n", "{\"foo\":\"bar\"}"},
+		{"{\"foo\":\"bar\"}", "{\"foo\":\"bar\"}"},
+	} {
+		mock := &mockSyscallOps{socketFD: 7}
+		restore := seclog.MockSyscallOps(mock)
+		defer restore()
+
+		writer, err := seclog.OpenAuditWriter()
+		c.Assert(err, IsNil)
+
+		n, err := writer.Write([]byte(tc.input))
+		c.Assert(err, IsNil)
+		c.Check(n, Equals, len(tc.input))
+
+		payload := mock.sendtoData[syscall.SizeofNlMsghdr:]
+		c.Check(string(payload[:len(tc.want)]), Equals, tc.want)
+		c.Check(payload[len(tc.want)], Equals, byte(0))
+	}
+}
+
 func (s *AuditSuite) TestNlmsgAlignAlreadyAligned(c *C) {
 	c.Check(seclog.NlmsgAlign(0), Equals, uint32(0))
 	c.Check(seclog.NlmsgAlign(4), Equals, uint32(4))

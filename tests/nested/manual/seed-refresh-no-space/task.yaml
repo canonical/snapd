@@ -40,14 +40,15 @@ prepare: |
 
   tests.nested prepare-essential-snaps
 
-  snapd_snap="$(echo /tmp/extra-snaps/snapd_*.snap)"
+  extra_snaps="$(tests.nested get extra-snaps-path)"
+  snapd_snap="$(echo "${extra_snaps}"/snapd_*.snap)"
 
   export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
   ubuntu-image snap --image-size 10G "$TESTSLIB/assertions/developer1-${version}-dangerous.model" \
-    --snap /tmp/extra-snaps/pc.snap \
-    --snap /tmp/extra-snaps/pc-kernel.snap \
+    --snap "${extra_snaps}/pc.snap" \
+    --snap "${extra_snaps}/pc-kernel.snap" \
     --snap "${snapd_snap}" \
-    --snap "/tmp/extra-snaps/${base_snap}.snap"
+    --snap "${extra_snaps}/${base_snap}.snap"
 
   image_dir=$(tests.nested get images-path)
   image_name=$(tests.nested get image-name core)
