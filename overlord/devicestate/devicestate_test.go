@@ -3876,7 +3876,9 @@ func (s *deviceMgrSuite) TestEnsureSkipsEarlyAutoImportWhenSeededStateInvalid(c 
 	devicestate.SetEnsureBootOkRan(s.mgr, true)
 	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 	err := s.mgr.Ensure()
+	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, `(?s).*could not unmarshal state entry "seeded".*`)
+	c.Check(strings.Count(err.Error(), `could not unmarshal state entry "seeded"`), Equals, 1)
 	c.Check(called, Equals, false)
 }
 
