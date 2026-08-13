@@ -72,7 +72,7 @@ func (l *StructuredLog) Debug(msg string) {
 
 // Notice alerts the user about something, as well as putting in syslog
 func (l *StructuredLog) Notice(msg string) {
-	if !l.quiet {
+	if !l.quiet || l.debugEnabled() || l.traceEnabled() {
 		var pcs [1]uintptr
 		runtime.Callers(3, pcs[:])
 		r := slog.NewRecord(time.Now(), levelNotice, msg, pcs[0])
@@ -192,7 +192,7 @@ func New(w io.Writer, flag int, opts *LoggerOptions) Logger {
 		log:      slog.New(slog.NewJSONHandler(w, options)),
 		debug:    opts.ForceDebug || debugEnabledOnKernelCmdline(),
 		flags:    flag,
-		quiet:    quietEnabledOnKernelCmdline(),
+		quiet:    opts.Quiet,
 		trace:    featureTaggingEnabledOnKernelCmdline(),
 		seenLogs: make(map[string]bool),
 	}

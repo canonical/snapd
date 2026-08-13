@@ -223,7 +223,7 @@ func newLog(w io.Writer, flag int, opts *LoggerOptions) Logger {
 		log:   log.New(w, "", flag),
 		debug: opts.ForceDebug || debugEnabledOnKernelCmdline(),
 		flags: flag,
-		quiet: quietEnabledOnKernelCmdline(),
+		quiet: opts.Quiet,
 	}
 	return logger
 }
@@ -232,6 +232,8 @@ type LoggerOptions struct {
 	// ForceDebug can be set if we want debug traces even if not directly
 	// enabled by environment or kernel command line.
 	ForceDebug bool
+	// Quiet suppresses notice-level logs unless debugging is enabled.
+	Quiet bool
 }
 
 func buildFlags() int {
@@ -254,7 +256,12 @@ func SimpleSetup(opts *LoggerOptions) {
 // initramfs, where we want to consider the quiet kernel option.
 func BootSetup() error {
 	flags := buildFlags()
-	logger := New(os.Stderr, flags, nil)
+	m, _ := kcmdline.KeyValues("quiet")
+	_, quiet := m["quiet"]
+	opts := &LoggerOptions{
+		Quiet: quiet,
+	}
+	logger := New(os.Stderr, flags, opts)
 	SetLogger(logger)
 	return nil
 }
@@ -272,15 +279,6 @@ func debugEnabledOnKernelCmdline() bool {
 	}
 	m, _ := kcmdline.KeyValues("snapd.debug")
 	return m["snapd.debug"] == "1"
-}
-
-func quietEnabledOnKernelCmdline() bool {
-	if osutil.IsTestBinary() && procCmdlineUseDefaultMockInTests {
-		return false
-	}
-	m, _ := kcmdline.KeyValues("quiet")
-	_, quiet := m["quiet"]
-	return quiet
 }
 
 var timeNow = time.Now

@@ -303,71 +303,50 @@ func (s *LogStructuredSuite) TestIntegrationTraceFromKernelCmdlineStructured(c *
 	c.Check(data.Attr, Equals, "")
 }
 
-func (s *LogStructuredSuite) TestIntegrationQuietFromKernelCmdlineStructured(c *C) {
+func (s *LogStructuredSuite) TestIntegrationQuietStructured(c *C) {
 	os.Setenv("SNAPD_JSON_LOGGING", "1")
 	defer os.Unsetenv("SNAPD_JSON_LOGGING")
-	restore := logger.ProcCmdlineMustMock(false)
-	defer restore()
-
-	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	err := os.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 quiet\n"), 0644)
-	c.Assert(err, IsNil)
-	restore = kcmdline.MockProcCmdline(mockProcCmdline)
-	defer restore()
 
 	var buf bytes.Buffer
-	l := logger.New(&buf, logger.DefaultFlags, nil)
+	l := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{Quiet: true})
 	l.Notice("xyzzy")
 	c.Check(buf.String(), Equals, "")
 }
 
-func (s *LogStructuredSuite) TestIntegrationQuietFromKernelCmdlineStructuredStillLogsDebug(c *C) {
+func (s *LogStructuredSuite) TestIntegrationQuietForceDebugStructuredStillLogsDebug(c *C) {
 	os.Setenv("SNAPD_JSON_LOGGING", "1")
 	defer os.Unsetenv("SNAPD_JSON_LOGGING")
 
-	// must enable actually checking the command line, because by default the
-	// logger package will skip checking for the kernel command line parameter
-	// if it detects it is in a test because otherwise we would have to mock the
-	// cmdline in many many many more tests that end up using a logger
-	restore := logger.ProcCmdlineMustMock(false)
-	defer restore()
-
-	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	err := os.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 quiet snapd.debug=1\n"), 0644)
-	c.Assert(err, IsNil)
-	restore = kcmdline.MockProcCmdline(mockProcCmdline)
-	defer restore()
-
 	var buf bytes.Buffer
-	l := logger.New(&buf, logger.DefaultFlags, nil)
-	l.Notice("hidden")
-	l.Debug("visible")
+	l := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{Quiet: true, ForceDebug: true})
+	l.Notice("notice")
+	l.Debug("debug")
 
 	entries := decodeStructuredEntries(c, &buf)
-	c.Assert(entries, HasLen, 1)
-	c.Check(entries[0].Msg, Equals, "visible")
-	c.Check(entries[0].Level, Equals, "DEBUG")
+	c.Assert(entries, HasLen, 2)
+	c.Check(entries[0].Msg, Equals, "notice")
+	c.Check(entries[0].Level, Equals, "NOTICE")
+	c.Check(entries[1].Msg, Equals, "debug")
+	c.Check(entries[1].Level, Equals, "DEBUG")
 }
 
-func (s *LogStructuredSuite) TestIntegrationQuietFromKernelCmdlineStructuredStillLogsTrace(c *C) {
-	restore := logger.ProcCmdlineMustMock(false)
-	defer restore()
-
-	mockProcCmdline := filepath.Join(c.MkDir(), "proc-cmdline")
-	err := os.WriteFile(mockProcCmdline, []byte("console=tty panic=-1 quiet tag.features=1\n"), 0644)
-	c.Assert(err, IsNil)
-	restore = kcmdline.MockProcCmdline(mockProcCmdline)
-	defer restore()
+func (s *LogStructuredSuite) TestIntegrationQuietStructuredStillLogsTrace(c *C) {
+	os.Setenv("SNAPD_JSON_LOGGING", "1")
+	defer os.Unsetenv("SNAPD_JSON_LOGGING")
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
 
 	var buf bytes.Buffer
-	l := logger.New(&buf, logger.DefaultFlags, nil)
-	l.Notice("hidden")
-	l.Trace("visible")
+	l := logger.New(&buf, logger.DefaultFlags, &logger.LoggerOptions{Quiet: true})
+	l.Notice("notice")
+	l.Trace("trace")
 
 	entries := decodeStructuredEntries(c, &buf)
-	c.Assert(entries, HasLen, 1)
-	c.Check(entries[0].Msg, Equals, "visible")
-	c.Check(entries[0].Level, Equals, "TRACE")
+	c.Assert(entries, HasLen, 2)
+	c.Check(entries[0].Msg, Equals, "notice")
+	c.Check(entries[0].Level, Equals, "NOTICE")
+	c.Check(entries[1].Msg, Equals, "trace")
+	c.Check(entries[1].Level, Equals, "TRACE")
 }
 
 func (s *LogSuite) TestBootSetupStructuredLogger(c *C) {
