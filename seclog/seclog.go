@@ -194,8 +194,9 @@ func LogUserRemoved(user SnapdUser) {
 // global security logger. It is emitted when authorization succeeds (the
 // access gate passed), not when the API operation or handler succeeds.
 //
-// grantReason identifies why access was granted; see [GrantReason],
-// optionally expanded with an interface plug/slot postfix when applicable.
+// grantReason identifies why access was granted; see [GrantReason].
+// When an interface connection also contributed, pass the result of
+// [GrantReason.WithInterface].
 func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, grantReason GrantReason) {
 	lock.Lock()
 	defer lock.Unlock()

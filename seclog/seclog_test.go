@@ -242,6 +242,17 @@ func (s *SecLogSuite) TestLogAdminActivity(c *C) {
 	c.Check(s.buf.String(), testutil.Contains, "[user=")
 }
 
+func (s *SecLogSuite) TestLogAdminActivityWithInterface(c *C) {
+	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "admin@example.com", StoreUserName: "admin"}
+	peer := seclog.Peer{Socket: "/run/snapd-snap.socket", UID: 0, PID: 4242}
+	endpoint := seclog.Endpoint{Method: "GET", Path: "/v2/snaps"}
+	reason := seclog.GrantRootAuth.WithInterface("desktop-launch", true)
+	seclog.LogAdminActivity(user, peer, endpoint, reason)
+
+	c.Check(s.buf.String(), testutil.Contains, "granted access to GET:/v2/snaps:<none> (root-auth desktop-launch plug)")
+	c.Check(s.buf.String(), testutil.Contains, "[reason_granted=\"root-auth desktop-launch plug\"]")
+}
+
 // TestLogUnauthorizedAccess verifies that LogUnauthorizedAccess emits the expected event and attributes.
 func (s *SecLogSuite) TestLogUnauthorizedAccess(c *C) {
 	user := seclog.SnapdUser{ID: 1, StoreUserEmail: "hacker@example.com", StoreUserName: "hacker"}

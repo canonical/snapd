@@ -199,11 +199,9 @@ func (e Endpoint) String() string {
 // It is passed to [LogAdminActivity] as grantReason and emitted as
 // reason_granted.
 //
-// When access was granted via a snap interface connection, the value is
-// expanded by appending the interface name and plug or slot side, in the
-// form " <interface>+<plug|slot>" (e.g. "root-auth desktop-launch+plug").
-// The same postfix may apply to any of the base values when an interface
-// also contributed to the grant.
+// The base values are [GrantUserAuth], [GrantRootAuth], and
+// [GrantPolkitAuth]. When an interface connection also contributed to
+// the grant, use [GrantReason.WithInterface].
 type GrantReason string
 
 const (
@@ -211,6 +209,28 @@ const (
 	GrantRootAuth   GrantReason = "root-auth"
 	GrantPolkitAuth GrantReason = "polkit-auth"
 )
+
+// WithInterface returns a [GrantReason] that includes a snap interface
+// connection as part of why access was granted.
+//
+// The result has the form "<reason> <interface> <plug|slot>", for
+// example "root-auth desktop-launch plug".
+//
+// If iface is empty, WithInterface returns g unchanged so it can be
+// called unconditionally.
+//
+// onPlugSide is true when the requesting snap was on the plug side of
+// the connection, false for the slot side.
+func (g GrantReason) WithInterface(iface string, onPlugSide bool) GrantReason {
+	if iface == "" {
+		return g
+	}
+	side := "slot"
+	if onPlugSide {
+		side = "plug"
+	}
+	return GrantReason(string(g) + " " + iface + " " + side)
+}
 
 // DenialReason identifies why access was denied for authz_fail events.
 // It is passed to [LogUnauthorizedAccess] as denialReason and emitted as

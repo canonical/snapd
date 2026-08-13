@@ -254,6 +254,24 @@ func (s *SlogSuite) TestSnapdUserLogValue(c *C) {
 	}
 }
 
+func (s *SlogSuite) TestGrantReasonLogValue(c *C) {
+	type record struct {
+		ReasonGranted string `json:"reason_granted"`
+	}
+
+	logger := s.newLogger(c)
+	logger.LogEvent(
+		seclog.Event{Category: "TEST", Name: "test_event", Level: seclog.LevelInfo},
+		"test",
+		seclog.Attr{Key: "reason_granted", Value: seclog.GrantRootAuth.WithInterface("desktop-launch", true)},
+	)
+
+	var obtained record
+	err := json.Unmarshal(s.buf.Bytes(), &obtained)
+	c.Assert(err, IsNil)
+	c.Check(obtained.ReasonGranted, Equals, "root-auth desktop-launch plug")
+}
+
 func (s *SlogSuite) TestReasonLogValue(c *C) {
 	type errorRecord struct {
 		Error struct {
