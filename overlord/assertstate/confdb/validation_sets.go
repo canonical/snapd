@@ -270,7 +270,9 @@ func (c *ValsetsConfdbHandler) Databag(st *state.State) (confdb.JSONDatabag, err
 		}
 
 		vs := a.(*asserts.ValidationSet)
-		valset["revision"] = vs.Revision()
+		if vs.Revision() > 0 {
+			valset["revision"] = vs.Revision()
+		}
 		vsets := snapasserts.NewValidationSets()
 		if err := vsets.Add(vs); err != nil {
 			return nil, err
