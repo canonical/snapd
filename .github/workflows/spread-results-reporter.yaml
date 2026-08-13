@@ -9,7 +9,7 @@ on:
 jobs:
   report-spread-failures:
     if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, spread-enabled]
     permissions:
       pull-requests: write
     env:
@@ -90,7 +90,7 @@ jobs:
             }
 
             let matchingSkips = allArtifacts.filter((artifact) => {
-              return artifact.name.startsWith(`skipped-tests-list-${context.payload.workflow_run.id}`);
+              return artifact.name.startsWith(`skipped-tests-list-${context.payload.workflow_run.id}-${context.payload.workflow_run.run_attempt}`);
             });
 
             for (let artifact of matchingSkips) {
