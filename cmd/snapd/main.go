@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snapd/cli"
 	"github.com/snapcore/snapd/cmd/snapd/daemon"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-fde-keymgr"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-gpio-helper"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-preseed"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
@@ -42,6 +43,7 @@ var (
 		"snap-preseed":     snap_preseed.Main,
 		"snapd-apparmor":   snapd_apparmor.Main,
 		"snap-gpio-helper": snap_gpio_helper.Main,
+		"snap-fde-keymgr":  snap_fde_keymgr.Main,
 	}
 
 	// list of snapd tools that expect reexec
