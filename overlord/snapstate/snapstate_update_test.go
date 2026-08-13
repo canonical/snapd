@@ -9481,12 +9481,12 @@ func assertMigrationState(c *C, st *state.State, snap string, expected *dirs.Sna
 	assertMigrationInSeqFile(c, snap, expected)
 }
 
-func assertMigrationInSeqFile(c *C, snap string, expected *dirs.SnapDirOptions) {
+func assertMigrationInSeqFile(c *C, snapName string, expected *dirs.SnapDirOptions) {
 	if expected == nil {
 		expected = &dirs.SnapDirOptions{}
 	}
 
-	seqFilePath := filepath.Join(dirs.SnapSeqDir, snap+".json")
+	seqFilePath := snap.SequenceFile(snapName)
 	file, err := os.Open(seqFilePath)
 	c.Assert(err, IsNil)
 	defer file.Close()

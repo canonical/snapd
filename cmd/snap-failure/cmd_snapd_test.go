@@ -47,7 +47,7 @@ func (r *failureSuite) TestRun(c *C) {
 }
 
 func writeSeqFile(c *C, name string, current snap.Revision, seq []*snap.SideInfo) {
-	seqPath := filepath.Join(dirs.SnapSeqDir, name+".json")
+	seqPath := snap.SequenceFile(name)
 
 	err := os.MkdirAll(dirs.SnapSeqDir, 0755)
 	c.Assert(err, IsNil)
@@ -476,7 +476,7 @@ func (r *failureSuite) TestGarbageSeq(c *C) {
 	origArgs := os.Args
 	defer func() { os.Args = origArgs }()
 
-	seqPath := filepath.Join(dirs.SnapSeqDir, "snapd.json")
+	seqPath := snap.SequenceFile("snapd")
 	err := os.MkdirAll(dirs.SnapSeqDir, 0755)
 	c.Assert(err, IsNil)
 

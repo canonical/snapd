@@ -1895,10 +1895,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	}
 }
 
-func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+func getSnapDirOptions(snapName string) (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	data, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	data, err := os.ReadFile(snap.SequenceFile(snapName))
 	if errors.Is(err, os.ErrNotExist) {
 		return &opts, nil
 	} else if err != nil {
