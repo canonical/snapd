@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package main
+package snap_fde_keymgr
 
 import (
 	"io"
