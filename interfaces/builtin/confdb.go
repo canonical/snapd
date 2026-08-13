@@ -76,6 +76,10 @@ func (iface *confdbInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
 		return fmt.Errorf(`optional confdb plug "role" attribute must be "custodian"`)
 	}
 
+	if role == "custodian" && account == "system" {
+		return fmt.Errorf(`snaps cannot be custodians of "system" confdb schemas`)
+	}
+
 	return nil
 }
 
