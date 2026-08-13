@@ -2078,17 +2078,22 @@ var seedFailureFmt = `seeding failed with: %v. This indicates an error in your d
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
-	if err := m.ensureSeeded(); err != nil {
+	seedingErr := m.ensureSeeded()
+	if seedingErr != nil {
 		m.state.Lock()
-		m.state.Warnf(seedFailureFmt, err)
+		m.state.Warnf(seedFailureFmt, seedingErr)
 		m.state.Unlock()
-		errs = append(errs, fmt.Errorf("cannot seed: %v", err))
+		errs = append(errs, fmt.Errorf("cannot seed: %v", seedingErr))
 	}
 
 	if !m.preseed {
 		m.state.Lock()
 		seeded, seededErr := snapstate.SystemSeeded(m.state)
-		deviceCtx, deviceCtxErr := snapstate.DeviceCtxForEnsure(m.state)
+		var deviceCtx snapstate.DeviceContext
+		var deviceCtxErr error
+		if seededErr == nil {
+			deviceCtx, deviceCtxErr = snapstate.DeviceCtxForEnsure(m.state)
+		}
 		deviceSeed := m.earlyDeviceSeed
 		m.state.Unlock()
 		var classicModelErr error
@@ -2098,14 +2103,19 @@ func (m *DeviceManager) Ensure() error {
 			classicModelErr = m.ensureClassicModelAfterSeed()
 			if classicModelErr != nil {
 				errs = append(errs, classicModelErr)
+				deviceCtxErr = nil
+			} else {
+				m.state.Lock()
+				deviceCtx, deviceCtxErr = snapstate.DeviceCtxForEnsure(m.state)
+				m.state.Unlock()
 			}
-
-			m.state.Lock()
-			deviceCtx, deviceCtxErr = snapstate.DeviceCtxForEnsure(m.state)
-			m.state.Unlock()
 		}
-		if deviceCtxErr != nil && (!errors.Is(deviceCtxErr, state.ErrNoState) || seeded) &&
-			!(classicModelErr != nil && errors.Is(deviceCtxErr, state.ErrNoState)) {
+		if seededErr != nil {
+			// ensureSeeded reads the same state entry before doing any work.
+			if seedingErr == nil {
+				errs = append(errs, seededErr)
+			}
+		} else if deviceCtxErr != nil && (!errors.Is(deviceCtxErr, state.ErrNoState) || seeded) {
 			errs = append(errs, deviceCtxErr)
 		}
 
@@ -2127,9 +2137,7 @@ func (m *DeviceManager) Ensure() error {
 			}
 		}
 
-		if seededErr != nil {
-			errs = append(errs, seededErr)
-		} else if seeded {
+		if seeded {
 			if err := m.ensureSeedInConfigAfterSeed(); err != nil {
 				errs = append(errs, err)
 			}
