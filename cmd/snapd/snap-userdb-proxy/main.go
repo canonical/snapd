@@ -53,19 +53,11 @@ func run() error {
 		return err
 	}
 	defer l.Close()
-
 	logger.Debugf("snap-userdb-proxy listening on %q", l.Addr())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigCh
-		logger.Noticef("received signal %v, shutting down", sig)
-		cancel()
-	}()
-
+	ctx, cancel = signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	return proxy.Serve(ctx, l)
 }
