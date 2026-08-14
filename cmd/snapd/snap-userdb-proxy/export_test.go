@@ -25,8 +25,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-var PeerIsConfinedSnapCheck = peerIsConfinedSnap
-
 func MockGetsockoptPeerSec(f func(*net.UnixConn) (string, error)) (restore func()) {
 	restore = testutil.Backup(&getsockoptPeerSec)
 	getsockoptPeerSec = f

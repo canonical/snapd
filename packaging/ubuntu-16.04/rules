@@ -70,13 +70,9 @@ endif
 
 SYSTEMD_UNITS_DESTDIR:=$(or $(shell pkg-config --variable=systemdsystemunitdir systemd),$(error pkg-config did not return systemdsystemunitdir))
 
-WITH_USERDB_PROXY:=$(shell . /etc/os-release 2>/dev/null; \
-	if [ "$$ID" = ubuntu ] && dpkg --compare-versions "$$VERSION_ID" ge 24.04; then \
-		echo true; \
-	else \
-		echo false; \
-	fi)
-ifeq ($(WITH_USERDB_PROXY),true)
+WITH_USERDB_PROXY:=false
+ifeq (${VERSION_ID},"24.04")
+	WITH_USERDB_PROXY:=true
 	SUBSTVARS += -Vuserdbd:Depends="systemd-userdbd"
 endif
 

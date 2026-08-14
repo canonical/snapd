@@ -108,7 +108,7 @@ func (p *Proxy) Serve(ctx context.Context, l net.Listener) error {
 func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
-	label, isSnap, err := peerIsConfinedSnap(conn)
+	label, isSnap, err := peerIsSnap(conn)
 	if err != nil {
 		logger.Noticef("cannot determine socket peer security label: %v", err)
 		return
@@ -273,9 +273,9 @@ var getsockoptPeerSec = func(conn *net.UnixConn) (string, error) {
 	return label, nil
 }
 
-// peerIsConfinedSnap returns the Apparmor label of the socket peer process and
-// true, if it's running in a snap (snap.<name>.<app>...).
-func peerIsConfinedSnap(conn net.Conn) (string, bool, error) {
+// peerIsSnap returns the Apparmor label of the socket peer process and true,
+// if it's running in a snap (snap.<name>.<app>...).
+func peerIsSnap(conn net.Conn) (string, bool, error) {
 	uconn, ok := conn.(*net.UnixConn)
 	if !ok {
 		return "", false, fmt.Errorf("expected AF_UNIX peer, got %T", conn)

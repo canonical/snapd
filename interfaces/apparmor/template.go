@@ -165,8 +165,8 @@ var templateCommon = `
   /etc/default/nss r,
 
   # Confined snaps look up users and groups via the io.snapcraft.UserDBProxy
-	# varlink proxy.
-	/run/systemd/userdb/ r,
+  # varlink proxy.
+  /run/systemd/userdb/ r,
   /run/systemd/userdb/io.snapcraft.UserDBProxy rw,
 
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
