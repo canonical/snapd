@@ -112,7 +112,7 @@ prepare: |
         "${comp_path}"
   done
 
-  snapd_snap="$(echo ${extra_snaps_path}/snapd_*.snap)"
+  snapd_snap="$(echo "${extra_snaps_path}"/snapd_*.snap)"
   comp_required_path="${extra_snaps_path}/${test_snap_name}+comp-required.comp"
   comp_optional_in_seed_path="${extra_snaps_path}/${test_snap_name}+comp-optional-in-seed.comp"
 
@@ -167,7 +167,6 @@ execute: |
 
   # SNAP_PRESENCE="${SNAP_PRESENCE:-required}"
   # COMPONENT_EXCLUSIVE="${COMPONENT_EXCLUSIVE:-true}"
-  version="$(tests.nested show version)"
   extra_snaps_path="$(tests.nested get extra-snaps-path)"
   test_snap_name="test-snapd-component-seed-refresh"
   component_names=(
@@ -310,7 +309,7 @@ execute: |
   latest_seed_label=""
 
   # ensure that all the components are installed before enabling seed-refresh
-  remote.exec "sudo snap install ${full_component_names[@]}"
+  remote.exec "sudo snap install ${full_component_names[*]}"
 
   remote.exec 'sudo snap set core experimental.seed-refresh=true'
 
@@ -321,7 +320,7 @@ execute: |
       make_fake_store_revision "${test_snap_path}" "${snap_output_path}" "${test_snap_id}" "${snap_revision}"
   fi
   comp_revision=2
-  for comp in ${full_component_names[@]}; do
+  for comp in "${full_component_names[@]}"; do
       comp_path="${extra_snaps_path}/${comp}.comp"
       comp_output_path="${extra_snaps_path}/${comp}_${comp_revision}.comp"
       make_fake_component_store_revision "${comp_path}" "${comp_output_path}" "${test_snap_id}" "${snap_revision}" "${comp_revision}"

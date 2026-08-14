@@ -1911,6 +1911,7 @@ func CheckSeedRefreshRemove(st *state.State, si *snap.Info, dctx snapstate.Devic
 // we'll open the seed at most once.
 func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter func(snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, bool, error), allowlist func() (SeedAllowlist, error)) {
 	snaps := make(map[string]*asserts.ModelSnap)
+	// components is a map of component names to their model-defined presence
 	components := make(map[string]string)
 
 	for _, sn := range dctx.Model().AllSnaps() {
@@ -1945,8 +1946,8 @@ func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter fu
 
 	filter = func(candidate snapstate.SeedRefreshCandidate) (snapstate.SeedRefreshCandidate, bool, error) {
 		instanceName := candidate.InstanceName
-		sn, inModel := snaps[instanceName]
-		if !inModel {
+		sn, ok := snaps[instanceName]
+		if !ok {
 			// snaps not in the model do not trigger a seed refresh
 			return snapstate.SeedRefreshCandidate{}, false, nil
 		}
@@ -1966,32 +1967,33 @@ func seedRefreshPolicy(st *state.State, dctx snapstate.DeviceContext) (filter fu
 		candidateComponentTriggers := make(map[string]string)
 		for compName, compsupID := range candidate.ComponentSetupTaskIDs {
 			fullCompName := snap.SnapComponentName(candidate.InstanceName, compName)
-			compPresence, compInModel := components[fullCompName]
-			if !compInModel {
+			compPresence, ok := components[fullCompName]
+			if !ok {
 				continue
 			}
 
-			if compPresence == "required" {
-				// required component triggers a seed refresh
-				candidateComponentTriggers[compName] = compsupID
-				continue
-			}
-
-			if compPresence == "optional" {
+			if compPresence != "required" {
 				optionalInSeed, err := readOptionalContainers()
 				if err != nil {
 					return snapstate.SeedRefreshCandidate{}, false, err
 				}
 
-				if strutil.ListContains(optionalInSeed.Components[instanceName], compName) {
+				if !strutil.ListContains(optionalInSeed.Components[instanceName], compName) {
 					// optional component in the seed triggers a seed refresh
-					candidateComponentTriggers[compName] = compsupID
+					continue
 				}
 			}
+
+			// required and optional components in the seed trigger a seed refresh
+			candidateComponentTriggers[compName] = compsupID
 		}
+		// CheckSeedRefreshRemove passes a name-only candidate to filter and
+		// must not be classified as component exclusive because of the empty
+		// SnapSetupTaskIDs field. Otherwise the empty component triggers below would
+		// wrongly allow removing a snap that must stay seeded.
 		componentExclusive := len(candidate.SnapSetupTaskIDs) == 0 && len(candidate.ComponentSetupTaskIDs) > 0
 		if componentExclusive && len(candidateComponentTriggers) == 0 {
-			// only component refresh, no components are in the seed
+			// component exclusive refresh but none of the components trigger a seed refresh
 			return snapstate.SeedRefreshCandidate{}, false, nil
 		}
 

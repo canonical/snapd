@@ -97,7 +97,7 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 		return SeedRefreshCandidate{}, err
 	}
 
-	filter := func(id string) *state.Task {
+	lookup := func(id string) *state.Task {
 		for _, t := range ts.Tasks() {
 			if t.ID() == id {
 				return t
@@ -110,26 +110,29 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 	if err := t.Get("component-setup-tasks", &compsupTaskIDs); err != nil && !errors.Is(err, state.ErrNoState) {
 		return SeedRefreshCandidate{}, err
 	}
-	compSetupTaskIDs := make(map[string]string)
-	for _, id := range compsupTaskIDs {
-		compsupTask := filter(id)
-		if compsupTask == nil {
-			return SeedRefreshCandidate{}, fmt.Errorf("internal error: task %q not found in refresh taskset", id)
+
+	var compSetupTaskIDs map[string]string
+	if len(compsupTaskIDs) > 0 {
+		compSetupTaskIDs = make(map[string]string, len(compsupTaskIDs))
+		for _, id := range compsupTaskIDs {
+			compsupTask := lookup(id)
+			if compsupTask == nil {
+				return SeedRefreshCandidate{}, fmt.Errorf("internal error: task %q not found in refresh taskset", id)
+			}
+			var compSetup ComponentSetup
+			err := compsupTask.Get("component-setup", &compSetup)
+			if err != nil {
+				return SeedRefreshCandidate{}, err
+			}
+			compSetupTaskIDs[compSetup.ComponentName()] = id
 		}
-		var compSetup ComponentSetup
-		err := compsupTask.Get("component-setup", &compSetup)
-		if err != nil {
-			return SeedRefreshCandidate{}, err
-		}
-		compSetupTaskIDs[compSetup.ComponentName()] = id
 	}
 
 	candidate := SeedRefreshCandidate{
-		InstanceName: snapsup.InstanceName(),
+		InstanceName:          snapsup.InstanceName(),
+		ComponentSetupTaskIDs: compSetupTaskIDs,
 	}
-	if len(compSetupTaskIDs) > 0 {
-		candidate.ComponentSetupTaskIDs = compSetupTaskIDs
-	}
+
 	if !snapsup.ComponentExclusiveOperation {
 		candidate.SnapSetupTaskIDs = append(candidate.SnapSetupTaskIDs, t.ID())
 	}
