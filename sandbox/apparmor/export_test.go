@@ -121,3 +121,7 @@ var (
 func FreshAppArmorAssessment() {
 	appArmorAssessment = &appArmorAssess{appArmorProber: &appArmorProbe{}}
 }
+
+func MockSecurityLabelProbeLevel(f func() LevelType) (restore func()) {
+	return testutil.Mock(&securityLabelProbeLevel, f)
+}

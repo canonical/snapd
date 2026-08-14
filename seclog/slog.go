@@ -28,6 +28,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -192,11 +193,9 @@ func (u SnapdUser) LogValue() slog.Value {
 // used directly as a structured log attribute value.
 func (e Endpoint) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.String("method", e.Method),
-		slog.String("path", e.Path),
-		slog.String("action", e.Action),
-		slog.String("access_checker", e.AccessChecker),
-		slog.String("access_level", e.AccessLevel),
+		slog.String("method", fieldOrUnknown(e.Method)),
+		slog.String("path", fieldOrUnknown(e.Path)),
+		slog.String("action", fieldOrNone(e.Action)),
 	)
 }
 
@@ -207,20 +206,44 @@ func (p Peer) LogValue() slog.Value {
 		slog.String("socket", p.Socket),
 		slog.Int64("uid", int64(p.UID)),
 		slog.Int64("pid", int64(p.PID)),
+		slog.String("exe", fieldOrUnknown(p.Exe)),
+		peerSecurityLabelsAttr(p.SecurityLabels),
+		slog.String("cgroup_label", fieldOrUnknown(p.CgroupLabel)),
+		slog.String("snap", fieldOrUnknown(p.Snap)),
+		slog.String("app", fieldOrUnknown(p.App)),
 	)
 }
 
-// LogValue implements [slog.LogValuer], allowing [AuthzChecks] to be
-// used directly as a structured log attribute value.
-func (a AuthzChecks) LogValue() slog.Value {
-	return slog.GroupValue(
-		slog.String("access_options", string(a.AccessOptions)),
-		slog.String("peer_credentials", string(a.PeerCreds)),
-		slog.String("socket", string(a.Socket)),
-		slog.String("interface_requirements", string(a.Interface)),
-		slog.String("open_access", string(a.OpenAccess)),
-		slog.String("user_authentication", string(a.UserAuth)),
-		slog.String("root", string(a.Root)),
-		slog.String("polkit", string(a.Polkit)),
-	)
+// fieldOrUnknown returns [unknown] when value is empty.
+func fieldOrUnknown(value string) string {
+	if value == "" {
+		return unknown
+	}
+	return value
+}
+
+// fieldOrNone returns [none] when value is empty.
+func fieldOrNone(value string) string {
+	if value == "" {
+		return none
+	}
+	return value
+}
+
+// peerSecurityLabelsAttr renders security_labels as an empty JSON object when
+// no LSM labels were obtained, or as a key-sorted group otherwise.
+func peerSecurityLabelsAttr(labels map[string]string) slog.Attr {
+	if len(labels) == 0 {
+		return slog.Any("security_labels", map[string]string{})
+	}
+	keys := make([]string, 0, len(labels))
+	for key := range labels {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	attrs := make([]slog.Attr, 0, len(keys))
+	for _, key := range keys {
+		attrs = append(attrs, slog.String(key, labels[key]))
+	}
+	return slog.Attr{Key: "security_labels", Value: slog.GroupValue(attrs...)}
 }

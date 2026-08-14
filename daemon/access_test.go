@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/polkit"
+	"github.com/snapcore/snapd/seclog"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -49,16 +50,16 @@ var (
 
 func (s *accessSuite) TestAccessOptionsValidation(c *C) {
 	opts := daemon.AccessOptions{}
-	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `unexpected access level "" \(api 500\)`)
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts, daemon.NewNopAuthzRecorder()), ErrorMatches, `unexpected access level "" \(api 500\)`)
 
 	opts = daemon.AccessOptions{AccessLevel: "some-level"}
-	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `unexpected access level "some-level" \(api 500\)`)
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts, daemon.NewNopAuthzRecorder()), ErrorMatches, `unexpected access level "some-level" \(api 500\)`)
 
 	opts = daemon.AccessOptions{AccessLevel: "root"}
-	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `no sockets specified \(api 500\)`)
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts, daemon.NewNopAuthzRecorder()), ErrorMatches, `no sockets specified \(api 500\)`)
 
 	opts = daemon.AccessOptions{AccessLevel: "root", Sockets: []string{"some-socket"}}
-	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts), ErrorMatches, `unexpected socket "some-socket" \(api 500\)`)
+	c.Check(daemon.CheckAccess(nil, nil, nil, nil, opts, daemon.NewNopAuthzRecorder()), ErrorMatches, `unexpected socket "some-socket" \(api 500\)`)
 }
 
 func (s *accessSuite) TestOpenAccess(c *C) {
@@ -66,15 +67,15 @@ func (s *accessSuite) TestOpenAccess(c *C) {
 
 	// openAccess denies access from snapd-snap.socket
 	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(nil, nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Access allowed from snapd.socket
 	ucred.Socket = dirs.SnapdSocket
-	c.Check(ac.CheckAccess(nil, nil, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// Access forbidden without peer credentials.  This will need
 	// to be revisited if the API is ever exposed over TCP.
-	c.Check(ac.CheckAccess(nil, nil, nil, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 }
 
 func (s *accessSuite) TestAuthenticatedAccess(c *C) {
@@ -92,26 +93,26 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 
 	// authenticatedAccess denies access from snapd-snap.socket
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, req, ucred, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// the same for unknown sockets
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: "unexpected.socket"}
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// With macaroon auth, a normal user is granted access
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(nil, req, ucred, user), IsNil)
+	c.Check(ac.CheckAccess(nil, req, ucred, user, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// Macaroon access requires peer credentials
-	c.Check(ac.CheckAccess(nil, req, nil, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, nil, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Without macaroon auth, normal users are unauthorized
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 
 	// The root user is granted access without a macaroon
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 }
 
 func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
@@ -130,9 +131,9 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		return daemon.Forbidden("access denied")
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(nil, req, nil, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, req, nil, user), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, req, nil, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, nil, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// polkit is checked for regular users without macaroon auth
 	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
@@ -143,7 +144,7 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 	})
 	defer restore()
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(nil, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 }
 
 func (s *accessSuite) TestCheckPolkitActionImpl(c *C) {
@@ -211,22 +212,22 @@ func (s *accessSuite) TestRootAccess(c *C) {
 	user := &auth.UserState{}
 
 	// rootAccess denies access without ucred
-	c.Check(ac.CheckAccess(nil, nil, nil, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, nil, nil, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// rootAccess denies access from snapd-snap.socket
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(nil, nil, ucred, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, nil, ucred, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Non-root users are forbidden, even with macaroon auth
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(nil, nil, ucred, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, nil, ucred, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Root is granted access
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(nil, nil, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 }
 
 func (s *accessSuite) TestSnapAccess(c *C) {
@@ -234,12 +235,12 @@ func (s *accessSuite) TestSnapAccess(c *C) {
 
 	// snapAccess allows access from snapd-snap.socket
 	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(nil, nil, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// access is forbidden on the main socket or without peer creds
 	ucred.Socket = dirs.SnapdSocket
-	c.Check(ac.CheckAccess(nil, nil, ucred, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(nil, nil, nil, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 }
 
 func (s *accessSuite) TestRequireInterfaceApiAccessImpl(c *C) {
@@ -271,26 +272,26 @@ plugs:
 	var ac daemon.AccessChecker = daemon.InterfaceOpenAccess{Interfaces: []string{"snap-themes-control", "snap-refresh-control"}}
 
 	// Access with no ucred data is forbidden
-	c.Check(ac.CheckAccess(d, nil, nil, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(d, nil, nil, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Access from snapd.socket is allowed
 	ucred := &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapdSocket}
 	req := http.Request{RemoteAddr: ucred.String()}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(d, nil, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	c.Check(req.RemoteAddr, Equals, ucred.String())
 
 	// Access from unknown sockets is forbidden
 	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: "unknown.socket"}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(d, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Access from pids that cannot be mapped to a snap on
 	// snapd-snap.socket are rejected
 	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, daemon.Forbidden("could not determine snap name for pid: not a snap"))
+	c.Check(ac.CheckAccess(d, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, daemon.Forbidden("could not determine snap name for pid: not a snap"))
 
 	// Access from snapd-snap.socket is rejected by default
 	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 42, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(d, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Now connect the marker interface
 	st := d.Overlord().State()
@@ -304,7 +305,7 @@ plugs:
 
 	// Access is allowed now that the snap has the plug connected
 	req = http.Request{RemoteAddr: ucred.String()}
-	c.Check(ac.CheckAccess(s.d, &req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, &req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	// Interface is attached to RemoteAddr
 	c.Check(req.RemoteAddr, Equals, fmt.Sprintf("%siface=snap-themes-control;", ucred))
 
@@ -320,7 +321,7 @@ plugs:
 	})
 	st.Unlock()
 	req = http.Request{RemoteAddr: ucred.String()}
-	c.Check(ac.CheckAccess(s.d, &req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, &req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	// Check that both interfaces are attached to RemoteAddr.
 	// Since conns is a map, order is not guaranteed.
 	c.Check(req.RemoteAddr, Matches, fmt.Sprintf("^%siface=(snap-themes-control&snap-refresh-control|snap-refresh-control&snap-themes-control);$", ucred))
@@ -335,7 +336,7 @@ plugs:
 	})
 	st.Unlock()
 	req = http.Request{RemoteAddr: ucred.String()}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(d, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 	c.Check(req.RemoteAddr, Equals, ucred.String())
 }
 
@@ -346,27 +347,27 @@ func (s *accessSuite) TestInterfaceOpenAccess(c *C) {
 	// interfaceOpenAccess allows access if requireInterfaceApiAccess() succeeds
 	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
 	restore := daemon.MockRequireInterfaceApiAccess(func(
-		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
-	) *daemon.APIError {
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
 			Interfaces: []string{"snap-themes-control", "snap-interfaces-requests-control"},
 			Plug:       true,
 		})
-		return nil
+		return daemon.InterfaceAccessOutcome{}, nil
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, nil, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// Access is forbidden if requireInterfaceApiAccess() fails
 	restore = daemon.MockRequireInterfaceApiAccess(func(
-		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs,
-	) *daemon.APIError {
-		return errForbidden
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, req daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+		return daemon.InterfaceAccessOutcome{}, errForbidden
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, nil, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 }
 
 func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
@@ -386,34 +387,34 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccess(c *C) {
 	// interfaceAuthenticatedAccess denies access if requireInterfaceApiAccess fails
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
 	restore = daemon.MockRequireInterfaceApiAccess(func(
-		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
-	) *daemon.APIError {
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
 			Plug: true,
 		})
-		return errForbidden
+		return daemon.InterfaceAccessOutcome{}, errForbidden
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// If requireInterfaceApiAccess succeeds, root is granted access
 	restore = daemon.MockRequireInterfaceApiAccess(func(
-		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
-	) *daemon.APIError {
-		return nil
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+		return daemon.InterfaceAccessOutcome{}, nil
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// Macaroon auth will grant a normal user access too
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// Without macaroon auth, normal users are unauthorized
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 }
 
 func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
@@ -425,14 +426,14 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
 
 	s.daemon(c)
 	restore := daemon.MockRequireInterfaceApiAccess(func(
-		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
-	) *daemon.APIError {
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
 			Plug: true,
 		})
-		return nil
+		return daemon.InterfaceAccessOutcome{}, nil
 	})
 	defer restore()
 
@@ -444,9 +445,9 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
 		return errForbidden
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// polkit is checked for regular users without macaroon auth
 	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
@@ -456,7 +457,7 @@ func (s *accessSuite) TestInterfaceAuthenticatedAccessPolkit(c *C) {
 		return nil
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 }
 
 func (s *accessSuite) TestInterfaceProviderRootAccessCallsWithCorrectArgs(c *C) {
@@ -479,8 +480,8 @@ func (s *accessSuite) TestInterfaceProviderRootAccessCallsWithCorrectArgs(c *C) 
 	// mock and check whether correct arguments are passed
 	called := 0
 	restore = daemon.MockRequireInterfaceApiAccess(func(
-		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
-	) *daemon.APIError {
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
@@ -488,10 +489,10 @@ func (s *accessSuite) TestInterfaceProviderRootAccessCallsWithCorrectArgs(c *C) 
 			Slot:       true,
 		})
 		called++
-		return errForbidden
+		return daemon.InterfaceAccessOutcome{}, errForbidden
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 	c.Assert(called, Equals, 1)
 }
 
@@ -555,7 +556,7 @@ plugs:
 	req := &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Now connect both interfaces
 	st := d.Overlord().State()
@@ -575,45 +576,45 @@ plugs:
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// connected-fwupd-caller, but on the plug side
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// disconnected-fwupd-caller
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 10042, Socket: dirs.SnapSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// normal user has no access even with a Macaroon auth
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 42, Socket: dirs.SnapSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 
 	// Without macaroon auth, normal users are unauthorized
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 
 	// on snapd socket, non-root is unauthorized
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 123, Socket: dirs.SnapdSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 
 	// but root is
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 123, Socket: dirs.SnapdSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 }
 
 func (s *accessSuite) TestInterfaceRootAccessCallsWithCorrectArgs(c *C) {
@@ -636,8 +637,8 @@ func (s *accessSuite) TestInterfaceRootAccessCallsWithCorrectArgs(c *C) {
 	// mock and check whether correct arguments are passed
 	called := 0
 	restore = daemon.MockRequireInterfaceApiAccess(func(
-		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs,
-	) *daemon.APIError {
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
 		c.Check(d, Equals, s.d)
 		c.Check(u, Equals, ucred)
 		c.Check(reqs, DeepEquals, daemon.InterfaceAccessReqs{
@@ -645,10 +646,10 @@ func (s *accessSuite) TestInterfaceRootAccessCallsWithCorrectArgs(c *C) {
 			Plug:       true,
 		})
 		called++
-		return errForbidden
+		return daemon.InterfaceAccessOutcome{}, errForbidden
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 	c.Assert(called, Equals, 1)
 }
 
@@ -700,7 +701,7 @@ plugs:
 	req := &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// Now connect connected-fwupd-caller (plug) to fwupd-app (slot)
 	st := d.Overlord().State()
@@ -717,38 +718,38 @@ plugs:
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), IsNil)
 
 	// fwupd-app, connected on the slot side
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// normal user has no access even with a Macaroon auth
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 1042, Socket: dirs.SnapSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 
 	// Without macaroon auth, normal users are unauthorized
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 
 	// on snapd socket, non-root is unauthorized
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 123, Socket: dirs.SnapdSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errUnauthorized)
 
 	// but root is
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 123, Socket: dirs.SnapdSocket}
 	req = &http.Request{
 		RemoteAddr: ucred.String(),
 	}
-	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil, daemon.NewNopAuthzRecorder()), IsNil)
 }
 
 func (s *accessSuite) TestInterfaceRootAccessPolkit(c *C) {
@@ -809,13 +810,13 @@ plugs:
 	})
 	defer restore()
 	// ucred is missing
-	c.Check(ac.CheckAccess(nil, req, nil, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, req, nil, nil, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 	// user is root (on snapd.socket)
-	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	// snap request (as root) with relevant connected plug (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 1042, Socket: dirs.SnapSocket}, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	// snap request without relevant connected plug (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}, user), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 0, Pid: 42, Socket: dirs.SnapSocket}, user, daemon.NewNopAuthzRecorder()), DeepEquals, errForbidden)
 
 	// polkit is checked for snaps with connected plug
 	called := 0
@@ -827,47 +828,44 @@ plugs:
 	})
 	defer restore()
 	// regular user (on snapd.socket)
-	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 1001, Pid: 100, Socket: dirs.SnapdSocket}, nil), IsNil)
+	c.Check(ac.CheckAccess(nil, req, &daemon.Ucrednet{Uid: 1001, Pid: 100, Socket: dirs.SnapdSocket}, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	// snap request (with macaroon) with relevant connected plug (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 1042, Socket: dirs.SnapSocket}, user), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 1042, Socket: dirs.SnapSocket}, user, daemon.NewNopAuthzRecorder()), IsNil)
 	// snap request (without macaroon) with relevant connected plug (on snapd-snap.socket)
-	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 1042, Socket: dirs.SnapSocket}, nil), IsNil)
+	c.Check(ac.CheckAccess(s.d, req, &daemon.Ucrednet{Uid: 1001, Pid: 1042, Socket: dirs.SnapSocket}, nil, daemon.NewNopAuthzRecorder()), IsNil)
 	c.Check(called, Equals, 3)
 }
 
 func (s *accessSuite) TestRequireInterfaceApiAccessErrorChecks(c *C) {
 	d := s.daemon(c)
 	req := &http.Request{}
+	rec := daemon.NewNopAuthzRecorder()
+	level := daemon.AccessLevelAuthenticated
 
 	// no side of the connection is specified
-	c.Check(daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{}), DeepEquals,
-		daemon.InternalError("required connection side is unspecified"))
+	_, err := daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{}, rec, level)
+	c.Check(err, DeepEquals, daemon.InternalError("required connection side is unspecified"))
 
 	// check on both sides
-	c.Check(
-		daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
-			Plug:       true,
-			Slot:       true,
-			Interfaces: []string{"foo"},
-		}),
-		DeepEquals,
-		daemon.InternalError("snap cannot be specified on both sides of the connection"))
+	_, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+		Plug:       true,
+		Slot:       true,
+		Interfaces: []string{"foo"},
+	}, rec, level)
+	c.Check(err, DeepEquals, daemon.InternalError("snap cannot be specified on both sides of the connection"))
 
 	// no interfaces
-	c.Check(
-		daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
-			Plug: true,
-		}),
-		DeepEquals,
-		daemon.InternalError("interfaces access check, but interfaces list is empty"))
+	_, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+		Plug: true,
+	}, rec, level)
+	c.Check(err, DeepEquals, daemon.InternalError("interfaces access check, but interfaces list is empty"))
 
 	// this one actually reaches the credentials check
-	c.Check(
-		daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
-			Plug:       true,
-			Interfaces: []string{"foo"},
-		}),
-		DeepEquals, errForbidden)
+	_, err = daemon.RequireInterfaceApiAccessImpl(d, req, nil, daemon.InterfaceAccessReqs{
+		Plug:       true,
+		Interfaces: []string{"foo"},
+	}, rec, level)
+	c.Check(err, DeepEquals, errForbidden)
 }
 
 func reqWithAction(c *C, action string, isJSON, malformed bool) *http.Request {
@@ -989,7 +987,7 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 
 		for action := range byAction {
 			cmt := Commentf("sub-test tcs[%d] failed for action %q", idx, action)
-			err := ac.CheckAccess(nil, reqWithAction(c, action, !tc.notJSON, tc.malformed), &tc.ucred, user)
+			err := ac.CheckAccess(nil, reqWithAction(c, action, !tc.notJSON, tc.malformed), &tc.ucred, user, daemon.NewNopAuthzRecorder())
 			if expectedErr := tc.expectedErr[action]; err != nil {
 				c.Check(err, DeepEquals, expectedErr, cmt)
 			} else {
@@ -998,7 +996,7 @@ func (s *accessSuite) TestByActionAccess(c *C) {
 		}
 
 		cmt := Commentf("sub-test tcs[%d] failed for default action", idx)
-		err := ac.CheckAccess(nil, reqWithAction(c, "default", !tc.notJSON, tc.malformed), &tc.ucred, user)
+		err := ac.CheckAccess(nil, reqWithAction(c, "default", !tc.notJSON, tc.malformed), &tc.ucred, user, daemon.NewNopAuthzRecorder())
 		if expectedErr := tc.expectedErr["default"]; err != nil {
 			c.Check(err, DeepEquals, expectedErr, cmt)
 		} else {
@@ -1035,7 +1033,7 @@ func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
 		ac := daemon.ByActionAccess{Default: tc.ac}
 
 		ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-		err = ac.CheckAccess(nil, req, &ucred, nil)
+		err = ac.CheckAccess(nil, req, &ucred, nil, daemon.NewNopAuthzRecorder())
 		if tc.canBeDefault {
 			c.Assert(err, IsNil)
 		} else {
@@ -1054,7 +1052,7 @@ func (s *accessSuite) TestByActionAccessLargeJSON(c *C) {
 	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
 
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-	err = ac.CheckAccess(nil, req, &ucred, nil)
+	err = ac.CheckAccess(nil, req, &ucred, nil, daemon.NewNopAuthzRecorder())
 	c.Assert(err, DeepEquals, daemon.BadRequest("body size limit exceeded"))
 }
 
@@ -1067,6 +1065,77 @@ func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
 	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
 
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-	err = ac.CheckAccess(nil, req, &ucred, nil)
+	err = ac.CheckAccess(nil, req, &ucred, nil, daemon.NewNopAuthzRecorder())
 	c.Assert(err, DeepEquals, daemon.BadRequest("unexpected data after request body"))
+}
+
+func (s *accessSuite) TestCheckAccessAuthzRecording(c *C) {
+	req := httptest.NewRequest("GET", "/", nil)
+
+	// Open access: denials are not audited.
+	rec := daemon.NewAuthzTestRecorder()
+	var ac daemon.AccessChecker = daemon.OpenAccess{}
+	c.Check(ac.CheckAccess(nil, nil, nil, nil, rec), DeepEquals, errForbidden)
+	c.Check(rec.DeniedReason, Equals, "")
+	c.Check(rec.GrantedReason, Equals, "")
+
+	// Authenticated access denied without credentials.
+	rec = daemon.NewAuthzTestRecorder()
+	ac = daemon.AuthenticatedAccess{}
+	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, rec), DeepEquals, errUnauthorized)
+	c.Check(rec.DeniedReason, Equals, seclog.ReasonDeniedUserAuthDenied)
+
+	// Authenticated access granted via macaroon.
+	rec = daemon.NewAuthzTestRecorder()
+	user := &auth.UserState{}
+	c.Check(ac.CheckAccess(nil, req, ucred, user, rec), IsNil)
+	c.Check(rec.GrantedReason, Equals, seclog.ReasonGrantedUserAuth)
+
+	// Root access granted.
+	rec = daemon.NewAuthzTestRecorder()
+	ac = daemon.RootAccess{}
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+	c.Check(ac.CheckAccess(nil, nil, ucred, nil, rec), IsNil)
+	c.Check(rec.GrantedReason, Equals, seclog.ReasonGrantedRootAuth)
+
+	// Polkit grant and deny.
+	ac = daemon.AuthenticatedAccess{Polkit: "action-id"}
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
+	restore := daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Check(action, Equals, "action-id")
+		return nil
+	})
+	defer restore()
+	rec = daemon.NewAuthzTestRecorder()
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, rec), IsNil)
+	c.Check(rec.GrantedReason, Equals, seclog.ReasonGrantedPolkitAuth)
+
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
+		return errUnauthorized
+	})
+	defer restore()
+	rec = daemon.NewAuthzTestRecorder()
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, rec), DeepEquals, errUnauthorized)
+	c.Check(rec.DeniedReason, Equals, seclog.ReasonDeniedPolkitAuthDenied)
+
+	// Wrong socket on an audited endpoint.
+	rec = daemon.NewAuthzTestRecorder()
+	ac = daemon.AuthenticatedAccess{}
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, rec), DeepEquals, errForbidden)
+	c.Check(rec.DeniedReason, Equals, seclog.ReasonDeniedSocketNotPermitted)
+
+	// Interface connection contributes to grant postfix.
+	rec = daemon.NewAuthzTestRecorder()
+	ac = daemon.InterfaceRootAccess{Interfaces: []string{"desktop-launch"}}
+	restore = daemon.MockRequireInterfaceApiAccess(func(
+		d *daemon.Daemon, r *http.Request, u *daemon.Ucrednet, reqs daemon.InterfaceAccessReqs, _ daemon.AuthzRecorder, _ daemon.AccessLevel,
+	) (daemon.InterfaceAccessOutcome, *daemon.APIError) {
+		return daemon.InterfaceAccessOutcome{MatchedIface: "desktop-launch", Plug: true}, nil
+	})
+	defer restore()
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
+	c.Check(ac.CheckAccess(nil, req, ucred, nil, rec), IsNil)
+	c.Check(rec.GrantedReason, Equals, seclog.ReasonGrantedRootAuth+" desktop-launch+plug")
 }
