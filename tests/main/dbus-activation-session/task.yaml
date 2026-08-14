@@ -23,8 +23,10 @@ prepare: |
 
     snap set system experimental.user-daemons=true
     tests.session -u test prepare
+    tests.session create-session -u test -c user
 
 restore: |
+    tests.session destroy-session -u test || true
     tests.session -u test restore
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
