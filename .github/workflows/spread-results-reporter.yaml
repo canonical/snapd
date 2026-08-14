@@ -90,7 +90,7 @@ jobs:
             }
 
             let matchingSkips = allArtifacts.filter((artifact) => {
-              return artifact.name.startsWith(`skipped-tests-list-${context.payload.workflow_run.id}-${context.payload.workflow_run.run_attempt}`);
+              return artifact.name.startsWith(`skipped-tests-list-${context.payload.workflow_run.id}`);
             });
 
             for (let artifact of matchingSkips) {
