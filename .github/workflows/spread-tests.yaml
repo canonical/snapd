@@ -340,7 +340,7 @@ jobs:
           echo "The following list of tests will run:"
           cat "$RUN_TESTS_FILE"
 
-          if [ -n "$SNAPD_TESTS_SKIP" ]; then
+          if [ -n "${SNAPD_TESTS_SKIP//[[:space:]]/}" ]; then
               echo "$SNAPD_TESTS_SKIP" > skipped_tests_list.txt
           fi
 
