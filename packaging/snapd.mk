@@ -129,8 +129,9 @@ prepare-debian-build-tree:
 # random GNU build ID with something more predictable, use something similar to
 # https://pagure.io/go-rpm-macros/c/1980932bf3a21890a9571effaa23fbe034fd388d
 SNAPD_DYNAMIC_GO_BINARIES := snapd snap-seccomp snapd-apparmor
+SNAPD_OPTIONAL_GO_BINARIES :=
 ifeq ($(WITH_USERDB_PROXY),true)
-SNAPD_DYNAMIC_GO_BINARIES += snap-userdb-proxy
+SNAPD_OPTIONAL_GO_BINARIES += snap-userdb-proxy
 endif
 
 $(addprefix $(builddir)/,$(SNAPD_DYNAMIC_GO_BINARIES)):
@@ -140,6 +141,14 @@ $(addprefix $(builddir)/,$(SNAPD_DYNAMIC_GO_BINARIES)):
 		$(GO_MOD) \
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
+
+$(builddir)/snap-userdb-proxy:
+	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
+		-buildmode=pie \
+		-ldflags="$(EXTRA_GO_LDFLAGS)" \
+		$(GO_MOD) \
+		$(EXTRA_GO_BUILD_FLAGS) \
+		$(import_path)/cmd/snapd/snap-userdb-proxy
 
 # Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
@@ -205,7 +214,7 @@ $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedsta
 .PHONY: install
 
 # Install snapd, snapctl, snap-{exec,update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,$(SNAPD_DYNAMIC_GO_BINARIES) snapctl snap-exec snap-update-ns) | $(DESTDIR)$(libexecdir)/snapd
+install:: $(addprefix $(builddir)/,$(SNAPD_DYNAMIC_GO_BINARIES) $(SNAPD_OPTIONAL_GO_BINARIES) snapctl snap-exec snap-update-ns) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure /usr/bin/snapctl is a relative symlink to /usr/lib/snapd/snapctl

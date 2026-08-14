@@ -32,7 +32,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	proxy "github.com/snapcore/snapd/cmd/snap-userdb-proxy"
+	proxy "github.com/snapcore/snapd/cmd/snapd/snap-userdb-proxy"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
 )

@@ -426,7 +426,7 @@ prepare: |
         fi
 
         # TODO: fix installation
-        go build -o /usr/lib/snapd/snap-userdb-proxy github.com/snapcore/snapd/cmd/snap-userdb-proxy
+        go build -o /usr/lib/snapd/snap-userdb-proxy github.com/snapcore/snapd/cmd/snapd/snap-userdb-proxy
         tests.cleanup defer rm -f /usr/lib/snapd/snap-userdb-proxy
 
         install -m 0644 "$SPREAD_PATH"/data/systemd/snapd.userdb-proxy.socket \
