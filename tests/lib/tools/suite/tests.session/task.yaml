@@ -91,3 +91,29 @@ execute: |
         tests.session -u "$USER" -p /tmp/outer.pid exec python3 -c 'import os; print(os.getpid())' >/tmp/inner.pid
         test "$(cat /tmp/outer.pid)" = "$(cat /tmp/inner.pid)"
     done
+
+    # Check persistent session management. Only run this for the non-root
+    # user, as destroying sessions of the root user would interfere with the
+    # spread connection itself.
+    #
+    # A created session is a real logind session of the requested class, and
+    # it is elected as the user's display session, so "loginctl show-session
+    # auto" resolves to it.
+    if [ "$USER" != root ]; then
+        tests.session create-session -u "$USER" -c user
+        tests.session -u "$USER" exec loginctl show-session auto -p Class | MATCH "Class=user"
+        loginctl list-sessions --no-legend | grep "$USER"
+
+        # A second session with the same class but a distinct label can co-exist.
+        tests.session create-session -u "$USER" -c user -l second
+        test "$(loginctl list-sessions --no-legend | grep -c "$USER")" -ge 2
+
+        # Creating an already-existing session is an error.
+        not tests.session create-session -u "$USER" -c user
+
+        # A labelled session can be destroyed individually, the rest can be
+        # destroyed without a label.
+        tests.session destroy-session -u "$USER" -l second
+        tests.session destroy-session -u "$USER"
+        retry -n 10 --wait 1 sh -c "! loginctl list-sessions --no-legend | grep -q $USER"
+    fi
