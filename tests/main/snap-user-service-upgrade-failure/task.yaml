@@ -25,8 +25,10 @@ prepare: |
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
     tests.session -u test prepare
+    tests.session -u test create-session -c user
 
 restore: |
+    tests.session -u test destroy-session
     tests.session -u test restore
     snap remove --purge test-snapd-user-service || true
     snap remove --purge test-snapd-user-service-v2-bad || true

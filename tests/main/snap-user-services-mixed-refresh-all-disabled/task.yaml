@@ -25,7 +25,7 @@ prepare: |
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
     tests.session -u test prepare
-    tests.session create-session -u test -c user
+    tests.session -u test create-session -c user
 
     # add a second user to test with
     if ! useradd -m -d /home/test2 test2; then
@@ -33,7 +33,7 @@ prepare: |
         useradd --extrausers -m -d /home/test2 test2
     fi
     tests.session -u test2 prepare
-    tests.session create-session -u test2 -c user
+    tests.session -u test2 create-session -c user
 
     # rules are only supported from 23.10+
     if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
@@ -58,12 +58,12 @@ prepare: |
 restore: |
     snap remove --purge test-snapd-mixed-service || true
     snap remove --purge test-snapd-mixed-service-v2 || true
-    tests.session destroy-session -u test2 || true
+    tests.session -u test2 destroy-session || true
     tests.session -u test2 restore
     if ! userdel -rf test2; then
         userdel --extrausers -rf test2
     fi
-    tests.session destroy-session -u test || true
+    tests.session -u test destroy-session || true
     tests.session -u test restore
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then

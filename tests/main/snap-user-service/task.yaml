@@ -24,7 +24,7 @@ prepare: |
     tests.session kill-leaked
 
 restore: |
-    tests.session destroy-session -u test || true
+    tests.session -u test destroy-session || true
     tests.session -u test restore
     snap unset system experimental.user-daemons
 
@@ -36,7 +36,7 @@ debug: |
 execute: |
     echo "When the user mode systemd instance is started and a session exists"
     tests.session -u test prepare
-    tests.session create-session -u test -c user
+    tests.session -u test create-session -c user
 
     echo "And the service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service

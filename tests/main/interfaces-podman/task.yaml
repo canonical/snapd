@@ -60,6 +60,7 @@ prepare: |
   snap set system experimental.user-daemons=true
   tests.session kill-leaked
   tests.session -u test prepare
+  tests.session -u test create-session -c user
 
   echo "Enable the rootless podman socket for the test user"
   tests.session -u test exec systemctl --user enable --now podman.socket
@@ -78,6 +79,7 @@ prepare: |
 restore: |
   rm -f /etc/apt/sources.list.d/snapd-podman-proposed.list
   tests.session -u test exec systemctl --user disable --now podman.socket || true
+  tests.session -u test destroy-session
   tests.session -u test restore
   snap unset system experimental.user-daemons
 
