@@ -57,7 +57,7 @@ execute: |
   pid=$!
 
   # Wait for the script to start.
-  retry MATCH '^started$' < ~test/snap/test-snapd-desktop-layout-with-content/common/status
+  retry grep -xF 'started' ~test/snap/test-snapd-desktop-layout-with-content/common/status
 
   # Refresh the content slot snap.
   # TODO: when refresh app awareness is enabled, this will need to ignore running processes to
