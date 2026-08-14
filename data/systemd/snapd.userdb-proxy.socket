@@ -1,8 +1,7 @@
 [Unit]
 Description=Socket activation for the snapd userdb varlink proxy
 Documentation=https://systemd.io/USER_GROUP_API/
-# systemd-userdbd isn't present on all systems so this can't be a strict dependency.
-After=systemd-userdbd.socket
+Requires=systemd-userdbd.socket
 
 [Socket]
 ListenStream=/run/systemd/userdb/io.snapcraft.UserDBProxy
