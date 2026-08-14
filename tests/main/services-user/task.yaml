@@ -14,11 +14,14 @@ prepare: |
 
     # prepare users for testing
     tests.session -u test prepare
+    tests.session create-session -u test -c user
 
     if ! useradd -m -d /home/test2 test2; then
         # Ubuntu Core requires using extrausers db
         useradd --extrausers -m -d /home/test2 test2
     fi
+    tests.session -u test2 prepare
+    tests.session create-session -u test2 -c user
 
     # rules are only supported from 23.10+
     if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
@@ -43,6 +46,8 @@ prepare: |
 
 restore: |
     snap remove --purge test-snapd-user-service || true
+    tests.session destroy-session -u test || true
+    tests.session destroy-session -u test2 || true
     tests.session -u test restore
     tests.session -u test2 restore
     if ! userdel -rf test2; then
