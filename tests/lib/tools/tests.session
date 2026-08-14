@@ -251,6 +251,16 @@ main() {
 			# resolves to the session systemd-logind elects as the user's display
 			# session, preferring graphical types over tty over unspecified; the
 			# session class is not a factor in that election.
+			#
+			# Note: the session created here is observed only by processes that
+			# are NOT themselves inside a logind session (e.g. a user service's
+			# ExecCondition, which runs outside any session scope and resolves
+			# "auto" via the user's elected display session). In contrast, a
+			# command run via "tests.session -u USER exec ..." always spawns its
+			# own separate, transient "background"-class session and never joins
+			# the session created here; background sessions are never
+			# display-eligible, so they cannot shadow this session in the
+			# display election.
 			if [ -z "$session_label" ]; then
 				session_suffix=""
 			else
@@ -265,16 +275,6 @@ main() {
 
 			if systemctl is-active --quiet "$unit_name"; then
 				echo "tests.session: session for user $user$session_suffix already exists, run destroy-session first" >&2
-				exit 1
-			fi
-
-			# check for --whitelist-environment; the requested session class and
-			# type must survive runuser's environment reset to reach pam_systemd
-			runuser_env_arg=
-			if runuser --help 2>&1 | grep -q whitelist-environment ; then
-				runuser_env_arg="-w XDG_SESSION_CLASS,XDG_SESSION_TYPE"
-			else
-				echo "tests.session: create-session requires runuser with --whitelist-environment support" >&2
 				exit 1
 			fi
 
@@ -293,6 +293,19 @@ main() {
 			touch "$id_file"
 			chown "$user:" "$id_file"
 
+			# The Environment= property places the requested session class and
+			# type in the environment of the runuser process itself. pam_systemd
+			# reads XDG_SESSION_CLASS/XDG_SESSION_TYPE via getenv() from the
+			# calling process when they are not set in the PAM environment, and
+			# runuser does not scrub its own environment before opening the PAM
+			# session, so this works even on runuser versions without
+			# --whitelist-environment support (e.g. Ubuntu Core 18).
+			#
+			# Note: unlike the exec path below, here we deliberately do not use
+			# "systemd-run --wait --pipe", which require systemd >= 253. This is a
+			# fire-and-forget transient service (we poll the ID file for readiness
+			# instead of waiting on stdio), so all the options used here predate
+			# systemd 237 and this works on the oldest supported systems.
 			# shellcheck disable=SC2086
 			systemd-run \
 			--system \
@@ -300,7 +313,7 @@ main() {
 			--unit="$unit_name" \
 			--description "tests.session persistent session for $user$session_suffix" \
 			${env_args:+--property "Environment=$env_args"} \
-			"$(command -v runuser)" $runuser_env_arg -l "$user" -c "echo \"\$XDG_SESSION_ID\" >\"$id_file\"; exec sleep infinity"
+			"$(command -v runuser)" -l "$user" -c "echo \"\$XDG_SESSION_ID\" >\"$id_file\"; exec sleep infinity"
 
 			# Wait for the session to be registered, then verify that the
 			# requested class and type were honored by pam_systemd.
