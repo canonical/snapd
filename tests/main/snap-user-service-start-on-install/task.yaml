@@ -23,8 +23,10 @@ prepare: |
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
     tests.session -u test prepare
+    tests.session -u test create-session -c user
 
 restore: |
+    tests.session -u test destroy-session
     tests.session -u test restore
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then

@@ -19,14 +19,14 @@ prepare: |
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
     tests.session -u test prepare
-    tests.session create-session -u test -c user
+    tests.session -u test create-session -c user
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
 
 restore: |
     snap unset system experimental.user-daemons
     snap remove --purge test-snapd-prompt-handler || true
-    tests.session destroy-session -u test || true
+    tests.session -u test destroy-session || true
     tests.session -u test restore
 
 debug: |
