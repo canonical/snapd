@@ -75,10 +75,13 @@ execute: |
     echo "With no session, the services are skipped due to the failed precondition"
     retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | grep '^inactive$'"
     retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | grep '^inactive$'"
-    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
-    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "cannot determine session class"
-    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
-    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "cannot determine session class"
+    if ! os.query is-core && ! os.query is-arch-linux ; then
+        # Core and Arch do not have journalctl logs for user prior to creating a user session
+        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
+        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "cannot determine session class"
+        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
+        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "cannot determine session class"
+    fi
 
     echo "With a user session, the reinstalled services start"
     tests.session create-session -u test -c user
