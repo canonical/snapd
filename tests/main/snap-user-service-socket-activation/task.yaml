@@ -46,7 +46,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-sockets
 
     echo "It's sockets are created in the test user's directories and activate the service"
-    [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
+    retry -n 5 --wait 1 test -S ~test/snap/test-snapd-user-service-sockets/common/common.sock
     tests.session -u test exec nc -w 30 -U /home/test/snap/test-snapd-user-service-sockets/common/common.sock | MATCH "Connected to common"
 
     [ -S ~test/snap/test-snapd-user-service-sockets/x1/data.sock ]

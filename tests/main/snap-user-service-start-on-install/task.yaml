@@ -49,7 +49,7 @@ execute: |
 
     echo "We can see the service running"
     systemctl_user status snap.test-snapd-user-service.test-snapd-user-service
-    systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service
+    retry -n 5 --wait 1 tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.test-snapd-user-service
 
     echo "Remove the snap"
     snap remove test-snapd-user-service

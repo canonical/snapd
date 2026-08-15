@@ -85,13 +85,13 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-mixed-service
 
     echo "Verify status of running services after install"
-    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "^active$"'
     systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH "enabled"
 
-    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test exec systemctl --user is-active snap.test-snapd-mixed-service.user-service | MATCH "^active$"'
     systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
 
-    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test2 exec systemctl --user is-active snap.test-snapd-mixed-service.user-service | MATCH "^active$"'
     systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
 
     # stop and disable both services, scope of user one for all
