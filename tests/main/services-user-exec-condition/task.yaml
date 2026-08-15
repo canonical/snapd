@@ -73,8 +73,8 @@ execute: |
     # enables linger and starts the user manager), so the precondition cannot
     # determine a session and the services must be skipped.
     echo "With no session, the services are skipped due to the failed precondition"
-    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | grep '^inactive$'"
-    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | grep '^inactive$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | MATCH '^inactive$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | MATCH '^inactive$'"
     if ! os.query is-core && ! os.query is-arch-linux ; then
         # Core and Arch do not have journalctl logs for user prior to creating a user session
         user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
@@ -88,8 +88,8 @@ execute: |
     cursor="$(user_journal_cursor)"
     snap remove --purge test-snapd-user-service-exec-condition
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-exec-condition
-    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | grep '^active$'"
-    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | grep '^active$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | MATCH '^active$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | MATCH '^active$'"
     user_journal_since "$cursor" -u "$SVC_NO_SE" | NOMATCH "Skipped due to 'exec-condition'"
     user_journal_since "$cursor" -u "$SVC_1_2" | NOMATCH "Skipped due to 'exec-condition'"
 
@@ -99,8 +99,8 @@ execute: |
     cursor="$(user_journal_cursor)"
     snap remove --purge test-snapd-user-service-exec-condition
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-exec-condition
-    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | grep '^inactive$'"
-    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | grep '^inactive$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | MATCH '^inactive$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | MATCH '^inactive$'"
     user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
     user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "session is a greeter session"
     user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
