@@ -50,7 +50,7 @@ execute: |
   else
 
     # Wait for systemd to have finished booting
-    systemctl --wait is-system-running | MATCH '(running|degraded)'
+    systemctl --wait is-system-running | MATCH '^(running|degraded)$'
 
     MATCH 'systemd[.]unit=basic[.]target' </proc/cmdline
 
@@ -70,7 +70,7 @@ execute: |
     systemctl is-active snapd.service
 
     # the mounts should be active
-    systemctl show --all --state=loaded -p ActiveState 'snap-*.mount' | tee states.txt | MATCH 'ActiveState=active'
+    systemctl show --all --state=loaded -p ActiveState 'snap-*.mount' | tee states.txt | MATCH '^ActiveState=active$'
     NOMATCH 'ActiveState=inactive' <states.txt
 
     # bonus, we check we did not cheat, nothing should be installed to default.target

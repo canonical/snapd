@@ -101,7 +101,7 @@ execute: |
   systemctl show --property=ControlGroup snap.test-snapd-journal-quota.logger.service | grep -vF "$SLICE_REGEXP"
 
   echo "And the slice is not active anymore"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=inactive$'
 
   # Make sure that the service is running still and now outputting logs
   # into the original journal.
