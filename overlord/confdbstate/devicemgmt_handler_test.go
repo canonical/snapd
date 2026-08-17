@@ -105,7 +105,7 @@ func (s *confdbHandlerSuite) TestValidateOK(c *C) {
 	msg := &devicemgmtstate.RequestMessage{
 		AccountID: "alice",
 		Kind:      "confdb",
-		Body:      `{"action":"get","account":"system","view":"network/wifi-admin"}`,
+		Body:      `{"action":"get","account":"system","view":"network/wifi-admin","constraints":{"iface":"wlan0"}}`,
 	}
 	err := handler.Validate(s.st, msg)
 	c.Assert(err, IsNil)
@@ -204,6 +204,11 @@ func (s *confdbHandlerSuite) TestValidateInvalidBody(c *C) {
 			name:        "set with empty values",
 			body:        `{"action":"set","account":"system","view":"network/wifi-admin","values":{}}`,
 			expectedErr: "cannot validate message: body contains no values to write",
+		},
+		{
+			name:        "constraint with array value",
+			body:        `{"action":"get","account":"system","view":"network/wifi-admin","constraints":{"iface":["wlan0","wlan1"]}}`,
+			expectedErr: `cannot validate message: constraint value must be non-null scalar but parameter "iface" has array constraint`,
 		},
 	}
 
@@ -377,138 +382,128 @@ func (s *confdbHandlerSuite) TestApplyWriteConfdbError(c *C) {
 	c.Check(chgID, Equals, "")
 }
 
-func (s *confdbHandlerSuite) TestResultFromChangeSuccess(c *C) {
+func (s *confdbHandlerSuite) TestResultFromChangeOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	handler := &confdbstate.ConfdbMessageHandler{}
 
-	chg := s.st.NewChange("get-confdb", "test change")
-	chg.SetStatus(state.DoneStatus)
-
-	apiData := map[string]any{"values": map[string]any{"ssid": "my-network"}}
-	chg.Set("api-data", apiData)
-
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, IsNil)
-	c.Check(body, DeepEquals, apiData)
-}
-
-func (s *confdbHandlerSuite) TestResultFromChangeError(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	handler := &confdbstate.ConfdbMessageHandler{}
-
-	chg := s.st.NewChange("get-confdb", "test change")
-	t := s.st.NewTask("load-confdb-change", "Load confdb data into the change")
-	chg.AddTask(t)
-	t.SetStatus(state.ErrorStatus)
-	t.Errorf("cannot read view")
-
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, ""+
-		"cannot perform the following tasks:\n"+
-		"- Load confdb data into the change \\(cannot read view\\)")
-	c.Check(body, IsNil)
-}
-
-func (s *confdbHandlerSuite) TestResultFromChangeNotDone(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	handler := &confdbstate.ConfdbMessageHandler{}
-
-	chg := s.st.NewChange("get-confdb", "test change")
-	chg.SetStatus(state.DoingStatus)
-
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `internal error: unexpected change status Doing`)
-	c.Check(body, IsNil)
-}
-
-func (s *confdbHandlerSuite) TestResultFromChangeNoApiData(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	handler := &confdbstate.ConfdbMessageHandler{}
-
-	chg := s.st.NewChange("set-confdb", "test change")
-	chg.SetStatus(state.DoneStatus)
-
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, IsNil)
-	c.Check(body, DeepEquals, map[string]any{})
-}
-
-func (s *confdbHandlerSuite) TestResultFromChangeNoApiDataOnGetChange(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	handler := &confdbstate.ConfdbMessageHandler{}
-
-	chg := s.st.NewChange("get-confdb", "test change")
-	chg.SetStatus(state.DoneStatus)
-
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, `internal error: change "get-confdb" done with no api-data`)
-	c.Check(body, IsNil)
-}
-
-func (s *confdbHandlerSuite) TestResultFromChangeConfdbError(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	handler := &confdbstate.ConfdbMessageHandler{}
-
-	chg := s.st.NewChange("get-confdb", "test change")
-	chg.SetStatus(state.DoneStatus)
-
-	errBody := map[string]any{
-		"kind":    "option-not-found",
-		"message": "not found",
+	tests := []struct {
+		name         string
+		chgKind      string
+		apiData      any
+		expectedBody map[string]any
+	}{
+		{
+			name:         "success",
+			chgKind:      "get-confdb",
+			apiData:      map[string]any{"values": map[string]any{"ssid": "my-network"}},
+			expectedBody: map[string]any{"values": map[string]any{"ssid": "my-network"}},
+		},
+		{
+			name:         "no api-data on set change",
+			chgKind:      "set-confdb",
+			expectedBody: map[string]any{},
+		},
 	}
-	chg.Set("api-data", map[string]any{"error": errBody})
 
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "not found")
-	c.Check(body, IsNil)
+	for _, tt := range tests {
+		cmt := Commentf("%s test", tt.name)
+
+		chg := s.st.NewChange(tt.chgKind, "test change")
+		chg.SetStatus(state.DoneStatus)
+		if tt.apiData != nil {
+			chg.Set("api-data", tt.apiData)
+		}
+
+		body, err := handler.ResultFromChange(chg)
+		c.Assert(err, IsNil, cmt)
+		c.Check(body, DeepEquals, tt.expectedBody, cmt)
+	}
 }
 
-func (s *confdbHandlerSuite) TestResultFromChangeApiDataNotAMap(c *C) {
+func (s *confdbHandlerSuite) TestResultFromChangeInvalid(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
 	handler := &confdbstate.ConfdbMessageHandler{}
 
-	chg := s.st.NewChange("get-confdb", "test change")
-	chg.SetStatus(state.DoneStatus)
+	tests := []struct {
+		name        string
+		chgKind     string
+		chgStatus   state.Status
+		addTasks    func(st *state.State, chg *state.Change)
+		apiData     any
+		expectedErr string
+	}{
+		{
+			name:    "task error",
+			chgKind: "get-confdb",
+			addTasks: func(st *state.State, chg *state.Change) {
+				t := st.NewTask("load-confdb-change", "Load confdb data into the change")
+				chg.AddTask(t)
+				t.SetStatus(state.ErrorStatus)
+				t.Errorf("cannot read view")
+			},
+			expectedErr: "" +
+				"cannot perform the following tasks:\n" +
+				"- Load confdb data into the change \\(cannot read view\\)",
+		},
+		{
+			name:        "not done",
+			chgKind:     "get-confdb",
+			chgStatus:   state.DoingStatus,
+			expectedErr: `internal error: unexpected change status Doing`,
+		},
+		{
+			name:        "no api-data on get change",
+			chgKind:     "get-confdb",
+			chgStatus:   state.DoneStatus,
+			expectedErr: `internal error: change "get-confdb" done with no api-data`,
+		},
+		{
+			name:      "confdb error in api-data",
+			chgKind:   "get-confdb",
+			chgStatus: state.DoneStatus,
+			apiData: map[string]any{"error": map[string]any{
+				"kind":    "option-not-found",
+				"message": "not found",
+			}},
+			expectedErr: "not found",
+		},
+		{
+			name:        "api-data not a map",
+			chgKind:     "get-confdb",
+			chgStatus:   state.DoneStatus,
+			apiData:     "ssid",
+			expectedErr: ".*cannot unmarshal.*",
+		},
+		{
+			name:        "api-data error field not a map",
+			chgKind:     "get-confdb",
+			chgStatus:   state.DoneStatus,
+			apiData:     map[string]any{"error": `cannot find view "wifi-admin" in confdb schema system/network`},
+			expectedErr: "internal error: api-data error field is not a map",
+		},
+	}
 
-	chg.Set("api-data", "ssid")
+	for _, tt := range tests {
+		cmt := Commentf("%s test", tt.name)
 
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, ".*cannot unmarshal.*")
-	c.Check(body, IsNil)
-}
+		chg := s.st.NewChange(tt.chgKind, "test change")
+		if tt.addTasks != nil {
+			tt.addTasks(s.st, chg)
+		}
+		if tt.chgStatus != state.DefaultStatus {
+			chg.SetStatus(tt.chgStatus)
+		}
+		if tt.apiData != nil {
+			chg.Set("api-data", tt.apiData)
+		}
 
-func (s *confdbHandlerSuite) TestResultFromChangeApiDataErrorFieldNotAMap(c *C) {
-	s.st.Lock()
-	defer s.st.Unlock()
-
-	handler := &confdbstate.ConfdbMessageHandler{}
-
-	chg := s.st.NewChange("get-confdb", "test change")
-	chg.SetStatus(state.DoneStatus)
-
-	chg.Set("api-data", map[string]any{"error": `cannot find view "wifi-admin" in confdb schema system/network`})
-
-	body, err := handler.ResultFromChange(chg)
-	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "internal error: api-data error field is not a map")
-	c.Check(body, IsNil)
+		body, err := handler.ResultFromChange(chg)
+		c.Assert(err, NotNil, cmt)
+		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
+		c.Check(body, IsNil, cmt)
+	}
 }

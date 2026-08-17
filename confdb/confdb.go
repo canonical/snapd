@@ -1857,6 +1857,27 @@ func (v *View) CheckAllConstraintsAreUsed(requests []string, constraints map[str
 	return newUnmatchedConstraintsError(v, requests, unusedConstraints)
 }
 
+// ValidateConstraints checks that every constraint value is a non-null scalar.
+func ValidateConstraints(constraints map[string]any) error {
+	for k, v := range constraints {
+		var typeStr string
+		switch v.(type) {
+		case nil:
+			typeStr = "null"
+		case []any:
+			typeStr = "array"
+		case map[string]any:
+			typeStr = "map"
+		default:
+			continue
+		}
+
+		return fmt.Errorf("constraint value must be non-null scalar but parameter %q has %s constraint", k, typeStr)
+	}
+
+	return nil
+}
+
 func getVisibilitiesToPrune(userAccess Access) []Visibility {
 	if userAccess == AdminAccess {
 		return nil

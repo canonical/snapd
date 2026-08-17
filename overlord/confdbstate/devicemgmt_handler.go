@@ -80,6 +80,11 @@ func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.Re
 		return fmt.Errorf("cannot validate message: invalid view %q, expected <schema>/<view-name>", body.View)
 	}
 
+	err = confdb.ValidateConstraints(body.Constraints)
+	if err != nil {
+		return fmt.Errorf("cannot validate message: %v", err)
+	}
+
 	if body.Action == "set" && len(body.Values) == 0 {
 		return fmt.Errorf("cannot validate message: body contains no values to write")
 	}
