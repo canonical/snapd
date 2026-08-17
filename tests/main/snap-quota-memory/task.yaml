@@ -34,7 +34,7 @@ execute: |
 
   echo "The systemd slice should be active now"
   sliceName="snap.$(systemd-escape --path group-one).slice"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=active$'
 
   echo "The service should also still be active"
   snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"
@@ -119,7 +119,7 @@ execute: |
   systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | NOMATCH "/$sliceName/snap.go-example-webserver.webserver.service"
 
   echo "And the slice is not active anymore"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=inactive$'
 
   # snap.go-example-webserver.webserver.service is using about 540K and it is not killed
   if not os.query is-fedora; then
@@ -132,7 +132,7 @@ execute: |
     # the unit will jump between SubState=running and SubState=auto-restart while
     # trying to restart it in a loop, but after systemd has hit the limit it will
     # give up and mark the unit as failed
-    retry --wait 1 -n 30 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
+    retry --wait 1 -n 30 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH '^SubState=failed$'"
 
     # clear "oom-killer" messages from dmesg or prepare-restore.sh will fail due
     # to the oom-killer messages from go-example-webserver
@@ -140,7 +140,7 @@ execute: |
 
     echo "The systemd slice should be active"
     sliceName="snap.$(systemd-escape --path too-small).slice"
-    systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
+    systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=active$'
 
     echo "But the service is not running after a short amount of time"
     retry --wait 1 -n 100 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"'

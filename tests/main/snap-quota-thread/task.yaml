@@ -55,7 +55,7 @@ execute: |
 
   echo "The systemd slice should be active now"
   sliceName="snap.$(systemd-escape --path group-one).slice"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=active$'
 
   echo "The service should be active"
   snap services test-snapd-stressd.spawner | MATCH "test-snapd-stressd.spawner\s+disabled\s+active"
@@ -122,7 +122,7 @@ execute: |
   systemctl show --property=ControlGroup snap.test-snapd-stressd.spawner.service | NOMATCH "/$sliceName/snap.test-snapd-stressd.spawner.service"
 
   echo "And the slice is not active anymore"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=inactive$'
 
   echo "Verify the service is now running at full capacity"
   total_iters=5
