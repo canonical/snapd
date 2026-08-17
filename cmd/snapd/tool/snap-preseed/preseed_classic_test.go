@@ -200,6 +200,16 @@ func (s *startPreseedSuite) TestLabelWithoutHybrid(c *C) {
 }
 
 func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
+	restore := snap_preseed.MockOsGetuid(func() int {
+		return 0
+	})
+	defer restore()
+
+	restorePreseed := snap_preseed.MockPreseedClassic(func(dir string) error {
+		return nil
+	})
+	defer restorePreseed()
+
 	var called bool
 	inf := &snap.Info{
 		BadInterfaces: make(map[string]string),
@@ -214,7 +224,7 @@ func (s *startPreseedSuite) TestReadInfoValidity(c *C) {
 
 	parser := testParser(c)
 	tmpDir := c.MkDir()
-	_ = snap_preseed.Run(parser, []string{tmpDir})
+	c.Assert(snap_preseed.Run(parser, []string{tmpDir}), IsNil)
 
 	// real sanitize method should be set after Run()
 	snap.SanitizePlugsSlots(inf)
