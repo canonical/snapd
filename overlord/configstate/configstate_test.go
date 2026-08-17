@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -602,5 +603,13 @@ func (s *earlyConfigSuite) TestEarlyConfigNoGadget(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("configmgr.go", c, false)
+	ensureLogs := testutil.CheckEnsureLoopLogging("configmgr.go", c, false)
+	knownEnsures := make(map[swfeats.EnsureEntry]bool)
+	for _, entry := range swfeats.KnownEnsures() {
+		knownEnsures[entry] = true
+	}
+	for _, ensureLog := range ensureLogs {
+		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
+		c.Check(knownEnsures[entry], Equals, true, Commentf("ensure trace %q is not registered", entry))
+	}
 }

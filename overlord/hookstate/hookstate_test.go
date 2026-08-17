@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -1585,5 +1586,13 @@ func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("hookmgr.go", c, false)
+	ensureLogs := testutil.CheckEnsureLoopLogging("hookmgr.go", c, false)
+	knownEnsures := make(map[swfeats.EnsureEntry]bool)
+	for _, entry := range swfeats.KnownEnsures() {
+		knownEnsures[entry] = true
+	}
+	for _, ensureLog := range ensureLogs {
+		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
+		c.Check(knownEnsures[entry], Equals, true, Commentf("ensure trace %q is not registered", entry))
+	}
 }

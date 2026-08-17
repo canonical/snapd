@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -224,5 +225,13 @@ func (s *cmdSuite) TestExecTimeoutMissing(c *check.C) {
 }
 
 func (s *cmdSuite) TestEnsureLoopLogging(c *check.C) {
-	testutil.CheckEnsureLoopLogging("cmdmgr.go", c, false)
+	ensureLogs := testutil.CheckEnsureLoopLogging("cmdmgr.go", c, false)
+	knownEnsures := make(map[swfeats.EnsureEntry]bool)
+	for _, entry := range swfeats.KnownEnsures() {
+		knownEnsures[entry] = true
+	}
+	for _, ensureLog := range ensureLogs {
+		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
+		c.Check(knownEnsures[entry], check.Equals, true, check.Commentf("ensure trace %q is not registered", entry))
+	}
 }

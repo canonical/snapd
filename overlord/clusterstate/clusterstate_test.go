@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"gopkg.in/check.v1"
@@ -413,7 +414,15 @@ func (s *managerSuite) TestEnsureClusteringDisabled(c *check.C) {
 }
 
 func (s *managerSuite) TestEnsureLoopHasLogging(c *check.C) {
-	testutil.CheckEnsureLoopLogging("clustermgr.go", c, false)
+	ensureLogs := testutil.CheckEnsureLoopLogging("clustermgr.go", c, false)
+	knownEnsures := make(map[swfeats.EnsureEntry]bool)
+	for _, entry := range swfeats.KnownEnsures() {
+		knownEnsures[entry] = true
+	}
+	for _, ensureLog := range ensureLogs {
+		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
+		c.Check(knownEnsures[entry], check.Equals, true, check.Commentf("ensure trace %q is not registered", entry))
+	}
 }
 
 func (s *managerSuite) TestApplyClusterStateNoActions(c *check.C) {
