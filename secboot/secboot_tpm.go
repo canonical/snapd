@@ -546,7 +546,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult, params.AllowInsufficientDmaProtection)
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult, params.AllowInsufficientDmaProtection, params.AllowThunderboltSecurityLevel0)
 	if err != nil {
 		return nil, err
 	}
@@ -803,10 +803,12 @@ var resealKeysWithTPM = resealKeysWithTPMImpl
 // If checkResult is nil, the function falls back to the legacy profile-generation
 // path, which relies on static assumptions about the system’s boot configuration.
 // In this legacy mode, allowInsufficientDmaProtection determines whether systems
-// lacking sufficient DMA protection are still permitted.
-func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
+// lacking sufficient DMA protection are still permitted, and
+// allowThunderboltSecurityLevel0 determines whether systems reporting a downgraded
+// Thunderbolt security level are still permitted.
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (*sb_tpm2.PCRProtectionProfile, error) {
 	if checkResult == nil {
-		return buildPCRProtectionProfileLegacy(modelParams, allowInsufficientDmaProtection)
+		return buildPCRProtectionProfileLegacy(modelParams, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0)
 	}
 
 	// build EFI load image event trees
@@ -900,7 +902,7 @@ func (lc *LoadChain) loadEvent(params ...sb_efi.ImageLoadParams) (sb_efi.ImageLo
 
 // buildPCRProtectionProfileLegacy constructs a PCR protection profile used for
 // sealing encryption keys using an outdated secboot API.
-func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
+func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
@@ -941,6 +943,9 @@ func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowIns
 		)
 		if allowInsufficientDmaProtection {
 			options = append(options, sb_efi.WithAllowInsufficientDmaProtection())
+		}
+		if allowThunderboltSecurityLevel0 {
+			options = append(options, sb_efi.WithAllowThunderboltSecurityLevel0())
 		}
 		if err := sbefiAddPCRProfile(
 			tpm2.HashAlgorithmSHA256,
@@ -1019,9 +1024,11 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequence
 // If checkResult is nil, the function falls back to the legacy profile-generation
 // path, which relies on static assumptions about the system’s boot configuration.
 // In this legacy mode, allowInsufficientDmaProtection determines whether systems
-// lacking sufficient DMA protection are still permitted.
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
-	pcrProfile, err := buildPCRProtectionProfile(modelParams, checkResult, allowInsufficientDmaProtection)
+// lacking sufficient DMA protection are still permitted, and
+// allowThunderboltSecurityLevel0 determines whether systems reporting a downgraded
+// Thunderbolt security level are still permitted.
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (SerializedPCRProfile, error) {
+	pcrProfile, err := buildPCRProtectionProfile(modelParams, checkResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0)
 	if err != nil {
 		return nil, err
 	}

@@ -165,6 +165,8 @@ type SealKeysParams struct {
 	KeyRole string
 	// Whether to allow disabled DMA protection
 	AllowInsufficientDmaProtection bool
+	// Whether to allow the "Security Level is Downgraded to 0" Thunderbolt event
+	AllowThunderboltSecurityLevel0 bool
 }
 
 type SealKeysWithFDESetupHookParams struct {

@@ -1580,6 +1580,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		dbxUpdates             []secboot.DbUpdate
 		revoke                 bool
 		noDmaProtection        bool
+		noThunderboltSecurity  bool
 		// Preinstall check was used to determine for encryption availability at install time
 		hasCheckResult bool
 	}{
@@ -1591,6 +1592,10 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true},
 		// happy case with check result available on disk and AllowInsufficientDmaProtection true
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true, hasCheckResult: true},
+		// happy case with AllowThunderboltSecurityLevel0
+		{tpmEnabled: true, resealCalls: 1, noThunderboltSecurity: true},
+		// happy case with check result available on disk and AllowThunderboltSecurityLevel0 true
+		{tpmEnabled: true, resealCalls: 1, noThunderboltSecurity: true, hasCheckResult: true},
 		// happy case with check result available on disk and DBX update
 		{tpmEnabled: true, resealCalls: 1, hasCheckResult: true, dbxUpdates: []secboot.DbUpdate{{Database: secboot.KeyDatabaseDBX, Payload: []byte("dbx-update")}}},
 		// happy case with key files
@@ -1723,6 +1728,14 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 			)
 		}
 
+		if !tc.hasCheckResult && tc.noThunderboltSecurity {
+			// add option to deal with downgraded Thunderbolt security level
+			expectedOptions = append(
+				expectedOptions,
+				sb_efi.WithAllowThunderboltSecurityLevel0(),
+			)
+		}
+
 		addPCRProfileCalls := 0
 		restore := secboot.MockSbEfiAddPCRProfile(func(pcrAlg tpm2.HashAlgorithmId, branch *sb_tpm2.PCRProtectionProfileBranch, loadSequences *sb_efi.ImageLoadSequences, options ...sb_efi.PCRProfileOption) error {
 			addPCRProfileCalls++
@@ -1763,7 +1776,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		})
 		defer restore()
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, checkResult, tc.noDmaProtection)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, checkResult, tc.noDmaProtection, tc.noThunderboltSecurity)
 		if len(tc.buildProfileErr) > 0 {
 			c.Assert(err, ErrorMatches, tc.buildProfileErr)
 			continue
@@ -5210,7 +5223,7 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 	} {
 		c.Logf("tc: %v", idx)
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, false)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, false, false)
 		c.Assert(err, IsNil)
 
 		defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
