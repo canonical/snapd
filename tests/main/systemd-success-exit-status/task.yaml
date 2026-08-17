@@ -48,7 +48,7 @@ execute: |
     fi
 
     echo "When the signal is propagated to the service"
-    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH '^ActiveState=inactive$'"
 
     echo "Then systemctl reports the status of the service as terminated"
     systemctl show -p ExecMainStatus "$SERVICE_NAME" | MATCH "ExecMainStatus=42"
@@ -78,7 +78,7 @@ execute: |
     fi
 
     echo "When the signal is propagated to the service"
-    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=inactive'"
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH '^ActiveState=inactive$'"
 
     echo "Then systemctl reports the status of the service as terminated"
     systemctl show -p ExecMainStatus "$SERVICE_NAME" | MATCH "ExecMainStatus=250"
@@ -109,10 +109,10 @@ execute: |
     fi
 
     echo "When the signal is propagated to the service"
-    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH 'ActiveState=active'"
+    retry -n 20 --wait 1 sh -c "systemctl show -p ActiveState '$SERVICE_NAME' | MATCH '^ActiveState=active$'"
 
     echo "Then systemctl reports the status of the service as running due to 'restart on-failure'"
-    systemctl show -p SubState "$SERVICE_NAME" | MATCH "SubState=running"
+    systemctl show -p SubState "$SERVICE_NAME" | MATCH '^SubState=running$'
 
     echo "And the marker file is recreated after the service restarts"
     retry -n 20 --wait 1 stat "$MARKER"

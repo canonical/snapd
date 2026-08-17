@@ -11,7 +11,7 @@ execute: |
     done
 
     echo "Ensure services are working"
-    systemctl status snapd.service |MATCH active
+    systemctl status snapd.service |MATCH ' active '
 
     echo "Ensure timers are working"
     systemctl is-active snapd.snap-repair.timer
