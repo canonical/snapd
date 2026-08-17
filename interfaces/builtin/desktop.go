@@ -206,6 +206,15 @@ dbus (send)
 # (including supporting context menu)
 dbus (send)
     bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member="{Request,Release}Name"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+dbus (bind)
+    bus=session
+    name=org.freedesktop.StatusNotifierItem-[0-9]*-[0-9]*,
+dbus (send)
+    bus=session
     interface=org.kde.StatusNotifierWatcher
     path=/StatusNotifierWatcher
     member=RegisterStatusNotifierItem
@@ -219,19 +228,19 @@ dbus (send)
 dbus (receive)
     bus=session
     interface=org.kde.StatusNotifierItem
-    path=/StatusNotifierItem
+    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
     member={ProvideXdgActivationToken,Activate}
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/StatusNotifierItem
+    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
     member=GetAll
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=session
     interface=com.canonical.dbusmenu
-    path=/MenuBar
+    path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}
     member={AboutToShow,GetLayout,Event}
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
@@ -504,19 +513,19 @@ dbus (receive)
 dbus (send)
     bus=session
     interface=org.kde.StatusNotifierItem
-    path=/StatusNotifierItem
+    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
     member={ProvideXdgActivationToken,Activate}
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/StatusNotifierItem
+    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
     member=GetAll
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=session
     interface=com.canonical.dbusmenu
-    path=/MenuBar
+    path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}
     member={AboutToShow,GetLayout,Event}
     peer=(label=###PLUG_SECURITY_TAGS###),
 `
