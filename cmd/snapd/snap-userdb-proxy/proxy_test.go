@@ -69,7 +69,7 @@ func (s *proxySuite) TestPeerIsConfinedSnapLabels(c *C) {
 		})
 
 		a, b := unixPair(c)
-		label, ok, err := proxy.PeerIsConfinedSnapCheck(a)
+		label, ok, err := proxy.PeerIsSnap(a)
 		c.Check(err, IsNil)
 		c.Check(ok, Equals, t.ok)
 		c.Check(label, Equals, t.label)
