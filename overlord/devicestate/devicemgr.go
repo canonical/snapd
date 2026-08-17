@@ -105,7 +105,7 @@ func init() {
 	swfeats.RegisterEnsure("DeviceManager", "ensureInstalledAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureFactoryResetAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureSeedInConfigAfterSeed")
-	swfeats.RegisterEnsure("DeviceManager", "ensureTriedRecoverySystem")
+	swfeats.RegisterEnsure("DeviceManager", "ensureTriedRecoverySystemAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryResetAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemovedAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdatedAfterSeed")
@@ -1759,7 +1759,7 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	return nil
 }
 
-func (m *DeviceManager) ensureTriedRecoverySystem(deviceCtx snapstate.DeviceContext) error {
+func (m *DeviceManager) ensureTriedRecoverySystemAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	// nothing to do if not UC20 and run mode
 	if m.SystemMode(SysHasModeenv) != "run" {
 		return nil
@@ -1774,7 +1774,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem(deviceCtx snapstate.DeviceCont
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureTriedRecoverySystem")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureTriedRecoverySystemAfterSeed")
 
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -2155,7 +2155,7 @@ func (m *DeviceManager) Ensure() error {
 		// resealing tasks since it is run at most once during startup
 		// before TaskRunner.Ensure() is called.
 		if seeded && deviceCtx != nil {
-			if err := m.ensureTriedRecoverySystem(deviceCtx); err != nil {
+			if err := m.ensureTriedRecoverySystemAfterSeed(deviceCtx); err != nil {
 				errs = append(errs, err)
 			}
 		}
