@@ -43,7 +43,6 @@ type secretStateSuite struct {
 	ops              []string
 	failOn           map[string]error
 	stateLockChecker *mockStateLockChecker
-	fdstore          fdstore.Store
 }
 
 var _ = Suite(&secretStateSuite{})
