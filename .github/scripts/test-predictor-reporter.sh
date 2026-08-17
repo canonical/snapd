@@ -47,9 +47,12 @@ append_predictor_table() {
 	} >>report
 
 	printf '%s\n' "${predictor_rows[@]}" |
-		while IFS=$'\t' read -r display_name occurrences full_name system scenario; do
+		while IFS=$'\t' read -r display_name occurrences full_name system scenario source_group; do
 			if ((occurrences > 1)); then
 				display_name+=" <kbd>${occurrences} times</kbd>"
+			fi
+			if [ -n "$source_group" ]; then
+				printf '%s\n' "$source_group" >>predictor-groups-seen
 			fi
 
 			response='{}'
@@ -65,8 +68,14 @@ append_predictor_table() {
 			fi
 			probability=$(python3 "${parser}" success-probability <<<"$response")
 			if [ -z "$probability" ]; then
+				if [ -n "$source_group" ]; then
+					printf '%s\n' "$source_group" >>predictor-groups-ineligible
+				fi
 				probability="unavailable"
 			else
+				if [ -n "$source_group" ] && ! awk -v probability="$probability" 'BEGIN { exit !(probability > 0.5) }'; then
+					printf '%s\n' "$source_group" >>predictor-groups-ineligible
+				fi
 				probability=$(awk -v probability="$probability" 'BEGIN {
                     if (probability >= 0.8) marker = "🟢";
                     else if (probability >= 0.3) marker = "🟡";
@@ -81,11 +90,53 @@ append_predictor_table() {
 	echo "" >>report
 }
 
+rerun_predictor_jobs() {
+	if [ "$workflow_run_attempt" != 1 ]; then
+		return
+	fi
+
+	comm -23 \
+		<(sort -u predictor-groups-seen) \
+		<(sort -u predictor-groups-ineligible) >predictor-rerun-groups
+	if [ ! -s predictor-rerun-groups ]; then
+		return
+	fi
+
+	if ! gh api --paginate "/repos/${repository}/actions/runs/${workflow_run_id}/jobs?filter=latest&per_page=100" \
+		--jq '.jobs[] | [.id, .name] | @tsv' >workflow-jobs; then
+		echo "Unable to retrieve workflow jobs; predictor-selected tests were not retried." >>report
+		return
+	fi
+
+	echo "### Predictor-selected retries" >>report
+	while IFS= read -r group; do
+		job_id=""
+		while IFS=$'\t' read -r candidate_id job_name; do
+			if [[ "$job_name" == "spread ${group} /"* ]]; then
+				job_id="$candidate_id"
+				break
+			fi
+		done <workflow-jobs
+
+		if [ -z "$job_id" ]; then
+			echo "- Could not find the completed spread job for \`${group}\`." >>report
+		elif gh api --method POST "/repos/${repository}/actions/jobs/${job_id}/rerun" >/dev/null; then
+			echo "- Retrying failed tests from \`${group}\` (all predictor scores > 50%)." >>report
+		else
+			echo "- Failed to request a retry for \`${group}\`." >>report
+		fi
+	done <predictor-rerun-groups
+	echo "" >>report
+}
+
 if [ -f consolidated-report.json ] && python3 "${parser}" has-predictor-rows consolidated-report.json; then
+	: >predictor-groups-seen
+	: >predictor-groups-ineligible
 	echo "## Test Predictor Analysis" >>report
 	append_predictor_table "preparing" "Preparing"
 	append_predictor_table "executing" "Executing"
 	append_predictor_table "restoring" "Restoring"
+	rerun_predictor_jobs
 fi
 
 if find . -name skipped_tests_list.txt | grep -q .; then

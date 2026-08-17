@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import os
 import sys
 from collections import defaultdict
 from typing import Callable, TypeAlias, cast
@@ -12,7 +13,7 @@ from typing import Callable, TypeAlias, cast
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
-PredictorKey: TypeAlias = tuple[str, str, str, str]
+PredictorKey: TypeAlias = tuple[str, str, str, str, str]
 
 
 def load_json_object(path: str) -> JsonObject:
@@ -63,7 +64,11 @@ def consolidate(args: argparse.Namespace) -> int:
 			report = load_json_object(path)
 			report_items = report.get("items", [])
 			if isinstance(report_items, list):
-				items.extend(item for item in report_items if isinstance(item, dict))
+				group = os.path.basename(os.path.dirname(path)).split("-", 4)[-1]
+				for item in report_items:
+					if isinstance(item, dict):
+						item["source_group"] = group
+						items.append(item)
 
 	with open(args.output, "w", encoding="utf-8") as output_file:
 		json.dump({"items": items}, output_file)
@@ -85,6 +90,7 @@ def predictor_rows(args: argparse.Namespace) -> int:
 			continue
 
 		key = (
+			string_value(item.get("source_group", "")),
 			string_value(item.get("backend", "")),
 			string_value(item.get("system", "")),
 			full_name(item),
@@ -93,13 +99,13 @@ def predictor_rows(args: argparse.Namespace) -> int:
 		grouped_items[key].append(item)
 
 	for key in sorted(grouped_items):
-		backend, system, test_name, scenario = key
+		source_group, backend, system, test_name, scenario = key
 		occurrences = len(grouped_items[key])
 		if backend:
 			test_display_name = f"{backend}:{system}:{test_name}"
 		else:
 			test_display_name = f"{system}:{test_name}"
-		print("\t".join([test_display_name, str(occurrences), test_name, system, scenario]))
+		print("\t".join([test_display_name, str(occurrences), test_name, system, scenario, source_group]))
 	return 0
 
 
