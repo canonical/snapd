@@ -40,7 +40,7 @@ on:
         default: false
         required: false
       run-as-root:
-        description: 'If true, run Go tests as root instead of non-root with network isolation'
+        description: 'If true, run Go tests as root instead of non-root, and without network isolation'
         type: boolean
         default: false
         required: false
@@ -57,7 +57,7 @@ jobs:
       GOROOT: ""
       GO_BUILD_TAGS: ${{ inputs.go-build-tags }}
       CC: ${{ inputs.c-compiler }}
-      
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
