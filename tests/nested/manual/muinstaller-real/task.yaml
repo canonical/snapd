@@ -425,6 +425,11 @@ execute: |
   # allow passwordless sudo
   timeout -v 300 remote.exec "echo ubuntu | sudo -S snap wait system seed.loaded"
 
+  # booted into recover mode
+  remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=recover snapd_recovery_system=classic"
+  # but next boot will be run mode
+  remote.exec "echo ubuntu | sudo -S snap debug boot-vars --root-dir /run/mnt/ubuntu-seed" | MATCH '^snapd_recovery_mode=run$'
+
   remote.exec "groups" | tr ' ' '\n' | sort | xargs | MATCH 'sudo user1'
 
   remote.exec "snap list" > snap-list
