@@ -279,6 +279,10 @@ func (s *CudaDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
+	// ldconfig is only active on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
@@ -291,8 +295,38 @@ func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 		}})
 }
 
+func (s *CudaDriverLibsInterfaceSuite) TestLdconfigSpecOnCore(c *C) {
+	// ldconfig is skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &ldconfig.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.LibDirs(), HasLen, 0)
+}
+
 func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
+	// configfiles export runs on classic
 	restore := release.MockOnClassic(true)
+	defer restore()
+
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		"/var/lib/snapd/export/system_cuda-provider_cuda-slot_cuda-driver-libs.library-source": &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.SnapMountDir, "cuda-provider/5/lib2") + "\n" +
+					filepath.Join(snap.ComponentMountDir("comp1", snap.R(11), "cuda-provider"), "lib1") + "\n" +
+					filepath.Join(snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider"), "lib2") + "\n" +
+					snap.ComponentMountDir("comp2", snap.R(22), "cuda-provider") + "\n"),
+			Mode: 0644},
+	})
+}
+
+func (s *CudaDriverLibsInterfaceSuite) TestConfigfilesSpecOnCore(c *C) {
+	// configfiles export also runs on core
+	restore := release.MockOnClassic(false)
 	defer restore()
 
 	spec := &configfiles.Specification{}
@@ -313,7 +347,7 @@ func (s *CudaDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, false)
-	c.Assert(si.ImplicitPlugOnCore, Equals, false)
+	c.Assert(si.ImplicitPlugOnCore, Equals, true)
 	c.Assert(si.ImplicitPlugOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows exposing CUDA driver libraries to the system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "cuda-driver-libs")

@@ -175,10 +175,6 @@ backends:
                   image: ubuntu-2404-64
                   storage: 15G
                   workers: 8
-            - ubuntu-25.10-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2510-amd64
-                  storage: 15G
-                  workers: 8
 
     google-core:
         type: google
@@ -407,11 +403,11 @@ backends:
                 image: snapd-spread/ubuntu-24.04-64-pro-fips
             - ubuntu-secboot-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64-secboot
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
             - ubuntu-core-18-64:
@@ -647,11 +643,11 @@ backends:
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
     qemu-nested:
@@ -745,7 +741,7 @@ backends:
                 PATH="${SPREAD_HOST_PATH}"
             fi
             # Spread does not expose any settings to ad-hoc backends.
-            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_MEM_OPTION="-m 6144"
             export QEMU_SMP_OPTION="-smp 4"
             exec image-garden allocate "$(.image-garden/remap-name snapd-to-garden "$SPREAD_SYSTEM")"
         discard: |
@@ -794,9 +790,6 @@ backends:
                   username: root
                   password: root
             - ubuntu-24.04-64:
-                  username: root
-                  password: root
-            - ubuntu-25.10-64:
                   username: root
                   password: root
             - ubuntu-26.04-64:
@@ -1272,7 +1265,14 @@ prepare: |
     download.max_silent_tries = 20
     EOF
 
-        # Make sure docs are installed with the packages
+        # Make sure docs are installed with the packages. Newer systems use a
+        # vendor drop-in under /usr/etc, while older ones keep the setting in
+        # /etc/zypp/zypp.conf.
+        mkdir -p /etc/zypp/zypp.conf.d
+        cat <<-EOF > /etc/zypp/zypp.conf.d/excludedocs.conf
+    [main]
+    rpm.install.excludedocs = no
+    EOF
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
 
         # TODO: enable enforcing mode
@@ -1648,14 +1648,12 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
 
             distro_purge_package snapd
-            case "$SPREAD_SYSTEM" in
-                arch-*)
-                    # In Arch there is no separate snap-confine package.
-                    ;;
-                *)
-                    distro_purge_package snap-confine ubuntu-core-launcher
-                    ;;
-            esac
+            if tests.pkgs is-installed snap-confine; then
+                distro_purge_package snap-confine
+            fi
+            if tests.pkgs is-installed ubuntu-core-launcher; then
+                distro_purge_package ubuntu-core-launcher
+            fi
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests

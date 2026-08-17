@@ -28,9 +28,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	assertstateconfdb "github.com/snapcore/snapd/overlord/assertstate/confdb"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -88,19 +90,10 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 
 	assertstate.ReplaceDB(s.st, db)
 
-	// mock a model so ForgetValidationSet doesn't panic
-	a := assertstest.FakeAssertion(map[string]any{
-		"type":         "model",
-		"authority-id": "canonical",
-		"series":       "16",
-		"brand-id":     "canonical",
-		"model":        "pc",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-	})
+	// mock a model and store so we can use the real (Monitor|TryEnforced)ValidationSet helpers
 	deviceCtx := &snapstatetest.TrivialDeviceContext{
-		DeviceModel: a.(*asserts.Model),
+		DeviceModel: sysdb.GenericClassicModel(),
+		CtxStore:    &assertstatetest.FakeStore{State: s.st, DB: s.storeSigning},
 	}
 	s.AddCleanup(snapstatetest.MockDeviceContext(deviceCtx))
 	s.st.Set("seeded", true)
@@ -123,20 +116,36 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 		},
 	})
 
+	// valid-set's constraints are met and the set can be enforced
+	s.addValidationSetAssert(c, "my-account", "valid-set", 1, []any{
+		map[string]any{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "enforced-snap",
+			"presence": "required",
+			"revision": "7",
+		},
+	})
+
 	s.view, err = confdbstate.GetView(s.st, "system", "validation-sets", "admin")
 	c.Assert(err, IsNil)
 }
 
-// addValidationSetAssert signs and adds a validation-set assertion to the DB.
-// Developer accounts and signing keys are created on first use per account.
+// addValidationSetAssert signs a validation-set assertion and adds it to the
+// fake store as well as the local assertion DB. Adding to the store allows
+// MonitorValidationSet/TryEnforcedValidationSets to fetch it; adding to the
+// local DB allows tests that only inspect tracking (e.g. via Databag) to work
+// without going through a Commit. Developer accounts and signing keys are
+// created on first use per account.
 func (s *confdbHandlerSuite) addValidationSetAssert(c *C, accountID, name string, sequence int, snaps []any) {
 	if _, ok := s.devSignings[accountID]; !ok {
 		privKey, _ := assertstest.GenerateKey(752)
 		acct := assertstest.NewAccount(s.storeSigning, accountID, map[string]any{
 			"account-id": accountID,
 		}, "")
+		c.Assert(s.storeSigning.Add(acct), IsNil)
 		c.Assert(assertstate.Add(s.st, acct), IsNil)
 		acctKey := assertstest.NewAccountKey(s.storeSigning, acct, nil, privKey.PublicKey(), "")
+		c.Assert(s.storeSigning.Add(acctKey), IsNil)
 		c.Assert(assertstate.Add(s.st, acctKey), IsNil)
 		s.devSignings[accountID] = assertstest.NewSigningDB(accountID, privKey)
 	}
@@ -158,6 +167,7 @@ func (s *confdbHandlerSuite) addValidationSetAssert(c *C, accountID, name string
 	}
 	a, err := s.devSignings[accountID].Sign(asserts.ValidationSetType, headers, nil, "")
 	c.Assert(err, IsNil)
+	c.Assert(s.storeSigning.Add(a), IsNil)
 	c.Assert(assertstate.Add(s.st, a), IsNil)
 }
 
@@ -281,6 +291,17 @@ func (s *confdbHandlerSuite) TestUpdateEntireValidationSet(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	// add an assertion at sequence 5 with an installed snap so the enforce
+	// constraint check succeeds
+	s.addValidationSetAssert(c, "my-account", "my-set", 5, []any{
+		map[string]any{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "enforced-snap",
+			"presence": "required",
+			"revision": "7",
+		},
+	})
+
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "my-account",
 		Name:      "my-set",
@@ -312,9 +333,9 @@ func (s *confdbHandlerSuite) TestCommitUpdatesOnlyMode(c *C) {
 
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "my-account",
-		Name:      "my-set",
+		Name:      "valid-set",
 		Mode:      assertstate.Enforce,
-		PinnedAt:  3,
+		PinnedAt:  1,
 		Current:   1,
 	})
 
@@ -322,7 +343,7 @@ func (s *confdbHandlerSuite) TestCommitUpdatesOnlyMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// set specific path and check other data isn't affected
-	err = s.view.Set(tx, "my-account.my-set.mode", "monitor")
+	err = s.view.Set(tx, "my-account.valid-set.mode", "monitor")
 	c.Assert(err, IsNil)
 
 	handler := &assertstateconfdb.ValsetsConfdbHandler{}
@@ -330,22 +351,22 @@ func (s *confdbHandlerSuite) TestCommitUpdatesOnlyMode(c *C) {
 	c.Assert(err, IsNil)
 
 	var tr assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	err = assertstate.GetValidationSet(s.st, "my-account", "valid-set", &tr)
 	c.Assert(err, IsNil)
 	c.Check(tr.Mode, Equals, assertstate.Monitor)
-	c.Check(tr.PinnedAt, Equals, 3)
+	c.Check(tr.PinnedAt, Equals, 1)
 
 	// if we set the entire validation set map without pinned-sequence, it's removed
 	tx, err = confdbstate.NewTransaction(s.st, "system", "validation-sets")
 	c.Assert(err, IsNil)
 
-	err = s.view.Set(tx, "my-account.my-set", map[string]any{"mode": "enforce"})
+	err = s.view.Set(tx, "my-account.valid-set", map[string]any{"mode": "enforce"})
 	c.Assert(err, IsNil)
 
 	_, err = handler.Commit(s.st, tx)
 	c.Assert(err, IsNil)
 
-	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	err = assertstate.GetValidationSet(s.st, "my-account", "valid-set", &tr)
 	c.Assert(err, IsNil)
 	c.Check(tr.Mode, Equals, assertstate.Enforce)
 	c.Check(tr.PinnedAt, Equals, 0)
@@ -357,9 +378,9 @@ func (s *confdbHandlerSuite) TestCommitUnsetsPinnedSequence(c *C) {
 
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "my-account",
-		Name:      "my-set",
+		Name:      "valid-set",
 		Mode:      assertstate.Enforce,
-		PinnedAt:  7,
+		PinnedAt:  1,
 		Current:   1,
 	})
 
@@ -367,7 +388,7 @@ func (s *confdbHandlerSuite) TestCommitUnsetsPinnedSequence(c *C) {
 	c.Assert(err, IsNil)
 
 	// unset part of the data
-	err = s.view.Unset(tx, "my-account.my-set.pinned-sequence")
+	err = s.view.Unset(tx, "my-account.valid-set.pinned-sequence")
 	c.Assert(err, IsNil)
 
 	handler := &assertstateconfdb.ValsetsConfdbHandler{}
@@ -375,7 +396,7 @@ func (s *confdbHandlerSuite) TestCommitUnsetsPinnedSequence(c *C) {
 	c.Assert(err, IsNil)
 
 	var tr assertstate.ValidationSetTracking
-	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
+	err = assertstate.GetValidationSet(s.st, "my-account", "valid-set", &tr)
 	c.Assert(err, IsNil)
 	c.Check(tr.Mode, Equals, assertstate.Enforce)
 	c.Check(tr.PinnedAt, Equals, 0)
@@ -436,6 +457,20 @@ func (s *confdbHandlerSuite) TestCommitForgetsDeletedValidationSet(c *C) {
 	var tr assertstate.ValidationSetTracking
 	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &tr)
 	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
+
+	// try to unset a val set that's not currently tracked
+	tx, err = confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	err = s.view.Unset(tx, "my-account.my-set")
+	c.Assert(err, IsNil)
+
+	// unsetting an untracked validation set should be a no-op
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, IsNil)
+
+	err = assertstate.GetValidationSet(s.st, "my-account", "my-set", &assertstate.ValidationSetTracking{})
+	c.Assert(err, testutil.ErrorIs, state.ErrNoState)
 }
 
 func (s *confdbHandlerSuite) TestCommitRejectsUnsupportedStorageVersion(c *C) {
@@ -475,12 +510,13 @@ func (s *confdbHandlerSuite) TestCommitMultipleSetsAcrossAccounts(c *C) {
 		Current:   1,
 	})
 	s.addValidationSetAssert(c, "acct2", "set-c", 1, nil)
+	s.addValidationSetAssert(c, "acct2", "set-c", 2, nil)
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "acct2",
 		Name:      "set-c",
 		Mode:      assertstate.Enforce,
 		PinnedAt:  2,
-		Current:   1,
+		Current:   2,
 	})
 
 	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
@@ -488,7 +524,7 @@ func (s *confdbHandlerSuite) TestCommitMultipleSetsAcrossAccounts(c *C) {
 
 	err = s.view.Set(tx, "acct1.set-a", map[string]any{
 		"mode":            "enforce",
-		"pinned-sequence": 10,
+		"pinned-sequence": 1,
 	})
 	c.Assert(err, IsNil)
 	err = s.view.Set(tx, "acct1.set-b", map[string]any{
@@ -511,16 +547,186 @@ func (s *confdbHandlerSuite) TestCommitMultipleSetsAcrossAccounts(c *C) {
 		name    string
 		mode    assertstate.ValidationSetMode
 		pin     int
+		current int
 	}{
-		{account: "acct1", name: "set-a", mode: assertstate.Enforce, pin: 10},
-		{account: "acct1", name: "set-b", mode: assertstate.Monitor, pin: 1},
-		{account: "acct2", name: "set-c", mode: assertstate.Monitor, pin: 2},
+		{account: "acct1", name: "set-a", mode: assertstate.Enforce, pin: 1, current: 1},
+		{account: "acct1", name: "set-b", mode: assertstate.Monitor, pin: 1, current: 1},
+		{account: "acct2", name: "set-c", mode: assertstate.Monitor, pin: 2, current: 2},
 	} {
 		var tr assertstate.ValidationSetTracking
 		err = assertstate.GetValidationSet(s.st, tc.account, tc.name, &tr)
 		c.Assert(err, IsNil)
 		c.Check(tr.Mode, Equals, tc.mode)
-		c.Check(tr.Current, Equals, 1)
+		c.Check(tr.Current, Equals, tc.current)
 		c.Check(tr.PinnedAt, Equals, tc.pin)
 	}
+}
+
+func (s *confdbHandlerSuite) TestCommitFailsIfEnforcingUnknownSequence(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account",
+		Name:      "my-set",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	})
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// pin to a sequence that has no local assertion
+	err = s.view.Set(tx, "my-account.my-set", map[string]any{"mode": "enforce", "pinned-sequence": 99})
+	c.Assert(err, IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, ErrorMatches, `cannot enforce validation sets: .*validation-set \(99; series:16 account-id:my-account name:my-set\) not found`)
+}
+
+func (s *confdbHandlerSuite) TestCommitEnforceFailureLeavesStateUnchanged(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.addValidationSetAssert(c, "my-account", "another-valid-set", 1, []any{
+		map[string]any{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "enforced-snap",
+			"presence": "required",
+			"revision": "7",
+		},
+	})
+
+	initialSets := []*assertstate.ValidationSetTracking{
+		{AccountID: "my-account", Name: "valid-set", Mode: assertstate.Enforce, PinnedAt: 1, Current: 1},
+		{AccountID: "my-account", Name: "another-valid-set", Mode: assertstate.Enforce, PinnedAt: 1, Current: 1},
+	}
+	for _, tr := range initialSets {
+		assertstate.UpdateValidationSet(s.st, tr)
+	}
+
+	initialHistory, err := assertstate.ValidationSetsHistory(s.st)
+	c.Assert(err, IsNil)
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// enforcing my-set will fail due to a missing snap, so state shouldn't change
+	c.Assert(s.view.Set(tx, "my-account.my-set.mode", "enforce"), IsNil)
+	c.Assert(s.view.Set(tx, "my-account.valid-set.mode", "monitor"), IsNil)
+	c.Assert(s.view.Unset(tx, "my-account.another-valid-set"), IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, ErrorMatches, `(?s)cannot enforce validation sets: .*missing required snaps.*`)
+
+	// check state looks the same
+	sets, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(sets, HasLen, len(initialSets))
+
+	for _, tr := range initialSets {
+		got, ok := sets[assertstate.ValidationSetKey(tr.AccountID, tr.Name)]
+		c.Assert(ok, Equals, true, Commentf("expected %s/%s to still be tracked", tr.AccountID, tr.Name))
+		c.Check(got.Mode, Equals, tr.Mode)
+		c.Check(got.PinnedAt, Equals, tr.PinnedAt)
+		c.Check(got.Current, Equals, tr.Current)
+	}
+
+	// history is also unchanged
+	newHistory, err := assertstate.ValidationSetsHistory(s.st)
+	c.Assert(err, IsNil)
+	c.Check(newHistory, DeepEquals, initialHistory)
+}
+
+func (s *confdbHandlerSuite) TestCommitMonitorFailureDoesNotRollbackEnforce(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// the monitor change will fail but the enforcement isn't rolled back
+	c.Assert(s.view.Set(tx, "my-account.valid-set.mode", "enforce"), IsNil)
+	c.Assert(s.view.Set(tx, "my-account.nonexistent-set.mode", "monitor"), IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, ErrorMatches, `(?s)cannot monitor validation set my-account/nonexistent-set: .*`)
+
+	sets, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(sets, HasLen, 1)
+
+	got, ok := sets[assertstate.ValidationSetKey("my-account", "valid-set")]
+	c.Assert(ok, Equals, true)
+	c.Check(got.Mode, Equals, assertstate.Enforce)
+	c.Check(got.Current, Equals, 1)
+}
+
+func (s *confdbHandlerSuite) TestCommitForgetFailureDoesNotRollbackEnforceOrMonitor(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// mock a model that enforces a validation set we'll try (and fail) to forget
+	headers := sysdb.GenericClassicModel().Headers()
+	headers["validation-sets"] = []any{
+		map[string]any{
+			"account-id": "my-account",
+			"name":       "valid-set",
+			"mode":       "enforce",
+			"sequence":   "1",
+		},
+	}
+
+	s.AddCleanup(snapstatetest.MockDeviceContext(&snapstatetest.TrivialDeviceContext{
+		DeviceModel: assertstest.FakeAssertion(headers).(*asserts.Model),
+		CtxStore:    &assertstatetest.FakeStore{State: s.st, DB: s.storeSigning},
+	}))
+
+	s.addValidationSetAssert(c, "my-account", "another-valid-set", 1, []any{
+		map[string]any{
+			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "enforced-snap",
+			"presence": "required",
+			"revision": "7",
+		},
+	})
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account", Name: "another-valid-set", Mode: assertstate.Monitor, PinnedAt: 1, Current: 1,
+	})
+	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
+		AccountID: "my-account", Name: "valid-set", Mode: assertstate.Enforce, PinnedAt: 1, Current: 1,
+	})
+
+	tx, err := confdbstate.NewTransaction(s.st, "system", "validation-sets")
+	c.Assert(err, IsNil)
+
+	// these will succeed
+	c.Assert(s.view.Set(tx, "my-account.another-valid-set.mode", "enforce"), IsNil)
+	c.Assert(s.view.Set(tx, "my-account.my-set.mode", "monitor"), IsNil)
+	// but this will fail (enforced by the model)
+	c.Assert(s.view.Unset(tx, "my-account.valid-set"), IsNil)
+
+	handler := &assertstateconfdb.ValsetsConfdbHandler{}
+	_, err = handler.Commit(s.st, tx)
+	c.Assert(err, ErrorMatches, `cannot forget validation set my-account/valid-set: validation-set is enforced by the model`)
+
+	sets, err := assertstate.ValidationSets(s.st)
+	c.Assert(err, IsNil)
+	c.Assert(sets, HasLen, 3)
+
+	// valid-set wasn't forgotten but the other two changes were persisted
+	got, ok := sets[assertstate.ValidationSetKey("my-account", "valid-set")]
+	c.Assert(ok, Equals, true)
+	c.Check(got.Mode, Equals, assertstate.Enforce)
+
+	got, ok = sets[assertstate.ValidationSetKey("my-account", "another-valid-set")]
+	c.Assert(ok, Equals, true)
+	c.Check(got.Mode, Equals, assertstate.Enforce)
+
+	got, ok = sets[assertstate.ValidationSetKey("my-account", "my-set")]
+	c.Assert(ok, Equals, true)
+	c.Check(got.Mode, Equals, assertstate.Monitor)
 }

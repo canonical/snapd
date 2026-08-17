@@ -54,7 +54,6 @@ var (
 	SecurebootUpdateAffectedSnaps = dbxUpdateAffectedSnaps
 	AddPlatformKeysAffectedSnaps  = addPlatformKeysAffectedSnaps
 
-	CheckFDEChangeConflict            = checkFDEChangeConflict
 	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
 
 	SetRepairAttemptResult = setRepairAttemptResult

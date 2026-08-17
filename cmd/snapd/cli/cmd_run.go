@@ -182,13 +182,16 @@ func maybeCheckSystemKeyMismatch(cli *client.Client) (changeID string, err error
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
 	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
-	if err == nil && !mismatch {
-		return "", nil
-	}
-	// something went wrong with the system-key compare, try to
-	// reach snapd before continuing
 	if err != nil {
 		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+	} else if !mismatch {
+		// System key matches. Also check that the snap private tmp directory
+		// exists; snap-confine requires this directory to be present before it
+		// can bootstrap the mount namespace.
+		if _, statErr := os.Stat(dirs.SnapPrivateTmpDir); statErr == nil {
+			return "", nil
+		}
+		logger.Debugf("%s is missing, waiting for snapd", dirs.SnapPrivateTmpDir)
 	}
 
 	// We have a mismatch but maybe it is only because systemd is shutting down
@@ -1892,10 +1895,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	}
 }
 
-func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+func getSnapDirOptions(snapName string) (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	data, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	data, err := os.ReadFile(snap.SequenceFile(snapName))
 	if errors.Is(err, os.ErrNotExist) {
 		return &opts, nil
 	} else if err != nil {

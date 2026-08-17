@@ -115,7 +115,7 @@
 
 
 Name:           snapd
-Version:        2.76
+Version:        2.77
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -403,6 +403,11 @@ install -D -p -m 0644 %{indigo_srcdir}/data/selinux/snappy.pp.bz2 \
     %{buildroot}%{_datadir}/selinux/packages/snappy.pp.bz2
 %endif
 
+# Drop tools not shipped on openSUSE (handled via snapd multi-call dispatch
+# on Ubuntu/Debian; on openSUSE these binaries are not needed)
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-gpio-helper
+
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
 chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
@@ -455,6 +460,9 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 %service_add_pre %{systemd_services_list}
 
 %post
+# Create the private tmp directory for snap-confine
+install -d -m 0700 /tmp/snap-private-tmp
+
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
 %apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
@@ -511,6 +519,10 @@ fi
 
 %post selinux
 %selinux_modules_install -s %{selinuxtype} %{_datadir}/selinux/packages/snappy.pp.bz2
+# Ensure the private tmp directory for snap-confine exists and has the correct
+# SELinux label now that the policy module is loaded
+install -d -m 0700 /tmp/snap-private-tmp
+restorecon /tmp/snap-private-tmp || :
 
 %preun selinux
 %selinux_relabel_pre -s %{selinuxtype}
@@ -655,6 +667,7 @@ fi
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
+%{_libexecdir}/snapd/snapd-tool-wrap
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}

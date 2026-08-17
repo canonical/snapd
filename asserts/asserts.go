@@ -222,7 +222,8 @@ func init() {
 	// 4: support for plug-names/slot-names constraints
 	// 5: alt attr matcher usage (was unused before, has new behavior now)
 	// 6: support for $PLUG_PUBLISHER_ID/$SLOT_PUBLISHER_ID in attr constraints
-	maxSupportedFormat[SnapDeclarationType.Name] = 6
+	// 7: support for on-classic distro/variant constraints
+	maxSupportedFormat[SnapDeclarationType.Name] = 7
 
 	// 1: support to limit to device serials
 	// 2: support for user-presence constraint
