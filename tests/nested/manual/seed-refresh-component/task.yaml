@@ -55,9 +55,8 @@ prepare: |
   version="$(tests.nested show version)"
   base_snap="core${version}"
   test_snap_name="test-snapd-component-seed-refresh"
-  test_snap_dir="$TESTSLIB/snaps/test-snapd-component-seed-refresh"
   presence="$(echo "$SNAP_PRESENCE" | cut -d "_" -f 1)"
-  model_json_template="$TESTSLIB/assertions/developer1-components-seed-refresh-dangerous.json.in"
+  model_json_template="developer1-components-seed-refresh-dangerous.json.in"
   model_json="$(pwd)/model.json"
 
   case "${version}" in
@@ -78,7 +77,7 @@ prepare: |
     -e "s/@@PRESENCE@@/${presence}/g" \
     "${model_json_template}" > "${model_json}"
 
-  sed "s/@@BASE@@/${base_snap}/g" "${test_snap_dir}"/meta/snap.yaml.in > "${test_snap_dir}"/meta/snap.yaml
+  sed "s/@@BASE@@/${base_snap}/g" "${test_snap_name}"/meta/snap.yaml.in > "${test_snap_name}"/meta/snap.yaml
 
   test_snap_id="$(gojq -r --arg name "${test_snap_name}" ".snaps[] | select(.name == \$name) | .id" "${model_json}")"
   test -n "${test_snap_id}"
@@ -101,7 +100,7 @@ prepare: |
     "${test_snap_id}"
 
   for comp in "comp-required" "comp-optional-in-seed" "comp-optional-not-in-seed" "comp-not-in-model"; do
-      comp_dir="${TESTSLIB}/snaps/${test_snap_name}/${comp}"
+      comp_dir="${test_snap_name}/${comp}"
       comp_path="${extra_snaps_path}/${test_snap_name}+${comp}.comp"
       snap pack --filename="${comp_path}" "${comp_dir}"
       "${TESTSTOOLS}"/store-state make-component-installable --noack \
@@ -231,13 +230,13 @@ execute: |
 
   run_seed_refresh_round() {
     local change_id boot_id
+    boot_id="$(tests.nested boot-id)"
     change_id="$(remote.exec "sudo snap refresh --no-wait ${test_snap_name}")"
     if [ "$SNAP_PRESENCE" = "optional_not_in_seed" ]; then
         # Check that there are no create-recovery-systems tasks
         tasks=$(remote.exec "snap tasks ${change_id} --format=json")
         echo "$tasks" | gojq '[.tasks[] | select(.kind == "create-recovery-system")] | length' | MATCH 0
     else
-        boot_id="$(tests.nested boot-id)"
         remote.wait-for reboot "${boot_id}"
         remote.wait-for snap-command
     fi
@@ -265,7 +264,7 @@ execute: |
       full_comp_name="${comp_revision%%=*}"
       revision="${comp_revision#*=}"
 
-      remote.exec "snap component ${full_comp_name}" | awk 'END { print $1,$2 }' | MATCH "^installed: ${revision}$"
+      remote.exec "snap component ${full_comp_name}" | MATCH "^installed: ${revision}"
     done
   }
 
