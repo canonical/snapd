@@ -497,7 +497,7 @@ var templateFooter = `
 `
 
 // defaultPerlTemplateRules contains perl runtime-specific rules.
-// Perl has been removed from the core24 onwards
+// Perl has been removed from core24 onwards.
 var defaultPerlTemplateRules = `
   # for perl apps/services
   #include <abstractions/perl>
@@ -506,7 +506,7 @@ var defaultPerlTemplateRules = `
 `
 
 // defaultPythonTemplateRules contains python runtime-specific rules.
-// Python has been removed from the base core26 onwards
+// Python has been removed from core26 onwards.
 var defaultPythonTemplateRules = `
   # for python apps/services
   #include <abstractions/python>
@@ -680,8 +680,8 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}sbin/killall5 ixr,
 `
 
-// defaultPerlTemplateRules contains perl runtime-specific rules.
-// Perl has been removed from the core24 onwards
+// defaultCoreRuntimePerlTemplateRules contains perl runtime-specific rules
+// for core* bases. Perl has been removed from core24 onwards.
 var defaultCoreRuntimePerlTemplateRules = `
   # for perl apps/services
   /usr/bin/perl{,5*} ixr,
@@ -691,7 +691,7 @@ var defaultCoreRuntimePerlTemplateRules = `
 `
 
 // defaultCoreRuntimePythonTemplateRules contains python runtime-specific rules
-// python has been removed from base core26 onwards
+// for core* bases. Python has been removed from core26 onwards.
 var defaultCoreRuntimePythonTemplateRules = `
   # for python apps/services
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,

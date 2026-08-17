@@ -1400,6 +1400,55 @@ func (s *backendSuite) TestCoreRuntimeExtraRulesPerBase(c *C) {
 	}
 }
 
+// TestNoUnexpandedTemplatePatterns ensures that no ###PATTERN### placeholder
+// survives template expansion in the generated profiles. Placeholders that
+// leak into the output are silently treated as comments by apparmor (they
+// start with '#'), so such bugs silently drop policy instead of failing.
+func (s *backendSuite) TestNoUnexpandedTemplatePatterns(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// NOTE: the real (unmocked) templates are used on purpose so that the
+	// expansion of every pattern embedded in them is exercised.
+	unexpandedPattern := regexp.MustCompile(`###[A-Z_]+###`)
+
+	scenarios := []struct {
+		snapYaml string
+		opts     interfaces.ConfinementOptions
+		comment  string
+	}{
+		// core runtime template, implicit core base
+		{snapYaml: snapYamlWithBase(""), comment: "implicit core base"},
+		// core runtime template with per-base extra rules
+		{snapYaml: snapYamlWithBase("core20"), comment: "core20 base"},
+		{snapYaml: snapYamlWithBase("core24"), comment: "core24 base"},
+		{snapYaml: snapYamlWithBase("core26"), comment: "core26 base"},
+		// non-core base template
+		{snapYaml: snapYamlWithBase("other"), comment: "non-core base"},
+		// classic confinement template
+		{snapYaml: snapYamlWithBase(""), opts: interfaces.ConfinementOptions{Classic: true}, comment: "classic confinement"},
+		// devmode snaps exercise ###DEVMODE_SNAP_CONFINE###
+		{snapYaml: snapYamlWithBase(""), opts: interfaces.ConfinementOptions{DevMode: true}, comment: "devmode"},
+	}
+
+	for _, sc := range scenarios {
+		snapInfo := s.InstallSnap(c, sc.opts, "", sc.snapYaml, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		content, err := os.ReadFile(profile)
+		c.Assert(err, IsNil, Commentf("scenario: %s", sc.comment))
+
+		unexpanded := unexpandedPattern.FindAllString(string(content), -1)
+		c.Check(unexpanded, HasLen, 0,
+			Commentf("scenario %q: unexpanded template patterns left in profile: %v", sc.comment, unexpanded))
+
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestUnconfinedFlag(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
@@ -3050,6 +3099,47 @@ func (s *backendSuite) TestPromptPrefix(c *C) {
 		c.Assert(string(data), testutil.Contains, tc.expected)
 		s.RemoveSnap(c, snapInfo)
 	}
+}
+
+// TestPycacheDenyRuleCoreRuntime checks that the pycache deny rules reach
+// core-based profiles through coreRuntimeExtraRules (they are inserted as
+// replacement text, so the usual ###PYCACHEDENY### switch case never sees
+// them), and that suppression is honoured there too.
+func (s *backendSuite) TestPycacheDenyRuleCoreRuntime(c *C) {
+	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restore()
+	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
+	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restoreTemplate := apparmor.MockCoreRuntimeTemplate(
+		"###PROFILEATTACH### ###FLAGS### {\n" +
+			apparmor.TemplateFooter)
+	defer restoreTemplate()
+
+	for _, tc := range []struct {
+		suppress bool
+		expected Checker
+	}{
+		{suppress: true, expected: Not(testutil.Contains)},
+		{suppress: false, expected: testutil.Contains},
+	} {
+		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
+			if tc.suppress {
+				spec.SetSuppressPycacheDeny()
+			}
+			return nil
+		}
+
+		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", ifacetest.SambaYamlV1Core20Base, 1)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		data, err := os.ReadFile(profile)
+		c.Assert(err, IsNil)
+
+		c.Assert(string(data), tc.expected, "deny /usr/lib/python3*/{,**/}__pycache__/ w,")
+		s.RemoveSnap(c, snapInfo)
+	}
+	s.Iface.AppArmorPermanentSlotCallback = nil
 }
 
 func (s *backendSuite) TestPycacheDenyRule(c *C) {

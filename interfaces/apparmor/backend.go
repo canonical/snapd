@@ -670,14 +670,33 @@ var (
 // coreRuntimeExtraRules returns additional apparmor rules for core* base
 // runtimes, including perl/python runtime rules based on the base version.
 // Returns an empty string for core26+ (no perl/python) and non-core bases.
-var coreRuntimeExtraRules = func(base string) string {
-	coreVer, _ := strconv.Atoi(strings.TrimPrefix(base, "core"))
-	if coreVer >= 26 {
+//
+// The returned rules are inserted into the template as replacement text and
+// are therefore not rescanned for ###PATTERN### placeholders, so any embedded
+// placeholder (e.g. ###PYCACHEDENY###) is resolved here, before returning.
+var coreRuntimeExtraRules = func(base string, suppressPycacheDeny bool) string {
+	// Non-core bases carry the perl/python rules directly in
+	// defaultOtherBaseTemplate. Note that an empty base is the implicit
+	// "core" base and does not match coreRuntimePattern, so it is checked
+	// for separately, mirroring the template selection in addContent.
+	if base != "" && !coreRuntimePattern.MatchString(base) {
 		return ""
-	} else if base == "core24" {
-		return defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
 	}
-	return defaultPerlTemplateRules + defaultCoreRuntimePerlTemplateRules + defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
+	var rules string
+	coreVer, _ := strconv.Atoi(strings.TrimPrefix(base, "core"))
+	switch {
+	case coreVer >= 26:
+		return ""
+	case base == "core24":
+		rules = defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
+	default:
+		rules = defaultPerlTemplateRules + defaultCoreRuntimePerlTemplateRules + defaultPythonTemplateRules + defaultCoreRuntimePythonTemplateRules
+	}
+	pycacheDeny := pycacheDenySnippet
+	if suppressPycacheDeny {
+		pycacheDeny = ""
+	}
+	return strings.Replace(rules, "###PYCACHEDENY###", pycacheDeny, -1)
 }
 
 func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
@@ -778,7 +797,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
 		case "###CORE_RUNTIME_EXTRA###":
-			return coreRuntimeExtraRules(snapInfo.Base)
+			return coreRuntimeExtraRules(snapInfo.Base, spec.SuppressPycacheDeny())
 		case "###KERNEL_MODULES_AND_FIRMWARE###":
 			if opts.KernelSnap != "" {
 				return fmt.Sprintf(`

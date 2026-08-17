@@ -70,7 +70,7 @@ func MockTemplate(fakeTemplate string) (restore func()) {
 	origTemplate := defaultCoreRuntimeTemplate
 	origExtraRules := coreRuntimeExtraRules
 	defaultCoreRuntimeTemplate = fakeTemplate
-	coreRuntimeExtraRules = func(string) string { return "" }
+	coreRuntimeExtraRules = func(string, bool) string { return "" }
 	return func() {
 		defaultCoreRuntimeTemplate = origTemplate
 		coreRuntimeExtraRules = origExtraRules
