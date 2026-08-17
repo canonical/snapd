@@ -17,6 +17,7 @@ prepare: |
 restore: |
     # Remove the snap before the tests.session is restored to make sure the socket is properly freed
     snap remove test-snapd-user-service-sockets --purge
+    tests.session -u test destroy-session
     tests.session -u test restore
     snap unset system experimental.user-daemons
 
@@ -37,14 +38,15 @@ debug: |
     tests.session -u test exec nc -v -w 30 -U /home/test/snap/test-snapd-user-service-sockets/common/common.sock || true
 
 execute: |
-    echo "When the service snap is installed"
+    echo "When the user mode systemd instance is started and a session exists"
+    tests.session -u test prepare
+    tests.session -u test create-session -c user
+
+    echo "And the service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-sockets
 
-    echo "And the user mode systemd instance is started"
-    tests.session -u test prepare
-
     echo "It's sockets are created in the test user's directories and activate the service"
-    [ -S ~test/snap/test-snapd-user-service-sockets/common/common.sock ]
+    retry -n 5 --wait 1 test -S ~test/snap/test-snapd-user-service-sockets/common/common.sock
     tests.session -u test exec nc -w 30 -U /home/test/snap/test-snapd-user-service-sockets/common/common.sock | MATCH "Connected to common"
 
     [ -S ~test/snap/test-snapd-user-service-sockets/x1/data.sock ]

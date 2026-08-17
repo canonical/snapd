@@ -25,6 +25,7 @@ prepare: |
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
     tests.session -u test prepare
+    tests.session -u test create-session -c user
 
     # add a second user to test with
     if ! useradd -m -d /home/test2 test2; then
@@ -32,6 +33,7 @@ prepare: |
         useradd --extrausers -m -d /home/test2 test2
     fi
     tests.session -u test2 prepare
+    tests.session -u test2 create-session -c user
 
     # rules are only supported from 23.10+
     if [ -d /etc/polkit-1/localauthority/50-local.d ]; then
@@ -57,10 +59,12 @@ restore: |
     snap remove --purge test-snapd-mixed-service || true
     snap remove --purge test-snapd-mixed-service-v2 || true
 
+    tests.session -u test2 destroy-session || true
     tests.session -u test2 restore
     if ! userdel -rf test2; then
         userdel --extrausers -rf test2
     fi
+    tests.session -u test destroy-session || true
     tests.session -u test restore
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then
@@ -85,13 +89,13 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-mixed-service
 
     echo "Verify status of running services after install"
-    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "^active$"'
     systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH "enabled"
 
-    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test exec systemctl --user is-active snap.test-snapd-mixed-service.user-service | MATCH "^active$"'
     systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
 
-    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test2 exec systemctl --user is-active snap.test-snapd-mixed-service.user-service | MATCH "^active$"'
     systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
 
     # stop and disable user services, but the scope of the disable
@@ -104,25 +108,25 @@ execute: |
     snap_as_test stop --disable --user test-snapd-mixed-service
 
     # verify this worked
-    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "active"
+    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH '^active$'
     systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH "enabled"
 
     systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH "inactive"
     # this should be "disabled", but it will not be currently
     systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
 
-    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
+    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH '^active$'
     systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
 
     # now refresh snap to a new version
     "$TESTSTOOLS"/snaps-state install-local test-snapd-mixed-service-v2
     
     # verify that things now look as we expect
-    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "^active$"'
     systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH "enabled"
 
     systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH "inactive"
     systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH "disabled"
 
-    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test2 exec systemctl --user is-active snap.test-snapd-mixed-service.user-service | MATCH "^active$"'
     systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"

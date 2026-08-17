@@ -18,13 +18,15 @@ skip:
 prepare: |
     # prerequisite for having a prompts handler service
     snap set system experimental.user-daemons=true
+    tests.session -u test prepare
+    tests.session -u test create-session -c user
     "$TESTSTOOLS"/snaps-state install-local test-snapd-prompt-handler
     snap connect test-snapd-prompt-handler:snap-interfaces-requests-control
-    tests.session -u test prepare
 
 restore: |
     snap unset system experimental.user-daemons
     snap remove --purge test-snapd-prompt-handler || true
+    tests.session -u test destroy-session || true
     tests.session -u test restore
 
 debug: |
@@ -67,7 +69,6 @@ execute: |
     snap set system experimental.apparmor-prompting=true
 
     echo "And handler services have been started"
-    tests.session -u test exec systemctl --user is-active \
-        snap.test-snapd-prompt-handler.prompt-handler.service
+    retry -n 5 --wait 1 sh -c 'tests.session -u test exec systemctl --user is-active snap.test-snapd-prompt-handler.prompt-handler.service | MATCH "^active$"'
     tests.session -u test exec systemctl --user is-enabled \
-        snap.test-snapd-prompt-handler.prompt-handler.service
+        snap.test-snapd-prompt-handler.prompt-handler.service | MATCH '^enabled$'

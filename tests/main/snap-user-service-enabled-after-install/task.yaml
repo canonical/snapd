@@ -26,6 +26,7 @@ prepare: |
     snap set system experimental.user-daemons=true
     tests.session kill-leaked
     tests.session -u test prepare
+    tests.session -u test create-session -c user
 
     if ! useradd -m -d /home/test2 test2; then
         # Ubuntu Core requires using extrausers db
@@ -54,10 +55,12 @@ prepare: |
 
 restore: |
     snap remove --purge test-snapd-user-service-disabled || true
+    tests.session -u test2 destroy-session || true
     tests.session -u test2 restore || true
     if ! userdel -rf test2; then
         userdel --extrausers -rf test2 || true
     fi
+    tests.session -u test destroy-session || true
     tests.session -u test restore
     snap unset system experimental.user-daemons
     if [ -f agent-was-enabled ]; then
@@ -87,17 +90,17 @@ execute: |
     # expect that three runs and is enabled for current user
 
     echo "Verify status of running services after install"
-    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH "inactive"
+    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH "^inactive$"
     systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "disabled"
 
-    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH "active"
     systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service-two | MATCH "enabled"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH "^active$"'
 
     echo "Enable the first user service for just us"
     snap_as_test start --user --enable test-snapd-user-service-disabled.user-service
 
-    systemctl_as_test is-active snap.test-snapd-user-service-disabled.user-service | MATCH "active"
     systemctl_as_test is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "enabled"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service-disabled.user-service | MATCH "^active$"'
 
     function systemctl_as_test2() {
       tests.session -u test2 exec systemctl --user "$@"
@@ -107,13 +110,14 @@ execute: |
     # make a new user session and verify that -two is enabled and running
     # but the first one is not
     tests.session -u test2 prepare
+    tests.session -u test2 create-session -c user
 
     # the first user-service that we started and enabled for just user
     # 'test' should not be running 
-    systemctl_as_test2 is-active snap.test-snapd-user-service-disabled.user-service | MATCH "inactive"
+    systemctl_as_test2 is-active snap.test-snapd-user-service-disabled.user-service | MATCH "^inactive$"
     systemctl_as_test2 is-enabled snap.test-snapd-user-service-disabled.user-service | MATCH "disabled"
 
     # the second one which was enabled globally by the install hook should
     # be running
-    systemctl_as_test2 is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH "active"
+    retry -n 5 --wait 1 sh -c 'tests.session -u test2 exec systemctl --user is-active snap.test-snapd-user-service-disabled.user-service-two | MATCH "^active$"'
     systemctl_as_test2 is-enabled snap.test-snapd-user-service-disabled.user-service-two | MATCH "enabled"

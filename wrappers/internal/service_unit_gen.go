@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -80,6 +81,29 @@ func ensureMinSystemdDuration(app *snap.AppInfo, in timeout.Timeout, field strin
 		return time.Microsecond
 	}
 	return inDur
+}
+
+// userServicePreconditionErrorExitCode returns the first exit code starting
+// from 1 that is not in the app's SuccessExitStatus list. This is used to
+// determine the --error-exit-code argument for the
+// "snap routine user-service-precondition" ExecCondition stanza, ensuring it
+// does not collide with any of the app's success exit status codes. Returns
+// an error if all codes 1-254 are occupied. We don't consider 255 because
+// systemd treats code 255 as an indication that the unit should be marked as
+// failed, rather than simply skipped.
+func userServicePreconditionErrorExitCode(successExitStatus []string) (int, error) {
+	codes := make(map[int]bool)
+	for _, s := range successExitStatus {
+		if code, err := strconv.Atoi(s); err == nil {
+			codes[code] = true
+		}
+	}
+	for i := 1; i <= 254; i++ {
+		if !codes[i] {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("cannot find available exit code for user-service-precondition: all exit codes 1-254 are in success-exit-status")
 }
 
 func GenerateSnapServiceUnitFile(appInfo *snap.AppInfo, opts *SnapServicesUnitOptions) ([]byte, error) {
@@ -160,6 +184,9 @@ X-Snappy=yes
 EnvironmentFile=-/etc/environment
 {{- if .LogNamespace}}
 Environment=SNAPD_LOG_NAMESPACE={{.LogNamespace}}
+{{- end}}
+{{- if .ExecCondition}}
+ExecCondition={{.ExecCondition}}
 {{- end}}
 ExecStart={{.App.LauncherCommand}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
@@ -282,6 +309,7 @@ WantedBy={{.ServicesTarget}}
 		OOMAdjustScore           int
 		BusName                  string
 		SuccessExitStatus        []string
+		ExecCondition            string
 		Before                   []string
 		After                    []string
 		Requires                 []string
@@ -338,6 +366,28 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+		// identify the first error value that is not reserved as a successful exit status
+		errExitCode, err := userServicePreconditionErrorExitCode(appInfo.SuccessExitStatus)
+		if err != nil {
+			return nil, err
+		}
+		// XXX: if snapd is reverted to a revision which does not support the
+		// `snap routine user-service-precondition` subcommand, then there is
+		// a window of time between when the `snap` binary is replaced on disk
+		// and when the first `Ensure()` runs after snapd daemon startup which
+		// updates unit service file content. If something causes a user daemon
+		// service to try to start during this window of time, it will cause an
+		// "unknown command" error which will cause the `ExecCondition` to be
+		// false, so the unit won't run until it is restarted again after the
+		// `Ensure()`. But snapd doesn't start other snaps' services during
+		// this window of time, so it would only be caused by a new systemd user
+		// session starting services in this window, or something manually
+		// trying to start services. And again, it's only ever an issue when
+		// reverting to an older snapd which doesn't understand the new
+		// `user-service-precondition` subcommand, which will cease to be a
+		// relevant situation after one or two snapd releases. So no need for a
+		// workaround.
+		wrapperData.ExecCondition = fmt.Sprintf("/usr/bin/snap routine user-service-precondition --error-exit-code %d", errExitCode)
 	default:
 		panic("unknown snap.DaemonScope")
 	}
