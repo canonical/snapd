@@ -490,14 +490,29 @@ execute: |
         *)              exit 0;;
     esac
 
+    user_record="$(getent passwd "$nss_user")"
+    user_uid="$(echo "$user_record" | cut -d: -f3)"
+    user_gid="$(echo "$user_record" | cut -d: -f4)"
+    group_record="$(getent group "$user_gid")"
+    group_name="$(echo "$group_record" | cut -d: -f1)"
+    host_initgroup="$(getent initgroups "$nss_user" | cut -d' ' -f1)"
+
     # TODO: the user/group record API returns x for the password field but
     # getent on the host returns *.
-    expected="$nss_user:[x|*]"
+    expected_user="^$nss_user:[x|*]:$user_uid:$user_gid:"
+    expected_group="^$group_name:[x|*]:$user_gid:"
 
     # It's expected that this only works for distros as recent as Noble because
     # older ones do not ship io.systemd.NameServiceSwitch in systemd-userdbd
     if os.query is-ubuntu-ge 24.04; then
-      snap run --shell "$test_snap".sh -c "getent passwd" | MATCH "$expected"
+      snap run --shell "$test_snap".sh -c "getent passwd" | MATCH "$expected_user"
+      snap run --shell "$test_snap".sh -c "getent passwd $nss_user" | MATCH "$expected_user"
+      snap run --shell "$test_snap".sh -c "getent passwd $user_uid" | MATCH "$expected_user"
+      snap run --shell "$test_snap".sh -c "getent group" | MATCH "$expected_group"
+      snap run --shell "$test_snap".sh -c "getent group $group_name" | MATCH "$expected_group"
+      snap run --shell "$test_snap".sh -c "getent group $user_gid" | MATCH "$expected_group"
+      snap run --shell "$test_snap".sh -c "getent initgroups $nss_user" | MATCH "(^| )$host_initgroup( |$)"
     else
-      snap run --shell "$test_snap".sh -c "getent passwd" | NOMATCH "$expected"
+      snap run --shell "$test_snap".sh -c "getent passwd" | NOMATCH "$expected_user"
+      snap run --shell "$test_snap".sh -c "getent passwd $nss_user" | NOMATCH "$expected_user"
     fi
