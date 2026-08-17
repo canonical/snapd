@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -2501,14 +2502,12 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 }
 
 func checkDiskSpaceDownload(st *state.State, infos []minimalInstallInfo, rootDir string) error {
-	reservation := diskSpaceReservation(config.NewTransaction(st))
-
 	var totalSize uint64
 	for _, info := range infos {
 		totalSize += uint64(info.DownloadSize())
 	}
 
-	return checkForAvailableSpace(totalSize, reservation, infos, "download", rootDir)
+	return checkForAvailableSpace(totalSize, config.NewTransaction(st), infos, "download", rootDir)
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
@@ -2534,18 +2533,21 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return nil
 	}
 
-	reservation := diskSpaceReservation(tr)
-
 	totalSize, err := installSize(st, infos, userID, prqt)
 	if err != nil {
 		return err
 	}
 
-	return checkForAvailableSpace(totalSize, reservation, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
+	return checkForAvailableSpace(totalSize, tr, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
 }
 
-func checkForAvailableSpace(totalSize, reservation uint64, infos []minimalInstallInfo, changeKind string, rootDir string) error {
+func checkForAvailableSpace(totalSize uint64, transaction *config.Transaction, infos []minimalInstallInfo, changeKind string, rootDir string) error {
+	reservation := diskSpaceReservation(transaction)
+	if totalSize > math.MaxUint64 - reservation {
+		return fmt.Errorf("cannot calculate required disk space: size overflow")
+	}
 	requiredSpace := totalSize + reservation
+
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
 		for i, up := range infos {
