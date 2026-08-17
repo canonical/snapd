@@ -246,7 +246,7 @@ func (s *deviceCtxSuite) TestDeviceCtxForEnsureUsesAcknowledgedContext(c *C) {
 	acknowledged := &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
 	early := &snapstatetest.TrivialDeviceContext{DeviceModel: MakeModel(nil)}
 	defer snapstatetest.MockDeviceContext(acknowledged)()
-	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State, bool) (snapstate.DeviceContext, error) {
 		return early, nil
 	})()
 
@@ -261,7 +261,8 @@ func (s *deviceCtxSuite) TestDeviceCtxForEnsureUsesEarlyContextBeforeSeeding(c *
 
 	early := &snapstatetest.TrivialDeviceContext{DeviceModel: DefaultModel()}
 	defer snapstatetest.MockDeviceContext(nil)()
-	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(_ *state.State, noModel bool) (snapstate.DeviceContext, error) {
+		c.Check(noModel, Equals, true)
 		return early, nil
 	})()
 
@@ -276,7 +277,7 @@ func (s *deviceCtxSuite) TestDeviceCtxForEnsureDoesNotUseEarlyContextAfterSeedin
 
 	s.st.Set("seeded", true)
 	defer snapstatetest.MockDeviceContext(nil)()
-	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State, bool) (snapstate.DeviceContext, error) {
 		c.Error("unexpected early context lookup")
 		return nil, nil
 	})()
@@ -291,7 +292,7 @@ func (s *deviceCtxSuite) TestDeviceCtxForEnsurePropagatesEarlyContextError(c *C)
 
 	earlyErr := errors.New("cannot load early seed")
 	defer snapstatetest.MockDeviceContext(nil)()
-	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State) (snapstate.DeviceContext, error) {
+	defer snapstatetest.ReplaceEarlyDeviceCtxForEnsureHook(func(*state.State, bool) (snapstate.DeviceContext, error) {
 		return nil, earlyErr
 	})()
 

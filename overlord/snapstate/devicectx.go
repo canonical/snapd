@@ -59,7 +59,7 @@ var (
 // EarlyDeviceCtxForEnsure is a hook setup by devicestate to resolve a device
 // context from the selected seed before the model assertion is acknowledged.
 // It is only for Ensure and StartUp decisions. Callers must hold the state lock.
-var EarlyDeviceCtxForEnsure func(st *state.State) (DeviceContext, error)
+var EarlyDeviceCtxForEnsure func(st *state.State, noModel bool) (DeviceContext, error)
 
 // Hook setup by devicestate to know whether a remodeling is in progress.
 var (
@@ -99,7 +99,7 @@ func DeviceCtxForEnsure(st *state.State) (DeviceContext, error) {
 	if EarlyDeviceCtxForEnsure == nil {
 		return nil, state.ErrNoState
 	}
-	return EarlyDeviceCtxForEnsure(st)
+	return EarlyDeviceCtxForEnsure(st, true)
 }
 
 // ModelFromTask returns a model assertion through the device context for the task.
