@@ -65,7 +65,7 @@ var (
 
 	// AssertstateDB, AssertstateAccountKey and AssertstateFetchAccountKey are
 	// wired to the corresponding assertstate helpers by assertstate.delayedCrossMgrInit.
-	// They exist to break the import cycle
+	// They exist to break the import cycle.
 	// assertstate -> confdbstate -> devicemgmtstate -> assertstate.
 	AssertstateDB              func(s *state.State) asserts.RODatabase
 	AssertstateAccountKey      func(st *state.State, signKeyID string) (*asserts.AccountKey, error)

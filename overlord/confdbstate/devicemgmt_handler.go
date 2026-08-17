@@ -67,10 +67,6 @@ func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.Re
 		return fmt.Errorf("cannot decode message body: %v", err)
 	}
 
-	if body.Action != "get" && body.Action != "set" {
-		return fmt.Errorf("cannot validate message: unknown action %q", body.Action)
-	}
-
 	if body.Account == "" {
 		return fmt.Errorf("cannot validate message: account is required")
 	}
@@ -80,13 +76,18 @@ func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.Re
 		return fmt.Errorf("cannot validate message: invalid view %q, expected <schema>/<view-name>", body.View)
 	}
 
-	err = confdb.ValidateConstraints(body.Constraints)
-	if err != nil {
-		return fmt.Errorf("cannot validate message: %v", err)
-	}
-
-	if body.Action == "set" && len(body.Values) == 0 {
-		return fmt.Errorf("cannot validate message: body contains no values to write")
+	switch body.Action {
+	case "get":
+		err := confdb.ValidateConstraints(body.Constraints)
+		if err != nil {
+			return fmt.Errorf("cannot validate message: %v", err)
+		}
+	case "set":
+		if len(body.Values) == 0 {
+			return fmt.Errorf("cannot validate message: body contains no values to write")
+		}
+	default:
+		return fmt.Errorf("cannot validate message: unknown action %q", body.Action)
 	}
 
 	cc, err := h.device.ConfdbControl()
