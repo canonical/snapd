@@ -668,6 +668,13 @@ func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Cha
 		return nil, errors.New("system not yet seeded")
 	}
 
+	for _, chg := range st.Changes() {
+		// if we have a change that isn't ready, return it instead
+		if chg.Kind() == regenerateSecurityProfilesChangeKind && !chg.IsReady() {
+			return chg, nil
+		}
+	}
+
 	action, err := interfaces.SystemKeyMismatchAdvice(systemKey)
 	if err != nil {
 		return nil, err
@@ -678,13 +685,6 @@ func AdviseReportedSystemKeyMismatch(st *state.State, systemKey any) (*state.Cha
 	if action == interfaces.SystemKeyMismatchActionNone {
 		// nothing to do
 		return nil, nil
-	}
-
-	for _, chg := range st.Changes() {
-		// if we have a change that isn't ready, return it instead
-		if chg.Kind() == regenerateSecurityProfilesChangeKind && !chg.IsReady() {
-			return chg, nil
-		}
 	}
 
 	chg := st.NewChange(regenerateSecurityProfilesChangeKind, "Regenerate security profiles")

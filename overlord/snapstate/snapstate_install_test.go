@@ -6330,7 +6330,7 @@ func (s *snapmgrTestSuite) testUndoMigrateOnInstallWithCore22(c *C, expectSeqFil
 		// seq file exists but is zeroed out
 		assertMigrationInSeqFile(c, snapName, nil)
 	} else {
-		exists, _, err := osutil.RegularFileExists(filepath.Join(dirs.SnapSeqDir, snapName+".json"))
+		exists, _, err := osutil.RegularFileExists(snap.SequenceFile(snapName))
 		c.Assert(exists, Equals, false)
 		c.Assert(err, ErrorMatches, ".*no such file or directory")
 	}

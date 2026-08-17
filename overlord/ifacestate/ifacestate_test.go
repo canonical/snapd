@@ -7990,6 +7990,40 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	c.Check(warns[0].String(), Matches, fmt.Sprintf(`cannot start prompting backend: %v; prompting will be inactive until snapd is restarted`, createError))
 }
 
+func (s *interfaceManagerSuite) TestShutDownInterfacesRequestsManager(c *C) {
+	shutDownCount := 0
+	restore := ifacestate.MockInterfacesRequestsManagerShutDown(func(m *apparmorprompting.InterfacesRequestsManager) {
+		shutDownCount++
+	})
+	defer restore()
+	mgr := ifacestate.NewInterfaceManagerWithAppArmorPrompting(true)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, nil)
+	mgr.ShutDown()
+	c.Check(shutDownCount, Equals, 0)
+
+	restore = ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return true, nil
+	})
+	defer restore()
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
+		return fakeManager, nil
+	})
+	defer restore()
+
+	mgr = s.manager(c)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+
+	mgr.ShutDown()
+	c.Check(shutDownCount, Equals, 1)
+
+	mgr.Stop()
+}
+
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
 	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true
@@ -12730,6 +12764,29 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatch(c *C) {
 	c.Assert(chg2, NotNil)
 
 	c.Check(chg.ID(), Equals, chg2.ID())
+}
+
+func (s *interfaceManagerSuite) TestSystemKeyMismatchRegenerationInProgress(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// there is no system key on disk, so consulting the advice directly would
+	// fail
+	c.Assert(interfaces.RemoveSystemKey(), IsNil)
+
+	// simulate an in-progress regeneration change (not ready yet)
+	chg := s.state.NewChange("regenerate-security-profiles", "Regenerate security profiles")
+	t := s.state.NewTask("regenerate-security-profiles", "Regenerate security profiles")
+	chg.AddTask(t)
+	c.Assert(chg.IsReady(), Equals, false)
+
+	// despite the missing key, we are pointed at the in-progress change to wait
+	// for, instead of getting an error
+	advised, err := ifacestate.AdviseReportedSystemKeyMismatch(s.state, "")
+	c.Assert(err, IsNil)
+	c.Assert(advised, NotNil)
+	c.Check(advised.ID(), Equals, chg.ID())
 }
 
 func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {

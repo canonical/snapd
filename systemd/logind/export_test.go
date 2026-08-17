@@ -17,12 +17,16 @@
  *
  */
 
-package main
+package logind
 
-import (
-	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
-)
+func (e *Error) SetCmd(cmd []string) {
+	e.cmd = cmd
+}
 
-func main() {
-	snapd_apparmor.Main()
+func (e *Error) SetMsg(msg []byte) {
+	e.msg = msg
+}
+
+func (e *Error) SetExitCode(i int) {
+	e.exitCode = i
 }

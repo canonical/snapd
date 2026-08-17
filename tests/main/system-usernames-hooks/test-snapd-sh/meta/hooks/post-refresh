@@ -1,0 +1,11 @@
+#!/bin/sh
+
+exec 2>&1
+
+echo "running post-refresh hook" >> "$SNAP_COMMON"/hook.log
+
+setpriv \
+    --clear-groups \
+    --reuid snap_daemon \
+    --regid snap_daemon -- \
+            /bin/sh -c "echo 'post refresh' >> $SNAP_COMMON/data/foo"

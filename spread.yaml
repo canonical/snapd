@@ -729,7 +729,7 @@ backends:
                 PATH="${SPREAD_HOST_PATH}"
             fi
             # Spread does not expose any settings to ad-hoc backends.
-            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_MEM_OPTION="-m 6144"
             export QEMU_SMP_OPTION="-smp 4"
             exec image-garden allocate "$(.image-garden/remap-name snapd-to-garden "$SPREAD_SYSTEM")"
         discard: |
@@ -1253,7 +1253,14 @@ prepare: |
     download.max_silent_tries = 20
     EOF
 
-        # Make sure docs are installed with the packages
+        # Make sure docs are installed with the packages. Newer systems use a
+        # vendor drop-in under /usr/etc, while older ones keep the setting in
+        # /etc/zypp/zypp.conf.
+        mkdir -p /etc/zypp/zypp.conf.d
+        cat <<-EOF > /etc/zypp/zypp.conf.d/excludedocs.conf
+    [main]
+    rpm.install.excludedocs = no
+    EOF
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
 
         # TODO: enable enforcing mode

@@ -46,7 +46,8 @@ prepare: |
                 exit 1
             fi
             cp "$item" "$item.bak"
-            tests.cleanup defer mv "$item.bak" "$item"
+            # purging the package during task restore may remove the .bak along with their config dirs
+            tests.cleanup defer "mv \"$item.bak\" \"$item\" || true"
         elif [ -d "$item" ]; then
             tests.backup prepare "$item"
             tests.cleanup defer tests.backup restore "$item"

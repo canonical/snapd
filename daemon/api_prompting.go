@@ -429,7 +429,7 @@ func postInterfacesRequests(c *Command, r *http.Request, user *auth.UserState) R
 		return errorResp
 	}
 
-	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Ask(reqUID, postBody.Interface, snapName, postBody.PID, cgroupPath, c.d.tomb.Dying())
+	outcome, err := getInterfaceManager(c).InterfacesRequestsManager().Ask(reqUID, postBody.Interface, snapName, postBody.PID, cgroupPath)
 	if err != nil {
 		return promptingError(err)
 	}

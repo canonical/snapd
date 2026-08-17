@@ -598,14 +598,14 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	}
 
 	if opts.hasSystemSeed {
-		devicestate.MockBootMakeRecoverySystemBootable(func(model *asserts.Model, rootdir string, relativeRecoverySystemDir string, bootWith *boot.RecoverySystemBootableSet) error {
+		s.AddCleanup(devicestate.MockBootMakeRecoverySystemBootable(func(model *asserts.Model, rootdir string, relativeRecoverySystemDir string, bootWith *boot.RecoverySystemBootableSet) error {
 			c.Check(model.Classic(), Equals, true)
 			c.Check(rootdir, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed"))
 			c.Check(relativeRecoverySystemDir, Equals, filepath.Join("systems", label))
 			c.Check(bootWith.KernelPath, Equals, filepath.Join(dirs.RunDir, "mnt/ubuntu-seed/snaps/pc-kernel_1.snap"))
 			c.Check(bootWith.GadgetSnapOrDir, Equals, filepath.Join(s.SeedDir, "snaps/pc_1.snap"))
 			return nil
-		})
+		}))
 	}
 
 	s.state.Lock()
