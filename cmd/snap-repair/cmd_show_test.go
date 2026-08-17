@@ -122,6 +122,9 @@ output:
 }
 
 func (r *repairSuite) TestShowRepairSingleUnreadableOutput(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	makeMockRepairState(c)
 	scriptPath := filepath.Join(dirs.SnapRepairRunDir, "canonical/1", "r3.retry")
 	err := os.Chmod(scriptPath, 0000)

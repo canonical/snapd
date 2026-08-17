@@ -663,6 +663,10 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 // Test behavior when EnsureDirState fails
 func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
+
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 

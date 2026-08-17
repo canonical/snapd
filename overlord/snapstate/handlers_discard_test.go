@@ -386,6 +386,10 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorIfSeqFileMissing(c *C) {
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapErrorOnSeqFileRemovalFailure(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
+
 	s.state.Lock()
 	snapst := &snapstate.SnapState{
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{

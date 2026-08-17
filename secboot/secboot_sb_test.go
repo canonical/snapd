@@ -4760,6 +4760,10 @@ func (s *secbootSuite) TestGetPrimaryKeyFallbackFile(c *C) {
 }
 
 func (s *secbootSuite) TestGetPrimaryKeyError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
+
 	defer secboot.MockDisksDevlinks(func(node string) ([]string, error) {
 		switch node {
 		case "/dev/test/device1":

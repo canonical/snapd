@@ -29,6 +29,10 @@ import (
 )
 
 func (s *syscheckSuite) TestCheckApparmorUsable(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
+
 	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
 	restore := syscheck.MockAppArmorProfilesPath(epermProfilePath)
 	defer restore()

@@ -120,6 +120,9 @@ func (s *userdSuite) TestOpenMissingFile(c *C) {
 }
 
 func (s *userdSuite) TestOpenUnreadableFile(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	launcher := &xdgopenproxy.UserdLauncher{}
 
 	path := filepath.Join(c.MkDir(), "test.txt")

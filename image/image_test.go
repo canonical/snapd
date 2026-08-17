@@ -2803,6 +2803,9 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedClassic(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -3048,6 +3051,9 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
