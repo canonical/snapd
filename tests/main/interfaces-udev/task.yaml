@@ -33,7 +33,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-udev-input-trigger
 
     echo "Then the rules file records the subsystem triggers"
-    MATCH "^# subsystem-triggers: input$" < /etc/udev/rules.d/70-snap.test-snapd-udev-input-trigger.rules
+    MATCH '^# subsystem-triggers: \["input"\]$' < /etc/udev/rules.d/70-snap.test-snapd-udev-input-trigger.rules
 
     # Verify that Remove() correctly triggers --subsystem-match=input by checking
     # that the snap's tag is gone from a representative input event device's tags.

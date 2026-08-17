@@ -27,6 +27,7 @@ package udev
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
@@ -145,7 +147,11 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			rulesBuf.WriteString("# udev tagging/device cgroups disabled with non-strict mode snaps\n")
 		} else if len(subsystemTriggers) > 0 {
 			// lets Remove() replay the right udevadm triggers without access to the spec.
-			rulesBuf.WriteString(rulesSubsystemTriggersPrefix + strings.Join(subsystemTriggers, ",") + "\n")
+			data, err := json.Marshal(subsystemTriggers)
+			if err != nil {
+				return fmt.Errorf("internal error: cannot marshal subsystem triggers: %v", err)
+			}
+			rulesBuf.WriteString(rulesSubsystemTriggersPrefix + string(data) + "\n")
 		}
 		for _, snippet := range content {
 			if nonStrict {
@@ -214,10 +220,13 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 
 // readRulesSubsystemTriggers reads the subsystem triggers that Setup() embeds as a comment:
 //
-//	# subsystem-triggers: input,input/key
+//	# subsystem-triggers: ["input","input/key"]
 func readRulesSubsystemTriggers(rulesFilePath string) []string {
 	f, err := os.Open(rulesFilePath)
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			logger.Noticef("cannot open udev rules file %s: %v", rulesFilePath, err)
+		}
 		return nil
 	}
 	defer f.Close()
@@ -225,17 +234,30 @@ func readRulesSubsystemTriggers(rulesFilePath string) []string {
 	for scanner.Scan() {
 		line := scanner.Text()
 		if strings.HasPrefix(line, rulesSubsystemTriggersPrefix) {
-			if t := strings.TrimPrefix(line, rulesSubsystemTriggersPrefix); t != "" {
-				return strings.Split(t, ",")
+			var triggers []string
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, rulesSubsystemTriggersPrefix)), &triggers); err != nil {
+				logger.Noticef("cannot unmarshal subsystem triggers in %s: %v", rulesFilePath, err)
+				return nil
 			}
-			return nil
+			for _, t := range triggers {
+				switch t {
+				// values produced by spec.TriggerSubsystem() calls in interface specs
+				case "input", "input/key", "input/joystick":
+				default:
+					logger.Noticef("unknown subsystem trigger %q in %s", t, rulesFilePath)
+					return nil
+				}
+			}
+			return triggers
 		}
 		// stop once past the header comments to avoid scanning the whole file
 		if !strings.HasPrefix(line, "#") {
 			break
 		}
 	}
-	// scanner.Err() ignored; returning nil is a safe fallback if the read fails
+	if err := scanner.Err(); err != nil {
+		logger.Noticef("cannot read udev rules file %s: %v", rulesFilePath, err)
+	}
 	return nil
 }
 
