@@ -7990,6 +7990,40 @@ func (s *interfaceManagerSuite) TestInitInterfacesRequestsManagerError(c *C) {
 	c.Check(warns[0].String(), Matches, fmt.Sprintf(`cannot start prompting backend: %v; prompting will be inactive until snapd is restarted`, createError))
 }
 
+func (s *interfaceManagerSuite) TestShutDownInterfacesRequestsManager(c *C) {
+	shutDownCount := 0
+	restore := ifacestate.MockInterfacesRequestsManagerShutDown(func(m *apparmorprompting.InterfacesRequestsManager) {
+		shutDownCount++
+	})
+	defer restore()
+	mgr := ifacestate.NewInterfaceManagerWithAppArmorPrompting(true)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, nil)
+	mgr.ShutDown()
+	c.Check(shutDownCount, Equals, 0)
+
+	restore = ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
+		return true
+	})
+	defer restore()
+	restore = ifacestate.MockInterfacesRequestsControlHandlerServicePresent(func(m *ifacestate.InterfaceManager) (bool, error) {
+		return true, nil
+	})
+	defer restore()
+	fakeManager := &apparmorprompting.InterfacesRequestsManager{}
+	restore = ifacestate.MockCreateInterfacesRequestsManager(func(noticeMgr *notices.NoticeManager) (*apparmorprompting.InterfacesRequestsManager, error) {
+		return fakeManager, nil
+	})
+	defer restore()
+
+	mgr = s.manager(c)
+	c.Check(mgr.InterfacesRequestsManager(), Equals, fakeManager)
+
+	mgr.ShutDown()
+	c.Check(shutDownCount, Equals, 1)
+
+	mgr.Stop()
+}
+
 func (s *interfaceManagerSuite) TestStopInterfacesRequestsManagerError(c *C) {
 	restore := ifacestate.MockAssessAppArmorPrompting(func(m *ifacestate.InterfaceManager) bool {
 		return true

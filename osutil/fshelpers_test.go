@@ -34,6 +34,9 @@ type fshelpersSuite struct{}
 var _ = Suite(&fshelpersSuite{})
 
 func (s *fshelpersSuite) TestSelfOwnedFile(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("cannot run test as root")
+	}
 	name := filepath.Join(c.MkDir(), "testownedfile")
 	err := os.WriteFile(name, nil, 0644)
 	c.Assert(err, IsNil)

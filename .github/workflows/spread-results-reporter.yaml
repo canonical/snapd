@@ -9,7 +9,7 @@ on:
 jobs:
   report-spread-failures:
     if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, spread-enabled]
     permissions:
       pull-requests: write
     env:

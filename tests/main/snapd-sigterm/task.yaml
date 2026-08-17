@@ -40,7 +40,7 @@ execute: |
     # extra safe check that it's either inactive or has just been restarted. We
     # don't want to stop the socket itself, as that might hide the issue we
     # want to test.
-    retry -n 100 --wait 0.1 sh -c 'systemctl status snapd.service | MATCH "inactive"'
+    retry -n 100 --wait 0.1 sh -c "systemctl status snapd.service | MATCH ' inactive '"
 
     TEST_TIME1="$(date +'%s')"
 

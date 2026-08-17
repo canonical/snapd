@@ -87,6 +87,8 @@ cmd/install-sh
 cmd/missing
 cmd/stamp-h1
 cmd/test-driver
+cmd/snap-cli-wrap/snap-cli-wrap
+cmd/snapd-tool-wrap/snapd-tool-wrap
 
 # Mypy
 .mypy
