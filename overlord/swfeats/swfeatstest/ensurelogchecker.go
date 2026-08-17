@@ -74,7 +74,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 	for _, file := range submanagerFiles {
 		subParsedFile, err := newParsedFile(file)
 		c.Assert(err, check.IsNil)
-		subreceiver, ok := subParsedFile.ensureReceiver()
+		subreceiver, subEnsureMethod, ok := subParsedFile.subEnsure()
 		c.Assert(ok, check.Equals, true)
 		c.Assert(strutil.ListContains(submanagerCalls, subreceiver), check.Equals, true)
 		foundCalls[subreceiver] = struct{}{}
@@ -83,9 +83,9 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 		}
 		leftovers := subParsedFile.checkFunctionsForLog(c, func(mgr, function string) string {
 			return logLine(createSubmanagerLog(mgr, function))
-		}, "Ensure")
+		}, subEnsureMethod)
 		c.Assert(leftovers, check.HasLen, 0)
-		ensureLogs = append(ensureLogs, createSubmanagerLog(subreceiver, "Ensure"))
+		ensureLogs = append(ensureLogs, createSubmanagerLog(subreceiver, subEnsureMethod))
 		subChildEnsures := ensureCallList(subParsedFile.file, childEnsureFunc)
 		ensureLogs = append(ensureLogs, checkFunctions(subParsedFile, ensureReceiver, c, logLine, createSubmanagerLog, subChildEnsures...)...)
 
@@ -135,6 +135,19 @@ func (p *parsedFile) ensureReceiver() (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (p *parsedFile) subEnsure() (receiverName, methodName string, ok bool) {
+	for _, decl := range p.file.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok || !strings.HasPrefix(funcDecl.Name.Name, "Ensure") {
+			continue
+		}
+		if mgr, ok := receiver(funcDecl); ok {
+			return mgr, funcDecl.Name.Name, true
+		}
+	}
+	return "", "", false
 }
 
 func (p *parsedFile) checkFunctionsForLog(c *check.C, createLogLine func(string, string) string, functions ...string) []string {
@@ -209,7 +222,7 @@ func childEnsureFunc(callExpr *ast.CallExpr) (string, bool) {
 func subManagerFunc(callExpr *ast.CallExpr) (string, bool) {
 	if selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr); ok {
 		functionName := selectorExpr.Sel.Name
-		if functionName != "Ensure" {
+		if !strings.HasPrefix(functionName, "Ensure") {
 			return "", false
 		}
 		for {

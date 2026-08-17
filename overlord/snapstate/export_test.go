@@ -201,6 +201,31 @@ var (
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
 
+func (r *refreshHints) Ensure() error {
+	r.state.Lock()
+	deviceCtx, err := DeviceCtx(r.state, nil, nil)
+	r.state.Unlock()
+	if err != nil {
+		return err
+	}
+	return r.EnsureAfterSeed(deviceCtx)
+}
+
+func (r *catalogRefresh) Ensure() error {
+	r.state.Lock()
+	seeded, err := SystemSeeded(r.state)
+	if err != nil || !seeded {
+		r.state.Unlock()
+		return err
+	}
+	deviceCtx, err := DeviceCtx(r.state, nil, nil)
+	r.state.Unlock()
+	if err != nil {
+		return err
+	}
+	return r.EnsureAfterSeed(deviceCtx)
+}
+
 // cleanup
 var (
 	CleanSnapDownloads = cleanSnapDownloads

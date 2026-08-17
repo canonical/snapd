@@ -45,7 +45,7 @@ var (
 )
 
 func init() {
-	swfeats.RegisterEnsure("SnapManager", "catalogRefresh.Ensure")
+	swfeats.RegisterEnsure("SnapManager", "catalogRefresh.EnsureAfterSeed")
 }
 
 type catalogRefresh struct {
@@ -59,8 +59,8 @@ func newCatalogRefresh(st *state.State) *catalogRefresh {
 	return &catalogRefresh{state: st}
 }
 
-// Ensure will ensure that the catalog refresh happens
-func (r *catalogRefresh) Ensure() error {
+// EnsureAfterSeed will ensure that the catalog refresh happens after seeding.
+func (r *catalogRefresh) EnsureAfterSeed(deviceCtx DeviceContext) error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
@@ -78,31 +78,14 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
-	// if system is not seeded yet, it is first boot situation
-	// do not bother refreshing catalog, snap list is empty anyway
-	// beside there is high change device has no internet
-	var seeded bool
-	err = r.state.Get("seeded", &seeded)
-	if errors.Is(err, state.ErrNoState) || !seeded {
-		logger.Debugf("CatalogRefresh:Ensure: skipping refresh, system is not seeded yet")
-		// not seeded yet
-		return nil
-	}
-
 	// similar to the not yet seeded case, on uc20 install mode it doesn't make
 	// sense to refresh the catalog for an ephemeral system
-	deviceCtx, err := DeviceCtx(r.state, nil, nil)
-	if err != nil {
-		// if we are seeded we should have a device context
-		return err
-	}
-
 	if deviceCtx.SystemMode() == "install" {
 		// skip the refresh
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "SnapManager", "func", "catalogRefresh.Ensure")
+	logger.Trace("ensure", "manager", "SnapManager", "func", "catalogRefresh.EnsureAfterSeed")
 
 	now := time.Now()
 	delay := catalogRefreshDelayBase
