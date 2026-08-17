@@ -104,9 +104,17 @@ func (s *DesktopLegacyInterfaceSuite) TestChromiumStatusNotifierAppArmor(c *C) {
 	snippet := spec.SnippetForTag("snap.consumer.app")
 
 	c.Check(snippet, testutil.Contains, `name=org.freedesktop.StatusNotifierItem-[0-9]*-[0-9]*,`)
-	c.Check(snippet, testutil.Contains, `path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*,org/ayatana/NotificationItem/*}`)
+	c.Check(snippet, testutil.Contains, `path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.StatusNotifierItem
+    member="New{Icon,IconThemePath,ToolTip}"`)
+	c.Check(snippet, testutil.Contains, `path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}`)
+	c.Check(snippet, testutil.Contains, `path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged`)
 	c.Check(snippet, testutil.Contains, `path=/{StatusNotifierItem/menu,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/*/Menu}`)
-	c.Check(snippet, testutil.Contains, `path=/{StatusNotifierItem,StatusNotifierItem/menu,org/chromium/StatusNotifierItem/[0-9]*,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/**}`)
+	c.Check(snippet, testutil.Contains, `path=/{StatusNotifierItem{,/[0-9]*},StatusNotifierItem/menu,org/chromium/StatusNotifierItem/[0-9]*,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/**}`)
 }
 
 func (s *DesktopLegacyInterfaceSuite) TestStaticInfo(c *C) {

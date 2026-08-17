@@ -426,16 +426,37 @@ dbus (send)
 
 dbus (send)
     bus=session
-    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*,org/ayatana/NotificationItem/*}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
     member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
     peer=(label="{plasmashell,unconfined}"),
 
+dbus (send)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.StatusNotifierItem
+    member="New{Icon,IconThemePath,ToolTip}"
+    peer=(label="{plasmashell,unconfined}"),
+
 dbus (receive)
     bus=session
-    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*,org/ayatana/NotificationItem/*}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*,org/ayatana/NotificationItem/*}
     interface=org.kde.StatusNotifierItem
     member={Activate,ContextMenu,Scroll,SecondaryActivate,ProvideXdgActivationToken,XAyatanaSecondaryActivate}
+    peer=(label="{plasmashell,unconfined}"),
+
+dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}
+    peer=(label="{plasmashell,unconfined}"),
+
+dbus (send)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
     peer=(label="{plasmashell,unconfined}"),
 
 dbus (send)
@@ -447,7 +468,7 @@ dbus (send)
 
 dbus (receive)
     bus=session
-    path=/{StatusNotifierItem,StatusNotifierItem/menu,org/chromium/StatusNotifierItem/[0-9]*,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/**}
+    path=/{StatusNotifierItem{,/[0-9]*},StatusNotifierItem/menu,org/chromium/StatusNotifierItem/[0-9]*,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/**}
     interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
     member={Get*,AboutTo*,Event*}
     peer=(label="{plasmashell,unconfined}"),

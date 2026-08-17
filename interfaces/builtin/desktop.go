@@ -228,14 +228,32 @@ dbus (send)
 dbus (receive)
     bus=session
     interface=org.kde.StatusNotifierItem
-    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
-    member={ProvideXdgActivationToken,Activate}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={ProvideXdgActivationToken,Activate,ContextMenu,Scroll,SecondaryActivate}
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.StatusNotifierItem
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
     member="Get{,All}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface={org.kde.StatusNotifierItem,org.freedesktop.StatusNotifierItem}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="New{Icon,IconThemePath,ToolTip}"
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=session
@@ -513,14 +531,32 @@ dbus (receive)
 dbus (send)
     bus=session
     interface=org.kde.StatusNotifierItem
-    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
-    member={ProvideXdgActivationToken,Activate}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={ProvideXdgActivationToken,Activate,ContextMenu,Scroll,SecondaryActivate}
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (send)
+    bus=session
+    interface=org.freedesktop.StatusNotifierItem
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Properties
-    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
     member="Get{,All}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface={org.kde.StatusNotifierItem,org.freedesktop.StatusNotifierItem}
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member="New{Icon,IconThemePath,ToolTip}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=session
