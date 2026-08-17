@@ -65,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
@@ -13008,7 +13009,15 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 }
 
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+	ensureLogs := testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+	knownEnsures := make(map[swfeats.EnsureEntry]bool)
+	for _, entry := range swfeats.KnownEnsures() {
+		knownEnsures[entry] = true
+	}
+	for _, ensureLog := range ensureLogs {
+		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
+		c.Check(knownEnsures[entry], Equals, true, Commentf("ensure trace %q is not registered", entry))
+	}
 }
 
 func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {

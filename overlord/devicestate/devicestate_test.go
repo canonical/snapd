@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/secboot"
@@ -4090,7 +4091,15 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 }
 
 func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
+	ensureLogs := testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
+	knownEnsures := make(map[swfeats.EnsureEntry]bool)
+	for _, entry := range swfeats.KnownEnsures() {
+		knownEnsures[entry] = true
+	}
+	for _, ensureLog := range ensureLogs {
+		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
+		c.Check(knownEnsures[entry], Equals, true, Commentf("ensure trace %q is not registered", entry))
+	}
 }
 
 func (s *deviceMgrSuite) TestSignResponseMessageOK(c *C) {
