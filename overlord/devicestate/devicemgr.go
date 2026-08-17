@@ -390,7 +390,7 @@ func (m *DeviceManager) StartUp() error {
 		m.state.Lock()
 		defer m.state.Unlock()
 
-		dev, err := m.earlyDeviceContext()
+		dev, err := m.earlyDeviceContext(false)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -950,13 +950,15 @@ func (m *DeviceManager) systemForPreseeding() string {
 	return m.preseedSystemLabel
 }
 
-func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
-	mod, err := findModel(m.state)
-	if err == nil {
-		return newModelDeviceContext(m, mod), nil
-	}
-	if !errors.Is(err, state.ErrNoState) {
-		return nil, err
+func (m *DeviceManager) earlyDeviceContext(noModel bool) (snapstate.DeviceContext, error) {
+	if !noModel {
+		mod, err := findModel(m.state)
+		if err == nil {
+			return newModelDeviceContext(m, mod), nil
+		}
+		if !errors.Is(err, state.ErrNoState) {
+			return nil, err
+		}
 	}
 	dev, _, err := m.earlyLoadDeviceSeed(state.ErrNoState)
 	return dev, err
