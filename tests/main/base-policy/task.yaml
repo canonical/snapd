@@ -6,6 +6,8 @@ details: |
     1. 'base: core' can access a core-only rule that 'base: other' cannot
     2. 'base: other' can access a base-only rule that 'base: core' cannot
     3. both can access something allowed by common rules
+    4. core runtime perl/python rules are present only for bases that still
+       provide those runtimes
     
     While there are no core-only rules at this time for '1', we can at least
     test that 'grep --version' (differently allowed by core-only and
@@ -23,6 +25,7 @@ prepare: |
     echo "Given basic snaps are installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core18
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh-core24
 
     # core26 is currently only available on edge
     if ! snap list core26 2> /dev/null; then
@@ -73,3 +76,11 @@ execute: |
     for variant in /usr/bin/whoami /usr/bin/gnuwhoami /usr/lib/cargo/bin/coreutils/whoami; do
         test-snapd-sh-core26.sh -c "$variant" 2>&1 | MATCH "Permission denied"
     done
+
+    echo "Check if expected core runtime perl/python paths are allowed"
+    MATCH "/usr/bin/python" < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh-core24.sh
+    NOMATCH "/usr/bin/perl" < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh-core24.sh
+    NOMATCH "/usr/bin/python" < /var/lib/snapd/apparmor/profiles/snap.test-snapd-sh-core26.sh
+    test-snapd-sh-core24.sh -c '/usr/bin/python3 -c "print(\"python-is-accessible\")"' 2>&1 | MATCH "python-is-accessible"
+    test-snapd-sh-core24.sh -c '/usr/bin/perl -e "print qq(perl-is-accessible\n)"' 2>&1 | MATCH "(Permission denied|not found|No such file or directory)"
+    test-snapd-sh-core26.sh -c '/usr/bin/python3 -c "print(\"python-is-accessible\")"' 2>&1 | MATCH "(Permission denied|not found|No such file or directory)"
