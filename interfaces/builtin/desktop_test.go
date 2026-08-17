@@ -178,6 +178,9 @@ func (s *DesktopInterfaceSuite) TestChromiumStatusNotifierAppArmor(c *C) {
 	c.Check(plugSnippet, testutil.Contains, `name=org.freedesktop.StatusNotifierItem-[0-9]*-[0-9]*,`)
 	c.Check(plugSnippet, testutil.Contains, `path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}`)
 	c.Check(plugSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}`)
+	c.Check(plugSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
+    member="Get{,All}"`)
 
 	appSet, err = interfaces.NewSnapAppSet(s.appSlot.Snap(), nil)
 	c.Assert(err, IsNil)
@@ -187,6 +190,9 @@ func (s *DesktopInterfaceSuite) TestChromiumStatusNotifierAppArmor(c *C) {
 
 	c.Check(slotSnippet, testutil.Contains, `path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}`)
 	c.Check(slotSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}`)
+	c.Check(slotSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
+    path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
+    member="Get{,All}"`)
 }
 
 func (s *DesktopInterfaceSuite) TestMountSpec(c *C) {

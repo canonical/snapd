@@ -235,7 +235,7 @@ dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Properties
     path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
-    member=GetAll
+    member="Get{,All}"
     peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (receive)
     bus=session
@@ -520,7 +520,7 @@ dbus (send)
     bus=session
     interface=org.freedesktop.DBus.Properties
     path=/{StatusNotifierItem,org/chromium/StatusNotifierItem/[0-9]*}
-    member=GetAll
+    member="Get{,All}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 dbus (send)
     bus=session
