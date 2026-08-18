@@ -1114,11 +1114,14 @@ func (s *fdeMgrSuite) TestStateUpdate(c *C) {
 		&mockModel{},
 	}
 
-	st.UpdateParameters("run+recover", "container-role", []string{"run"}, models, secboot.SerializedPCRProfile(`"serialized-profile"`))
-
+	err = st.UpdateParameters("run+recover", "container-role", []string{"run"}, models, secboot.SerializedPCRProfile(`"serialized-profile"`))
 	c.Assert(err, IsNil)
+
 	runRecoverRole, hasRunRecoverRole := st.KeyslotRoles["run+recover"]
 	c.Assert(hasRunRecoverRole, Equals, true)
+
+	c.Check(runRecoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(0))
+
 	containerRole, hasContainerRole := runRecoverRole.Parameters["container-role"]
 	c.Assert(hasContainerRole, Equals, true)
 
@@ -1126,4 +1129,10 @@ func (s *fdeMgrSuite) TestStateUpdate(c *C) {
 	c.Check(containerRole.Models[0].Model(), Equals, "mock-model")
 	c.Check(containerRole.BootModes, DeepEquals, []string{"run"})
 	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
+
+	err = st.UpdatePCRHandle("run+recover", 42)
+	runRecoverRole, hasRunRecoverRole = st.KeyslotRoles["run+recover"]
+	c.Assert(hasRunRecoverRole, Equals, true)
+
+	c.Check(runRecoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(42))
 }
