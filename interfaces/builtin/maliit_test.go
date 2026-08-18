@@ -212,6 +212,21 @@ func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmor(c *C) {
 	c.Assert(snippet, Not(testutil.Contains), "peer=(label=unconfined),")
 }
 
+func (s *MaliitInterfaceSuite) TestConnectedPlugSnippetAppArmorTouch(c *C) {
+	restore := release.MockOnTouch(true)
+	defer restore()
+
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.other.app"})
+	snippet := apparmorSpec.SnippetForTag("snap.other.app")
+	// verify apparmor connected
+	c.Assert(snippet, testutil.Contains, "#include <abstractions/dbus-session-strict>")
+	// verify Touch did connect
+	c.Assert(snippet, testutil.Contains, "peer=(label=unconfined),")
+}
+
 func (s *MaliitInterfaceSuite) TestPermanentSlotSnippetAppArmor(c *C) {
 	apparmorSpec := apparmor.NewSpecification(s.slot.AppSet())
 	err := apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)

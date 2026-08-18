@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -35,8 +36,7 @@ const maliitBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - app
-    deny-connection: true
-    deny-auto-connection: true
+        - core
 `
 
 const maliitPermanentSlotAppArmor = `
@@ -116,6 +116,9 @@ dbus (send)
 
 # Provide access to the peer-to-peer dbus socket assigned by the address service
 unix (send, receive, connect) type=stream addr=none peer=(label=###SLOT_SECURITY_TAGS###, addr="@/tmp/maliit-server/dbus-*"),
+
+# Provide access to individual maliit-server sockets
+/{,var/}run/user/*/maliit-server rw,
 `
 
 const maliitPermanentSlotSecComp = `
@@ -124,22 +127,23 @@ accept
 accept4
 `
 
-type maliitInterface struct{}
+type maliitInterface struct {
+	commonInterface
+}
 
 func (iface *maliitInterface) Name() string {
 	return "maliit"
 }
 
-func (iface *maliitInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              maliitSummary,
-		BaseDeclarationSlots: maliitBaseDeclarationSlots,
-	}
-}
-
 func (iface *maliitInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	old := "###SLOT_SECURITY_TAGS###"
 	new := slot.LabelExpression()
+
+	// Allow access to host-side maliit on Ubuntu Touch
+	if implicitSystemConnectedSlot(slot) || release.OnTouch {
+		new = "unconfined"
+	}
+
 	snippet := strings.Replace(maliitConnectedPlugAppArmor, old, new, -1)
 	spec.AddSnippet(snippet)
 	return nil
@@ -169,5 +173,10 @@ func (iface *maliitInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
 }
 
 func init() {
-	registerIface(&maliitInterface{})
+	registerIface(&maliitInterface{commonInterface{
+		name:                  "maliit",
+		summary:               maliitSummary,
+		implicitOnClassic:     true,
+		baseDeclarationSlots:  maliitBaseDeclarationSlots,
+	}})
 }
