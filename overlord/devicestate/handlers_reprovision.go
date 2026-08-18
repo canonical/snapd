@@ -429,7 +429,7 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
-	// Step 7. Swap the state
+	// Prepare for step 7 (swap the state)
 	var oldState any
 	errGetState := st.Get("fde", &oldState)
 	if errGetState != nil && !errors.Is(errGetState, state.ErrNoState) {
@@ -448,9 +448,11 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		}
 		return fmt.Errorf("cannot save the system-save key: %v", err)
 	}
-	st.Set("fde", fdeState)
 	// swapping the protector key is the sign we have finished
 	revertReprovisionAttemptOnError = false
+
+	// Step 7. swap the state
+	st.Set("fde", fdeState)
 
 	// Steps:
 	//   8. Erase nv counters associated to the old keys
