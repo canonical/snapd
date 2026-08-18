@@ -24,8 +24,6 @@ backends:
             - debian-12-64:
             - debian-sid-64:
             - arch-linux-64:
-            - amazon-linux-2-64:
-                storage: preserve-size
             - amazon-linux-2023-64:
                 storage: preserve-size
             - centos-9-64:

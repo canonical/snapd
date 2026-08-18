@@ -10,7 +10,6 @@ details: |
 # requires systemd v245+
 # memory cgroup is disabled on arm devices like rpi3
 systems:
-  - -amazon-linux-2-*
   - -ubuntu-14.04-*
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*

@@ -222,7 +222,8 @@ func init() {
 	// 4: support for plug-names/slot-names constraints
 	// 5: alt attr matcher usage (was unused before, has new behavior now)
 	// 6: support for $PLUG_PUBLISHER_ID/$SLOT_PUBLISHER_ID in attr constraints
-	maxSupportedFormat[SnapDeclarationType.Name] = 6
+	// 7: support for on-classic distro/variant constraints
+	maxSupportedFormat[SnapDeclarationType.Name] = 7
 
 	// 1: support to limit to device serials
 	// 2: support for user-presence constraint
@@ -1056,8 +1057,10 @@ func assemble(headers map[string]any, body, content, signature []byte) (Assertio
 		return nil, fmt.Errorf("assertion body is not utf8")
 	}
 
-	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
+	if !isBuiltinSignature(signature) {
+		if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
+			return nil, fmt.Errorf("assertion: %v", err)
+		}
 	}
 
 	typ, err := checkNotEmptyString(headers, "type")

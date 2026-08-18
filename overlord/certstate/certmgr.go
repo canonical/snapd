@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"gopkg.in/tomb.v2"
 )
 
@@ -85,7 +86,9 @@ func (m *CertManager) Ensure() error {
 	st.Lock()
 	defer st.Unlock()
 
-	if m.oneTimeChecksRan {
+	// Do not perform automatic db generation on classic, or if ensure
+	// has already run
+	if m.oneTimeChecksRan || release.OnClassic {
 		return nil
 	}
 
@@ -109,19 +112,14 @@ func (m *CertManager) Ensure() error {
 		return nil
 	}
 
-	// Run garbage collection for the cert generations
-	if err := m.ensureGarbageCollectionRun(); err != nil {
-		return err
-	}
-
 	// If the CA certificate database is already present, nothing to do.
 	// Remove the old style merged folder if it exists. If the merged folder exists, and
 	// it's not a symlink, we remove the folder and regenerate the database
 	mergedDir := CurrentCertificateDir()
 	if osutil.IsSymlink(mergedDir) {
 		// The merged directory is already a symlink, we assume it's correctly set up and skip generation.
-		logger.Debugf("merged certificate database exists, skipping generation")
-		return nil
+		logger.Debugf("merged certificate database exists, running garbage collection")
+		return m.ensureGarbageCollectionRun()
 	} else {
 		if err := os.RemoveAll(mergedDir); err != nil {
 			// In case of weird errors in this case, log it and skip generation. If it was
@@ -129,6 +127,11 @@ func (m *CertManager) Ensure() error {
 			logger.Noticef("error checking merged certificate database: %v", err)
 			return nil
 		}
+	}
+
+	// Run garbage collection for the cert generations, but only after the symlink check.
+	if err := m.ensureGarbageCollectionRun(); err != nil {
+		return err
 	}
 
 	// Create the update CA certificate database, this is likely a first

@@ -143,11 +143,12 @@ execute: |
   cp -a ./"$SEED_DIR"/system-seed/ /var/lib/snapd/seed
 
   # build the muinstaller snap
-  snap install snapcraft --candidate --classic
-  "$TESTSTOOLS"/lxd-state prepare-snap
-  (cd "$TESTSLIB"/muinstaller && snapcraft)
-  MUINSTALLER_SNAP="$(find "$TESTSLIB"/muinstaller/ -maxdepth 1 -name '*.snap')"
-  echo "found $MUINSTALLER_SNAP"
+  MUINSTALLER_SNAP="$PWD/muinstaller.snap"
+  (
+      cd "$TESTSLIB"/muinstaller
+      CGO_ENABLED=0 go build -o bin/muinstaller .
+      snap pack --filename="$MUINSTALLER_SNAP" .
+  )
 
   # create new disk for the installer to work on and attach to VM
   truncate --size=4G fake-disk.img

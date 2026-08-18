@@ -444,9 +444,9 @@ func (s *appArmorSuite) TestSetupSnapConfineSnippetsHomedirs(c *C) {
 	c.Assert(files[0].IsDir(), Equals, false)
 
 	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
-		testutil.FileContains, `"/mnt/foo/" -> "/tmp/snap.rootfs_*/mnt/foo/",`)
+		testutil.FileContains, `"/mnt/foo/" -> "/tmp/snap-private-tmp/snap.rootfs_*/mnt/foo/",`)
 	c.Assert(filepath.Join(apparmor.SnapConfineAppArmorDir, files[0].Name()),
-		testutil.FileContains, `"/mnt/bar/" -> "/tmp/snap.rootfs_*/mnt/bar/",`)
+		testutil.FileContains, `"/mnt/bar/" -> "/tmp/snap-private-tmp/snap.rootfs_*/mnt/bar/",`)
 }
 
 func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyWithHomedirsLoadError(c *C) {

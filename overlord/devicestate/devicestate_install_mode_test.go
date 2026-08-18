@@ -825,6 +825,13 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	})
 	defer restore()
 
+	var copyHostnameRootDir string
+	restore = devicestate.MockCopyInstallModeHostname(func(rootdir string) error {
+		copyHostnameRootDir = rootdir
+		return nil
+	})
+	defer restore()
+
 	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
@@ -872,6 +879,8 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 
 	// we did request a restart through restartSystemToRunModeTask
 	c.Check(s.restartRequests, DeepEquals, []restart.RestartType{restart.RestartSystemNow})
+	c.Check(s.SystemctlDaemonReloadCalls, Equals, 0)
+	c.Check(copyHostnameRootDir, Equals, filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data"))
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallExpTasksWithKMods(c *C) {
@@ -1430,6 +1439,56 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 
 	// ensure systemctl daemon-reload gets called
 	c.Assert(s.SystemctlDaemonReloadCalls, Equals, 1)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookCopiesHostname(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot string, kernelSnapInfo *install.KernelSnapInfo, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		hostnamePath := filepath.Join(dirs.GlobalRootDir, "etc/hostname")
+		c.Assert(os.MkdirAll(filepath.Dir(hostnamePath), 0755), IsNil)
+		c.Assert(os.WriteFile(hostnamePath, []byte("device-hostname\n"), 0644), IsNil)
+		return nil, nil
+	})
+	defer restore()
+
+	err := os.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	seedCopyFn := func(seedDir string, opts seed.CopyOptions, tm timings.Measurer) error {
+		return fmt.Errorf("unexpected copy call")
+	}
+	seedOpts := mockSystemSeedWithLabelOpts{
+		isClassic:     false,
+		hasSystemSeed: true,
+		hasPartial:    false,
+		types:         []snap.Type{snap.TypeKernel},
+	}
+	s.mockSystemSeedWithLabel(c, "1234", seedCopyFn, seedOpts)
+
+	s.state.Lock()
+	s.makeMockInstallModel(c, "dangerous")
+	s.makeMockInstalledPcKernelAndGadget(c, "install-device-hook-content", "", core20SnapID)
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Assert(installSystem.Err(), IsNil)
+
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/_writable_defaults/etc/writable/hostname"),
+		testutil.FileEquals, "device-hostname\n")
 }
 
 func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst restart.RestartType) {

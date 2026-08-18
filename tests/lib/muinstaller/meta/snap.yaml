@@ -1,0 +1,14 @@
+name: muinstaller
+version: "0.1"
+summary: Minimal Unattended Installer
+description: |
+  Minimal Unattended Installer (muinstaller) is a minimal installer
+  for Ubuntu Core
+confinement: classic
+base: core22
+
+apps:
+  auto:
+    command: bin/muinstaller -label classic -device auto -rootfs-creator $SNAP/bin/mk-classic-rootfs.sh
+  muinstaller:
+    command: bin/muinstaller

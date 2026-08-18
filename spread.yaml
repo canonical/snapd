@@ -175,10 +175,6 @@ backends:
                   image: ubuntu-2404-64
                   storage: 15G
                   workers: 8
-            - ubuntu-25.10-64:
-                  image: ubuntu-os-cloud-devel/ubuntu-2510-amd64
-                  storage: 15G
-                  workers: 8
 
     google-core:
         type: google
@@ -257,9 +253,6 @@ backends:
                   storage: 20G
                   workers: 6
 
-            - amazon-linux-2-64:
-                  workers: 6
-                  storage: preserve-size
             - amazon-linux-2023-64:
                   workers: 6
                   storage: preserve-size
@@ -410,11 +403,11 @@ backends:
                 image: snapd-spread/ubuntu-24.04-64-pro-fips
             - ubuntu-secboot-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64-secboot
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
             - ubuntu-core-18-64:
@@ -440,10 +433,6 @@ backends:
                 image: snapd-spread/debian-sid-64
                 workers: 6
 
-            - amazon-linux-2-64:
-                image: snapd-spread/amazon-linux-2-64
-                workers: 6
-                storage: 50G
             - amazon-linux-2023-64:
                 image: snapd-spread/amazon-linux-2023-64
                 workers: 6
@@ -642,11 +631,11 @@ backends:
             - ubuntu-24.04-64:
                 image: snapd-spread/ubuntu-24.04-64
                 workers: 8
-            - ubuntu-25.10-64:
-                image: snapd-spread/ubuntu-25.10-64
-                workers: 8
             - ubuntu-26.04-64:
                 image: snapd-spread/ubuntu-26.04-64
+                workers: 8
+            - ubuntu-26.10-64:
+                image: snapd-spread/ubuntu-26.10-64
                 workers: 8
 
     qemu-nested:
@@ -724,9 +713,6 @@ backends:
             - debian-sid-64:
                   username: debian
                   password: debian
-            - amazon-linux-2-64:
-                  username: ec2-user
-                  password: ec2-user
             - opensuse-tumbleweed-64:
                   username: opensuse
                   password: opensuse
@@ -743,7 +729,7 @@ backends:
                 PATH="${SPREAD_HOST_PATH}"
             fi
             # Spread does not expose any settings to ad-hoc backends.
-            export QEMU_MEM_OPTION="-m 3072"
+            export QEMU_MEM_OPTION="-m 6144"
             export QEMU_SMP_OPTION="-smp 4"
             exec image-garden allocate "$(.image-garden/remap-name snapd-to-garden "$SPREAD_SYSTEM")"
         discard: |
@@ -794,9 +780,6 @@ backends:
             - ubuntu-24.04-64:
                   username: root
                   password: root
-            - ubuntu-25.10-64:
-                  username: root
-                  password: root
             - ubuntu-26.04-64:
                   username: root
                   password: root
@@ -822,9 +805,6 @@ backends:
                   username: root
                   password: root
             - arch-linux-64:
-                  username: root
-                  password: root
-            - amazon-linux-2-64:
                   username: root
                   password: root
             - amazon-linux-2023-64:
@@ -1273,7 +1253,14 @@ prepare: |
     download.max_silent_tries = 20
     EOF
 
-        # Make sure docs are installed with the packages
+        # Make sure docs are installed with the packages. Newer systems use a
+        # vendor drop-in under /usr/etc, while older ones keep the setting in
+        # /etc/zypp/zypp.conf.
+        mkdir -p /etc/zypp/zypp.conf.d
+        cat <<-EOF > /etc/zypp/zypp.conf.d/excludedocs.conf
+    [main]
+    rpm.install.excludedocs = no
+    EOF
         sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
 
         # TODO: enable enforcing mode
@@ -1649,14 +1636,12 @@ suites:
             . "$TESTSLIB"/pkgdb.sh
 
             distro_purge_package snapd
-            case "$SPREAD_SYSTEM" in
-                arch-*)
-                    # In Arch there is no separate snap-confine package.
-                    ;;
-                *)
-                    distro_purge_package snap-confine ubuntu-core-launcher
-                    ;;
-            esac
+            if tests.pkgs is-installed snap-confine; then
+                distro_purge_package snap-confine
+            fi
+            if tests.pkgs is-installed ubuntu-core-launcher; then
+                distro_purge_package ubuntu-core-launcher
+            fi
 
     tests/nightly/:
         summary: Suite for nightly, expensive, tests
@@ -1778,7 +1763,9 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1859,7 +1846,9 @@ suites:
             # Configure the ssh connection to the test vm
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -1933,7 +1922,9 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP"/cert-file
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -2021,7 +2012,9 @@ suites:
 
             # Configure the ssh connection to the test vm
             if [ -n "$NESTED_REMOTE_USER_CERT" ]; then
-                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$NESTED_REMOTE_USER_CERT"
+                echo "$NESTED_REMOTE_USER_CERT" > "$TESTSTMP"/cert-file
+                chmod 0600 "$TESTSTMP"/cert-file
+                remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --cert "$TESTSTMP/cert-file"
             else
                 remote.setup config --host localhost --port 8022 --user "$NESTED_REMOTE_USER_NAME" --pass ubuntu
             fi
@@ -2092,7 +2085,6 @@ suites:
         systems:
             - arch-linux-*
             - opensuse-*
-            - amazon-linux-2-*
             - amazon-linux-2023-*
             - fedora-*
             - centos-*

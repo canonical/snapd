@@ -38,6 +38,8 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicemgmtstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -50,14 +52,35 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
+var noopTask = func(*state.Task, *tomb.Tomb) error { return nil }
+
 type mockStore struct {
 	storetest.Store
 
+	assertionDB      *asserts.Database
 	exchangeMessages func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)
+}
+
+func (s *mockStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
+	return ref.Resolve(s.assertionDB.Find)
 }
 
 func (s *mockStore) ExchangeMessages(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 	return s.exchangeMessages(ctx, req)
+}
+
+type mockDeviceBackend struct {
+	serial *asserts.Serial
+	sign   func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error)
+}
+
+func (m *mockDeviceBackend) Serial() (*asserts.Serial, error) {
+	return m.serial, nil
+}
+
+func (m *mockDeviceBackend) SignResponseMessage(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+	return m.sign(accountID, messageID, status, body)
 }
 
 type mockMessageHandler struct {
@@ -67,15 +90,27 @@ type mockMessageHandler struct {
 }
 
 func (h *mockMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) error {
-	return h.validate(st, msg)
+	if h.validate != nil {
+		return h.validate(st, msg)
+	}
+
+	return nil
 }
 
 func (h *mockMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-	return h.apply(st, msg)
+	if h.apply != nil {
+		return h.apply(st, msg)
+	}
+
+	return "", nil
 }
 
 func (h *mockMessageHandler) ResultFromChange(chg *state.Change) (map[string]any, error) {
-	return h.resultFromChange(chg)
+	if h.resultFromChange != nil {
+		return h.resultFromChange(chg)
+	}
+
+	return nil, nil
 }
 
 func setRemoteMgmtFeatureFlag(c *C, st *state.State, value any) {
@@ -118,13 +153,23 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.mockModel()
 	s.storeStack = assertstest.NewStoreStack("my-brand", nil)
 
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeStack.Trusted,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(db.Add(s.storeStack.StoreAccountKey("")), IsNil)
+	assertstate.ReplaceDB(s.st, db)
+
 	s.runner = s.o.TaskRunner()
 	s.o.AddManager(s.runner)
 
 	s.mgr = devicemgmtstate.Manager(s.st, s.runner, nil)
 	s.o.AddManager(s.mgr)
 
-	err := s.o.StartUp()
+	s.mgr.MockBackend(&mockDeviceBackend{serial: s.makeSerial(c, "serial-1")})
+
+	err = s.o.StartUp()
 	c.Assert(err, IsNil)
 
 	var restoreLogger func()
@@ -143,7 +188,7 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 			return chg.ID(), nil
 		},
 		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return map[string]any{"key": "value"}, nil
+			return map[string]any{"values": "ok"}, nil
 		},
 	})
 }
@@ -166,8 +211,30 @@ func (s *deviceMgmtMgrSuite) mockModel() {
 	s.st.Set("seeded", true)
 }
 
+func (s *deviceMgmtMgrSuite) makeSerial(c *C, serial string) *asserts.Serial {
+	devKey, _ := assertstest.GenerateKey(752)
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Assert(err, IsNil)
+
+	as, err := s.storeStack.Sign(asserts.SerialType, map[string]any{
+		"authority-id":        "my-brand",
+		"brand-id":            "my-brand",
+		"model":               "my-model",
+		"serial":              serial,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": devKey.PublicKey().ID(),
+		"timestamp":           fixedTestTime.UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	return as.(*asserts.Serial)
+}
+
 func (s *deviceMgmtMgrSuite) mockStore(exchangeMessages func(context.Context, *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error)) {
-	snapstate.ReplaceStore(s.st, &mockStore{exchangeMessages: exchangeMessages})
+	snapstate.ReplaceStore(s.st, &mockStore{
+		assertionDB:      s.storeStack.Database,
+		exchangeMessages: exchangeMessages,
+	})
 }
 
 func (s *deviceMgmtMgrSuite) makeStoreRequestMessage(c *C, messageID, kind, token string) store.MessageWithToken {
@@ -399,9 +466,11 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {
 			Messages: []store.MessageWithToken{
 				s.makeStoreRequestMessage(c, "someId", "test-kind", "token-123"),
 			},
-			TotalPendingMessages: 0,
+			TotalPendingMessages: 1,
 		}, nil
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -437,6 +506,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 		}, nil
 	})
 
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences:         make(map[string]*devicemgmtstate.SequenceState),
 		LastReceivedToken: "token-123",
@@ -455,7 +526,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesReplyOK(c *C) {
 	c.Check(ms.Sequences, HasLen, 0)
 }
 
-func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesSequenceLRU(c *C) {
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesSequenceLRUOrdering(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
@@ -472,6 +543,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesSequenceLRU(c *C) {
 			},
 		}, nil
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -497,9 +570,11 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesInvalidMessage(c *C) {
 					},
 				},
 			},
-			TotalPendingMessages: 0,
+			TotalPendingMessages: 1,
 		}, nil
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -522,9 +597,11 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateMessage(c *C) {
 				msg,
 				{Token: "token-2", Message: msg.Message},
 			},
-			TotalPendingMessages: 0,
+			TotalPendingMessages: 2,
 		}, nil
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -532,6 +609,42 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateMessage(c *C) {
 	c.Assert(err, IsNil)
 	// The duplicate should have been dropped, leaving one message in the sequence.
 	c.Assert(ms.Sequences["someId"].Messages, HasLen, 1)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDuplicateSequencedMessagePastApplied(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// Set state as it would appear after message seqA-2 has been fully processed.
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	ms.Sequences["seqA"] = &devicemgmtstate.SequenceState{Applied: 2}
+	ms.SequenceLRU = []string{"seqA"}
+	ms.LastReceivedToken = "token-2"
+	s.mgr.SetState(ms)
+
+	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		c.Check(req.After, Equals, "token-2") // Ack receipt of seqA-2
+
+		// Redeliver seqA-2.
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "seqA-2", "test-kind", "token-2"),
+			},
+			TotalPendingMessages: 1,
+		}, nil
+	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	// The redelivered message must be dropped.
+	c.Assert(ms.Sequences["seqA"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["seqA"].Applied, Equals, 2)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDeviceNotSeeded(c *C) {
@@ -586,6 +699,8 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesIdempotent(c *C) {
 		}, nil
 	})
 
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
 	s.settle(c)
 
 	ms, err := s.mgr.GetState()
@@ -614,6 +729,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesUnsequenced(c *C) {
 			},
 		}, nil
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -870,6 +987,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
 	s.settle(c)
 
 	ms, err := s.mgr.GetState()
@@ -915,6 +1034,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
 	s.settle(c)
 
 	ms, err := s.mgr.GetState()
@@ -940,6 +1061,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return &store.MessageExchangeResponse{}, nil
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
@@ -998,6 +1121,550 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	c.Check(ti.queue["msg2"], NotNil)
 }
 
+func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesLaneIsolation(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "test-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	// Override validate to simulate an internal error for msg1,
+	// causing the task runner to put msg1's chain in error/hold.
+	s.runner.AddHandler("validate-mgmt-message", func(t *state.Task, _ *tomb.Tomb) error {
+		t.State().Lock()
+		defer t.State().Unlock()
+
+		var msgID string
+		err := t.Get("message-id", &msgID)
+		c.Assert(err, IsNil)
+
+		if msgID == "msg1" {
+			return fmt.Errorf("internal error: unexpected state for msg1")
+		}
+
+		return nil
+	}, nil)
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			return map[string]any{"result": "ok"}, nil
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
+	c.Assert(changes, HasLen, 1)
+	ti := buildTaskIndex(changes[0])
+
+	// msg1's chain is held due to the validate task's error.
+	c.Check(ti.validate["msg1"].Status(), Equals, state.ErrorStatus)
+	c.Check(ti.apply["msg1"].Status(), Equals, state.HoldStatus)
+	c.Check(ti.queue["msg1"].Status(), Equals, state.HoldStatus)
+
+	// msg2's chain completes independently.
+	c.Check(ti.validate["msg2"].Status(), Equals, state.DoneStatus)
+	c.Check(ti.apply["msg2"].Status(), Equals, state.DoneStatus)
+	c.Check(ti.queue["msg2"].Status(), Equals, state.DoneStatus)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["msg2"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.runner.AddHandler("apply-mgmt-message", noopTask, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus("")) // message wasn't rejected
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageAccountKeyFetchedFromStoreOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	// Remove the account key from the local DB so ensureAccountKey must fetch.
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeStack.Trusted,
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.st, db)
+
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
+		err := db.Add(s.storeStack.StoreAccountKey(""))
+		c.Assert(err, IsNil)
+		return nil
+	}))
+
+	s.runner.AddHandler("apply-mgmt-message", noopTask, nil)
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus("")) // message wasn't rejected
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadRawAssertion(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{}, nil
+	})
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:    "my-brand",
+						AuthorityID:  "my-brand",
+						BaseID:       "msg1",
+						Kind:         "test-kind",
+						Devices:      []string{"serial-1.my-model.my-brand"},
+						ValidSince:   fixedTestTime.Add(-time.Hour),
+						ValidUntil:   fixedTestTime.Add(24 * time.Hour),
+						Body:         `{"action": "get"}`,
+						RawAssertion: []byte("not a valid assertion"),
+					},
+				},
+			},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("validate-mgmt-message", "validate msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals, "cannot decode message: assertion content/signature separator not found")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageFetchAccountKeyError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	// Remove the account key from the local DB so ensureAccountKey reaches the fetch.
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeStack.Trusted,
+	})
+	c.Assert(err, IsNil)
+	assertstate.ReplaceDB(s.st, db)
+
+	fetchErr := fmt.Errorf("store unavailable")
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
+		return fetchErr
+	}))
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatus(""))
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageBadSignature(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{}, nil
+	})
+
+	storeMsg := s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1")
+	reqMsg, err := devicemgmtstate.ParseRequestMessage(storeMsg.Message)
+	c.Assert(err, IsNil)
+
+	// tamper the raw assertion body
+	reqMsg.RawAssertion = bytes.Replace(reqMsg.RawAssertion, []byte("get"), []byte("set"), 1)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {Messages: []*devicemgmtstate.RequestMessage{reqMsg}},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("validate-mgmt-message", "validate msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals,
+		"cannot verify message signature: failed signature verification: openpgp: invalid signature: hash tag doesn't match")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageDeviceNotTargeted(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{serial: s.makeSerial(c, "other-serial")})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: not intended for device other-serial.my-model.my-brand")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageExpired(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.AddCleanup(devicemgmtstate.MockTimeNow(fixedTestTime.Add(48 * time.Hour)))
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals, "cannot process message: not valid at 2025-06-16T12:00:00Z")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnknownKind(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "unknown-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals, `cannot find handler for message kind "unknown-kind"`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnauthorized(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
+			return &devicemgmtstate.UnauthorizedError{Operator: "alice"}
+		},
+	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusUnauthorized)
+	c.Check(msg.ResponseBody["message"], Equals, `cannot perform action: operator "alice" is not authorized`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
+			return fmt.Errorf("cannot validate message: invalid payload")
+		},
+	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(msg.ResponseBody["message"], Equals, "cannot validate message: invalid payload")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{}, nil
+	})
+
+	// Prevent FetchAccountKey from dropping the state lock, which would let the
+	// concurrent retry tasks race past the idempotency guard.
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(_ *state.State, _ int, _ string) error {
+		return nil
+	}))
+
+	validateCalls := 0
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
+			validateCalls++
+			return fmt.Errorf("cannot validate message: invalid payload")
+		},
+	})
+
+	storeMsg := s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1")
+	reqMsg, err := devicemgmtstate.ParseRequestMessage(storeMsg.Message)
+	c.Assert(err, IsNil)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{reqMsg},
+			},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	for i := 1; i <= 3; i++ {
+		t := s.st.NewTask("validate-mgmt-message", fmt.Sprintf("validate msg1 attempt %d", i))
+		t.Set("message-id", "msg1")
+		chg.AddTask(t)
+	}
+
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(validateCalls, Equals, 1)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	msg := ms.Sequences["msg1"].Messages[0]
+	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusRejected)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterFetch(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "unknown-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "unknown-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	firstCall := true
+	s.AddCleanup(devicemgmtstate.MockFetchAccountKey(func(st *state.State, _ int, _ string) error {
+		if firstCall {
+			firstCall = false
+			// Wait for the other lane's full write before resuming.
+			lane2Done := make(chan struct{})
+			st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+				if t.Kind() == "validate-mgmt-message" && new == state.DoneStatus {
+					close(lane2Done)
+					return true
+				}
+				return false
+			})
+
+			st.Unlock()
+			<-lane2Done
+			st.Lock()
+		}
+		return nil
+	}))
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["msg1"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(ms.Sequences["msg2"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterValidate(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "test-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	firstCall := true
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(st *state.State, _ *devicemgmtstate.RequestMessage) error {
+			if firstCall {
+				firstCall = false
+				// Wait for the other lane's full write before resuming.
+				lane2Done := make(chan struct{})
+				st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+					if t.Kind() == "validate-mgmt-message" && new == state.DoneStatus {
+						close(lane2Done)
+						return true
+					}
+					return false
+				})
+
+				st.Unlock()
+				<-lane2Done
+				st.Lock()
+			}
+
+			return fmt.Errorf("cannot validate message: rejected")
+		},
+	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["msg1"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+	c.Check(ms.Sequences["msg2"].Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
+}
+
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
@@ -1009,6 +1676,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageOK(c *C) {
 			},
 		}, nil
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -1044,7 +1713,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 
 		ms.Sequences[messageID].Messages[0].ResponseStatus = asserts.MessageStatusRejected
 		ms.Sequences[messageID].Messages[0].ResponseBody = map[string]any{
-			"message": "cannot process message: device not in target list",
+			"message": "cannot process message: not intended for device serial-1.my-model.my-brand",
 		}
 
 		s.mgr.SetState(ms)
@@ -1059,6 +1728,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 			return "", nil
 		},
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -1075,12 +1746,33 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageNoHandlerForMessageKind(c *C) {
 	defer s.st.Unlock()
 
 	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
-		return &store.MessageExchangeResponse{
-			Messages: []store.MessageWithToken{
-				s.makeStoreRequestMessage(c, "msg1", "unknown-kind", "token-1"),
-			},
-		}, nil
+		return &store.MessageExchangeResponse{}, nil
 	})
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:   "my-brand",
+						AuthorityID: "my-brand",
+						BaseID:      "msg1",
+						Kind:        "unknown-kind",
+						Devices:     []string{"serial-1.my-model.my-brand"},
+						ValidSince:  fixedTestTime,
+						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
+						Body:        `{"action": "get"}`,
+					},
+				},
+			},
+		},
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("apply-mgmt-message", "apply message with unknown kind")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
 
 	s.settle(c)
 
@@ -1107,9 +1799,11 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
 		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			return "", fmt.Errorf("system in inconsistent state")
+			return "", fmt.Errorf("cannot apply message: system in inconsistent state")
 		},
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	s.settle(c)
 
@@ -1119,7 +1813,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 	msg := ms.Sequences["msg1"].Messages[0]
 	c.Check(msg.ApplyChangeID, Equals, "")
 	c.Check(msg.ResponseStatus, Equals, asserts.MessageStatusError)
-	c.Check(msg.ResponseBody["message"], Equals, "system in inconsistent state")
+	c.Check(msg.ResponseBody["message"], Equals, "cannot apply message: system in inconsistent state")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
@@ -1139,6 +1833,8 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
 			return chg.ID(), nil
 		},
 	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
 
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
@@ -1282,6 +1978,638 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageMessageNotFound(c *C) {
 	s.st.Lock()
 
 	c.Assert(err, ErrorMatches, `cannot find message "seqA-2"`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoApplyMessageConcurrentWriteAfterApply(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "test-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	firstCall := true
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			if firstCall {
+				firstCall = false
+				// Wait for the other lane's full write before resuming.
+				lane2Done := make(chan struct{})
+				st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+					if t.Kind() == "apply-mgmt-message" && new == state.DoneStatus {
+						close(lane2Done)
+						return true
+					}
+					return false
+				})
+
+				st.Unlock()
+				<-lane2Done
+				st.Lock()
+			}
+
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+	})
+
+	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	for i := 1; i <= 2; i++ {
+		msgID := fmt.Sprintf("msg%d", i)
+		applyChgID := ms.Sequences[msgID].Messages[0].ApplyChangeID
+		c.Check(applyChgID, Not(Equals), "")
+
+		applyChg := s.st.Change(applyChgID)
+		c.Assert(applyChg, Not(IsNil))
+		c.Check(applyChg.Has(devicemgmtstate.MgmtMessageIDKey), Equals, true)
+	}
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSequencedOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			c.Check(accountID, Equals, "my-brand")
+			c.Check(messageID, Equals, "mesg-1")
+			c.Check(status, Equals, asserts.MessageStatusSuccess)
+			c.Check(string(body), Equals, `{"values":"ok"}`)
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	// The sequence entry is kept because Applied must be preserved.
+	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 1)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseUnsequencedOK(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "mesg", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	// Unsequenced messages have no Applied progress to carry forward.
+	c.Check(ms.Sequences, HasLen, 0)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["mesg"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseStatusAlreadyKnown(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.runner.AddHandler("validate-mgmt-message", func(t *state.Task, _ *tomb.Tomb) error {
+		t.State().Lock()
+		defer t.State().Unlock()
+
+		ms, err := s.mgr.GetState()
+		c.Assert(err, IsNil)
+
+		ms.Sequences["mesg"].Messages[0].ResponseStatus = asserts.MessageStatusRejected
+		ms.Sequences["mesg"].Messages[0].ResponseBody = map[string]any{"message": "device not in target list"}
+		s.mgr.SetState(ms)
+
+		return nil
+	}, nil)
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(*state.State, *devicemgmtstate.RequestMessage) (string, error) {
+			c.Fatal("apply must not be called when ResponseStatus is already set")
+
+			return "", nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			// A message whose ResponseStatus was set earlier in the pipeline (e.g. by
+			// rejectSequence) must be signed and queued without calling handler.ResultFromChange.
+			c.Fatal("resultFromChange must not be called when ResponseStatus is already set")
+
+			return nil, nil
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			c.Check(messageID, Equals, "mesg-1")
+			c.Check(status, Equals, asserts.MessageStatusRejected)
+			c.Check(string(body), Equals, `{"message":"device not in target list"}`)
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseIdempotent(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	signCalls := 0
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			signCalls++
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	sentResponses := 0
+	s.mockStore(func(_ context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		sentResponses += len(req.Messages)
+		return &store.MessageExchangeResponse{}, nil
+	})
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:      "my-brand",
+						AuthorityID:    "my-brand",
+						BaseID:         "msg1",
+						Kind:           "test-kind",
+						Devices:        []string{"serial-1.my-model.my-brand"},
+						ValidSince:     fixedTestTime,
+						ValidUntil:     fixedTestTime.Add(24 * time.Hour),
+						Body:           `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+						ResponseStatus: asserts.MessageStatusSuccess,
+						ResponseBody:   map[string]any{"values": "ok"},
+					},
+				},
+			},
+		},
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	chg := s.st.NewChange("test", "test change")
+	for i := 1; i <= 3; i++ {
+		t := s.st.NewTask("queue-mgmt-response", fmt.Sprintf("queue msg1 attempt %d", i))
+		t.Set("message-id", "msg1")
+		chg.AddTask(t)
+	}
+
+	s.settle(c)
+
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	c.Check(signCalls, Equals, 1)
+	c.Check(sentResponses, Equals, 1)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(*state.State, *devicemgmtstate.RequestMessage) error { return nil },
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			return nil, fmt.Errorf("cannot get result from change: operation failed")
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			c.Check(messageID, Equals, "mesg-1")
+			c.Check(status, Equals, asserts.MessageStatusError)
+			c.Check(string(body), Equals, `{"message":"cannot get result from change: operation failed"}`)
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:     "my-brand",
+						AuthorityID:   "my-brand",
+						BaseID:        "msg1",
+						Kind:          "test-kind",
+						Devices:       []string{"serial-1.my-model.my-brand"},
+						ValidSince:    fixedTestTime,
+						ValidUntil:    fixedTestTime.Add(24 * time.Hour),
+						Body:          `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+						ApplyChangeID: "16384",
+					},
+				},
+			},
+		},
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			c.Error("resultFromChange must not be called when subsystem change cannot be found")
+
+			return nil, nil
+		},
+	})
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("queue-mgmt-response", "queue response for msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, ErrorMatches, `internal error: cannot find subsystem change "16384"`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseNoHandlerForMessageKind(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:   "my-brand",
+						AuthorityID: "my-brand",
+						BaseID:      "msg1",
+						Kind:        "unknown-kind",
+						Devices:     []string{"serial-1.my-model.my-brand"},
+						ValidSince:  fixedTestTime,
+						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
+						Body:        `what is this?`,
+					},
+				},
+			},
+		},
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			c.Check(accountID, Equals, "my-brand")
+			c.Check(messageID, Equals, "msg1")
+			c.Check(status, Equals, asserts.MessageStatusError)
+			c.Check(string(body), Equals, `{"message":"cannot find handler for message kind \"unknown-kind\""}`)
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("queue-mgmt-response", "queue response for msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences, HasLen, 0)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	subsysChg := s.st.NewChange("subsys-op", "subsystem operation")
+	subsysChg.SetStatus(state.DoingStatus)
+
+	ms := &devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"msg1": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:     "my-brand",
+						AuthorityID:   "my-brand",
+						BaseID:        "msg1",
+						Kind:          "test-kind",
+						Devices:       []string{"serial-1.my-model.my-brand"},
+						ValidSince:    fixedTestTime,
+						ValidUntil:    fixedTestTime.Add(24 * time.Hour),
+						Body:          `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+						ApplyChangeID: subsysChg.ID(),
+					},
+				},
+			},
+		},
+		ReadyResponses: make(map[string]store.Message),
+	}
+	s.mgr.SetState(ms)
+
+	changeReady := false
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			if !changeReady {
+				c.Error("resultFromChange must not be called while subsystem change is not ready")
+			}
+
+			return map[string]any{"values": "ok"}, nil
+		},
+	})
+
+	chg := s.st.NewChange("test", "test change")
+	t := s.st.NewTask("queue-mgmt-response", "queue response for msg1")
+	t.Set("message-id", "msg1")
+	chg.AddTask(t)
+
+	s.st.Unlock()
+	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, FitsTypeOf, &state.Retry{})
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.ReadyResponses, HasLen, 0)
+
+	// Now mark the subsystem change as done and verify the handler proceeds.
+	changeReady = true
+	subsysChg.SetStatus(state.DoneStatus)
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.st.Unlock()
+	err = s.mgr.DoQueueResponse(t, &tomb.Tomb{})
+	s.st.Lock()
+	c.Assert(err, IsNil)
+
+	ms, err = s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(*state.State, *devicemgmtstate.RequestMessage) error { return nil },
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			return map[string]any{"values": "ok"}, nil
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(_, _ string, _ asserts.MessageStatus, _ []byte) (*asserts.ResponseMessage, error) {
+			return nil, fmt.Errorf("device key not found")
+		},
+	})
+
+	s.settle(c)
+
+	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
+	c.Assert(changes, HasLen, 1)
+	ti := buildTaskIndex(changes[0])
+
+	queueTask := ti.queue["mesg-1"]
+	c.Assert(queueTask, NotNil)
+	c.Check(queueTask.Status(), Equals, state.ErrorStatus)
+	c.Check(strings.Join(queueTask.Log(), "\n"), testutil.Contains, "cannot sign response message: device key not found")
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromChange(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "msg1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "msg2", "test-kind", "token-2"),
+			},
+		}, nil
+	})
+
+	firstCall := true
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			if firstCall {
+				firstCall = false
+				// Wait for the other lane's full write before resuming.
+				lane2Done := make(chan struct{})
+				s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+					if t.Kind() == "queue-mgmt-response" && new == state.DoneStatus {
+						close(lane2Done)
+						return true
+					}
+					return false
+				})
+
+				s.st.Unlock()
+				<-lane2Done
+				s.st.Lock()
+			}
+
+			return map[string]any{"values": "ok"}, nil
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Assert(ms.ReadyResponses, HasLen, 2)
+	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
+	c.Check(ms.ReadyResponses["msg2"].Format, Equals, "assertion")
 }
 
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {

@@ -32,6 +32,9 @@ execute: |
     echo "Then the two revisions are removed from disk"
     [ "$(snap_revisions basic)" = "0" ]
 
+    echo "And the sequence file is removed"
+    not test -f /var/lib/snapd/sequence/basic.json
+
     echo "When the snap is removed again, snap exits with status 0"
     snap remove basic 2> stderr.out
     MATCH 'snap "basic" is not installed' < stderr.out

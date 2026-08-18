@@ -100,6 +100,34 @@ func (s *SteamSupportInterfaceSuite) TestAppArmorSpecWithoutAllowAll(c *C) {
 	c.Check(snippet, testutil.Contains, "Mimic allow all")
 }
 
+func (s *SteamSupportInterfaceSuite) TestPrioritizedSnippetMountInfo(c *C) {
+	restore := apparmor_sandbox.MockFeatures(nil, nil, []string{"allow-all"}, nil)
+	defer restore()
+	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	spec.AddBasePrioritizedSnippet(`
+deny @{PROC}/self/mountinfo r,
+deny @{PROC}/@{pid}/mountinfo r,
+`, apparmor.MountInfoKey)
+
+	snippet := spec.SnippetForTag("snap.consumer.app")
+	// contains the denials but not the allows
+	c.Assert(snippet, testutil.Contains, "deny @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, testutil.Contains, "deny @{PROC}/self/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "owner @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, Not(testutil.Contains), "owner @{PROC}/self/mountinfo r,")
+
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+
+	snippet = spec.SnippetForTag("snap.consumer.app")
+	// contains the allows but not the denials
+	c.Assert(snippet, testutil.Contains, "owner @{PROC}/@{pid}/mountinfo r,")
+	c.Assert(snippet, testutil.Contains, "owner @{PROC}/self/mountinfo r,")
+	c.Assert(snippet, Not(Matches), "(?s).*\ndeny [^\n]*/mountinfo [^\n]*.*")
+	c.Assert(snippet, Not(Matches), "(?s).*\ndeny [^\n]*/mountinfo [^\n]*.*")
+}
+
 func (s *SteamSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	appSet, err := interfaces.NewSnapAppSet(s.plug.Snap(), nil)
 	c.Assert(err, IsNil)

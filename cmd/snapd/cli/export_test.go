@@ -42,6 +42,8 @@ import (
 
 var RunMain = run
 
+var ExitCodeFromError = exitCodeFromError
+
 var (
 	Client = mkClient
 
@@ -386,6 +388,14 @@ func MockCgroupSnapNameFromPid(f func(pid int) (string, error)) (restore func())
 	}
 }
 
+func MockLogindSessionClass(f func(ctx context.Context) (string, error)) (restore func()) {
+	old := logindSessionClass
+	logindSessionClass = f
+	return func() {
+		logindSessionClass = old
+	}
+}
+
 func MockSyscallUmount(f func(string, int) error) (restore func()) {
 	old := syscallUnmount
 	syscallUnmount = f
@@ -503,8 +513,4 @@ func MockSquashfsGenerateDelta(f func(context.Context, string, string, string, s
 
 func MockSquashfsApplyDelta(f func(context.Context, string, string, string) error) (restore func()) {
 	return testutil.Mock(&squashfsApplyDelta, f)
-}
-
-func MockOsGetuid(f func() int) (restore func()) {
-	return testutil.Mock(&osGetuid, f)
 }

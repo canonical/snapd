@@ -227,6 +227,11 @@ install_dependencies_gce_bucket(){
 ###
 
 prepare_project() {
+    if os.query is-classic && [ -n "$TAG_FEATURES" ]; then
+        # shellcheck source=tests/lib/prepare.sh
+        . "$TESTSLIB"/prepare.sh
+        add_to_grub_kernel_cmdline "tag.features=1"
+    fi
     if [ "$SNAPD_SKIP_EARLY_REFRESH" = true ] && command -v snap >/dev/null 2>&1; then
         "$TESTSTOOLS"/snapd-state cancel-autorefresh
 
@@ -376,6 +381,8 @@ prepare_project() {
         # no packaging setup for 14.04, we're no longer building the packages in
         # CI
         :
+    elif os.query is-ubuntu-ge 26.04; then
+        ln -sf packaging/ubuntu-26.04 debian
     elif os.query is-ubuntu; then
         # TODO generate packaging appropriate for a given ubuntu release
         ln -sf packaging/ubuntu-16.04 debian
@@ -436,6 +443,20 @@ prepare_project() {
 
             # now we can attempt to purge the actual distro package via apt
             distro_purge_package snapd
+            # On ubuntu-26.04+ the snapd deb uses dh_installsystemd and
+            # dh_installsystemduser to enable units. The underlying
+            # deb-systemd-helper tool skips re-creating enable symlinks when
+            # its state files already exist from a prior install, even if the
+            # actual symlinks were removed. Clear the state so that the CI deb
+            # install behaves as a clean first installation and all snapd units
+            # (including snapd.apparmor.service and snapd.session-agent.socket)
+            # are properly enabled.
+            if os.query is-ubuntu-ge 26.04; then
+                find /var/lib/systemd/deb-systemd-helper-enabled \
+                    -name 'snapd*' -delete || true
+                find /var/lib/systemd/deb-systemd-user-helper-enabled \
+                    -name 'snapd*' -delete || true
+            fi
             # XXX: the original package's purge may have left socket units behind
             find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
                 systemctl stop "$(basename "$f")" || true
@@ -534,7 +555,7 @@ prepare_project() {
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
             do_depinstall() {
-                best_golang=golang-1.18
+                best_golang=golang-1.23
                 case "$SPREAD_SYSTEM" in
                     ubuntu-fips-*)
                         # we are limited by the FIPS variants of go toolchain
@@ -546,14 +567,17 @@ prepare_project() {
                         quiet apt install -y golang-1.23
                         ;;
                 esac
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                # The go 1.18 backport is not using alternatives or anything else so
-                # we need to get it on path somehow. This is not perfect but simple.
+                apt build-dep -y ./ # we don't run this for 14.04
+                # We need to ensure the correct version of golang is used.
                 if [ -z "$(command -v go)" ]; then
-                    # the path filesystem path is: /usr/lib/go-1.18/bin
-                    ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
+                    # Find the path to the versioned go which was installed as a dependency
+                    for real_golang in "$best_golang" golang-1.23 golang-1.22 golang-1.21 golang-1.20 golang-1.18 ; do
+                        real_golang_path="/usr/lib/${real_golang/lang/}/bin/go"
+                        if [ -e "$real_golang_path" ]; then
+                            ln -s "$real_golang_path" /usr/bin/go
+                            break
+                        fi
+                    done
                 fi
             }
 
@@ -568,6 +592,17 @@ prepare_project() {
             fi
             ;;
     esac
+
+    if [ "$TAG_FEATURES" = "true" ]; then
+        go_version="$(go env GOVERSION 2>/dev/null | sed 's/^go//')"
+        if [ -n "$go_version" ] && [ "$(printf '%s\n' "$go_version" "1.21" | sort -V | head -n1)" = "1.21" ]; then
+            # slog requires go 1.21, so only add it if go >= 1.21
+            sed -i 's/withtestkeys,/withtestkeys,structuredlogging,/g' packaging/ubuntu*/rules
+        fi
+        pushd "$SPREAD_PATH"
+        go run ./tests/utils/features/instrument-funcs
+        popd
+    fi
 
     # Retry go mod vendor to minimize the number of connection errors during the sync
     # It is required in any case because the testing tools like the fakestore are always compiled
@@ -618,10 +653,8 @@ prepare_project() {
                 exit 1
                 ;;
             ubuntu-*|debian-*)
-                # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
-                gdebi --quiet --apt-line ./debian/control >deps.txt
-                quiet xargs -r eatmydata apt-get install -y < deps.txt
-                
+                apt-get build-dep -y ./ # 14.04 is handled above
+
                 build_deb
                 ;;
             fedora-*|opensuse-*|amazon-*|centos-*)
@@ -773,6 +806,10 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    if [ -n "$TAG_FEATURES" ]; then
+        "$TESTSLIB"/collect-artifacts.sh features --after-suite-prepare
+    fi
 }
 
 restore_suite_each() {
@@ -863,10 +900,19 @@ restore_suite() {
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh
         distro_purge_package snapd
-        if [[ "$SPREAD_SYSTEM" != opensuse-* && "$SPREAD_SYSTEM" != arch-* ]]; then
-            # A snap-confine package never existed on openSUSE or Arch
+        if os.query is-ubuntu-ge 26.04; then
+            find /var/lib/systemd/deb-systemd-helper-enabled \
+                -name 'snapd*' -delete || true
+            find /var/lib/systemd/deb-systemd-user-helper-enabled \
+                -name 'snapd*' -delete || true
+        fi
+	if tests.pkgs is-installed snap-confine; then
             distro_purge_package snap-confine
         fi
+    fi
+    if [ -n "$TAG_FEATURES" ]; then
+        journalctl --rotate || true
+        journalctl --vacuum-time=1s || true
     fi
 }
 

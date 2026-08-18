@@ -347,7 +347,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	c.Assert(err, IsNil)
 
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("foo"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
@@ -412,7 +412,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("foo"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset","migrated-hidden":false,"migrated-exposed-home":false}`)
 
@@ -431,11 +431,6 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithIgnoreRunning(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// With refresh-app-awareness enabled
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 
 	// With a snap "pkg" at revision 42
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
@@ -510,11 +505,6 @@ type testDoUnlinkCurrentSnapWithServicesOpts struct {
 func (s *linkSnapSuite) testDoUnlinkCurrentSnapWithAppsOrServices(c *C, opts testDoUnlinkCurrentSnapWithServicesOpts) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// With refresh-app-awareness enabled
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 
 	// With a snap "pkg" at revision 42
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
@@ -660,10 +650,6 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
-
 	// With a snap "pkg" at revision 42
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(42)}
 
@@ -748,11 +734,6 @@ func (s *linkSnapSuite) TestDoUnlinkCurrentSnapWithKernelModulesComponents(c *C)
 func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapLockUnlocked(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	// Make sure refresh-app-awareness is enabled
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
 
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibitionDuration(s.state) * 2)
@@ -2836,7 +2817,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 
 	// verify sequence file
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "snapd.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("snapd"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"snapd","snap-id":"snapd-snap-id","revision":"20"}],"current":"20","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
@@ -2845,26 +2826,9 @@ func (s *linkSnapSuite) TestDoUnlinkSnapRefreshAwarenessHardCheckOn(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", true)
-	tr.Commit()
-
 	chg := s.testDoUnlinkSnapRefreshAwareness(c)
 
 	c.Check(chg.Err(), ErrorMatches, `(?ms).*^- some-change-descr \(snap "some-snap" has running apps \(some-app\), pids: 1234\).*`)
-}
-
-func (s *linkSnapSuite) TestDoUnlinkSnapRefreshHardCheckOff(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness", false)
-	tr.Commit()
-
-	chg := s.testDoUnlinkSnapRefreshAwareness(c)
-
-	c.Check(chg.Err(), IsNil)
 }
 
 func (s *linkSnapSuite) testDoUnlinkSnapRefreshAwareness(c *C) *state.Change {

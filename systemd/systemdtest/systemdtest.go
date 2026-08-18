@@ -114,6 +114,12 @@ type FakeSystemd struct {
 
 	ListMountUnitsCalls  []ParamsForListMountUnits
 	ListMountUnitsResult ResultForListMountUnits
+
+	StopCalls  [][]string
+	StopResult error
+
+	StartCalls  [][]string
+	StartResult error
 }
 
 type ParamsForConfigureMountUnitOptions struct {
@@ -136,6 +142,7 @@ type ResultForEnsureMountUnitFile struct {
 type ParamsForListMountUnits struct {
 	SnapName string
 	Origin   string
+	Filter   systemd.MountUnitFilter
 }
 
 type ResultForListMountUnits struct {
@@ -167,8 +174,18 @@ func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
 	return s.RemoveMountUnitFileResult
 }
 
-func (s *FakeSystemd) ListMountUnits(snapName, origin string) ([]string, error) {
+func (s *FakeSystemd) ListMountUnits(snapName, origin string, filter systemd.MountUnitFilter) ([]string, error) {
 	s.ListMountUnitsCalls = append(s.ListMountUnitsCalls,
-		ParamsForListMountUnits{SnapName: snapName, Origin: origin})
+		ParamsForListMountUnits{SnapName: snapName, Origin: origin, Filter: filter})
 	return s.ListMountUnitsResult.MountPoints, s.ListMountUnitsResult.Err
+}
+
+func (s *FakeSystemd) Stop(units []string) error {
+	s.StopCalls = append(s.StopCalls, append([]string{}, units...))
+	return s.StopResult
+}
+
+func (s *FakeSystemd) Start(units []string) error {
+	s.StartCalls = append(s.StartCalls, append([]string{}, units...))
+	return s.StartResult
 }

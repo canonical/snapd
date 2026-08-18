@@ -20,11 +20,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -124,7 +124,7 @@ func (x *cmdKnown) Execute(args []string) error {
 		assertions, err = x.client.Known(string(x.KnownOptions.AssertTypeName), headers, &client.KnownOptions{Remote: true})
 		// if snapd is unavailable automatically fallback
 		var connErr client.ConnectionError
-		if xerrors.As(err, &connErr) {
+		if errors.As(err, &connErr) {
 			assertions, err = downloadAssertion(string(x.KnownOptions.AssertTypeName), headers)
 		}
 	case x.Direct:

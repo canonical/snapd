@@ -20,18 +20,23 @@
 package builtin_test
 
 import (
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type UPowerObserveInterfaceSuite struct {
+	testutil.BaseTest
+
 	iface           interfaces.Interface
 	coreSlotInfo    *snap.SlotInfo
 	coreSlot        *interfaces.ConnectedSlot
@@ -39,6 +44,7 @@ type UPowerObserveInterfaceSuite struct {
 	classicSlot     *interfaces.ConnectedSlot
 	plugInfo        *snap.PlugInfo
 	plug            *interfaces.ConnectedPlug
+	rootdir         string
 }
 
 var _ = Suite(&UPowerObserveInterfaceSuite{
@@ -78,6 +84,11 @@ apps:
 
 	// snap with the upower-observe plug
 	s.plug, s.plugInfo = MockConnectedPlug(c, mockPlugSnapInfoYaml, nil, "upower-observe")
+
+	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
+
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 func (s *UPowerObserveInterfaceSuite) TestName(c *C) {
@@ -219,11 +230,39 @@ func (s *UPowerObserveInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c
 	c.Assert(apparmorSpec.SnippetForTag("snap.upowerd.app"), testutil.Contains, `peer=(label="snap.upower.app"),`)
 }
 
-func (s *UPowerObserveInterfaceSuite) TestStaticInfo(c *C) {
+func (s *UPowerObserveInterfaceSuite) TestStaticInfoClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
 	si := interfaces.StaticInfoOf(s.iface)
-	c.Check(si.ImplicitOnCore, Equals, osutil.IsExecutable("/usr/libexec/upowerd"))
+	c.Check(si.ImplicitOnCore, Equals, false)
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows operating as or reading from the UPower service")
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "upower-observe")
+}
+
+func (s *UPowerObserveInterfaceSuite) TestStaticInfoCoreWithUpower(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	cmd := testutil.MockCommand(c, filepath.Join(s.rootdir, "usr/libexec/upowerd"), "")
+	defer cmd.Restore()
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, true)
+	c.Check(si.ImplicitOnClassic, Equals, true)
+	c.Check(si.BaseDeclarationSlots, testutil.Contains, "upower-observe")
+
+	// double check the command hasn't been called
+	c.Check(cmd.Calls(), HasLen, 0)
+}
+
+func (s *UPowerObserveInterfaceSuite) TestStaticInfoCoreWithoutUpower(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	// no mocked usr/libexec/upowerd
+
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Check(si.ImplicitOnCore, Equals, false)
+	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "upower-observe")
 }
 

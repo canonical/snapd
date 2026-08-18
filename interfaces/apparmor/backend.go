@@ -895,6 +895,10 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
   # to the actual snap-confine profile
   /usr/bin/snap ixr,
   /snap/{snapd,core}/*/usr/bin/snap ixr,
+  # allow executing snapd binary through a symlink. snapd implements the actual
+  # usr/bin/snap functionality
+  /usr/lib{,exec}/snapd/snapd ixr,
+  /snap/{snapd,core}/*/usr/lib/snapd/snapd ixr,
 
   # allow transitioning to snap-confine to support executing strict snaps from
   # inside devmode confined snaps

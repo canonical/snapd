@@ -10,7 +10,7 @@ from io import StringIO
 import unittest
 
 import featextractor
-from featextractor import CmdFeature, EndpointFeature, InterfaceFeature, TaskFeature, ChangeFeature, EnsureFeature 
+from featextractor import CmdFeature, EndpointFeature, InterfaceFeature, TaskFeature, ChangeFeature, EnsureFeature, CoverageFeature
 from features import *
 from state import State
 
@@ -125,6 +125,23 @@ class TestExtract(unittest.TestCase):
         assert Change(kind="kind1", snap_types=["snapd"]) in d['changes']
         assert Change(kind="kind2", snap_types=["app"]) in d['changes']
         assert Change(kind="kind3", snap_types=[]) in d['changes']
+
+    def test_extract_coverage(self):
+        file1 = "core/overlord/snapstate.go"
+        func1 = "snapstate.doInstall"
+        file2 = "core/daemon/api.go"
+        func2 = "daemon.handleGet"
+        loglines = [
+            {"msg":CoverageFeature.msg, CoverageLogLine.file:file1, CoverageLogLine.func:func1},
+            {"msg":CoverageFeature.msg, CoverageLogLine.file:file2, CoverageLogLine.func:func2},
+            {"msg":CoverageFeature.msg, CoverageLogLine.file:file1, CoverageLogLine.func:func1},
+        ]
+        logs = _get_stringio_from_loglines(loglines)
+        d = featextractor.get_feature_dictionary(logs, ['coverage'], State({}))
+        assert len(d) == 1
+        assert 'coverages' in d and len(d['coverages']) == 2
+        assert Coverage(file=file1, func=func1) in d['coverages']
+        assert Coverage(file=file2, func=func2) in d['coverages']
 
 if __name__ == '__main__':
     unittest.main()

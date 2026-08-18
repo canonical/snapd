@@ -7,7 +7,6 @@ details: |
     on the desktop to be handle by "snap handle-link".
 
 systems:
-    - -amazon-linux-2-*  # does not support systemd --user
     - -ubuntu-14.04-*  # not supported as desktop OS, systemd too old for tests.session
     - -ubuntu-core-*  # test exercises regular xdg-open, not the custom one in ubuntu-core
 

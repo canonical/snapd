@@ -843,6 +843,10 @@ func (iface *dockerSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 		}
 	}
 
+	// we need to override the base denial of /proc/self/mountinfo otherwise that
+	// denial would take priority over the broad `@{PROC}/** r,`
+	spec.AddPrioritizedSnippet(mountInfoSnippet, apparmor.MountInfoKey, mountInfoPriority)
+
 	spec.SetUsesPtraceTrace()
 	return nil
 }

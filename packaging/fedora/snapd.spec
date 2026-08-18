@@ -114,7 +114,7 @@
 %endif
 
 Name:           snapd
-Version:        2.76
+Version:        2.77
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPL-3.0-only
@@ -194,8 +194,6 @@ BuildRequires: golang(golang.org/x/crypto/openpgp/armor)
 BuildRequires: golang(golang.org/x/crypto/openpgp/packet)
 BuildRequires: golang(golang.org/x/crypto/sha3)
 BuildRequires: golang(golang.org/x/crypto/ssh/terminal)
-BuildRequires: golang(golang.org/x/xerrors)
-BuildRequires: golang(golang.org/x/xerrors/internal)
 BuildRequires: golang(gopkg.in/check.v1)
 BuildRequires: golang(gopkg.in/macaroon.v1)
 BuildRequires: golang(gopkg.in/mgo.v2/bson)
@@ -293,8 +291,6 @@ Requires:      golang(golang.org/x/crypto/openpgp/armor)
 Requires:      golang(golang.org/x/crypto/openpgp/packet)
 Requires:      golang(golang.org/x/crypto/sha3)
 Requires:      golang(golang.org/x/crypto/ssh/terminal)
-Requires:      golang(golang.org/x/xerrors)
-Requires:      golang(golang.org/x/xerrors/internal)
 Requires:      golang(gopkg.in/check.v1)
 Requires:      golang(gopkg.in/macaroon.v1)
 Requires:      golang(gopkg.in/mgo.v2/bson)
@@ -324,8 +320,6 @@ Provides:      bundled(golang(golang.org/x/crypto/openpgp/armor))
 Provides:      bundled(golang(golang.org/x/crypto/openpgp/packet))
 Provides:      bundled(golang(golang.org/x/crypto/sha3))
 Provides:      bundled(golang(golang.org/x/crypto/ssh/terminal))
-Provides:      bundled(golang(golang.org/x/xerrors))
-Provides:      bundled(golang(golang.org/x/xerrors/internal))
 Provides:      bundled(golang(gopkg.in/check.v1))
 Provides:      bundled(golang(gopkg.in/macaroon.v1))
 Provides:      bundled(golang(gopkg.in/mgo.v2/bson))
@@ -358,21 +352,24 @@ Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/client/clientutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-failure) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap-preseed) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-recovery-chooser) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-repair) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-seccomp) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-seccomp/syscalls) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-update-ns) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapctl) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapctl/tool/snapctl) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapctl/tool/snap-exec) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/cli) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snapd/daemon) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snap-preseed) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snap-gpio-helper) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd/tool/snapd-apparmor) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snaplock/runinhibit) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
@@ -724,6 +721,13 @@ popd
             SNAPD_DEFINES_DIR=$PWD \
             install
 
+# Install the CLI wrapper as /usr/bin/snap, replacing the symlink installed by
+# snapd.mk. The wrapper is a real binary carrying snappy_cli_exec_t so that the
+# SELinux domain transition to snappy_cli_t fires correctly on exec. This works
+# even if not using SElinux.
+rm -f %{buildroot}%{_bindir}/snap
+install -m 0755 cmd/snap-cli-wrap/snap-cli-wrap %{buildroot}%{_bindir}/snap
+
 %if 0%{?rhel} == 7
 # Install kernel tweaks
 # See: https://access.redhat.com/articles/3128691
@@ -735,6 +739,11 @@ rm -fv %{buildroot}%{_unitdir}/snapd.failure.service
 
 # Remove gpio-chardev ordering target
 rm -f %{buildroot}%{_unitdir}/snapd.gpio-chardev-setup.target
+
+# Drop tools not shipped on Fedora (handled via snapd multi-call dispatch
+# on Ubuntu/Debian; on Fedora these binaries are not needed)
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-gpio-helper
 
 # Disable re-exec by default
 mkdir -p %{buildroot}%{_sysconfdir}/sysconfig
@@ -792,7 +801,7 @@ sort -u -o devel.file-list devel.file-list
 %endif
 
 %check
-for binary in snap-exec snap-update-ns snapctl; do
+for binary in snap-update-ns snapctl; do
     ldd %{_builddir}/$binary 2>&1 | grep 'not a dynamic executable'
 done
 
@@ -826,6 +835,7 @@ make -C data -k check
 %{_libexecdir}/snapd/info
 %{_libexecdir}/snapd/snap-mgmt
 %{_libexecdir}/snapd/snapd-apparmor
+%{_libexecdir}/snapd/snapd-tool-wrap
 %if 0%{?with_selinux}
 %{_libexecdir}/snapd/snap-mgmt-selinux
 %endif
@@ -944,6 +954,9 @@ make -C data -k check
 %endif
 
 %post
+# Create the private tmp directory for snap-confine
+install -d -m 0700 /tmp/snap-private-tmp
+
 %if 0%{?rhel} == 7
 %sysctl_apply 99-snap.conf
 %endif
@@ -1001,6 +1014,10 @@ fi
 %post selinux
 %selinux_modules_install %{_datadir}/selinux/packages/snappy.pp.bz2
 %selinux_relabel_post
+# Ensure the private tmp directory for snap-confine exists and has the correct
+# SELinux label now that the policy module is loaded
+install -d -m 0700 /tmp/snap-private-tmp
+restorecon /tmp/snap-private-tmp || :
 
 %posttrans selinux
 %selinux_relabel_post
@@ -1013,6 +1030,109 @@ fi
 %endif
 
 %changelog
+* Fri Jul 24 2026 Sergio Cazzolato <sergio.cazzolato@canonical.com>
+- New upstream release 2.77
+ - FDE: add reseal check after snapd refresh
+ - FDE: allow reprovision without factory reset
+ - FDE: make reprovision only seal
+ - FDE: add reprovision recovery key generation API
+ - FDE: extend /v2/system-info/storage-encrypted to show install-time decisions
+ - Interfaces: kernel-sched-ext-control | add the kernel sched-ext
+   control interface implementation
+ - Interfaces: allow reading of /proc/self/smaps_rollup
+ - Interfaces: allow Wine to execute files accessed via the Document
+   Portal
+ - Interfaces: allow gtk css in subdirectories
+ - Interfaces: docker | allow connecting to system-wide docker on
+   classic
+ - Interfaces: allow the systemd networkctl command
+ - Interfaces: allow systemd networkd link property changes via D-Bus
+ - Interfaces: grant default access to memory.high in a snap's cgroup
+ - Interfaces: fix mountinfo denial for steam and docker interfaces
+ - Interfaces: add xdg-portal-permission-store interface
+ - Interfaces: add atkey pid and 7 relative vid support
+ - Interfaces: make polkit and upower implicit on Core systems only
+ - Confdb: add validation-sets handler and fix data loss when writing
+   to new schemas or accounts
+ - Confdb: fix bug on reading uneven lists
+ - Confdb: support sign-only external keypair backends
+ - Confdb: support Encode/Decode for builtins
+ - Remote device management: add post install actions API, apply
+   messages, queue response messages, and sequencing for dispatch of
+   management messages
+ - Packaging: assign a default label for /tmp/snap-private-tmp and
+   set it during installation
+ - Packaging: fix service startup during install and session-agent
+   socket handling on Ubuntu 26.04+
+ - Packaging: update bundled AppArmor to 5.0.2 and accept the 5.0 ABI
+   when running as deb
+ - Packaging: use a relative symlink for snapctl and update steam-
+   support udev rules
+ - Packaging: add back gbp.conf output directory for Ubuntu 26.04
+   builds
+ - Packaging: build deb with Go 1.23 for noble and jammy, Go 1.22 for
+   focal
+ - Cross-distro: update SELinux policy to allow snapd socket
+   activation
+ - Cross-distro: update SELinux policy to support /etc/ld.so.cache
+   mounting
+ - Snap: add run-inhibit hints, better component reporting, snap
+   delta support, and improved install handling
+ - snap-confine: work around kernel mnt_ns_loop() ordering bug on
+   6.18.x
+ - Snap-confine: allow inheriting unix sockets from snaps, link to
+   libm, and harden bpffs mounts
+ - Snap-confine: fix mountinfo parsing, set FD_CLOEXEC on BPF helper
+   fds, and support transparent huge pages
+ - Snap-update-ns: switch to a multi-pass process for constructing
+   and updating mount namespaces
+ - Core-initrd: add missing libbpf and systemd dlopen dependencies,
+   and increase mount burst
+ - Security logging: add seclog API for administrative actions and
+   token create/remove events
+ - Prompting: re-enable the prompting notice backend and improve
+   validation and error handling
+ - Cmd/snap: report hidden file access for paths allowed by home when
+   prompting is active
+ - Cmd/snap: report read-only file access for paths allowed by
+   system-package-doc
+ - Cmd/snap: fix self-managed cgroup support checks
+ - Experimental features: graduate layouts, classic-preserves-xdg-
+   runtime-dir, refresh-app-awareness, and dbus-activation features
+ - Experimental features: warn when setting graduated or default-
+   enabled experimental features and do not store settings for
+   graduated features
+
+* Tue Jul 07 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.76.3
+ - FDE: support keyboard configuration at install-time for first-boot
+ - FDE: re-enable passphrases/PINs at install-time
+ - FDE: require volumes authentication if HWROT is missing
+ - FDE: bump secboot to rev 457b03a16d19
+ - FDE: use new secboot API for reprovision TPM
+ - Cross-distro: modify SELinux policy to use
+   init_named_socket_activation() for allowing systemd to start snapd
+   through socket activation
+ - packaging: make sure that usr/bin/snap is built with correct build
+   tags on debian sid
+ - Ensure profiles are setup before running prepare-{slot, plug}*
+   hooks
+
+* Tue Jul 07 2026 Katie May <katie.may@canonical.com>
+- New upstream release 2.76.2
+ - interfaces: steam-support, docker-support | fix mountinfo denial
+
+* Thu Jun 25 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.76.1
+ - LP: #2067006 CVE-2024-5300
+ - CVE-2026-3888
+
+* Sat Jun 20 2026 Ernest Lotter <ernest.lotter@canonical.com>
+- New upstream release 2.76.1
+ - LP: #2067006 CVE-2024-5300
+ - CVE-2026-3888
+ - SNAPDENG-36017
+
 * Thu May 28 2026 Ernest Lotter <ernest.lotter@canonical.com>
 - New upstream release 2.76
  - assertions: add helper for validating integrity data

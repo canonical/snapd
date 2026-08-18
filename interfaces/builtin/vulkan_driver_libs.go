@@ -38,10 +38,10 @@ import (
 
 const vulkanDriverLibsSummary = `allows exposing vulkan driver libraries to the system`
 
-// Plugs only supported for the system on classic for the moment (note this is
-// checked on "system" snap installation even though this is an implicit plug
-// in that case) - in the future we will allow snaps having this as plug and
-// this declaration will have to change.
+// Plugs only supported for the system snap (note this is checked on "system"
+// snap installation even though this is an implicit plug in that case) - in
+// the future we will allow snaps having this as plug and this declaration will
+// have to change.
 const vulkanDriverLibsBaseDeclarationPlugs = `
   vulkan-driver-libs:
     allow-installation:
@@ -97,6 +97,11 @@ func (iface *vulkanDriverLibsInterface) BeforePrepareSlot(slot *snap.SlotInfo) e
 
 func (iface *vulkanDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	// The plug can only be the system plug for the time being
+	// ldconfig is only used on classic; on core the libraries are exported
+	// via /var/lib/snapd/export instead.
+	if !release.OnClassic {
+		return nil
+	}
 	return addLdconfigLibDirs(spec, slot)
 }
 
@@ -238,6 +243,11 @@ func checkLayer(slot *interfaces.ConnectedSlot, layer vulkanLayer) error {
 }
 
 func (iface *vulkanDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Symlinks are only created on classic; on core the libraries are
+	// exported via /var/lib/snapd/export instead.
+	if !release.OnClassic {
+		return nil
+	}
 	for _, sourceAttr := range []struct {
 		sda       sourceDirAttr
 		targetDir string
@@ -265,13 +275,8 @@ func (t *vulkanDriverLibsInterface) PathPatterns() []string {
 }
 
 func (iface *vulkanDriverLibsInterface) ConfigfilesConnectedPlug(spec *configfiles.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// Files used by snap-confine on classic
-	if release.OnClassic {
-		if err := addConfigfilesForSystemLibrarySourcePaths(vulkanDriverLibs, spec, slot); err != nil {
-			return err
-		}
-	}
-	return nil
+	// Files used by snap-confine on classic and core
+	return addConfigfilesForSystemLibrarySourcePaths(vulkanDriverLibs, spec, slot)
 }
 
 func (iface *vulkanDriverLibsInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {
@@ -287,8 +292,8 @@ func init() {
 			summary:              vulkanDriverLibsSummary,
 			baseDeclarationPlugs: vulkanDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: vulkanDriverLibsBaseDeclarationSlots,
-			// Not supported on core yet
-			implicitPlugOnCore:    false,
+			// Supported on core and classic
+			implicitPlugOnCore:    true,
 			implicitPlugOnClassic: true,
 		},
 	})

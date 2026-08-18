@@ -37,7 +37,7 @@ execute: |
             exit 1
         fi
         running="$(readlink -f /proc/"$(pidof snapd)"/exe)"
-        if echo "$running" | grep "/snap/snapd/$current/usr/lib/"; then
+        if echo "$running" | grep "/snap/snapd/$current/usr/"; then
             echo "The current running snapd is not $running"
             exit 1
         fi
@@ -48,7 +48,7 @@ execute: |
         snap list | MATCH "snapd.*$current "
         echo "And we see the original snapd running"
         running="$(readlink -f /proc/"$(pidof snapd)"/exe)"
-        echo "$running" | MATCH "/snap/snapd/$current/usr/lib/"
+        echo "$running" | MATCH "/snap/snapd/$current/usr/"
     done
     snap changes | MATCH 'Install "snapd"'
     snap changes | MATCH 'Revert "snapd" snap'

@@ -49,6 +49,8 @@ import (
 	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/snapshotstate/backend"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -58,6 +60,7 @@ type snapshotSuite struct {
 	restore   []func()
 	tarPath   string
 	isTesting bool
+	sysd      *systemdtest.FakeSystemd
 }
 
 // silly wrappers to get better failure messages
@@ -114,6 +117,7 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 	cur, err := user.Current()
 	c.Assert(err, check.IsNil)
 
+	s.sysd = &systemdtest.FakeSystemd{}
 	s.restore = append(s.restore, backend.MockUserLookup(func(username string) (*user.User, error) {
 		if username != "snapuser" {
 			return nil, user.UnknownUserError(username)
@@ -124,6 +128,10 @@ func (s *snapshotSuite) SetUpTest(c *check.C) {
 		return &rv, nil
 	}),
 		backend.MockIsTesting(s.isTesting),
+		osutil.MockMountInfo(""),
+		systemd.MockNewSystemd(func(_ systemd.Backend, _ string, _ systemd.InstanceMode, _ systemd.Reporter) systemd.Systemd {
+			return s.sysd
+		}),
 	)
 
 	s.tarPath, err = exec.LookPath("tar")

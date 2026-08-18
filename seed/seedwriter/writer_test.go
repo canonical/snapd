@@ -542,6 +542,72 @@ func (s *writerSuite) TestDownloadedCore18(c *C) {
 	c.Check(w.Warnings(), HasLen, 0)
 }
 
+func (s *writerSuite) TestDownloadedHybridClassic(c *C) {
+	s.opts.Label = "20260706"
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]any{
+		"architecture": "amd64",
+		"base":         "core18",
+		"classic":      "true",
+		"distribution": "ubuntu",
+		"grade":        "dangerous",
+		"snaps": []any{
+			map[string]any{
+				"name": "pc",
+				"id":   s.AssertedSnapID("pc"),
+				"type": "gadget",
+			},
+			map[string]any{
+				"name": "pc-kernel",
+				"id":   s.AssertedSnapID("pc-kernel"),
+				"type": "kernel",
+			},
+			map[string]any{
+				"name": "core18",
+				"id":   s.AssertedSnapID("core18"),
+				"type": "base",
+			},
+			map[string]any{
+				"name": "snapd",
+				"id":   s.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+	c.Assert(model.HybridClassic(), Equals, true)
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "pc-kernel=18", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "pc=18", "")
+
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+
+	err = w.Start(s.db, s.rf)
+	c.Assert(err, IsNil)
+
+	snaps, err := w.SnapsToDownload()
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 4)
+	c.Check(naming.SameSnap(snaps[0], naming.Snap("snapd")), Equals, true)
+	c.Check(naming.SameSnap(snaps[1], naming.Snap("pc-kernel")), Equals, true)
+	c.Check(naming.SameSnap(snaps[2], naming.Snap("core18")), Equals, true)
+	c.Check(naming.SameSnap(snaps[3], naming.Snap("pc")), Equals, true)
+
+	for _, sn := range snaps {
+		s.fillDownloadedSnap(c, w, sn)
+	}
+
+	complete, err := w.Downloaded(s.fetchAsserts(c))
+	c.Assert(err, IsNil)
+	c.Check(complete, Equals, true)
+
+	bootSnaps, err := w.BootSnaps()
+	c.Assert(err, IsNil)
+	c.Check(bootSnaps, DeepEquals, snaps)
+}
+
 func (s *writerSuite) TestSnapsToDownloadCore18IncompatibleTrack(c *C) {
 	model := s.Brands.Model("my-brand", "my-model", map[string]any{
 		"display-name":   "my model",

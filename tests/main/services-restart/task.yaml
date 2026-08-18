@@ -31,7 +31,7 @@ execute: |
 
     echo "We can see all services running"
     for id in 1 2 3 4; do
-        systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "running"
+        systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH ' \(running\) '
     done
 
     echo "Stopping services 3 and 4"
@@ -62,11 +62,11 @@ execute: |
 
     echo "Check that services 1, 2 and 4 are running"
     for id in 1 2 4; do
-        systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "running"
+        systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH ' \(running\) '
     done
 
     echo "Check that service 3 is not running"
-    systemctl status snap.test-snapd-service-restart.svc3.service | MATCH "inactive"
+    systemctl status snap.test-snapd-service-restart.svc3.service | MATCH ' inactive '
 
     echo "Fetching execution timestamps after restart"
     for id in 1 2 3 4; do
@@ -85,4 +85,4 @@ execute: |
     # Now verify that services explicitly mentioned on the command line always
     # get restarted, regardless of their current state
     snap restart $EXTRA_FLAGS test-snapd-service-restart.svc3
-    systemctl status snap.test-snapd-service-restart.svc3.service | MATCH "running"
+    systemctl status snap.test-snapd-service-restart.svc3.service | MATCH ' \(running\) '

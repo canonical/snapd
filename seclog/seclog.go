@@ -153,6 +153,34 @@ func LogLoginFailure(user SnapdUser, reason Reason) {
 	)
 }
 
+// LogAuthnTokenCreated logs a local snapd macaroon creation event using the
+// global security logger.
+func LogAuthnTokenCreated(user SnapdUser, tokenID int) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHN", Name: "authn_token_created", Level: LevelInfo},
+		fmt.Sprintf("Token created for user %s", user.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "token_id", Value: tokenID},
+	)
+}
+
+// LogAuthnTokenDeleted logs a local snapd macaroon deletion event using the
+// global security logger.
+func LogAuthnTokenDeleted(user SnapdUser, tokenID int) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	globalLogger.LogEvent(
+		Event{Category: "AUTHN", Name: "authn_token_delete", Level: LevelInfo},
+		fmt.Sprintf("Token deleted for user %s", user.String()),
+		Attr{Key: "user", Value: user},
+		Attr{Key: "token_id", Value: tokenID},
+	)
+}
+
 // LogUserCreated logs a user creation event using the global security logger.
 func LogUserCreated(user SnapdUser) {
 	lock.Lock()
@@ -193,17 +221,22 @@ func LogUserRemoved(user SnapdUser) {
 // LogAdminActivity logs an administrative API access event using the
 // global security logger. It is emitted when authorization succeeds (the
 // access gate passed), not when the API operation or handler succeeds.
-func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks) {
+//
+// grantReason identifies why access was granted; see [GrantReason].
+// When an interface connection also contributed, pass the result of
+// [GrantReason.WithInterface].
+func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, grantReason GrantReason) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_admin", Level: LevelInfo},
-		fmt.Sprintf("User %s from %s accessed %s", user.String(), peer.String(), endpoint.String()),
+		fmt.Sprintf("User %s from %s granted access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), grantReason),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
+		Attr{Key: "reason_granted", Value: grantReason},
 	)
 }
 
@@ -211,18 +244,19 @@ func LogAdminActivity(user SnapdUser, peer Peer, endpoint Endpoint, checks Authz
 // global security logger. It is emitted when authorization fails (the
 // access gate denied the request), not when the API operation or handler
 // fails after access was granted.
-func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, checks AuthzChecks, reason Reason) {
+//
+// denialReason identifies why access was denied; see [DenialReason].
+func LogUnauthorizedAccess(user SnapdUser, peer Peer, endpoint Endpoint, denialReason DenialReason) {
 	lock.Lock()
 	defer lock.Unlock()
 
 	globalLogger.LogEvent(
 		Event{Category: "AUTHZ", Name: "authz_fail", Level: LevelCritical},
-		fmt.Sprintf("User %s from %s attempted to access %s without authorization: %s",
-			user.String(), peer.String(), endpoint.String(), reason.String()),
+		fmt.Sprintf("User %s from %s denied access to %s (%s)",
+			user.String(), peer.String(), endpoint.String(), denialReason),
 		Attr{Key: "user", Value: user},
 		Attr{Key: "peer", Value: peer},
 		Attr{Key: "endpoint", Value: endpoint},
-		Attr{Key: "authz_checks", Value: checks},
-		Attr{Key: "error", Value: reason},
+		Attr{Key: "reason_denied", Value: denialReason},
 	)
 }

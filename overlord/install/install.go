@@ -90,6 +90,10 @@ type EncryptionSupportInfo struct {
 	// availability errors identified during preinstall check.
 	AvailabilityCheckErrors []secboot.PreinstallErrorDetails
 
+	// seenAvailabilityCheckErrorKinds holds a sticky list of all seen preinstall
+	// check error kinds for the lifetime of the check context.
+	seenAvailabilityCheckErrorKinds map[string]bool
+
 	// availabilityCheckContext holds the configuration and state captured during
 	// the preinstall check. It is required for performing follow-up checks with
 	// actions to resolve identified errors. It is also an indicator that the
@@ -107,6 +111,26 @@ type EncryptionSupportInfo struct {
 // CheckContext returns the underlying preinstall check context.
 func (esi *EncryptionSupportInfo) CheckContext() *secboot.PreinstallCheckContext {
 	return esi.availabilityCheckContext
+}
+
+type EncryptionSupportRequirement string
+
+const (
+	// Indicates that the system requires authentication (e.g. PIN, passphrase).
+	EncryptionSupportRequirementVolumesAuth EncryptionSupportRequirement = "volumes-auth"
+)
+
+// Requirements returns the list of encryption support requirements.
+func (esi *EncryptionSupportInfo) Requirements() []EncryptionSupportRequirement {
+	return encryptionSupportRequirements(esi.seenAvailabilityCheckErrorKinds)
+}
+
+func encryptionSupportRequirements(preinstallErrors map[string]bool) []EncryptionSupportRequirement {
+	var requirements []EncryptionSupportRequirement
+	if preinstallErrors[secboot.ErrorKindNoHardwareRootOfTrust] {
+		requirements = append(requirements, EncryptionSupportRequirementVolumesAuth)
+	}
+	return requirements
 }
 
 // ComponentSeedInfo contains information for a component from the seed and
@@ -139,6 +163,7 @@ var (
 	secbootPreinstallCheckAction       = (*secboot.PreinstallCheckContext).PreinstallCheckAction
 	secbootSaveCheckResult             = (*secboot.PreinstallCheckContext).SaveCheckResult
 	secbootCheckResult                 = (*secboot.PreinstallCheckContext).CheckResult
+	secbootLoadCheckResult             = secboot.LoadCheckResult
 	secbootFDEOpteeTAPresent           = secboot.FDEOpteeTAPresent
 	preinstallCheckTimeout             = 2 * time.Minute
 
@@ -195,6 +220,12 @@ func BuildKernelBootInfo(kernInfo *snap.Info, compSeedInfos []ComponentSeedInfo,
 func (esi *EncryptionSupportInfo) SetAvailabilityCheckContext(checkContext *secboot.PreinstallCheckContext) {
 	osutil.MustBeTestBinary("secbootPreinstallCheck can only be used in tests")
 	esi.availabilityCheckContext = checkContext
+}
+
+// SetSeenAvailabilityCheckErrorKinds is a test only helper for populating EncryptionSupportInfo field seenAvailabilityCheckErrorKinds.
+func (esi *EncryptionSupportInfo) SetSeenAvailabilityCheckErrorKinds(kinds map[string]bool) {
+	osutil.MustBeTestBinary("SetSeenAvailabilityCheckErrorKinds can only be used in tests")
+	esi.seenAvailabilityCheckErrorKinds = kinds
 }
 
 // MockSecbootCheckTPMKeySealingSupported mocks secbootCheckTPMKeySealingSupported usage by the package for testing.
@@ -282,21 +313,29 @@ type EncryptionConstraints struct {
 	Gadget        *gadget.Info
 	TPMMode       secboot.TPMProvisionMode
 	SnapdVersions SystemSnapdVersions
-	CheckContext  *secboot.PreinstallCheckContext
 	CheckAction   *secboot.PreinstallAction
+	PrevInfo      *EncryptionSupportInfo
 }
 
 // GetEncryptionSupportInfo returns the encryption support information
 // for the given model, TPM provision mode, kernel and gadget information and
 // system hardware. It uses runSetupHook to invoke the kernel fde-setup hook if
 // any is available, leaving the caller to decide how, based on the environment.
-func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fde.RunSetupHookFunc) (EncryptionSupportInfo, error) {
+func GetEncryptionSupportInfo(
+	constraints EncryptionConstraints,
+	runSetupHook fde.RunSetupHookFunc,
+) (EncryptionSupportInfo, error) {
 	secured := constraints.Model.Grade() == asserts.ModelSecured
 	dangerous := constraints.Model.Grade() == asserts.ModelDangerous
 	encrypted := constraints.Model.StorageSafety() == asserts.StorageSafetyEncrypted
 
 	res := EncryptionSupportInfo{
 		StorageSafety: constraints.Model.StorageSafety(),
+	}
+	if constraints.PrevInfo != nil {
+		// accumulate seen errors from previous checks even if they were cleared
+		// with a "proceed" action.
+		res.seenAvailabilityCheckErrorKinds = constraints.PrevInfo.seenAvailabilityCheckErrorKinds
 	}
 
 	// check if we should disable encryption non-secured devices
@@ -330,8 +369,12 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 	case checkOPTEEEncryption:
 		res.Type = device.EncryptionTypeLUKS
 	case checkSecbootEncryption:
+		var prevCheckContext *secboot.PreinstallCheckContext
+		if constraints.PrevInfo != nil {
+			prevCheckContext = constraints.PrevInfo.availabilityCheckContext
+		}
 		preinstallCheckContext, unavailableReason, preinstallErrorDetails, err := encryptionAvailabilityCheck(
-			constraints.CheckContext,
+			prevCheckContext,
 			constraints.CheckAction,
 			constraints.Model,
 			constraints.TPMMode,
@@ -346,6 +389,14 @@ func GetEncryptionSupportInfo(constraints EncryptionConstraints, runSetupHook fd
 		} else {
 			checkEncryptionErr = errors.New(unavailableReason)
 			res.AvailabilityCheckErrors = preinstallErrorDetails
+			if len(preinstallErrorDetails) > 0 {
+				if res.seenAvailabilityCheckErrorKinds == nil {
+					res.seenAvailabilityCheckErrorKinds = make(map[string]bool, len(preinstallErrorDetails))
+				}
+				for _, errDetails := range preinstallErrorDetails {
+					res.seenAvailabilityCheckErrorKinds[errDetails.Kind] = true
+				}
+			}
 		}
 	default:
 		return res, fmt.Errorf("internal error: no encryption checked in encryptionSupportInfo")
@@ -1070,4 +1121,35 @@ func (p *preseedSnapHandler) HandleAndDigestAssertedContainer(cpi snap.Container
 		return "", "", 0, fmt.Errorf("cannot encode snap %q digest: %v", path, err)
 	}
 	return targetPath, sha3_384, uint64(size), nil
+}
+
+// PreinstallInfo holds preinstall check information persisted during install.
+type PreinstallInfo struct {
+	AcceptedErrors []string
+}
+
+// LoadPreinstallInfo loads persisted preinstall check information.
+func LoadPreinstallInfo() (*PreinstallInfo, error) {
+	checkResultPath := device.PreinstallCheckResultUnder(boot.InstallHostFDESaveDir)
+	checkResult, err := secbootLoadCheckResult(checkResultPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// no preinstall info was saved.
+			return &PreinstallInfo{}, nil
+		}
+		return nil, err
+	}
+
+	return &PreinstallInfo{
+		AcceptedErrors: checkResult.AcceptedErrors(),
+	}, nil
+}
+
+// Requirements returns the encryption support requirements implied by the accepted errors.
+func (info *PreinstallInfo) Requirements() []EncryptionSupportRequirement {
+	acceptedErrors := make(map[string]bool, len(info.AcceptedErrors))
+	for _, err := range info.AcceptedErrors {
+		acceptedErrors[err] = true
+	}
+	return encryptionSupportRequirements(acceptedErrors)
 }

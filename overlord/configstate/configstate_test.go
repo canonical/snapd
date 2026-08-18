@@ -324,6 +324,30 @@ func (s *configcoreHijackSuite) TestConfigMngrInitHomeDirs(c *C) {
 	c.Check(dirs.SnapHomeDirs(), DeepEquals, snapHomeDirs)
 }
 
+func (s *configcoreHijackSuite) TestConfigMngrInitPrunesGraduatedExperimentalFeatures(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	t := config.NewTransaction(s.state)
+	feature := features.Graduated()[0]
+	c.Assert(t.Set("core", "experimental."+feature, true), IsNil)
+	t.Commit()
+	s.state.Unlock()
+
+	c.Assert(configstate.Init(s.state, hookMgr), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t = config.NewTransaction(s.state)
+	var value any
+	err = t.Get("core", "experimental."+feature, &value)
+	c.Check(config.IsNoOption(err), Equals, true)
+}
+
 type witnessManager struct {
 	state     *state.State
 	committed bool

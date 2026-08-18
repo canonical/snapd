@@ -69,6 +69,9 @@ type Options struct {
 	// Seed should be true while seeding the device. This indicates that we
 	// shouldn't require that the device is seeded before installing/updating
 	// snaps.
+	//
+	// TODO: we should figure out how to get rid of this flag since we have a
+	// seeding-specific goal
 	Seed bool
 	// ExpectOneSnap is a boolean flag indicating that this operation is expected
 	// to only operate on one snap (excluding any prerequisite snaps that may be
@@ -77,6 +80,8 @@ type Options struct {
 	// pre-existing behavior of calling InstallMany with one snap vs calling
 	// Install.
 	ExpectOneSnap bool
+	// NoSeedRefresh prevents creating seed-refresh tasks for this operation.
+	NoSeedRefresh bool
 }
 
 func (opts *Options) setDefaultLane(st *state.State) error {
@@ -781,7 +786,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 			sn.RevOpts.Channel = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx); err != nil {
+		if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, "stable", opts.DeviceCtx); err != nil {
 			return err
 		}
 
@@ -975,31 +980,33 @@ func setDefaultSnapstateOptions(st *state.State, opts *Options) error {
 	return nil
 }
 
-// pathInstallGoal represents a single snap to be installed from a path on disk.
-type pathInstallGoal struct {
+// seedingGoal represents a single snap to be installed from a path on disk
+// during seeding.
+type seedingGoal struct {
 	snap PathSnap
 }
 
-// PathInstallGoal creates a new InstallGoal to install a snap from a given from
-// a path on disk. If instanceName is not provided, si.RealName will be used.
-func PathInstallGoal(sn PathSnap) InstallGoal {
+// SeedingGoal creates a new InstallGoal to install a snap from a path on disk
+// during seeding. If InstanceName is not provided, SideInfo.RealName will be
+// used.
+func SeedingGoal(sn PathSnap) InstallGoal {
 	if sn.InstanceName == "" {
 		sn.InstanceName = sn.SideInfo.RealName
 	}
 
-	return &pathInstallGoal{
+	return &seedingGoal{
 		snap: sn,
 	}
 }
 
 // toInstall returns the data needed to setup the snap from disk.
-func (p *pathInstallGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
+func (p *seedingGoal) toInstall(ctx context.Context, st *state.State, opts Options) ([]target, error) {
 	var snapst SnapState
 	if err := Get(st, p.snap.InstanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, err
 	}
 
-	t, err := targetForPathSnap(p.snap, snapst, opts)
+	t, err := targetFromPathSnap(p.snap, snapst, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1472,7 +1479,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 			fallback = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
+		if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, fallback, opts.DeviceCtx); err != nil {
 			return err
 		}
 
@@ -1578,7 +1585,7 @@ func (p *pathUpdateGoal) toUpdate(_ context.Context, st *state.State, opts Optio
 			return updatePlan{}, err
 		}
 
-		t, err := targetForPathSnap(sn, snapst, opts)
+		t, err := targetFromPathSnap(sn, snapst, opts)
 		if err != nil {
 			return updatePlan{}, err
 		}
@@ -1598,7 +1605,7 @@ func (*pathUpdateGoal) filterGatedSnaps(*state.State, *updatePlan, Options) erro
 	return nil
 }
 
-func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
+func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target, error) {
 	si := update.SideInfo
 
 	if si.RealName == "" {
@@ -1655,6 +1662,10 @@ func targetForPathSnap(update PathSnap, snapst SnapState, opts Options) (target,
 			SnapPath:  update.Path,
 			Channel:   update.RevOpts.Channel,
 			CohortKey: update.RevOpts.CohortKey,
+
+			// mirror store-backed by-revision refresh: an explicit revision should
+			// run the full update path even if the revision is already current.
+			AlwaysUpdate: !update.RevOpts.Revision.Unset(),
 		},
 		info:       info,
 		snapst:     snapst,

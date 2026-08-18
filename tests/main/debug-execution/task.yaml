@@ -40,7 +40,7 @@ execute: |
             else
                 # UC18+ with snapd snap
                 MATCH 'is-reexecd: true' < snap-default.out
-                MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-default.out
+                MATCH 'self-exe: /snap/snapd/.*/usr/lib/snapd/snapd' < snap-default.out
             fi
 
             echo "Checking Ubuntu Core with reexec scenario"
@@ -52,7 +52,7 @@ execute: |
             if os.query is-core16; then
                 MATCH 'self-exe: /snap/core/.*/usr/bin/snap' < snap-yes-reexec.out
             else
-                MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
+                MATCH 'self-exe: /snap/snapd/.*/usr/lib/snapd/snapd' < snap-yes-reexec.out
             fi
 
             echo "Checking Ubuntu Core without reexec scenario"
@@ -65,7 +65,7 @@ execute: |
             else
                 MATCH 'is-reexec-enabled: true' < snap-no-reexec.out
                 MATCH 'is-reexecd: true' < snap-no-reexec.out
-                MATCH 'self-exe: /snap/snapd/.*/usr/bin/snap' < snap-no-reexec.out
+                MATCH 'self-exe: /snap/snapd/.*/usr/lib/snapd/snapd' < snap-no-reexec.out
             fi
 
             echo "Checking Ubuntu Core AppArmor"
@@ -74,7 +74,7 @@ execute: |
                 MATCH 'internal: false' < snap-apparmor-default.out
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
-                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
+                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/5\.0' < snap-apparmor-default.out
                 MATCH 'internal: true' < snap-apparmor-default.out
             fi
             ;;
@@ -85,7 +85,7 @@ execute: |
             if [ "$SNAP_REEXEC" = 0 ]; then
                 MATCH 'is-reexec-enabled: false' < snap-default.out
                 MATCH 'is-reexecd: false' < snap-default.out
-                MATCH 'self-exe: /usr/bin/snap' < snap-default.out
+                MATCH 'self-exe: /usr/lib/snapd/snapd' < snap-default.out
             else
                 MATCH 'is-reexec-enabled: true' < snap-default.out
                 MATCH 'is-reexecd: true' < snap-default.out
@@ -97,7 +97,7 @@ execute: |
             MATCH 'is-reexec-enabled: false' < snap-no-reexec.out
             MATCH 'is-reexec-explicitly-enabled: false' < snap-no-reexec.out
             MATCH 'is-reexecd: false' < snap-no-reexec.out
-            MATCH 'self-exe: /usr/bin/snap' < snap-no-reexec.out
+            MATCH 'self-exe: /usr/lib/snapd/snapd' < snap-no-reexec.out
 
             echo "Checking forced reexec"
             # when using native package it reexecs as instructed, when using the
@@ -115,7 +115,7 @@ execute: |
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-force-reexec.out
             else
                 MATCH 'apparmor-parser: /snap/snapd/.*/usr/lib/snapd/apparmor_parser' < snap-apparmor-default.out
-                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/4\.0' < snap-apparmor-default.out
+                MATCH 'apparmor-parser-command: /snap/snapd/.*/apparmor_parser --config-file /snap/snapd/.*/usr/lib/snapd/apparmor/parser.conf --base /snap/snapd/.*/usr/lib/snapd/apparmor\.d --policy-features /snap/snapd/.*/usr/lib/snapd/apparmor\.d/abi/5\.0' < snap-apparmor-default.out
                 MATCH 'internal: true' < snap-apparmor-default.out
             fi
 
@@ -150,7 +150,7 @@ execute: |
             MATCH 'is-reexec-enabled: true' < snap-default.out
             MATCH 'is-reexec-explicitly-enabled: false' < snap-default.out
             MATCH 'is-reexecd: false' < snap-default.out
-            MATCH 'self-exe: /usr/bin/snap' < snap-default.out
+            MATCH 'self-exe: /usr/lib(exec)?/snapd/snapd' < snap-default.out
 
             echo "Checking with reexec scenario"
             MATCH 'distro-supports-reexec: false' < snap-yes-reexec.out
@@ -167,14 +167,14 @@ execute: |
                 arch-linux-*|fedora-*|centos-*|opensuse-*)
                     # no /snap -> /var/lib/snapd/snap symlink by default
                     MATCH 'is-reexecd: false' < snap-yes-reexec.out
-                    MATCH 'self-exe: /usr/bin/snap' < snap-yes-reexec.out
+                    MATCH 'self-exe: /usr/lib(exec)?/snapd/snapd' < snap-yes-reexec.out
 
                     MATCH 'is-reexecd: false' < snap-force-reexec.out
                     ;;
                 amazon-linux-*)
                     # has /snap -> /var/lib/snapd symlink
                     MATCH 'is-reexecd: true' < snap-yes-reexec.out
-                    MATCH 'self-exe: /var/lib/snapd/snap/snapd/.*/usr/bin/snap' < snap-yes-reexec.out
+                    MATCH 'self-exe: /var/lib/snapd/snap/snapd/.*/usr/lib/snapd/snapd' < snap-yes-reexec.out
 
                     MATCH 'is-reexecd: true' < snap-force-reexec.out
                     ;;

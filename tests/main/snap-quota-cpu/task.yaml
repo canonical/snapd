@@ -8,7 +8,6 @@ details: |
 # and this is tested in the snap-quota spread test.
 systems:
   - -ubuntu-14.04-*
-  - -amazon-linux-2-*
   - -ubuntu-16.04-*
   - -ubuntu-core-16-*
 
@@ -59,7 +58,7 @@ execute: |
 
   echo "The systemd slice should be active now"
   sliceName="snap.$(systemd-escape --path group-one).slice"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=active$'
 
   echo "The service should also still be active"
   snap services test-snapd-stressd.stress-sc | MATCH "test-snapd-stressd.stress-sc\s+disabled\s+active"
@@ -140,7 +139,7 @@ execute: |
   systemctl show --property=ControlGroup snap.test-snapd-stressd.stress-sc.service | NOMATCH "/$sliceName/snap.test-snapd-stressd.stress-sc.service"
 
   echo "And the slice is not active anymore"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=inactive$'
 
   echo "Verifying cpu usage, expecting at least above 60% again"
   ensure_cpu_usage_higher_than "stress" 60

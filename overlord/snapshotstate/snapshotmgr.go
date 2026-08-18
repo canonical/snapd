@@ -223,6 +223,7 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 	return snapshot, cur, cfg, nil
 }
 
+// Expects that the snap's applications and services are not running.
 func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	snapshot, cur, cfg, err := prepareSave(task)
 	if err != nil {
@@ -361,6 +362,7 @@ func unmarshalSnapConfig(st *state.State, snapName string) (map[string]any, erro
 	return cfg, nil
 }
 
+// Expects that the snap's applications and services are not running.
 func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	snapshot, oldCfg, reader, err := prepareRestore(task)
 	if err != nil {
@@ -407,6 +409,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+// Expects that the snap's applications and services are not running.
 func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 	var restoreState backend.RestoreState
 	var snapshot snapshotSetup

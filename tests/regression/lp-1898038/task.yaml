@@ -44,9 +44,9 @@ execute: |
     # now connect it and verify profile can be compiled
     test-snapd-docker-support-app.test-snapd-docker-support
     # check that within the snap mount namespace /etc/apparmor is mounted and comes from a snap
-    test "$(snap debug mount-namespace shell test-snapd-docker-support-app -- mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
+    test "$(snap debug mount-namespace --shell test-snapd-docker-support-app -- mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
 
     # and do the same for multipass-support
     test-snapd-multipass-support-app.test-snapd-multipass-support
-    test "$(snap debug mount-namespace shell test-snapd-multipass-support-app -- mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
+    test "$(snap debug mount-namespace --shell test-snapd-multipass-support-app -- mount | grep -c '/etc/apparmor\(.d\)\? type squashfs')" -eq 2
 

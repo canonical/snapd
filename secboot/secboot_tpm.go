@@ -38,7 +38,6 @@ import (
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_preinstall "github.com/snapcore/secboot/efi/preinstall"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -158,7 +157,7 @@ func measureWhenPossible(whatHow func(tpm *sb_tpm2.Connection) error) error {
 	// the model is ready, we're good to try measuring it now
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
-		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
+		if errors.Is(err, sb_tpm2.ErrNoTPM2Device) {
 			return nil
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
@@ -207,7 +206,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 func lockTPMSealedKeys() error {
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
-		if xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
+		if errors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
 			logger.Noticef("cannot open TPM connection: %v", tpmErr)
 			return nil
 		}
@@ -429,7 +428,7 @@ func ProvisionTPM(mode TPMProvisionMode, lockoutAuthFile string) error {
 func ProvisionForCVM(initramfsUbuntuSeedDir string) error {
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
-		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
+		if errors.Is(err, sb_tpm2.ErrNoTPM2Device) {
 			return nil
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
@@ -682,6 +681,8 @@ type resealKeysWithTPMParams struct {
 	Keys []KeyDataLocation
 	// The primary key
 	PrimaryKey []byte
+	// DryRun validates resealing without persisting updated key material.
+	DryRun bool
 }
 
 // resealKeysWithTPMImpl updates the PCR protection policy for the sealed encryption keys
@@ -741,6 +742,9 @@ func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion 
 		if err := sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, params.PrimaryKey, &pcrProfile); err != nil {
 			return nil, fmt.Errorf("cannot update legacy PCR protection policy: %w", err)
 		}
+		if params.DryRun {
+			return nil, nil
+		}
 
 		// write key files
 		for i, sko := range sealedKeyObjects {
@@ -762,6 +766,9 @@ func resealKeysWithTPMImpl(params *resealKeysWithTPMParams, newPCRPolicyVersion 
 
 		if err := sbUpdateKeyDataPCRProtectionPolicy(tpm, params.PrimaryKey, &pcrProfile, policyVersion, keyDatas...); err != nil {
 			return nil, fmt.Errorf("cannot update PCR protection policy: %w", err)
+		}
+		if params.DryRun {
+			return nil, nil
 		}
 
 		for i, key := range params.Keys {
@@ -1143,6 +1150,12 @@ func releasePCRResourceHandles(handles ...uint32) error {
 	return nil
 }
 
+// ReleasePCRResourceHandle releases any TPM resources associated with a given
+// PCR handle.
+func ReleasePCRResourceHandle(handle uint32) error {
+	return releasePCRResourceHandles(handle)
+}
+
 func resetLockoutCounter(lockoutAuthFile string) error {
 	auth, isValue, err := readLockoutAuth(lockoutAuthFile)
 	if err != nil {
@@ -1234,6 +1247,27 @@ func mockableReadKeyFileImpl(keyFile string, keyLoader *mockableKeyLoader, hintE
 }
 
 var mockableReadKeyFile = mockableReadKeyFileImpl
+
+// GetPCRHandleFromToken finds the PCR handle used by a keyslot if
+// used. 0 means no handle is used.
+func GetPCRHandleFromToken(node, keySlot string) (uint32, error) {
+	reader, err := sbNewLUKS2KeyDataReader(node, keySlot)
+	if err != nil {
+		return 0, err
+	}
+	keyData, err := mockableReadKeyData(reader)
+	if err != nil {
+		return 0, fmt.Errorf("cannot read key data for slot '%s': %w", keySlot, err)
+	}
+	if keyData.PlatformName() != platformTpm2 {
+		return 0, nil
+	}
+	sealedKeyData, err := keyData.GetTPMSealedKeyData()
+	if err != nil {
+		return 0, fmt.Errorf("cannot read sealed key data for slot '%s': %w", keySlot, err)
+	}
+	return uint32(sealedKeyData.PCRPolicyCounterHandle()), nil
+}
 
 // GetPCRHandle returns the handle used by a key. The key will be
 // searched on the token of the keySlot from the node. If that keySlot

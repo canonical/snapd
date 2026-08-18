@@ -181,6 +181,14 @@ func applyHandlers(dev sysconfig.Device, cfg RunTransaction, handlers []configHa
 			if err := validateInterfaceChange(k); err != nil {
 				return err
 			}
+		case isDefaultEnabledExperimentalChange(k):
+			if err := warnDefaultEnabledExperimentalChange(cfg, k); err != nil {
+				return err
+			}
+		case isGraduatedExperimentalChange(k):
+			if err := dropGraduatedExperimentalChange(cfg, k); err != nil {
+				return err
+			}
 		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)
 		}

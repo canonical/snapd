@@ -54,6 +54,11 @@ on:
         description: 'Space-separated list of regex expressions identifying tests to skip. As a regex, they can identify any part of the spread test like an entire suite or a single test. End a single test with $ to avoid inadvertently matching others.'
         required: false
         type: string
+      log-to-grafana:
+        description: 'If true, will filter spread logs and send them to Grafana'
+        type: boolean
+        required: false
+        default: true
 
 
 jobs:
@@ -335,7 +340,7 @@ jobs:
           echo "The following list of tests will run:"
           cat "$RUN_TESTS_FILE"
 
-          if [ -n "$SNAPD_TESTS_SKIP" ]; then
+          if [ -n "${SNAPD_TESTS_SKIP//[[:space:]]/}" ]; then
               echo "$SNAPD_TESTS_SKIP" > skipped_tests_list.txt
           fi
 
@@ -357,7 +362,7 @@ jobs:
         echo REQUIRED="$required" >> $GITHUB_ENV
 
     - name: Setup grafana parameters
-      if: ${{ env.SKIP_SPREAD_LABEL != 'true' }}
+      if: ${{ env.SKIP_SPREAD_LABEL != 'true' && inputs.log-to-grafana == 'true' }}
       run: |
           # Configure parameters to filter logs (these logs are sent read by grafana agent)
           CHANGE_ID="${{ github.event.number }}"
@@ -548,7 +553,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Report spread errors
-      if: always()
+      if: ${{ always() && inputs.log-to-grafana == 'true' }}
       run: |
         if [ -e results.json ]; then
             echo "Adding to the filtered log any spread errors found"
@@ -643,7 +648,7 @@ jobs:
             JOB_ID=$(gh api --paginate repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs --jq ".jobs[] | select(.name | contains(\"${{ inputs.group }}\") and contains(\"${{ github.job }}\")) | .id" | head -n 1)
 
             echo "Sending results.json with run_id: ${{ github.run_id }}, job_id: $JOB_ID and attempt: ${{ github.run_attempt }}"
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.canonical.com:5000/ingest \
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://test-predictor.snapd.canonical.com:5000/ingest \
               -F "file=@./results.json" \
               -F "attempt=${{ github.run_attempt }}" \
               -F "job_id=$JOB_ID" \
@@ -654,11 +659,6 @@ jobs:
                 exit 1
             fi
             echo "Results sent successfully"
-
-            echo "Getting predictions for failed tests"
-            wget -q -O predict https://raw.githubusercontent.com/canonical/snapd-testing/master/ai/test-predictor/src/client/predict
-            chmod +x predict
-            ./predict results.json
         else
             echo "No spread results log found, skipping sending results to Test-Predictor"
         fi

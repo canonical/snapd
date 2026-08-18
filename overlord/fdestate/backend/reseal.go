@@ -334,6 +334,7 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 			Models:                  parameters.Models,
 			GetTpmPCRProfile:        getTpmPCRProfile,
 			NewPCRPolicyVersion:     revokeOldKeys,
+			DryRun:                  opts.DryRun,
 			HintExpectFDEHook:       hintExpectFDEHook,
 		}
 		resealedKeys, err := secbootResealKey(key, rkp)
@@ -402,11 +403,13 @@ func doReseal(manager FDEStateManager, rootdir string, hintExpectFDEHook bool, i
 		}
 	}
 
-	if err := newParameters.apply(manager); err != nil {
-		return err
+	if !opts.DryRun {
+		if err := newParameters.apply(manager); err != nil {
+			return err
+		}
 	}
 
-	if revokeOldKeys {
+	if revokeOldKeys && !opts.DryRun {
 		for primaryKeyID, oldKeys := range allResealedKeys {
 			primaryKey, hasPrimaryKey := foundPrimaryKeys[primaryKeyID]
 			if !hasPrimaryKey {
@@ -454,9 +457,11 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 
 		logger.Debugf("resealing (%d) succeeded", nextCount)
 
-		bootChainsPath := BootChainsFileUnder(rootdir)
-		if err := boot.WriteBootChains(pbc, bootChainsPath, nextCount); err != nil {
-			return err
+		if !opts.DryRun {
+			bootChainsPath := BootChainsFileUnder(rootdir)
+			if err := boot.WriteBootChains(pbc, bootChainsPath, nextCount); err != nil {
+				return err
+			}
 		}
 	} else {
 		logger.Debugf("reseal not necessary")
@@ -480,9 +485,11 @@ func recalculateParamatersTPM(parameters *updatedParameters, rootdir string, inp
 		}
 		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
 
-		recoveryBootChainsPath := RecoveryBootChainsFileUnder(rootdir)
-		if err := boot.WriteBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
-			return err
+		if !opts.DryRun {
+			recoveryBootChainsPath := RecoveryBootChainsFileUnder(rootdir)
+			if err := boot.WriteBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
+				return err
+			}
 		}
 	} else {
 		logger.Debugf("fallback reseal not necessary")
@@ -632,6 +639,7 @@ func ResealKeyForBootChains(manager FDEStateManager, method device.SealingMethod
 		},
 		resealOptions{
 			ExpectReseal:   params.Options.ExpectReseal,
+			DryRun:         params.Options.DryRun,
 			Force:          params.Options.Force,
 			IgnoreFDEHooks: params.Options.IgnoreFDEHooks,
 			Revoke:         params.Options.RevokeOldKeys,
@@ -669,6 +677,7 @@ type resealInputs struct {
 
 type resealOptions struct {
 	ExpectReseal   bool
+	DryRun         bool
 	Force          bool
 	Revoke         bool
 	IgnoreFDEHooks bool

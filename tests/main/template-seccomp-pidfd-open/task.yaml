@@ -12,7 +12,6 @@ systems:
     - -ubuntu-16.04-*
     - -ubuntu-18.04-*
     - -centos-9-*
-    - -amazon-linux-2-*
     - -amazon-linux-2023-*
 
 prepare: |

@@ -1,0 +1,71 @@
+summary: Verify that we do not allow installation of shim that is not signed by firmware
+
+details: |
+    Shim is signed my Microsoft. But the certificates can get updated. And the firmware
+    then need an update to allow newly signed shim. We need to detect shim that are signed
+    with keys that does not have the certificate in the firmware.
+
+systems:
+  - ubuntu-2*
+
+environment:
+    NESTED_ENABLE_TPM: "true"
+    NESTED_ENABLE_SECURE_BOOT: "true"
+
+prepare: |
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    unsquashfs -d pc "$(tests.nested get extra-snaps-path)"/pc.snap
+
+    # For a shim update to happen, we need to bump the "edition".
+    gojq --yaml-input --yaml-output  '(.volumes.pc.structure[] | select(.name == "ubuntu-seed") | .update.edition) |= . + 1' <pc/meta/gadget.yaml >pc/meta/gadget.yaml.new
+    mv pc/meta/gadget.yaml.new pc/meta/gadget.yaml
+
+    sha256sum <pc/shim.efi.signed >original-shim.sha256
+
+    # Let's remove all the signatures
+    tests.nested secboot-remove-signature pc/shim.efi.signed
+
+    # We make sure the signed binary is different.
+    objcopy -O binary -j .data.ident pc/shim.efi.signed ident
+    sed -i '/Commit: [a-f0-9]*/s//Commit: 0000000000000000000000000000000000000000/' ident
+    objcopy --update-section=.data.ident=ident pc/shim.efi.signed
+
+    # In order to sign with a certificate that is not in DB, we just create such a key as a fresh one.
+    # When trying to predict measurements on PCR7, secboot will look for the certificate that matches one of the signatures.
+    # That is the signature's issuer, key id, and algorithm have to match a certificate in DB.
+    # Since our binary will only be signed with this fresh key which certificate is not in DB, then it will not be
+    # be recognized during prediction of measurements.
+    openssl req -new -x509 -newkey rsa:2048 -keyout KEY.key -outform PEM -out KEY.pem -days 365 -nodes  -subj "/CN=Key that is too new/"
+    tests.nested secboot-sign gadget pc "${PWD}/KEY.key" "${PWD}/KEY.pem"
+
+    snap pack pc --filename=pc-new.snap
+    rm -rf pc
+
+execute: |
+    remote.exec 'readlink /snap/pc/current' | MATCH '^x1$'
+
+    remote.push pc-new.snap
+    change_id=$(remote.exec "sudo snap install --no-wait --dangerous pc-new.snap")
+
+    retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}\\s+(Done|Undone|Error)'"
+    remote.exec 'sudo snap changes' | MATCH "^${change_id}\\s+Error"
+    remote.exec "sudo snap change ${change_id}" | MATCH 'cannot measure image: cannot measure secure boot event: cannot determine authority'
+
+    boot_id="$(tests.nested boot-id)"
+    remote.exec "sudo snap reboot" || true
+    remote.wait-for reboot "${boot_id}"
+
+    # Double check we booted with the old shim
+    rm -f booted-shim.efi
+    if os.query is-ubuntu-ge 24.04; then
+      remote.pull /boot/efi/EFI/ubuntu/shimx64.efi booted-shim.efi
+    else
+      remote.pull /boot/efi/EFI/BOOT/bootx64.efi booted-shim.efi
+    fi
+    sha256sum -c original-shim.sha256 <booted-shim.efi
+    rm booted-shim.efi
+
+    # Double check we still have the old gadget installed
+    remote.exec 'readlink /snap/pc/current' | MATCH '^x1$'

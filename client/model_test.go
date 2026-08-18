@@ -29,7 +29,6 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/xerrors"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -201,7 +200,7 @@ func (cs *clientSuite) TestClientGetSerialHappy(c *C) {
 func (cs *clientSuite) TestClientCurrentModelAssertionErrIsWrapped(c *C) {
 	cs.err = errors.New("boom")
 	_, err := cs.cli.CurrentModelAssertion()
-	var e xerrors.Wrapper
+	var e interface{ Unwrap() error }
 	c.Assert(err, Implements, &e)
 }
 

@@ -946,7 +946,7 @@ type: base
 	} {
 		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
 		s.st.Set("seeded", true)
-		ts, _, err := snapstate.InstallPath(s.st, &snap.SideInfo{
+		ts, err := snapstate.InstallPath(s.st, &snap.SideInfo{
 			RealName: sn.name,
 		}, path, "", "", snapstate.Flags{}, nil)
 		c.Assert(err, IsNil)
@@ -1021,7 +1021,7 @@ type: app
 		c.Logf("checking snap %s:\n%s", sn.name, sn.snapYaml)
 		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
 
-		_, _, err = snapstate.InstallPath(s.st, &snap.SideInfo{
+		_, err = snapstate.InstallPath(s.st, &snap.SideInfo{
 			RealName: sn.name,
 		}, path, "", "", snapstate.Flags{}, nil)
 

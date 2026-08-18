@@ -1618,7 +1618,7 @@ type: app
 		c.Logf("checking snap %s:\n%s", sn.name, sn.snapYaml)
 		path := snaptest.MakeTestSnapWithFiles(c, sn.snapYaml, nil)
 
-		_, _, err = snapstate.InstallPath(st, &snap.SideInfo{
+		_, err = snapstate.InstallPath(st, &snap.SideInfo{
 			RealName: sn.name,
 		}, path, "", "", snapstate.Flags{}, nil)
 

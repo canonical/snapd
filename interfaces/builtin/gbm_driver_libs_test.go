@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -249,6 +250,10 @@ func (s *GbmDriverLibsInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
+	// ldconfig is only active on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &ldconfig.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.LibDirs(), DeepEquals, map[ldconfig.SnapSlot][]string{
@@ -257,7 +262,21 @@ func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpec(c *C) {
 			filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2")}})
 }
 
+func (s *GbmDriverLibsInterfaceSuite) TestLdconfigSpecOnCore(c *C) {
+	// ldconfig is skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &ldconfig.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.LibDirs(), HasLen, 0)
+}
+
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
+	// Symlinks are only created on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &symlinks.Specification{}
 	snapSourceDir := filepath.Join(s.testRoot, "snap/gbm-provider/5/lib2")
 	targetPath := filepath.Join(snapSourceDir, "nvidia-drm_gbm.so")
@@ -273,13 +292,31 @@ func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpec(c *C) {
 	})
 }
 
+func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecOnCore(c *C) {
+	// Symlinks are skipped on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), HasLen, 0)
+}
+
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClient(c *C) {
+	// This error path is only reachable on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
 		`"nvidia-drm_gbm\.so" not found in the library-source directories`)
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClientDriver(c *C) {
+	// This error path is only reachable on classic
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	spec := &symlinks.Specification{}
 	slot, _ := MockConnectedSlot(c, `name: gbm-provider
 version: 0
@@ -312,11 +349,27 @@ func (s *GbmDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {
 	})
 }
 
+func (s *GbmDriverLibsInterfaceSuite) TestConfigfilesSpecOnCore(c *C) {
+	// configfiles export also runs on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	spec := &configfiles.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.PathContent(), DeepEquals, map[string]osutil.FileState{
+		filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/export/system_gbm-provider_gbm-slot_gbm-driver-libs.library-source"): &osutil.MemoryFileState{
+			Content: []byte(
+				filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib1") + "\n" +
+					filepath.Join(dirs.SnapMountDir, "gbm-provider/5/lib2") + "\n"),
+			Mode: 0644},
+	})
+}
+
 func (s *GbmDriverLibsInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, false)
 	c.Assert(si.ImplicitOnClassic, Equals, false)
-	c.Assert(si.ImplicitPlugOnCore, Equals, false)
+	c.Assert(si.ImplicitPlugOnCore, Equals, true)
 	c.Assert(si.ImplicitPlugOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows exposing GBM driver libraries to the system`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "gbm-driver-libs")

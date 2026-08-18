@@ -182,13 +182,16 @@ func maybeCheckSystemKeyMismatch(cli *client.Client) (changeID string, err error
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
 	mismatch, my, err := interfaces.SystemKeyMismatch(extraData)
-	if err == nil && !mismatch {
-		return "", nil
-	}
-	// something went wrong with the system-key compare, try to
-	// reach snapd before continuing
 	if err != nil {
 		logger.Debugf("SystemKeyMismatch returned an error: %v", err)
+	} else if !mismatch {
+		// System key matches. Also check that the snap private tmp directory
+		// exists; snap-confine requires this directory to be present before it
+		// can bootstrap the mount namespace.
+		if _, statErr := os.Stat(dirs.SnapPrivateTmpDir); statErr == nil {
+			return "", nil
+		}
+		logger.Debugf("%s is missing, waiting for snapd", dirs.SnapPrivateTmpDir)
 	}
 
 	// We have a mismatch but maybe it is only because systemd is shutting down
@@ -598,7 +601,7 @@ func checkSnapRunInhibitionConflict(app *snap.AppInfo) error {
 		return fmt.Errorf(i18n.G("cannot run %q, snap is disabled"), snap.JoinSnapApp(snapName, app.Name))
 	}
 
-	if !features.RefreshAppAwareness.IsEnabled() || app.IsService() {
+	if app.IsService() {
 		// Skip check
 		return nil
 	}
@@ -632,9 +635,6 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		}
 
 		info, app, hintFlock, err := waitWhileInhibited(context.Background(), x.client, snapName, appName)
-		if errors.Is(err, errOngoingSnapRefresh) {
-			return fmt.Errorf(i18n.G("cannot run %q, snap is being refreshed"), snapApp)
-		}
 		if errors.Is(err, errInhibitedForRemove) {
 			return fmt.Errorf(i18n.G("cannot run %q, snap is being removed"), snapApp)
 		}
@@ -767,21 +767,17 @@ func snapdHelperPath(toolName string) (string, error) {
 	if !strings.HasPrefix(exe, dirs.SnapMountDir) {
 		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
 	}
-	// The logic below only works if the last two path components
-	// are /usr/bin
-	// FIXME: use a snap warning?
-	if !strings.HasSuffix(exe, "/usr/bin/"+filepath.Base(exe)) {
+
+	// usr/bin/snap and usr/lib/snapd/snapd are the same binary, so our exe
+	// (snapd) is already at the desired path
+
+	if !strings.HasSuffix(exe, filepath.Join(dirs.CoreLibExecDir, filepath.Base(exe))) {
 		logger.Noticef("(internal error): unexpected exe input in snapdHelperPath: %v", exe)
 		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
 	}
-	// snapBase will be "/snap/{core,snapd}/$rev/" because
-	// the snap binary is always at $root/usr/bin/snap
-	snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
-	// Run snap-confine from the core/snapd snap.  The tools in
-	// core/snapd snap are statically linked, or mostly
-	// statically, with the exception of libraries such as libudev
-	// and libc.
-	return filepath.Join(snapBase, dirs.CoreLibExecDir, toolName), nil
+
+	// internal tools are at the same directory as this binary
+	return filepath.Join(filepath.Dir(exe), toolName), nil
 }
 
 /* Kerberos tickets live in /tmp, or in the place specified by KRB5CCNAME
@@ -1882,7 +1878,7 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 		return x.runCmdWithTraceExec(cmd, envForExec)
 	} else if x.useGdbserver() {
 		if _, err := exec.LookPath("gdbserver"); err != nil {
-			// TODO: use xerrors.Is(err, exec.ErrNotFound) once
+			// TODO: use errors.Is(err, exec.ErrNotFound) once
 			// we moved off from go-1.9
 			if execErr, ok := err.(*exec.Error); ok {
 				if execErr.Err == exec.ErrNotFound {
@@ -1899,10 +1895,10 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, runner runnable, beforeExec fun
 	}
 }
 
-func getSnapDirOptions(snap string) (*dirs.SnapDirOptions, error) {
+func getSnapDirOptions(snapName string) (*dirs.SnapDirOptions, error) {
 	var opts dirs.SnapDirOptions
 
-	data, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, snap+".json"))
+	data, err := os.ReadFile(snap.SequenceFile(snapName))
 	if errors.Is(err, os.ErrNotExist) {
 		return &opts, nil
 	} else if err != nil {

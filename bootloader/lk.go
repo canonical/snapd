@@ -20,12 +20,11 @@
 package bootloader
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-
-	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/dirs"
@@ -324,7 +323,7 @@ func (l *lk) SetBootVars(values map[string]string) error {
 	// to write boot vars to the env
 	if err := env.Load(); err != nil {
 		// if the error was something other than file not found, it is fatal
-		if !xerrors.Is(err, os.ErrNotExist) {
+		if !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 		// otherwise at prepare-image time it is okay to not have the file

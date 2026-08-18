@@ -35,6 +35,8 @@ prepare: |
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/static
   "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/isns
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/isns
+  "$TESTSTOOLS"/fs-state mock-dir /var/lib/iscsi/nodes
+  tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /var/lib/iscsi/nodes
   "$TESTSTOOLS"/fs-state mock-dir /etc/iscsi/nodes
   tests.cleanup defer "$TESTSTOOLS"/fs-state restore-dir /etc/iscsi/nodes
   "$TESTSTOOLS"/fs-state mock-file /etc/iscsi/initiatorname.iscsi
@@ -69,6 +71,7 @@ execute: |
 
   echo "And the snap is able to access iSCSI nodes directory"
   "$TEST_SNAP".client -c "ls /etc/iscsi/nodes"
+  "$TEST_SNAP".client -c "ls /var/lib/iscsi/nodes"
 
   echo "And the snap is able to access additional Open-iSCSI persistent state"
   "$TEST_SNAP".client -c "ls /etc/iscsi/ifaces"

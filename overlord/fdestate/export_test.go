@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
+	"github.com/snapcore/snapd/overlord/install"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/secboot/keys"
@@ -53,7 +54,6 @@ var (
 	SecurebootUpdateAffectedSnaps = dbxUpdateAffectedSnaps
 	AddPlatformKeysAffectedSnaps  = addPlatformKeysAffectedSnaps
 
-	CheckFDEChangeConflict            = checkFDEChangeConflict
 	CheckFDEParametersChangeConflicts = checkFDEParametersChangeConflicts
 
 	SetRepairAttemptResult = setRepairAttemptResult
@@ -174,6 +174,10 @@ func VolumesAuthOptionsKey() volumesAuthOptionsKey {
 
 func MockBootLoadDiskUnlockState(f func(name string) (*boot.DiskUnlockState, error)) (restore func()) {
 	return testutil.Mock(&bootLoadDiskUnlockState, f)
+}
+
+func MockInstallLoadPreinstallInfo(f func() (*install.PreinstallInfo, error)) (restore func()) {
+	return testutil.Mock(&installLoadPreinstallInfo, f)
 }
 
 type CachedActivateStateKey = cachedActivateStateKey

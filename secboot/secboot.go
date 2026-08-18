@@ -343,6 +343,9 @@ type ResealKeyParams struct {
 	// Whether a incremented value of the counter is allowed
 	// (before a revocation)
 	NewPCRPolicyVersion bool
+	// DryRun validates that resealing can succeed without persisting updated
+	// key material.
+	DryRun bool
 	// Whether old ambiguous key formats interpreted as FDE hook keys.
 	HintExpectFDEHook bool
 }

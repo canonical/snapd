@@ -28,6 +28,21 @@ def _make_task_item(backend: str, system: str, name: str, variant: str,
     }
 
 
+def _make_suite_item(backend: str, system: str, name: str, variant: str,
+                     start: str, end: str, verb: str = 'preparing') -> dict:
+    return {
+        'level': 'suite',
+        'verb': verb,
+        'backend': backend,
+        'system': system,
+        'name': name,
+        'variant': variant,
+        'start': start,
+        'end': end,
+        'success': True,
+    }
+
+
 class TestParseAttemptFromDirname(unittest.TestCase):
 
     def test_valid_name(self):
@@ -155,6 +170,25 @@ class TestBuildRuntimeLookup(unittest.TestCase):
             lookup = runtimeadder.build_runtime_lookup(tmpdir)
 
             self.assertAlmostEqual(60.0, lookup[('google:ubuntu-24.04-64', 'tests/smoke/install', '')])
+            self.assertEqual(1, len(lookup))
+
+    def test_suite_level_items_sum_target_phases(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifact_dir = os.path.join(tmpdir, 'spread-results-12345-1-focal')
+            os.makedirs(artifact_dir)
+            items = [
+                _make_suite_item('google', 'ubuntu-24.04-64', 'tests/smoke', '',
+                                 '2026-01-01T00:00:00Z', '2026-01-01T00:00:15Z', 'preparing'),
+                _make_suite_item('google', 'ubuntu-24.04-64', 'tests/smoke', '',
+                                 '2026-01-01T00:03:15Z', '2026-01-01T00:03:25Z', 'restoring'),
+            ]
+            with open(os.path.join(artifact_dir, 'results.json'), 'w') as f:
+                json.dump(_make_results_json(items), f)
+
+            lookup = runtimeadder.build_runtime_lookup(tmpdir)
+
+            # Suite runtime should include all target phases present in results.
+            self.assertAlmostEqual(25, lookup[('google:ubuntu-24.04-64', 'tests/smoke', '')])
             self.assertEqual(1, len(lookup))
 
 

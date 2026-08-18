@@ -25,8 +25,11 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -38,6 +41,37 @@ var (
 	secbootRenameContainerKey          = secboot.RenameContainerKey
 	secbootGetPrimaryKey               = secboot.GetPrimaryKey
 )
+
+func (m *FDEManager) doCheckReseal(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf("finish restart from doCheckReseal")
+	if err := snapstate.FinishRestart(t, snapsup, snapstate.FinishRestartOptions{}); err != nil {
+		return err
+	}
+
+	deviceCtx, err := snapstate.DeviceCtx(st, t, nil)
+	if err != nil {
+		return err
+	}
+	if !deviceCtx.HasModeenv() || !deviceCtx.RunMode() {
+		return nil
+	}
+
+	unlocker := st.Unlocker()
+	if err := boot.CheckResealKeyToModeenv(dirs.GlobalRootDir, unlocker); err != nil {
+		return fmt.Errorf("cannot validate key reseal: %v", err)
+	}
+
+	return nil
+}
 
 func (m *FDEManager) doAddRecoveryKeys(t *state.Task, tomb *tomb.Tomb) (err error) {
 	m.state.Lock()

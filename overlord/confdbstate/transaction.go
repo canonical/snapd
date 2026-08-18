@@ -250,7 +250,7 @@ func (t *Transaction) Clear(st *state.State) error {
 	return nil
 }
 
-func (t *Transaction) alteredPaths() [][]confdb.Accessor {
+func (t *Transaction) AlteredPaths() [][]confdb.Accessor {
 	// TODO: maybe we can extend this to recurse into delta's value and figure out
 	// the most specific key possible
 	paths := make([][]confdb.Accessor, 0, len(t.deltas))

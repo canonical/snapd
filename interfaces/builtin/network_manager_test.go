@@ -199,6 +199,7 @@ func (s *NetworkManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	err = apparmorSpec.AddPermanentSlot(s.iface, s.slotInfo)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), HasLen, 1)
+	c.Assert(apparmorSpec.SnippetForTag("snap.network-manager.nm"), testutil.Contains, `member="Set{DefaultRoute,DNS,DNSEx,DNSSEC,DNSSECNegativeTrustAnchors,DNSOverTLS,Domains,LLMNR,MulticastDNS}"`)
 
 	dbusSpec := dbus.NewSpecification(s.slot.AppSet())
 	err = dbusSpec.AddPermanentSlot(s.iface, s.slotInfo)

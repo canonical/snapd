@@ -92,6 +92,21 @@ func (s *NetworkControlInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Check(spec.UsesSysModuleCapability(), Equals, false)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/netns/* rw,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `path="/org/freedesktop/resolve1/link/*"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface="org.freedesktop.resolve1.Link"`)
+	// Some dbus members policy is wildcard, so splitting this member assert into two
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `member="Set*"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `member="{ListLinks,GetLinkByName,GetLinkByIndex,SetLinkNTP,SetLinkDNS,SetLinkDNSEx,SetLinkDomains,SetLinkDefaultRoute,SetLinkLLMNR,SetLinkMulticastDNS,SetLinkDNSOverTLS,SetLinkDNSSEC,SetLinkDNSSECNegativeTrustAnchors,RevertLinkNTP,RevertLinkDNS,RenewLink,ForceRenewLink,ReconfigureLink,Reload,DescribeLink,Describe}"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `unix (bind) type=stream addr="@*/bus/networkctl*/system",`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/systemd/netif/links/* r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/systemd/netif/lldp/[0-9]* r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/run/udev/data/n[0-9]* r,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/{,usr/}{,s}bin/networkctl ixr,")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `path="/org/freedesktop/network1"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface="org.freedesktop.network1.Manager"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `path="/org/freedesktop/network1/link/_*"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `interface="org.freedesktop.network1.Link"`)
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, `peer=(label=unconfined),`)
 	// No "xdp" feature is available, so this rule should not be added
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "network xdp,")
 	c.Assert(spec.UpdateNS(), DeepEquals, []string{`

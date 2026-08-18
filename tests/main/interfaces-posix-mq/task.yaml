@@ -34,8 +34,9 @@ execute: |
     not test-snapd-posix-mq.mqctl create /test read-only 600 max-size=16,max-count=10
 
     # TODO: remove this check once distro apparmor fixes the issue
+    # TODO: make the check host apparmor version specific
     # When re-exec is not used, the distro apparmor allows to stat /dev/mqueue
-    if tests.info is-reexec-in-use; then
+    if tests.info is-reexec-in-use || os.query is-ubuntu-ge 26.04; then
         # We cannot probe /dev/mqueue
         not snap run --shell test-snapd-posix-mq.mqctl -c 'stat /dev/mqueue'
     else

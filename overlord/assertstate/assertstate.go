@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -402,6 +403,9 @@ func delayedCrossMgrInit() {
 	snapstate.EnforceLocalValidationSets = ApplyLocalEnforcedValidationSets
 	// hook helper for getting validated integrity data
 	snapstate.ValidatedIntegrityData = ValidatedIntegrityData
+	// wire confdbstate helpers that look up confdb-schema assertions
+	confdbstate.AssertstateFetchConfdbSchemaAssertion = FetchConfdbSchemaAssertion
+	confdbstate.AssertstateConfdbSchema = ConfdbSchema
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
@@ -1480,4 +1484,34 @@ func ValidatedIntegrityData(st *state.State, snapID string, rev snap.Revision) (
 	}
 
 	return integrity.NewIntegrityDataParamsFromRevision(revAssertion)
+}
+
+// AccountKey returns the account-key assertion for the given signing key ID,
+// if it's present in the system assertion database.
+func AccountKey(st *state.State, signKeyID string) (*asserts.AccountKey, error) {
+	db := DB(st)
+	as, err := db.Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": signKeyID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return as.(*asserts.AccountKey), nil
+}
+
+// FetchAccountKey fetches the account-key assertion for the given signing key ID.
+func FetchAccountKey(st *state.State, userID int, signKeyID string) error {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return err
+	}
+
+	return doFetch(st, userID, deviceCtx, nil, func(f asserts.Fetcher) error {
+		ref := &asserts.Ref{
+			Type:       asserts.AccountKeyType,
+			PrimaryKey: []string{signKeyID},
+		}
+		return f.Fetch(ref)
+	})
 }

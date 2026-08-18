@@ -72,12 +72,30 @@ capset
 chdir
 fchdir
 
-# We can't effectively block file perms due to open() with O_CREAT, so allow
-# chmod until we have syscall arg filtering (LP: #1446748)
+# We can't effectively block file perms due to open() with O_CREAT. Allow
+# chmod in general but deny specific patterns with ~ and | (bit mask) entries
+# below.
 chmod
 fchmod
 fchmodat
 fchmodat2
+# Deny setuid bit (S_ISUID = 0o4000) from being used.
+#
+# The signature is:
+#
+# chmod <path> <mode>
+# fchmod <fd> <mode>
+# fchmodat <fd> <path> <mode>
+# fchmodat2 <fd> <path> <mode> <flags>
+~chmod - |S_ISUID
+~fchmod - |S_ISUID
+~fchmodat - - |S_ISUID
+~fchmodat2 - - |S_ISUID -
+# Deny setgid bit (S_ISGID = 0o2000) from being used.
+~chmod - |S_ISGID
+~fchmod - |S_ISGID
+~fchmodat - - |S_ISGID
+~fchmodat2 - - |S_ISGID -
 
 # Daemons typically run as 'root' so allow chown to 'root'. DAC will prevent
 # non-root from chowning to root.
@@ -126,7 +144,15 @@ copy_file_range - - - - - 0
 
 chroot
 
+# creat <path> <mode>
 creat
+
+# Deny setuid bit (S_ISUID = 0o4000) from being used.
+~creat - |S_ISUID
+
+# Deny setgid bit (S_ISGID = 0o2000) from being used.
+~creat - |S_ISGID
+
 dup
 dup2
 dup3
@@ -284,12 +310,22 @@ mmap2
 
 # Allow mknod for regular files, pipes and sockets (and not block or char
 # devices)
+# mknod <path> <mode> <dev>
+# mknodat <dirfd> <path> <mode> <dev>
 mknod - |S_IFREG -
 mknodat - - |S_IFREG -
 mknod - |S_IFIFO -
 mknodat - - |S_IFIFO -
 mknod - |S_IFSOCK -
 mknodat - - |S_IFSOCK -
+
+# Deny setuid bit (S_ISUID = 0o4000) from being used.
+~mknod - |S_ISUID
+~mknodat - - |S_ISUID
+
+# Deny setgid bit (S_ISGID = 0o2000) from being used.
+~mknod - |S_ISGID
+~mknodat - - |S_ISGID
 
 modify_ldt
 mprotect
@@ -322,9 +358,33 @@ nice <=19
 setpriority PRIO_PROCESS 0 <=19
 
 # LP: #1446748 - support syscall arg filtering for mode_t with O_CREAT
+# open <path> <flags> <mode>
 open
 
+# openat <dirfd> <path> <flags> <mode>
 openat
+
+# Deny openat2 from being used as struct open_how is behind a pointer and it
+# may be used to pass suid/sgid mode.
+# openat2 <dirfd> <path> <how> <size>
+~openat2
+
+# Deny setuid bit (S_ISUID = 0o4000) from being used together with O_CREAT.
+~open - |O_CREAT |S_ISUID
+~openat - - |O_CREAT |S_ISUID
+
+# Deny setgid bit (S_ISGID = 0o2000) from being used together with O_CREAT.
+~open - |O_CREAT |S_ISGID
+~openat - - |O_CREAT |S_ISGID
+
+# Deny setuid bit from being used together with O_TMPFILE.
+~open - |O_TMPFILE |S_ISUID
+~openat - - |O_TMPFILE |S_ISUID
+
+# Deny setgid bit from being used together with O_TMPFILE.
+~open - |O_TMPFILE |S_ISGID
+~openat - - |O_TMPFILE |S_ISGID
+
 pause
 personality
 pipe

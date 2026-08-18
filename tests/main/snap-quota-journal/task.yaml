@@ -7,7 +7,6 @@ details: |
 # these systems do not support journal quota groups due to their old systemd versions.
 # requires systemd v245+
 systems:
-  - -amazon-linux-2-*
   - -ubuntu-14.04-*
   - -ubuntu-16.04-*
   - -ubuntu-18.04-*
@@ -102,7 +101,7 @@ execute: |
   systemctl show --property=ControlGroup snap.test-snapd-journal-quota.logger.service | grep -vF "$SLICE_REGEXP"
 
   echo "And the slice is not active anymore"
-  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+  systemctl show --property=ActiveState "$sliceName" | MATCH '^ActiveState=inactive$'
 
   # Make sure that the service is running still and now outputting logs
   # into the original journal.

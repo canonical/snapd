@@ -1561,6 +1561,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 	for idx, tc := range []struct {
 		tpmErr                 error
 		tpmEnabled             bool
+		dryRun                 bool
 		usePrimaryKeyFile      bool
 		keyDataInFile          bool
 		missingFile            bool
@@ -1584,6 +1585,8 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 	}{
 		// happy case
 		{tpmEnabled: true, resealCalls: 1},
+		// happy case, dry-run skips persisting rewritten key data
+		{tpmEnabled: true, resealCalls: 1, dryRun: true},
 		// happy case with AllowInsufficientDmaProtection
 		{tpmEnabled: true, resealCalls: 1, noDmaProtection: true},
 		// happy case with check result available on disk and AllowInsufficientDmaProtection true
@@ -1773,6 +1776,7 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		keyFile2 := filepath.Join(tmpdir, "keyfile2")
 		myParams := &secboot.ResealKeysWithTPMParams{
 			PCRProfile: pcrProfile,
+			DryRun:     tc.dryRun,
 			Keys: []secboot.KeyDataLocation{
 				{
 					DevicePath: "/dev/somedevice",
@@ -1947,6 +1951,9 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 				c.Check(keyFile2, Not(testutil.FilePresent))
 			}
 			if tc.oldKeyFiles {
+				c.Check(sealedKeysRequested, Equals, 0)
+				c.Check(updatedKeys, IsNil)
+			} else if tc.dryRun {
 				c.Check(sealedKeysRequested, Equals, 0)
 				c.Check(updatedKeys, IsNil)
 			} else {
@@ -3889,7 +3896,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 		return nil, fmt.Errorf("unexpected call")
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, nil, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"}, false)
 	c.Assert(err, IsNil)
 
 	// Nothing should have happened. But we make sure that they key is still there untouched.
@@ -3899,7 +3906,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV1(c *C) {
 	c.Check(key, DeepEquals, key1)
 }
 
-func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+func (s *secbootSuite) testResealKeysWithFDESetupHookV2(c *C, dryRun bool) {
 	auxKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	key1 := []byte(`{"platform_name":"fde-hook-v2","platform_handle":{"handle-for":"key1"},"encrypted_payload":"U0VBTEVEOgAEAQIDBAAgAQIDBAUGBwgJCgsMDQ4PEAECAwQFBgcICQoLDA0ODxA=","authorized_snap_models":{"alg":"sha256","key_digest":"KTj3yfwaA090S9iS3TuTqEdU8+taRAUy/PVbJAhoqpI=","hmacs":["O8n/7j4ZT12hBjbF4rzPHpSUna69e7I43a90oZaB3HY="]}}`)
 
@@ -3932,7 +3939,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 		return auxKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{m}, []string{"run"}, dryRun)
 	c.Assert(err, IsNil)
 
 	afterReader, err := sb.NewFileKeyDataReader(key1Fn)
@@ -3942,7 +3949,21 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
 
 	afterAuthorized, err := afterKeyData.IsSnapModelAuthorized(auxKey, m)
 	c.Assert(err, IsNil)
-	c.Check(afterAuthorized, Equals, true)
+	if dryRun {
+		c.Check(afterAuthorized, Equals, false)
+	} else {
+		c.Check(afterAuthorized, Equals, true)
+	}
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2(c *C) {
+	const dryRun = false
+	s.testResealKeysWithFDESetupHookV2(c, dryRun)
+}
+
+func (s *secbootSuite) TestResealKeysWithFDESetupHookV2DryRun(c *C) {
+	const dryRun = true
+	s.testResealKeysWithFDESetupHookV2(c, dryRun)
 }
 
 type fakeKeyProtector struct{}
@@ -4023,7 +4044,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHook(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"}, false)
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -4099,7 +4120,7 @@ func (s *secbootSuite) TestResealKeysWithFDESetupHookFromFile(c *C) {
 		return primaryKey, nil
 	})()
 
-	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"})
+	err = secboot.ResealKeysWithFDESetupHook([]secboot.KeyDataLocation{key1Location}, []string{"/dev/foo"}, nil, func([]byte) {}, []secboot.ModelForSealing{newModel}, []string{"some-mode"}, false)
 	c.Assert(err, IsNil)
 	c.Check(modelSet, Equals, 1)
 	c.Check(bootModesSet, Equals, 1)
@@ -5514,7 +5535,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string, dryRun bool) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
@@ -5522,6 +5543,7 @@ func (s *secbootSuite) TestResealKeyHook(c *C) {
 		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
 		c.Check(keys[0].SlotName, Equals, "key1")
 		c.Check(bootModes, DeepEquals, []string{"foo", "bar"})
+		c.Check(dryRun, Equals, false)
 		c.Assert(models, HasLen, 1)
 		c.Check(models[0].Model(), Equals, "mytest")
 		return nil
@@ -5578,7 +5600,7 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 	})()
 
 	resealKeysWithTPMCalled := 0
-	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string) error {
+	defer secboot.MockResealKeysWithFDESetupHook(func(keys []secboot.KeyDataLocation, primaryKeyDevices []string, fallbackPrimaryKeyFiles []string, verifyPrimaryKey func([]byte), models []secboot.ModelForSealing, bootModes []string, dryRun bool) error {
 		resealKeysWithTPMCalled++
 		c.Check(primaryKeyDevices, DeepEquals, []string{"/dev/foo", "/dev/bar"})
 		c.Check(fallbackPrimaryKeyFiles, DeepEquals, []string{"/some/file", "/some/other/key"})
@@ -5587,6 +5609,7 @@ func (s *secbootSuite) TestResealKeyHookV2(c *C) {
 		c.Check(keys[0].DevicePath, Equals, "/dev/somedevice")
 		c.Check(keys[0].SlotName, Equals, "key1")
 		c.Check(bootModes, DeepEquals, []string{"foo", "bar"})
+		c.Check(dryRun, Equals, false)
 		c.Assert(models, HasLen, 1)
 		c.Check(models[0].Model(), Equals, "mytest")
 		return nil
@@ -5945,4 +5968,212 @@ func (s *secbootSuite) TestShouldAttemptRepairWithRecovery(c *C) {
 
 	state.Activations["a"].KeyslotErrors["a"] = sb.KeyslotErrorIncompatibleRoleParams
 	c.Check(secboot.ShouldAttemptRepair(state), Equals, true)
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromToken(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return &myFakeKeyData{platformName: "tpm2", handle: 42}, nil
+	})()
+
+	handle, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(42))
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenNotTPM(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return &myFakeKeyData{platformName: "not-tpm2", handle: 42}, nil
+	})()
+
+	handle, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, IsNil)
+	c.Check(handle, Equals, uint32(0))
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenErrorReader(c *C) {
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return nil, fmt.Errorf("boom")
+	})()
+
+	_, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, ErrorMatches, `boom`)
+}
+
+func (s *secbootSuite) TestGetPCRHandleFromTokenErrorRead(c *C) {
+	kdr := newFakeKeyDataReader("the-slot", []byte(`something`))
+
+	defer secboot.MockSbNewLUKS2KeyDataReader(func(device, slot string) (sb.KeyDataReader, error) {
+		c.Check(device, Equals, "/dev/foo")
+		c.Check(slot, Equals, "the-slot")
+		return kdr, nil
+	})()
+
+	defer secboot.MockReadKeyData(func(reader sb.KeyDataReader) (secboot.MockableKeyData, error) {
+		c.Check(reader, Equals, kdr)
+		return nil, fmt.Errorf("boom")
+	})()
+
+	_, err := secboot.GetPCRHandleFromToken("/dev/foo", "the-slot")
+	c.Assert(err, ErrorMatches, `cannot read key data for slot 'the-slot': boom`)
+}
+
+type mockKeyslot struct {
+	t    sb.KeyslotType
+	name string
+	data []byte
+}
+
+func (m *mockKeyslot) Type() sb.KeyslotType {
+	return m.t
+}
+
+func (m *mockKeyslot) Name() string {
+	return m.name
+}
+
+func (m *mockKeyslot) Priority() int {
+	return 0
+}
+
+func (m *mockKeyslot) Data() sb.KeyDataReader {
+	return newFakeKeyDataReader(m.name, m.data)
+}
+
+type mockStorageContainerReader struct {
+	keyslots map[string]*mockKeyslot
+}
+
+func (m *mockStorageContainerReader) Container() sb.StorageContainer {
+	return nil
+}
+
+func (m *mockStorageContainerReader) ListKeyslotNames(ctx context.Context) ([]string, error) {
+	var names []string
+	for name := range m.keyslots {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+func (m *mockStorageContainerReader) ReadKeyslot(ctx context.Context, name string) (sb.Keyslot, error) {
+	ret, ok := m.keyslots[name]
+	if ok {
+		return ret, nil
+	} else {
+		return ret, fmt.Errorf("some error")
+	}
+}
+
+func (m *mockStorageContainerReader) Close() error {
+	return nil
+}
+
+type mockStorageContainerWithReader struct {
+	reader *mockStorageContainerReader
+}
+
+func (m *mockStorageContainerWithReader) Path() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) BackendName() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) CredentialName() string {
+	return ""
+}
+
+func (m *mockStorageContainerWithReader) Activate(ctx context.Context, ks sb.Keyslot, key []byte, cfg sb.ActivateConfigGetter) error {
+	return fmt.Errorf("unexpected")
+}
+
+func (m *mockStorageContainerWithReader) Deactivate(ctx context.Context) error {
+	return fmt.Errorf("unexpected")
+}
+
+func (m *mockStorageContainerWithReader) OpenRead(ctx context.Context) (sb.StorageContainerReader, error) {
+	return m.reader, nil
+}
+
+func (s *secbootSuite) TestTestProtectorKey(c *C) {
+	storage := &mockStorageContainerWithReader{
+		reader: &mockStorageContainerReader{
+			keyslots: map[string]*mockKeyslot{
+				"the-slot": {
+					t:    sb.KeyslotTypePlatform,
+					name: "the-slot",
+					data: []byte(`{}`),
+				},
+			},
+		},
+	}
+	defer secboot.MockSbFindStorageContainer(func(ctx context.Context, path string) (sb.StorageContainer, error) {
+		c.Check(path, Equals, "/dev/foo")
+		return storage, nil
+	})()
+
+	isRightProtectorKey := false
+	defer secboot.MockSetProtectorKeys(func(keys ...[]byte) {
+		for _, key := range keys {
+			if len(key) == 4 &&
+				key[0] == 1 &&
+				key[1] == 2 &&
+				key[2] == 3 &&
+				key[3] == 4 {
+				isRightProtectorKey = true
+				return
+			}
+		}
+		isRightProtectorKey = false
+	})()
+
+	defer secboot.MockSbKeyDataRecoverKeys(func(d *sb.KeyData) (sb.DiskUnlockKey, sb.PrimaryKey, error) {
+		if isRightProtectorKey {
+			return []byte{1, 1, 1, 1}, []byte{0}, nil
+		} else {
+			return []byte{2, 2, 2, 2}, []byte{1}, nil
+		}
+	})()
+
+	defer secboot.MockSbTestLUKS2ContainerKey(func(devicePath string, key []byte) bool {
+		c.Check(devicePath, Equals, "/dev/foo")
+		return len(key) == 4 &&
+			key[0] == 1 &&
+			key[1] == 1 &&
+			key[2] == 1 &&
+			key[3] == 1
+	})()
+
+	works, err := secboot.TestProtectorKey(context.Background(), "/dev/foo", "the-slot", []byte{1, 2, 3, 4})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, true)
+
+	works, err = secboot.TestProtectorKey(context.Background(), "/dev/foo", "the-slot", []byte{5, 6, 7, 8})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, false)
+
+	works, err = secboot.TestProtectorKey(context.Background(), "/dev/foo", "unknown", []byte{1, 2, 3, 4})
+	c.Assert(err, IsNil)
+	c.Check(works, Equals, false)
 }

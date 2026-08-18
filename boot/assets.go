@@ -290,6 +290,11 @@ type EncryptionSetup struct {
 	checkResult *secboot.PreinstallCheckResult
 }
 
+func (e *EncryptionSetup) PrimaryKey() []byte {
+	osutil.MustBeTestBinary("cannot use EncryptionSetup.PrimaryKey outside of tests")
+	return e.primaryKey
+}
+
 // BootAssets identifies the trusted assets that may be accepted in
 // boot chains and the method to update the boot entry.
 type BootAssets interface {

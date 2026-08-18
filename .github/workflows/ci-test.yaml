@@ -137,7 +137,6 @@ jobs:
         build-config:
           - { system: "opensuse-tumbleweed-64", dockerfile: "opensuse.dockerfile", image-name: "opensuse/tumbleweed", image-tag: "latest", pkg-dir: "opensuse-tumbleweed" }
           - { system: "opensuse-16.0-64",       dockerfile: "opensuse.dockerfile", image-name: "opensuse/leap",       image-tag: "16.0",   pkg-dir: "opensuse-16.0"       }
-          - { system: "amazon-linux-2-64",      dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2",      pkg-dir: "amzn-2"              }
           - { system: "amazon-linux-2023-64",   dockerfile: "amazon.dockerfile",   image-name: "amazonlinux",         image-tag: "2023",   pkg-dir: "amzn-2023"           }
 
   package-snapd-arch:
@@ -161,7 +160,6 @@ jobs:
       matrix:
         build-config:
           - { system: "ubuntu-26.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '26.04' }
-          - { system: "ubuntu-25.10-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.10' }
           - { system: "ubuntu-25.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '25.04' }
           - { system: "ubuntu-24.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '24.04' }
           - { system: "ubuntu-22.04-64",     runs-on: '["ubuntu-latest"]',     os: ubuntu, os-version: '22.04' }

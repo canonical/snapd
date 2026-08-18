@@ -99,7 +99,7 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot get connections for snap %q: %v", snap.Name, err)
 	}
-	var hasHome, hasRemovableMedia bool
+	var hasHome, hasRemovableMedia, hasSystemPackagesDoc bool
 	for _, conn := range connections.Established {
 		if conn.Plug.Snap != snap.Name {
 			continue
@@ -109,6 +109,8 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 			hasHome = true
 		case "removable-media":
 			hasRemovableMedia = true
+		case "system-packages-doc":
+			hasSystemPackagesDoc = true
 		}
 	}
 
@@ -126,7 +128,7 @@ func (x *cmdRoutineFileAccess) Execute(args []string) error {
 		promptingRunning = ok && promptingFeatureInfo.Supported && promptingFeatureInfo.Enabled
 	}
 
-	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, promptingRunning, path)
+	access, err := x.checkAccess(snap, hasHome, hasRemovableMedia, hasSystemPackagesDoc, promptingRunning, path)
 	if err != nil {
 		return err
 	}
@@ -151,6 +153,23 @@ const (
 	FileAccessReadWrite FileAccess = "read-write"
 )
 
+// systemPackagesDocPaths lists the file system locations accessible via the
+// system-packages-doc interface.
+var systemPackagesDocPathParts = [][]string{
+	{"usr", "share", "doc"},
+	{"usr", "local", "share", "doc"},
+	{"usr", "share", "cups", "doc-root"},
+	{"usr", "share", "gimp", "2.0", "help"},
+	{"usr", "share", "gtk-doc"},
+	{"usr", "share", "javascript"},
+	{"usr", "share", "libreoffice", "help"},
+	{"usr", "share", "sphinx_rtd_theme"},
+	{"usr", "share", "xubuntu-docs"},
+	{"usr", "share", "man"},
+	{"usr", "share", "help"},
+	{"usr", "share", "info"},
+}
+
 func splitPathAbs(path string) ([]string, error) {
 	// Abs also cleans the path, removing any ".." components
 	path, err := filepath.Abs(path)
@@ -173,7 +192,7 @@ func pathHasPrefix(path, prefix []string) bool {
 	return true
 }
 
-func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, promptingRunning bool, path string) (FileAccess, error) {
+func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemovableMedia, hasSystemPackagesDoc, promptingRunning bool, path string) (FileAccess, error) {
 	// Classic confinement snaps run in the host system namespace,
 	// so can see everything.
 	if snap.Confinement == client.ClassicConfinement {
@@ -203,6 +222,16 @@ func (x *cmdRoutineFileAccess) checkAccess(snap *client.Snap, hasHome, hasRemova
 	if hasRemovableMedia {
 		if pathHasPrefix(pathParts, []string{"mnt"}) || pathHasPrefix(pathParts, []string{"media"}) || pathHasPrefix(pathParts, []string{"run", "media"}) {
 			return FileAccessReadWrite, nil
+		}
+	}
+
+	// Snaps with system-packages-doc plugged can access system
+	// documentation directories.
+	if hasSystemPackagesDoc && path != "/usr/share/javascript" && path != "/usr/share/javascript/" {
+		for _, docPart := range systemPackagesDocPathParts {
+			if pathHasPrefix(pathParts, docPart) {
+				return FileAccessReadOnly, nil
+			}
 		}
 	}
 

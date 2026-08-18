@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -71,4 +72,8 @@ func MockSecbootFDEOpteeTAPresent(fn func() bool) (restore func()) {
 	restore = testutil.Backup(&secbootFDEOpteeTAPresent)
 	secbootFDEOpteeTAPresent = fn
 	return restore
+}
+
+func MockSecbootLoadCheckResult(f func(filename string) (*secboot.PreinstallCheckResult, error)) (restore func()) {
+	return testutil.Mock(&secbootLoadCheckResult, f)
 }
