@@ -100,16 +100,33 @@ execute: |
     # it is elected as the user's display session, so "loginctl show-session
     # auto" resolves to it.
     if [ "$USER" != root ]; then
+        # No sessions initially
+        loginctl list-sessions --no-legend | NOMATCH "$USER"
+
+        # Create session, check that it appears to loginctl
         tests.session create-session -u "$USER" -c user
-        tests.session -u "$USER" exec loginctl show-session auto -p Class | MATCH "Class=user"
-        loginctl list-sessions --no-legend | grep "$USER"
+        loginctl list-sessions --no-legend | MATCH "$USER"
+
+        # Running a command as user outside a session falls back to the session
+        sudo -iu "$USER" loginctl show-session auto -p Class | MATCH "Class=user"
+
+        # There's just one active session for the user
+        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 1
+
+        # Running `tests.session exec` executes in its own background session,
+        # so there are two sessions while `tests.session exec` is running, and
+        # `loginctl show-session` from within finds the background session.
+        tests.session -u "$USER" exec loginctl show-session auto -p Class | MATCH "Class=background"
+        test "$(tests.session -u "$USER" exec loginctl list-sessions --no-legend | grep --count "$USER")" -eq 2
+        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 1
 
         # A second session with the same class but a distinct label can co-exist.
         tests.session create-session -u "$USER" -c user -l second
-        test "$(loginctl list-sessions --no-legend | grep -c "$USER")" -ge 2
+        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 2
 
         # Creating an already-existing session is an error.
         not tests.session create-session -u "$USER" -c user
+        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 2
 
         # A labelled session can be destroyed individually, the rest can be
         # destroyed without a label.
