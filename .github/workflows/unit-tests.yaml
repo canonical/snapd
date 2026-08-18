@@ -162,8 +162,7 @@ jobs:
       if: ${{ inputs.code == 'go' && inputs.run-as-root }}
       run: |
         sudo --preserve-env=PATH,GOROOT,GO_BUILD_TAGS,SNAPD_DEBUG,GO_TEST_RACE,SKIP_COVERAGE \
-          unshare --net -- bash -c 'ip link set lo up && go test -count=1 ./osutil/...'
-
+          unshare --net -- bash -c 'ip link set lo up && ./run-checks --unit
 
     - name: Create coverage results name
       if: ${{ ! inputs.skip-coverage }}
