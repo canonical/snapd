@@ -17,7 +17,7 @@
  *
  */
 
-package swfeatstest
+package swfeatstest_test
 
 import (
 	"bytes"
@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 
 	. "gopkg.in/check.v1"
 )
@@ -36,7 +38,7 @@ type ensureLogCheckerSuite struct{}
 var _ = Suite(&ensureLogCheckerSuite{})
 
 func (s *ensureLogCheckerSuite) TestCheckEnsureLoopLogging(c *C) {
-	CheckEnsureLoopLogging("example_test.go", c, true)
+	swfeatstest.CheckEnsureLoopLogging("example_test.go", c, true)
 }
 
 type unregisteredEnsureSuite struct {
@@ -44,7 +46,7 @@ type unregisteredEnsureSuite struct {
 }
 
 func (s *unregisteredEnsureSuite) TestCheckEnsureLoopLogging(c *C) {
-	CheckEnsureLoopLogging(s.filename, c, true)
+	swfeatstest.CheckEnsureLoopLogging(s.filename, c, true)
 }
 
 func (s *ensureLogCheckerSuite) TestCheckEnsureLoopLoggingUnregisteredEnsure(c *C) {

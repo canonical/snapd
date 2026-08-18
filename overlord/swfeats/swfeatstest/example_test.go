@@ -17,7 +17,7 @@
  *
  */
 
-package swfeatstest
+package swfeatstest_test
 
 import (
 	"github.com/snapcore/snapd/logger"
