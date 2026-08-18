@@ -59,8 +59,7 @@ func MockSecbootResealKey(f func(key secboot.KeyDataLocation, params *secboot.Re
 func MockSecbootBuildPCRProtectionProfile(f func(
 	modelParams []*secboot.SealKeyModelParams,
 	checkResult *secboot.PreinstallCheckResult,
-	allowInsufficientDmaProtection bool,
-	allowThunderboltSecurityLevel0 bool,
+	opts secboot.PCRProtectionProfileOptions,
 ) (secboot.SerializedPCRProfile, error)) (restore func()) {
 	osutil.MustBeTestBinary("secbootBuildPCRProtectionProfile only can be mocked in tests")
 	old := secbootBuildPCRProtectionProfile
@@ -545,12 +544,17 @@ func updateRunProtectionProfile(
 	err = func() error {
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, checkResult, !hasClassicModel, !hasClassicModel)
+		pcrProfileOpts := secboot.PCRProtectionProfileOptions{
+			AllowInsufficientDmaProtection: !hasClassicModel,
+			AllowThunderboltSecurityLevel0: !hasClassicModel,
+		}
+
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, checkResult, pcrProfileOpts)
 		if err != nil {
 			return err
 		}
 
-		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, checkResult, !hasClassicModel, !hasClassicModel)
+		pcrProfileRunOnly, err = secbootBuildPCRProtectionProfile(modelParamsRunOnly, checkResult, pcrProfileOpts)
 		if err != nil {
 			return err
 		}
@@ -607,7 +611,11 @@ func updateFallbackProtectionProfile(
 	err = func() error {
 		var err error
 
-		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, checkResult, !hasClassicModel, !hasClassicModel)
+		pcrProfileOpts := secboot.PCRProtectionProfileOptions{
+			AllowInsufficientDmaProtection: !hasClassicModel,
+			AllowThunderboltSecurityLevel0: !hasClassicModel,
+		}
+		pcrProfile, err = secbootBuildPCRProtectionProfile(modelParams, checkResult, pcrProfileOpts)
 		if err != nil {
 			return err
 		}

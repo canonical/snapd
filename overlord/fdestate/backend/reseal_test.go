@@ -399,11 +399,11 @@ func (s *resealTestSuite) testTPMResealHappy(c *C, tc tpmResealHappyCase) {
 	})()
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, opts secboot.PCRProtectionProfileOptions) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, !tc.onClassic)
-		c.Check(allowThunderboltSecurityLevel0, Equals, !tc.onClassic)
+		c.Check(opts.AllowInsufficientDmaProtection, Equals, !tc.onClassic)
+		c.Check(opts.AllowThunderboltSecurityLevel0, Equals, !tc.onClassic)
 
 		if tc.onClassic {
 			c.Check(checkResult, Equals, expectedCheckResult)
@@ -864,13 +864,12 @@ func (s *resealTestSuite) TestResealKeyForBootchainsWithSystemFallback(c *C) {
 		restore := backend.MockSecbootBuildPCRProtectionProfile(func(
 			modelParams []*secboot.SealKeyModelParams,
 			checkResult *secboot.PreinstallCheckResult,
-			allowInsufficientDmaProtection bool,
-			allowThunderboltSecurityLevel0 bool,
+			opts secboot.PCRProtectionProfileOptions,
 		) (secboot.SerializedPCRProfile, error) {
 			buildProfileCalls++
 
-			c.Check(allowInsufficientDmaProtection, Equals, true)
-			c.Check(allowThunderboltSecurityLevel0, Equals, true)
+			c.Check(opts.AllowInsufficientDmaProtection, Equals, true)
+			c.Check(opts.AllowThunderboltSecurityLevel0, Equals, true)
 			c.Check(checkResult, Equals, expectedCheckResult)
 
 			c.Assert(modelParams, HasLen, 1)
@@ -1446,11 +1445,11 @@ func (s *resealTestSuite) TestResealKeyForBootchainsRecoveryKeysForGoodSystemsOn
 	})()
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, opts secboot.PCRProtectionProfileOptions) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, true)
-		c.Check(allowThunderboltSecurityLevel0, Equals, true)
+		c.Check(opts.AllowInsufficientDmaProtection, Equals, true)
+		c.Check(opts.AllowThunderboltSecurityLevel0, Equals, true)
 		c.Check(checkResult, Equals, expectedCheckResult)
 
 		// shared parameters
@@ -1751,11 +1750,11 @@ func (s *resealTestSuite) testResealKeyForBootchainsWithTryModel(c *C, shimId, g
 	})()
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, opts secboot.PCRProtectionProfileOptions) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, true)
-		c.Check(allowThunderboltSecurityLevel0, Equals, true)
+		c.Check(opts.AllowInsufficientDmaProtection, Equals, true)
+		c.Check(opts.AllowThunderboltSecurityLevel0, Equals, true)
 		c.Check(checkResult, Equals, expectedCheckResult)
 
 		switch buildProfileCalls {
@@ -2121,11 +2120,11 @@ func (s *resealTestSuite) TestResealKeyForBootchainsFallbackCmdline(c *C) {
 	})()
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, opts secboot.PCRProtectionProfileOptions) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, true)
-		c.Check(allowThunderboltSecurityLevel0, Equals, true)
+		c.Check(opts.AllowInsufficientDmaProtection, Equals, true)
+		c.Check(opts.AllowThunderboltSecurityLevel0, Equals, true)
 		c.Check(checkResult, Equals, expectedCheckResult)
 
 		c.Assert(modelParams, HasLen, 1)
@@ -2592,11 +2591,11 @@ func (s *resealTestSuite) TestResealKeyForSignatureDBUpdate(c *C) {
 	})()
 
 	buildProfileCalls := 0
-	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, allowInsufficientDmaProtection, allowThunderboltSecurityLevel0 bool) (secboot.SerializedPCRProfile, error) {
+	restore := backend.MockSecbootBuildPCRProtectionProfile(func(modelParams []*secboot.SealKeyModelParams, checkResult *secboot.PreinstallCheckResult, opts secboot.PCRProtectionProfileOptions) (secboot.SerializedPCRProfile, error) {
 		buildProfileCalls++
 
-		c.Check(allowInsufficientDmaProtection, Equals, true)
-		c.Check(allowThunderboltSecurityLevel0, Equals, true)
+		c.Check(opts.AllowInsufficientDmaProtection, Equals, true)
+		c.Check(opts.AllowThunderboltSecurityLevel0, Equals, true)
 		c.Check(checkResult, Equals, expectedCheckResult)
 
 		c.Assert(modelParams, HasLen, 1)

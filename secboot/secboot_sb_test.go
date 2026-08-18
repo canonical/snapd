@@ -1776,7 +1776,10 @@ func (s *secbootSuite) TestResealKeysWithTPM(c *C) {
 		})
 		defer restore()
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, checkResult, tc.noDmaProtection, tc.noThunderboltSecurity)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(modelParams, checkResult, secboot.PCRProtectionProfileOptions{
+			AllowInsufficientDmaProtection: tc.noDmaProtection,
+			AllowThunderboltSecurityLevel0: tc.noThunderboltSecurity,
+		})
 		if len(tc.buildProfileErr) > 0 {
 			c.Assert(err, ErrorMatches, tc.buildProfileErr)
 			continue
@@ -5223,7 +5226,7 @@ func (s *secbootSuite) TestAddContainerTPMProtectedKey(c *C) {
 	} {
 		c.Logf("tc: %v", idx)
 
-		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, false, false)
+		pcrProfile, err := secboot.BuildPCRProtectionProfile(nil, nil, secboot.PCRProtectionProfileOptions{})
 		c.Assert(err, IsNil)
 
 		defer secboot.MockGetDiskUnlockKeyFromKernel(func(prefix, devicePath string, remove bool) (sb.DiskUnlockKey, error) {
