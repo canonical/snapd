@@ -895,7 +895,7 @@ func (s *constraintsSuite) TestRuleConstraintsPruneExpired(c *C) {
 					Expiration: at.Time,
 				},
 			},
-			prompting.AnyPermsExpired,
+			prompting.SomePermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeDeny,
@@ -971,7 +971,7 @@ func (s *constraintsSuite) TestRuleConstraintsPruneExpired(c *C) {
 					SessionID: at.SessionID,
 				},
 			},
-			prompting.AnyPermsExpired,
+			prompting.SomePermsExpired,
 			prompting.RulePermissionMap{
 				"write": &prompting.RulePermissionEntry{
 					Outcome:    prompting.OutcomeAllow,

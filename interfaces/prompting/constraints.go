@@ -346,7 +346,7 @@ type PermExpirationStatus int
 
 const (
 	NoPermsExpired PermExpirationStatus = iota
-	AnyPermsExpired
+	SomePermsExpired
 	AllPermsExpired
 )
 
@@ -614,7 +614,7 @@ func unmarshalRulePermissionMap(iface string, permissionsJSON json.RawMessage) (
 // pruneExpired prunes any permissions from the permission map which have
 // expired at the given point in time. If all permissions have expired, then
 // returns AllPermsExpired. If any permissions have expired, then returns
-// AnyPermsExpired. Otherwise, returns NoPermsExpired.
+// SomePermsExpired. Otherwise, returns NoPermsExpired.
 func (pm RulePermissionMap) pruneExpired(at At) PermExpirationStatus {
 	var expiredPerms []string
 	for perm, entry := range pm {
@@ -632,7 +632,7 @@ func (pm RulePermissionMap) pruneExpired(at At) PermExpirationStatus {
 	}
 
 	if len(pm) < originalLength {
-		return AnyPermsExpired
+		return SomePermsExpired
 	}
 	return NoPermsExpired
 }
