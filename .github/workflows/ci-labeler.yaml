@@ -16,7 +16,7 @@ jobs:
         sync-labels: "true"
 
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Apply draft label using gh CLI
       env:

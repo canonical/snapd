@@ -25,7 +25,7 @@ jobs:
     runs-on: ${{ fromJSON(inputs.runs-on) }}
     steps:
     - name: Checkout code
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
 
     - name: Download vendor
       uses: actions/download-artifact@v8
@@ -50,7 +50,7 @@ jobs:
       run: echo "CACHE_KEY=mock-cache-${{ inputs.system }}-$(date '+%Y-%U')" >> $GITHUB_ENV
 
     - name: Cache mock dependencies
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: /tmp/mock
         key: ${{ env.CACHE_KEY }}
