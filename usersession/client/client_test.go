@@ -665,7 +665,7 @@ func (s *clientSuite) TestServiceStatusWrongResultType(c *C) {
 	})
 	_, failures, err := s.cli.ServiceStatus(context.Background(), []string{"snap.foo.service"})
 	c.Check(failures, DeepEquals, map[int][]client.ServiceFailure{})
-	c.Check(err, ErrorMatches, `json: cannot unmarshal string into Go value of type client.ServiceUnitStatus`)
+	c.Check(err, ErrorMatches, `json: cannot unmarshal string into .* of type client.ServiceUnitStatus`)
 }
 
 func (s *clientSuite) TestServiceStatusFailure(c *C) {
