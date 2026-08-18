@@ -77,3 +77,33 @@ func (m *unregisteredEnsureManager) ensureChild() {
 	c.Check(strings.Contains(output.String(), "ensureChild"), Equals, true)
 	c.Check(strings.Contains(output.String(), "is not registered"), Equals, true)
 }
+
+func (s *ensureLogCheckerSuite) TestCheckEnsureLoopLoggingEnsureNotLogged(c *C) {
+	filename := filepath.Join(c.MkDir(), "unregistered-example.go")
+	err := os.WriteFile(filename, []byte(`package swfeatstest
+
+import "github.com/snapcore/snapd/logger"
+
+type notLoggedEnsureManager struct{}
+
+func (m *notLoggedEnsureManager) Ensure() error {
+	m.ensureChild()
+	return nil
+}
+
+func (m *notLoggedEnsureManager) ensureChild() {
+}
+`), 0644)
+	c.Assert(err, IsNil)
+
+	var output bytes.Buffer
+	result := Run(&unregisteredEnsureSuite{filename: filename}, &RunConf{Output: &output})
+	c.Check(result.Succeeded, Equals, 0)
+	c.Check(result.Failed, Equals, 1)
+	c.Check(result.Panicked, Equals, 0)
+	c.Check(result.FixturePanicked, Equals, 0)
+	c.Check(result.RunError, IsNil)
+	c.Check(strings.Contains(output.String(), "notLoggedEnsureManager"), Equals, true)
+	c.Check(strings.Contains(output.String(), "ensureChild"), Equals, true)
+	c.Check(strings.Contains(output.String(), "trace log was not found"), Equals, true)
+}
