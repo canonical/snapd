@@ -808,6 +808,172 @@ func (l *lkenvTestSuite) TestGetAndSetAndFindBootPartition(c *C) {
 	}
 }
 
+func (l *lkenvTestSuite) TestDuplicateKernelBootPartitions(c *C) {
+	tt := []struct {
+		version lkenv.Version
+		comment string
+	}{
+		{lkenv.V1, "v1"},
+		{lkenv.V2Run, "v2 run"},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+
+		env := lkenv.NewEnv(l.envPath, "", t.version)
+		c.Assert(env, NotNil, comment)
+		err := env.InitializeBootPartitions("boot_a", "boot_b")
+		c.Assert(err, IsNil, comment)
+
+		// an empty matrix has no duplicates - in particular the two unset
+		// values must not be reported as duplicates of each other
+		duplicates, err := env.DuplicateKernelBootPartitions()
+		c.Assert(err, IsNil, comment)
+		c.Check(duplicates, HasLen, 0, comment)
+
+		// neither do two distinct kernels
+		err = env.SetBootPartitionKernel("boot_a", "kernel-1")
+		c.Assert(err, IsNil, comment)
+		err = env.SetBootPartitionKernel("boot_b", "kernel-2")
+		c.Assert(err, IsNil, comment)
+		duplicates, err = env.DuplicateKernelBootPartitions()
+		c.Assert(err, IsNil, comment)
+		c.Check(duplicates, HasLen, 0, comment)
+
+		// the same kernel in both boot image partitions is a duplicate, and is
+		// reported in boot image matrix order
+		err = env.SetBootPartitionKernel("boot_b", "kernel-1")
+		c.Assert(err, IsNil, comment)
+		duplicates, err = env.DuplicateKernelBootPartitions()
+		c.Assert(err, IsNil, comment)
+		c.Check(duplicates, DeepEquals, map[string][]string{
+			"kernel-1": {"boot_a", "boot_b"},
+		}, comment)
+
+		// clearing one of them by label resolves the duplicate and leaves the
+		// other reference alone
+		err = env.ClearKernelBootPartition("boot_b")
+		c.Assert(err, IsNil, comment)
+		duplicates, err = env.DuplicateKernelBootPartitions()
+		c.Assert(err, IsNil, comment)
+		c.Check(duplicates, HasLen, 0, comment)
+		bootPart, err := env.GetKernelBootPartition("kernel-1")
+		c.Assert(err, IsNil, comment)
+		c.Check(bootPart, Equals, "boot_a", comment)
+
+		// clearing an unknown boot image partition is an error
+		err = env.ClearKernelBootPartition("boot_c")
+		c.Assert(err, ErrorMatches, "cannot find boot image partition boot_c", comment)
+	}
+}
+
+func (l *lkenvTestSuite) TestDuplicateKernelBootPartitionsAllSlots(c *C) {
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Run)
+	c.Assert(env, NotNil)
+	c.Assert(env.InitializeBootPartitions("boot_a", "boot_b"), IsNil)
+
+	// the fully wedged state: the currently installed kernel occupies every
+	// boot image partition, so no free one can be found at all
+	c.Assert(env.SetBootPartitionKernel("boot_a", "kernel-1"), IsNil)
+	c.Assert(env.SetBootPartitionKernel("boot_b", "kernel-1"), IsNil)
+	env.Set("snap_kernel", "kernel-1")
+
+	_, err := env.FindFreeKernelBootPartition("kernel-2")
+	c.Assert(err, ErrorMatches, "cannot find free boot image partition")
+
+	duplicates, err := env.DuplicateKernelBootPartitions()
+	c.Assert(err, IsNil)
+	c.Assert(duplicates, DeepEquals, map[string][]string{
+		"kernel-1": {"boot_a", "boot_b"},
+	})
+
+	// freeing the redundant reference unwedges the device
+	c.Assert(env.ClearKernelBootPartition("boot_b"), IsNil)
+	bootPart, err := env.FindFreeKernelBootPartition("kernel-2")
+	c.Assert(err, IsNil)
+	c.Check(bootPart, Equals, "boot_b")
+}
+
+func (l *lkenvTestSuite) TestDuplicateKernelBootPartitionsV2RecoveryUnsupported(c *C) {
+	env := lkenv.NewEnv(l.envPath, "", lkenv.V2Recovery)
+	c.Assert(env, NotNil)
+
+	_, err := env.DuplicateKernelBootPartitions()
+	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
+
+	err = env.ClearKernelBootPartition("boot_ra")
+	c.Assert(err, ErrorMatches, "internal error: v2 recovery lkenv has no boot image partition kernel matrix")
+}
+
+func (l *lkenvTestSuite) TestIsKernelReferenced(c *C) {
+	tt := []struct {
+		version lkenv.Version
+		// the kernel variables this lkenv version has, if any - a v2 recovery
+		// environment has no kernel matrix and therefore neither of them
+		keys []string
+		// the recovery system variables, which name recovery systems rather
+		// than kernel revisions and must never be considered
+		otherKeys []string
+		comment   string
+	}{
+		{
+			lkenv.V1,
+			[]string{"snap_kernel", "snap_try_kernel"},
+			[]string{"snapd_recovery_system", "try_recovery_system"},
+			"v1",
+		},
+		{
+			lkenv.V2Run,
+			[]string{"snap_kernel", "snap_try_kernel"},
+			[]string{"snapd_recovery_system", "try_recovery_system"},
+			"v2 run",
+		},
+		{
+			lkenv.V2Recovery,
+			nil,
+			[]string{"snapd_recovery_system", "try_recovery_system"},
+			"v2 recovery",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+
+		env := lkenv.NewEnv(l.envPath, "", t.version)
+		c.Assert(env, NotNil, comment)
+
+		// nothing is referenced in a pristine environment, and the empty kernel
+		// revision is never referenced even though every variable reads back
+		// empty
+		c.Check(env.IsKernelReferenced(""), Equals, false, comment)
+		c.Check(env.IsKernelReferenced("kernel-1"), Equals, false, comment)
+
+		for _, key := range t.keys {
+			env.Set(key, "kernel-1")
+			c.Check(env.IsKernelReferenced("kernel-1"), Equals, true,
+				Commentf("%s: %s", t.comment, key))
+			// an unrelated kernel revision is still not referenced
+			c.Check(env.IsKernelReferenced("kernel-2"), Equals, false,
+				Commentf("%s: %s", t.comment, key))
+			// and the empty kernel revision stays unreferenced
+			c.Check(env.IsKernelReferenced(""), Equals, false,
+				Commentf("%s: %s", t.comment, key))
+			env.Set(key, "")
+			c.Check(env.IsKernelReferenced("kernel-1"), Equals, false,
+				Commentf("%s: %s", t.comment, key))
+		}
+
+		// a recovery system variable never makes a kernel revision look
+		// referenced, whether or not this lkenv version has it
+		for _, key := range t.otherKeys {
+			env.Set(key, "kernel-1")
+			c.Check(env.IsKernelReferenced("kernel-1"), Equals, false,
+				Commentf("%s: %s", t.comment, key))
+			env.Set(key, "")
+		}
+	}
+}
+
 func (l *lkenvTestSuite) TestV1NoRecoverySystemSupport(c *C) {
 	env := lkenv.NewEnv(l.envPath, "", lkenv.V1)
 	c.Assert(env, NotNil)
