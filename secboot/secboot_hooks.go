@@ -42,6 +42,7 @@ var sbSetModel = sb_scope.SetModel
 var sbSetBootMode = sb_scope.SetBootMode
 var sbSetKeyRevealer = sb_hooks.SetKeyRevealer
 var sbWithExternalUnlockKey = sb.WithExternalUnlockKey
+var sbHooksNewProtectedKey = sb_hooks.NewProtectedKey
 
 // taggedHandle wraps a raw handle from a secboot hook and adds a method field.
 // This field is used to route the handle to the correct [sb_hooks.KeyRevealer].
@@ -167,13 +168,16 @@ func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, param
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
 
-		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
-			PrimaryKey: primaryKey,
-			Role:       skr.KeyName,
-			AuthorizedSnapModels: []sb.SnapModel{
-				params.Model,
-			},
-			AuthorizedBootModes: skr.BootModes,
+		var sbModels []sb.SnapModel
+		for _, model := range skr.Models {
+			sbModels = append(sbModels, model)
+		}
+
+		protectedKey, primaryKeyOut, unlockKey, err := sbHooksNewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
+			PrimaryKey:           primaryKey,
+			Role:                 skr.KeyName,
+			AuthorizedSnapModels: sbModels,
+			AuthorizedBootModes:  skr.BootModes,
 		})
 		if err != nil {
 			return err
