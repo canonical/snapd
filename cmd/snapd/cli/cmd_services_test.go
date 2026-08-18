@@ -533,7 +533,7 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 		n++
 	})
 
-	tests := []string {"0", "1337"}
+	tests := []string{"0", "1337"}
 	var testsRun int
 	for _, uid := range tests {
 		testsRun++
