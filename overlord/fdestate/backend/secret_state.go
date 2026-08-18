@@ -32,6 +32,7 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd/fdstore"
@@ -45,7 +46,7 @@ var (
 
 var (
 	fdstoreNew      = fdstore.New
-	unixMemfdSecret = unix.MemfdSecret
+	sysMemfdSecret  = sys.MemfdSecret
 	unixMemfdCreate = unix.MemfdCreate
 	unixMmap        = unix.Mmap
 	unixMunmap      = unix.Munmap
@@ -280,13 +281,18 @@ func (s *secretState) closeLocked() error {
 	return strutil.JoinErrors(errs...)
 }
 
-func openSecretStateFile() (*os.File, error) {
+func openSecretStateFile() (f *os.File, retErr error) {
 	fds := fdstoreNew()
 
 	f, err := fds.Get(fdstore.FdNameMemfdSecretState)
+	defer func() {
+		if retErr != nil {
+			f.Close()
+		}
+	}()
 	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupportedSystemdVersion) {
 		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupportedSystemdVersion)
-		fd, err := unixMemfdSecret(0)
+		fd, err := sysMemfdSecret(0)
 		if err != nil {
 			// fallback to memfd-create if memfd-secret is not supported
 			logger.Debugf("cannot create memfd-secret (%v), falling back to memfd-create", err)
@@ -324,9 +330,12 @@ func openSecretStateFile() (*os.File, error) {
 
 // OpenSecretState returns the memfd-secret backed state used to store
 // secrets that can persist through snapd restarts. If memfd-secret is
-// not supported, it falls back to using memfd-create. SecretState
-// uses passed stateChecker to ensure that the caller holds the state
-// lock while accessing the secret state.
+// not supported, it fallbacks to using memfd-create. In that fallback,
+// secret data lives in regular process memory and is not protected from
+// access by other processes with sufficient privileges.
+//
+// SecretState uses passed stateChecker to ensure that the caller holds
+// the state lock while accessing the secret state.
 //
 // Note that only a single instance of the secret state should be opened
 // at a time.

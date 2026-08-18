@@ -184,7 +184,7 @@ func (s *secretStateSuite) SetUpTest(c *C) {
 	}))
 	s.AddCleanup(backend.MockUnixMmap(s.mmap))
 	s.AddCleanup(backend.MockUnixMunmap(s.munmap))
-	s.AddCleanup(backend.MockUnixMemfdSecret(s.memfdSecret))
+	s.AddCleanup(backend.MockSysMemfdSecret(s.memfdSecret))
 	s.AddCleanup(backend.MockUnixMemfdCreate(s.memfdCreate))
 }
 

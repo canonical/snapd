@@ -71,8 +71,8 @@ func MockUnixMunmap(f func(b []byte) error) (restore func()) {
 	return testutil.Mock(&unixMunmap, f)
 }
 
-func MockUnixMemfdSecret(f func(flags int) (fd int, err error)) (restore func()) {
-	return testutil.Mock(&unixMemfdSecret, f)
+func MockSysMemfdSecret(f func(flags int) (fd int, err error)) (restore func()) {
+	return testutil.Mock(&sysMemfdSecret, f)
 }
 
 func MockUnixMemfdCreate(f func(name string, flags int) (fd int, err error)) (restore func()) {
