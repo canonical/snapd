@@ -55,7 +55,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/ltschannel"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2569,8 +2569,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	}
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannel(c *C) {
-	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrack(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		20: {"latest": "20", "20": "20"},
 	})
 	defer restoreTracks()
@@ -2663,8 +2663,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannel(c *C) {
 	c.Check(snapdChannel, Equals, "20/edge")
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelUnknownTrackErrors(c *C) {
-	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackUnknownTrackErrors(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18", "18": "18"},
 	})
 	defer restoreTracks()
@@ -2756,12 +2756,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelUnknownTrackErrors(c *
 	c.Assert(err, ErrorMatches, `no LTS track for boot base 18 for input track "20" from running snapd version 2.75`)
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelSkipsUC16(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackSkipsUC16(c *C) {
 	// UC16 models have no separate snapd snap (core acts as both base and
-	// snapd). LTS channel resolution must be skipped regardless of whether
+	// snapd). LTS track resolution must be skipped regardless of whether
 	// snapd happens to be present in state (e.g. in tests), otherwise
-	// SnapdLTSChannel would error for the UC16 boot base.
-	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+	// Resolve would error for the UC16 boot base.
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		// UC16 has no boot-base entry; a UC20 entry is provided so that
 		// the mock would redirect a UC20 channel but must not affect UC16.
 		20: {"latest": "20", "20": "20"},
@@ -2821,7 +2821,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSChannelSkipsUC16(c *C) {
 	testDeviceCtx := &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	// RemodelTasks must succeed: the UC16 guard must fire before any LTS
-	// channel resolution is attempted, so no error from SnapdLTSChannel.
+	// channel resolution is attempted, so no error from Resolve.
 	tss, err := devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", devicestate.RemodelOptions{})
 	c.Assert(err, IsNil)
 	// Nothing to update; only the set-model task set is expected.

@@ -1,4 +1,4 @@
-summary: Verify snapd LTS channel bootstrap redirect on UC18
+summary: Verify snapd LTS track bootstrap redirect on UC18
 
 details: |
   When a UC18 device is running an LTS-aware snapd (one that carries
@@ -31,7 +31,7 @@ details: |
       independently on 18/stable.
 
   In production, snap 2 would be produced by adding the UC18 entry to
-  snapdLTSTracks in snap/ltschannel/info/main.go and rebuilding. In this test
+  snapdLTSTracks in snap/ltstrack/info/main.go and rebuilding. In this test
   the SNAPD_LTS_TRACKS value is injected directly into the info file of the
   pre-built snap so the test is feasible in CI without a second full build.
 
@@ -94,7 +94,7 @@ prepare: |
   # the UC18 LTS mapping into SNAPD_LTS_TRACKS. The mapping says:
   #   input track "latest" -> LTS target track "18"
   #   input track "18"     -> "18" (identity allow, already on correct track)
-  # In production this mapping would come from snap/ltschannel/info/main.go
+  # In production this mapping would come from snap/ltstrack/info/main.go
   # being updated and the snapd snap rebuilt with the new map.
   unsquashfs -d snapd-lts-aware "$seed_snap"
   tests.cleanup defer rm -rf snapd-lts-aware snapd-lts-aware.snap
@@ -232,7 +232,7 @@ execute: |
 
   echo "Core: the change task log must contain the user-visible redirect notice"
   remote.exec "snap change --last=auto-refresh" | \
-      MATCH "Switching snapd from channel.*latest/stable.*to LTS channel.*18/stable"
+      MATCH "Switching snapd from channel.*latest/stable.*to LTS track.*18/stable"
 
   echo "Ancillary: snapd is functional after the redirect and daemon restart"
   remote.exec "snap version" | MATCH "snapd"

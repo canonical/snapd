@@ -17,15 +17,15 @@
  *
  */
 
-// Package ltschannel implements snapd LTS track policy for Ubuntu Core models.
+// Package ltstrack implements snapd LTS track policy for Ubuntu Core models.
 //
 // An LTS-aware snapd consults this package when resolving snapd store
 // channels. LTS awareness does not imply the snapd carries an LTS track map;
 // maps are added incrementally as LTS branches are onboarded.
 //
-// SnapdLTSChannel reads the LTS track map from the running snapd, or from a
+// Resolve reads the LTS track map from the running snapd, or from a
 // candidate snapd snap when one is supplied for inspection.
-package ltschannel
+package ltstrack
 
 import (
 	"fmt"
@@ -44,7 +44,7 @@ var (
 	supportHybridClassic = false
 )
 
-// SnapdLTSChannel applies LTS track policy to channel for model. On success it
+// Resolve applies LTS track policy to channel for model. On success it
 // returns the remapped channel with the LTS target track, the original risk, and
 // any branch dropped. On failure it returns ("", err). Errors are typed:
 // LTSNotAllowedError when the model's system type or boot base is not allowed,
@@ -52,7 +52,7 @@ var (
 // LTSInternalError for nil model, parse failures, or map load failures. When
 // candidate is non-nil the map is read from that snapd snap; otherwise from the
 // running snapd.
-func SnapdLTSChannel(model *asserts.Model, channel string, candidate snap.Container) (string, error) {
+func Resolve(model *asserts.Model, channel string, candidate snap.Container) (string, error) {
 	if model == nil {
 		return "", &LTSInternalError{Msg: "cannot use nil model"}
 	}

@@ -17,7 +17,7 @@
  *
  */
 
-package ltschannel
+package ltstrack
 
 import "github.com/snapcore/snapd/snap"
 

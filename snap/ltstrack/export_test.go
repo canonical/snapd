@@ -17,7 +17,7 @@
  *
  */
 
-package ltschannel
+package ltstrack
 
 // SystemBootBaseAllowed exposes systemBootBaseAllowed for tests.
 var SystemBootBaseAllowed = systemBootBaseAllowed

@@ -660,11 +660,11 @@ func NewSnapInstallTaskSetForTest(
 var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
 
 var (
-	NeedsSnapdLTSChannelResolve    = needsSnapdLTSChannelResolve
-	InspectSnapdLTSAfterDownload   = inspectSnapdLTSAfterDownload
-	MaybeRedirectSnapdToLTSChannel = maybeRedirectSnapdToLTSChannel
-	CheckSnapdLTSTargetPatchLevel  = checkSnapdLTSTargetPatchLevel
-	SnapdLTSChannelAlreadyCorrect  = snapdLTSChannelAlreadyCorrect
+	NeedsSnapdLTSTrackResolve     = needsSnapdLTSTrackResolve
+	InspectSnapdLTSAfterDownload  = inspectSnapdLTSAfterDownload
+	MaybeRedirectSnapdToLTSTrack  = maybeRedirectSnapdToLTSTrack
+	CheckSnapdLTSTargetPatchLevel = checkSnapdLTSTargetPatchLevel
+	SnapdLTSTrackAlreadyCorrect   = snapdLTSTrackAlreadyCorrect
 )
 
 type SnapdLTSInspectResult = snapdLTSInspectResult

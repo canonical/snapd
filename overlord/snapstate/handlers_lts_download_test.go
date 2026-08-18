@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/ltschannel"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
@@ -109,7 +109,7 @@ func snapdSnapsup(blobPath, channel string) *snapstate.SnapSetup {
 
 // callRedirect is a thin shim to keep test bodies concise.
 func (s *ltsDownloadSuite) callRedirect(snapsup *snapstate.SnapSetup, model *asserts.Model) error {
-	return snapstate.MaybeRedirectSnapdToLTSChannel(
+	return snapstate.MaybeRedirectSnapdToLTSTrack(
 		context.Background(), s.state, snapsup, model,
 		s.fakeStore, nil,
 		progress.Null,
@@ -203,8 +203,8 @@ func (s *ltsDownloadSuite) TestRedirectSkipUnmanagedBase(c *C) {
 	c.Check(snapsup.Channel, Equals, "latest/stable")
 }
 
-func (s *ltsDownloadSuite) TestRedirectSkipAlreadyOnLTSChannel(c *C) {
-	// Already on the LTS channel → no remap needed
+func (s *ltsDownloadSuite) TestRedirectSkipAlreadyOnLTSTrack(c *C) {
+	// Already on the LTS track → no remap needed
 	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "18/stable")
 	model := ModelWithBase("core18")
@@ -241,7 +241,7 @@ func (s *ltsDownloadSuite) TestRedirectRewritesSnapSetup(c *C) {
 
 	c.Assert(s.callRedirect(snapsup, model), IsNil)
 
-	// snap-setup Channel updated to LTS channel
+	// snap-setup Channel updated to LTS track
 	c.Check(snapsup.Channel, Equals, "18/stable")
 	// SideInfo.Channel updated
 	c.Check(snapsup.SideInfo.Channel, Equals, "18/stable")
@@ -249,7 +249,7 @@ func (s *ltsDownloadSuite) TestRedirectRewritesSnapSetup(c *C) {
 	c.Assert(snapsup.DownloadInfo, NotNil)
 	c.Check(snapsup.DownloadInfo.DownloadURL, Equals, "https://some-server.com/some/path.snap")
 
-	// One store action call (LTS channel install) + one download (re-download)
+	// One store action call (LTS track install) + one download (re-download)
 	c.Assert(s.fakeBackend.ops, HasLen, 3)
 	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{op: "storesvc-snap-action"})
 	c.Check(s.fakeBackend.ops[1].op, Equals, "storesvc-snap-action:action")
@@ -354,10 +354,10 @@ func (s *ltsDownloadSuite) TestRedirectValidationSetsError(c *C) {
 
 // ---- Fast-path gating ------------------------------------------------
 
-func (s *ltsDownloadSuite) TestFastPathSkipsSquashfsWhenAlreadyOnLTSChannel(c *C) {
+func (s *ltsDownloadSuite) TestFastPathSkipsSquashfsWhenAlreadyOnLTSTrack(c *C) {
 	// Running snapd knows UC18 maps latest → 18. Device is already on 18/stable.
 	// Fast path must return early without opening the squashfs.
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18", "18": "18"},
 	})
 	s.AddCleanup(restore)
@@ -381,7 +381,7 @@ version: 2.75`, nil)
 func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenChannelWrong(c *C) {
 	// Running snapd knows UC18 maps latest → 18. Device is on latest/stable.
 	// Fast path must not fire; candidate squashfs must be inspected.
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18", "18": "18"},
 	})
 	s.AddCleanup(restore)
@@ -393,7 +393,7 @@ func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenChannelWrong(c *C) {
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 
 	c.Assert(s.callRedirect(snapsup, model), IsNil)
-	// Redirect fired — store was called with LTS channel.
+	// Redirect fired — store was called with LTS track.
 	c.Check(snapsup.Channel, Equals, "18/stable")
 	c.Assert(s.fakeBackend.ops, HasLen, 3) // snap-action + action:action + download
 }
@@ -401,7 +401,7 @@ func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenChannelWrong(c *C) {
 func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenBaseUnmanaged(c *C) {
 	// Running snapd has no entry for UC18 (empty map). Fast path must not fire;
 	// candidate squashfs must be inspected as the authoritative source.
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{})
+	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{})
 	s.AddCleanup(restore)
 
 	model := ModelWithBase("core18")
@@ -415,10 +415,10 @@ func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenBaseUnmanaged(c *C) {
 	c.Check(snapsup.Channel, Equals, "18/stable")
 }
 
-// ---- SnapdLTSChannelAlreadyCorrect unit tests ------------------------
+// ---- SnapdLTSTrackAlreadyCorrect unit tests ------------------------
 
 func (s *ltsDownloadSuite) TestAlreadyCorrectTrue(c *C) {
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18", "18": "18"},
 	})
 	s.AddCleanup(restore)
@@ -429,11 +429,11 @@ func (s *ltsDownloadSuite) TestAlreadyCorrectTrue(c *C) {
 		SideInfo: &snap.SideInfo{SnapID: "snapd-id"},
 		Channel:  "18/stable",
 	}
-	c.Check(snapstate.SnapdLTSChannelAlreadyCorrect(snapsup, model), Equals, true)
+	c.Check(snapstate.SnapdLTSTrackAlreadyCorrect(snapsup, model), Equals, true)
 }
 
 func (s *ltsDownloadSuite) TestAlreadyCorrectFalseWrongChannel(c *C) {
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18", "18": "18"},
 	})
 	s.AddCleanup(restore)
@@ -444,11 +444,11 @@ func (s *ltsDownloadSuite) TestAlreadyCorrectFalseWrongChannel(c *C) {
 		SideInfo: &snap.SideInfo{SnapID: "snapd-id"},
 		Channel:  "latest/stable",
 	}
-	c.Check(snapstate.SnapdLTSChannelAlreadyCorrect(snapsup, model), Equals, false)
+	c.Check(snapstate.SnapdLTSTrackAlreadyCorrect(snapsup, model), Equals, false)
 }
 
 func (s *ltsDownloadSuite) TestAlreadyCorrectFalseBaseUnmanaged(c *C) {
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{})
+	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{})
 	s.AddCleanup(restore)
 
 	model := ModelWithBase("core18")
@@ -458,10 +458,10 @@ func (s *ltsDownloadSuite) TestAlreadyCorrectFalseBaseUnmanaged(c *C) {
 		Channel:  "18/stable",
 	}
 	// Base not managed → false, must fall through to candidate inspection.
-	c.Check(snapstate.SnapdLTSChannelAlreadyCorrect(snapsup, model), Equals, false)
+	c.Check(snapstate.SnapdLTSTrackAlreadyCorrect(snapsup, model), Equals, false)
 }
 
-// ---- NeedsSnapdLTSChannelResolve gate (unit) -------------------------
+// ---- NeedsSnapdLTSTrackResolve gate (unit) -------------------------
 
 func (s *ltsDownloadSuite) TestNeedsGateSnapdType(c *C) {
 	model := ModelWithBase("core18")
@@ -469,7 +469,7 @@ func (s *ltsDownloadSuite) TestNeedsGateSnapdType(c *C) {
 		Type:     snap.TypeSnapd,
 		SideInfo: &snap.SideInfo{SnapID: "some-id"},
 	}
-	c.Check(snapstate.NeedsSnapdLTSChannelResolve(snapsup, model), Equals, true)
+	c.Check(snapstate.NeedsSnapdLTSTrackResolve(snapsup, model), Equals, true)
 }
 
 func (s *ltsDownloadSuite) TestNeedsGateNonSnapd(c *C) {
@@ -478,7 +478,7 @@ func (s *ltsDownloadSuite) TestNeedsGateNonSnapd(c *C) {
 		Type:     snap.TypeApp,
 		SideInfo: &snap.SideInfo{SnapID: "some-id"},
 	}
-	c.Check(snapstate.NeedsSnapdLTSChannelResolve(snapsup, model), Equals, false)
+	c.Check(snapstate.NeedsSnapdLTSTrackResolve(snapsup, model), Equals, false)
 }
 
 func (s *ltsDownloadSuite) TestNeedsGateNoSnapID(c *C) {
@@ -487,7 +487,7 @@ func (s *ltsDownloadSuite) TestNeedsGateNoSnapID(c *C) {
 		Type:     snap.TypeSnapd,
 		SideInfo: &snap.SideInfo{SnapID: ""},
 	}
-	c.Check(snapstate.NeedsSnapdLTSChannelResolve(snapsup, model), Equals, false)
+	c.Check(snapstate.NeedsSnapdLTSTrackResolve(snapsup, model), Equals, false)
 }
 
 func (s *ltsDownloadSuite) TestNeedsGateNilModel(c *C) {
@@ -495,7 +495,7 @@ func (s *ltsDownloadSuite) TestNeedsGateNilModel(c *C) {
 		Type:     snap.TypeSnapd,
 		SideInfo: &snap.SideInfo{SnapID: "some-id"},
 	}
-	c.Check(snapstate.NeedsSnapdLTSChannelResolve(snapsup, nil), Equals, false)
+	c.Check(snapstate.NeedsSnapdLTSTrackResolve(snapsup, nil), Equals, false)
 }
 
 func (s *ltsDownloadSuite) TestNeedsGateHasPrereq(c *C) {
@@ -505,7 +505,7 @@ func (s *ltsDownloadSuite) TestNeedsGateHasPrereq(c *C) {
 		SideInfo: &snap.SideInfo{SnapID: "some-id"},
 		Prereq:   []string{"some-provider"},
 	}
-	c.Check(snapstate.NeedsSnapdLTSChannelResolve(snapsup, model), Equals, false)
+	c.Check(snapstate.NeedsSnapdLTSTrackResolve(snapsup, model), Equals, false)
 }
 
 func (s *ltsDownloadSuite) TestNeedsGateHasPrereqContentAttrs(c *C) {
@@ -515,7 +515,7 @@ func (s *ltsDownloadSuite) TestNeedsGateHasPrereqContentAttrs(c *C) {
 		SideInfo:           &snap.SideInfo{SnapID: "some-id"},
 		PrereqContentAttrs: map[string][]string{"some-provider": {"some-content"}},
 	}
-	c.Check(snapstate.NeedsSnapdLTSChannelResolve(snapsup, model), Equals, false)
+	c.Check(snapstate.NeedsSnapdLTSTrackResolve(snapsup, model), Equals, false)
 }
 
 // ---- LTS not-allowed errors are pass-through -------------------------
@@ -527,7 +527,7 @@ func (s *ltsDownloadSuite) TestRedirectLTSNotAllowedIsPassThrough(c *C) {
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 
 	// Restrict UC scope so any UC model produces LTSNotAllowedError.
-	restore := ltschannel.MockSnapdLTSDeviceKindScope(false, false, false)
+	restore := ltstrack.MockSnapdLTSDeviceKindScope(false, false, false)
 	s.AddCleanup(restore)
 
 	model := ModelWithBase("core18")
@@ -585,7 +585,7 @@ func (s *ltsDownloadSuite) TestPatchLevelIncompatible(c *C) {
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
 	err := s.callRedirect(snapsup, model)
-	c.Assert(err, ErrorMatches, `cannot redirect snapd to LTS channel "18/stable": target version 2.75 patch level 6 is incompatible with current state patch level 7`)
+	c.Assert(err, ErrorMatches, `cannot redirect snapd to LTS track "18/stable": target version 2.75 patch level 6 is incompatible with current state patch level 7`)
 	// snap-setup must not have been rewritten.
 	c.Check(snapsup.Channel, Equals, "latest/stable")
 }
@@ -636,7 +636,7 @@ func (s *ltsDownloadSuite) TestCheckPatchLevelDirectIncompatible(c *C) {
 
 	blobPath := makeSnapdBlobWithLTSTracks(c, "", 6)
 	err := snapstate.CheckSnapdLTSTargetPatchLevel(s.state, blobPath, "18/stable")
-	c.Assert(err, ErrorMatches, `cannot redirect snapd to LTS channel "18/stable": .*`)
+	c.Assert(err, ErrorMatches, `cannot redirect snapd to LTS track "18/stable": .*`)
 }
 
 func (s *ltsDownloadSuite) TestCheckPatchLevelDirectAbsent(c *C) {

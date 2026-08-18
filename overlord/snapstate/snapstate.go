@@ -51,7 +51,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/ltschannel"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
@@ -1976,24 +1976,24 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 		return "", err
 	}
 	if snapName == "snapd" && snapID != "" {
-		required, err := ltschannel.SnapdLTSChannel(model, effectiveChannel, nil)
-		if errors.Is(err, ltschannel.ErrLTSNotAllowed) {
+		required, err := ltstrack.Resolve(model, effectiveChannel, nil)
+		if errors.Is(err, ltstrack.ErrLTSNotAllowed) {
 			// Model is out of scope for LTS policy (classic, UC16, base-less,
 			// etc.); no channel restriction applies.
 			return effectiveChannel, nil
 		}
-		if errors.Is(err, ltschannel.ErrLTSInternal) {
+		if errors.Is(err, ltstrack.ErrLTSInternal) {
 			// Running snapd cannot load its own LTS map (missing libexec dir,
 			// parse failure, etc.). Channel validation here is a planning-time
 			// best-effort check; pass through and let the download-stage
 			// intercept enforce the correct channel.
 			return effectiveChannel, nil
 		}
-		if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) {
+		if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) {
 			// This boot base has no LTS policy yet; no channel restriction applies.
 			return effectiveChannel, nil
 		}
-		if errors.Is(err, ltschannel.ErrLTSNoTrack) {
+		if errors.Is(err, ltstrack.ErrLTSNoTrack) {
 			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
 			track := "latest"
 			if parseErr == nil {
@@ -2171,7 +2171,7 @@ func firstNonEmpty(strs ...string) string {
 
 // resolveChannel resolves the channel for the given snap.
 func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext, snapID string) error {
-	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
+	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx, snapID)
 	if err != nil {
 		return err
 	}

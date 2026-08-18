@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	snapchannel "github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/ltschannel"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
@@ -43,7 +43,7 @@ type snapdLTSInspectResult struct {
 	targetChannel  string
 }
 
-// maybeRedirectSnapdToLTSChannel inspects the candidate snapd squashfs for
+// maybeRedirectSnapdToLTSTrack inspects the candidate snapd squashfs for
 // the LTS track map. If the map says the device's UC base must land on a
 // different channel than planned, it issues a second store action on the LTS
 // channel, downloads the correct snap over the same blob path, and rewrites
@@ -55,7 +55,7 @@ type snapdLTSInspectResult struct {
 //   - candidate map missing or unreadable: log and pass through (v1 policy).
 //   - second store action fails: return error, fail the download task.
 //   - download of LTS target fails: return error, fail the download task.
-func maybeRedirectSnapdToLTSChannel(
+func maybeRedirectSnapdToLTSTrack(
 	ctx context.Context,
 	st *state.State,
 	snapsup *SnapSetup,
@@ -66,18 +66,18 @@ func maybeRedirectSnapdToLTSChannel(
 	dlOpts *store.DownloadOptions,
 	perfTimings timings.Measurer,
 ) error {
-	if !needsSnapdLTSChannelResolve(snapsup, model) {
+	if !needsSnapdLTSTrackResolve(snapsup, model) {
 		return nil
 	}
 
 	// Fast path: ask the running snapd's compiled-in map first. If it already
-	// confirms the planned channel is the correct LTS channel for this device's
+	// confirms the planned channel is the correct LTS track for this device's
 	// UC base, trust the plan and skip opening the candidate squashfs. This
 	// covers the steady state after redirection: once a device is tracking the
-	// correct LTS channel, every subsequent refresh skips the squashfs read.
+	// correct LTS track, every subsequent refresh skips the squashfs read.
 	// Any error from the running snapd's map (base not managed, map unavailable,
 	// etc.) falls through to the authoritative candidate inspection below.
-	if snapdLTSChannelAlreadyCorrect(snapsup, model) {
+	if snapdLTSTrackAlreadyCorrect(snapsup, model) {
 		return nil
 	}
 
@@ -105,9 +105,9 @@ func maybeRedirectSnapdToLTSChannel(
 		return fmt.Errorf("cannot get validation sets for snapd LTS redirect: %v", err)
 	}
 
-	// Second store action on the LTS channel. Leave RevOpts.Revision empty to
+	// Second store action on the LTS track. Leave RevOpts.Revision empty to
 	// select the latest revision on the LTS track. Drop the cohort key: it was
-	// associated with the original channel and is not valid on the LTS channel.
+	// associated with the original channel and is not valid on the LTS track.
 	sar, err := sendOneInstallActionUnlocked(ctx, st, StoreSnap{
 		InstanceName: snapsup.InstanceName(),
 		RevOpts: RevisionOptions{
@@ -120,7 +120,7 @@ func maybeRedirectSnapdToLTSChannel(
 			inspected.targetChannel, err)
 	}
 
-	meter.Notify(fmt.Sprintf("Switching snapd from channel %q to LTS channel %q for this device",
+	meter.Notify(fmt.Sprintf("Switching snapd from channel %q to LTS track %q for this device",
 		inspected.currentChannel, inspected.targetChannel))
 	logger.Noticef("snapd LTS redirect: channel %q requires %q for this device, downloading LTS target",
 		inspected.currentChannel, inspected.targetChannel)
@@ -132,7 +132,7 @@ func maybeRedirectSnapdToLTSChannel(
 	// download here is an established pattern in this handler.
 	var dlErr error
 	timings.Run(perfTimings, "download-lts-target",
-		fmt.Sprintf("download snap %q on LTS channel %q",
+		fmt.Sprintf("download snap %q on LTS track %q",
 			snapsup.SnapName(), inspected.targetChannel),
 		func(timings.Measurer) {
 			dlErr = theStore.Download(ctx, snapsup.SnapName(), snapsup.SnapPath,
@@ -156,16 +156,16 @@ func maybeRedirectSnapdToLTSChannel(
 	snapsup.Channel = inspected.targetChannel
 	snapsup.ExpectedProvenance = sar.SnapProvenance
 
-	meter.Notify(fmt.Sprintf("snapd redirected to LTS channel %q (revision %s)",
+	meter.Notify(fmt.Sprintf("snapd redirected to LTS track %q (revision %s)",
 		inspected.targetChannel, sar.SideInfo.Revision))
 	logger.Noticef("snapd LTS redirect complete: rev %s on channel %q (was %q)",
 		sar.SideInfo.Revision, inspected.targetChannel, inspected.currentChannel)
 	return nil
 }
 
-// needsSnapdLTSChannelResolve reports whether LTS channel resolution should run
+// needsSnapdLTSTrackResolve reports whether LTS track resolution should run
 // after a snapd store download. Only operational gating lives here.
-func needsSnapdLTSChannelResolve(snapsup *SnapSetup, model *asserts.Model) bool {
+func needsSnapdLTSTrackResolve(snapsup *SnapSetup, model *asserts.Model) bool {
 	if snapsup == nil || snapsup.Type != snap.TypeSnapd {
 		return false
 	}
@@ -194,13 +194,13 @@ func inspectSnapdLTSAfterDownload(snapsup *SnapSetup, model *asserts.Model, blob
 	}
 	currentChannel := parsed.Clean().String()
 
-	targetChannel, err := ltschannel.SnapdLTSChannel(model, snapsup.Channel, squashfs.New(blobPath))
+	targetChannel, err := ltstrack.Resolve(model, snapsup.Channel, squashfs.New(blobPath))
 	if err != nil {
-		if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) {
+		if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) {
 			// Base has no LTS policy yet; no redirect needed.
 			return snapdLTSInspectResult{remapNeeded: false}, nil
 		}
-		return snapdLTSInspectResult{}, fmt.Errorf("cannot resolve LTS channel: %v", err)
+		return snapdLTSInspectResult{}, fmt.Errorf("cannot resolve LTS track: %v", err)
 	}
 
 	// Both currentChannel and targetChannel are already canonicalised via
@@ -242,7 +242,7 @@ func checkSnapdLTSTargetPatchLevel(st *state.State, blobPath, targetChannel stri
 	}
 
 	if stateLevel > targetLevel {
-		return fmt.Errorf("cannot redirect snapd to LTS channel %q: "+
+		return fmt.Errorf("cannot redirect snapd to LTS track %q: "+
 			"target version %s patch level %d is incompatible with "+
 			"current state patch level %d",
 			targetChannel, targetVersion, targetLevel, stateLevel)
@@ -250,13 +250,13 @@ func checkSnapdLTSTargetPatchLevel(st *state.State, blobPath, targetChannel stri
 	return nil
 }
 
-// snapdLTSChannelAlreadyCorrect returns true when the running snapd's compiled-in
-// map confirms that the planned channel is already the correct LTS channel for
-// this device's UC base. Any error (base not managed, map unavailable, etc.)
-// returns false so the caller falls through to the authoritative candidate
-// squashfs inspection.
-func snapdLTSChannelAlreadyCorrect(snapsup *SnapSetup, model *asserts.Model) bool {
-	required, err := ltschannel.SnapdLTSChannel(model, snapsup.Channel, nil)
+// snapdLTSTrackAlreadyCorrect returns true when the running snapd's compiled-in
+// map confirms that the planned channel is already the channel required by LTS
+// track policy for this device's UC base. Any error (base not managed, map
+// unavailable, etc.) returns false so the caller falls through to the
+// authoritative candidate squashfs inspection.
+func snapdLTSTrackAlreadyCorrect(snapsup *SnapSetup, model *asserts.Model) bool {
+	required, err := ltstrack.Resolve(model, snapsup.Channel, nil)
 	if err != nil {
 		return false
 	}

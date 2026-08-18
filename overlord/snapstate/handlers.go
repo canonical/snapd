@@ -401,7 +401,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 	st.Unlock()
 	if deviceCtxErr != nil {
 		logger.Debugf("skipping snapd LTS inspect after download: %v", deviceCtxErr)
-	} else if err := maybeRedirectSnapdToLTSChannel(
+	} else if err := maybeRedirectSnapdToLTSTrack(
 		tomb.Context(nil), st, snapsup, model,
 		theStore, user, meter, dlOpts, perfTimings,
 	); err != nil {

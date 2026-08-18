@@ -41,7 +41,7 @@ import (
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/ltschannel"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -744,7 +744,7 @@ func ltsTrackMap(bootBase int, tracks ...string) map[int]map[string]string {
 }
 
 func (s *writerSuite) checkSnapdDownloadChannel(c *C, model *asserts.Model, tracks map[int]map[string]string, systemLabel, label string, want string, optSnaps ...*seedwriter.OptionsSnap) {
-	restore := ltschannel.MockSnapdLTSTrackMap(tracks)
+	restore := ltstrack.MockSnapdLTSTrackMap(tracks)
 	defer restore()
 
 	if model.Grade() != asserts.ModelGradeUnset {
@@ -772,7 +772,7 @@ func (s *writerSuite) checkSnapdDownloadChannel(c *C, model *asserts.Model, trac
 	c.Check(snaps[0].Channel, Equals, want, Commentf(label))
 }
 
-func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC18(c *C) {
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUC18(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core18", "")
 	s.makeSnap(c, "pc-kernel=18", "")
@@ -788,7 +788,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC18(c *C) {
 	)
 }
 
-func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelNoMapPassthrough(c *C) {
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackNoMapPassthrough(c *C) {
 	// When the LTS map has no entry for the boot base, the channel is passed
 	// through unchanged — the base is not yet managed.
 	s.makeSnap(c, "snapd", "")
@@ -798,7 +798,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelNoMapPassthrough(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	restore := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{})
+	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{})
 	defer restore()
 
 	model := s.uc18SeedModel()
@@ -812,7 +812,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelNoMapPassthrough(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUnknownTrackErrors(c *C) {
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUnknownTrackErrors(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core18", "")
 	s.makeSnap(c, "pc-kernel=18", "")
@@ -820,7 +820,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUnknownTrackErrors(c *C)
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	restore := ltschannel.MockSnapdLTSTrackMap(ltsTrackMap(18, "18"))
+	restore := ltstrack.MockSnapdLTSTrackMap(ltsTrackMap(18, "18"))
 	defer restore()
 
 	model := s.uc18SeedModel()
@@ -870,7 +870,7 @@ func (s *writerSuite) uc22SeedModel(snapdDefaultChannel string) *asserts.Model {
 	})
 }
 
-func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC20(c *C) {
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUC20(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
@@ -880,7 +880,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC20(c *C) {
 	s.checkSnapdDownloadChannel(c, s.uc20SeedModel("latest/edge"), ltsTrackMap(20, "20"), "20200102", "explicit latest/edge", "20/edge")
 }
 
-func (s *writerSuite) TestSnapsToDownloadSnapdLTSChannelUC22FIPS(c *C) {
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUC22FIPS(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core22", "")
 	s.makeSnap(c, "pc-kernel=22", "")

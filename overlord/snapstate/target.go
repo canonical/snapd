@@ -786,7 +786,7 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 			sn.RevOpts.Channel = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, "stable", opts.DeviceCtx, snapIDForSnapdChannelLockdown(sn.InstanceName, nil, nil, false)); err != nil {
+		if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, "stable", opts.DeviceCtx, snapIDForSnapdChannelLockdown(sn.InstanceName, nil, nil, false)); err != nil {
 			return err
 		}
 
@@ -1479,7 +1479,7 @@ func validateAndInitStoreUpdates(st *state.State, allSnaps map[string]*SnapState
 			fallback = "stable"
 		}
 
-		if err := sn.RevOpts.resolveChannel(sn.InstanceName, fallback, opts.DeviceCtx, snapIDForSnapdChannelLockdown(sn.InstanceName, snapst, nil, false)); err != nil {
+		if err := sn.RevOpts.resolveChannelForStore(sn.InstanceName, fallback, opts.DeviceCtx, snapIDForSnapdChannelLockdown(sn.InstanceName, snapst, nil, false)); err != nil {
 			return err
 		}
 

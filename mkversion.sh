@@ -139,7 +139,7 @@ elif [ ! -d "$GO_GENERATE_BUILDDIR/vendor/github.com"  ] ; then
     MOD=--
 fi
 fmts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./asserts/info)
-lts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./snap/ltschannel/info)
+lts=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./snap/ltstrack/info)
 patchlevel=$(cd "$GO_GENERATE_BUILDDIR" ; go run $MOD ./overlord/patch/info)
 
 cat <<EOF > "$PKG_BUILDDIR/data/info"

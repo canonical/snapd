@@ -9,7 +9,7 @@ Long-form rationale in [DESIGN.md](DESIGN.md) (see especially §5.4
 **Mechanism in one line.** Read the LTS track map from inside the
 *candidate* snapd squashfs in `doDownloadSnap`; if it disagrees with the
 planned channel for the device's UC base, issue a second `SnapAction` on
-the LTS channel, re-download over the same blob path, and rewrite
+the LTS track, re-download over the same blob path, and rewrite
 `snap-setup` in place so `validate-snap → mount-snap → link-snap` complete
 on the corrected track. No task-graph mutation; no two-stage refresh; one
 change, one snapd revision linked.
@@ -37,9 +37,9 @@ After blob download, before the task persists the updated `snap-setup`
 1. Open squashfs at `snapsup.BlobPath()` (`squashfs.New(path)`).
 2. Read LTS map via `snap.SnapdLTSTrackMapFromSnapFile`
    (parses `SNAPD_LTS_TRACKS`).
-3. Call `ltschannel.SnapdLTSChannel(model, snapsup.Channel, container)`.
-4. If the resulting LTS channel differs from `snapsup.Channel`:
-   1. Issue a second `SnapAction` on the LTS channel (same pattern as
+3. Call `ltstrack.Resolve(model, snapsup.Channel, container)`.
+4. If the resolved channel differs from `snapsup.Channel`:
+   1. Issue a second `SnapAction` on the LTS track (same pattern as
       `doDownloadSnap`'s existing COMPAT branch:
       `sendOneInstallActionUnlocked`).
    2. Re-download to the same blob path; honour checksum / integrity /
@@ -66,7 +66,7 @@ sequenceDiagram
     Store->>Blob: squashfs bytes
     DL->>Squashfs: read SNAPD_LTS_TRACKS from /usr/lib/snapd/info
     alt wrong track for this device's UC base
-        DL->>Store: SnapAction on LTS channel
+        DL->>Store: SnapAction on LTS track
         Store-->>DL: action result + DownloadInfo
         DL->>Store: re-download to same blob path
         Note over DL: snap-setup rewrite (SideInfo, DownloadInfo,<br/>Channel, Revision, SnapPath) — NOT YET IMPLEMENTED
@@ -94,7 +94,7 @@ Only inspect when **all** of:
 - `snapsup.SideInfo.SnapID != ""` (asserted)
 - model is available
 - the planned channel is not already on an LTS track per the **running**
-  snapd's view (i.e. `SnapdLTSChannel(model, snapsup.Channel, nil)` would
+  snapd's view (i.e. `Resolve(model, snapsup.Channel, nil)` would
   agree)
 
 If the running snapd's view says the planned channel is already correct,
@@ -121,7 +121,7 @@ trust `DownloadInfo` and skip the squashfs open.
 | **Remodel snapd** | `remodelSnapdSnapTasks` | Indirect | BB4b pre-remap at planning; then store path goes through `doDownloadSnap` |
 
 **Compiled-in policy (planning side, complementary):**
-`RevOpts.resolveChannel` → `ltschannel` at `validateAndInitStoreUpdates` /
+`RevOpts.resolveChannel` → `ltstrack` at `validateAndInitStoreUpdates` /
 `validateAndPrune`. Consults the **running** snapd's map (candidate=nil).
 Best-effort; the download intercept is the real enforcement.
 
@@ -157,15 +157,15 @@ Companion `snap.SnapdLTSTrackMapFromThis()` reads the same key from the
 ### Step 3 — `doDownloadSnap` branch  *(scaffolded, log-only)*
 
 `overlord/snapstate/handlers_lts_download.go` currently:
-- `needsSnapdLTSChannelResolve(snapsup, model)` — gates on type/SnapID/model.
+- `needsSnapdLTSTrackResolve(snapsup, model)` — gates on type/SnapID/model.
 - `inspectSnapdLTSAfterDownload(snapsup, model, blobPath)` — opens
-  squashfs, calls `SnapdLTSChannel(..., container)`, compares to current
+  squashfs, calls `Resolve(..., container)`, compares to current
   channel, returns `snapdLTSInspectResult`.
 - `maybeInspectSnapdLTSAfterDownload(...)` — wires the above and, on
   remap-needed, **logs only** via `logger.Noticef`.
 
 **Still TODO** for the reroute to actually fire:
-- Second `SnapAction` on the LTS channel (use store helpers patterned on
+- Second `SnapAction` on the LTS track (use store helpers patterned on
   the existing COMPAT branch, e.g. `sendOneInstallActionUnlocked`).
 - Re-download to the same blob path; respect checksum / `DownloadInfo`.
 - Rewrite `snapsup.SideInfo`, `snapsup.DownloadInfo`, `snapsup.Channel`,
@@ -174,8 +174,8 @@ Companion `snap.SnapdLTSTrackMapFromThis()` reads the same key from the
 
 ### Step 4 — Fast-path gating  *(open)*
 
-`needsSnapdLTSChannelResolve` should additionally check whether
-`SnapdLTSChannel(model, snapsup.Channel, nil)` (running snapd view)
+`needsSnapdLTSTrackResolve` should additionally check whether
+`Resolve(model, snapsup.Channel, nil)` (running snapd view)
 already agrees with `snapsup.Channel`; if so, skip the squashfs open. Most
 production refreshes will hit this fast path.
 
@@ -197,7 +197,7 @@ missing-map fallback behaviour.
 ### PR split sequence (target)
 
 1. Metadata contract + `data/info` key + running-snapd map reader + unit tests.
-2. Candidate map reader + `snap/ltschannel` primitives + BB3/BB4a/BB4b
+2. Candidate map reader + `snap/ltstrack` primitives + BB3/BB4a/BB4b
    planning consumers.
 3. `doDownloadSnap` reroute (full implementation, not the scaffold) +
    handler tests + spread.
@@ -225,7 +225,7 @@ tests, and others).
 3. **BB3 lockdown UX vs candidate authority.** BB3 may reject a track
    that the running snapd doesn't know about but a future candidate would
    accept. Options: keep strict (status quo, document); relax to warn-only;
-   or skip BB3 when `SnapdLTSChannel` returns `LTSNoTrackError` (assume
+   or skip BB3 when `Resolve` returns `LTSNoTrackError` (assume
    the candidate may know better).
 4. **Re-download bandwidth.** Tolerate the double download for v1.
    Follow-up: metadata-only pre-fetch (e.g. just the `info` file) or a

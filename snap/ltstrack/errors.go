@@ -17,7 +17,7 @@
  *
  */
 
-package ltschannel
+package ltstrack
 
 import (
 	"errors"
@@ -25,10 +25,10 @@ import (
 )
 
 // ErrLTSInternal is matched by errors.Is for programming, I/O, or parse failures
-// in LTS channel resolution.
+// in LTS track resolution.
 var ErrLTSInternal = errors.New("LTS internal error")
 
-// LTSInternalError is returned when LTS channel resolution fails for an internal
+// LTSInternalError is returned when LTS track resolution fails for an internal
 // reason. errors.Is matches ErrLTSInternal.
 type LTSInternalError struct{ Msg string }
 

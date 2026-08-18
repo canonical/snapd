@@ -68,7 +68,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/ltschannel"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -7818,7 +7818,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
-	restoreTracks := ltschannel.MockSnapdLTSTrackMap(map[int]map[string]string{
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18", "18": "18"},
 	})
 	defer restoreTracks()

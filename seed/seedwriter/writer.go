@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/ltschannel"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/strutil"
@@ -1133,15 +1133,15 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 			return resChannel, nil
 		}
 		// UC16 has no separate snapd snap (the core snap acts as
-		// snapd); LTS snapd channel policy does not apply.
+		// snapd); LTS snapd track policy does not apply.
 		if base := w.model.Base(); base == "" || base == "core" {
 			return resChannel, nil
 		}
-		resolved, err := ltschannel.SnapdLTSChannel(w.model, resChannel, nil)
+		resolved, err := ltstrack.Resolve(w.model, resChannel, nil)
 		if err != nil {
-			if errors.Is(err, ltschannel.ErrLTSBaseNotManaged) ||
-				errors.Is(err, ltschannel.ErrLTSNotAllowed) ||
-				errors.Is(err, ltschannel.ErrLTSInternal) {
+			if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) ||
+				errors.Is(err, ltstrack.ErrLTSNotAllowed) ||
+				errors.Is(err, ltstrack.ErrLTSInternal) {
 				// Base not yet managed, model type not in scope, or running
 				// snapd cannot load its own map; use the planned channel unchanged.
 				return resChannel, nil
