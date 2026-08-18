@@ -40,9 +40,8 @@
             "type": "snapd"
         },
         {
-            "default-channel": "latest/edge",
-            "id": "vFTrGWyktbEDwuYJjdsZykV270mqcNz8",
-            "name": "jq-core22",
+            "default-channel": "latest/stable",
+            "name": "test-snapd-sh-core22",
             "type": "app"
         }
     ]

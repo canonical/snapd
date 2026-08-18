@@ -145,6 +145,7 @@ func (s *requestMessageSuite) TestDecodeInvalid(c *C) {
 		{devices, "devices:\n  - y.x3#4.abc\n", `cannot parse device at position 1: invalid model "x3#4" in device id "y.x3#4.abc"`},
 		{devices, "devices:\n  - .model.brand\n", `cannot parse device at position 1: invalid serial "" in device id ".model.brand"`},
 		{devices, "devices:\n  - bad.serial.model.brand\n", `cannot parse device at position 1: invalid serial "bad.serial" in device id "bad.serial.model.brand"`},
+		{devices, "devices:\n  - 03961d5d-26e5.generic-classic.generic\n  - 03961d5d-26e5.generic-classic.generic\n", `"devices" header contains duplicate device "03961d5d-26e5.generic-classic.generic"`},
 		{"assumes:\n  - snapd2.70\n", "assumes: \n", `"assumes" header must be a list of strings`},
 		{"assumes:\n  - snapd2.70\n", "assumes:\n  - x3#4\n", `assumes: invalid features: x3#4`},
 		{"valid-since: 2025-01-08T13:31:20+00:00\n", "", `"valid-since" header is mandatory`},

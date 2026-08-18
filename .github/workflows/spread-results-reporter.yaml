@@ -8,8 +8,8 @@ on:
 
 jobs:
   report-spread-failures:
-    if: ${{ github.event.workflow_run.event == 'pull_request' }}
-    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled' }}
+    runs-on: [self-hosted, spread-enabled]
     permissions:
       pull-requests: write
     env:
@@ -123,7 +123,7 @@ jobs:
 
       - name: Echo collected output
         run: |
-          bash .github/scripts/test-predictor-reporter.sh \
+          bash -x .github/scripts/test-predictor-reporter.sh \
             "${{ github.repository }}" \
             "${{ github.event.workflow_run.id }}" \
             "${{ github.event.workflow_run.run_attempt }}"
