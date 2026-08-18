@@ -314,7 +314,7 @@ func sortSliceParams(list []*noticeInfo) ([]*noticeInfo, func(i, j int) bool) {
 
 func (s *requestrulesSuite) TestLoadErrorOpen(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
 	}
 
 	dbPath := s.prepDBPath(c)
@@ -869,7 +869,7 @@ func (s *requestrulesSuite) TestCloseRepeatedly(c *C) {
 
 func (s *requestrulesSuite) TestCloseErrors(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	rdb, err := requestrules.New(s.defaultNotifyRule)
@@ -1211,7 +1211,7 @@ func (s *requestrulesSuite) TestAddRuleRemoveRuleDuplicateVariants(c *C) {
 
 func (s *requestrulesSuite) TestAddRuleErrors(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	rdb, err := requestrules.New(s.defaultNotifyRule)
@@ -2618,7 +2618,7 @@ func (s *requestrulesSuite) testRemoveRule(c *C, rdb *requestrules.RuleDB, rule 
 
 func (s *requestrulesSuite) TestRemoveRuleErrors(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	rdb, err := requestrules.New(s.defaultNotifyRule)
@@ -2741,7 +2741,7 @@ func (s *requestrulesSuite) TestRemoveRulesForSnapInterface(c *C) {
 
 func (s *requestrulesSuite) TestRemoveRulesForSnapInterfaceErrors(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	dbPath := filepath.Join(dirs.SnapInterfacesRequestsStateDir, "request-rules.json")
@@ -3080,7 +3080,7 @@ func (s *requestrulesSuite) TestPatchRule(c *C) {
 
 func (s *requestrulesSuite) TestPatchRuleErrors(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	rdb, err := requestrules.New(s.defaultNotifyRule)

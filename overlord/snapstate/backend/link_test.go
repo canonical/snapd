@@ -708,14 +708,14 @@ func (s *linkCleanupSuite) testLinkCleanupDirOnFail(c *C, dir string) {
 
 func (s *linkCleanupSuite) TestLinkCleanupOnDesktopFail(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapDesktopFilesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnBinariesFail(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	// this one is the trivial case _as the code stands today_,
 	// but nothing guarantees that ordering.
@@ -724,28 +724,28 @@ func (s *linkCleanupSuite) TestLinkCleanupOnBinariesFail(c *C) {
 
 func (s *linkCleanupSuite) TestLinkCleanupOnServicesFail(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapServicesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnMountDirFail(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	s.testLinkCleanupDirOnFail(c, filepath.Dir(s.info.MountDir()))
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnDBusSystemFail(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapDBusSystemServicesDir)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupOnDBusSessionFail(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	s.testLinkCleanupDirOnFail(c, dirs.SnapDBusSessionServicesDir)
 }
@@ -768,7 +768,7 @@ func (s *linkCleanupSuite) TestLinkCleanupOnSystemctlFail(c *C) {
 
 func (s *linkCleanupSuite) TestLinkCleansUpDataDirAndSymlinksOnSymlinkFail(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	// validity check
@@ -851,7 +851,7 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 
 func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapFirstInstallOnCore(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	// test failure mode when snapd is first installed, its units were
@@ -864,7 +864,7 @@ func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapFirstInstallOnCore(c *C
 
 func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapNonFirstInstallOnCore(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	// test failure mode when a new revision of snapd is installed, its was

@@ -1072,7 +1072,7 @@ func (s *backendSuite) TestParallelCompileError(c *C) {
 
 func (s *backendSuite) TestParallelCompileRemovesFirst(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
 	}
 	err := os.MkdirAll(dirs.SnapSeccompDir, 0755)
 	c.Assert(err, IsNil)

@@ -120,7 +120,7 @@ func (s *apparmorpromptingSuite) TestNewErrorListener(c *C) {
 
 func (s *apparmorpromptingSuite) TestNewErrorPromptDB(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	_, reqChan, restore := apparmorprompting.MockListener()
@@ -153,7 +153,7 @@ func checkListenerClosed(c *C, reqChan <-chan *prompting.Request) {
 
 func (s *apparmorpromptingSuite) TestNewErrorRuleDB(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	_, reqChan, restore := apparmorprompting.MockListener()

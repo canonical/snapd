@@ -325,7 +325,7 @@ func (s *UDisks2InterfaceSuite) TestUDevSpecFileDoesNotExist(c *C) {
 
 func (s *UDisks2InterfaceSuite) TestUDevSpecFileCannotOpen(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
 	}
 	producerDir := s.slotInfoWithUdevFile.Snap.MountDir()
 	c.Assert(os.WriteFile(filepath.Join(producerDir, "non-readable"), []byte(""), 0222), IsNil)

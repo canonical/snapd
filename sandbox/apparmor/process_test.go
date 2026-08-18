@@ -75,7 +75,7 @@ func (s *apparmorSuite) TestSnapAppFromPidNewKernelPath(c *C) {
 
 func (s *apparmorSuite) TestSnapAppFromPid(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
 	}
 
 	// When no /proc/$pid/attr/current exists, assume unconfined

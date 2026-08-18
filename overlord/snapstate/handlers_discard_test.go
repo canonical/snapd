@@ -387,7 +387,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorIfSeqFileMissing(c *C) {
 
 func (s *discardSnapSuite) TestDoDiscardSnapErrorOnSeqFileRemovalFailure(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
 	}
 
 	s.state.Lock()

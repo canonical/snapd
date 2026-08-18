@@ -417,7 +417,7 @@ plugs:
 
 func (s *polkitInterfaceSuite) TestSanitizePlugPolicyDirNotWritable(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory writability checks)")
 	}
 
 	_, plugInfo := mockPolkitPolicyConnectedPlug(c)
@@ -430,7 +430,7 @@ func (s *polkitInterfaceSuite) TestSanitizePlugPolicyDirNotWritable(c *C) {
 
 func (s *polkitInterfaceSuite) TestSanitizePlugRuleDirNotWritable(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory writability checks)")
 	}
 
 	_, plugInfo := mockPolkitRuleConnectedPlug(c, "hash")

@@ -1781,7 +1781,7 @@ TasksAccounting=true
 
 func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})

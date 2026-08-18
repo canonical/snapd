@@ -30,7 +30,7 @@ import (
 
 func (s *syscheckSuite) TestCheckApparmorUsable(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
 	}
 
 	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
