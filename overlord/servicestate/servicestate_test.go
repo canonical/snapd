@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -1043,7 +1044,7 @@ func (s *snapServiceOptionsSuite) TestLogReaderNamespaces(c *C) {
 }
 
 func (s *snapServiceOptionsSuite) TestEnsureLoopLogging(c *C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("servicemgr.go", c, true)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("servicemgr.go", c, true)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true

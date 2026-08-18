@@ -1472,7 +1472,7 @@ func (ovs *overlordSuite) TestAllStateManagersHaveEnsureLoggingTest(c *C) {
 		}
 		content, err := os.ReadFile(testPath)
 		c.Assert(err, IsNil)
-		containsEnsureChecks := strings.Contains(string(content), fmt.Sprintf(`testutil.CheckEnsureLoopLogging("%s`, prefix+"mgr.go"))
-		c.Assert(containsEnsureChecks, Equals, true, Commentf("File %s does not contain a unit test that calls testutil.CheckEnsureLoopLogging on the file containing its Ensure() method", testPath))
+		containsEnsureChecks := strings.Contains(string(content), fmt.Sprintf(`swfeatstest.CheckEnsureLoopLogging("%s`, prefix+"mgr.go"))
+		c.Assert(containsEnsureChecks, Equals, true, Commentf("File %s does not contain a unit test that calls swfeatstest.CheckEnsureLoopLogging on the file containing its Ensure() method", testPath))
 	}
 }

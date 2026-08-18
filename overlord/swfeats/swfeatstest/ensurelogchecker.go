@@ -17,7 +17,7 @@
  *
  */
 
-package testutil
+package swfeatstest
 
 import (
 	"bufio"

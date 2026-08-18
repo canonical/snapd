@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -2186,7 +2187,7 @@ func (s *confdbTestSuite) TestCanHookSetConfdb(c *C) {
 }
 
 func (s *confdbTestSuite) TestEnsureLoopLogging(c *C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("confdbmgr.go", c, false)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("confdbmgr.go", c, false)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true

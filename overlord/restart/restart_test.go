@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/restart"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -1279,7 +1280,7 @@ func (s *notifyRebootRequiredSuite) TestFinishTaskWithRestartNotifiesRebootRequi
 }
 
 func (s *restartSuite) TestEnsureLoopLogging(c *C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("restart.go", c, false)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("restart.go", c, false)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true

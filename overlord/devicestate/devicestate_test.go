@@ -63,6 +63,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/secboot"
@@ -4091,7 +4092,7 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 }
 
 func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("devicemgr.go", c, true)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true

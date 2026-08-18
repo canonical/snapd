@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 	"gopkg.in/check.v1"
@@ -414,7 +415,7 @@ func (s *managerSuite) TestEnsureClusteringDisabled(c *check.C) {
 }
 
 func (s *managerSuite) TestEnsureLoopHasLogging(c *check.C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("clustermgr.go", c, false)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("clustermgr.go", c, false)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true

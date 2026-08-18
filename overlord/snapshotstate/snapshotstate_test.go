@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2126,7 +2127,7 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEnsureLoopLogging(c *check.C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true

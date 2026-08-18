@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
@@ -5997,7 +5998,7 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 }
 
 func (s *assertMgrSuite) TestEnsureLoopLogging(c *C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("assertmgr.go", c, false)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("assertmgr.go", c, false)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true

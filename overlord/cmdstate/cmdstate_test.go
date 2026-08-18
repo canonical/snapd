@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/swfeats"
-	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 )
 
 // hook up gocheck to testing
@@ -225,7 +225,7 @@ func (s *cmdSuite) TestExecTimeoutMissing(c *check.C) {
 }
 
 func (s *cmdSuite) TestEnsureLoopLogging(c *check.C) {
-	ensureLogs := testutil.CheckEnsureLoopLogging("cmdmgr.go", c, false)
+	ensureLogs := swfeatstest.CheckEnsureLoopLogging("cmdmgr.go", c, false)
 	knownEnsures := make(map[swfeats.EnsureEntry]bool)
 	for _, entry := range swfeats.KnownEnsures() {
 		knownEnsures[entry] = true
