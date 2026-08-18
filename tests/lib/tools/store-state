@@ -262,9 +262,10 @@ teardown_fake_store(){
 
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store
-    elif [ "$REMOTE_STORE" = "enterprise" ]; then
-        setup_enterprise_store
     else
+        if [ "$REMOTE_STORE" = "enterprise" ]; then
+            setup_enterprise_store
+        fi
         systemctl stop snapd.service snapd.socket
         rm -rf "$STORE_CONFIG" "$top_dir"
         systemctl daemon-reload
