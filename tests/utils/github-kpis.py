@@ -35,8 +35,6 @@ Options:
   --attempts      Add number of attempts made of running the Tests workflow on the last PR update before merging.
   --forced        Add field to specify whether or not the PR was force merged.
   --skipped       Add field to specify how many tests (excluding variants) were skipped via snapd-testing-skip.
-  --runtime       Add total runtime of all attempts of the Tests workflow on the last PR update before merging.
-  --test-totals   Add total number of spread tests run on the last PR update before merging.
   --author-times  Add author classification and times PR spent in non-approved and approved states before merging.
   --all           Add all of the above fields.
     --pretty        Pretty-print the final JSON output.
@@ -51,12 +49,6 @@ Once the json is collected, here are some useful jq queries:
 total=$(jq '[ .[] | select(."spread-skipped" == false) ] | length' < pr_data.json)
 num_force_merges=$(jq '[ .[] | select(."spread-skipped" == false) | select(."force-merged" == true) ] | length' < pr_data.json)
 echo "scale=2; $num_force_merges / $total * 100" | bc
-
-# Get the average number of minutes for the first attempt when only fundamental tests were run
-jq '[ .[] | select(."spread-skipped" == false) | select(."first-attempt-only-fundamental" == true) | ."first-attempt-minutes" ] | add / length' < pr_data.json
-
-# Get the average total runtime in minutes
-jq '[ .[] | select(."spread-skipped" == false) | ."total-runtime-minutes" ] | add / length' < pr_data.json
 
 # Get the average number of attempts
 jq '[ .[] | select(."spread-skipped" == false) | ."num-attempts" ] | add / length' < pr_data.json"""
@@ -255,159 +247,6 @@ def get_author_and_times(prs_json: List[Dict]) -> List[Dict]:
     return result
 
 
-def get_total_tests_run(prs_json: List[Dict]) -> List[Dict]:
-    """Get total number of spread tests run for each PR."""
-    total_prs = len(prs_json)
-    progress = ProgressBar("Test totals", total_prs)
-    
-    result = []
-    for pr in prs_json:
-        if pr.get("spread-skipped") == True:
-            pr["total-tests-run"] = 0
-            result.append(pr)
-        else:
-            try:
-                ensure_attempt_metadata(pr)
-            except (GhCommandError, json.JSONDecodeError):
-                pr["total-tests-run"] = None
-                result.append(pr)
-                progress.tick()
-                continue
-
-            db_id = pr.get("databaseId")
-            num_attempts = pr.get("num-attempts", 0)
-            
-            if not db_id or num_attempts == 0:
-                pr["total-tests-run"] = None
-                result.append(pr)
-                progress.tick()
-                continue
-            
-            with tempfile.TemporaryDirectory() as tmpdir:
-                try:
-                    gh_request("run", "download", str(db_id), "--repo", "canonical/snapd",
-                                "--dir", tmpdir, "--pattern", "spread-results-*")
-                except GhCommandError:
-                    pr["total-tests-run"] = None
-                    result.append(pr)
-                    progress.tick()
-                    continue
-                
-                total_tests = 0
-                first_attempt_for_system = {}
-                first_file_for_system = {}
-                
-                # Find all results.json files
-                for root, _, files in os.walk(tmpdir):
-                    if "results.json" in files:
-                        json_file = os.path.join(root, "results.json")
-                        dir_name = os.path.basename(root)
-                        
-                        match = re.match(r"^spread-results-[0-9]+-([0-9]+)-(.*)$", dir_name)
-                        if match:
-                            attempt_num = int(match.group(1))
-                            system = match.group(2)
-                            
-                            if system not in first_attempt_for_system or attempt_num < first_attempt_for_system[system]:
-                                first_attempt_for_system[system] = attempt_num
-                                first_file_for_system[system] = json_file
-                
-                for system, json_file in first_file_for_system.items():
-                    if os.path.isfile(json_file):
-                        try:
-                            with open(json_file) as f:
-                                data = json.load(f)
-                                results = data.get("results", {})
-                                count = (results.get("task-passed", 0) + 
-                                       results.get("task-failed", 0) +
-                                       results.get("task-aborted", 0) +
-                                       results.get("task-restore-failed", 0))
-                                total_tests += count
-                        except (OSError, json.JSONDecodeError):
-                            pass
-                
-                pr["total-tests-run"] = total_tests
-                result.append(pr)
-        
-        progress.tick()
-    
-    return result
-
-
-def get_total_runtime(prs_json: List[Dict]) -> List[Dict]:
-    """Calculate total runtime and first attempt runtime for each PR."""
-    total_prs = len(prs_json)
-    progress = ProgressBar("Runtime", total_prs)
-    
-    result = []
-    for pr in prs_json:
-        if pr.get("spread-skipped") == True:
-            pr["total-runtime-minutes"] = None
-            pr["first-attempt-minutes"] = None
-            pr["first-attempt-only-fundamental"] = None
-            result.append(pr)
-        else:
-            try:
-                ensure_attempt_metadata(pr)
-            except (GhCommandError, json.JSONDecodeError):
-                pr["total-runtime-minutes"] = None
-                pr["first-attempt-minutes"] = None
-                pr["first-attempt-only-fundamental"] = None
-                result.append(pr)
-                progress.tick()
-                continue
-
-            db_id = pr.get("databaseId")
-            num_attempts = pr.get("num-attempts", 0)
-            
-            if not db_id or num_attempts == 0:
-                pr["total-runtime-minutes"] = None
-                pr["first-attempt-minutes"] = None
-                pr["first-attempt-only-fundamental"] = None
-                result.append(pr)
-                progress.tick()
-                continue
-            
-            total_runtime = 0
-            first_attempt_runtime = None
-            first_attempt_only_fundamental = False
-            
-            for attempt in range(1, num_attempts + 1):
-                json_fields = "startedAt,updatedAt"
-                if attempt == 1:
-                    json_fields += ",jobs"
-                
-                output = gh_request("run", "view", str(db_id), "--repo", "canonical/snapd",
-                                     "--attempt", str(attempt), "--json", json_fields)
-                data = json.loads(output)
-                
-                started = datetime.fromisoformat(data["startedAt"].replace("Z", "+00:00"))
-                updated = datetime.fromisoformat(data["updatedAt"].replace("Z", "+00:00"))
-                runtime = int((updated - started).total_seconds() // 60)
-                
-                if attempt == 1:
-                    first_attempt_runtime = runtime
-                    jobs = data.get("jobs", [])
-                    job_names = [job.get("name", "") for job in jobs]
-                    job_count = {}
-                    for name in job_names:
-                        job_count[name] = job_count.get(name, 0) + 1
-                    
-                    if job_count.get("spread ${{ matrix.group }}", 0) == 2:
-                        first_attempt_only_fundamental = True
-                
-                total_runtime += runtime
-            
-            pr["total-runtime-minutes"] = total_runtime
-            pr["first-attempt-minutes"] = first_attempt_runtime
-            pr["first-attempt-only-fundamental"] = first_attempt_only_fundamental
-            result.append(pr)
-        
-        progress.tick()
-    
-    return result
-
-
 def get_skipped_tests(prs_json: List[Dict]) -> List[Dict]:
     """Get number of skipped tests for each PR."""
     total_prs = len(prs_json)
@@ -598,8 +437,6 @@ def main():
     parser.add_argument("--attempts", action="store_true", help="Add number of attempts")
     parser.add_argument("--forced", action="store_true", help="Add force-merged field")
     parser.add_argument("--skipped", action="store_true", help="Add skipped tests field")
-    parser.add_argument("--runtime", action="store_true", help="Add runtime field")
-    parser.add_argument("--test-totals", action="store_true", help="Add test totals field")
     parser.add_argument("--author-times", action="store_true", help="Add author classification and PR time fields")
     parser.add_argument("--all", action="store_true", help="Add all fields")
     parser.add_argument("--pretty", action="store_true", help="Pretty-print the final JSON output")
@@ -640,8 +477,6 @@ def main():
         args.attempts = True
         args.forced = True
         args.skipped = True
-        args.runtime = True
-        args.test_totals = True
         args.author_times = True
     
     if args.attempts:
@@ -650,10 +485,6 @@ def main():
         stages.append(("forced", get_force_merged))
     if args.skipped:
         stages.append(("skipped", get_skipped_tests))
-    if args.runtime:
-        stages.append(("runtime", get_total_runtime))
-    if args.test_totals:
-        stages.append(("test-totals", get_total_tests_run))
     if args.author_times:
         stages.append(("author-times", get_author_and_times))
     
@@ -667,10 +498,6 @@ def main():
             sys.stderr.write("Determining whether each PR was force merged...\n")
         elif stage_name == "skipped":
             sys.stderr.write("Determining number of skipped tests for each PR...\n")
-        elif stage_name == "runtime":
-            sys.stderr.write("Calculating total runtime for each PR...\n")
-        elif stage_name == "test-totals":
-            sys.stderr.write("Calculating test totals for each PR...\n")
         elif stage_name == "author":
             sys.stderr.write("Classifying PR authors...\n")
         elif stage_name == "state-times":
