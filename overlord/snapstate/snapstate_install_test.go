@@ -302,7 +302,7 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	task0 := ts.Tasks()[0]
 	snapsup, err := snapstate.TaskSnapSetup(task0)
 	c.Assert(err, IsNil, Commentf("%#v", task0))
-	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
+	c.Assert(snapsup.InstanceName().String(), Equals, "some-snap")
 	c.Assert(snapsup.DevMode, Equals, true)
 	c.Assert(snapsup.ApplySnapDevMode, Equals, false)
 
@@ -4123,7 +4123,7 @@ func (s *snapmgrTestSuite) TestInstallMany(c *C) {
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+				c.Check(sup.Version, Equals, sup.SnapName().String()+"Ver")
 			}
 		}
 	}
@@ -4153,7 +4153,7 @@ func (s *snapmgrTestSuite) TestInstallManyNoDelayed(c *C) {
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.Version, Equals, sup.SnapName()+"Ver")
+				c.Check(sup.Version, Equals, sup.SnapName().String()+"Ver")
 			}
 		}
 	}
@@ -5645,7 +5645,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName(), Equals, snapNames[i])
+				c.Check(sup.SnapName().String(), Equals, snapNames[i])
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}
@@ -6249,7 +6249,7 @@ epoch: 1
 			if t.Kind() == "prerequisites" && !t.Has("prerequisites-sync") {
 				sup, err := snapstate.TaskSnapSetup(t)
 				c.Assert(err, IsNil)
-				c.Check(sup.SnapName(), Equals, snapNames[i])
+				c.Check(sup.SnapName().String(), Equals, snapNames[i])
 				c.Check(sup.Version, Equals, "1.0")
 			}
 		}

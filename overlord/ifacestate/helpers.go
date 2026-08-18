@@ -1371,7 +1371,7 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			return nil, err
 		}
 		instanceName := snapsup.InstanceName()
-		if seen[instanceName] {
+		if seen[instanceName.String()] {
 			continue
 		}
 
@@ -1392,8 +1392,8 @@ func snapsWithSecurityProfiles(st *state.State) ([]*interfaces.SnapAppSet, error
 			continue
 		}
 
-		seen[instanceName] = true
-		snapInfo, err := snap.ReadInfo(instanceName, snapsup.SideInfo)
+		seen[instanceName.String()] = true
+		snapInfo, err := snap.ReadInfo(instanceName.String(), snapsup.SideInfo)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
 			continue

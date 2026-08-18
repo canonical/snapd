@@ -564,7 +564,7 @@ func (s *snapmgrTestSuite) TestAliasTasks(c *C) {
 	err = tasks[0].Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup.InstanceKey, Equals, "instance")
-	c.Check(snapsup.InstanceName(), Equals, "some-snap_instance")
+	c.Check(snapsup.InstanceName().String(), Equals, "some-snap_instance")
 }
 
 type changedAlias struct {

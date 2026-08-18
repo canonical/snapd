@@ -76,7 +76,7 @@ func findSymmetricAutoconnectTask(st *state.State, plugSnap, slotSnap string, in
 			}
 			otherSnap := snapsup.InstanceName()
 
-			if (otherSnap == plugSnap && installedSnap == slotSnap) || (otherSnap == slotSnap && installedSnap == plugSnap) {
+			if (otherSnap.String() == plugSnap && installedSnap.String() == slotSnap) || (otherSnap.String() == slotSnap && installedSnap.String() == plugSnap) {
 				return true, nil
 			}
 		}
@@ -581,7 +581,7 @@ func OnSnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 	instanceName := snapsup.InstanceName()
 
 	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, instanceName, &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
+	if err := snapstate.Get(st, instanceName.String(), &snapst); err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	if !snapst.IsInstalled() {
@@ -600,7 +600,7 @@ func OnSnapLinkageChanged(st *state.State, snapsup *snapstate.SnapSetup) error {
 			Components: snapst.CurrentComponentSideInfos(),
 		}
 	}
-	snapstate.Set(st, instanceName, &snapst)
+	snapstate.Set(st, instanceName.String(), &snapst)
 	return nil
 }
 

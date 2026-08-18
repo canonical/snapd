@@ -275,7 +275,7 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 
 	var names []string
 	for _, snapst := range snapStates {
-		names = append(names, snapst.InstanceName())
+		names = append(names, snapst.InstanceName().String())
 	}
 
 	holds, err := SnapHolds(st, names)
@@ -601,7 +601,7 @@ func storeUpdatePlanCore(
 	for name, snapst := range hasLocalRevision {
 		up, ok := updates[name]
 		if !ok {
-			return updatePlan{}, fmt.Errorf("internal error: unexpected update to local revision: %q", snapst.InstanceName())
+			return updatePlan{}, fmt.Errorf("internal error: unexpected update to local revision: %q", snapst.InstanceName().String())
 		}
 
 		// construct the target from a combination of the local snap and
@@ -700,13 +700,13 @@ func collectCurrentSnapsAndActions(
 		// what we want to do
 		if !snapst.Active {
 			if opts.ExpectOneSnap {
-				return fmt.Errorf("refreshing disabled snap %q not supported", snapst.InstanceName())
+				return fmt.Errorf("refreshing disabled snap %q not supported", snapst.InstanceName().String())
 			}
 			return nil
 		}
 
 		if !req.RevOpts.Revision.Unset() && snapst.LastIndex(req.RevOpts.Revision) != -1 {
-			hasLocalRevision[snapst.InstanceName()] = snapst
+			hasLocalRevision[snapst.InstanceName().String()] = snapst
 			return nil
 		}
 
@@ -814,7 +814,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 		// we allow changing snap revisions of a local-only snap without the
 		// --amend flag as long as we already have had the revision installed
 		if !up.RevOpts.Revision.Unset() && snapst.LastIndex(up.RevOpts.Revision) != -1 {
-			localAmends = append(localAmends, snapst.InstanceName())
+			localAmends = append(localAmends, snapst.InstanceName().String())
 			continue
 		}
 

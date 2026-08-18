@@ -506,7 +506,7 @@ func (m *DeviceManager) ensureUbuntuSaveSnapFolders() error {
 	}
 
 	for _, s := range snaps {
-		saveDir := snap.CommonDataSaveDir(s.InstanceName())
+		saveDir := snap.CommonDataSaveDir(s.InstanceName().String())
 		if err := os.MkdirAll(saveDir, 0755); err != nil {
 			return err
 		}

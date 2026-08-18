@@ -647,7 +647,7 @@ func (s *validationSetsSuite) TestMaybeRestoreValidationSetsAndRevertSnapsOneRev
 	snapsup, err := snapstate.TaskSnapSetup(revertTasks[0])
 	c.Assert(err, IsNil)
 	c.Check(snapsup.Flags, Equals, snapstate.Flags{Revert: true, RevertStatus: snapstate.NotBlocked})
-	c.Check(snapsup.InstanceName(), Equals, "some-snap1")
+	c.Check(snapsup.InstanceName().String(), Equals, "some-snap1")
 	c.Check(snapsup.Revision(), Equals, snap.R(1))
 
 	c.Check(restoreValidationSetsTrackingCalled, Equals, 1)

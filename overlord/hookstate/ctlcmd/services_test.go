@@ -899,7 +899,7 @@ apps:
 		}
 		setup, err := snapstate.TaskSnapSetup(t)
 		c.Assert(err, IsNil)
-		return setup.InstanceName()
+		return setup.InstanceName().String()
 	}
 
 	for snapName, cmdTasks := range cmdTasksPerSnap {

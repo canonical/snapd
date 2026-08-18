@@ -360,7 +360,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	lp := &testLinkParticipant{
 		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
@@ -2167,7 +2167,7 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapCore(c *C) {
 	lp := &testLinkParticipant{
 		linkageChanged: func(st *state.State, snapsup *snapstate.SnapSetup) error {
 			var snapst snapstate.SnapState
-			err := snapstate.Get(st, snapsup.InstanceName(), &snapst)
+			err := snapstate.Get(st, snapsup.InstanceName().String(), &snapst)
 			linkChangeCount++
 			switch linkChangeCount {
 			case 1:
@@ -2398,12 +2398,12 @@ func (s *linkSnapSuite) TestLinkSnapInjectsAutoConnectIfMissing(c *C) {
 	t = chg.Tasks()[4]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.InstanceName(), Equals, "snap1")
+	c.Assert(autoconnectSup.InstanceName().String(), Equals, "snap1")
 
 	t = chg.Tasks()[5]
 	c.Assert(t.Kind(), Equals, "auto-connect")
 	c.Assert(t.Get("snap-setup", &autoconnectSup), IsNil)
-	c.Assert(autoconnectSup.InstanceName(), Equals, "snap2")
+	c.Assert(autoconnectSup.InstanceName().String(), Equals, "snap2")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapFailureCleansUpAux(c *C) {

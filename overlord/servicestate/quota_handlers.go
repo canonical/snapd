@@ -257,7 +257,7 @@ func (m *ServiceManager) doQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 	qc := QuotaControlAction{
 		Action:    "update",
 		QuotaName: quotaName,
-		AddSnaps:  []string{snapsup.InstanceName()},
+		AddSnaps:  []string{snapsup.InstanceName().String()},
 	}
 	grp, allGrps, _, err := quotaUpdate(st, qc, allGrps)
 	if err != nil {
@@ -299,7 +299,7 @@ func (m *ServiceManager) undoQuotaAddSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := EnsureSnapAbsentFromQuota(st, snapsup.InstanceName()); err != nil {
+	if err := EnsureSnapAbsentFromQuota(st, snapsup.InstanceName().String()); err != nil {
 		return err
 	}
 	return nil

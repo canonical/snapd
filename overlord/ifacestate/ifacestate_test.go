@@ -2441,7 +2441,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 		// snap must be installed at this point, either just installed by a
 		// previous link-snap task, or it was already installed.
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err = snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil {
 			return err
 		}
@@ -2457,7 +2457,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 			return fmt.Errorf("internal error while linking component: %w", err)
 		}
 
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
@@ -2470,7 +2470,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 		}
 
 		var snapst snapstate.SnapState
-		err = snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err = snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil {
 			return err
 		}
@@ -2486,7 +2486,7 @@ func (s *interfaceManagerSuite) mockLinkComponent(c *C) {
 
 		c.Check(removed, NotNil)
 
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 
 		return nil
 	})
@@ -2501,7 +2501,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeFromComponent(c *C, sn
 
 	// snap should already be installed if calling this function
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+	err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 	c.Assert(err, IsNil)
 
 	change := s.state.NewChange("test", "")
@@ -2537,7 +2537,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 
 	if !opts.install {
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		c.Assert(err, IsNil)
 		csis = append(csis, snapst.CurrentComponentSideInfos()...)
 	}
@@ -2551,7 +2551,7 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		s.state.Lock()
 		defer s.state.Unlock()
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -2565,28 +2565,28 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 			c.Check(snapst.PendingSecurity.SideInfo, DeepEquals, snapsup.SideInfo)
 			c.Check(snapst.PendingSecurity.Components, DeepEquals, csis)
 		}
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 		c.Check(ifacestate.OnSnapLinkageChanged(s.state, snapsup), IsNil)
 
 		if opts.linkSnapRestarts {
 			c.Log("requesting restart in link-snap")
-			return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+			return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
 		}
 		return nil
 	}, func(task *state.Task, tomb *tomb.Tomb) error { // undo handler
 		s.state.Lock()
 		defer s.state.Unlock()
 		var snapst snapstate.SnapState
-		err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+		err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
 		if opts.install {
 			// unlink completely
-			snapstate.Set(s.state, snapsup.InstanceName(), nil)
+			snapstate.Set(s.state, snapsup.InstanceName().String(), nil)
 		} else {
 			snapst.Active = false
-			snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+			snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 		}
 		// this is realistic and will move PendingSecurity.SideInfo
 		// on undo already to the previous revision, this should
@@ -2596,9 +2596,9 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 		if !opts.install {
 			// perturb things to make sure undo-setup-profiles
 			// sets the right value
-			c.Assert(snapstate.Get(s.state, snapsup.InstanceName(), &snapst), IsNil)
+			c.Assert(snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst), IsNil)
 			snapst.PendingSecurity.SideInfo = &snap.SideInfo{}
-			snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+			snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 		}
 		return nil
 	})
@@ -2606,13 +2606,13 @@ func (s *interfaceManagerSuite) addSetupSnapSecurityChangeWithOptions(c *C, snap
 	s.mockLinkComponent(c)
 
 	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapsup.InstanceName(), &snapst)
+	err := snapstate.Get(s.state, snapsup.InstanceName().String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		panic(err)
 	}
 	if snapst.IsInstalled() {
 		snapst.Active = opts.active
-		snapstate.Set(s.state, snapsup.InstanceName(), &snapst)
+		snapstate.Set(s.state, snapsup.InstanceName().String(), &snapst)
 	}
 
 	change := s.state.NewChange("test", "")
@@ -11277,14 +11277,14 @@ func (s *interfaceManagerSuite) TestShouldUndoSetupProfiles(c *C) {
 
 	// Legacy/component-only style change has no prepare-profiles task.
 	// In that case, undo should run for setup-profiles tasks.
-	c.Check(ifacestate.ShouldUndoSetupProfiles(setupBeforeLink, snapsup.InstanceName()), Equals, true)
-	c.Check(ifacestate.ShouldUndoSetupProfiles(setupAfterAutoConnect, snapsup.InstanceName()), Equals, true)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(setupBeforeLink, snapsup.InstanceName().String()), Equals, true)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(setupAfterAutoConnect, snapsup.InstanceName().String()), Equals, true)
 
 	// The prepare-profiles task for a different snap must not affect the result
 	// for this snap. For the other snap itself, setup-profiles should not undo
 	// because prepare-profiles exists for that same snap.
-	c.Check(ifacestate.ShouldUndoSetupProfiles(otherPrepareProfiles, otherSnapsup.InstanceName()), Equals, true)
-	c.Check(ifacestate.ShouldUndoSetupProfiles(otherSetupProfiles, otherSnapsup.InstanceName()), Equals, false)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(otherPrepareProfiles, otherSnapsup.InstanceName().String()), Equals, true)
+	c.Check(ifacestate.ShouldUndoSetupProfiles(otherSetupProfiles, otherSnapsup.InstanceName().String()), Equals, false)
 }
 
 // Tests for ResolveDisconnect()
@@ -14996,7 +14996,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBr
 		defer st.Unlock()
 
 		c.Log("requesting restart in link-snap")
-		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+		return restart.FinishTaskWithRestart(task, state.DoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
 	}, func(task *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	})
@@ -15013,7 +15013,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsHandlingOfRestartRequestsNotBr
 
 		c.Log("requesting restart in undo unlink-current-snap")
 		// undo handler requests a restart in order to reach undo
-		return restart.FinishTaskWithRestart(task, state.UndoneStatus, restart.RestartSystem, snapsup.InstanceName(), nil)
+		return restart.FinishTaskWithRestart(task, state.UndoneStatus, restart.RestartSystem, snapsup.InstanceName().String(), nil)
 	})
 	s.o.TaskRunner().AddHandler("error-trigger", func(task *state.Task, tomb *tomb.Tomb) error {
 		return errors.New("mock error")

@@ -10122,7 +10122,7 @@ func (s *snapmgrTestSuite) TestResolveValidationSetsEnforcementErrorSnapdAndTwoA
 			if err != nil || snapsup.ComponentExclusiveOperation {
 				continue
 			}
-			if snapsup.InstanceName() == name {
+			if snapsup.InstanceName().String() == name {
 				return ts
 			}
 		}
@@ -10385,12 +10385,12 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 
 	tasksByName := make(map[string]*state.TaskSet)
 	for _, sts := range stss {
-		tasksByName[sts.snapsup.InstanceName()] = sts.ts
+		tasksByName[sts.snapsup.InstanceName().String()] = sts.ts
 	}
 
 	// verify ordering between snaps
 	for _, sts := range stss {
-		if classic && !strutil.ListContains(essentials, sts.snapsup.InstanceName()) {
+		if classic && !strutil.ListContains(essentials, sts.snapsup.InstanceName().String()) {
 			// in the split-refresh classic case, the only direct dependency that
 			// non-essential snap tasks gain on the essential set is via snapd.
 			for _, t := range sts.begin.WaitTasks() {
@@ -10401,7 +10401,7 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 		}
 
 		switch {
-		case strutil.ListContains(essentials, sts.snapsup.InstanceName()):
+		case strutil.ListContains(essentials, sts.snapsup.InstanceName().String()):
 			// essential snap updates may depend on other essential snaps, but not
 			// on non-essential work.
 			for _, t := range sts.begin.WaitTasks() {

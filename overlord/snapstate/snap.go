@@ -120,7 +120,7 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 	} else {
 		prepare = st.NewTask("download-snap", fmt.Sprintf(
 			i18n.G("Download snap %q%s from channel %q"),
-			sc.snapsup.InstanceName(), sc.revisionString(), sc.snapsup.Channel))
+			sc.snapsup.InstanceName().String(), sc.revisionString(), sc.snapsup.Channel))
 	}
 
 	prepare.Set("snap-setup", sc.snapsup)
@@ -145,7 +145,7 @@ func (sc *snapInstallChoreographer) BeforeLocalSystemMod(st *state.State, s *tas
 		// fetch and check assertions
 		validate := st.NewTask("validate-snap", fmt.Sprintf(
 			i18n.G("Fetch and check assertions for snap %q%s"),
-			sc.snapsup.InstanceName(), sc.revisionString()))
+			sc.snapsup.InstanceName().String(), sc.revisionString()))
 		s.Append(validate)
 		s.UpdateEdge(validate, LastBeforeLocalModificationsEdge)
 	}
@@ -175,24 +175,24 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 	if sc.runRefreshHooks() {
 		// run refresh hooks when updating existing snap, otherwise run install hook
 		// further down.
-		hook := SetupPreRefreshHook(st, sc.snapsup.InstanceName())
+		hook := SetupPreRefreshHook(st, sc.snapsup.InstanceName().String())
 		s.Append(hook)
 	}
 
 	if sc.snapst.IsInstalled() {
 		// unlink-current-snap (will stop services for copy-data)
 		stop := st.NewTask("stop-snap-services", fmt.Sprintf(
-			i18n.G("Stop snap %q services"), sc.snapsup.InstanceName()))
+			i18n.G("Stop snap %q services"), sc.snapsup.InstanceName().String()))
 		stop.Set("stop-reason", snap.StopReasonRefresh)
 		s.Append(stop)
 
 		removeAliases := st.NewTask("remove-aliases", fmt.Sprintf(
-			i18n.G("Remove aliases for snap %q"), sc.snapsup.InstanceName()))
+			i18n.G("Remove aliases for snap %q"), sc.snapsup.InstanceName().String()))
 		removeAliases.Set("remove-reason", removeAliasesReasonRefresh)
 		s.Append(removeAliases)
 
 		unlink := st.NewTask("unlink-current-snap", fmt.Sprintf(
-			i18n.G("Make current revision for snap %q unavailable"), sc.snapsup.InstanceName()))
+			i18n.G("Make current revision for snap %q unavailable"), sc.snapsup.InstanceName().String()))
 		unlink.Set("unlink-reason", unlinkCurrentSnapReasonRefresh)
 		s.Append(unlink)
 	}
@@ -200,14 +200,14 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 	// This task is necessary only for UC24+ and hybrid 24.04+
 	if sc.snapsup.Type == snap.TypeKernel && kernel.NeedsKernelDriversTree(ic.DeviceCtx.Model()) {
 		setupKernel := st.NewTask("prepare-kernel-snap", fmt.Sprintf(
-			i18n.G("Prepare kernel driver tree for %q%s"), sc.snapsup.InstanceName(), sc.revisionString()))
+			i18n.G("Prepare kernel driver tree for %q%s"), sc.snapsup.InstanceName().String(), sc.revisionString()))
 		s.Append(setupKernel)
 	}
 
 	// gadget update currently for core boot systems only
 	if ic.DeviceCtx.IsCoreBoot() && (sc.snapsup.Type == snap.TypeGadget || (sc.snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(
-			i18n.G("Update assets from %s %q%s"), sc.snapsup.Type, sc.snapsup.InstanceName(), sc.revisionString()))
+			i18n.G("Update assets from %s %q%s"), sc.snapsup.Type, sc.snapsup.InstanceName().String(), sc.revisionString()))
 		s.Append(gadgetUpdate)
 	}
 
@@ -219,14 +219,14 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		}
 		cmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(
 			i18n.G("Update kernel command line from gadget %q%s"),
-			sc.snapsup.InstanceName(), sc.revisionString()))
+			sc.snapsup.InstanceName().String(), sc.revisionString()))
 		s.Append(cmdline)
 	}
 
 	// copy-data (needs stopped services by unlink)
 	if !sc.snapsup.Flags.Revert {
 		copyData := st.NewTask("copy-snap-data", fmt.Sprintf(
-			i18n.G("Copy snap %q data"), sc.snapsup.InstanceName()))
+			i18n.G("Copy snap %q data"), sc.snapsup.InstanceName().String()))
 		s.Append(copyData)
 	}
 
@@ -235,7 +235,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 	// for downgrades while preserving the split behavior.
 	prepareSecurity := st.NewTask("setup-profiles", fmt.Sprintf(
 		i18n.G("Prepare snap %q%s for security profile setup"),
-		sc.snapsup.InstanceName(), sc.revisionString()))
+		sc.snapsup.InstanceName().String(), sc.revisionString()))
 	prepareSecurity.Set("prepare-profiles", true)
 	s.Append(prepareSecurity)
 
@@ -251,7 +251,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 	// where we would like to try to make sure it boots correctly before we perform
 	// additional tasks.
 	linkSnap := st.NewTask("link-snap", fmt.Sprintf(
-		i18n.G("Make snap %q%s available to the system"), sc.snapsup.InstanceName(), sc.revisionString()))
+		i18n.G("Make snap %q%s available to the system"), sc.snapsup.InstanceName().String(), sc.revisionString()))
 	linkSnap.Set("set-next-boot", !sc.requiresKmodSetup())
 	s.Append(linkSnap)
 	s.UpdateEdge(linkSnap, MaybeRebootEdge)
@@ -271,7 +271,7 @@ func (sc *snapInstallChoreographer) UpToLinkSnapAndBeforeReboot(st *state.State,
 		// kernel-modules components too so we can remove this task.
 		setupKmodComponents := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(
 			i18n.G("Prepare kernel-modules components for %q%s"),
-			sc.snapsup.InstanceName(), sc.revisionString()))
+			sc.snapsup.InstanceName().String(), sc.revisionString()))
 		setupKmodComponents.Set("set-next-boot", true)
 		s.Append(setupKmodComponents)
 		s.UpdateEdge(setupKmodComponents, MaybeRebootEdge)
@@ -370,7 +370,7 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 		// This avoids the situation where we update snapd and then can never
 		// reseal again.
 		checkReseal := st.NewTask("check-reseal", fmt.Sprintf(
-			i18n.G("Validate key resealing for snap %q%s"), sc.snapsup.InstanceName(), sc.revisionString()))
+			i18n.G("Validate key resealing for snap %q%s"), sc.snapsup.InstanceName().String(), sc.revisionString()))
 		checkReseal.Set("finish-restart", true)
 		s.Append(checkReseal)
 		s.UpdateEdge(checkReseal, MaybeRebootWaitEdge)
@@ -389,7 +389,7 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 		// This task needs to run after we're back and running the new
 		// kernel after a reboot was requested in link-snap handler.
 		discardOldKernelSnapSetup := st.NewTask("discard-old-kernel-snap-setup", fmt.Sprintf(
-			i18n.G("Discard previous kernel driver tree for %q%s"), sc.snapsup.InstanceName(), sc.revisionString()))
+			i18n.G("Discard previous kernel driver tree for %q%s"), sc.snapsup.InstanceName().String(), sc.revisionString()))
 		s.Append(discardOldKernelSnapSetup)
 		discardOldKernelSnapSetup.Set("finish-restart", sc.requiresKmodSetup())
 		// Note that if requiresKmodSetup is true, NeedsKernelDriversTree must
@@ -402,13 +402,13 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	// Refreshing the model base may bring updated system certificates.
 	// Regenerate the managed certificate database as part of the post-reboot
 	// refresh stage for that base.
-	if shouldScheduleUpdateCertDBForRefresh(sc.snapsup.InstanceName(), sc.snapsup.Type, ic.DeviceCtx) {
+	if shouldScheduleUpdateCertDBForRefresh(sc.snapsup.InstanceName().String(), sc.snapsup.Type, ic.DeviceCtx) {
 		updateCertDB := st.NewTask("update-cert-db", i18n.G("Update certificate database"))
 		s.Append(updateCertDB)
 	}
 
 	if sc.snapsup.QuotaGroupName != "" {
-		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, sc.snapsup.InstanceName(), sc.snapsup.QuotaGroupName)
+		quotaAddSnapTask, err := AddSnapToQuotaGroup(st, sc.snapsup.InstanceName().String(), sc.snapsup.QuotaGroupName)
 		if err != nil {
 			return nil, err
 		}
@@ -418,13 +418,13 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 	// only run default-configure hook if installing the snap for the first time and
 	// default-configure is allowed
 	if !sc.snapst.IsInstalled() && isDefaultConfigureAllowed(sc.snapsup) {
-		defaultCfg := DefaultConfigure(st, sc.snapsup.InstanceName())
+		defaultCfg := DefaultConfigure(st, sc.snapsup.InstanceName().String())
 		s.AppendTSWithoutData(defaultCfg)
 	}
 
 	// run new services
 	startSnapServices := st.NewTask("start-snap-services", fmt.Sprintf(
-		i18n.G("Start snap %q%s services"), sc.snapsup.InstanceName(), sc.revisionString()))
+		i18n.G("Start snap %q%s services"), sc.snapsup.InstanceName().String(), sc.revisionString()))
 	s.Append(startSnapServices)
 	s.UpdateEdge(startSnapServices, EndEdge)
 
@@ -447,11 +447,11 @@ func (sc *snapInstallChoreographer) AfterLinkSnapAndPostReboot(st *state.State, 
 
 	if isConfigureAllowed(sc.snapsup) {
 		confFlags := configureSnapFlags(sc.snapst, sc.snapsup)
-		configSet := ConfigureSnap(st, sc.snapsup.InstanceName(), confFlags)
+		configSet := ConfigureSnap(st, sc.snapsup.InstanceName().String(), confFlags)
 		s.AppendTSWithoutData(configSet)
 	}
 
-	healthCheck := CheckHealthHook(st, sc.snapsup.InstanceName(), sc.snapsup.Revision())
+	healthCheck := CheckHealthHook(st, sc.snapsup.InstanceName().String(), sc.snapsup.Revision())
 	s.Append(healthCheck)
 	s.UpdateEdge(healthCheck, EndEdge)
 
@@ -489,7 +489,7 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 	// 'auto-connect' is expected to run first after the reboot as it also
 	// performs some reboot-verification code.
 	autoConnect := st.NewTask("auto-connect", fmt.Sprintf(
-		i18n.G("Automatically connect eligible plugs and slots of snap %q"), sc.snapsup.InstanceName()))
+		i18n.G("Automatically connect eligible plugs and slots of snap %q"), sc.snapsup.InstanceName().String()))
 	autoConnect.Set("finish-restart", postReboot)
 	s.Append(autoConnect)
 	if postReboot {
@@ -498,11 +498,11 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 
 	// setup aliases
 	setAutoAliases := st.NewTask("set-auto-aliases", fmt.Sprintf(
-		i18n.G("Set automatic aliases for snap %q"), sc.snapsup.InstanceName()))
+		i18n.G("Set automatic aliases for snap %q"), sc.snapsup.InstanceName().String()))
 	s.Append(setAutoAliases)
 
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(
-		i18n.G("Setup snap %q aliases"), sc.snapsup.InstanceName()))
+		i18n.G("Setup snap %q aliases"), sc.snapsup.InstanceName().String()))
 	s.Append(setupAliases)
 	// BeforeHooksEdge is used by preseeding to know up to which task to run
 	s.UpdateEdge(setupAliases, BeforeHooksEdge)
@@ -520,14 +520,14 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 		// kernel-modules components too so we can remove this task.
 		preseedKmod := st.NewTask("prepare-kernel-modules-components", fmt.Sprintf(
 			i18n.G("Prepare kernel-modules components for %q%s"),
-			sc.snapsup.InstanceName(), sc.revisionString()))
+			sc.snapsup.InstanceName().String(), sc.revisionString()))
 		s.Append(preseedKmod)
 		s.UpdateEdge(preseedKmod, BeforeHooksEdge)
 	}
 
 	if sc.snapsup.Flags.Prefer {
 		prefer := st.NewTask("prefer-aliases", fmt.Sprintf(
-			i18n.G("Prefer aliases for snap %q"), sc.snapsup.InstanceName()))
+			i18n.G("Prefer aliases for snap %q"), sc.snapsup.InstanceName().String()))
 		s.Append(prefer)
 	}
 
@@ -540,18 +540,18 @@ func (sc *snapInstallChoreographer) addLinkComponentThroughHooks(
 		// so that the task is executed by the new snapd
 		bootCfg := st.NewTask("update-managed-boot-config", fmt.Sprintf(
 			i18n.G("Update managed boot config assets from %q%s"),
-			sc.snapsup.InstanceName(), sc.revisionString()))
+			sc.snapsup.InstanceName().String(), sc.revisionString()))
 		s.Append(bootCfg)
 	}
 
 	if sc.runRefreshHooks() {
-		hook := SetupPostRefreshHook(st, sc.snapsup.InstanceName())
+		hook := SetupPostRefreshHook(st, sc.snapsup.InstanceName().String())
 		s.Append(hook)
 	}
 
 	if !sc.snapst.IsInstalled() {
 		// only run install hook if installing the snap for the first time
-		hook := SetupInstallHook(st, sc.snapsup.InstanceName())
+		hook := SetupInstallHook(st, sc.snapsup.InstanceName().String())
 		s.Append(hook)
 		s.UpdateEdge(hook, HooksEdge)
 	}
@@ -581,7 +581,7 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 			// but don't discard this one; its' the thing we're switching to!
 			continue
 		}
-		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
+		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName().String(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
 		if err != nil {
 			return err
 		}
@@ -611,10 +611,10 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 			}
 		}
 		si := seq[i]
-		if inUse(sc.snapsup.InstanceName(), si.Snap.Revision) {
+		if inUse(sc.snapsup.InstanceName().String(), si.Snap.Revision) {
 			continue
 		}
-		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
+		ts, err := removeInactiveRevision(st, sc.snapst, sc.snapsup.InstanceName().String(), si.Snap.SnapID, si.Snap.Revision, sc.snapsup.Type)
 		if err != nil {
 			return err
 		}
@@ -622,7 +622,7 @@ func (sc *snapInstallChoreographer) addCleanupTasks(st *state.State, s *taskChai
 	}
 
 	cleanup := st.NewTask("cleanup", fmt.Sprintf(
-		i18n.G("Clean up %q (%s) install"), sc.snapsup.InstanceName(), sc.snapsup.Revision()))
+		i18n.G("Clean up %q (%s) install"), sc.snapsup.InstanceName().String(), sc.snapsup.Revision()))
 	s.Append(cleanup)
 	s.UpdateEdge(cleanup, EndEdge)
 
@@ -647,7 +647,7 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 	}
 
 	prerequisites := st.NewTask("prerequisites", fmt.Sprintf(
-		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName()))
+		i18n.G("Ensure prerequisites for %q are available"), sc.snapsup.InstanceName().String()))
 	prerequisites.Set("snap-setup", sc.snapsup)
 	b.Append(prerequisites)
 	b.UpdateEdge(prerequisites, BeginEdge)
@@ -662,7 +662,7 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 	// synchronization point that ensures that all prereqs are available before
 	// installing the snap.
 	prerequisitesSync := st.NewTask("prerequisites", fmt.Sprintf(
-		i18n.G("Wait until prerequisites for %q are available"), sc.snapsup.InstanceName()))
+		i18n.G("Wait until prerequisites for %q are available"), sc.snapsup.InstanceName().String()))
 	prerequisitesSync.Set("prerequisites-sync", true)
 	b.Append(prerequisitesSync)
 
@@ -672,7 +672,7 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 	var mountSnap *state.Task
 	if !sc.revisionIsPresent() {
 		mountSnap = st.NewTask("mount-snap", fmt.Sprintf(
-			i18n.G("Mount snap %q%s"), sc.snapsup.InstanceName(), sc.revisionString()))
+			i18n.G("Mount snap %q%s"), sc.snapsup.InstanceName().String(), sc.revisionString()))
 		b.Append(mountSnap)
 	}
 
@@ -745,7 +745,7 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 	// snap is busy, return a pre-download task set and the busyErr for the
 	// caller to handle
 	if busyErr != nil {
-		existing, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName(), snapsup.Revision())
+		existing, err := findTasksMatchingKindAndSnap(st, "pre-download-snap", snapsup.InstanceName().String(), snapsup.Revision())
 		if err != nil {
 			return snapInstallTaskSet{}, err
 		}
@@ -760,7 +760,7 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 
 		preDownload := st.NewTask("pre-download-snap", fmt.Sprintf(
 			i18n.G("Pre-download snap %q (%s) from channel %q"),
-			snapsup.InstanceName(), snapsup.Revision(), snapsup.Channel))
+			snapsup.InstanceName().String(), snapsup.Revision(), snapsup.Channel))
 		preDownload.Set("snap-setup", snapsup)
 
 		preDownload.Set("refresh-info", busyErr.PendingSnapRefreshInfo())
@@ -779,7 +779,7 @@ func doInstallOrPreDownload(st *state.State, snapst *SnapState, snapsup *SnapSet
 	}
 	if experimentalGateAutoRefreshHook && snapst.IsInstalled() {
 		// If this snap was held, then remove it from snaps-hold.
-		if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
+		if err := resetGatingForRefreshed(st, snapsup.InstanceName().String()); err != nil {
 			return snapInstallTaskSet{}, err
 		}
 	}
@@ -825,12 +825,12 @@ func shouldPreDownloadSnap(st *state.State, snapsup *SnapSetup, snapst *SnapStat
 // start of doInstall. It may mutate snapsup (e.g. PlugsOnly tweak) to keep
 // semantics identical to the existing flow.
 func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *SnapSetup, ic installContext) error {
-	if snapsup.InstanceName() == "system" {
+	if snapsup.InstanceName().String() == "system" {
 		return fmt.Errorf("cannot install reserved snap name 'system'")
 	}
 
 	if snapst.IsInstalled() && !snapst.Active {
-		return fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName())
+		return fmt.Errorf("cannot update disabled snap %q", snapsup.InstanceName().String())
 	}
 
 	if snapsup.Flags.Classic {
@@ -843,7 +843,7 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 	}
 
 	if !snapst.IsInstalled() {
-		if err := checkSnapAliasConflict(st, snapsup.InstanceName()); err != nil {
+		if err := checkSnapAliasConflict(st, snapsup.InstanceName().String()); err != nil {
 			return err
 		}
 	}
@@ -852,7 +852,7 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 		return err
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName(), snapst, ic.ConflictOptions); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapsup.InstanceName().String(), snapst, ic.ConflictOptions); err != nil {
 		return err
 	}
 
@@ -863,7 +863,7 @@ func checkInstallPreconditions(st *state.State, snapst *SnapState, snapsup *Snap
 		}
 
 		// When downgrading snapd we want to make sure that it's an exclusive change.
-		if snapsup.SnapName() == "snapd" {
+		if snapsup.SnapName().String() == "snapd" {
 			res, err := strutil.VersionCompare(info.Version, snapsup.Version)
 			if err != nil {
 				return fmt.Errorf("cannot compare versions of snapd [cur: %s, new: %s]: %v", info.Version, snapsup.Version, err)
@@ -954,7 +954,7 @@ func findTasksMatchingKindAndSnap(st *state.State, kind string, snapName string,
 			return nil, err
 		}
 
-		if snapsup.InstanceName() == snapName && snapsup.Revision() == revision {
+		if snapsup.InstanceName().String() == snapName && snapsup.Revision() == revision {
 			tasks = append(tasks, t)
 		}
 	}
@@ -969,7 +969,7 @@ func isParallelInstallable(snapsup *SnapSetup) error {
 	if snapsup.Type == snap.TypeApp {
 		return nil
 	}
-	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName())
+	return fmt.Errorf("cannot install snap of type %v as %q", snapsup.Type, snapsup.InstanceName().String())
 }
 
 // refreshRetain returns refresh.retain value if set, or the default value (different for core and classic).
@@ -1019,7 +1019,7 @@ var excludeFromRefreshAppAwareness = func(t snap.Type) bool {
 }
 
 func isDefaultConfigureAllowed(snapsup *SnapSetup) bool {
-	return isConfigureAllowed(snapsup) && !isCoreSnap(snapsup.InstanceName())
+	return isConfigureAllowed(snapsup) && !isCoreSnap(snapsup.InstanceName().String())
 }
 
 func isConfigureAllowed(snapsup *SnapSetup) bool {
@@ -1032,7 +1032,7 @@ func configureSnapFlags(snapst *SnapState, snapsup *SnapSetup) int {
 	// config defaults cannot be retrieved without a snap ID
 	hasSnapID := snapsup.SideInfo != nil && snapsup.SideInfo.SnapID != ""
 
-	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName()) {
+	if !snapst.IsInstalled() && hasSnapID && !isCoreSnap(snapsup.InstanceName().String()) {
 		// installation, run configure using the gadget defaults if available, system config defaults (attached to
 		// "core") are consumed only during seeding, via an explicit configure step separate from installing
 		confFlags |= UseConfigDefaults

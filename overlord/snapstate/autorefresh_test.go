@@ -1168,7 +1168,7 @@ func checkPreDownloadChange(c *C, chg *state.Change, name string, rev snap.Revis
 
 	var snapsup snapstate.SnapSetup
 	c.Assert(task.Get("snap-setup", &snapsup), IsNil)
-	c.Assert(snapsup.InstanceName(), Equals, name)
+	c.Assert(snapsup.InstanceName().String(), Equals, name)
 	c.Assert(snapsup.Revision(), Equals, rev)
 
 	var refreshInfo userclient.PendingSnapRefreshInfo

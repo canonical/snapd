@@ -5057,7 +5057,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 						snapsup.SideInfo.RealName,
 						snapsup.Type,
 					),
-					compsToTypes(snapsup.InstanceName()),
+					compsToTypes(snapsup.InstanceName().String()),
 				),
 				nil,
 			)
@@ -5075,7 +5075,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 						snapsup.Base,
 						snapsup.Type,
 					),
-					compsToTypes(snapsup.InstanceName()),
+					compsToTypes(snapsup.InstanceName().String()),
 				),
 				files,
 			)
@@ -5096,7 +5096,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 
 		s.setupSnapResourceRevision(
 			c,
-			compsup.BlobPath(snapsup.InstanceName()),
+			compsup.BlobPath(snapsup.InstanceName().String()),
 			compsup.ComponentName(),
 			snapsup.SideInfo.SnapID,
 			"canonical",
@@ -5132,7 +5132,7 @@ func (s *deviceMgrSystemsCreateSuite) testDeviceManagerCreateRecoverySystemValid
 			compsup.CompType,
 		))
 
-		err = os.Rename(path, compsup.BlobPath(snapsup.InstanceName()))
+		err = os.Rename(path, compsup.BlobPath(snapsup.InstanceName().String()))
 		c.Assert(err, IsNil)
 
 		return nil

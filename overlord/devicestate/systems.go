@@ -280,7 +280,7 @@ func (ig *setupInfoGetter) ComponentInfo(st *state.State, cref naming.ComponentR
 			continue
 		}
 
-		mountFile := compsup.BlobPath(snapsup.InstanceName())
+		mountFile := compsup.BlobPath(snapsup.InstanceName().String())
 
 		f, err := snapfile.Open(mountFile)
 		if err != nil {
@@ -366,7 +366,7 @@ func (ig *setupInfoGetter) SnapInfo(st *state.State, name string) (info *snap.In
 		if err != nil {
 			return nil, "", false, err
 		}
-		if snapsup.SnapName() != name {
+		if snapsup.SnapName().String() != name {
 			continue
 		}
 		// local path tasks carry SnapPath until mount-snap consumes it; otherwise

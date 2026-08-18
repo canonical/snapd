@@ -198,7 +198,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	canDelay := delayedTask != nil
 	logger.Debugf("has delayed effects support? %v", canDelay)
 
-	snapInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 		// Keep PendingSecurity updated for restart durability while this
 		// revision remains inactive.
-		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet)
+		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet)
 	}
 
 	delayedEffects, err := m.setupProfilesForAppSet(task, appSet, opts, newConns, canDelay, perfTimings)
@@ -277,7 +277,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName(), appSet); err != nil {
+	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet); err != nil {
 		return err
 	}
 
@@ -617,12 +617,12 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	}
 	snapName := snapSetup.InstanceName()
 
-	if err := m.removeProfilesForSnap(task, tomb, snapName, perfTimings); err != nil {
+	if err := m.removeProfilesForSnap(task, tomb, snapName.String(), perfTimings); err != nil {
 		return err
 	}
 
 	// no pending profiles on disk
-	return setPendingProfilesSideInfo(task.State(), snapName, nil)
+	return setPendingProfilesSideInfo(task.State(), snapName.String(), nil)
 }
 
 func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
@@ -666,7 +666,7 @@ func shouldUndoSetupProfiles(task *state.Task, instanceName string) bool {
 			continue
 		}
 		taskSnapSetup, err := snapstate.TaskSnapSetup(t)
-		if err != nil || taskSnapSetup.InstanceName() != instanceName {
+		if err != nil || taskSnapSetup.InstanceName().String() != instanceName {
 			continue
 		}
 
@@ -716,7 +716,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	}
 
 	snapName := snapsup.InstanceName()
-	if !shouldUndoSetupProfiles(task, snapName) {
+	if !shouldUndoSetupProfiles(task, snapName.String()) {
 		logger.Debugf("skipping undo of setup-profiles for task %q", task.ID())
 		return nil
 	}
@@ -745,17 +745,17 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	// Get the name from SnapSetup and use it to find the current SideInfo
 	// about the snap, if there is one.
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapst)
+	err = snapstate.Get(st, snapName.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		// The snap was not installed before so undo should remove security profiles.
-		return m.removeProfilesForSnap(task, tomb, snapName, perfTimings)
+		return m.removeProfilesForSnap(task, tomb, snapName.String(), perfTimings)
 	} else {
 		// The snap was installed before so undo should setup the old security profiles.
-		snapInfo, err := snap.ReadInfo(snapName, sideInfo)
+		snapInfo, err := snap.ReadInfo(snapName.String(), sideInfo)
 		if err != nil {
 			return err
 		}
@@ -786,7 +786,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if _, err := m.setupProfilesForAppSet(task, appSet, opts, nil, canDefer, perfTimings); err != nil {
 			return err
 		}
-		return setPendingProfilesSideInfo(st, snapName, appSet)
+		return setPendingProfilesSideInfo(st, snapName.String(), appSet)
 	}
 }
 
@@ -803,7 +803,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 	instanceName := snapSetup.InstanceName()
 
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, instanceName, &snapst)
+	err = snapstate.Get(st, instanceName.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
@@ -821,7 +821,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 		if err != nil {
 			return err
 		}
-		if connRef.PlugRef.Snap == instanceName || connRef.SlotRef.Snap == instanceName {
+		if connRef.PlugRef.Snap == instanceName.String() || connRef.SlotRef.Snap == instanceName.String() {
 			removed[id] = conns[id]
 			delete(conns, id)
 		}
@@ -1437,7 +1437,7 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 		otherSnapName := snapsup.InstanceName()
 
 		// different snaps - no conflict
-		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+		if otherSnapName.String() != plugSnap && otherSnapName.String() != slotSnap {
 			continue
 		}
 
@@ -1504,12 +1504,12 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 		otherSnapName := snapsup.InstanceName()
 
 		// different snaps - no conflict
-		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+		if otherSnapName.String() != plugSnap && otherSnapName.String() != slotSnap {
 			continue
 		}
 
 		// another task related to same snap op (unrelated op would be blocked by snapstate conflict logic)
-		if otherSnapName == disconnectingSnap {
+		if otherSnapName.String() == disconnectingSnap {
 			continue
 		}
 
@@ -1553,7 +1553,7 @@ func checkHotplugDisconnectConflicts(st *state.State, plugSnap, slotSnap string)
 		otherSnapName := snapsup.InstanceName()
 
 		// different snaps - no conflict
-		if otherSnapName != plugSnap && otherSnapName != slotSnap {
+		if otherSnapName.String() != plugSnap && otherSnapName.String() != slotSnap {
 			continue
 		}
 
@@ -1803,7 +1803,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	gadgectConnect := newGadgetConnect(st, task, m.repo, snapName, deviceCtx)
+	gadgectConnect := newGadgetConnect(st, task, m.repo, snapName.String(), deviceCtx)
 
 	// wait for auto-install, started by prerequisites code, for
 	// the default-providers of content ifaces so we can
@@ -1814,7 +1814,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// forcefully wait for defaultProviders; we just retry for
 	// things in the intersection between defaultProviders here and
 	// snaps with not ready link-snap|setup-profiles tasks
-	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(snapName))
+	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(snapName.String()))
 	for _, chg := range st.Changes() {
 		if chg.IsReady() {
 			continue
@@ -1830,7 +1830,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// Only retry if the task that installs the
 				// content provider is not waiting for us
 				// (or this will just hang forever).
-				_, ok := defaultProviders[snapsup.InstanceName()]
+				_, ok := defaultProviders[snapsup.InstanceName().String()]
 				if ok && !inSameChangeWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
@@ -1838,8 +1838,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	plugs := m.repo.Plugs(snapName)
-	slots := m.repo.Slots(snapName)
+	plugs := m.repo.Plugs(snapName.String())
+	slots := m.repo.Slots(snapName.String())
 	newconns := make(map[string]*interfaces.ConnRef, len(plugs)+len(slots))
 	var connOpts map[string]*connectOpts
 
@@ -1884,7 +1884,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	// Auto-connect all the slots
 	for _, slot := range slots {
-		candidates := m.repo.AutoConnectCandidatePlugs(snapName, slot.Name, autochecker.check)
+		candidates := m.repo.AutoConnectCandidatePlugs(snapName.String(), slot.Name, autochecker.check)
 		if len(candidates) == 0 {
 			continue
 		}
@@ -1918,7 +1918,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 					return fmt.Errorf("internal error: unexpected state of mark-preseeded task: %s", markPreseeded.Status())
 				}
 
-				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName(), markPreseeded)
+				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName().String(), markPreseeded)
 				if err != nil {
 					return err
 				}
@@ -1963,14 +1963,14 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 	}
 
 	snapName := snapsup.InstanceName()
-	connections, err := m.repo.Connections(snapName)
+	connections, err := m.repo.Connections(snapName.String())
 	if err != nil {
 		return err
 	}
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		if err := checkDisconnectConflicts(st, snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkDisconnectConflicts(st, snapName.String(), connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
 			if _, retry := err.(*state.Retry); retry {
 				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 				task.Logf("Waiting for conflicting change in progress...")
@@ -2608,7 +2608,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 				if err != nil {
 					return fmt.Errorf("internal error: task snap setup not found through link-snap task")
 				}
-				seenSnaps = append(seenSnaps, sup.InstanceName())
+				seenSnaps = append(seenSnaps, sup.InstanceName().String())
 			}
 		}
 		if laneFailed {
