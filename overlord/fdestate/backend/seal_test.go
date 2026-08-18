@@ -590,8 +590,6 @@ func (s *sealSuite) testSealToModeenvWithFdeHookHappy(c *C, useTokens bool) {
 	savedTokens := make(map[string][]byte)
 	restore := fdeBackend.MockSecbootSealKeysWithProtector(func(kf secboot.KeyProtectorFactory, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
 		c.Check(kf, Equals, mockFactory)
-		c.Check(params.Model.Model(), Equals, model.Model())
-		c.Check(params.Model.Model(), Equals, model.Model())
 		if useTokens {
 			c.Check(params.AuxKeyFile, Equals, "")
 		} else {

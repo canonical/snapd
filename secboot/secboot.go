@@ -89,6 +89,8 @@ type SealKeyRequest struct {
 	KeyFile string
 	// The boot modes allowed (i.e. snapd_recovery_mode kernel parameter)
 	BootModes []string
+	// Initial model to bind sealed keys to.
+	Models []ModelForSealing
 }
 
 // ModelForSealing provides information about the model for use in the context
@@ -168,8 +170,6 @@ type SealKeysParams struct {
 }
 
 type SealKeysWithFDESetupHookParams struct {
-	// Initial model to bind sealed keys to.
-	Model ModelForSealing
 	// The path to the aux key file (if empty the key will not be
 	// saved)
 	AuxKeyFile string

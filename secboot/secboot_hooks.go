@@ -167,13 +167,16 @@ func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, param
 		flags := sb_hooks.KeyProtectorNoAEAD
 		sb_hooks.SetKeyProtector(protector, flags)
 
+		var sbModels []sb.SnapModel
+		for _, model := range skr.Models {
+			sbModels = append(sbModels, model)
+		}
+
 		protectedKey, primaryKeyOut, unlockKey, err := sb_hooks.NewProtectedKey(rand.Reader, &sb_hooks.KeyParams{
-			PrimaryKey: primaryKey,
-			Role:       skr.KeyName,
-			AuthorizedSnapModels: []sb.SnapModel{
-				params.Model,
-			},
-			AuthorizedBootModes: skr.BootModes,
+			PrimaryKey:           primaryKey,
+			Role:                 skr.KeyName,
+			AuthorizedSnapModels: sbModels,
+			AuthorizedBootModes:  skr.BootModes,
 		})
 		if err != nil {
 			return err
