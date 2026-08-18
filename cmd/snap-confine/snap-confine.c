@@ -306,6 +306,8 @@ static const cap_value_t snap_confine_caps_extra_cgroup_v1[] = {
 int main(int argc, char **argv) {
     sc_error *err = NULL;
 
+    debug_output_init();
+
     log_startup_stage("snap-confine enter");
     sc_debug_capabilities("caps at startup");
 
