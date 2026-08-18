@@ -22,14 +22,22 @@ package main
 import (
 	"net"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/snapcore/snapd/testutil"
 )
 
-var PeerIsSnap = peerIsSnap
+var PeerSnapName = peerSnapName
 
-func MockGetsockoptPeerSec(f func(*net.UnixConn) (string, error)) (restore func()) {
-	restore = testutil.Backup(&getsockoptPeerSec)
-	getsockoptPeerSec = f
+func MockGetPeerUcred(f func(*net.UnixConn) (*unix.Ucred, error)) (restore func()) {
+	restore = testutil.Backup(&getPeerUcred)
+	getPeerUcred = f
+	return restore
+}
+
+func MockSnapNameFromPid(f func(int) (string, error)) (restore func()) {
+	restore = testutil.Backup(&snapNameFromPid)
+	snapNameFromPid = f
 	return restore
 }
 

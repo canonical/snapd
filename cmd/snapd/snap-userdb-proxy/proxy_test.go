@@ -24,12 +24,15 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"golang.org/x/sys/unix"
 	. "gopkg.in/check.v1"
 
 	proxy "github.com/snapcore/snapd/cmd/snapd/snap-userdb-proxy"
@@ -50,38 +53,50 @@ func (s *proxySuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-func (s *proxySuite) TestPeerIsConfinedSnapLabels(c *C) {
+func (s *proxySuite) TestPeerSnapName(c *C) {
+	const peerPid = 1234
 	tests := []struct {
-		label string
-		ok    bool
+		snapName  string
+		lookupErr string
 	}{
-		{label: "snap.hello.hello", ok: true},
-		{label: "snap.hello.hello (complain)", ok: true},
-		{label: "unconfined", ok: false},
-		{label: "", ok: false},
-		{label: "foo.snap.bar", ok: false},
+		{snapName: "hello"},
+		{snapName: "hello_instance"},
+		// the peer's pid does not belong to a snap
+		{lookupErr: "cannot find a snap for pid 1234"},
 	}
 
 	for _, t := range tests {
-		c.Logf("label %q", t.label)
-		restore := proxy.MockGetsockoptPeerSec(func(*net.UnixConn) (string, error) {
-			return t.label, nil
+		c.Logf("snap name %q lookupErr %q", t.snapName, t.lookupErr)
+		restoreUcred := proxy.MockGetPeerUcred(func(*net.UnixConn) (*unix.Ucred, error) {
+			return &unix.Ucred{Pid: peerPid}, nil
+		})
+		restoreSnap := proxy.MockSnapNameFromPid(func(pid int) (string, error) {
+			c.Check(pid, Equals, peerPid)
+			if t.lookupErr != "" {
+				return "", errors.New(t.lookupErr)
+			}
+			return t.snapName, nil
 		})
 
 		a, b := unixPair(c)
-		label, ok, err := proxy.PeerIsSnap(a)
-		c.Check(err, IsNil)
-		c.Check(ok, Equals, t.ok)
-		c.Check(label, Equals, t.label)
+		name, err := proxy.PeerSnapName(a)
+		if t.lookupErr != "" {
+			c.Check(err, ErrorMatches, t.lookupErr)
+			c.Check(name, Equals, "")
+		} else {
+			c.Check(err, IsNil)
+			c.Check(name, Equals, t.snapName)
+		}
 
 		a.Close()
 		b.Close()
-		restore()
+		restoreSnap()
+		restoreUcred()
 	}
 }
 
 func (s *proxySuite) TestProxyRejectsNonSnapPeer(c *C) {
-	cliConn, cancel := s.setupProxyAndClientWithPeerLabel(c, "unused", "unconfined")
+	cliConn, cancel := s.setupProxyAndClientAsSnap(c, "unused", "")
 	defer cancel()
 	defer cliConn.Close()
 
@@ -268,15 +283,21 @@ func (s *proxySuite) TestProxyUnknownMethod(c *C) {
 	c.Check(reply.Error, Equals, "org.varlink.service.MethodNotFound")
 }
 
-// startProxyClient creates a proxy to the supplied address and returns a
+// setupProxyAndClient creates a proxy to the supplied address and returns a
 // connection to that proxy.
 func (s *proxySuite) setupProxyAndClient(c *C, addr string) (net.Conn, context.CancelFunc) {
-	return s.setupProxyAndClientWithPeerLabel(c, addr, "snap.hello.hello")
+	return s.setupProxyAndClientAsSnap(c, addr, "hello")
 }
 
-func (s *proxySuite) setupProxyAndClientWithPeerLabel(c *C, addr, label string) (net.Conn, context.CancelFunc) {
-	restore := proxy.MockGetsockoptPeerSec(func(*net.UnixConn) (string, error) {
-		return label, nil
+func (s *proxySuite) setupProxyAndClientAsSnap(c *C, addr, snapName string) (net.Conn, context.CancelFunc) {
+	restoreUcred := proxy.MockGetPeerUcred(func(*net.UnixConn) (*unix.Ucred, error) {
+		return &unix.Ucred{Pid: 1234}, nil
+	})
+	restoreSnap := proxy.MockSnapNameFromPid(func(pid int) (string, error) {
+		if snapName == "" {
+			return "", fmt.Errorf("cannot find a snap for pid %v", pid)
+		}
+		return snapName, nil
 	})
 
 	sockPath := filepath.Join(c.MkDir(), "proxy.sock")
@@ -303,7 +324,8 @@ func (s *proxySuite) setupProxyAndClientWithPeerLabel(c *C, addr, label string) 
 		case <-time.After(time.Second):
 			c.Fatal("proxy.Serve did not stop")
 		}
-		restore()
+		restoreSnap()
+		restoreUcred()
 	}
 }
 

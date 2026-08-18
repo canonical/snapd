@@ -28,7 +28,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -37,13 +36,19 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 var maxVarlinkMessageSize = 1 << 10
 
+// snapNameFromPid maps a process id to the instance name of the snap it
+// belongs to. It is a variable so it can be mocked in tests.
+var snapNameFromPid = cgroup.SnapNameFromPid
+
 // Proxy is the snap-userdb-proxy service. It accepts connections on a
-// Unix socket, verifies the peer is a confined snap via SO_PEERSEC,
-// and dispatches varlink method calls to its io.systemd.UserDatabase
+// Unix socket, verifies the peer is a snap by mapping the peer's PID
+// (obtained via SO_PEERCRED) to a snap through its cgroup, and
+// dispatches varlink method calls to its io.systemd.UserDatabase
 // dispatcher (which will forward to io.systemd.Multiplexer once
 // Phase 3 lands).
 type Proxy struct {
@@ -67,7 +72,7 @@ func NewProxy(addr string) (*Proxy, error) {
 
 // Serve runs the accept loop until the context is cancelled or the
 // listener returns a non-temporary error. Each accepted connection is
-// subjected to the peer-identity check (see peerIsConfinedSnap).
+// subjected to the peer-identity check (see peerSnapName).
 func (p *Proxy) Serve(ctx context.Context, l net.Listener) error {
 	// Ensure Accept unblocks when the context is cancelled by
 	// closing the listener.
@@ -108,17 +113,12 @@ func (p *Proxy) Serve(ctx context.Context, l net.Listener) error {
 func (p *Proxy) handleConnection(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 
-	label, isSnap, err := peerIsSnap(conn)
-	if err != nil {
-		logger.Noticef("cannot determine socket peer security label: %v", err)
+	snapName, err := peerSnapName(conn)
+	if err != nil || snapName == "" {
+		logger.Debugf("cannot determine socket peer to be a snap: %v", err)
 		return
 	}
-
-	if !isSnap {
-		logger.Noticef("rejecting connection from non-snap peer (label=%q)", label)
-		return
-	}
-	logger.Noticef("accepted connection from snap peer (label=%q)", label)
+	logger.Noticef("accepted connection from snap peer %q", snapName)
 
 	cconn := newCtxConn(conn)
 	nRequests := 0
@@ -257,39 +257,29 @@ func (c *ctxConn) ReadMessage(ctx context.Context) ([]byte, error) {
 	}
 }
 
-// getsockoptPeerSec returns the peer's LSM security context as reported by
-// SO_PEERSEC on the given AF_UNIX connection.
-var getsockoptPeerSec = func(conn *net.UnixConn) (string, error) {
+// getPeerUcred returns the peer credentials of the given connection.
+var getPeerUcred = func(conn *net.UnixConn) (*unix.Ucred, error) {
 	f, err := conn.File()
 	if err != nil {
-		return "", fmt.Errorf("cannot get file descriptor for connection: %v", err)
+		return nil, fmt.Errorf("cannot get file descriptor for connection: %v", err)
 	}
 	defer f.Close()
 
-	label, err := unix.GetsockoptString(int(f.Fd()), syscall.SOL_SOCKET, unix.SO_PEERSEC)
-	if err != nil {
-		return "", fmt.Errorf("cannot read SO_PEERSEC: %v", err)
-	}
-	return label, nil
+	return unix.GetsockoptUcred(int(f.Fd()), syscall.SOL_SOCKET, unix.SO_PEERCRED)
 }
 
-// peerIsSnap returns the Apparmor label of the socket peer process and true,
-// if it's running in a snap (snap.<name>.<app>...).
-func peerIsSnap(conn net.Conn) (string, bool, error) {
+// peerSnapName returns the instance name if the socket peer is a snap. If not,
+// returns an error.
+func peerSnapName(conn net.Conn) (string, error) {
 	uconn, ok := conn.(*net.UnixConn)
 	if !ok {
-		return "", false, fmt.Errorf("expected AF_UNIX peer, got %T", conn)
+		return "", fmt.Errorf("expected AF_UNIX peer, got %T", conn)
 	}
 
-	label, err := getsockoptPeerSec(uconn)
-	if err != nil || len(label) == 0 {
-		return "", false, err
+	ucred, err := getPeerUcred(uconn)
+	if err != nil {
+		return "", err
 	}
 
-	parts := strings.Split(label, ".")
-	if len(parts) != 3 || parts[0] != "snap" {
-		return label, false, nil
-	}
-
-	return label, true, nil
+	return snapNameFromPid(int(ucred.Pid))
 }
