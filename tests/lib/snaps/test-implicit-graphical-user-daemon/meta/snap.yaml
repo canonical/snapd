@@ -1,0 +1,52 @@
+name: test-implicit-graphical-user-daemon
+version: 1
+summary: test snapd daemon user in graphical desktop
+
+slots:
+  dbus-slot:
+    interface: dbus
+    bus: session
+    name: org.example.implicit-graphical-daemon
+
+apps:
+  graphical:
+    command: usr/bin/ls
+    plugs:
+      - desktop
+    daemon: simple
+    daemon-scope: user
+    restart-condition: on-success
+    restart-delay: 2s
+
+  graphical-dbus:
+    command: usr/bin/ls
+    plugs:
+      - desktop
+    daemon: dbus
+    daemon-scope: user
+    restart-condition: on-success
+    restart-delay: 2s
+    activates-on:
+      - dbus-slot
+
+  graphical-dbus-socket:
+    command: usr/bin/ls
+    plugs:
+      - desktop
+      - network-bind
+    daemon: simple
+    daemon-scope: user
+    restart-condition: on-success
+    restart-delay: 2s
+    sockets:
+      mysocket:
+        listen-stream: $XDG_RUNTIME_DIR/mysocket-0
+        socket-mode: 0644
+
+  normal:
+    command: usr/bin/ls
+    daemon: simple
+    daemon-scope: user
+    restart-condition: on-success
+    restart-delay: 2s
+
