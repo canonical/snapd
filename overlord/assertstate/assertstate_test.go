@@ -50,7 +50,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -5998,15 +5997,7 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 }
 
 func (s *assertMgrSuite) TestEnsureLoopLogging(c *C) {
-	ensureLogs := swfeatstest.CheckEnsureLoopLogging("assertmgr.go", c, false)
-	knownEnsures := make(map[swfeats.EnsureEntry]bool)
-	for _, entry := range swfeats.KnownEnsures() {
-		knownEnsures[entry] = true
-	}
-	for _, ensureLog := range ensureLogs {
-		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
-		c.Check(knownEnsures[entry], Equals, true, Commentf("ensure trace %q is not registered", entry))
-	}
+	swfeatstest.CheckEnsureLoopLogging("assertmgr.go", c, false)
 }
 
 func (s *assertMgrSuite) TestOfflineErrorSurfaced(c *C) {

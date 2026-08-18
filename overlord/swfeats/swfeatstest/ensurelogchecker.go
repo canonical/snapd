@@ -30,6 +30,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/swfeats"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -42,9 +43,9 @@ import (
 // ensure method and the file contains at least one trace log inside each
 // ensure* method called within that file's Ensure() method.
 // If not expectChildEnsureMethods, then the go source code must
-// not contain any child ensure methods. It returns the manager and function
-// pairs from the trace logs it checks.
-func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethods bool, submanagerFiles ...string) [][]string {
+// not contain any child ensure methods. It also checks that each trace log
+// corresponds to a registered ensure feature.
+func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethods bool, submanagerFiles ...string) {
 	logTemplate := `logger.Trace("ensure", "manager", "%s", "func", "%s")`
 	logLine := func(ensureLog []string) string {
 		return fmt.Sprintf(logTemplate, ensureLog[0], ensureLog[1])
@@ -57,7 +58,7 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 		c.Assert(childEnsures, check.Not(check.HasLen), 0)
 	} else {
 		c.Assert(childEnsures, check.HasLen, 0)
-		return nil
+		return
 	}
 	ensureReceiver, ok := parsedMgrFile.ensureReceiver()
 	c.Assert(ok, check.Equals, true)
@@ -90,7 +91,15 @@ func CheckEnsureLoopLogging(filename string, c *check.C, expectChildEnsureMethod
 
 	}
 	c.Assert(foundCalls, check.HasLen, len(submanagerCalls))
-	return ensureLogs
+
+	knownEnsures := make(map[swfeats.EnsureEntry]bool)
+	for _, entry := range swfeats.KnownEnsures() {
+		knownEnsures[entry] = true
+	}
+	for _, ensureLog := range ensureLogs {
+		entry := swfeats.EnsureEntry{Manager: ensureLog[0], Function: ensureLog[1]}
+		c.Check(knownEnsures[entry], check.Equals, true, check.Commentf("ensure trace %q is not registered", entry))
+	}
 }
 
 type parsedFile struct {
