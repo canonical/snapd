@@ -17,11 +17,11 @@
  *
  */
 
-// info produces the SNAPD_LTS_TRACKS line for /usr/lib/snapd/info, capturing
-// the LTS track policy this snapd carries. The map is the source of truth for
-// the running snapd's view (read back at runtime from the info file by
-// snap.SnapdLTSTrackMapFromThis) and for the candidate-snapd view (read from
-// the squashfs at /usr/lib/snapd/info by snap.SnapdLTSTrackMapFromSnapFile).
+// info produces the SNAPD_LTS_TRACKS line for the snapd info file, installed
+// next to the snapd binary in the libexec directory (InternalLibExecDir() at
+// runtime; /usr/lib/snapd/info inside a snapd/core snap). The map is the source
+// of truth for the running snapd's view (snap.SnapdLTSTrackMapFromThis) and for
+// the candidate-snapd view (snap.SnapdLTSTrackMapFromSnapFile).
 //
 // The map is intentionally empty in master / latest snapd until the first UC
 // version reaches LTS. Onboarding a UC version is a one-line edit here;
@@ -51,9 +51,9 @@ import (
 // design until a UC version is onboarded.
 var snapdLTSTracks = map[int]map[string]string{}
 
-// renderInfoLine returns the single-line SNAPD_LTS_TRACKS entry for
-// /usr/lib/snapd/info. The JSON value is single-quoted, matching the format
-// of SNAPD_ASSERTS_FORMATS produced by asserts/info.
+// renderInfoLine returns the single-line SNAPD_LTS_TRACKS entry for the snapd
+// info file. The JSON value is single-quoted, matching the format of
+// SNAPD_ASSERTS_FORMATS produced by asserts/info.
 func renderInfoLine(tracks map[int]map[string]string) string {
 	b, err := json.Marshal(tracks)
 	if err != nil {

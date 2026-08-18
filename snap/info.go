@@ -2143,6 +2143,12 @@ func SnapdLTSTrackMapFromThis() (trackMap map[int]map[string]string, snapdVersio
 
 var snapdLTSTrackMapFromThis = snapdLTSTrackMapFromThisImpl
 
+// snapdLTSTrackMapFromThisImpl reads the SNAPD_LTS_TRACKS key from the info
+// file next to the currently executing snapd binary. The directory is
+// snapdtool.InternalLibExecDir(): dirs.DistroLibExecDir for a distro package
+// (/usr/lib/snapd or /usr/libexec/snapd), or the libexec dir of a re-execed
+// snapd/core snap. This is not the same as /usr/lib/snapd/info inside a snap
+// container (see SnapdLTSTrackMapFromSnapFile).
 func snapdLTSTrackMapFromThisImpl() (trackMap map[int]map[string]string, snapdVersion string, err error) {
 	dir, err := snapdtool.InternalLibExecDir()
 	if err != nil {

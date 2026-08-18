@@ -146,12 +146,12 @@ actually lands in the built snap.
 ### Step 2 — Read helper  *(done)*
 
 `snap.SnapdLTSTrackMapFromSnapFile(snap.Container)` reads
-`/usr/lib/snapd/info` via `SnapdInfoFromSnapFile`, parses
-`SNAPD_LTS_TRACKS` via `parseSnapdLTSTracks`. Unit-tested.
+`/usr/lib/snapd/info` inside the snap container via `SnapdInfoFromSnapFile`,
+parses `SNAPD_LTS_TRACKS` via `parseSnapdLTSTracks`. Unit-tested.
 
 Companion `snap.SnapdLTSTrackMapFromThis()` reads the same key from the
-*running* snapd's info file via `snapdtool.InternalLibExecDir` +
-`snapdtool.SnapdVersionFromInfoFile`. Used by planning consumers
+*running* snapd's info file (`snapdtool.InternalLibExecDir()` +
+`snapdtool.SnapdVersionFromInfoFile`). Used by planning consumers
 (BB3/BB4a/BB4b).
 
 ### Step 3 — `doDownloadSnap` branch  *(scaffolded, log-only)*

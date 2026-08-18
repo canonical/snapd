@@ -215,8 +215,8 @@ reboots the machine.
    version->track map (matters for FIPS)? The map must be maintained on
    `master`/`latest` (so field devices ever become aware) and on each LTS
    branch. **Resolved:** flat
-   `snapdLTSTrackMap[bootBase][inputTrack] = targetTrack`; ships in
-   `/usr/lib/snapd/info` under key `SNAPD_LTS_TRACKS`; backported to all
+   `snapdLTSTrackMap[bootBase][inputTrack] = targetTrack`; ships in the
+   snapd `info` file under key `SNAPD_LTS_TRACKS`; backported to all
    LTS branches.
 2. **UC version determination + special cases.** Feasible via
    `naming.CoreVersion` and `asserts.Model.CoreVersion()`. UC16 /
@@ -306,7 +306,7 @@ flowchart TD
         L --> E["typed errors: LTSInternalError / LTSNotAllowedError / LTSNoTrackError"]
     end
     subgraph readers ["Map readers (snap package)"]
-        R1["SnapdLTSTrackMapFromThis()  (running snapd, /usr/lib/snapd/info)"]
+        R1["SnapdLTSTrackMapFromThis()  (running snapd, InternalLibExecDir()/info)"]
         R2["SnapdLTSTrackMapFromSnapFile(snap.Container)  (candidate squashfs)"]
     end
     subgraph consumers ["Planning-side consumers (candidate=nil)"]
@@ -365,8 +365,8 @@ risk, drops branch, returns cleaned channel.
 | `parseSnapdLTSTracks(raw)` | Parses the JSON value: `map[string]map[string]string` keyed by stringified boot-base, normalised to `map[int]map[string]string`. Empty / whitespace input returns `(nil, nil)`. |
 
 The on-disk format is the **metadata contract** still to be agreed (see
-§7 step 8): a JSON value of the `SNAPD_LTS_TRACKS` key inside
-`/usr/lib/snapd/info`, shape:
+§7 step 8): a JSON value of the `SNAPD_LTS_TRACKS` key in the snapd
+`info` file, shape:
 
 ```
 SNAPD_LTS_TRACKS='{"18":{"latest":"18","fips-updates":"18-fips","18":"18","18-fips":"18-fips"}}'

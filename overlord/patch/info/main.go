@@ -17,9 +17,11 @@
  *
  */
 
-// info produces the SNAPD_PATCH_LEVEL line for /usr/lib/snapd/info so that a
-// candidate snapd snap can be inspected for its patch level before it is
-// linked, without requiring the daemon to start.
+// info produces the SNAPD_PATCH_LEVEL line for the snapd info file, installed
+// next to the snapd binary in the libexec directory (InternalLibExecDir() at
+// runtime; /usr/lib/snapd/info inside a snapd/core snap). A candidate snapd
+// snap can then be inspected for its patch level before it is linked, without
+// requiring the daemon to start.
 package main
 
 import (
