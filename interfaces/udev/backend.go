@@ -240,10 +240,7 @@ func readRulesSubsystemTriggers(rulesFilePath string) []string {
 				return nil
 			}
 			for _, t := range triggers {
-				switch t {
-				// values produced by spec.TriggerSubsystem() calls in interface specs
-				case "input", "input/key", "input/joystick":
-				default:
+				if !isKnownSubsystemTrigger(t) {
 					logger.Noticef("unknown subsystem trigger %q in %s", t, rulesFilePath)
 					return nil
 				}
@@ -259,6 +256,16 @@ func readRulesSubsystemTriggers(rulesFilePath string) []string {
 		logger.Noticef("cannot read udev rules file %s: %v", rulesFilePath, err)
 	}
 	return nil
+}
+
+// isKnownSubsystemTrigger reports whether t is a known value that
+// spec.TriggerSubsystem() can produce.
+func isKnownSubsystemTrigger(t string) bool {
+	switch t {
+	case "input", "input/key", "input/joystick":
+		return true
+	}
+	return false
 }
 
 // Remove removes udev rules specific to a given snap.
