@@ -64,7 +64,7 @@ func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
 
 		// ensure nothing gets enabled/disabled when an unsupported
 		// service is set for disable
-		c.Check(s.mockPowerBtnCfg, testutil.FileEquals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\n", action))
+		c.Check(s.mockPowerBtnCfg, testutil.FileEquals, fmt.Sprintf("[Login]\nHandlePowerKey=%s\nRuntimeDirectorySize=2G\n", action))
 	}
 
 }
@@ -77,5 +77,5 @@ func (s *powerbtnSuite) TestFilesystemOnlyApply(c *C) {
 	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	powerBtnCfg := filepath.Join(tmpDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
-	c.Check(powerBtnCfg, testutil.FileEquals, "[Login]\nHandlePowerKey=reboot\n")
+	c.Check(powerBtnCfg, testutil.FileEquals, "[Login]\nHandlePowerKey=reboot\nRuntimeDirectorySize=2G\n")
 }
