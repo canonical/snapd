@@ -142,6 +142,10 @@ linters:
         path: overlord/snapstate/progress_test.go
       - linters:
           - testpackage
+          - unused
+        path: overlord/swfeats/swfeatstest/example_test.go
+      - linters:
+          - testpackage
         path: polkit/pid_start_time_test.go
       - linters:
           - testpackage

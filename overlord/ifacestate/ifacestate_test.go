@@ -59,6 +59,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
@@ -12819,7 +12820,7 @@ func (s *interfaceManagerSuite) TestSystemKeyMismatchCompat(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("ifacemgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("ifacemgr.go", c, false)
 }
 
 func (s *interfaceManagerSuite) setCompatEnabledFeature(c *C) {

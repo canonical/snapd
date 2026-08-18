@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/secboot"
@@ -4090,7 +4091,7 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 }
 
 func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
+	swfeatstest.CheckEnsureLoopLogging("devicemgr.go", c, true)
 }
 
 func (s *deviceMgrSuite) TestSignResponseMessageOK(c *C) {

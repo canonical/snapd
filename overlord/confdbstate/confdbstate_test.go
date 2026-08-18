@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -2185,7 +2186,7 @@ func (s *confdbTestSuite) TestCanHookSetConfdb(c *C) {
 }
 
 func (s *confdbTestSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("confdbmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("confdbmgr.go", c, false)
 }
 
 func (s *confdbTestSuite) TestGetTransactionWithSecretVisibility(c *C) {

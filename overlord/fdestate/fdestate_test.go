@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -470,7 +471,7 @@ func (s *fdeMgrSuite) TestReplaceRecoveryKeyErrors(c *C) {
 }
 
 func (s *fdeMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("fdemgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("fdemgr.go", c, false)
 }
 
 func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning, defaultKeyslots bool) {
