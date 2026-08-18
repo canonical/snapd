@@ -7,10 +7,10 @@ details: |
     mode ).
 
 systems:
-  # core26 is not yet in grade that can work with a signed model
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
     # use snapd from the spread run so that we have testkeys trusted in the

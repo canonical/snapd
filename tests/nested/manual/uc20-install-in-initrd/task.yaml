@@ -9,6 +9,7 @@ systems:
   - ubuntu-20*
   - ubuntu-22*
   - ubuntu-24*
+  - ubuntu-26*
 
 environment:
   # There are 4 modes:
