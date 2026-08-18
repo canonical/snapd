@@ -1445,10 +1445,18 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
+		var seenPCRProfile *sb_tpm2.PCRProtectionProfile
+
 		// mock sealing
 		sealCalls := 0
 		restore = secboot.MockSbNewTPMProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.ProtectKeyParams) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			sealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
@@ -1458,6 +1466,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		passphraseSealCalls := 0
 		restore = secboot.MockSbNewTPMPassphraseProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PassphraseProtectKeyParams, passphrase string) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			passphraseSealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
@@ -1478,6 +1492,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		pinSealCalls := 0
 		restore = secboot.MockSbNewTPMPINProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PINProtectKeyParams, pin sb.PIN) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			pinSealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
@@ -1494,7 +1514,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		_, _, err := secboot.SealKeys(myKeys, &myParams)
+		_, pcrProfileSerialized, err := secboot.SealKeys(myKeys, &myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
@@ -1518,6 +1538,13 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				_, bHasToken := containerB.Tokens["foo2"]
 				c.Check(bHasToken, Equals, true)
 			}
+
+			c.Assert(seenPCRProfile, NotNil)
+			c.Assert(pcrProfileSerialized, NotNil)
+			pcrProfile := &sb_tpm2.PCRProtectionProfile{}
+			_, err = mu.UnmarshalFromBytes(pcrProfileSerialized, pcrProfile)
+			c.Assert(err, IsNil)
+			c.Check(pcrProfile, DeepEquals, seenPCRProfile)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}

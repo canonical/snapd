@@ -2597,6 +2597,17 @@ func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsSignedAndDa
 	s.testMakeBootableImageOptionalKernelArgs(c, model, options, "", "")
 }
 
+type mockInitialFDEState struct {
+}
+
+func (m *mockInitialFDEState) UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
+	return nil
+}
+
+func (m *mockInitialFDEState) UpdatePCRHandle(role string, pcrHandle uint32) error {
+	return nil
+}
+
 func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
 	/* baseName := "core26" */
 	fakeProc := c.MkDir()
@@ -2667,6 +2678,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
 	kernel3, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_3.snap")
 	c.Assert(err, IsNil)
 
+	initialState := &mockInitialFDEState{}
+
 	sealKeyForBootChainsCalled := 0
 	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, fdeState boot.InitialFDEState) error {
 		sealKeyForBootChainsCalled++
@@ -2676,6 +2689,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
 		c.Check(primaryKey, DeepEquals, chosenPrimaryKey)
 		c.Check(volumesAuth, Equals, myVolumesAuth)
 		c.Check(checkResult, Equals, myCheckResult)
+		c.Check(fdeState, Equals, initialState)
 
 		recoveryBootLoader, hasRecovery := params.RoleToBlName[bootloader.RoleRecovery]
 		c.Assert(hasRecovery, Equals, true)
@@ -2770,7 +2784,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
 
 	var protector secboot.KeyProtectorFactory
 
-	err = boot.MakeRunnableSystemReprovision(model, protector, encryptionSetup, nil)
+	err = boot.MakeRunnableSystemReprovision(model, protector, encryptionSetup, initialState)
 	c.Assert(err, IsNil)
 
 	c.Check(sealKeyForBootChainsCalled, Equals, 1)
