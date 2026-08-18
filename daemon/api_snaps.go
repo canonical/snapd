@@ -58,6 +58,7 @@ const (
 	removeCmdAction   = "remove"
 	enableCmdAction   = "enable"
 	disableCmdAction  = "disable"
+	reinstallCmdAction = "reinstall"
 )
 
 var (
@@ -70,6 +71,7 @@ var (
 			installCmdAction, refreshCmdAction, revertCmdAction,
 			switchCmdAction, holdCmdAction, unholdCmdAction,
 			removeCmdAction, enableCmdAction, disableCmdAction,
+			reinstallCmdAction,
 		},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-interfaces-requests-control", "snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
@@ -83,7 +85,7 @@ var (
 			installCmdAction, refreshCmdAction, revertCmdAction,
 			switchCmdAction, holdCmdAction, unholdCmdAction,
 			snapshotCmdAction, removeCmdAction, enableCmdAction,
-			disableCmdAction,
+			disableCmdAction, reinstallCmdAction,
 		},
 		ReadAccess:  interfaceOpenAccess{Interfaces: []string{"snap-refresh-observe", "desktop-launch"}},
 		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
@@ -101,6 +103,7 @@ var (
 	revertSnapChangeKind   = swfeats.RegisterChangeKind(revertCmdAction + "-snap")
 	enableSnapChangeKind   = swfeats.RegisterChangeKind(enableCmdAction + "-snap")
 	disableSnapChangeKind  = swfeats.RegisterChangeKind(disableCmdAction + "-snap")
+	reinstallSnapChangeKind = swfeats.RegisterChangeKind(reinstallCmdAction + "-snap")
 )
 
 func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -163,6 +166,8 @@ func changeKind(action string) (string, bool) {
 		return enableSnapChangeKind, true
 	case disableCmdAction:
 		return disableSnapChangeKind, true
+	case reinstallCmdAction:
+		return reinstallSnapChangeKind, true
 	}
 	return "", false
 }
@@ -782,6 +787,28 @@ func snapSwitch(_ context.Context, inst *snapInstruction, st *state.State) (*sna
 
 type snapActionFunc func(context.Context, *snapInstruction, *state.State) (*snapInstructionResult, error)
 
+func snapReinstall(ctx context.Context, inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	if len(inst.Snaps[0]) == 0 {
+		return nil, errors.New(i18n.G("cannot reinstall snap with empty name"))
+	}
+
+	opts := &snapstate.ReinstallOptions{
+		Channel: inst.Channel,
+		Purge:   inst.Purge,
+	}
+
+	ts, err := snapstate.Reinstall(st, inst.Snaps[0], opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &snapInstructionResult{
+		Summary:  fmt.Sprintf(i18n.G("Reinstall %q snap"), inst.Snaps[0]),
+		Tasksets: []*state.TaskSet{ts},
+		Affected: inst.Snaps,
+	}, nil
+}
+
 var snapInstructionDispTable = map[string]snapActionFunc{
 	installCmdAction: snapInstall,
 	refreshCmdAction: snapUpdate,
@@ -792,6 +819,7 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	switchCmdAction:  snapSwitch,
 	holdCmdAction:    snapHoldMany,
 	unholdCmdAction:  snapUnholdMany,
+	reinstallCmdAction: snapReinstall,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
