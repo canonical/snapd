@@ -404,7 +404,8 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*
 	for _, sn := range toDownload {
 		actions = append(actions, &store.SnapAction{
 			Action:         "download",
-			InstanceName:   sn.Snap.SnapName(), // XXX consider using snap-id first
+			InstanceName:   sn.Snap.SnapName(),
+			SnapID:         sn.Snap.ID(),
 			Channel:        sn.Channel,
 			Revision:       sn.Revision,
 			CohortKey:      sn.CohortKey,
