@@ -418,37 +418,6 @@ prepare: |
 
         rm -f "$PWD/${base_snap}-nss.snap"
         tests.cleanup defer snap revert "$base_snap"
-
-        # systemd-userdbd was not shipped prior to 24.04
-        if os.query is-ubuntu-ge 24.04; then
-            tests.pkgs install systemd-userdbd
-            systemctl enable --now systemd-userdbd.socket
-        fi
-
-        # TODO: fix installation
-        go build -o /usr/lib/snapd/snap-userdb-proxy github.com/snapcore/snapd/cmd/snapd/snap-userdb-proxy
-        tests.cleanup defer rm -f /usr/lib/snapd/snap-userdb-proxy
-
-        install -m 0644 "$SPREAD_PATH"/data/systemd/snapd.userdb-proxy.socket \
-            /etc/systemd/system/snapd.userdb-proxy.socket
-        sed 's:@libexecdir@:/usr/lib:g' \
-            "$SPREAD_PATH"/data/systemd/snapd.userdb-proxy.service.in \
-            > /etc/systemd/system/snapd.userdb-proxy.service
-        chmod 0644 /etc/systemd/system/snapd.userdb-proxy.service
-        install -m 0644 "$SPREAD_PATH"/data/systemd-tmpfiles/snapd-userdb.conf \
-            /usr/lib/tmpfiles.d/snapd-userdb.conf
-        tests.cleanup defer rm -f \
-            /etc/systemd/system/snapd.userdb-proxy.socket \
-            /etc/systemd/system/snapd.userdb-proxy.service \
-            /usr/lib/tmpfiles.d/snapd-userdb.conf
-
-        systemctl daemon-reload
-        systemd-tmpfiles --create /usr/lib/tmpfiles.d/snapd-userdb.conf
-        systemctl enable --now snapd.userdb-proxy.socket
-        tests.cleanup defer systemctl disable --now snapd.userdb-proxy.socket
-
-        systemctl is-active snapd.userdb-proxy.socket | MATCH '^active$'
-        test -S /run/systemd/userdb/io.snapcraft.UserDBProxy
     fi
 
 restore: |
@@ -504,7 +473,7 @@ execute: |
 
     # It's expected that this only works for distros as recent as Noble because
     # older ones do not ship io.systemd.NameServiceSwitch in systemd-userdbd
-    if os.query is-ubuntu-ge 24.04; then
+    if ! tests.info is-snapd-from-archive && os.query is-ubuntu-ge 24.04; then
       snap run --shell "$test_snap".sh -c "getent passwd" | MATCH "$expected_user"
       snap run --shell "$test_snap".sh -c "getent passwd $nss_user" | MATCH "$expected_user"
       snap run --shell "$test_snap".sh -c "getent passwd $user_uid" | MATCH "$expected_user"
