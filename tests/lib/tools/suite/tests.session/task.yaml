@@ -103,34 +103,64 @@ execute: |
         # No sessions initially
         loginctl list-sessions --no-legend | NOMATCH "$USER"
 
+        # Running a user service places the command outside any session, so
+        # "auto" tries to find any user session, and fails without a session
+        not tests.session -u "$USER" exec systemd-run --user --quiet --wait --pipe loginctl show-session auto
+
         # Create session, check that it appears to loginctl
-        tests.session create-session -u "$USER" -c user
+        tests.session create-session -u "$USER" -c user -t wayland
         loginctl list-sessions --no-legend | MATCH "$USER"
 
-        # Running a command as user outside a session falls back to the session
-        sudo -iu "$USER" loginctl show-session auto -p Class | MATCH "Class=user"
+        # Running a user service places the command outside any session, so
+        # "auto" falls back to the user's display session.
+        tests.session -u "$USER" exec systemd-run --user --quiet --wait --pipe loginctl show-session auto -p Class | MATCH '^Class=user$'
+        tests.session -u "$USER" exec systemd-run --user --quiet --wait --pipe loginctl show-session auto -p Type | MATCH '^Type=wayland$'
 
         # There's just one active session for the user
-        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 1
+        loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^1$'
 
         # Running `tests.session exec` executes in its own background session,
         # so there are two sessions while `tests.session exec` is running, and
         # `loginctl show-session` from within finds the background session.
         tests.session -u "$USER" exec loginctl show-session auto -p Class | MATCH "Class=background"
-        test "$(tests.session -u "$USER" exec loginctl list-sessions --no-legend | grep --count "$USER")" -eq 2
-        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 1
+        tests.session -u "$USER" exec loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^2$'
+        loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^1$'
 
-        # A second session with the same class but a distinct label can co-exist.
-        tests.session create-session -u "$USER" -c user -l second
-        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 2
+        # A second session with the same class/type but a distinct label can co-exist.
+        tests.session create-session -u "$USER" -c user -t wayland -l second
+        loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^2$'
+
+        # A third session with a different class, type, and label can co-exist.
+        tests.session create-session -u "$USER" -c greeter -t x11 -l third
+        loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^3$'
+
+        # A fourth session with an unspecified class and type but different label can co-exist.
+        tests.session create-session -u "$USER" -l fourth
+        loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^4$'
 
         # Creating an already-existing session is an error.
         not tests.session create-session -u "$USER" -c user
-        test "$(loginctl list-sessions --no-legend | grep --count "$USER")" -eq 2
+        loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^4$'
+
+        # Cannot call tests.session create-session/destroy-session with root or
+        # other invalid users
+        for invalid_user in "" "root" "user1,user2" "foo," ",bar"; do
+            not tests.session create-session -u "$invalid_user"
+            tests.session create-session -u "$invalid_user" 2>&1 | MATCH 'invalid user, must be single non-root username'
+            loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^4$'
+            not tests.session destroy-session -u "$invalid_user"
+            tests.session destroy-session -u "$invalid_user" 2>&1 | MATCH 'invalid user, must be single non-root username'
+            loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^4$'
+        done
 
         # A labelled session can be destroyed individually, the rest can be
         # destroyed without a label.
+        tests.session destroy-session -u "$USER" -l fourth
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep --count $USER | MATCH '^3$'"
+        tests.session destroy-session -u "$USER" -l third
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep --count $USER | MATCH '^2$'"
         tests.session destroy-session -u "$USER" -l second
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep --count $USER | MATCH '^1$'"
         tests.session destroy-session -u "$USER"
-        retry -n 10 --wait 1 sh -c "! loginctl list-sessions --no-legend | grep -q $USER"
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | NOMATCH $USER"
     fi

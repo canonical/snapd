@@ -261,6 +261,10 @@ main() {
 			# the session created here; background sessions are never
 			# display-eligible, so they cannot shadow this session in the
 			# display election.
+			if [ -z "$user" ] || [ "$user" = "root" ] || echo "$user" | grep -q ','; then
+				echo "tests.session: invalid user, must be single non-root username: '$user'" >&2
+				exit 1
+			fi
 			if [ -z "$session_label" ]; then
 				session_suffix=""
 			else
@@ -345,6 +349,10 @@ main() {
 			# unit name and ID file are derived from the -u and -l arguments in
 			# the same way, so the exact session can be found without
 			# enumerating anything.
+			if [ -z "$user" ] || [ "$user" = "root" ] || echo "$user" | grep -q ','; then
+				echo "tests.session: invalid user, must be single non-root username: '$user'" >&2
+				exit 1
+			fi
 			if [ -z "$session_label" ]; then
 				session_suffix=""
 			else
