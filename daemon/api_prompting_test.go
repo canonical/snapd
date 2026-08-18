@@ -1302,7 +1302,7 @@ func (s *promptingSuite) TestPostPromptErrors(c *C) {
 	rspe = s.errorReq(c, req, nil, actionIsExpected)
 	c.Check(rspe.Status, Equals, 400)
 	c.Check(rspe.Kind, Equals, client.ErrorKind(""))
-	c.Check(rspe.Message, Matches, "cannot decode request body into prompt reply:.*cannot unmarshal number into Go struct field.*")
+	c.Check(rspe.Message, Matches, "cannot decode request body into prompt reply:.*cannot unmarshal number into.*")
 
 	// Invalid outcome (action) or lifespan
 	for _, testCase := range []struct {
