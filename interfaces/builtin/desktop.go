@@ -442,10 +442,26 @@ dbus (send)
       member=CreateInputContext
       peer=(name=org.freedesktop.portal.IBus),
 
+# Allow IBus to verify that the portal is responsive before connecting
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus
+      interface=org.freedesktop.DBus.Peer
+      member=Ping
+      peer=(name=org.freedesktop.portal.IBus),
+
 dbus (send, receive)
       bus=session
       path=/org/freedesktop/IBus/InputContext_[0-9]*
       interface=org.freedesktop.IBus.InputContext
+      peer=(label=unconfined),
+
+# Allow IBus to initialize and update input context properties
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus/InputContext_[0-9]*
+      interface=org.freedesktop.DBus.Properties
+      member={Get,GetAll,Set}
       peer=(label=unconfined),
 
 # Allow access to the Fcitx portal, supported by fcitx/fcitx5
