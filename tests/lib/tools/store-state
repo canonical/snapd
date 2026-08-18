@@ -10,6 +10,8 @@ show_help() {
     echo "       store-state teardown-fake-store <DIR>"
     echo "       store-state setup-staging-store"
     echo "       store-state teardown-staging-store"
+    echo "       store-state setup-enterprise-store"
+    echo "       store-state teardown-enterprise-store"
     echo "       store-state make-snap-installable [--noack ] [--extra-decl-json FILE] <DIR> <SNAP_PATH> [SNAP_ID]"
     echo "       store-state make-component-installable --snap-id <ID> --component-revision <REV> --snap-revision <REV> [--noack ] <DIR> <SNAP_PATH>"
     echo "       store-state init-fake-refreshes <DIR>"
@@ -259,16 +261,14 @@ teardown_fake_store(){
     systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
-        setup_staging_store    
+        setup_staging_store
+    if [ "$REMOTE_STORE" = "enterprise" ]; then
+        setup_enterprise_store
     else
         systemctl stop snapd.service snapd.socket
         rm -rf "$STORE_CONFIG" "$top_dir"
         systemctl daemon-reload
         systemctl start snapd.socket
-
-        if [ "$REMOTE_STORE" = "enterprise" ]; then
-            enable_enterprise_store
-        fi
     fi
 }
 
@@ -283,10 +283,6 @@ add_to_channel() {
 
 disable_enterprise_store() {
     snap unset core proxy.store
-}
-
-enable_enterprise_store() {
-    snap set core proxy.store="$ENTERPRISE_STORE_ID"
 }
 
 setup_enterprise_store() {
