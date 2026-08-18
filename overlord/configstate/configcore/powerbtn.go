@@ -67,7 +67,6 @@ func switchHandlePowerKey(action string, opts *fsOnlyContext) error {
 
 	content := fmt.Sprintf(`[Login]
 HandlePowerKey=%s
-RuntimeDirectorySize=2G
 `, action)
 	return osutil.AtomicWriteFile(powerBtnCfg(opts), []byte(content), 0644, 0)
 }
