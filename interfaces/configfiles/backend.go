@@ -63,7 +63,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			cfgPatterns = append(cfgPatterns, cfgIface.PathPatterns()...)
 		}
 	}
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {

@@ -379,7 +379,7 @@ type profilePathsResults struct {
 }
 
 func (b *Backend) setupHostAppArmorForCoreAndSnapd(appSet *interfaces.SnapAppSet) error {
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	snapInfo := appSet.Info()
 
 	// core on classic is special
@@ -423,7 +423,7 @@ func (b *Backend) Prepare(appSet *interfaces.SnapAppSet) error {
 }
 
 func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
@@ -546,7 +546,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
 	for _, set := range appSets {
-		opts := confinement(set.InstanceName())
+		opts := confinement(set.InstanceName().String())
 		prof, err := b.prepareProfiles(set, opts, repo)
 		if err != nil {
 			fallback = true
@@ -595,7 +595,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	// if an error was encountered when processing all profiles at once, re-try them one by one
 	if fallback {
 		for _, set := range appSets {
-			instanceName := set.InstanceName()
+			instanceName := set.InstanceName().String()
 			opts := confinement(instanceName)
 			if err := b.Setup(set, opts, sctx(instanceName), repo, tm); err != nil {
 				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", instanceName, err))

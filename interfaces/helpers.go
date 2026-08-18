@@ -72,7 +72,7 @@ func ApplyDelayedEffects(repo *Repository, backend SecurityBackend, appSet *Snap
 	// Refresh security of this snap and backend
 	var err error
 	timings.Run(tm, "delayed-setup-security-backend",
-		fmt.Sprintf("delayed setup security backend %q effects for snap %q", backend.Name(), appSet.InstanceName()),
+		fmt.Sprintf("delayed setup security backend %q effects for snap %q", backend.Name(), appSet.InstanceName().String()),
 		func(nesttm timings.Measurer) {
 			err = delayedEffectsBackend.ApplyDelayedEffects(appSet, effects, nesttm)
 		})

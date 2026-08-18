@@ -68,7 +68,7 @@ func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
 // them or application present in the snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all the extra systemd services for this snap.
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	// Get the services that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
@@ -177,7 +177,7 @@ func deriveContent(spec *Specification, appSet *interfaces.SnapAppSet) map[strin
 	}
 	content := make(map[string]osutil.FileState)
 	for suffix, service := range services {
-		filename := serviceName(appSet.InstanceName(), suffix)
+		filename := serviceName(appSet.InstanceName().String(), suffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,

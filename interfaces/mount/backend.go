@@ -74,7 +74,7 @@ const (
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
@@ -121,7 +121,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		// 'system' slots such as snapd, or another snap with content slots to
 		// which we are connected.
 		logger.Debugf("delaying update of mount namespaces for snap %q (triggered due to slot provider update)",
-			appSet.InstanceName())
+			appSet.InstanceName().String())
 
 		if sctx.DelayEffect != nil {
 			sctx.DelayEffect(b, interfaces.DelayedSideEffect{
@@ -250,7 +250,7 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 	case len(deduped) > 1:
 		return fmt.Errorf("internal error: expecting at most one delayed effect to apply")
 	case len(deduped) == 1:
-		snapName := appSet.InstanceName()
+		snapName := appSet.InstanceName().String()
 		snapInfo := appSet.Info()
 
 		logger.Debugf("setup delayed for %v", snapName)
@@ -274,7 +274,7 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 }
 
 func opportunisticDiscard(appSet *interfaces.SnapAppSet) error {
-	instanceName := appSet.InstanceName()
+	instanceName := appSet.InstanceName().String()
 	return snaplock.WithTryLock(instanceName, func() error {
 		paths, err := cgroup.InstancePathsOfSnap(instanceName, cgroup.InstancePathsOptions{
 			ReturnCGroupPath: true,

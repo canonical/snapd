@@ -159,7 +159,7 @@ func setupHostDBusConf(snapInfo *snap.Info) error {
 //
 // DBus has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {

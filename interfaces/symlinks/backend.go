@@ -67,7 +67,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			}
 		}
 	}
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	// Get the spec that applies to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {

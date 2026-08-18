@@ -70,7 +70,7 @@ func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := appSet.InstanceName()
+	snapName := appSet.InstanceName().String()
 	// Get the policies and rules that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
@@ -130,7 +130,7 @@ func derivePoliciesContent(spec *Specification, appSet *interfaces.SnapAppSet) m
 	}
 	content := make(map[string]osutil.FileState, len(policies)+1)
 	for nameSuffix, policyContent := range policies {
-		filename := polkitPolicyName(appSet.InstanceName(), nameSuffix)
+		filename := polkitPolicyName(appSet.InstanceName().String(), nameSuffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: policyContent,
 			Mode:    0644,
@@ -148,7 +148,7 @@ func deriveRulesContent(spec *Specification, appSet *interfaces.SnapAppSet) map[
 	}
 	content := make(map[string]osutil.FileState, len(rules)+1)
 	for nameSuffix, ruleContent := range rules {
-		filename := polkitRuleName(appSet.InstanceName(), nameSuffix)
+		filename := polkitRuleName(appSet.InstanceName().String(), nameSuffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: ruleContent,
 			Mode:    0644,
