@@ -342,6 +342,7 @@ parts:
             lib/snapd/snap-recovery-chooser
             lib/snapd/snap-repair
             lib/snapd/snap-seccomp
+            lib/snapd/snap-userdb-proxy
             lib/snapd/snap-update-ns
             lib/snapd/snapctl)
       if [ -f fips-build ]; then
@@ -428,7 +429,11 @@ parts:
         fi
 
         output="${CRAFT_PART_INSTALL}/usr/${cmd}"
-        go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/$(basename ${cmd})"
+        source_cmd="$(basename ${cmd})"
+        if [ "${source_cmd}" = snap-userdb-proxy ]; then
+          source_cmd=snapd/snap-userdb-proxy
+        fi
+        go build -mod=vendor -tags "${TAGS[*]}" "${GO_LD_FLAGS[@]}" ${EXTRA_GO_FLAGS-} -o "${output}" "github.com/snapcore/snapd/cmd/${source_cmd}"
         if [ "${CHECK_STATIC-}" = 1 ]; then
           if objdump -p "${output}" | grep INTERP; then
             echo "${output} is not static!" 1>&2

@@ -15,8 +15,13 @@
 
 LIBEXECDIR := /usr/lib
 TMPFILESDIR := $(LIBEXECDIR)/tmpfiles.d
+WITH_USERDB_PROXY := false
 
 TMPFILES_CONF = $(wildcard *.conf)
+
+ifneq ($(WITH_USERDB_PROXY),true)
+TMPFILES_CONF := $(filter-out snapd-userdb.conf,$(TMPFILES_CONF))
+endif
 
 .PHONY: all
 all: $(TMPFILES_CONF)

@@ -136,6 +136,19 @@ $(builddir)/snapd $(builddir)/snap-seccomp:
 		$(EXTRA_GO_BUILD_FLAGS) \
 		$(import_path)/cmd/$(notdir $@)
 
+SNAPD_OPTIONAL_GO_BINARIES :=
+ifeq ($(WITH_USERDB_PROXY),true)
+SNAPD_OPTIONAL_GO_BINARIES += snap-userdb-proxy
+endif
+
+$(builddir)/snap-userdb-proxy:
+	go build -o $@ $(if $(GO_TAGS),-tags "$(GO_TAGS)") \
+		-buildmode=pie \
+		-ldflags="$(EXTRA_GO_LDFLAGS)" \
+		$(GO_MOD) \
+		$(EXTRA_GO_BUILD_FLAGS) \
+		$(import_path)/cmd/snapd/snap-userdb-proxy
+
 # The following binaries need to be built statically. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
@@ -200,7 +213,7 @@ $(addprefix $(DESTDIR),$(libexecdir)/snapd $(bindir) $(mandir)/man8 /$(sharedsta
 .PHONY: install
 
 # Install snapd, snapctl, snap-{update-ns,seccomp} into /usr/lib/snapd/
-install:: $(addprefix $(builddir)/,snapd snapctl snap-update-ns snap-seccomp) | $(DESTDIR)$(libexecdir)/snapd
+install:: $(addprefix $(builddir)/,snapd snapctl snap-update-ns snap-seccomp $(SNAPD_OPTIONAL_GO_BINARIES)) | $(DESTDIR)$(libexecdir)/snapd
 	install -m 755 $^ $|
 
 # Ensure $(libexecdir)/snapd/snap-exec is a symlink to snapctl

@@ -2,6 +2,7 @@ usr/bin/snapd /usr/lib/snapd/
 usr/bin/snapctl /usr/lib/snapd/
 usr/bin/snap-repair /usr/lib/snapd/
 usr/bin/snap-failure /usr/lib/snapd/
+usr/bin/snap-userdb-proxy /usr/lib/snapd/
 usr/bin/snap-update-ns /usr/lib/snapd/
 usr/bin/snap-seccomp /usr/lib/snapd/
 usr/bin/snap-bootstrap /usr/lib/snapd/

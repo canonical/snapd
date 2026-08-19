@@ -1,0 +1,14 @@
+[Unit]
+Description=Socket activation for the snapd userdb varlink proxy
+Documentation=https://systemd.io/USER_GROUP_API/
+Requires=systemd-userdbd.socket
+
+[Socket]
+ListenStream=/run/systemd/userdb/io.snapcraft.UserDBProxy
+SocketMode=0666
+SocketUser=root
+SocketGroup=root
+Accept=no
+
+[Install]
+WantedBy=sockets.target

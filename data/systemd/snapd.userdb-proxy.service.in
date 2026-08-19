@@ -1,0 +1,47 @@
+[Unit]
+Description=snapd userdb varlink proxy
+Documentation=https://systemd.io/USER_GROUP_API/
+Requires=snapd.userdb-proxy.socket
+After=snapd.userdb-proxy.socket
+# The proxy forwards user/group lookups to systemd-userdbd's
+# io.systemd.Multiplexer, so having userdbd available is required for
+# forwarding to succeed. It is expressed as a Wants= (not Requires=) so
+# the proxy can still be started for its accept-loop / peer-identity
+# behaviour on hosts without systemd-userdbd (which will simply cause
+# every forwarded lookup to fail).
+Wants=systemd-userdbd.socket
+After=systemd-userdbd.socket
+
+[Service]
+ExecStart=@libexecdir@/snapd/snap-userdb-proxy
+Type=simple
+# The proxy is deliberately run under a low-privilege user
+# so that outbound varlink connections to io.systemd.Multiplexer carry
+# minimal credentials. This ensures backends never return privileged
+# UserRecord sections (password hashes, homed private keys, etc.) to
+# confined snaps.
+User=nobody
+Group=nogroup
+# Hardening.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
