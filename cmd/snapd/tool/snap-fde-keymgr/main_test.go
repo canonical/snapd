@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 
 /*
  * Copyright (C) 2022 Canonical Ltd
@@ -16,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package main_test
+package snap_fde_keymgr_test
 
 import (
 	"bytes"
@@ -28,7 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	main "github.com/snapcore/snapd/cmd/snap-fde-keymgr"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-fde-keymgr"
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -46,7 +47,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 	dev := ""
 	rkey := keys.RecoveryKey{}
 	addCalls := 0
-	restore := main.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
+	restore := snap_fde_keymgr.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
 		addCalls++
 		dev = luksDev
 		rkey = recoveryKey
@@ -58,7 +59,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 	devUsingKey := ""
 	addUsingKeyCalls := 0
 	var authzKey keys.EncryptionKey
-	restore = main.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
 		addUsingKeyCalls++
 		devUsingKey = luksDev
 		authzKey = key
@@ -68,7 +69,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 	})
 	defer restore()
 	c.Assert(os.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -86,7 +87,7 @@ func (s *mainSuite) TestAddKey(c *C) {
 
 	oldKey := rkey
 	// add again, in which case already existing key is read back
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -106,18 +107,18 @@ func (s *mainSuite) TestAddKey(c *C) {
 }
 
 func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
-	restore := main.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
+	restore := snap_fde_keymgr.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
 		c.Fail()
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
-	restore = main.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
 		c.Fail()
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 	d := c.MkDir()
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -127,7 +128,7 @@ func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
 	c.Assert(err, ErrorMatches, "cannot add recovery keys: mismatch in the number of devices and authorizations")
 
 	// --authorization=invalid
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "invalid",
@@ -138,7 +139,7 @@ func (s *mainSuite) TestAddKeyRequiresAuthz(c *C) {
 	c.Assert(err, ErrorMatches, `cannot add recovery keys with invalid authorizations: unknown authorization method "invalid"`)
 
 	// authorization key file does not exist
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -164,7 +165,7 @@ func (s *mainSuite) testAddKeyIdempotent(c *C, tc addKeyTestCase) {
 	c.Assert(os.WriteFile(filepath.Join(d, "recovery.key"), rkey[:], 0600), IsNil)
 
 	addCalls := 0
-	restore := main.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
+	restore := snap_fde_keymgr.MockAddRecoveryKeyToLUKS(func(recoveryKey keys.RecoveryKey, luksDev string) error {
 		addCalls++
 		c.Check(luksDev, Equals, "/dev/vda4")
 		c.Check(recoveryKey, DeepEquals, rkey)
@@ -172,7 +173,7 @@ func (s *mainSuite) testAddKeyIdempotent(c *C, tc addKeyTestCase) {
 	})
 	defer restore()
 	addUsingKeyCalls := 0
-	restore = main.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockAddRecoveryKeyToLUKSUsingKey(func(recoveryKey keys.RecoveryKey, key keys.EncryptionKey, luksDev string) error {
 		addUsingKeyCalls++
 		c.Check(luksDev, Equals, "/dev/vda5")
 		c.Check(recoveryKey, DeepEquals, rkey)
@@ -180,7 +181,7 @@ func (s *mainSuite) testAddKeyIdempotent(c *C, tc addKeyTestCase) {
 	})
 	defer restore()
 
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"add-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -243,7 +244,7 @@ func (s *mainSuite) TestAddKeyIdempotentOnePresent(c *C) {
 func (s *mainSuite) TestRemoveKey(c *C) {
 	dev := ""
 	removeCalls := 0
-	restore := main.MockRemoveRecoveryKeyFromLUKS(func(luksDev string) error {
+	restore := snap_fde_keymgr.MockRemoveRecoveryKeyFromLUKS(func(luksDev string) error {
 		removeCalls++
 		dev = luksDev
 		return nil
@@ -252,7 +253,7 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 	removeUsingKeyCalls := 0
 	devUsingKey := ""
 	var authzKey keys.EncryptionKey
-	restore = main.MockRemoveRecoveryKeyFromLUKSUsingKey(func(key keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockRemoveRecoveryKeyFromLUKSUsingKey(func(key keys.EncryptionKey, luksDev string) error {
 		authzKey = key
 		removeUsingKeyCalls++
 		devUsingKey = luksDev
@@ -264,7 +265,7 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 	c.Assert(os.WriteFile(filepath.Join(d, "recovery.key"), []byte{0, 0, 0}, 0644), IsNil)
 
 	c.Assert(os.WriteFile(filepath.Join(d, "authz.key"), []byte{1, 1, 1}, 0644), IsNil)
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -280,7 +281,7 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 	c.Assert(authzKey, DeepEquals, keys.EncryptionKey([]byte{1, 1, 1}))
 	c.Assert(filepath.Join(d, "recovery.key"), testutil.FileAbsent)
 	// again when the recover key file is gone already
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -294,19 +295,19 @@ func (s *mainSuite) TestRemoveKey(c *C) {
 }
 
 func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
-	restore := main.MockRemoveRecoveryKeyFromLUKS(func(luksDev string) error {
+	restore := snap_fde_keymgr.MockRemoveRecoveryKeyFromLUKS(func(luksDev string) error {
 		c.Fail()
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
-	restore = main.MockRemoveRecoveryKeyFromLUKSUsingKey(func(key keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockRemoveRecoveryKeyFromLUKSUsingKey(func(key keys.EncryptionKey, luksDev string) error {
 		c.Fail()
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
 	d := c.MkDir()
 
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -316,7 +317,7 @@ func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
 	c.Assert(err, ErrorMatches, "cannot remove recovery keys: mismatch in the number of devices and authorizations")
 
 	// --authorization=invalid
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "invalid",
@@ -327,7 +328,7 @@ func (s *mainSuite) TestRemoveKeyRequiresAuthz(c *C) {
 	c.Assert(err, ErrorMatches, `cannot remove recovery keys with invalid authorizations: unknown authorization method "invalid"`)
 
 	// authorization key file does not exist
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"remove-recovery-key",
 		"--devices", "/dev/vda4",
 		"--authorizations", "keyring",
@@ -343,22 +344,22 @@ const all1sKey = `{"key":"MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE="}`
 
 func (s *mainSuite) TestChangeEncryptionKey(c *C) {
 	b := bytes.NewBufferString(all1sKey)
-	restore := main.MockOsStdin(b)
+	restore := snap_fde_keymgr.MockOsStdin(b)
 	defer restore()
 	unexpectedCall := func(newKey keys.EncryptionKey, luksDev string) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	}
-	defer main.MockStageLUKSEncryptionKeyChange(unexpectedCall)
-	defer main.MockTransitionLUKSEncryptionKeyChange(unexpectedCall)
+	defer snap_fde_keymgr.MockStageLUKSEncryptionKeyChange(unexpectedCall)
+	defer snap_fde_keymgr.MockTransitionLUKSEncryptionKeyChange(unexpectedCall)
 
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 	})
 	c.Assert(err, ErrorMatches, "cannot change encryption key without stage or transition request")
 
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--stage", "--transition",
@@ -368,25 +369,25 @@ func (s *mainSuite) TestChangeEncryptionKey(c *C) {
 
 func (s *mainSuite) TestStageEncryptionKey(c *C) {
 	b := bytes.NewBufferString(all1sKey)
-	restore := main.MockOsStdin(b)
+	restore := snap_fde_keymgr.MockOsStdin(b)
 	defer restore()
 	dev := ""
 	stageCalls := 0
 	var key []byte
 	var stageErr error
-	restore = main.MockStageLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockStageLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
 		stageCalls++
 		dev = luksDev
 		key = newKey
 		return stageErr
 	})
 	defer restore()
-	restore = main.MockTransitionLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockTransitionLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--stage",
@@ -397,10 +398,10 @@ func (s *mainSuite) TestStageEncryptionKey(c *C) {
 	// secboot encryption key size
 	c.Check(key, DeepEquals, bytes.Repeat([]byte("1"), 32))
 
-	restore = main.MockOsStdin(bytes.NewBufferString(all1sKey))
+	restore = snap_fde_keymgr.MockOsStdin(bytes.NewBufferString(all1sKey))
 	defer restore()
 	stageErr = fmt.Errorf("mock stage error")
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--stage",
@@ -410,18 +411,18 @@ func (s *mainSuite) TestStageEncryptionKey(c *C) {
 
 func (s *mainSuite) TestTransitionEncryptionKey(c *C) {
 	b := bytes.NewBufferString(all1sKey)
-	restore := main.MockOsStdin(b)
+	restore := snap_fde_keymgr.MockOsStdin(b)
 	defer restore()
 	dev := ""
 	transitionCalls := 0
 	var key []byte
 	var transitionErr error
-	restore = main.MockStageLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockStageLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
 		c.Errorf("unexpected call")
 		return fmt.Errorf("unexpected call")
 	})
 	defer restore()
-	restore = main.MockTransitionLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
+	restore = snap_fde_keymgr.MockTransitionLUKSEncryptionKeyChange(func(newKey keys.EncryptionKey, luksDev string) error {
 		transitionCalls++
 		dev = luksDev
 		key = newKey
@@ -429,7 +430,7 @@ func (s *mainSuite) TestTransitionEncryptionKey(c *C) {
 	})
 	defer restore()
 	defer restore()
-	err := main.Run([]string{
+	err := snap_fde_keymgr.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--transition",
@@ -440,10 +441,10 @@ func (s *mainSuite) TestTransitionEncryptionKey(c *C) {
 	// secboot encryption key size
 	c.Check(key, DeepEquals, bytes.Repeat([]byte("1"), 32))
 
-	restore = main.MockOsStdin(bytes.NewBufferString(all1sKey))
+	restore = snap_fde_keymgr.MockOsStdin(bytes.NewBufferString(all1sKey))
 	defer restore()
 	transitionErr = fmt.Errorf("mock transition error")
-	err = main.Run([]string{
+	err = snap_fde_keymgr.Run([]string{
 		"change-encryption-key",
 		"--device", "/dev/vda4",
 		"--transition",

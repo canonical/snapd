@@ -27,8 +27,10 @@ import (
 
 	"github.com/snapcore/snapd/cmd/snapd/cli"
 	"github.com/snapcore/snapd/cmd/snapd/daemon"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-fde-keymgr"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-gpio-helper"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snap-preseed"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-recovery-chooser"
 	"github.com/snapcore/snapd/cmd/snapd/tool/snapd-apparmor"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snapdtool"
@@ -39,9 +41,11 @@ var (
 	// toolMains maps tool names (as passed in argv[1] by snapd-tool-wrap) to the
 	// corresponding Main() entry point.
 	toolMains = map[string]func(){
-		"snap-preseed":     snap_preseed.Main,
-		"snapd-apparmor":   snapd_apparmor.Main,
-		"snap-gpio-helper": snap_gpio_helper.Main,
+		"snap-preseed":          snap_preseed.Main,
+		"snapd-apparmor":        snapd_apparmor.Main,
+		"snap-gpio-helper":      snap_gpio_helper.Main,
+		"snap-fde-keymgr":       snap_fde_keymgr.Main,
+		"snap-recovery-chooser": snap_recovery_chooser.Main,
 	}
 
 	// list of snapd tools that expect reexec

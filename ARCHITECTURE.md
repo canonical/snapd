@@ -29,9 +29,9 @@ Entry points for launching software in a snap are mainly either:
 
 In both cases, execution starts within the `snap run` command provided with the application (via the symlink) or the service (provided explicitly) reference information.
 
-Both the daemon and the `snap` CLI support *re-exec*: on startup they compare their own version against the `snapd` or `core` snap installed on the system. If the snap is newer, execution restarts from the binary inside that snap — ensuring users always run the most up-to-date snapd without requiring a system package update.
+ Both the daemon and the `snap` CLI support *re-exec*: on startup they compare their own version against the `snapd` or `core` snap installed on the system. If the snap is newer, execution restarts from the binary inside that snap — ensuring users always run the most up-to-date snapd without requiring a system package update.
 
-Because `/usr/bin/snap` is a symlink to the `snapd` binary and dispatch is based on `argv[0]`, re-exec into the snap preserves the original `argv[0]` so the same dispatch (CLI vs daemon) applies in the new process.
+ Because `/usr/bin/snap` is a symlink to the `snapd` binary and dispatch is based on `argv[0]`, re-exec into the snap preserves the original `argv[0]` so the same dispatch (CLI vs daemon) applies in the new process.
 
 On a high level, execution of a snap application is carried out in the following manner:
 
