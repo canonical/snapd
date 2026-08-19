@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -569,6 +570,44 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
+// checkParallelInstancesSupport checks that a snap installed as a parallel
+// instance only uses interfaces that support parallel instances.
+func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
+	if info.InstanceKey == "" {
+		return nil
+	}
+
+	repo := ifacerepo.Get(st)
+
+	for plugName, plugInfo := range info.Plugs {
+		definer, ok := repo.Interface(plugInfo.Interface).(interfaces.ParallelInstancesPlugDefiner)
+		if !ok {
+			// non-definer interfaces are assumed to support parallel instances
+			continue
+		}
+		if !definer.ParallelInstancesSupportedForPlug() {
+			return fmt.Errorf("cannot install snap %q as parallel instance: "+
+				"plug %q uses interface %q which is not supported for parallel instances",
+				info.InstanceName(), plugName, plugInfo.Interface)
+		}
+	}
+
+	for slotName, slotInfo := range info.Slots {
+		definer, ok := repo.Interface(slotInfo.Interface).(interfaces.ParallelInstancesSlotDefiner)
+		if !ok {
+			// non-definer interfaces are assumed to support parallel instances
+			continue
+		}
+		if !definer.ParallelInstancesSupportedForSlot() {
+			return fmt.Errorf("cannot install snap %q as parallel instance: "+
+				"slot %q uses interface %q which is not supported for parallel instances",
+				info.InstanceName(), slotName, slotInfo.Interface)
+		}
+	}
+
+	return nil
+}
+
 func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) (Flags, error) {
 	// if snap is allowed to be devmode via the dangerous model and it's
 	// confinement is indeed devmode, promote the flags.DevMode to true
@@ -601,6 +640,9 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
+	}
+	if err := checkParallelInstancesSupport(st, info); err != nil {
+		return flags, err
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
