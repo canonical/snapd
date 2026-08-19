@@ -400,7 +400,7 @@ func validateWhatAttr(mountInfo *MountInfo) error {
 		return nil
 	}
 
-	if !whatRegexp.MatchString(what) {
+	if !whatRegexp.MatchString(what) && !mountInfo.isType("zfs") {
 		return fmt.Errorf(`mount-control "what" attribute is invalid: must start with / and not contain special characters`)
 	}
 
