@@ -10,7 +10,9 @@ details: |
 # used recovery keys, and that we can reprovision and reseal then
 # reboot without recovery keys.
 
-systems: [ubuntu-24.04-64]
+systems:
+  - ubuntu-24.04-64
+  - ubuntu-26.04-64
 
 environment:
     NESTED_ENABLE_TPM: "true"
