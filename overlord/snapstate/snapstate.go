@@ -195,7 +195,7 @@ func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
 
 	reservationSize := uint64(parsedReservation)
 
-	if size > math.MaxUint64 - reservationSize {
+	if size > math.MaxUint64-reservationSize {
 		return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
 	}
 	return reservationSize, nil
