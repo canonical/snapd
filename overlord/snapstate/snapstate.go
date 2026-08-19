@@ -177,28 +177,30 @@ func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
 }
 
 func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
+	addReservation := func(reservation uint64) (uint64, error) {
+		if size > math.MaxUint64-reservation {
+			return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
+		}
+		return size + reservation, nil
+	}
+
 	// the value may be a string (e.g. "5M") or a plain number of bytes
 	// (e.g. 0), as snap set stores valid JSON values in their parsed form
 	var reservation any
 	err := tr.Get("core", "disk-reservation.size", &reservation)
 	if config.IsNoOption(err) {
-		return defaultDiskSpaceReservation, nil
+		return addReservation(defaultDiskSpaceReservation)
 	}
 	if err != nil {
-		return defaultDiskSpaceReservation, nil
+		return addReservation(defaultDiskSpaceReservation)
 	}
 
 	parsedReservation, err := quantity.ParseSize(fmt.Sprintf("%v", reservation))
 	if err != nil {
-		return defaultDiskSpaceReservation, nil
+		return addReservation(defaultDiskSpaceReservation)
 	}
 
-	reservationSize := uint64(parsedReservation)
-
-	if size > math.MaxUint64-reservationSize {
-		return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
-	}
-	return reservationSize, nil
+	return addReservation(uint64(parsedReservation))
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
