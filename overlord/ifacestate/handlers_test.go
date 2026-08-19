@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
@@ -206,12 +205,6 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespace(c *C) {
 
 	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
 
-	// journal quota is still experimental, so we must enable the experimental
-	// quota-groups option
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
-
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 
 	// Create a new quota group with a journal quota
@@ -235,10 +228,6 @@ func (s *handlersSuite) TestBuildConfinementOptionsWithLogNamespaceMountProfileC
 	defer s.st.Unlock()
 
 	m := ifacestate.NewInterfaceManagerWithAppArmorPrompting(false)
-
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.quota-groups", true)
-	tr.Commit()
 
 	snapInfo := mockInstalledSnap(c, s.st, snapAyaml)
 	err := servicestatetest.MockQuotaInState(s.st, "foo", "", []string{snapInfo.InstanceName()}, nil, quota.NewResourcesBuilder().WithJournalNamespace().Build())
