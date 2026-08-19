@@ -60,8 +60,8 @@ func CheckTPMKeySealingSupported(mode TPMProvisionMode) error {
 	return errBuildWithoutSecboot
 }
 
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
-	return nil, errBuildWithoutSecboot
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, SerializedPCRProfile, error) {
+	return nil, nil, errBuildWithoutSecboot
 }
 
 func SealKeysWithProtector(kpf KeyProtectorFactory, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {

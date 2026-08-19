@@ -21,6 +21,9 @@
 package fdestate_test
 
 import (
+	"crypto"
+	"crypto/hmac"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -1076,4 +1079,61 @@ func (s *fdeMgrSuite) TestExpandSystemContainerRoles(c *C) {
 		{ContainerRole: "system-data", Name: "some-key"},
 		{ContainerRole: "system-save", Name: "some-key"},
 	})
+}
+
+func (s *fdeMgrSuite) TestInitialState(c *C) {
+	st, err := fdestate.InitialState([]byte("primary"))
+	c.Assert(err, IsNil)
+
+	c.Check(st.PrimaryKeys, HasLen, 1)
+	statePrimaryKey, stateHasPrimaryKey := st.PrimaryKeys[0]
+	c.Assert(stateHasPrimaryKey, Equals, true)
+
+	c.Assert(statePrimaryKey.Digest.Algorithm, Equals, secboot.HashAlg(crypto.SHA256))
+	h := hmac.New(sha256.New, statePrimaryKey.Digest.Salt)
+	h.Write([]byte("primary"))
+	c.Check(hmac.Equal(h.Sum(nil), statePrimaryKey.Digest.Digest), Equals, true)
+
+	c.Check(st.KeyslotRoles, DeepEquals, map[string]fdestate.KeyslotRoleInfo{
+		"recover": {
+			PrimaryKeyID: 0,
+		},
+		"run": {
+			PrimaryKeyID: 0,
+		},
+		"run+recover": {
+			PrimaryKeyID: 0,
+		},
+	})
+}
+
+func (s *fdeMgrSuite) TestStateUpdate(c *C) {
+	st, err := fdestate.InitialState([]byte("primary"))
+	c.Assert(err, IsNil)
+
+	models := []secboot.ModelForSealing{
+		&mockModel{},
+	}
+
+	err = st.UpdateParameters("run+recover", "container-role", []string{"run"}, models, secboot.SerializedPCRProfile(`"serialized-profile"`))
+	c.Assert(err, IsNil)
+
+	runRecoverRole, hasRunRecoverRole := st.KeyslotRoles["run+recover"]
+	c.Assert(hasRunRecoverRole, Equals, true)
+
+	c.Check(runRecoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(0))
+
+	containerRole, hasContainerRole := runRecoverRole.Parameters["container-role"]
+	c.Assert(hasContainerRole, Equals, true)
+
+	c.Assert(containerRole.Models, HasLen, 1)
+	c.Check(containerRole.Models[0].Model(), Equals, "mock-model")
+	c.Check(containerRole.BootModes, DeepEquals, []string{"run"})
+	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
+
+	err = st.UpdatePCRHandle("run+recover", 42)
+	runRecoverRole, hasRunRecoverRole = st.KeyslotRoles["run+recover"]
+	c.Assert(hasRunRecoverRole, Equals, true)
+
+	c.Check(runRecoverRole.TPM2PCRPolicyRevocationCounter, Equals, uint32(42))
 }

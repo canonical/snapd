@@ -22,6 +22,9 @@ package devicestate_test
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/hmac"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -39,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/fdestate"
 	fdeBackend "github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -47,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 type runningSystemInfoSuite struct {
@@ -648,6 +651,9 @@ type handlersReprovisionSuite struct {
 
 	dataKeys *mockContainer
 	saveKeys *mockContainer
+
+	dataBootstrappedContainer *mockBootstrappedContainer
+	saveBootstrappedContainer *mockBootstrappedContainer
 }
 
 var _ = Suite(&handlersReprovisionSuite{})
@@ -776,12 +782,15 @@ func (s *handlersReprovisionSuite) SetUpTest(c *C) {
 		return nil
 	}))
 
+	s.dataBootstrappedContainer = &mockBootstrappedContainer{container: s.dataKeys}
+	s.saveBootstrappedContainer = &mockBootstrappedContainer{container: s.saveKeys}
+
 	s.AddCleanup(devicestate.MockSecbootCreateBootstrappedContainer(func(key secboot.DiskUnlockKey, devicePath string) secboot.BootstrappedContainer {
 		switch devicePath {
 		case "/dev/data":
-			return &mockBootstrappedContainer{container: s.dataKeys}
+			return s.dataBootstrappedContainer
 		case "/dev/save":
-			return &mockBootstrappedContainer{container: s.saveKeys}
+			return s.saveBootstrappedContainer
 		default:
 			c.Errorf("unexpected disk")
 			return nil
@@ -793,13 +802,13 @@ func (s *handlersReprovisionSuite) SetUpTest(c *C) {
 
 }
 
-func (s *handlersReprovisionSuite) setupModel(c *C) {
+func (s *handlersReprovisionSuite) setupModel(c *C) *asserts.Model {
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "hybrid",
 		Serial: "serialserialserial",
 	})
-	s.makeModelAssertionInState(c, "canonical", "hybrid",
+	model := s.makeModelAssertionInState(c, "canonical", "hybrid",
 		map[string]any{
 			"architecture": "amd64",
 			"classic":      "true",
@@ -823,6 +832,8 @@ func (s *handlersReprovisionSuite) setupModel(c *C) {
 				},
 			},
 		})
+
+	return model
 }
 
 type mockEncryptedContainer struct {
@@ -868,7 +879,10 @@ func (m *mockKeyDataWriter) Commit() error {
 }
 
 type mockBootstrappedContainer struct {
-	container *mockContainer
+	container   *mockContainer
+	primaryKey  []byte
+	unlockKey   []byte
+	keyCommitted bool
 }
 
 func (m *mockBootstrappedContainer) AddKey(slotName string, newKey []byte) error {
@@ -900,6 +914,12 @@ func (m *mockBootstrappedContainer) RemoveBootstrapKey() error {
 }
 
 func (m *mockBootstrappedContainer) RegisterKeyAsUsed(primaryKey []byte, unlockKey []byte) {
+	m.primaryKey = primaryKey
+	m.unlockKey = unlockKey
+}
+
+func (m *mockBootstrappedContainer) CommitUsedKey() {
+	m.keyCommitted = true
 }
 
 func (s *handlersReprovisionSuite) testDoReprovisionHappy(c *C) {
@@ -907,7 +927,7 @@ func (s *handlersReprovisionSuite) testDoReprovisionHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	s.setupModel(c)
+	generatedModel := s.setupModel(c)
 
 	defer devicestate.MockFdestateGetRecoveryKey(func(st *state.State, keyID string) (keys.RecoveryKey, error) {
 		c.Check(keyID, Equals, "key-id")
@@ -1032,7 +1052,7 @@ version: 1.0
 	})()
 
 	bootMakeRunnableReprovisionCalls := 0
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState boot.InitialFDEState) error {
 		bootMakeRunnableReprovisionCalls++
 
 		c.Check(encryption.PrimaryKey(), DeepEquals, []byte("new-primary-key"))
@@ -1057,6 +1077,14 @@ version: 1.0
 		}
 		delete(s.dataKeys.keys, "bootstrap-key")
 		delete(s.saveKeys.keys, "bootstrap-key")
+
+		fdeState.UpdateParameters("run+recover", "all", []string{"run", "recover"}, []secboot.ModelForSealing{model}, []byte("profile-run-recover"))
+		fdeState.UpdatePCRHandle("run+recover", 42)
+		fdeState.UpdateParameters("run", "all", []string{"run"}, []secboot.ModelForSealing{model}, []byte("profile-run"))
+		fdeState.UpdatePCRHandle("run", 42)
+		fdeState.UpdateParameters("recover", "system-data", []string{"recover"}, []secboot.ModelForSealing{model}, []byte("profile-recover-data"))
+		fdeState.UpdateParameters("recover", "system-save", []string{"recover", "factory-reset"}, []secboot.ModelForSealing{model}, []byte("profile-recover-save"))
+		fdeState.UpdatePCRHandle("recover", 42)
 
 		return nil
 	})()
@@ -1116,16 +1144,86 @@ version: 1.0
 	c.Assert(err, IsNil)
 	c.Assert(newSaveKey, DeepEquals, []byte("new-protector"))
 
-	var newState any
+	var newState fdestate.FdeState
 	err = st.Get("fde", &newState)
-	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+	c.Assert(err, IsNil)
+
+	c.Check(newState.PrimaryKeys, HasLen, 1)
+	statePrimaryKey, stateHasPrimaryKey := newState.PrimaryKeys[0]
+	c.Assert(stateHasPrimaryKey, Equals, true)
+
+	c.Assert(statePrimaryKey.Digest.Algorithm, Equals, secboot.HashAlg(crypto.SHA256))
+	h := hmac.New(sha256.New, statePrimaryKey.Digest.Salt)
+	h.Write([]byte("new-primary-key"))
+	c.Check(hmac.Equal(h.Sum(nil), statePrimaryKey.Digest.Digest), Equals, true)
+
+	expectedStateModel := fdestate.Model{
+		SeriesValue:    "16",
+		BrandIDValue:   "canonical",
+		ModelValue:     "hybrid",
+		ClassicValue:   true,
+		GradeValue:     "signed",
+		SignKeyIDValue: generatedModel.SignKeyID(),
+	}
+
+	c.Check(newState.KeyslotRoles, DeepEquals, map[string]fdestate.KeyslotRoleInfo{
+		"recover": {
+			Parameters: map[string]fdestate.KeyslotRoleParameters{
+				"system-save": {
+					Models:         []*fdestate.Model{&expectedStateModel},
+					BootModes:      []string{"recover", "factory-reset"},
+					TPM2PCRProfile: []byte("profile-recover-save"),
+				},
+				"system-data": {
+					Models:         []*fdestate.Model{&expectedStateModel},
+					BootModes:      []string{"recover"},
+					TPM2PCRProfile: []byte("profile-recover-data"),
+				},
+			},
+			TPM2PCRPolicyRevocationCounter: 42,
+		},
+		"run+recover": {
+			Parameters: map[string]fdestate.KeyslotRoleParameters{
+				"all": {
+					Models:         []*fdestate.Model{&expectedStateModel},
+					BootModes:      []string{"run", "recover"},
+					TPM2PCRProfile: []byte("profile-run-recover"),
+				},
+			},
+			TPM2PCRPolicyRevocationCounter: 42,
+		},
+		"run": {
+			Parameters: map[string]fdestate.KeyslotRoleParameters{
+				"all": {
+					Models:         []*fdestate.Model{&expectedStateModel},
+					BootModes:      []string{"run"},
+					TPM2PCRProfile: []byte("profile-run"),
+				},
+			},
+			TPM2PCRPolicyRevocationCounter: 42,
+		},
+	})
+
+	c.Check(s.dataBootstrappedContainer.keyCommitted, Equals, true)
+	// boot.MakeRunnableReprovision sets the key for data, so we do not test that here.
+	c.Check(s.saveBootstrappedContainer.keyCommitted, Equals, true)
+	c.Check(s.saveBootstrappedContainer.primaryKey, DeepEquals, []byte("new-primary-key"))
+	c.Check(s.saveBootstrappedContainer.unlockKey, DeepEquals, []byte("new-save-default"))
 }
 
 func (s *handlersReprovisionSuite) TestDoReprovisionHappy(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	s.testDoReprovisionHappy(c)
 }
 
 func (s *handlersReprovisionSuite) TestDoReprovisionHappyWithFailedPreviousReprovision(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	s.dataKeys.keys["snapd-reprovision-default"] = &mockKey{isRecovery: false, key: []byte("old-data-failed")}
 	s.dataKeys.keys["snapd-reprovision-default-fallback"] = &mockKey{isRecovery: false, key: []byte("old-data-fallback-failed")}
 	s.dataKeys.keys["snapd-reprovision-default-recovery"] = &mockKey{isRecovery: true, key: []byte("old-data-recovery-failed")}
@@ -1140,6 +1238,10 @@ func (s *handlersReprovisionSuite) TestDoReprovisionHappyWithFailedPreviousRepro
 }
 
 func (s *handlersReprovisionSuite) TestDoReprovisionHappyWithNotCleanedPreviousReprovision(c *C) {
+	if !secboot.WithSecbootSupport {
+		c.Skip("secboot is not available")
+	}
+
 	s.dataKeys.keys["snapd-reprovision-default"] = &mockKey{isRecovery: false, key: []byte("old-data-success")}
 	s.dataKeys.keys["snapd-reprovision-default-fallback"] = &mockKey{isRecovery: false, key: []byte("old-data-fallback-success")}
 	s.dataKeys.keys["snapd-reprovision-default-recovery"] = &mockKey{isRecovery: true, key: []byte("old-data-recovery-success")}
@@ -1315,7 +1417,7 @@ version: 1.0
 	})()
 
 	bootMakeRunnableReprovisionCalls := 0
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState boot.InitialFDEState) error {
 		bootMakeRunnableReprovisionCalls++
 
 		c.Check(encryption.PrimaryKey(), DeepEquals, []byte("new-primary-key"))
@@ -1878,7 +1980,7 @@ version: 1.0
 		return &secboot.PreinstallCheckResult{}, nil
 	})()
 
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState boot.InitialFDEState) error {
 		return fmt.Errorf("make runnable failed")
 	})()
 

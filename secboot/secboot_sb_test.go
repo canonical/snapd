@@ -1244,14 +1244,14 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, sealErr: mockErr, sealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, sealCalls: 2, expectedErr: ""},
-		{tpmEnabled: true, sealCalls: 2, expectedErr: "", saveToFile: true},
-		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: ""},
-		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "argon2i"), expectedErr: ""},
-		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "argon2id"), expectedErr: ""},
-		{tpmEnabled: true, passphraseSealCalls: 2, volumesAuth: mockAuthOptions("passphrase", "pbkdf2"), expectedErr: ""},
-		{tpmEnabled: true, pinSealCalls: 2, volumesAuth: mockAuthOptions("pin", ""), expectedErr: ""},
-		{tpmEnabled: true, pinSealCalls: 2, volumesAuth: mockAuthOptions("pin", "pbkdf2"), expectedErr: ""},
+		{tpmEnabled: true, sealCalls: 3, expectedErr: ""},
+		{tpmEnabled: true, sealCalls: 3, expectedErr: "", saveToFile: true},
+		{tpmEnabled: true, passphraseSealCalls: 3, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 3, volumesAuth: mockAuthOptions("passphrase", "argon2i"), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 3, volumesAuth: mockAuthOptions("passphrase", "argon2id"), expectedErr: ""},
+		{tpmEnabled: true, passphraseSealCalls: 3, volumesAuth: mockAuthOptions("passphrase", "pbkdf2"), expectedErr: ""},
+		{tpmEnabled: true, pinSealCalls: 3, volumesAuth: mockAuthOptions("pin", ""), expectedErr: ""},
+		{tpmEnabled: true, pinSealCalls: 3, volumesAuth: mockAuthOptions("pin", "pbkdf2"), expectedErr: ""},
 		{tpmEnabled: true, volumesAuth: mockAuthOptions("passphrase", "bad-kdf"), expectedErr: `internal error: unknown kdfType passed "bad-kdf"`},
 		{tpmEnabled: true, sealErr: mockErr, passphraseSealCalls: 1, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: "some error"},
 		{tpmErr: mockErr, volumesAuth: mockAuthOptions("passphrase", ""), expectedErr: `cannot connect to TPM: some error`},
@@ -1327,6 +1327,10 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				SlotName:              "foo1",
 			},
 			{
+				BootstrappedContainer: containerA,
+				SlotName:              "default",
+			},
+			{
 				BootstrappedContainer: containerB,
 				SlotName:              "foo2",
 			},
@@ -1334,7 +1338,8 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		if tc.saveToFile {
 			myKeys[0].KeyFile = filepath.Join(tmpDir, "key-file-1")
-			myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-2")
+			myKeys[1].KeyFile = filepath.Join(tmpDir, "key-file-1d")
+			myKeys[2].KeyFile = filepath.Join(tmpDir, "key-file-2")
 		}
 
 		// events for
@@ -1445,19 +1450,37 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
+		var seenPCRProfile *sb_tpm2.PCRProtectionProfile
+
 		// mock sealing
 		sealCalls := 0
 		restore = secboot.MockSbNewTPMProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.ProtectKeyParams) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			sealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
-			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
+			retPrimary := primaryKey
+			if retPrimary == nil {
+				retPrimary = sb.PrimaryKey([]byte("primary-key"))
+			}
+			return &sb.KeyData{}, retPrimary, sb.DiskUnlockKey([]byte("unlock-key")), tc.sealErr
 		})
 		defer restore()
 		passphraseSealCalls := 0
 		restore = secboot.MockSbNewTPMPassphraseProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PassphraseProtectKeyParams, passphrase string) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			passphraseSealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
@@ -1472,19 +1495,33 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			}
 			c.Assert(params.KDFOptions, DeepEquals, expectedKDFOptions)
 			c.Assert(passphrase, Equals, tc.volumesAuth.Passphrase)
-			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
+			retPrimary := primaryKey
+			if retPrimary == nil {
+				retPrimary = sb.PrimaryKey([]byte("primary-key"))
+			}
+			return &sb.KeyData{}, retPrimary, sb.DiskUnlockKey([]byte("unlock-key")), tc.sealErr
 		})
 		defer restore()
 		pinSealCalls := 0
 		restore = secboot.MockSbNewTPMPINProtectedKey(func(t *sb_tpm2.Connection, params *sb_tpm2.PINProtectKeyParams, pin sb.PIN) (protectedKey *sb.KeyData, primaryKey sb.PrimaryKey, unlockKey sb.DiskUnlockKey, err error) {
 			pinSealCalls++
+			c.Check(params.PCRProfile, NotNil)
+			if seenPCRProfile == nil {
+				seenPCRProfile = params.PCRProfile
+			} else {
+				c.Check(params.PCRProfile, Equals, seenPCRProfile)
+			}
 			c.Assert(t, Equals, tpm)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			c.Check(params.Role, Equals, "somerole")
 			expectedKDFOptions := &sb.PBKDF2Options{TargetDuration: tc.volumesAuth.KDFTime}
 			c.Assert(params.KDFOptions, DeepEquals, expectedKDFOptions)
 			c.Assert(pin.String(), Equals, tc.volumesAuth.PIN)
-			return &sb.KeyData{}, sb.PrimaryKey{}, sb.DiskUnlockKey{}, tc.sealErr
+			retPrimary := primaryKey
+			if retPrimary == nil {
+				retPrimary = sb.PrimaryKey([]byte("primary-key"))
+			}
+			return &sb.KeyData{}, retPrimary, sb.DiskUnlockKey([]byte("unlock-key")), tc.sealErr
 		})
 		defer restore()
 
@@ -1494,7 +1531,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		})
 		defer restore()
 
-		_, err := secboot.SealKeys(myKeys, &myParams)
+		_, pcrProfileSerialized, err := secboot.SealKeys(myKeys, &myParams)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)
 			c.Assert(addPCRProfileCalls, Equals, 2)
@@ -1503,28 +1540,47 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 			_, aHasSlot := containerA.Slots["foo1"]
 			c.Check(aHasSlot, Equals, true)
+			_, aHasDefaultSlot := containerA.Slots["default"]
+			c.Check(aHasDefaultSlot, Equals, true)
 			_, bHasSlot := containerB.Slots["foo2"]
 			c.Check(bHasSlot, Equals, true)
 			if tc.saveToFile {
 				c.Check(containerA.Tokens, HasLen, 0)
 				c.Check(containerB.Tokens, HasLen, 0)
 				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, true)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1d")), Equals, true)
 				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, true)
 			} else {
 				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1")), Equals, false)
+				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-1d")), Equals, false)
 				c.Check(osutil.FileExists(filepath.Join(tmpDir, "key-file-2")), Equals, false)
 				_, aHasToken := containerA.Tokens["foo1"]
 				c.Check(aHasToken, Equals, true)
+				_, aHasDefaultToken := containerA.Tokens["default"]
+				c.Check(aHasDefaultToken, Equals, true)
 				_, bHasToken := containerB.Tokens["foo2"]
 				c.Check(bHasToken, Equals, true)
 			}
+
+			c.Check(containerA.PrimaryKey, DeepEquals, []byte("primary-key"))
+			c.Check(containerA.UnlockKey, DeepEquals, []byte("unlock-key"))
+			c.Check(containerA.KeyCommitted, Equals, false)
+			c.Check(containerB.PrimaryKey, IsNil)
+			c.Check(containerB.UnlockKey, IsNil)
+			c.Check(containerB.KeyCommitted, Equals, false)
+
+			c.Assert(seenPCRProfile, NotNil)
+			c.Assert(pcrProfileSerialized, NotNil)
+			pcrProfile := &sb_tpm2.PCRProtectionProfile{}
+			_, err = mu.UnmarshalFromBytes(pcrProfileSerialized, pcrProfile)
+			c.Assert(err, IsNil)
+			c.Check(pcrProfile, DeepEquals, seenPCRProfile)
 		} else {
 			c.Assert(err, ErrorMatches, tc.expectedErr)
 		}
 		c.Assert(sealCalls, Equals, tc.sealCalls)
 		c.Assert(passphraseSealCalls, Equals, tc.passphraseSealCalls)
 		c.Assert(pinSealCalls, Equals, tc.pinSealCalls)
-
 	}
 }
 
@@ -1983,7 +2039,7 @@ func (s *secbootSuite) TestSealKeyNoModelParams(c *C) {
 		TPMPolicyAuthKeyFile: "policy-auth-key-file",
 	}
 
-	_, err := secboot.SealKeys(myKeys, &myParams)
+	_, _, err := secboot.SealKeys(myKeys, &myParams)
 	c.Assert(err, ErrorMatches, "at least one set of model-specific parameters is required")
 }
 

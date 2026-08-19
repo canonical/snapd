@@ -368,6 +368,8 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	saveContainer.RegisterKeyAsUsed(primaryKey, unlockPlainKey)
+
 	kernelInfo, err := snapstateKernelInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
@@ -413,23 +415,32 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		volumesAuth,
 		checkResult)
 
+	fdeState, err := fdestate.InitialState(primaryKey)
+	if err != nil {
+		return fmt.Errorf("could not construct initial FDE state: %v", err)
+	}
+
 	err = bootMakeRunnableReprovision(
 		deviceCtx.Model(),
 		keyProtector,
 		encryptionParams,
+		&fdeState,
 	)
 
 	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
-	// Step 7. Swap the state
-	// TODO: Actually swap the state. And move it after step 6.
+	// Prepare for step 7 (swap the state)
 	var oldState any
 	errGetState := st.Get("fde", &oldState)
 	if errGetState != nil && !errors.Is(errGetState, state.ErrNoState) {
 		return fmt.Errorf("internal error: cannot get the fde state %v", err)
 	}
+	// In case the write of protector key fails but we lose power
+	// before we can revert, having a nil fde state will make the
+	// system rebuild it on reboot instead of having a state that
+	// does not match.
 	st.Set("fde", nil)
 
 	// Step 6. write the protector key
@@ -439,8 +450,16 @@ func (m *DeviceManager) doReprovision(t *state.Task, _ *tomb.Tomb) error {
 		}
 		return fmt.Errorf("cannot save the system-save key: %v", err)
 	}
+
 	// swapping the protector key is the sign we have finished
 	revertReprovisionAttemptOnError = false
+
+	// Step 7. swap the state
+	st.Set("fde", fdeState)
+
+	// It is now safe to replace the keys in kernel keyring.
+	saveContainer.CommitUsedKey()
+	dataContainer.CommitUsedKey()
 
 	// Steps:
 	//   8. Erase nv counters associated to the old keys

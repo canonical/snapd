@@ -531,24 +531,24 @@ func newTPMProtectedKey(tpm *sb_tpm2.Connection, creationParams *sb_tpm2.Protect
 // SealKeys seals the encryption keys according to the specified parameters. The
 // TPM must have already been provisioned. If sealed key already exists at the
 // PCR handle, SealKeys will fail and return an error.
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
+func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, SerializedPCRProfile, error) {
 	numModels := len(params.ModelParams)
 	if numModels < 1 {
-		return nil, fmt.Errorf("at least one set of model-specific parameters is required")
+		return nil, nil, fmt.Errorf("at least one set of model-specific parameters is required")
 	}
 
 	tpm, err := sbConnectToDefaultTPM()
 	if err != nil {
-		return nil, fmt.Errorf("cannot connect to TPM: %v", err)
+		return nil, nil, fmt.Errorf("cannot connect to TPM: %v", err)
 	}
 	defer tpm.Close()
 	if !isTPMEnabled(tpm) {
-		return nil, fmt.Errorf("TPM device is not enabled")
+		return nil, nil, fmt.Errorf("TPM device is not enabled")
 	}
 
 	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult, params.AllowInsufficientDmaProtection)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	pcrHandle := params.PCRPolicyCounterHandle
@@ -570,19 +570,19 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 			primaryKey = primaryKeyOut
 		}
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := key.BootstrappedContainer.AddKey(key.SlotName, unlockKey); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		keyWriter, err := key.getWriter()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if err := protectedKey.WriteAtomic(keyWriter); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		if key.SlotName == "default" {
@@ -594,11 +594,15 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 
 	if primaryKey != nil && params.TPMPolicyAuthKeyFile != "" {
 		if err := osutil.AtomicWriteFile(params.TPMPolicyAuthKeyFile, primaryKey, 0600, 0); err != nil {
-			return nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
+			return nil, nil, fmt.Errorf("cannot write the policy auth key file: %v", err)
 		}
 	}
 
-	return primaryKey, nil
+	profileOut, err := mu.MarshalToBytes(pcrProfile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot marshal PCR profile: %w", err)
+	}
+	return primaryKey, profileOut, nil
 }
 
 // MaybeSealedKeyData interface wraps a sb_tpm2.SealedKeyData
