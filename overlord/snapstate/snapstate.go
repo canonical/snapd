@@ -176,23 +176,29 @@ func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
 	return true, nil
 }
 
-func diskSpaceReservation(tr *config.Transaction) uint64 {
+func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
 	// the value may be a string (e.g. "5M") or a plain number of bytes
 	// (e.g. 0), as snap set stores valid JSON values in their parsed form
 	var reservation any
 	err := tr.Get("core", "disk-reservation.size", &reservation)
 	if config.IsNoOption(err) {
-		return defaultDiskSpaceReservation
+		return defaultDiskSpaceReservation, nil
 	}
 	if err != nil {
-		return defaultDiskSpaceReservation
+		return defaultDiskSpaceReservation, nil
 	}
 
 	parsedReservation, err := quantity.ParseSize(fmt.Sprintf("%v", reservation))
 	if err != nil {
-		return defaultDiskSpaceReservation
+		return defaultDiskSpaceReservation, nil
 	}
-	return uint64(parsedReservation)
+
+	reservationSize := uint64(parsedReservation)
+
+	if size > math.MaxUint64 - reservationSize {
+		return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
+	}
+	return reservationSize, nil
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -2542,11 +2548,10 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 }
 
 func checkForAvailableSpace(totalSize uint64, transaction *config.Transaction, infos []minimalInstallInfo, changeKind string, rootDir string) error {
-	reservation := diskSpaceReservation(transaction)
-	if totalSize > math.MaxUint64 - reservation {
-		return fmt.Errorf("cannot calculate required disk space: size overflow")
+	requiredSpace, err := diskSpaceReservation(totalSize, transaction)
+	if err != nil {
+		return err
 	}
-	requiredSpace := totalSize + reservation
 
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
@@ -3144,8 +3149,11 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
-		reservation := diskSpaceReservation(config.NewTransaction(st))
-		requiredSpace := snapshotSize + reservation
+		requiredSpace, err := diskSpaceReservation(snapshotSize, config.NewTransaction(st))
+		if err != nil {
+			return nil, err
+		}
+
 		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
@@ -3580,8 +3588,11 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	// removeTasks() checks check-disk-space-remove feature flag, so totalSnapshotsSize
 	// will only be greater than 0 if the feature is enabled.
 	if totalSnapshotsSize > 0 {
-		reservation := diskSpaceReservation(config.NewTransaction(st))
-		requiredSpace := totalSnapshotsSize + reservation
+		requiredSpace, err := diskSpaceReservation(totalSnapshotsSize, config.NewTransaction(st))
+		if err != nil {
+			return nil, nil, err
+		}
+
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 				return nil, nil, &InsufficientSpaceError{
