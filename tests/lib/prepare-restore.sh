@@ -750,7 +750,7 @@ prepare_suite_each() {
     dmesg --read-clear
 
     # Configure remote store to use in the test.
-    if [ -n "$REMOTE_STORE" ] && ( [ "$REMOTE_STORE" = enterprise ] || [ "$REMOTE_STORE" = production ]); then
+    if [ "$REMOTE_STORE" = enterprise ] || [ "$REMOTE_STORE" = production ]; then
         CURRENT_STORE="$("$TESTSTOOLS"/store-state get-current-store)"
         echo "$CURRENT_STORE" > "$RUNTIME_STATE_PATH/previous-store"
         if [ "$CURRENT_STORE" != "$REMOTE_STORE" ]; then
