@@ -676,3 +676,7 @@ func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []in
 func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 	return s.catalogRefreshDelayWithDelta
 }
+
+func (r *RevisionOptions) ResolveChannel(instanceName, fallback string, deviceCtx DeviceContext, unasserted bool) error {
+	return r.resolveChannel(instanceName, fallback, deviceCtx, unasserted)
+}

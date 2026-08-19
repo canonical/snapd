@@ -7805,7 +7805,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx, false)
+		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx)
 		s.state.Unlock()
 		comment := Commentf("tc %d: %#v", i, tc)
 		if tc.err != "" {
@@ -7848,7 +7848,9 @@ func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
 		if tc.snap != "" {
 			snapName = tc.snap
 		}
-		ch, err := snapstate.ResolveChannel(snapName, tc.cur, tc.new, deviceCtx, tc.unasserted)
+		revOpts := snapstate.RevisionOptions{Channel: tc.new}
+		err := revOpts.ResolveChannel(snapName, tc.cur, deviceCtx, tc.unasserted)
+		ch := revOpts.Channel
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, Commentf("%#v", tc))
 			continue

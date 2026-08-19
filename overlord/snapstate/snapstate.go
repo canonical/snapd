@@ -1923,7 +1923,7 @@ func isUnasserted(si *snap.SideInfo) bool {
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext, unasserted bool) (effectiveChannel string, err error) {
+func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return oldChannel, nil
 	}
@@ -1955,42 +1955,52 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 	if err != nil {
 		return "", err
 	}
-	if snapName == "snapd" && !unasserted {
-		required, err := ltstrack.Resolve(model, effectiveChannel, nil)
-		if errors.Is(err, ltstrack.ErrLTSNotAllowed) {
-			// Model is out of scope for LTS policy (classic, UC16, base-less,
-			// etc.); no channel restriction applies.
-			return effectiveChannel, nil
-		}
-		if errors.Is(err, ltstrack.ErrLTSInternal) {
-			// Running snapd cannot load its own LTS map (missing libexec dir,
-			// parse failure, etc.). Channel validation here is a planning-time
-			// best-effort check; pass through and let the download-stage
-			// intercept enforce the correct channel.
-			return effectiveChannel, nil
-		}
-		if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) {
-			// This boot base has no LTS policy yet; no channel restriction applies.
-			return effectiveChannel, nil
-		}
-		if errors.Is(err, ltstrack.ErrLTSNoTrack) {
-			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
-			track := "latest"
-			if parseErr == nil {
-				if parsed.Track != "" {
-					track = parsed.Track
-				}
+	return effectiveChannel, nil
+}
+
+// maybeLockdownSnapdLTSChannel applies planning-time LTS track policy for
+// snapd. Switch does not call this: it is an explicit admin action and
+// does not download. Store refresh and the download intercept keep field
+// devices from leaving the LTS track automatically.
+func maybeLockdownSnapdLTSChannel(snapName, effectiveChannel string, deviceCtx DeviceContext, unasserted bool) (string, error) {
+	if snapName != "snapd" || unasserted {
+		return effectiveChannel, nil
+	}
+
+	required, err := ltstrack.Resolve(deviceCtx.Model(), effectiveChannel, nil)
+	if errors.Is(err, ltstrack.ErrLTSNotAllowed) {
+		// Model is out of scope for LTS policy (classic, UC16, base-less,
+		// etc.); no channel restriction applies.
+		return effectiveChannel, nil
+	}
+	if errors.Is(err, ltstrack.ErrLTSInternal) {
+		// Running snapd cannot load its own LTS map (missing libexec dir,
+		// parse failure, etc.). Channel validation here is a planning-time
+		// best-effort check; pass through and let the download-stage
+		// intercept enforce the correct channel.
+		return effectiveChannel, nil
+	}
+	if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) {
+		// This boot base has no LTS policy yet; no channel restriction applies.
+		return effectiveChannel, nil
+	}
+	if errors.Is(err, ltstrack.ErrLTSNoTrack) {
+		parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
+		track := "latest"
+		if parseErr == nil {
+			if parsed.Track != "" {
+				track = parsed.Track
 			}
-			return "", fmt.Errorf("cannot use snapd channel %q: LTS policy rejects track %q", effectiveChannel, track)
 		}
-		if err != nil {
-			return "", err
-		}
-		if required != effectiveChannel {
-			parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
-			if parseErr != nil || required != parsed.Clean().String() {
-				return "", fmt.Errorf("cannot use snapd channel %q: LTS policy requires %q", effectiveChannel, required)
-			}
+		return "", fmt.Errorf("cannot use snapd channel %q: LTS policy rejects track %q", effectiveChannel, track)
+	}
+	if err != nil {
+		return "", err
+	}
+	if required != effectiveChannel {
+		parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
+		if parseErr != nil || required != parsed.Clean().String() {
+			return "", fmt.Errorf("cannot use snapd channel %q: LTS policy requires %q", effectiveChannel, required)
 		}
 	}
 	return effectiveChannel, nil
@@ -2089,7 +2099,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTrac
 		return nil, err
 	}
 
-	channel, err := resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx, isUnasserted(snapst.CurrentSideInfo()))
+	channel, err := resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -2151,7 +2161,11 @@ func firstNonEmpty(strs ...string) string {
 
 // resolveChannel resolves the channel for the given snap.
 func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext, unasserted bool) error {
-	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx, unasserted)
+	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
+	if err != nil {
+		return err
+	}
+	resolved, err = maybeLockdownSnapdLTSChannel(instanceName, resolved, deviceCtx, unasserted)
 	if err != nil {
 		return err
 	}
