@@ -7805,7 +7805,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 		}
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
 		s.state.Lock()
-		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx, "")
+		ch, err := snapstate.ResolveChannel(tc.snap, tc.cur, tc.new, deviceCtx, false)
 		s.state.Unlock()
 		comment := Commentf("tc %d: %#v", i, tc)
 		if tc.err != "" {
@@ -7825,35 +7825,30 @@ func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
 
 	model := ModelWithBase("core18")
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
-	snapID := naming.WellKnownSnapID("snapd")
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	for _, tc := range []struct {
-		cur          string
-		new          string
-		exp          string
-		err          string
-		snap         string
-		skipLockdown bool
+		cur        string
+		new        string
+		exp        string
+		err        string
+		snap       string
+		unasserted bool
 	}{
 		{cur: "18/stable", new: "18/edge", exp: "18/edge"},
 		{cur: "18/stable", new: "20/stable", err: `cannot use snapd channel "20/stable": LTS policy rejects track "20"`},
 		{cur: "18/stable", new: "latest/edge", err: `cannot use snapd channel "latest/edge": LTS policy requires "18/edge"`},
 		{cur: "", new: "stable", err: `cannot use snapd channel "stable": LTS policy requires "18/stable"`},
 		{snap: "some-snap", cur: "stable", new: "latest/edge", exp: "latest/edge"},
-		{cur: "18/stable", new: "20/stable", skipLockdown: true, exp: "20/stable"},
+		{cur: "18/stable", new: "20/stable", unasserted: true, exp: "20/stable"},
 	} {
 		snapName := "snapd"
 		if tc.snap != "" {
 			snapName = tc.snap
 		}
-		lockdownSnapID := snapID
-		if tc.skipLockdown {
-			lockdownSnapID = ""
-		}
-		ch, err := snapstate.ResolveChannel(snapName, tc.cur, tc.new, deviceCtx, lockdownSnapID)
+		ch, err := snapstate.ResolveChannel(snapName, tc.cur, tc.new, deviceCtx, tc.unasserted)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err, Commentf("%#v", tc))
 			continue

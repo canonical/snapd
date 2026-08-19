@@ -1915,35 +1915,15 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
-// snapIDForSnapdChannelLockdown returns a snap ID to use for snapd runtime
-// track lockdown, or empty to skip (unasserted path install). For store
-// installs of snapd the well-known ID is used when no asserted ID is available.
-func snapIDForSnapdChannelLockdown(instanceName string, snapst *SnapState, sideInfo *snap.SideInfo, fromPath bool) string {
-	snapName, _ := snap.SplitInstanceName(instanceName)
-	if snapName != "snapd" {
-		return ""
-	}
-	if fromPath {
-		if sideInfo == nil || sideInfo.SnapID == "" {
-			return ""
-		}
-		return sideInfo.SnapID
-	}
-	if snapst != nil && snapst.IsInstalled() {
-		if si := snapst.CurrentSideInfo(); si != nil && si.SnapID != "" {
-			return si.SnapID
-		}
-	}
-	if sideInfo != nil && sideInfo.SnapID != "" {
-		return sideInfo.SnapID
-	}
-	return naming.WellKnownSnapID("snapd")
+// isUnasserted reports whether the snap has no store identity.
+func isUnasserted(si *snap.SideInfo) bool {
+	return si == nil || si.SnapID == ""
 }
 
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
-func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext, snapID string) (effectiveChannel string, err error) {
+func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceContext, unasserted bool) (effectiveChannel string, err error) {
 	if newChannel == "" {
 		return oldChannel, nil
 	}
@@ -1975,7 +1955,7 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 	if err != nil {
 		return "", err
 	}
-	if snapName == "snapd" && snapID != "" {
+	if snapName == "snapd" && !unasserted {
 		required, err := ltstrack.Resolve(model, effectiveChannel, nil)
 		if errors.Is(err, ltstrack.ErrLTSNotAllowed) {
 			// Model is out of scope for LTS policy (classic, UC16, base-less,
@@ -2109,7 +2089,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTrac
 		return nil, err
 	}
 
-	channel, err := resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx, snapIDForSnapdChannelLockdown(name, &snapst, nil, false))
+	channel, err := resolveChannel(name, snapst.TrackingChannel, opts.Channel, deviceCtx, isUnasserted(snapst.CurrentSideInfo()))
 	if err != nil {
 		return nil, err
 	}
@@ -2170,8 +2150,8 @@ func firstNonEmpty(strs ...string) string {
 }
 
 // resolveChannel resolves the channel for the given snap.
-func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext, snapID string) error {
-	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx, snapID)
+func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext, unasserted bool) error {
+	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx, unasserted)
 	if err != nil {
 		return err
 	}
@@ -2182,7 +2162,10 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 // resolveChannelForStore conditionally resolves the channel for the given snap.
 // If the the revision is set and the channel is empty, then we assume that the
 // caller wants to install by revision and does not mutate the channel.
-func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback string, deviceCtx DeviceContext, snapID string) error {
+//
+// Store installs/updates of snapd are asserted (channel resolution runs
+// before the store action, so there is no SideInfo yet).
+func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	// if the revision is set and the caller didn't provide a channel, then we
 	// shouldn't mess with the channel. this is because we don't want the caller
 	// to have to pick the right channel when refreshing/installing by revision.
@@ -2192,7 +2175,8 @@ func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback s
 
 	// otherwise, we know that the channel is either empty, or it is specified
 	// along with the revision. in either case, we need to resolve the channel.
-	return r.resolveChannel(instanceName, fallback, deviceCtx, snapID)
+	const unasserted = false
+	return r.resolveChannel(instanceName, fallback, deviceCtx, unasserted)
 }
 
 // initializeValidationSets ensures that r.ValidationSets is initialized with a
