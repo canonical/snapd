@@ -48,10 +48,10 @@ var (
 // returns the remapped channel with the LTS target track, the original risk, and
 // any branch dropped. On failure it returns ("", err). Errors are typed:
 // LTSNotAllowedError when the model's system type or boot base is not allowed,
-// LTSNoTrackError when the boot base or input track has no LTS mapping, and
-// LTSInternalError for nil model, parse failures, or map load failures. When
-// candidate is non-nil the map is read from that snapd snap; otherwise from the
-// running snapd.
+// LTSNoTrackError when the boot base is managed but the input track is neither
+// a transition key nor an LTS target, and LTSInternalError for nil model,
+// parse failures, or map load failures. When candidate is non-nil the map is
+// read from that snapd snap; otherwise from the running snapd.
 func Resolve(model *asserts.Model, channel string, candidate snap.Container) (string, error) {
 	if model == nil {
 		return "", &LTSInternalError{Msg: "cannot use nil model"}
@@ -81,8 +81,8 @@ func Resolve(model *asserts.Model, channel string, candidate snap.Container) (st
 		if !ok {
 			return "", &LTSBaseNotManagedError{Msg: fmt.Sprintf("no LTS track map for boot base %d from candidate snapd version %s", bootBase, candidateVersion)}
 		}
-		ltsTrack, ok = baseTrackMap[inputTrack]
-		if !ok || ltsTrack == "" {
+		ltsTrack, ok = lookupLTSTrack(baseTrackMap, inputTrack)
+		if !ok {
 			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d for input track %q from candidate snapd version %s", bootBase, inputTrack, candidateVersion)}
 		}
 	} else {
@@ -94,8 +94,8 @@ func Resolve(model *asserts.Model, channel string, candidate snap.Container) (st
 		if !ok {
 			return "", &LTSBaseNotManagedError{Msg: fmt.Sprintf("no LTS track map for boot base %d from running snapd version %s", bootBase, thisVersion)}
 		}
-		ltsTrack, ok = baseTrackMap[inputTrack]
-		if !ok || ltsTrack == "" {
+		ltsTrack, ok = lookupLTSTrack(baseTrackMap, inputTrack)
+		if !ok {
 			return "", &LTSNoTrackError{Msg: fmt.Sprintf("no LTS track for boot base %d for input track %q from running snapd version %s", bootBase, inputTrack, thisVersion)}
 		}
 	}
@@ -103,6 +103,22 @@ func Resolve(model *asserts.Model, channel string, candidate snap.Container) (st
 	parsed.Track = ltsTrack
 	parsed.Branch = ""
 	return parsed.Clean().String(), nil
+}
+
+// lookupLTSTrack returns the LTS target for inputTrack. Keys are transitions
+// (latest → 18). If inputTrack is not a key but equals any map value, the
+// switch already happened and that track is kept. An explicit key wins over
+// implicit identity, so a later onboard can remap an LTS track onward.
+func lookupLTSTrack(baseTrackMap map[string]string, inputTrack string) (string, bool) {
+	if ltsTrack, ok := baseTrackMap[inputTrack]; ok && ltsTrack != "" {
+		return ltsTrack, true
+	}
+	for _, target := range baseTrackMap {
+		if target != "" && target == inputTrack {
+			return inputTrack, true
+		}
+	}
+	return "", false
 }
 
 // systemBootBaseAllowed returns the boot-base version to consult for LTS policy

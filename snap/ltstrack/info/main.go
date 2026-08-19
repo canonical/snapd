@@ -30,14 +30,17 @@
 //
 // Shape: snapdLTSTracks[bootBase][inputTrack] = LTSTargetTrack
 //
+// Entries are transitions only (latest → 18). If the input track already
+// equals any output of that boot-base map, Resolve keeps it (implicit
+// identity). A later onboard can remap an LTS track onward by adding an
+// explicit key ("18": "24"); that wins because keys are checked first.
+//
 // Example for a hypothetical onboarded UC18:
 //
 //	snapdLTSTracks = map[int]map[string]string{
 //	    18: {
 //	        "latest":       "18",
 //	        "fips-updates": "18-fips",
-//	        "18":           "18",
-//	        "18-fips":      "18-fips",
 //	    },
 //	}
 package main

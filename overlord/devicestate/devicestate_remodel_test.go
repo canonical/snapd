@@ -2663,9 +2663,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrack(c *C) {
 	c.Check(snapdChannel, Equals, "20/edge")
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackUnknownTrackErrors(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackUnknownTrackPassthrough(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 
@@ -2681,9 +2681,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackUnknownTrackErrors(c *C)
 		Channel:  "latest/stable",
 	}, snapstatetest.InstallSnapOptions{Required: true})
 
+	var snapdChannel string
 	restore := devicestate.MockSnapstateUpdateOne(func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) (*state.TaskSet, error) {
 		g := goal.(*storeUpdateGoalRecorder)
 		sn := g.snaps[0]
+		if sn.InstanceName == "snapd" {
+			snapdChannel = sn.RevOpts.Channel
+		}
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", sn.InstanceName, sn.RevOpts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", sn.InstanceName))
 		tValidate.WaitFor(tDownload)
@@ -2722,6 +2726,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackUnknownTrackErrors(c *C)
 	})
 	err := assertstate.Add(s.state, current)
 	c.Assert(err, IsNil)
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]any{
 		"architecture": "amd64",
@@ -2753,7 +2761,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackUnknownTrackErrors(c *C)
 	testDeviceCtx := &snapstatetest.TrivialDeviceContext{Remodeling: true, DeviceModel: new, OldDeviceModel: current}
 
 	_, err = devicestate.RemodelTasks(context.Background(), s.state, current, new, testDeviceCtx, "99", devicestate.RemodelOptions{})
-	c.Assert(err, ErrorMatches, `no LTS track for boot base 18 for input track "20" from running snapd version 2.75`)
+	c.Assert(err, IsNil)
+	c.Check(snapdChannel, Equals, "20/stable")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelSnapdLTSTrackSkipsUC16(c *C) {

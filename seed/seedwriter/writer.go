@@ -1140,10 +1140,12 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 		resolved, err := ltstrack.Resolve(w.model, resChannel, nil)
 		if err != nil {
 			if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) ||
+				errors.Is(err, ltstrack.ErrLTSNoTrack) ||
 				errors.Is(err, ltstrack.ErrLTSNotAllowed) ||
 				errors.Is(err, ltstrack.ErrLTSInternal) {
-				// Base not yet managed, model type not in scope, or running
-				// snapd cannot load its own map; use the planned channel unchanged.
+				// Base not yet managed, unmapped track, model type not in
+				// scope, or running snapd cannot load its own map; use the
+				// planned channel unchanged.
 				return resChannel, nil
 			}
 			return "", err

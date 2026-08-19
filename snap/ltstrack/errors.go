@@ -53,7 +53,8 @@ func (e *LTSNotAllowedError) Is(target error) bool { return target == ErrLTSNotA
 // channel restriction applies until the base is onboarded.
 //
 // This is distinct from ErrLTSNoTrack, which means the base IS managed but the
-// requested input track is not in its allow-list.
+// requested input track is neither a transition key nor an LTS target. Callers
+// pass through: LTS does not interfere with that channel.
 var ErrLTSBaseNotManaged = errors.New("LTS base not managed")
 
 // LTSBaseNotManagedError is returned when the boot base has no LTS policy entry
@@ -66,11 +67,12 @@ func (e *LTSBaseNotManagedError) Error() string { return e.Msg }
 func (e *LTSBaseNotManagedError) Is(target error) bool { return target == ErrLTSBaseNotManaged }
 
 // ErrLTSNoTrack is matched by errors.Is when the boot base IS managed but the
-// input track has no LTS mapping in its allow-list.
+// input track is neither a map key nor a map value. Callers pass through.
 var ErrLTSNoTrack = errors.New("LTS no track")
 
-// LTSNoTrackError is returned when the input track is not in the LTS allow-list
-// for the model's managed boot base. errors.Is matches ErrLTSNoTrack.
+// LTSNoTrackError is returned when the input track is neither a transition
+// key nor an LTS target for the model's managed boot base. errors.Is matches
+// ErrLTSNoTrack.
 type LTSNoTrackError struct{ Msg string }
 
 func (e *LTSNoTrackError) Error() string { return e.Msg }

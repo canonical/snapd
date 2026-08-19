@@ -735,7 +735,6 @@ func ltsTrackMap(bootBase int, tracks ...string) map[int]map[string]string {
 		"latest": tracks[0],
 	}
 	for _, track := range tracks {
-		rules[track] = track
 		if strings.HasSuffix(track, "-fips") {
 			rules["fips-updates"] = track
 		}
@@ -812,7 +811,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackNoMapPassthrough(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUnknownTrackErrors(c *C) {
+func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUnknownTrackPassthrough(c *C) {
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core18", "")
 	s.makeSnap(c, "pc-kernel=18", "")
@@ -820,21 +819,11 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUnknownTrackErrors(c *C) {
 	s.makeSnap(c, "cont-producer", "developerid")
 	s.makeSnap(c, "cont-consumer", "developerid")
 
-	restore := ltstrack.MockSnapdLTSTrackMap(ltsTrackMap(18, "18"))
-	defer restore()
-
 	model := s.uc18SeedModel()
-	w, err := seedwriter.New(model, s.opts)
-	c.Assert(err, IsNil)
-	err = w.SetOptionsSnaps([]*seedwriter.OptionsSnap{
-		{Name: "pc", Channel: "edge"},
-		{Name: "snapd", Channel: "20/stable"},
-	})
-	c.Assert(err, IsNil)
-	err = w.Start(s.db, s.rf)
-	c.Assert(err, IsNil)
-	_, err = w.SnapsToDownload()
-	c.Check(err, ErrorMatches, `no LTS track for boot base 18 for input track "20" from running snapd version 2.75`)
+	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "unmapped track passthrough", "20/stable",
+		&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"},
+		&seedwriter.OptionsSnap{Name: "snapd", Channel: "20/stable"},
+	)
 }
 
 func (s *writerSuite) uc22SeedModel(snapdDefaultChannel string) *asserts.Model {

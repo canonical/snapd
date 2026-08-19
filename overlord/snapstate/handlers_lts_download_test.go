@@ -145,7 +145,7 @@ func (s *ltsDownloadSuite) TestRedirectSkipUnasserted(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectSkipExplicitChannel(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	snapsup.ExplicitChannel = true
 	model := ModelWithBase("core18")
@@ -157,7 +157,7 @@ func (s *ltsDownloadSuite) TestRedirectSkipExplicitChannel(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectSkipExplicitRevision(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	snapsup.ExplicitRevision = true
 	model := ModelWithBase("core18")
@@ -216,7 +216,7 @@ func (s *ltsDownloadSuite) TestRedirectSkipClassicModel(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectSkipUnmanagedBase(c *C) {
-	// UC20 base with no LTS map entry → LTSNoTrackError → pass through
+	// UC20 base with no LTS map entry → LTSBaseNotManagedError → pass through
 	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core20")
@@ -228,8 +228,8 @@ func (s *ltsDownloadSuite) TestRedirectSkipUnmanagedBase(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectSkipAlreadyOnLTSTrack(c *C) {
-	// Already on the LTS track → no remap needed
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	// Already on the LTS track (map value, no identity key) → no remap needed
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "18/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -237,6 +237,18 @@ func (s *ltsDownloadSuite) TestRedirectSkipAlreadyOnLTSTrack(c *C) {
 	c.Assert(s.callRedirect(snapsup, model), IsNil)
 	c.Check(s.fakeBackend.ops, HasLen, 0)
 	c.Check(snapsup.Channel, Equals, "18/stable")
+}
+
+func (s *ltsDownloadSuite) TestRedirectSkipUnmappedTrack(c *C) {
+	// Planned 20/stable on a UC18 map → neither a key nor a value; do not intercept
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "20/stable")
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+	c.Check(snapsup.Channel, Equals, "20/stable")
 }
 
 func (s *ltsDownloadSuite) TestRedirectSkipMissingInfoFile(c *C) {
@@ -258,7 +270,7 @@ version: 2.75`, nil)
 // ---- Redirect success path --------------------------------------------
 
 func (s *ltsDownloadSuite) TestRedirectRewritesSnapSetup(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -291,7 +303,7 @@ func (s *ltsDownloadSuite) TestRedirectRewritesSnapSetup(c *C) {
 
 func (s *ltsDownloadSuite) TestRedirectRiskPreserved(c *C) {
 	// latest/edge → 18/edge (risk preserved)
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/edge")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -304,7 +316,7 @@ func (s *ltsDownloadSuite) TestRedirectRiskPreserved(c *C) {
 func (s *ltsDownloadSuite) TestRedirectKeepsCohortKey(c *C) {
 	// Same contract as snap refresh --channel=... while in-cohort: keep the
 	// key, send it with the remapped LTS channel, leave it on snap-setup.
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	snapsup.CohortKey = "some-cohort-key"
 	model := ModelWithBase("core18")
@@ -322,7 +334,7 @@ func (s *ltsDownloadSuite) TestRedirectKeepsCohortKey(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectCohortUnsatisfiable(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	snapsup.CohortKey = "some-cohort-key"
 	model := ModelWithBase("core18")
@@ -343,7 +355,7 @@ func (s *ltsDownloadSuite) TestRedirectCohortUnsatisfiable(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectPassesValidationSets(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -362,7 +374,7 @@ func (s *ltsDownloadSuite) TestRedirectPassesValidationSets(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectHonoursIgnoreValidation(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	snapsup.IgnoreValidation = true
 	model := ModelWithBase("core18")
@@ -395,7 +407,7 @@ func (s *ltsDownloadSuite) TestRedirectHonoursIgnoreValidation(c *C) {
 // ---- Redirect failure paths -------------------------------------------
 
 func (s *ltsDownloadSuite) TestRedirectStoreActionError(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -418,7 +430,7 @@ func (s *ltsDownloadSuite) TestRedirectStoreActionError(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectDownloadError(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -434,7 +446,7 @@ func (s *ltsDownloadSuite) TestRedirectDownloadError(c *C) {
 }
 
 func (s *ltsDownloadSuite) TestRedirectValidationSetsError(c *C) {
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -455,7 +467,7 @@ func (s *ltsDownloadSuite) TestFastPathSkipsSquashfsWhenAlreadyOnLTSTrack(c *C) 
 	// Running snapd knows UC18 maps latest → 18. Device is already on 18/stable.
 	// Fast path must return early without opening the squashfs.
 	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	s.AddCleanup(restore)
 
@@ -479,14 +491,14 @@ func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenChannelWrong(c *C) {
 	// Running snapd knows UC18 maps latest → 18. Device is on latest/stable.
 	// Fast path must not fire; candidate squashfs must be inspected.
 	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	s.AddCleanup(restore)
 
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 
 	c.Assert(s.callRedirect(snapsup, model), IsNil)
@@ -504,7 +516,7 @@ func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenBaseUnmanaged(c *C) {
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 
 	// Candidate carries the map; redirect must still fire.
@@ -516,7 +528,7 @@ func (s *ltsDownloadSuite) TestFastPathDoesNotFireWhenBaseUnmanaged(c *C) {
 
 func (s *ltsDownloadSuite) TestAlreadyCorrectTrue(c *C) {
 	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	s.AddCleanup(restore)
 
@@ -531,7 +543,7 @@ func (s *ltsDownloadSuite) TestAlreadyCorrectTrue(c *C) {
 
 func (s *ltsDownloadSuite) TestAlreadyCorrectFalseWrongChannel(c *C) {
 	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	s.AddCleanup(restore)
 
@@ -645,7 +657,7 @@ func (s *ltsDownloadSuite) TestPatchLevelCompatible(c *C) {
 	s.state.Set("patch-level", 6)
 	s.state.Unlock()
 
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 6)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 6)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -660,7 +672,7 @@ func (s *ltsDownloadSuite) TestPatchLevelTargetNewer(c *C) {
 	s.state.Set("patch-level", 5)
 	s.state.Unlock()
 
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 6)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 6)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -676,7 +688,7 @@ func (s *ltsDownloadSuite) TestPatchLevelIncompatible(c *C) {
 	s.state.Set("patch-level", 7)
 	s.state.Unlock()
 
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 6)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 6)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -695,7 +707,7 @@ func (s *ltsDownloadSuite) TestPatchLevelAbsentInBlob(c *C) {
 	s.state.Unlock()
 
 	// patchLevel=0 → key omitted from info file
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 0)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -706,7 +718,7 @@ func (s *ltsDownloadSuite) TestPatchLevelAbsentInBlob(c *C) {
 
 func (s *ltsDownloadSuite) TestPatchLevelNoPatchLevelInState(c *C) {
 	// No patch-level in state (fresh device) → check skipped, redirect proceeds.
-	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 6)
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`, 6)
 	snapsup := snapdSnapsup(blobPath, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))

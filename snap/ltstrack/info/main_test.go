@@ -70,12 +70,9 @@ func (s *infoSuite) TestRenderInfoLineRoundTrip(c *C) {
 		18: {
 			"latest":       "18",
 			"fips-updates": "18-fips",
-			"18":           "18",
-			"18-fips":      "18-fips",
 		},
 		20: {
 			"latest": "20",
-			"20":     "20",
 		},
 	}
 	line := renderInfoLine(tracks)
@@ -90,12 +87,9 @@ func (s *infoSuite) TestRenderInfoLineRoundTrip(c *C) {
 	c.Check(parsed["18"], DeepEquals, map[string]string{
 		"latest":       "18",
 		"fips-updates": "18-fips",
-		"18":           "18",
-		"18-fips":      "18-fips",
 	})
 	c.Check(parsed["20"], DeepEquals, map[string]string{
 		"latest": "20",
-		"20":     "20",
 	})
 }
 

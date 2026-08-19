@@ -2348,12 +2348,12 @@ version: 1.0`, nil)
 }
 
 func (s *infoSuite) TestParseSnapdLTSTracksValid(c *C) {
-	raw := `'{"18":{"latest":"18","18":"18"},"20":{"latest":"20","20":"20"}}'`
+	raw := `'{"18":{"latest":"18"},"20":{"latest":"20"}}'`
 	tracks, err := snap.ParseSnapdLTSTracks(raw)
 	c.Assert(err, IsNil)
 	c.Assert(tracks, DeepEquals, map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
-		20: {"latest": "20", "20": "20"},
+		18: {"latest": "18"},
+		20: {"latest": "20"},
 	})
 }
 
@@ -2392,7 +2392,7 @@ func (s *infoSuite) TestParseSnapdLTSTracksInvalidBootBase(c *C) {
 
 func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFile(c *C) {
 	info := `VERSION=2.99
-SNAPD_LTS_TRACKS='{"18":{"latest":"18","18":"18"}}'`
+SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`
 	snapdPath := snaptest.MakeTestSnapWithFiles(c, `name: snapd
 type: snapd
 version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
@@ -2403,7 +2403,7 @@ version: 1.0`, [][]string{{"/usr/lib/snapd/info", info}})
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, DeepEquals, map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 }
 

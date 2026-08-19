@@ -7817,9 +7817,9 @@ func (s *snapmgrTestSuite) TestResolveChannelPinnedTrack(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
+func (s *snapmgrTestSuite) TestResolveChannelPathInstallDoesNotRemapSnapdLTS(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 
@@ -7830,39 +7830,31 @@ func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
 	defer s.state.Unlock()
 
 	for _, tc := range []struct {
-		cur        string
-		new        string
-		exp        string
-		err        string
-		snap       string
-		unasserted bool
+		cur  string
+		new  string
+		exp  string
+		snap string
 	}{
 		{cur: "18/stable", new: "18/edge", exp: "18/edge"},
-		{cur: "18/stable", new: "20/stable", err: `cannot use snapd channel "20/stable": LTS policy rejects track "20"`},
-		{cur: "18/stable", new: "latest/edge", err: `cannot use snapd channel "latest/edge": LTS policy requires "18/edge"`},
-		{cur: "", new: "stable", err: `cannot use snapd channel "stable": LTS policy requires "18/stable"`},
+		{cur: "18/stable", new: "20/stable", exp: "20/stable"},
+		{cur: "18/stable", new: "latest/edge", exp: "latest/edge"},
+		{cur: "", new: "stable", exp: "stable"},
 		{snap: "some-snap", cur: "stable", new: "latest/edge", exp: "latest/edge"},
-		{cur: "18/stable", new: "20/stable", unasserted: true, exp: "20/stable"},
 	} {
 		snapName := "snapd"
 		if tc.snap != "" {
 			snapName = tc.snap
 		}
 		revOpts := snapstate.RevisionOptions{Channel: tc.new}
-		err := revOpts.ResolveChannel(snapName, tc.cur, deviceCtx, tc.unasserted)
-		ch := revOpts.Channel
-		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err, Commentf("%#v", tc))
-			continue
-		}
+		err := revOpts.ResolveChannel(snapName, tc.cur, deviceCtx)
 		c.Check(err, IsNil, Commentf("%#v", tc))
-		c.Check(ch, Equals, tc.exp, Commentf("%#v", tc))
+		c.Check(revOpts.Channel, Equals, tc.exp, Commentf("%#v", tc))
 	}
 }
 
 func (s *snapmgrTestSuite) TestResolveChannelForStoreSnapdLTSRemap(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 
@@ -7881,7 +7873,7 @@ func (s *snapmgrTestSuite) TestResolveChannelForStoreSnapdLTSRemap(c *C) {
 		snap     string
 	}{
 		{cur: "18/stable", new: "18/edge", exp: "18/edge"},
-		{cur: "18/stable", new: "20/stable", err: `cannot use snapd channel "20/stable": LTS policy rejects track "20"`},
+		{cur: "18/stable", new: "20/stable", exp: "20/stable"},
 		{cur: "18/stable", new: "latest/edge", exp: "18/edge"},
 		{cur: "", new: "stable", exp: "18/stable"},
 		{cur: "18/stable", new: "latest/edge", explicit: true, exp: "latest/edge"},
@@ -7906,7 +7898,7 @@ func (s *snapmgrTestSuite) TestResolveChannelForStoreSnapdLTSRemap(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallSnapdLTSRemapsChannelKeepsCohort(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)
@@ -7946,7 +7938,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdLTSRemapsChannelKeepsCohort(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallSnapdExplicitChannelKeepsChannelAndCohort(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)
@@ -7986,7 +7978,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdExplicitChannelKeepsChannelAndCohort(
 
 func (s *snapmgrTestSuite) TestInstallSnapdLTSCohortUnsatisfiableFailsAtPlanning(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)
@@ -8014,7 +8006,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdLTSCohortUnsatisfiableFailsAtPlanning
 
 func (s *snapmgrTestSuite) TestUpdateSnapdLTSRemapsChannelKeepsCohort(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)
@@ -8063,7 +8055,7 @@ func (s *snapmgrTestSuite) TestUpdateSnapdLTSRemapsChannelKeepsCohort(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateSnapdExplicitChannelKeepsChannelAndCohort(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)
@@ -8116,7 +8108,7 @@ func (s *snapmgrTestSuite) TestUpdateSnapdExplicitChannelKeepsChannelAndCohort(c
 
 func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsChannelKeepsCohort(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)
@@ -8174,7 +8166,7 @@ func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsChannelKeepsCohort(c *C) 
 
 func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsWhenAlreadyAtLatestTip(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)
@@ -8231,7 +8223,7 @@ func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsWhenAlreadyAtLatestTip(c 
 
 func (s *snapmgrTestSuite) TestUpdateManySnapdLTSCohortUnsatisfiableFailsAtPlanning(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
-		18: {"latest": "18", "18": "18"},
+		18: {"latest": "18"},
 	})
 	defer restoreTracks()
 	restoreClassic := release.MockOnClassic(false)

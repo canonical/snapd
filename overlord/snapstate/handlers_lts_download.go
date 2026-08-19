@@ -211,8 +211,9 @@ func inspectSnapdLTSAfterDownload(snapsup *SnapSetup, model *asserts.Model, blob
 
 	targetChannel, err := ltstrack.Resolve(model, snapsup.Channel, squashfs.New(blobPath))
 	if err != nil {
-		if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) {
-			// Base has no LTS policy yet; no redirect needed.
+		if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) || errors.Is(err, ltstrack.ErrLTSNoTrack) {
+			// Base has no LTS policy yet, or the planned track is neither a
+			// transition key nor an LTS target; no redirect needed.
 			return snapdLTSInspectResult{remapNeeded: false}, nil
 		}
 		return snapdLTSInspectResult{}, fmt.Errorf("cannot resolve LTS track: %v", err)

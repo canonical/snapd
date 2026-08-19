@@ -117,17 +117,17 @@ trust `DownloadInfo` and skip the squashfs open.
 | Manual/auto **refresh** | `UpdateWithGoal` | **Yes** (when gated) | normal download pipeline |
 | **Path install** (seed, sideload) | `targetForPathSnap` | **No** | offline fixed blob; don't block seeding |
 | **Local revision refresh** | `targetFromLocalSnapWithStoreComponents` | **No** | revision already on disk |
-| **`Switch`** | `Switch` → `resolveChannel` | **No** | no LTS lockdown (explicit admin action); kernel/gadget model pins still apply; no download task |
+| **`Switch`** | `Switch` → `resolveChannel` | **No** | no download task; kernel/gadget model pins still apply |
 | **Remodel snapd** | `remodelSnapdSnapTasks` | Indirect | BB4b pre-remap at planning; then store path goes through `doDownloadSnap` |
 
 **Compiled-in policy (planning side, complementary):**
 Store install/refresh (`resolveChannelForStore`) remaps onto the LTS
 track when the running snapd's map can Resolve **and** the caller did
 not pass `--channel=` / `--revision=`. An explicit channel or revision
-wins; LTS is skipped for that operation. Path install (`resolveChannel`)
-still rejects a mismatch unless the channel was explicit. Not applied
-to `Switch`. Best-effort; the download intercept is the real enforcement
-for unaware snapd.
+wins; LTS is skipped for that operation. Path/seed/offline-remodel
+cannot retarget a local blob, so LTS does not reject or remap there.
+Unmapped tracks pass through. Not applied to `Switch`. Best-effort; the
+download intercept is the real enforcement for unaware snapd.
 
 Refresh-all / auto-refresh (`initRefreshAllStoreUpdates`) remaps the
 same way, so an aware daemon already at the tip of `latest` still asks
@@ -149,7 +149,7 @@ Work on spike branch `ernestl/SNAPDENG-35854/spike-snapd-onto-track`.
 Agree on-disk format in the candidate snapd snap. Proposed:
 
 ```
-SNAPD_LTS_TRACKS='{"18":{"latest":"18","fips-updates":"18-fips","18":"18","18-fips":"18-fips"}}'
+SNAPD_LTS_TRACKS='{"18":{"latest":"18","fips-updates":"18-fips"}}'
 ```
 
 Mirror `SnapdLTSTrackMap` shape in `snap.parseSnapdLTSTracks`. Needs
@@ -203,7 +203,7 @@ DESIGN.md Appendix.
 Case 3 bootstrap (priority): old snapd on `latest`, candidate carries
 map, single change lands on UC track without ever linking the wrong rev.
 
-Other scenarios: ordering before other snaps; BB3 lockdown rejection;
+Other scenarios: ordering before other snaps;
 image-build track selection (BB4a); downgrade across reroute boot;
 missing-map fallback behaviour.
 
@@ -235,11 +235,9 @@ tests, and others).
    revision against `patch.Level` and refuse the reroute before
    re-download commits (cleaner UX) vs accept and rely on `snap-failure`
    revert at restart (simpler code).
-3. **BB3 lockdown UX vs candidate authority.** BB3 may reject a track
-   that the running snapd doesn't know about but a future candidate would
-   accept. Options: keep strict (status quo, document); relax to warn-only;
-   or skip BB3 when `Resolve` returns `LTSNoTrackError` (assume
-   the candidate may know better).
+3. **BB3 path lockdown vs candidate authority.** **Resolved:** path
+   install cannot retarget a blob, so LTS does not reject or remap there.
+   Store remap plus the download intercept remain the mechanism.
 4. **Re-download bandwidth.** Tolerate the double download for v1.
    Follow-up: metadata-only pre-fetch (e.g. just the `info` file) or a
    store hint analogous to `redirect-channel` but honoured on refresh.

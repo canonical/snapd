@@ -1665,7 +1665,7 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		update.RevOpts.Channel = update.SideInfo.Channel
 	}
 
-	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx, isUnasserted(update.SideInfo)); err != nil {
+	if err := update.RevOpts.resolveChannel(update.InstanceName, trackingChannel, opts.DeviceCtx); err != nil {
 		return target{}, err
 	}
 

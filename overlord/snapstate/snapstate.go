@@ -1966,9 +1966,8 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 
 // snapdLTSRequiredChannel consults the running snapd's LTS map. passthrough
 // is true when policy does not apply (not snapd, unasserted, out of scope,
-// map unavailable, or base not yet managed). On a managed base with a
-// forbidden track, err is a user-facing rejection. Otherwise required is
-// the canonical LTS channel.
+// map unavailable, base not yet managed, or the input track is unmapped).
+// Otherwise required is the canonical LTS channel.
 func snapdLTSRequiredChannel(snapName, effectiveChannel string, deviceCtx DeviceContext, unasserted bool) (required string, passthrough bool, err error) {
 	if snapName != "snapd" || unasserted {
 		return "", true, nil
@@ -1987,19 +1986,10 @@ func snapdLTSRequiredChannel(snapName, effectiveChannel string, deviceCtx Device
 		// intercept enforce the correct channel.
 		return "", true, nil
 	}
-	if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) {
-		// This boot base has no LTS policy yet; no channel restriction applies.
+	if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) || errors.Is(err, ltstrack.ErrLTSNoTrack) {
+		// Base has no LTS policy yet, or the input track is neither a
+		// transition key nor an LTS target; do not interfere.
 		return "", true, nil
-	}
-	if errors.Is(err, ltstrack.ErrLTSNoTrack) {
-		parsed, parseErr := channel.ParseVerbatim(effectiveChannel, "-")
-		track := "latest"
-		if parseErr == nil {
-			if parsed.Track != "" {
-				track = parsed.Track
-			}
-		}
-		return "", false, fmt.Errorf("cannot use snapd channel %q: LTS policy rejects track %q", effectiveChannel, track)
 	}
 	if err != nil {
 		return "", false, err
@@ -2015,29 +2005,12 @@ func snapdLTSChannelMatches(effectiveChannel, required string) bool {
 	return err == nil && required == parsed.Clean().String()
 }
 
-// maybeLockdownSnapdLTSChannel applies planning-time LTS track policy for
-// path installs of snapd. Switch does not call this: it is an explicit
-// admin action and does not download. A mismatch is rejected because the
-// blob cannot be retargeted. Store planning uses maybeRemapSnapdLTSChannel
-// so the first SnapAction already asks for the LTS channel (with cohort
-// and validation sets). The download intercept remains authoritative when
-// the running map cannot resolve.
-func maybeLockdownSnapdLTSChannel(snapName, effectiveChannel string, deviceCtx DeviceContext, unasserted bool) (string, error) {
-	required, passthrough, err := snapdLTSRequiredChannel(snapName, effectiveChannel, deviceCtx, unasserted)
-	if err != nil {
-		return "", err
-	}
-	if passthrough || snapdLTSChannelMatches(effectiveChannel, required) {
-		return effectiveChannel, nil
-	}
-	return "", fmt.Errorf("cannot use snapd channel %q: LTS policy requires %q", effectiveChannel, required)
-}
-
 // maybeRemapSnapdLTSChannel rewrites a store-planned snapd channel onto
 // the LTS track when the running snapd's map can Resolve. That makes the
 // first SnapAction LTS+cohort (same contract as snap refresh --channel=
 // while in-cohort) so an unsatisfiable cohort fails at planning, before
-// download. Unknown tracks still reject.
+// download. Path install does not call this: a local blob cannot be
+// retargeted. Unmapped tracks pass through.
 func maybeRemapSnapdLTSChannel(snapName, effectiveChannel string, deviceCtx DeviceContext, unasserted bool) (string, error) {
 	required, passthrough, err := snapdLTSRequiredChannel(snapName, effectiveChannel, deviceCtx, unasserted)
 	if err != nil {
@@ -2227,17 +2200,11 @@ func firstNonEmpty(strs ...string) string {
 	return ""
 }
 
-// resolveChannel resolves the channel for the given snap.
-func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext, unasserted bool) error {
+// resolveChannel resolves the channel for the given snap. Path
+// install/refresh uses this and does not apply LTS remap: a local blob
+// cannot be retargeted.
+func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
-	if err != nil {
-		return err
-	}
-	if r.ExplicitChannel {
-		r.Channel = resolved
-		return nil
-	}
-	resolved, err = maybeLockdownSnapdLTSChannel(instanceName, resolved, deviceCtx, unasserted)
 	if err != nil {
 		return err
 	}
