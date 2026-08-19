@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -94,15 +95,22 @@ func maybeRedirectSnapdToLTSTrack(
 	}
 
 	// Honour validation sets so a pinned revision constraint is preserved on
-	// the LTS track. If the pinned revision is not on the LTS track the store
-	// will return an error, surfacing a "validation set conflicts with LTS
-	// policy" condition to the operator.
-	// TODO: This should be captured in the spec.
-	st.Lock()
-	vsets, err := EnforcedValidationSets(st)
-	st.Unlock()
-	if err != nil {
-		return fmt.Errorf("cannot get validation sets for snapd LTS redirect: %v", err)
+	// the LTS track, unless this operation ignored validation (CLI
+	// --ignore-validation or the sticky SnapState flag copied onto snap-setup).
+	// If the pinned revision is not on the LTS track the store will return an
+	// error, surfacing a "validation set conflicts with LTS policy" condition
+	// to the operator.
+	var vsets *snapasserts.ValidationSets
+	if snapsup.IgnoreValidation {
+		vsets = snapasserts.NewValidationSets()
+	} else {
+		st.Lock()
+		var err error
+		vsets, err = EnforcedValidationSets(st)
+		st.Unlock()
+		if err != nil {
+			return fmt.Errorf("cannot get validation sets for snapd LTS redirect: %v", err)
+		}
 	}
 
 	// Second store action on the LTS track. Leave RevOpts.Revision empty so
@@ -117,7 +125,7 @@ func maybeRedirectSnapdToLTSTrack(
 			CohortKey:      snapsup.CohortKey,
 			ValidationSets: vsets,
 		},
-	}, Options{})
+	}, Options{Flags: Flags{IgnoreValidation: snapsup.IgnoreValidation}})
 	if err != nil {
 		return fmt.Errorf("cannot resolve snapd LTS redirect to channel %q: %v",
 			inspected.targetChannel, err)

@@ -361,6 +361,37 @@ func (s *ltsDownloadSuite) TestRedirectPassesValidationSets(c *C) {
 	c.Check(snapsup.Channel, Equals, "18/stable")
 }
 
+func (s *ltsDownloadSuite) TestRedirectHonoursIgnoreValidation(c *C) {
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "latest/stable")
+	snapsup.IgnoreValidation = true
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	fetched := false
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		fetched = true
+		return nil, fmt.Errorf("validation sets should not be consulted")
+	})
+	s.AddCleanup(restore)
+
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	c.Check(fetched, Equals, false)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.Flags&store.SnapActionIgnoreValidation, Equals, store.SnapActionIgnoreValidation)
+}
+
 // ---- Redirect failure paths -------------------------------------------
 
 func (s *ltsDownloadSuite) TestRedirectStoreActionError(c *C) {

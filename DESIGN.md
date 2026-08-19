@@ -590,7 +590,7 @@ link from rewritten `snapsup.Channel`.
 | Hold / refresh-control | No special LTS override; a held snapd has no download this cycle | No (next unheld refresh can switch) |
 | Patch level | Yes, if the LTS blob's `patch.Level` is compatible | Yes, if the target is below state patch level |
 | Epoch | N/A while snapd epoch is 0 | N/A |
-| Validation sets | Yes; enforced sets are passed on the second action. A revision pin wins (drops cohort and channel) | Yes, if rules are unsatisfiable |
+| Validation sets | Yes; enforced sets are passed on the second action. A revision pin wins (drops cohort and channel). `--ignore-validation` (and the sticky `SnapState` flag on snap-setup) is honoured on the second action the same way as the first; it does not skip LTS | Yes, if rules are unsatisfiable and validation is not ignored |
 
 When the running map can Resolve, store planning remaps so the first
 `SnapAction` is already **LTS + cohort + v-sets**, unless the caller
