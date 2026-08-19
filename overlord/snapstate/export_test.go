@@ -53,6 +53,7 @@ type (
 
 var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
+var DiskSpaceReservation = diskSpaceReservation
 
 const (
 	None                        = none
