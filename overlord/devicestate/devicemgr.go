@@ -1336,7 +1336,7 @@ func (m *DeviceManager) ensureBootOk(deviceCtx snapstate.DeviceContext) error {
 		if !bootOkRanForCurrentBootID {
 			markBootOkRanForBootID(m.state, currentBootID)
 
-			if deviceCtx.Model().KernelSnap() != nil {
+			if deviceCtx != nil && deviceCtx.Model().KernelSnap() != nil {
 				// FIXME: we should check if recovery keys
 				// were used and in that case do not mark the
 				// boot successful.
@@ -2125,55 +2125,96 @@ func (m *DeviceManager) Ensure() error {
 			}
 		}
 
+		// Code below should not need the full early loaded device seed.
+		// Retire it once an acknowledged device context is available to free
+		// the corresponding memory usage.
 		if acknowledgedDeviceCtx, err := m.retireEarlyDeviceSeed(); err != nil {
 			errs = append(errs, err)
 		} else if acknowledgedDeviceCtx != nil {
 			deviceCtx = acknowledgedDeviceCtx
 		}
+		if seeded && deviceCtx == nil {
+			errs = append(errs, fmt.Errorf("internal error: device context is nil after seeding"))
+		}
 
-		if deviceCtx != nil {
-			if err := m.ensureBootOk(deviceCtx); err != nil {
+		if seeded && deviceCtx != nil {
+			if err := m.ensureCloudInitRestricted(); err != nil {
 				errs = append(errs, err)
 			}
+		}
+
+		if seeded && deviceCtx != nil {
+			if err := m.ensureOperationalAfterSeed(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		// XXX: This might trigger a reseal (auto-repair) but
+		// it should not affect resealing tasks since it is
+		// run at most once during startup before
+		// TaskRunner.Ensure() is called.
+		if deviceCtx != nil {
+			if err := m.ensureFDE(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		// XXX: This might trigger a reseal (removal of "try"
+		// entries in modeenv) but it should not affect
+		// resealing tasks since it is run at most once during
+		// startup before TaskRunner.Ensure() is called.
+		if err := m.ensureBootOk(deviceCtx); err != nil {
+			errs = append(errs, err)
 		}
 
 		if seeded {
 			if err := m.ensureSeedInConfigAfterSeed(); err != nil {
 				errs = append(errs, err)
 			}
-			if deviceCtx == nil {
-				errs = append(errs, fmt.Errorf("internal error: device context is nil after seeding"))
-			} else {
-				if err := m.ensureTriedRecoverySystem(deviceCtx); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureCloudInitRestricted(); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureFDE(deviceCtx); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureOperationalAfterSeed(); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensurePostFactoryReset(); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureExpiredUsersRemovedAfterSeed(); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureInstalledAfterSeed(deviceCtx); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureFactoryResetAfterSeed(deviceCtx); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureSerialBoundSystemUserAssertionsProcessedAfterSeed(deviceCtx); err != nil {
-					errs = append(errs, err)
-				}
-				if err := m.ensureEarlyBootXKBConfigUpdatedAfterSeed(deviceCtx); err != nil {
-					errs = append(errs, err)
-				}
+		}
+
+		if seeded && deviceCtx != nil {
+			if err := m.ensureInstalledAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		// XXX: This might trigger a reseal but it should not affect
+		// resealing tasks since it is run at most once during startup
+		// before TaskRunner.Ensure() is called.
+		if seeded && deviceCtx != nil {
+			if err := m.ensureTriedRecoverySystem(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if seeded && deviceCtx != nil {
+			if err := m.ensureFactoryResetAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if seeded {
+			if err := m.ensurePostFactoryReset(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if seeded && deviceCtx != nil {
+			if err := m.ensureSerialBoundSystemUserAssertionsProcessedAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if seeded {
+			if err := m.ensureExpiredUsersRemovedAfterSeed(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if seeded && deviceCtx != nil {
+			if err := m.ensureEarlyBootXKBConfigUpdatedAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
 			}
 		}
 

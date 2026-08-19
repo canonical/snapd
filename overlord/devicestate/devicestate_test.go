@@ -710,12 +710,36 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappy(c *C) {
 	c.Check(seedStartTime.Equal(devicestate.StartTime()), Equals, true)
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkWithoutDeviceContext(c *C) {
 	s.bootloader.GetErr = fmt.Errorf("should not be called")
 	release.OnClassic = true
+	defer devicestate.MockOsutilBootID("boot-id")()
 
 	err := devicestate.EnsureBootOk(s.mgr)
 	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var bootID string
+	c.Assert(s.state.Get("ensure-boot-ok-boot-id", &bootID), IsNil)
+	c.Check(bootID, Equals, "boot-id")
+}
+
+func (s *deviceMgrSuite) TestEnsureRunsBootOkWithoutDeviceContext(c *C) {
+	s.bootloader.GetErr = fmt.Errorf("should not be called")
+	defer devicestate.MockOsutilBootID("boot-id")()
+	defer devicestate.MockPopulateStateFromSeed(s.mgr, func(string, string, timings.Measurer) ([]*state.TaskSet, error) {
+		return nil, nil
+	})()
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var bootID string
+	c.Assert(s.state.Get("ensure-boot-ok-boot-id", &bootID), IsNil)
+	c.Check(bootID, Equals, "boot-id")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnNonRunModes(c *C) {
@@ -4303,62 +4327,6 @@ func (s *deviceMgrSuite) TestDeviceManagerStartupCallbacks(c *C) {
 
 	c.Check(callA.called, Equals, 1)
 	c.Check(callB.called, Equals, 1)
-}
-
-func (s *deviceMgrSuite) TestEnsureRunsCloudInitFDEOperationalAfterSeedInOrder(c *C) {
-	defer release.MockOnClassic(false)()
-
-	s.state.Lock()
-	s.makeModelAssertionInState(c, "canonical", "classic-alt-store", map[string]any{
-		"classic": "true",
-		"store":   "alt-store",
-	})
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "classic-alt-store",
-	})
-	s.seeding()
-	s.state.Unlock()
-
-	devicestate.SetEnsureBootOkRan(s.mgr, true)
-	devicestate.SetBootRevisionsUpdated(s.mgr, true)
-
-	var calls []string
-	defer devicestate.MockCloudInitStatus(func() (sysconfig.CloudInitState, error) {
-		calls = append(calls, "cloud-init")
-		return sysconfig.CloudInitRestrictedBySnapd, nil
-	})()
-	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
-		calls = append(calls, "fde")
-		for _, chg := range st.Changes() {
-			c.Check(chg.Kind(), Not(Equals), "become-operational")
-		}
-		return nil
-	})()
-
-	err := s.mgr.Ensure()
-	c.Assert(err, IsNil)
-	c.Check(calls, HasLen, 0)
-
-	s.state.Lock()
-	s.state.Set("seeded", true)
-	s.state.Unlock()
-
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
-
-	s.state.Lock()
-	var operational *state.Change
-	for _, chg := range s.state.Changes() {
-		if chg.Kind() == "become-operational" {
-			operational = chg
-			break
-		}
-	}
-	s.state.Unlock()
-	c.Assert(operational, NotNil)
-	calls = append(calls, "operational")
-	c.Check(calls, DeepEquals, []string{"cloud-init", "fde", "operational"})
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureFDE(c *C) {

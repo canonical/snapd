@@ -285,10 +285,7 @@ func EnsureFDE(m *DeviceManager) error {
 
 func EnsureBootOk(m *DeviceManager) error {
 	deviceCtx, err := ensureDeviceCtxForTest(m)
-	if errors.Is(err, state.ErrNoState) {
-		return nil
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	return m.ensureBootOk(deviceCtx)
