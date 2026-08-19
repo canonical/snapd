@@ -144,6 +144,30 @@ func (s *ltsDownloadSuite) TestRedirectSkipUnasserted(c *C) {
 	c.Check(snapsup.Channel, Equals, "latest/stable")
 }
 
+func (s *ltsDownloadSuite) TestRedirectSkipExplicitChannel(c *C) {
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "latest/stable")
+	snapsup.ExplicitChannel = true
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+	c.Check(snapsup.Channel, Equals, "latest/stable")
+}
+
+func (s *ltsDownloadSuite) TestRedirectSkipExplicitRevision(c *C) {
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "latest/stable")
+	snapsup.ExplicitRevision = true
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+	c.Check(snapsup.Channel, Equals, "latest/stable")
+}
+
 func (s *ltsDownloadSuite) TestRedirectSkipHasPrereqs(c *C) {
 	// If snapd ever gains prerequisites the redirect must be skipped: the
 	// prerequisites task already ran against the planned revision's metadata
@@ -256,6 +280,7 @@ func (s *ltsDownloadSuite) TestRedirectRewritesSnapSetup(c *C) {
 	c.Check(s.fakeBackend.ops[1].action.Action, Equals, "install")
 	c.Check(s.fakeBackend.ops[1].action.InstanceName, Equals, "snapd")
 	c.Check(s.fakeBackend.ops[1].action.Channel, Equals, "18/stable")
+	c.Check(s.fakeBackend.ops[1].action.CohortKey, Equals, "")
 	c.Check(s.fakeBackend.ops[2], DeepEquals, fakeOp{op: "storesvc-download", name: "snapd"})
 
 	// One re-download to the same blob path
@@ -274,6 +299,47 @@ func (s *ltsDownloadSuite) TestRedirectRiskPreserved(c *C) {
 	c.Assert(s.callRedirect(snapsup, model), IsNil)
 	c.Check(snapsup.Channel, Equals, "18/edge")
 	c.Check(s.fakeBackend.ops[1].action.Channel, Equals, "18/edge")
+}
+
+func (s *ltsDownloadSuite) TestRedirectKeepsCohortKey(c *C) {
+	// Same contract as snap refresh --channel=... while in-cohort: keep the
+	// key, send it with the remapped LTS channel, leave it on snap-setup.
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "latest/stable")
+	snapsup.CohortKey = "some-cohort-key"
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
+	c.Assert(s.fakeBackend.ops, HasLen, 3)
+	c.Check(s.fakeBackend.ops[1].action.Channel, Equals, "18/stable")
+	c.Check(s.fakeBackend.ops[1].action.CohortKey, Equals, "some-cohort-key")
+	// fakeStore maps a non-empty cohort to revision 666
+	c.Check(snapsup.SideInfo.Revision, Equals, snap.R(666))
+}
+
+func (s *ltsDownloadSuite) TestRedirectCohortUnsatisfiable(c *C) {
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18","18":"18"}}`, 0)
+	snapsup := snapdSnapsup(blobPath, "latest/stable")
+	snapsup.CohortKey = "some-cohort-key"
+	model := ModelWithBase("core18")
+	s.AddCleanup(snapstatetest.MockDeviceModel(model))
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "snapd" {
+			return fmt.Errorf("no revision in cohort for channel")
+		}
+		return nil
+	}
+
+	err := s.callRedirect(snapsup, model)
+	c.Assert(err, ErrorMatches, `cannot resolve snapd LTS redirect to channel "18/stable": .*`)
+	c.Check(snapsup.Channel, Equals, "latest/stable")
+	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
+	c.Check(s.fakeStore.downloads, HasLen, 0)
 }
 
 func (s *ltsDownloadSuite) TestRedirectPassesValidationSets(c *C) {

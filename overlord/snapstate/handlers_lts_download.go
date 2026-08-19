@@ -105,13 +105,16 @@ func maybeRedirectSnapdToLTSTrack(
 		return fmt.Errorf("cannot get validation sets for snapd LTS redirect: %v", err)
 	}
 
-	// Second store action on the LTS track. Leave RevOpts.Revision empty to
-	// select the latest revision on the LTS track. Drop the cohort key: it was
-	// associated with the original channel and is not valid on the LTS track.
+	// Second store action on the LTS track. Leave RevOpts.Revision empty so
+	// the store selects a revision on that channel. Keep the cohort key: a
+	// normal in-cohort channel change already sends CohortKey with the new
+	// channel, and the store either returns the cohort-frozen revision for
+	// the LTS track or errors (same pattern as validation sets).
 	sar, err := sendOneInstallActionUnlocked(ctx, st, StoreSnap{
 		InstanceName: snapsup.InstanceName(),
 		RevOpts: RevisionOptions{
 			Channel:        inspected.targetChannel,
+			CohortKey:      snapsup.CohortKey,
 			ValidationSets: vsets,
 		},
 	}, Options{})
@@ -167,6 +170,10 @@ func maybeRedirectSnapdToLTSTrack(
 // after a snapd store download. Only operational gating lives here.
 func needsSnapdLTSTrackResolve(snapsup *SnapSetup, model *asserts.Model) bool {
 	if snapsup == nil || snapsup.Type != snap.TypeSnapd {
+		return false
+	}
+	// Explicit --channel= / --revision= win over LTS remap.
+	if snapsup.ExplicitChannel || snapsup.ExplicitRevision {
 		return false
 	}
 	// Empty SnapID means unasserted snap (sideloaded or from a local path);

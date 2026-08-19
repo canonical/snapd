@@ -680,3 +680,7 @@ func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 func (r *RevisionOptions) ResolveChannel(instanceName, fallback string, deviceCtx DeviceContext, unasserted bool) error {
 	return r.resolveChannel(instanceName, fallback, deviceCtx, unasserted)
 }
+
+func (r *RevisionOptions) ResolveChannelForStore(instanceName, fallback string, deviceCtx DeviceContext) error {
+	return r.resolveChannelForStore(instanceName, fallback, deviceCtx)
+}

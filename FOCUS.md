@@ -117,13 +117,26 @@ trust `DownloadInfo` and skip the squashfs open.
 | Manual/auto **refresh** | `UpdateWithGoal` | **Yes** (when gated) | normal download pipeline |
 | **Path install** (seed, sideload) | `targetForPathSnap` | **No** | offline fixed blob; don't block seeding |
 | **Local revision refresh** | `targetFromLocalSnapWithStoreComponents` | **No** | revision already on disk |
-| **`Switch`** | `Switch` → `resolveChannel` | **No** | lockdown (BB3) only; no download task |
+| **`Switch`** | `Switch` → `resolveChannel` | **No** | no LTS lockdown (explicit admin action); kernel/gadget model pins still apply; no download task |
 | **Remodel snapd** | `remodelSnapdSnapTasks` | Indirect | BB4b pre-remap at planning; then store path goes through `doDownloadSnap` |
 
 **Compiled-in policy (planning side, complementary):**
-`RevOpts.resolveChannel` → `ltstrack` at `validateAndInitStoreUpdates` /
-`validateAndPrune`. Consults the **running** snapd's map (candidate=nil).
-Best-effort; the download intercept is the real enforcement.
+Store install/refresh (`resolveChannelForStore`) remaps onto the LTS
+track when the running snapd's map can Resolve **and** the caller did
+not pass `--channel=` / `--revision=`. An explicit channel or revision
+wins; LTS is skipped for that operation. Path install (`resolveChannel`)
+still rejects a mismatch unless the channel was explicit. Not applied
+to `Switch`. Best-effort; the download intercept is the real enforcement
+for unaware snapd.
+
+Refresh-all / auto-refresh (`initRefreshAllStoreUpdates`) remaps the
+same way, so an aware daemon already at the tip of `latest` still asks
+the store for LTS (download or `switch-snap-channel`). Unaware snapd
+still needs a new `latest` blob.
+
+The intercept keeps `snapsup.CohortKey` on the second LTS `SnapAction`
+(same as an in-cohort channel refresh). Store error if the cohort has no
+revision on the LTS track.
 
 ---
 
@@ -230,3 +243,6 @@ tests, and others).
 4. **Re-download bandwidth.** Tolerate the double download for v1.
    Follow-up: metadata-only pre-fetch (e.g. just the `info` file) or a
    store hint analogous to `redirect-channel` but honoured on refresh.
+5. **Refresh-all LTS remap.** **Resolved:** `initRefreshAllStoreUpdates`
+   calls `maybeRemapSnapdLTSChannel`. Auto-refresh and `snap refresh`
+   with no names match `snap refresh snapd`. See DESIGN.md open question 9.

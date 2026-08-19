@@ -168,9 +168,16 @@ reboots the machine.
   can only move to an asserted store revision via `--amend`.
 
 ### 3.6 Existing field track-switch mechanisms (verdict)
-- Local admin `snap switch/refresh snapd --channel=...`: **works today**;
-  BB3 lockdown now rejects channels that the running snapd's view says are
-  policy-violating. Real enforcement is at download.
+- Local admin `snap switch snapd --channel=...`: **allowed**; LTS
+  lockdown is not applied (explicit action, no download). The next
+  store refresh still hits the download intercept and may remap back
+  onto the LTS track.
+- Local admin `snap refresh snapd --channel=...`: explicit `--channel=`
+  wins; LTS does not remap or intercept. `snap refresh snapd` without
+  `--channel=` remaps onto the LTS track when the running map can
+  Resolve. Unknown tracks still reject when the channel was not
+  explicit. Path installs still reject a mismatch unless the channel
+  was explicit. Real enforcement for unaware snapd is at download.
 - Remodel to a model with snapd `default-channel`: **works** (signed
   model); BB4b pre-remaps at planning.
 - Store `redirect-channel`: honored on install/seed, **ignored on refresh**
@@ -276,10 +283,12 @@ reboots the machine.
    channel into `seed.yaml`; no reroute needed.
 5. Remodel to a different UC version - BB4b pre-remaps; any store-fetched
    snapd in the remodel also goes through the download intercept.
-6. Admin sets a non-permitted track - BB3 rejects at planning using the
-   running snapd's view; if BB3 passes (running snapd doesn't yet know),
-   the download intercept catches it.
-7. Unasserted snapd - lockdown skipped (`snapIDForSnapdChannelLockdown`);
+6. Admin sets a non-permitted track - unknown tracks reject at planning
+   (`ErrLTSNoTrack`). Remappable tracks (`latest` → LTS) are rewritten on
+   the store path so the first `SnapAction` is already on LTS; path
+   installs still reject a mismatch. If planning cannot Resolve (running
+   snapd doesn't yet know), the download intercept catches it.
+7. Unasserted snapd - lockdown skipped (`unasserted`);
    download intercept also skipped (gated on asserted SnapID); `--amend`
    policy not yet implemented.
 8. UC16 / `core`-acts-as-snapd - hard error in `systemBootBaseAllowed`;
@@ -382,14 +391,14 @@ candidate at their call site.
 
 | BB | Where | What it does |
 |----|-------|--------------|
-| **BB3** runtime lockdown | `overlord/snapstate/snapstate.go:resolveChannel` | For snapd installs/switches/refreshes with a non-empty SnapID, calls `Resolve(model, effectiveChannel, nil)` and compares input vs output. `ErrLTSNoTrack` → `cannot use snapd channel %q: LTS policy rejects track %q`. Different output → `cannot use snapd channel %q: LTS policy requires %q`. Skipped for unasserted snapd via `snapIDForSnapdChannelLockdown`. |
+| **BB3** runtime lockdown / store remap | `overlord/snapstate/snapstate.go:RevisionOptions.resolveChannel` / `resolveChannelForStore` | For asserted snapd **path** install, `resolveChannel` calls `Resolve(model, effectiveChannel, nil)` and **rejects** a mismatch (`cannot use snapd channel %q: LTS policy requires %q`) because the blob cannot be retargeted. For store install/refresh, `resolveChannelForStore` **remaps** onto the LTS channel so the first `SnapAction` is already LTS+cohort (same as `snap refresh --channel=` while in-cohort). `ErrLTSNoTrack` → `cannot use snapd channel %q: LTS policy rejects track %q` on both paths. Skipped when `unasserted` (`isUnasserted` from empty SnapID) on the path path. **Not applied to `Switch`** (explicit admin action; no download). |
 | **BB4a** image/firstboot seed | `seed/seedwriter/writer.go:resolveChannel` | For snapd in the seed, calls `Resolve(w.model, resChannel, nil)` after standard resolution. Bakes the LTS-remapped channel into `seed.yaml`. Skips: unasserted snapd in model, path-provided snapd, **UC16 models** (base `core` or empty). |
 | **BB4b** remodel | `overlord/devicestate/devicestate.go:remodelSnapdSnapTasks` | For the new model's snapd default-channel, calls `Resolve(rm.newModel, newSnapdChannel, nil)` unless snapd is unasserted in the new model. The remapped channel feeds `maybeInstallOrUpdate`. Unknown-track or UC16 errors fail the remodel at task-build time before any state change. |
 
 Note: BB3 cannot be authoritative because the *running* snapd may not know
-the candidate's LTS map. BB3's job is admin UX (reject obviously wrong
-inputs early) and consistency for planning. The real enforcement is at
-download.
+the candidate's LTS map. Store planning remaps when the running map can
+Resolve (fail early on LTS+cohort / LTS+v-sets). Path installs reject a
+mismatch. The real enforcement for unaware snapd is at download.
 
 ### 5.4 The download-stage driver (primary mechanism)
 
@@ -420,7 +429,8 @@ right after the blob lands and **before** the task persists the updated
 
 **Redirect** (when remap needed):
 - Issue a second `SnapAction` on the LTS track via `sendOneInstallActionUnlocked`.
-  Cohort key dropped (scoped to original channel); validation sets re-fetched.
+  Cohort key kept (same as a normal in-cohort channel change); validation sets
+  re-fetched. Store error if the cohort has no revision on the LTS track.
 - Pre-flight `patch.Level` check against the downloaded LTS blob
   (`checkSnapdLTSTargetPatchLevel`); incompatible frozen revision rejected before
   snap-setup is rewritten.
@@ -441,7 +451,9 @@ right after the blob lands and **before** the task persists the updated
   prereq gate in `needsSnapdLTSTrackResolve` makes this explicit.
 - Provenance: `snapsup.ExpectedProvenance = sar.SnapProvenance` keeps snap-setup
   fully consistent with the redirected snap.
-- Cohort key: dropped — it was associated with the original channel.
+- Cohort key: kept on the second `SnapAction` and in snap-setup — same
+  contract as `snap refresh --channel=...` while in-cohort. The store
+  errors if the cohort has no freeze for the LTS channel.
 - Epoch: snapd carries epoch 0; `checkEpochs` in `doMountSnap` catches any
   incompatibility after the redirect.
 - Re-refresh (`doCheckReRefresh`): filters by epoch diff only; no spurious re-refresh
@@ -485,7 +497,7 @@ right after the blob lands and **before** the task persists the updated
 | 3 | First boot from old-model image on ESM UC | Path-install at firstboot bypasses download intercept; first store-driven refresh post-firstboot reroutes |
 | 4 | First boot from correctly-built ESM image | BB4a at image build → `seed.yaml` carries LTS track → firstboot no-op |
 | 5 | Remodel to different UC version | BB4b pre-remap + download intercept on any store-fetched snapd |
-| 6 | Admin sets non-permitted track | BB3 rejects via running snapd's view; download intercept catches if BB3 passes |
+| 6 | Admin sets non-permitted track | Unknown tracks reject at planning; remappable tracks remap on the store path; download intercept catches if planning cannot Resolve |
 | 7 | Unasserted snapd / `--amend` | BB3 + download intercept skip via SnapID check; `--amend`-onto-ESM not yet implemented |
 | 8 | UC16 / `core`-acts-as-snapd | UC16 hard error in `systemBootBaseAllowed`; seedwriter skip |
 | 9 | Classic / hybrid | Scope flags default `false` |
@@ -506,7 +518,7 @@ install).
 |----------|---------------------------|----------------|
 | **Case 4** (ESM image) | BB4a already wrote LTS track into `seed.yaml`; firstboot install is a no-op for LTS | none needed |
 | **Case 3** (old image, LTS not yet known at build) | Seeded snapd's LTS map didn't cover the UC version at image build; BB4a passed through; firstboot installs on `latest/<risk>` | First store-driven refresh post-firstboot triggers download intercept → reroute |
-| Inconsistent seed (admin/build mistake) | BB4a bypassed or hand-edited; BB3 errors at firstboot: `cannot use snapd channel "X": LTS policy requires "Y"`; firstboot fails loudly | requires image fix |
+| Inconsistent seed (admin/build mistake) | BB4a bypassed or hand-edited; path-install BB3 errors at firstboot: `cannot use snapd channel "X": LTS policy requires "Y"`; firstboot fails loudly | requires image fix |
 
 ### 5.9 Remodel trace
 
@@ -516,13 +528,15 @@ install).
 2. **BB4b** remap via `Resolve(rm.newModel, ..., nil)` (skipped if
    snapd unasserted in new model).
 3. Dispatch via `maybeInstallOrUpdate`:
-   - Not installed → store or path install goal; BB3 fires at
-     `resolveChannel`; download intercept fires for store goal.
-   - Installed, channel-only change → `snapstate.Switch`; BB3 fires; no
+   - Not installed → store or path install goal; store planning remaps
+     (`resolveChannelForStore`); path install still rejects a mismatch
+     (`resolveChannel`); download intercept fires for store goal.
+   - Installed, channel-only change → `snapstate.Switch`; no BB3 (Switch
+     does not apply LTS lockdown); BB4b already remapped the channel; no
      `doDownloadSnap` (no refresh), so the download intercept does not
      run.
-   - Installed, channel+revision change → `UpdateOne` (refresh path); BB3
-     + download intercept.
+   - Installed, channel+revision change → `UpdateOne` (refresh path); store
+     planning remaps + download intercept.
    - No changes → no-op.
 
 Unknown tracks or UC16 in the new model error at step 2, before any state
@@ -558,6 +572,36 @@ running snapd's view) is the only line of defence.
   already installed, never switched" long-tail case (case 2): auto-refresh
   runs ~4×/day and any new snapd revision triggers the download intercept.
   BB5 is belt-and-suspenders.
+
+### Pinning / holding vs LTS remap
+
+Treat the intercept as: tracking is already the LTS channel (as if
+`snap switch --channel=<lts>` had just run), then finish the store
+operation under normal rules. Tracking in state is committed later at
+link from rewritten `snapsup.Channel`.
+
+| Mechanism | When LTS switch runs | Blocks / defers |
+|-----------|----------------------|-----------------|
+| Pinned track | N/A for snapd | No |
+| Model default-channel | Yes; reinterpreted to LTS track (BB4a/BB4b) | No |
+| Cohort | Yes. Store planning remaps to LTS when the running map can Resolve, so the first `SnapAction` is LTS+cohort. The download intercept keeps `CohortKey` on the second action when planning could not remap (unaware snapd, or refresh-all still on `latest`). Same contract as `snap refresh --channel=...` while in-cohort. | Yes, if the store cannot resolve that cohort on the LTS channel (planning failure when remapped; download-task failure on intercept). No fallback to the planned channel. |
+| Explicit `--channel=` (manual) | No; skip remap and intercept. Tracking follows the requested channel. Later auto-refresh (no `--channel`) can still switch. | N/A |
+| Explicit `--revision` (manual) | No; skip intercept (revision `N` is the blob). Auto-refresh never sets `--revision`. | N/A |
+| Hold / refresh-control | No special LTS override; a held snapd has no download this cycle | No (next unheld refresh can switch) |
+| Patch level | Yes, if the LTS blob's `patch.Level` is compatible | Yes, if the target is below state patch level |
+| Epoch | N/A while snapd epoch is 0 | N/A |
+| Validation sets | Yes; enforced sets are passed on the second action. A revision pin wins (drops cohort and channel) | Yes, if rules are unsatisfiable |
+
+When the running map can Resolve, store planning remaps so the first
+`SnapAction` is already **LTS + cohort + v-sets**, unless the caller
+requested `--channel=` or `--revision=` (those pins win; LTS is skipped
+for that operation). Path installs still reject a mismatch unless the
+channel was explicit. That remap runs on `snap refresh snapd` /
+`snap install snapd` via `resolveChannelForStore`, and on refresh-all /
+auto-refresh via `initRefreshAllStoreUpdates` (so “already at tip of
+`latest`” still asks the store for LTS). Unaware snapd cannot remap at
+planning; the intercept covers it only when a `download-snap` actually
+runs.
 
 ### Policy primitives
 
@@ -642,6 +686,13 @@ running snapd's view) is the only line of defence.
 8. **Spec wording confirmation:** `default-channel: latest/<track>` ==
    `latest/<risk>` → `<UC>/<risk>` — still needs spec/product confirmation.
 
+9. **Refresh-all does not remap snapd onto LTS.** **Resolved:**
+   `initRefreshAllStoreUpdates` calls `maybeRemapSnapdLTSChannel` so
+   auto-refresh and `snap refresh` with no names match `snap refresh
+   snapd`. If snapd is already at the tip of `latest` and that revision
+   is also the LTS tip, planning still builds a `switch-snap-channel`
+   task. Unaware snapd remains intercept-only (needs a new `latest` blob).
+
 ---
 
 ## 7. Implementation plan and status
@@ -652,7 +703,7 @@ running snapd's view) is the only line of defence.
 | 1 | `snap/ltstrack`: `Resolve(model, channel, candidate)` + typed errors (`LTSInternalError`, `LTSNotAllowedError`, `LTSBaseNotManagedError`, `LTSNoTrackError`) | **done** |
 | 2 | `snap.SnapdLTSTrackMapFromSnapFile` (candidate) + `parseSnapdLTSTracks` | **done** |
 | 3 | `snap.SnapdLTSTrackMapFromThis` + `snapdtool.InternalLibExecDir` + `SnapdVersionFromInfoFile` for running-snapd info file | **done** |
-| 4 | BB3 runtime lockdown (`resolveChannel`, candidate=nil) + `snapIDForSnapdChannelLockdown` | **done** |
+| 4 | BB3: path-install lockdown (`RevisionOptions.resolveChannel`) + store-planning remap (`resolveChannelForStore`); `unasserted` / `isUnasserted`; not applied to `Switch` | **done** |
 | 5 | BB4a seedwriter remap (candidate=nil, UC16 skip) | **done** |
 | 6 | BB4b remodel remap (candidate=nil) | **done** |
 | 7 | `doDownloadSnap` reroute: gate + candidate squashfs inspect + second `SnapAction` + re-download + snap-setup rewrite (`SideInfo`, `DownloadInfo`, `Channel`, `ExpectedProvenance`) + task progress notification | **done** |
@@ -660,10 +711,11 @@ running snapd's view) is the only line of defence.
 | 9 | Fast-path gating: `snapdLTSTrackAlreadyCorrect` skips squashfs open when running snapd's map already confirms the channel is correct | **done** |
 | 10 | Failure-mode policy: `LTSBaseNotManagedError` (base not yet onboarded) → pass-through everywhere; `LTSNotAllowedError`/`LTSInternalError` → pass-through in BB4a/BB4b; `LTSNoTrackError` (base managed, track forbidden) → reject in BB3 | **done** |
 | 11 | BB7 downgrade safety: `patch.Level` pre-flight on downloaded LTS blob before snap-setup rewrite | **done** |
-| 12 | Architectural review (D1–D5): provenance rewrite, cohort key drop, prereq gate, epoch invariant, re-refresh no-op, prune safety | **done** |
+| 12 | Architectural review (D1–D5): provenance rewrite, cohort key kept, prereq gate, epoch invariant, re-refresh no-op, prune safety | **done** |
 | 13 | BB5 ensure-driven safety net for installed-aware-snapd-on-wrong-track-no-refresh | **deferred** (re-evaluate after spread §14) |
 | 14 | Spread validation: Case 3 bootstrap (old snapd on latest, candidate carries map, single change lands on UC track); ordering before other snaps; BB3 lockdown rejection; image-build track selection (BB4a); downgrade across redirect boot; missing-map fallback; quiet-device gap simulation | **open** |
 | 15 | Branch hygiene: branch carries only LTS-related changes — no unrelated files present | **done** |
+| 16 | Refresh-all / auto-refresh LTS remap: `initRefreshAllStoreUpdates` remaps snapd onto LTS when the running map can Resolve, so “already at tip of `latest`” still switches | **done** |
 
 ---
 

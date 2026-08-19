@@ -112,6 +112,14 @@ type SnapSetup struct {
 
 	CohortKey string `json:"cohort-key,omitempty"`
 
+	// ExplicitChannel is set when the caller requested a channel
+	// (--channel= / API "channel"). LTS policy must not override it.
+	ExplicitChannel bool `json:"explicit-channel,omitempty"`
+
+	// ExplicitRevision is set when the caller requested a revision
+	// (--revision= / API "revision"). LTS policy must not override it.
+	ExplicitRevision bool `json:"explicit-revision,omitempty"`
+
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
 	//

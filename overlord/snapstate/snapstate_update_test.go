@@ -1291,8 +1291,9 @@ func (s *snapmgrTestSuite) testUpdateAmendRunThrough(c *C, tryMode bool, compone
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "channel-for-components",
-		UserID:  s.user.ID,
+		Channel:         "channel-for-components",
+		ExplicitChannel: true,
+		UserID:          s.user.ID,
 
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
@@ -1571,9 +1572,10 @@ func (s *snapmgrTestSuite) testUpdateRunThrough(c *C, refreshAppAwarenessUX bool
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:   "some-channel",
-		CohortKey: "some-cohort",
-		UserID:    s.user.ID,
+		Channel:         "some-channel",
+		ExplicitChannel: true,
+		CohortKey:       "some-cohort",
+		UserID:          s.user.ID,
 
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
@@ -1963,8 +1965,9 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C, refreshApp
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "some-channel",
-		UserID:  s.user.ID,
+		Channel:         "some-channel",
+		ExplicitChannel: true,
+		UserID:          s.user.ID,
 
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
@@ -2323,8 +2326,9 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "18/edge",
-		UserID:  s.user.ID,
+		Channel:         "18/edge",
+		ExplicitChannel: true,
+		UserID:          s.user.ID,
 
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
@@ -3560,12 +3564,13 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel:   "channel-for-7/stable",
-		UserID:    s.user.ID,
-		Type:      "app",
-		PlugsOnly: true,
-		Version:   "some-snapVer",
-		SideInfo:  snapsup.SideInfo,
+		Channel:         "channel-for-7/stable",
+		ExplicitChannel: true,
+		UserID:          s.user.ID,
+		Type:            "app",
+		PlugsOnly:       true,
+		Version:         "some-snapVer",
+		SideInfo:        snapsup.SideInfo,
 		Flags: snapstate.Flags{
 			Transaction: client.TransactionPerSnap,
 		},
@@ -3675,12 +3680,13 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationRunThroug
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Check(snapsup, DeepEquals, snapstate.SnapSetup{
-		SideInfo:  snapsup.SideInfo,
-		Channel:   "channel-for-7/stable",
-		UserID:    s.user.ID,
-		Type:      "app",
-		PlugsOnly: true,
-		Version:   "some-snapVer",
+		SideInfo:        snapsup.SideInfo,
+		Channel:         "channel-for-7/stable",
+		ExplicitChannel: true,
+		UserID:          s.user.ID,
+		Type:            "app",
+		PlugsOnly:       true,
+		Version:         "some-snapVer",
 		Flags: snapstate.Flags{
 			IgnoreValidation: true,
 			Transaction:      client.TransactionPerSnap,
@@ -15718,8 +15724,9 @@ func (s *snapmgrTestSuite) TestUpdateBackToPrevRevision(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
+		Channel:          channel,
+		ExplicitRevision: true,
+		UserID:           s.user.ID,
 
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", instanceName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,
@@ -16408,8 +16415,9 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: channel,
-		UserID:  s.user.ID,
+		Channel:          channel,
+		ExplicitRevision: true,
+		UserID:           s.user.ID,
 
 		SnapPath:  filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%v.snap", snapName, prevSnapRev)),
 		SideInfo:  snapsup.SideInfo,

@@ -7860,6 +7860,412 @@ func (s *snapmgrTestSuite) TestResolveChannelSnapdLTSLockdown(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestResolveChannelForStoreSnapdLTSRemap(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+
+	model := ModelWithBase("core18")
+	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: model}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, tc := range []struct {
+		cur      string
+		new      string
+		explicit bool
+		exp      string
+		err      string
+		snap     string
+	}{
+		{cur: "18/stable", new: "18/edge", exp: "18/edge"},
+		{cur: "18/stable", new: "20/stable", err: `cannot use snapd channel "20/stable": LTS policy rejects track "20"`},
+		{cur: "18/stable", new: "latest/edge", exp: "18/edge"},
+		{cur: "", new: "stable", exp: "18/stable"},
+		{cur: "18/stable", new: "latest/edge", explicit: true, exp: "latest/edge"},
+		{cur: "18/stable", new: "20/stable", explicit: true, exp: "20/stable"},
+		{snap: "some-snap", cur: "stable", new: "latest/edge", exp: "latest/edge"},
+	} {
+		snapName := "snapd"
+		if tc.snap != "" {
+			snapName = tc.snap
+		}
+		revOpts := snapstate.RevisionOptions{Channel: tc.new, ExplicitChannel: tc.explicit}
+		err := revOpts.ResolveChannelForStore(snapName, tc.cur, deviceCtx)
+		ch := revOpts.Channel
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, Commentf("%#v", tc))
+			continue
+		}
+		c.Check(err, IsNil, Commentf("%#v", tc))
+		c.Check(ch, Equals, tc.exp, Commentf("%#v", tc))
+	}
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapdLTSRemapsChannelKeepsCohort(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", nil)
+
+	opts := &snapstate.RevisionOptions{CohortKey: "some-cohort-key"}
+	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	te, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(te)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
+	c.Check(snapsup.ExplicitChannel, Equals, false)
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapdExplicitChannelKeepsChannelAndCohort(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", nil)
+
+	opts := &snapstate.RevisionOptions{Channel: "latest/stable", CohortKey: "some-cohort-key"}
+	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	te, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(te)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "latest/stable")
+	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
+	c.Check(snapsup.ExplicitChannel, Equals, true)
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "latest/stable")
+	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapdLTSCohortUnsatisfiableFailsAtPlanning(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "snapd" {
+			return fmt.Errorf("no revision in cohort for channel")
+		}
+		return nil
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", nil)
+
+	opts := &snapstate.RevisionOptions{Channel: "latest/stable", CohortKey: "some-cohort-key"}
+	_, err := snapstate.Install(context.Background(), s.state, "snapd", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `.*no revision in cohort for channel.*`)
+	c.Check(s.fakeStore.downloads, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdLTSRemapsChannelKeepsCohort(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snapd",
+			SnapID:   "snapd-snap-id",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "latest/stable",
+		CohortKey:       "some-cohort-key",
+		SnapType:        "snapd",
+	})
+
+	ts, err := snapstate.Update(s.state, "snapd", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	te, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(te)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdExplicitChannelKeepsChannelAndCohort(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snapd",
+			SnapID:   "snapd-snap-id",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "18/stable",
+		CohortKey:       "some-cohort-key",
+		SnapType:        "snapd",
+	})
+
+	ts, err := snapstate.Update(s.state, "snapd", &snapstate.RevisionOptions{
+		Channel:   "latest/edge",
+		CohortKey: "some-cohort-key",
+	}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	te, err := ts.Edge(snapstate.SnapSetupEdge)
+	c.Assert(err, IsNil)
+	snapsup, err := snapstate.TaskSnapSetup(te)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "latest/edge")
+	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
+	c.Check(snapsup.ExplicitChannel, Equals, true)
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "latest/edge")
+	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
+}
+
+func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsChannelKeepsCohort(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snapd",
+			SnapID:   "snapd-snap-id",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "latest/stable",
+		CohortKey:       "some-cohort-key",
+		SnapType:        "snapd",
+	})
+
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, nil)
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{"snapd"})
+	c.Assert(tts, Not(HasLen), 0)
+
+	var snapsup *snapstate.SnapSetup
+	for _, ts := range tts {
+		te, err := ts.Edge(snapstate.SnapSetupEdge)
+		if err != nil {
+			continue
+		}
+		snapsup, err = snapstate.TaskSnapSetup(te)
+		c.Assert(err, IsNil)
+		break
+	}
+	c.Assert(snapsup, NotNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
+}
+
+func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsWhenAlreadyAtLatestTip(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// fake store refresh default is revision 11 on any channel, so this is
+	// already the LTS tip while still tracking latest.
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snapd",
+			SnapID:   "snapd-snap-id",
+			Revision: snap.R(11),
+		}}),
+		Current:         snap.R(11),
+		TrackingChannel: "latest/stable",
+		SnapType:        "snapd",
+	})
+
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, &snapstate.Flags{IsAutoRefresh: true})
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{"snapd"})
+	c.Assert(tts, Not(HasLen), 0)
+
+	var switchTask *state.Task
+	for _, ts := range tts {
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "switch-snap-channel" {
+				switchTask = t
+			}
+		}
+	}
+	c.Assert(switchTask, NotNil)
+	snapsup, err := snapstate.TaskSnapSetup(switchTask)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+}
+
+func (s *snapmgrTestSuite) TestUpdateManySnapdLTSCohortUnsatisfiableFailsAtPlanning(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18", "18": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "snapd" {
+			return fmt.Errorf("no revision in cohort for channel")
+		}
+		return nil
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snapd",
+			SnapID:   "snapd-snap-id",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "latest/stable",
+		CohortKey:       "some-cohort-key",
+		SnapType:        "snapd",
+	})
+
+	_, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, nil)
+	c.Assert(err, ErrorMatches, `.*no revision in cohort for channel.*`)
+}
+
 func (s *snapmgrTestSuite) TestGadgetUpdateTaskAddedOnInstall(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()

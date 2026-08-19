@@ -309,10 +309,12 @@ func (inst *snapInstruction) setCompsFromRawMap() error {
 
 func (inst *snapInstruction) revnoOpts() *snapstate.RevisionOptions {
 	return &snapstate.RevisionOptions{
-		Channel:     inst.Channel,
-		Revision:    inst.Revision,
-		CohortKey:   inst.CohortKey,
-		LeaveCohort: inst.LeaveCohort,
+		Channel:          inst.Channel,
+		Revision:         inst.Revision,
+		CohortKey:        inst.CohortKey,
+		LeaveCohort:      inst.LeaveCohort,
+		ExplicitChannel:  inst.Channel != "",
+		ExplicitRevision: !inst.Revision.Unset(),
 	}
 }
 
