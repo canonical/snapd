@@ -21,7 +21,7 @@ prepare: |
                 # although classic snaps do not work out of the box on fedora,
                 # we still want to verify if the basics do work if the user
                 # symlinks /snap to $SNAP_MOUNT_DIR themselves
-                ln -sf "$SNAP_MOUNT_DIR" /snap
+                ln -sfn "$SNAP_MOUNT_DIR" /snap
                 tests.cleanup defer rm -f /snap
             fi
             "$TESTSTOOLS"/snaps-state install-local socket-activation-classic --classic
