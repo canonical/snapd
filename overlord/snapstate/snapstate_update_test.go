@@ -685,7 +685,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	c.Check(snapsup.Revision(), Equals, si4.Revision)
 }
 
-func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C) {
+func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -777,14 +777,6 @@ func (s *snapmgrTestSuite) testUpdateCanDoBackwards(c *C) {
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
-}
-
-func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
-	s.testUpdateCanDoBackwards(c)
-}
-
-func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsSkipBinaries(c *C) {
-	s.testUpdateCanDoBackwards(c)
 }
 
 func revs(seq []*sequence.RevisionSideState) []int {
@@ -1733,7 +1725,7 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
 		RealName: "services-snap",
@@ -1981,14 +1973,6 @@ func (s *snapmgrTestSuite) testParallelInstanceUpdateRunThrough(c *C) {
 		SnapID:   "services-snap-id",
 		Revision: snap.R(11),
 	}, nil))
-}
-
-func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
-	s.testParallelInstanceUpdateRunThrough(c)
-}
-
-func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThroughSkipBinaries(c *C) {
-	s.testParallelInstanceUpdateRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
@@ -2672,7 +2656,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 	c.Check(seen["core-snap-id"], Equals, 1)
 }
 
-func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -2868,14 +2852,6 @@ func (s *snapmgrTestSuite) testUpdateUndoRunThrough(c *C) {
 		Channel:  "",
 		Revision: snap.R(7),
 	}, nil))
-}
-
-func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
-	s.testUpdateUndoRunThrough(c)
-}
-
-func (s *snapmgrTestSuite) TestUpdateUndoRunThroughSkipBinaries(c *C) {
-	s.testUpdateUndoRunThrough(c)
 }
 
 func lastWithLane(tasks []*state.Task) *state.Task {

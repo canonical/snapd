@@ -1785,7 +1785,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) testRevertRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -1882,14 +1882,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C) {
 	}, nil))
 	c.Check(snapst.RevertStatus, HasLen, 0)
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
-}
-
-func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
-	s.testRevertRunThrough(c)
-}
-
-func (s *snapmgrTestSuite) TestRevertRunThroughSkipBinaries(c *C) {
-	s.testRevertRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
