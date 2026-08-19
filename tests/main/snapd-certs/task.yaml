@@ -14,6 +14,7 @@ environment:
     CERT: /etc/ssl/certs/ssl-cert-snakeoil.pem
     # uploading the core snap triggers OOM
     SNAPD_NO_MEMORY_LIMIT: 1
+    REMOTE_STORE: production
 
 execute: |
     if snap set system store-certs.certbad=hellothere; then

@@ -12,6 +12,8 @@ show_help() {
     echo "       store-state teardown-staging-store"
     echo "       store-state setup-enterprise-store"
     echo "       store-state teardown-enterprise-store"
+    echo "       store-state get-current-store"
+    echo "       store-state set-current-store <STORE>"
     echo "       store-state make-snap-installable [--noack ] [--extra-decl-json FILE] <DIR> <SNAP_PATH> [SNAP_ID]"
     echo "       store-state make-component-installable --snap-id <ID> --component-revision <REV> --snap-revision <REV> [--noack ] <DIR> <SNAP_PATH>"
     echo "       store-state init-fake-refreshes <DIR>"
@@ -291,6 +293,39 @@ setup_enterprise_store() {
         snap ack "$TESTSLIB"/assertions/snapd-enterprise-store.assert
         snap set core proxy.store="$ENTERPRISE_STORE_ID"
         snap set system store-certs.cert1="$(cat "$TESTSLIB"/certs/snapd-enterprise-store.crt)"
+    fi
+}
+
+teardown_enterprise_store() {
+    snap unset core proxy.store
+    snap unset system store-certs.cert1
+}
+
+set_current_store() {
+    local store="$1"
+    case "$store" in
+        enterprise)
+            setup_enterprise_store
+            ;;
+        production)
+            teardown_enterprise_store
+            ;;
+        *)
+            echo "store-state: unsupported store \"$store\"; supported values: enterprise, production" >&2
+            return 1
+            ;;
+    esac
+}
+
+get_current_store() {
+    if systemctl is-active --quiet fakestore; then
+        echo "fakestore"
+    elif snap get core proxy.store 2>/dev/null | grep -qF "$ENTERPRISE_STORE_ID"; then
+        echo "enterprise"
+    elif grep -qF "SNAPPY_USE_STAGING_STORE=1" "$STORE_CONFIG" 2>/dev/null; then
+        echo "staging"
+    else
+        echo "production"
     fi
 }
 

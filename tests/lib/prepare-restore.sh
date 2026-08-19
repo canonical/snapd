@@ -749,6 +749,15 @@ prepare_suite_each() {
     # Clean the dmesg log
     dmesg --read-clear
 
+    # Configure remote store to use in the test.
+    if [ -n "$REMOTE_STORE" ] && ( [ "$REMOTE_STORE" = enterprise ] || [ "$REMOTE_STORE" = production ]); then
+        CURRENT_STORE="$("$TESTSTOOLS"/store-state get-current-store)"
+        echo "$CURRENT_STORE" > "$RUNTIME_STATE_PATH/previous-store"
+        if [ "$CURRENT_STORE" != "$REMOTE_STORE" ]; then
+            "$TESTSTOOLS"/store-state set-current-store "$REMOTE_STORE"
+        fi
+    fi
+
     # Start fs monitor
     "$TESTSTOOLS"/fs-state start-monitor
 
@@ -888,6 +897,13 @@ restore_suite_each() {
     tests.invariant check
 
     "$TESTSTOOLS"/fs-state check-monitor
+
+    # Restore the initial store if it was changed during the test
+    PREVIOUS_STORE="$(cat "$RUNTIME_STATE_PATH/previous-store" 2>/dev/null || true)"
+    CURRENT_STORE="$("$TESTSTOOLS"/store-state get-current-store)"
+    if [ -n "$PREVIOUS_STORE" ] && [ "$CURRENT_STORE" != "$REMOTE_STORE" ]; then
+        "$TESTSTOOLS"/store-state set-current-store "$PREVIOUS_STORE"
+    fi
 }
 
 restore_suite() {
