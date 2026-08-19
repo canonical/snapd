@@ -354,21 +354,21 @@ var setGetTests = [][]setGetOp{{
 	`getunder one={"two":{"three":3}}`,
 }, {
 	// Invalid option names.
-	`set BAD=1 => invalid option name: "BAD"`,
-	`set 42=1 => invalid option name: "42"`,
-	`set .bad=1 => invalid option name: ""`,
-	`set bad.=1 => invalid option name: ""`,
-	`set bad..bad=1 => invalid option name: ""`,
-	`set one.bad--bad.two=1 => invalid option name: "bad--bad"`,
-	`set one.-bad.two=1 => invalid option name: "-bad"`,
-	`set one.bad-.two=1 => invalid option name: "bad-"`,
+	`set BAD=1 => invalid option name: must be dash separated lowercase alphanumerics: "BAD"`,
+	`set 42=1 => invalid option name: must be dash separated lowercase alphanumerics: "42"`,
+	`set .bad=1 => invalid option name: must be dash separated lowercase alphanumerics: ""`,
+	`set bad.=1 => invalid option name: must be dash separated lowercase alphanumerics: ""`,
+	`set bad..bad=1 => invalid option name: must be dash separated lowercase alphanumerics: ""`,
+	`set one.bad--bad.two=1 => invalid option name: must be dash separated lowercase alphanumerics: "bad--bad"`,
+	`set one.-bad.two=1 => invalid option name: must be dash separated lowercase alphanumerics: "-bad"`,
+	`set one.bad-.two=1 => invalid option name: must be dash separated lowercase alphanumerics: "bad-"`,
 	// Invalid keys nested in JSON objects.
-	`set one={"Bad":1} => invalid option name: "Bad"`,
-	`set one={"bad_key":1} => invalid option name: "bad_key"`,
-	`set one={"good":{"Bad":1}} => invalid option name: "Bad"`,
-	`set one=[{"Bad":1}] => invalid option name: "Bad"`,
-	`set one=[{"good":{"Bad":1}}] => invalid option name: "Bad"`,
-	`set one=[1,[{"Bad":1}]] => invalid option name: "Bad"`,
+	`set one={"Bad":1} => invalid field name: must be dash separated lowercase alphanumerics: "Bad"`,
+	`set one={"bad_key":1} => invalid field name: must be dash separated lowercase alphanumerics: "bad_key"`,
+	`set one={"good":{"Bad":1}} => invalid field name: must be dash separated lowercase alphanumerics: "Bad"`,
+	`set one=[{"Bad":1}] => invalid field name: must be dash separated lowercase alphanumerics: "Bad"`,
+	`set one=[{"good":{"Bad":1}}] => invalid field name: must be dash separated lowercase alphanumerics: "Bad"`,
+	`set one=[1,[{"Bad":1}]] => invalid field name: must be dash separated lowercase alphanumerics: "Bad"`,
 }}
 
 func (s *transactionSuite) TestSetGet(c *C) {
@@ -631,7 +631,7 @@ func (s *transactionSuite) TestExternalGetError(c *C) {
 		err := config.RegisterExternalConfig("some-snap", tc, func(key string) (any, error) {
 			return nil, nil
 		})
-		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name:.*")
+		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name.*")
 	}
 }
 
@@ -875,10 +875,10 @@ func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
 
 func (s *transactionSuite) TestOverlapsWithExternalConfigErr(c *C) {
 	_, err := config.OverlapsWithExternalConfig("invalid#", "valid")
-	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name: "invalid#"`)
+	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name: must be dash separated lowercase alphanumerics: "invalid#"`)
 
 	_, err = config.OverlapsWithExternalConfig("valid", "invalid#")
-	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid option name: "invalid#"`)
+	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid option name: must be dash separated lowercase alphanumerics: "invalid#"`)
 }
 
 func (s *transactionSuite) TestOverlapsWithExternalConfig(c *C) {
@@ -933,9 +933,9 @@ func (s *transactionSuite) TestBadFieldErrorCore26AndSystemSnap(c *C) {
 		val  any
 		err  string
 	}{
-		{snap: "system", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid option name: "Bad"`},
+		{snap: "system", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid field name: must be dash separated lowercase alphanumerics: "Bad"`},
 		{snap: "system", key: "opts", val: map[string]any{"good": 1}},
-		{snap: "my-snap", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid option name: "Bad"`},
+		{snap: "my-snap", key: "opts", val: map[string]any{"Bad": 1}, err: `invalid field name: must be dash separated lowercase alphanumerics: "Bad"`},
 		{snap: "my-snap", key: "opts", val: map[string]any{"good": 1}},
 	}
 
