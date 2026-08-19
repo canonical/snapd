@@ -1131,6 +1131,7 @@ func (s *fdeMgrSuite) TestStateUpdate(c *C) {
 	c.Check(containerRole.TPM2PCRProfile, DeepEquals, secboot.SerializedPCRProfile(`"serialized-profile"`))
 
 	err = st.UpdatePCRHandle("run+recover", 42)
+	c.Assert(err, IsNil)
 	runRecoverRole, hasRunRecoverRole = st.KeyslotRoles["run+recover"]
 	c.Assert(hasRunRecoverRole, Equals, true)
 
