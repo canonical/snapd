@@ -63,6 +63,16 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS+= withtestkeys
 endif
 
+# Export build tags via GOFLAGS so that dh_golang's "go list" call picks them
+# up. Without this, dh_golang fails because it calls "go list" without build
+# tags and hits packages that are excluded by nosecboot (e.g. secboot/keymgr,
+# which prepare-debian-build-tree used to strip). GOFLAGS applies to every go
+# command invocation, including the one inside dh_golang.
+comma := ,
+empty :=
+space := $(empty) $(empty)
+export GOFLAGS = -tags=$(subst $(space),$(comma),$(strip $(TAGS)))
+
 DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
 
 # /usr/lib/snapd/snap-{update-ns,gdbserver-shim} are always linked
@@ -159,9 +169,6 @@ override_dh_auto_build: snapd.defines.mk
 	$(file >data/info,$(data__info))
 	# Build golang bits
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
-
-	# Prepare the build tree by removing code not used for Debian builds
-	$(MAKE) -f packaging/snapd.mk prepare-debian-build-tree sourcedir=_build/src/$(DH_GOPKG) SNAPD_DEFINES_DIR=$(CURDIR)
 
 	# and build, we cannot use modules as packaging on Debian requires us to use
 	# dependencies from the distro, and this would require further updates to the
