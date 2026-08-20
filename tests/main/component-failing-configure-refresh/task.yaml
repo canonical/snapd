@@ -1,0 +1,132 @@
+summary: Test undo of a component refresh that discards an old revision when the configure hook fails
+
+details: |
+  This test is a regression test for two bugs that were triggered when
+  refreshing a snap that has components and a snap-wide configure hook, and the
+  configure hook fails.
+
+  Face 1: when the refresh also garbage-collects an old snap revision in the
+  same change, the old revision's components are unlinked (unlink-component) and
+  then the old revision is removed from the sequence by discard-snap (which has
+  no undo handler). When the configure hook then fails, the undo of
+  unlink-component used to fail with "internal error while undo unlink
+  component: snap revision is not in the sequence", leaving the state
+  inconsistent. The undo must now be a clean no-op.
+
+  Face 2: the on-disk sequence file (/var/lib/snapd/sequence/<snap>.json) is
+  written by link-snap before the components are linked, and used to never be
+  updated afterwards, so it lacked the components of the freshly installed
+  revision. It must now record them.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*-64*, fedora-*]
+
+# the failure/undo paths here can be slow under load
+kill-timeout: 5m
+
+environment:
+  SNAP_NAME: test-snap-comp-conf
+  SEQ_FILE: /var/lib/snapd/sequence/test-snap-comp-conf.json
+
+prepare: |
+  snap pack test-snap
+  snap pack comp-one
+  snap pack comp-two
+
+restore: |
+  snap unset system refresh.retain
+  if snap list "$SNAP_NAME" 2>/dev/null; then
+    snap remove --purge "$SNAP_NAME"
+  fi
+  rm -f test-snap-comp-conf_*.snap test-snap-comp-conf+*.comp install.err tasks.out change.out
+
+execute: |
+  # keep at most 2 revisions so that the third install discards the oldest one
+  snap set system refresh.retain=2
+
+  echo "Install the snap with its components (revision x1)"
+  snap install --dangerous \
+    ./test-snap-comp-conf_1.0_all.snap \
+    ./test-snap-comp-conf+comp-one_1.0.comp \
+    ./test-snap-comp-conf+comp-two_1.0.comp
+
+  snap list "$SNAP_NAME" | awk 'NR != 1 { print $3 }' | MATCH x1
+  snap run "$SNAP_NAME" comp-one
+  snap run "$SNAP_NAME" comp-two
+
+  echo "Face 2: the sequence file records the components for the current revision"
+  test -f "$SEQ_FILE"
+  grep -q '"revision":"x1"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-one"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-two"' "$SEQ_FILE"
+
+  echo "Refresh to revision x2 (configure hook succeeds)"
+  snap install --dangerous \
+    ./test-snap-comp-conf_1.0_all.snap \
+    ./test-snap-comp-conf+comp-one_1.0.comp \
+    ./test-snap-comp-conf+comp-two_1.0.comp
+
+  snap list "$SNAP_NAME" | awk 'NR != 1 { print $3 }' | MATCH x2
+
+  echo "Face 2: after the refresh the sequence file records components for x2"
+  grep -q '"revision":"x2"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-one"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-two"' "$SEQ_FILE"
+
+  echo "Make the configure hook fail on the next refresh"
+  # a marker file is used (not a config option) because setting a config option
+  # would itself run the configure hook and fail immediately. $SNAP_COMMON is
+  # shared across all revisions, so the new revision's configure hook sees it.
+  mkdir -p "/var/snap/$SNAP_NAME/common"
+  touch "/var/snap/$SNAP_NAME/common/fail-configure"
+
+  echo "Refresh to revision x3; the old x1 is discarded in the same change and the configure hook fails"
+  if snap install --dangerous \
+    ./test-snap-comp-conf_1.0_all.snap \
+    ./test-snap-comp-conf+comp-one_1.0.comp \
+    ./test-snap-comp-conf+comp-two_1.0.comp 2> install.err; then
+      echo "expected the refresh to fail due to the failing configure hook"
+      exit 1
+  fi
+
+  echo "Face 1: the failure is the configure hook, not an internal undo error"
+  not grep -q "is not in the sequence" install.err
+
+  echo "Face 1: the change settles to Error instead of getting stuck in the undo"
+  # pick the most recent change for this snap that is in Error state
+  change="$(snap changes | awk -v n="$SNAP_NAME" '$2 == "Error" && $0 ~ n { print $1; exit }')"
+  test -n "$change"
+  snap tasks "$change" > tasks.out
+  grep -q "Run configure hook" tasks.out
+  # no task must be left in Doing/Undoing state once the change has settled
+  not grep -qE "^(Doing|Undoing)" tasks.out
+  # the task that failed is the configure hook
+  grep "Run configure hook" tasks.out | MATCH "^Error"
+
+  echo "Face 1: the undo of the discarded revision's unlink-component is a clean no-op"
+  # the task summary for unlinking a component is "Unlink component ...". none
+  # of these may be in Error state: the discarded old revision is no longer in
+  # the sequence, and undoing its unlink must be a no-op, not an error.
+  if grep "Unlink component" tasks.out | grep -q "^Error"; then
+      echo "an unlink-component task errored during undo:"
+      grep "Unlink component" tasks.out
+      exit 1
+  fi
+
+  echo "Face 1: the change error mentions the configure hook, not the internal undo error"
+  # the change error (from snap change) must point at the configure hook and
+  # must not mention the internal "not in the sequence" undo error. the hook's
+  # own output lives in the task log, which snap change folds away, so we only
+  # assert on the error summary here.
+  snap change "$change" > change.out
+  not grep -q "is not in the sequence" change.out
+  grep -q "run hook \"configure\"" change.out
+
+  echo "The snap was rolled back to x2 with its components intact"
+  snap list "$SNAP_NAME" | awk 'NR != 1 { print $3 }' | MATCH x2
+  snap run "$SNAP_NAME" comp-one
+  snap run "$SNAP_NAME" comp-two
+
+  echo "Face 2: the sequence file still matches the in-memory state after the rollback"
+  grep -q '"revision":"x2"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-one"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-two"' "$SEQ_FILE"

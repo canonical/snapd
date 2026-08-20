@@ -1,0 +1,24 @@
+name: test-snap-comp-conf
+version: '1.0'
+summary: A snap with components and a configure hook
+description: |
+  A snap with components and a configure hook whose failure can be
+  triggered via a configuration option, used to test the undo path of a
+  refresh that discards an old revision.
+architectures:
+- all
+base: core24
+confinement: strict
+grade: stable
+apps:
+  test-snap-comp-conf:
+    command: test
+components:
+  comp-one:
+    summary: test component
+    description: test component
+    type: standard
+  comp-two:
+    summary: test component
+    description: test component
+    type: standard
