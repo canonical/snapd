@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -120,6 +121,54 @@ func (s *linkCompSnapSuite) TestDoLinkComponent(c *C) {
 	s.state.Unlock()
 
 	s.testDoLinkComponent(c, snapName, snapRev, []*snap.ComponentSideInfo{})
+}
+
+// TestDoLinkComponentUpdatesSeqFile verifies that linking a component updates
+// the on-disk sequence file, so that it stays consistent with the component
+// information held in the state (the sequence file is written at snap link
+// time, before components are linked).
+func (s *linkCompSnapSuite) TestDoLinkComponentUpdatesSeqFile(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	snapRev := snap.R(1)
+	compRev := snap.R(7)
+
+	s.state.Lock()
+	// state does not contain the component yet
+	setStateWithOneSnap(s.state, snapName, snapRev)
+
+	// pretend that link-snap already wrote the sequence file (without
+	// components, as the component is not linked yet)
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Assert(snapstate.WriteSeqFile(snapName, &snapst), IsNil)
+
+	si := createTestSnapInfoForComponent(c, snapName, snapRev, compName)
+	ssu := createTestSnapSetup(si, snapstate.Flags{})
+
+	t := s.state.NewTask("link-component", "task desc")
+	cref := naming.NewComponentRef(snapName, compName)
+	csi := snap.NewComponentSideInfo(cref, compRev)
+	t.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
+	t.Set("snap-setup", ssu)
+	chg := s.state.NewChange("test change", "change desc")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(chg.Err(), IsNil)
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+
+	// the on-disk sequence file must now contain the linked component
+	seqContent, err := os.ReadFile(snap.SequenceFile(snapName))
+	c.Assert(err, IsNil)
+	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"mysnap","snap-id":"some-snap-id","revision":"1","components":[{"side-info":{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"},"type":"standard"}]}],"current":"1","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
 
 func (s *linkCompSnapSuite) TestDoLinkComponentOtherCompPresent(c *C) {
