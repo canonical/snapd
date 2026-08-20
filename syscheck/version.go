@@ -82,7 +82,7 @@ func checkKernelVersion() error {
 		}
 		fullKver := osutil.KernelVersion()
 		// kernel version looks like this: "3.10.0-957.el7.x86_64"
-		kver := strings.SplitN(fullKver, "-", 2)[0]
+		kver, _, _ := strings.Cut(fullKver, "-")
 		cmp, err := strutil.VersionCompare(kver, "3.18.0")
 		if err != nil {
 			logger.Noticef("cannot check kernel: %v", err)
