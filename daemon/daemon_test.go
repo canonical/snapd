@@ -1558,32 +1558,32 @@ func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 
 func (s *daemonSuite) TestRequestBodyPolicy(c *check.C) {
 	for _, tc := range []struct {
-		method, path, ct     string
-		wantRead, wantAction bool
+		method, path, ct                 string
+		wantBufferBody, wantDecodeAction bool
 	}{
-		{ct: "", wantRead: true, wantAction: true},
-		{ct: "application/json", wantRead: true, wantAction: true},
-		{ct: "APPLICATION/JSON", wantRead: true, wantAction: true},
-		{ct: "Application/Json", wantRead: true, wantAction: true},
-		{ct: "application/json; charset=utf-8", wantRead: true, wantAction: true},
-		{ct: "application/json; charset=windows-1252", wantRead: true, wantAction: true},
-		{ct: "application/json; boundary=foo", wantRead: true, wantAction: true},
-		{ct: "text/plain; charset", wantRead: true},
-		// Unparseable types are read (and rejected if oversize), not streamed.
-		{ct: "application/json; charset=utf-8; charset=utf-16", wantRead: true},
-		{ct: "application/json extra", wantRead: true},
-		{ct: "application/", wantRead: true},
-		{ct: "application", wantRead: true},
-		{ct: "; charset=utf-8", wantRead: true},
-		{ct: "text/plain", wantRead: true},
-		{ct: "application/json-patch+json", wantRead: true},
-		{ct: "notvalid", wantRead: true},
+		{ct: "", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "APPLICATION/JSON", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "Application/Json", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json; charset=utf-8", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json; charset=windows-1252", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json; boundary=foo", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "text/plain; charset", wantBufferBody: true},
+		// Unparseable types are buffered (and rejected if oversize), not streamed.
+		{ct: "application/json; charset=utf-8; charset=utf-16", wantBufferBody: true},
+		{ct: "application/json extra", wantBufferBody: true},
+		{ct: "application/", wantBufferBody: true},
+		{ct: "application", wantBufferBody: true},
+		{ct: "; charset=utf-8", wantBufferBody: true},
+		{ct: "text/plain", wantBufferBody: true},
+		{ct: "application/json-patch+json", wantBufferBody: true},
+		{ct: "notvalid", wantBufferBody: true},
 		{ct: "multipart/form-data"},
 		{ct: "multipart/mixed"},
 		{ct: client.SnapshotExportMediaType},
 		{ct: asserts.MediaType},
-		{method: "PUT", ct: "application/json", wantRead: true},
-		{method: "PUT", ct: "", wantRead: true},
+		{method: "PUT", ct: "application/json", wantBufferBody: true},
+		{method: "PUT", ct: "", wantBufferBody: true},
 		{method: "PUT", path: "/v2/assertions"},
 		{method: "GET", ct: "application/json"},
 		{method: "DELETE", ct: "application/json"},
@@ -1591,7 +1591,7 @@ func (s *daemonSuite) TestRequestBodyPolicy(c *check.C) {
 		{path: "/v2/assertions"},
 		{path: "/v2/assertions/"},
 		// The path exception is only for an absent Content-Type.
-		{path: "/v2/assertions", ct: "application/json", wantRead: true, wantAction: true},
+		{path: "/v2/assertions", ct: "application/json", wantBufferBody: true, wantDecodeAction: true},
 	} {
 		method := tc.method
 		if method == "" {
@@ -1605,14 +1605,14 @@ func (s *daemonSuite) TestRequestBodyPolicy(c *check.C) {
 		if tc.ct != "" {
 			req.Header.Set("Content-Type", tc.ct)
 		}
-		read, wantAction := requestBodyPolicy(req)
+		bufferBody, decodeAction := requestBodyPolicy(req)
 		cmt := check.Commentf("method=%s path=%s ct=%q", method, path, tc.ct)
-		c.Check(read, check.Equals, tc.wantRead, cmt)
-		c.Check(wantAction, check.Equals, tc.wantAction, cmt)
+		c.Check(bufferBody, check.Equals, tc.wantBufferBody, cmt)
+		c.Check(decodeAction, check.Equals, tc.wantDecodeAction, cmt)
 	}
 }
 
-func (s *daemonSuite) TestReadRequestBody(c *check.C) {
+func (s *daemonSuite) TestExtractRequestAction(c *check.C) {
 	type testCase struct {
 		name          string
 		method        string
@@ -1834,7 +1834,7 @@ func (s *daemonSuite) TestReadRequestBody(c *check.C) {
 			req.ContentLength = tc.contentLength
 		}
 
-		got, err := readRequestBody(req)
+		got, err := extractRequestAction(req)
 		cmt := check.Commentf("case: %s", tc.name)
 		if tc.wantErr != "" {
 			c.Assert(err, check.ErrorMatches, tc.wantErr+".*", cmt)
@@ -1857,13 +1857,13 @@ func (s *daemonSuite) TestReadRequestBody(c *check.C) {
 	for _, method := range []string{"GET", "DELETE", "PATCH"} {
 		cmt := check.Commentf("method: %s", method)
 		req := httptest.NewRequest(method, "/", strings.NewReader(`{"action":"install"}`))
-		got, err := readRequestBody(req)
+		got, err := extractRequestAction(req)
 		c.Assert(err, check.IsNil, cmt)
 		c.Check(got, check.Equals, "", cmt)
 	}
 }
 
-func (s *daemonSuite) TestReadRequestBodyReadError(c *check.C) {
+func (s *daemonSuite) TestExtractRequestActionReadError(c *check.C) {
 	prefix := []byte(`{"action":"install"`)
 	simulatedErr := errors.New("simulated transient read error")
 	// Prefix then a persistent read error, as when the client disconnects.
@@ -1874,7 +1874,7 @@ func (s *daemonSuite) TestReadRequestBodyReadError(c *check.C) {
 	))
 	req.Header.Set("Content-Type", "application/json")
 
-	action, err := readRequestBody(req)
+	action, err := extractRequestAction(req)
 	c.Check(action, check.Equals, "")
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "cannot read request body: "+simulatedErr.Error())
@@ -1905,8 +1905,8 @@ func (s *daemonSuite) TestRequestActionContext(c *check.C) {
 func (s *daemonSuite) TestRequestActionFromContextMissing(c *check.C) {
 	action, err := requestActionFromContext(context.Background())
 	c.Check(action, check.Equals, "")
-	c.Check(err, check.Equals, errNoRequestAction)
-	c.Check(err, check.ErrorMatches, "internal error: request action not in context")
+	c.Check(err, check.Equals, errRequestActionNotCached)
+	c.Check(err, check.ErrorMatches, "internal error: request action not cached")
 }
 
 // recordingTraceLogger records logger.Trace calls. Log.Trace is a no-op
@@ -2164,7 +2164,7 @@ func (s *daemonSuite) TestTraceSnapdAPI(c *check.C) {
 		} else {
 			// traceSnapdAPI reads the cached action, so skip ServeHTTP
 			// only after the body has been read and cached.
-			action, err := readRequestBody(req)
+			action, err := extractRequestAction(req)
 			c.Assert(isBodyUnusable(err), check.Equals, false, cmt)
 			req = req.WithContext(withRequestAction(req.Context(), action, err))
 			traceSnapdAPI(cmd, req)

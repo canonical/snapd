@@ -439,7 +439,7 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 
 	action, err := requestActionFromContext(r.Context())
 	switch {
-	case errors.Is(err, errNoRequestAction):
+	case errors.Is(err, errRequestActionNotCached):
 		return InternalError(err.Error())
 	case err != nil:
 		return BadRequest(err.Error())
