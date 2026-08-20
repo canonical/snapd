@@ -60,6 +60,7 @@ func init() {
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
+	addWithStateHandler(validateSecuritySettings, nil, validateOnly)
 
 	// netplan.*
 	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, coreOnly)

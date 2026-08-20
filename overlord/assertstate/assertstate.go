@@ -406,6 +406,8 @@ func delayedCrossMgrInit() {
 	// wire confdbstate helpers that look up confdb-schema assertions
 	confdbstate.AssertstateFetchConfdbSchemaAssertion = FetchConfdbSchemaAssertion
 	confdbstate.AssertstateConfdbSchema = ConfdbSchema
+	// hook helper for getting publisher store account from assertions
+	snapstate.PublisherStoreAccount = PublisherStoreAccount
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
