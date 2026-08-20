@@ -968,8 +968,17 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	const maxSequences = 4
 	s.AddCleanup(devicemgmtstate.MockMaxSequences(maxSequences))
 
-	// seqA and seqB are the 2 oldest in LRU and will be evicted; each gets 2
-	// messages to verify the 2nd is dropped on eviction.
+	// seq0 has already had all its messages processed in prior changes.
+	s.mgr.SetState(&devicemgmtstate.DeviceMgmtState{
+		Sequences: map[string]*devicemgmtstate.SequenceState{
+			"seq0": {Applied: 12},
+		},
+		SequenceLRU:    []string{"seq0"},
+		ReadyResponses: make(map[string]store.Message),
+	})
+
+	// seqA and seqB are the oldest sequences with pending messages.
+	// Each gets 2 messages to verify the 2nd is dropped on eviction.
 	messages := []store.MessageWithToken{
 		s.makeStoreRequestMessage(c, "seqA-1", "test-kind", "token-seqA-1"),
 		s.makeStoreRequestMessage(c, "seqA-2", "test-kind", "token-seqA-2"),
@@ -977,7 +986,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		s.makeStoreRequestMessage(c, "seqB-2", "test-kind", "token-seqB-2"),
 	}
 	for i := 3; i <= maxSequences+2; i++ {
-		baseID := fmt.Sprintf("seq%c", rune('A'+i-1))
+		baseID := fmt.Sprintf("seq%c", rune('A'+i-1)) // sequences seqC to seqF
 		messages = append(messages,
 			s.makeStoreRequestMessage(c, fmt.Sprintf("%s-1", baseID), "test-kind", fmt.Sprintf("token-%s-1", baseID)),
 		)
@@ -996,14 +1005,20 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
+	c.Check(changes[0].Status(), Equals, state.DoneStatus)
 
-	// seqA evicted (oldest in LRU).
+	ti := buildTaskIndex(changes[0])
+
+	// Empty sequence has no message to reject, so it's evicted immediately.
+	c.Check(ms.Sequences["seq0"], IsNil)
+	c.Check(ti.queue["seq0"], IsNil)
+
+	// seqA evicted (2nd oldest in LRU, after seq0).
 	seqA := ms.Sequences["seqA"]
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("the 2nd message in seqA should have been deleted"))
 	c.Check(seqA.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 	c.Check(seqA.Messages[0].ResponseBody["message"], Equals, "cannot process message: sequence evicted due to capacity limits")
 
-	ti := buildTaskIndex(changes[0])
 	c.Check(ti.validate["seqA-1"], IsNil)
 	c.Check(ti.apply["seqA-1"], IsNil)
 	c.Check(ti.queue["seqA-1"], NotNil)
@@ -2183,8 +2198,8 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseStatusAlreadyKnown(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
-	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+	c.Check(ms.Sequences["mesg"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
 
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 }
@@ -2299,8 +2314,8 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 	ms, err := s.mgr.GetState()
 	c.Assert(err, IsNil)
 
-	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
-	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+	c.Check(ms.Sequences["mesg"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
 
 	c.Assert(ms.ReadyResponses, HasLen, 1)
 	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
@@ -2610,6 +2625,88 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromCh
 	c.Assert(ms.ReadyResponses, HasLen, 2)
 	c.Check(ms.ReadyResponses["msg1"].Format, Equals, "assertion")
 	c.Check(ms.ReadyResponses["msg2"].Format, Equals, "assertion")
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseRejectedSequenceEvicted(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "seqA-1", "test-kind", "token-1"),
+				s.makeStoreRequestMessage(c, "seqA-2", "test-kind", "token-2"),
+				s.makeStoreRequestMessage(c, "seqA-3", "test-kind", "token-3"),
+				s.makeStoreRequestMessage(c, "seqA-4", "test-kind", "token-4"),
+			},
+		}, nil
+	})
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		validate: func(_ *state.State, msg *devicemgmtstate.RequestMessage) error {
+			// The second message is rejected mid-pipeline.
+			if msg.SeqNum == 2 {
+				return fmt.Errorf("cannot validate message")
+			}
+
+			return nil
+		},
+		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+			return chg.ID(), nil
+		},
+		resultFromChange: func(*state.Change) (map[string]any, error) {
+			return map[string]any{"values": "ok"}, nil
+		},
+	})
+
+	signed := make(map[string]asserts.MessageStatus)
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			signed[messageID] = status
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(signed, DeepEquals, map[string]asserts.MessageStatus{
+		"seqA-1": asserts.MessageStatusSuccess,
+		"seqA-2": asserts.MessageStatusRejected,
+	})
+	c.Assert(ms.ReadyResponses, HasLen, 2)
+	c.Check(ms.ReadyResponses["seqA-1"].Format, Equals, "assertion")
+	c.Check(ms.ReadyResponses["seqA-2"].Format, Equals, "assertion")
+
+	// The rejection evicts the sequence.
+	c.Check(ms.Sequences["seqA"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
+
+	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
+	c.Assert(changes, HasLen, 1)
+	c.Check(changes[0].Status(), Equals, state.DoneStatus)
+
+	// Messages 3 & 4 aren't processed.
+	ti := buildTaskIndex(changes[0])
+	for _, msgID := range []string{"seqA-3", "seqA-4"} {
+		cmt := Commentf("tasks for %s should be held", msgID)
+		c.Check(ti.validate[msgID].Status(), Equals, state.HoldStatus, cmt)
+		c.Check(ti.apply[msgID].Status(), Equals, state.HoldStatus, cmt)
+		c.Check(ti.queue[msgID].Status(), Equals, state.HoldStatus, cmt)
+	}
 }
 
 func (s *deviceMgmtMgrSuite) TestParseRequestMessageInvalid(c *C) {
