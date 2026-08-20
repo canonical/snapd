@@ -164,7 +164,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// One read, so later stages look the action up from context instead of
 	// touching the body again.
-	action, err := readRequestBody(r)
+	action, err := extractRequestAction(r)
 	if isBodyUnusable(err) {
 		BadRequest(err.Error()).ServeHTTP(w, r)
 		return
@@ -205,7 +205,7 @@ var (
 	errBodyUnreadable          = errors.New("cannot read request body")
 	errEmptyBody               = errors.New("empty request body")
 	errUnexpectedDataAfterBody = errors.New("unexpected data after request body")
-	errNoRequestAction         = errors.New("internal error: request action not in context")
+	errRequestActionNotCached  = errors.New("internal error: request action not cached")
 )
 
 // isBodyUnusable reports a body later stages cannot be served from (oversize
@@ -230,28 +230,28 @@ func withRequestAction(ctx context.Context, action string, err error) context.Co
 }
 
 // requestActionFromContext returns the action cached by withRequestAction.
-// A miss is errNoRequestAction: ServeHTTP always caches first, so a miss
+// A miss is errRequestActionNotCached: ServeHTTP always caches first, so a miss
 // means the caller skipped that step rather than that the request had no action.
 func requestActionFromContext(ctx context.Context) (string, error) {
 	cached, ok := ctx.Value(actionContextKey{}).(requestAction)
 	if !ok {
-		return "", errNoRequestAction
+		return "", errRequestActionNotCached
 	}
 	return cached.action, cached.parseErr
 }
 
-// requestBodyPolicy reports whether the body is read into memory (and
+// requestBodyPolicy reports whether the body is buffered in memory (and
 // rejected if larger than maxBodySize) and whether it is decoded for "action".
 // Selection is loose so tracing can still see an action; callers apply
 // stricter rules themselves.
-func requestBodyPolicy(r *http.Request) (read, wantAction bool) {
+func requestBodyPolicy(r *http.Request) (bufferBody, decodeAction bool) {
 	switch r.Method {
 	case "POST", "PUT":
 	default:
 		return false, false
 	}
 	// No PUT endpoint defines an action.
-	canDecode := r.Method == "POST"
+	decodeAction = r.Method == "POST"
 
 	ct := r.Header.Get("Content-Type")
 	if ct == "" {
@@ -261,7 +261,7 @@ func requestBodyPolicy(r *http.Request) (read, wantAction bool) {
 		if strings.TrimSuffix(r.URL.Path, "/") == "/v2/assertions" {
 			return false, false
 		}
-		return true, canDecode
+		return true, decodeAction
 	}
 
 	mediaType, _, _ := mime.ParseMediaType(ct)
@@ -278,14 +278,17 @@ func requestBodyPolicy(r *http.Request) (read, wantAction bool) {
 		return false, false
 	}
 
-	return true, canDecode && mediaType == "application/json"
+	return true, decodeAction && mediaType == "application/json"
 }
 
-// readRequestBody reads the request body once, rejecting it if oversize
+// extractRequestAction buffers the request body once, rejecting it if oversize
 // and extracting the action.
-func readRequestBody(r *http.Request) (string, error) {
-	read, wantAction := requestBodyPolicy(r)
-	if !read {
+func extractRequestAction(r *http.Request) (string, error) {
+	bufferBody, decodeAction := requestBodyPolicy(r)
+	if !bufferBody {
+		if decodeAction {
+			return "", errors.New("internal error: cannot decode action without buffering the body")
+		}
 		return "", nil
 	}
 
@@ -293,10 +296,10 @@ func readRequestBody(r *http.Request) (string, error) {
 		return "", errBodyTooLarge
 	}
 
-	body, readErr := io.ReadAll(io.LimitReader(r.Body, maxBodySize+1))
-	if readErr != nil {
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodySize+1))
+	if err != nil {
 		// Partial bytes are not the whole body, and the rest was never limited.
-		return "", fmt.Errorf("%w: %v", errBodyUnreadable, readErr)
+		return "", fmt.Errorf("%w: %v", errBodyUnreadable, err)
 	}
 	if len(body) > maxBodySize {
 		return "", errBodyTooLarge
@@ -306,14 +309,14 @@ func readRequestBody(r *http.Request) (string, error) {
 	// whatever r.Body holds later, so this does not leak the original.
 	r.Body = io.NopCloser(bytes.NewReader(body))
 
-	if !wantAction {
+	if !decodeAction {
 		return "", nil
 	}
-	return decodeAction(body)
+	return decodeActionFromBody(body)
 }
 
-// decodeAction returns the top-level "action", empty when the body has no such field.
-func decodeAction(body []byte) (string, error) {
+// decodeActionFromBody returns the top-level "action", empty when the body has no such field.
+func decodeActionFromBody(body []byte) (string, error) {
 	if len(body) == 0 {
 		return "", errEmptyBody
 	}

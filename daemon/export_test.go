@@ -403,18 +403,18 @@ var (
 
 	// Together these reproduce what Command.ServeHTTP does to a request
 	// before access checking.
-	ReadRequestBody   = readRequestBody
-	WithRequestAction = withRequestAction
-	IsBodyUnusable    = isBodyUnusable
+	ExtractRequestAction = extractRequestAction
+	WithRequestAction    = withRequestAction
+	IsBodyUnusable       = isBodyUnusable
 
 	// The rules Command.ServeHTTP uses to find a request's action, shared
 	// with the action coverage check in api_base_test.go.
-	DecodeAction = decodeAction
+	DecodeAction = decodeActionFromBody
 )
 
 func RequestDecodesAction(r *http.Request) bool {
-	_, wantAction := requestBodyPolicy(r)
-	return wantAction
+	_, decodeAction := requestBodyPolicy(r)
+	return decodeAction
 }
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {

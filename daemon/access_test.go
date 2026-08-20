@@ -887,7 +887,7 @@ func reqWithAction(c *C, action string, isJSON, malformed bool) *http.Request {
 // withCachedAction reads the body once and caches the action on the request
 // context, matching Command.ServeHTTP before CheckAccess.
 func withCachedAction(c *C, req *http.Request) *http.Request {
-	action, err := daemon.ReadRequestBody(req)
+	action, err := daemon.ExtractRequestAction(req)
 	// ServeHTTP answers 400 first, so an unusable body never reaches a checker.
 	c.Assert(daemon.IsBodyUnusable(err), Equals, false)
 	return req.WithContext(daemon.WithRequestAction(req.Context(), action, err))
@@ -1091,5 +1091,5 @@ func (s *accessSuite) TestByActionAccessMissingContext(c *C) {
 
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
 	err = ac.CheckAccess(nil, req, &ucred, nil)
-	c.Assert(err, DeepEquals, daemon.InternalError("internal error: request action not in context"))
+	c.Assert(err, DeepEquals, daemon.InternalError("internal error: request action not cached"))
 }
