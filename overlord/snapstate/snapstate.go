@@ -51,7 +51,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
-	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
@@ -1974,65 +1973,6 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 	return effectiveChannel, nil
 }
 
-// snapdLTSRequiredChannel consults the running snapd's LTS map. passthrough
-// is true when policy does not apply (not snapd, unasserted, out of scope,
-// map unavailable, base not yet managed, or the input track is unmapped).
-// Otherwise required is the canonical LTS channel.
-func snapdLTSRequiredChannel(snapName, effectiveChannel string, deviceCtx DeviceContext, unasserted bool) (required string, passthrough bool, err error) {
-	if snapName != "snapd" || unasserted || deviceCtx == nil {
-		return "", true, nil
-	}
-
-	required, err = ltstrack.Resolve(deviceCtx.Model(), effectiveChannel, nil)
-	if errors.Is(err, ltstrack.ErrLTSNotAllowed) {
-		// Model is out of scope for LTS policy (classic, UC16, base-less,
-		// etc.); no channel restriction applies.
-		return "", true, nil
-	}
-	if errors.Is(err, ltstrack.ErrLTSInternal) {
-		// Running snapd cannot load its own LTS map (missing libexec dir,
-		// parse failure, etc.). Channel validation here is a planning-time
-		// best-effort check; pass through and let the download-stage
-		// intercept enforce the correct channel.
-		return "", true, nil
-	}
-	if errors.Is(err, ltstrack.ErrLTSBaseNotManaged) || errors.Is(err, ltstrack.ErrLTSNoTrack) {
-		// Base has no LTS policy yet, or the input track is neither a
-		// transition key nor an LTS target; do not interfere.
-		return "", true, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	return required, false, nil
-}
-
-func snapdLTSChannelMatches(effectiveChannel, required string) bool {
-	if required == effectiveChannel {
-		return true
-	}
-	parsed, err := channel.ParseVerbatim(effectiveChannel, "-")
-	return err == nil && required == parsed.Clean().String()
-}
-
-// maybeRemapSnapdLTSChannel rewrites a store-planned snapd channel onto
-// the LTS track when the running snapd's map can Resolve. That makes the
-// first SnapAction LTS+cohort (same contract as snap refresh --channel=
-// while in-cohort) so an unsatisfiable cohort fails at planning, before
-// download. Path install does not call this: a local blob cannot be
-// retargeted. Unmapped tracks pass through.
-func maybeRemapSnapdLTSChannel(snapName, effectiveChannel string, deviceCtx DeviceContext, unasserted bool) (string, error) {
-	required, passthrough, err := snapdLTSRequiredChannel(snapName, effectiveChannel, deviceCtx, unasserted)
-	if err != nil {
-		return "", err
-	}
-	if passthrough || snapdLTSChannelMatches(effectiveChannel, required) {
-		return effectiveChannel, nil
-	}
-	logger.Noticef("snapd LTS policy remaps channel %q to %q", effectiveChannel, required)
-	return required, nil
-}
-
 var errRevisionSwitch = errors.New("cannot switch revision")
 
 func switchSummary(snap, chanFrom, chanTo, cohFrom, cohTo string) string {
@@ -2210,9 +2150,10 @@ func firstNonEmpty(strs ...string) string {
 	return ""
 }
 
-// resolveChannel resolves the channel for the given snap. Path
-// install/refresh uses this and does not apply LTS remap: a local blob
-// cannot be retargeted.
+// resolveChannel resolves the channel for the given snap (kernel/gadget
+// model-track pins via resolveChannel). LTS track jumps are not applied
+// here: the download intercept (already-aware) and post-restart refresh
+// (unaware) own that.
 func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
 	if err != nil {
@@ -2223,11 +2164,8 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 }
 
 // resolveChannelForStore conditionally resolves the channel for the given snap.
-// If the the revision is set and the channel is empty, then we assume that the
+// If the revision is set and the channel is empty, then we assume that the
 // caller wants to install by revision and does not mutate the channel.
-//
-// Store installs/updates of snapd are asserted (channel resolution runs
-// before the store action, so there is no SideInfo yet).
 func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	// if the revision is set and the caller didn't provide a channel, then we
 	// shouldn't mess with the channel. this is because we don't want the caller
@@ -2236,21 +2174,7 @@ func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback s
 		return nil
 	}
 
-	// otherwise, we know that the channel is either empty, or it is specified
-	// along with the revision. in either case, we need to resolve the channel.
-	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
-	if err != nil {
-		return err
-	}
-	if !r.ExplicitChannel {
-		const unasserted = false
-		resolved, err = maybeRemapSnapdLTSChannel(instanceName, resolved, deviceCtx, unasserted)
-		if err != nil {
-			return err
-		}
-	}
-	r.Channel = resolved
-	return nil
+	return r.resolveChannel(instanceName, fallback, deviceCtx)
 }
 
 // initializeValidationSets ensures that r.ValidationSets is initialized with a

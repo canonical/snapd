@@ -1516,20 +1516,14 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 
 	updates := make(map[string]StoreUpdate, len(allSnaps))
 	for _, snapst := range allSnaps {
-		// Named snap refresh remaps snapd onto the LTS track in
-		// resolveChannelForStore. Refresh-all only copies tracking, so
-		// remap here too: otherwise an aware daemon already at the tip
-		// of latest gets no update and never intercepts.
-		channel, err := maybeRemapSnapdLTSChannel(snapst.InstanceName(), snapst.TrackingChannel, opts.DeviceCtx, false)
-		if err != nil {
-			return nil, err
-		}
 		updates[snapst.InstanceName()] = StoreUpdate{
 			InstanceName: snapst.InstanceName(),
 
-			// default the channel and cohort key to the existing values,
+			// default the channel and cohort key to the existing values.
+			// LTS jumps are not planned here: intercept (aware) or
+			// post-restart (unaware) own that.
 			RevOpts: RevisionOptions{
-				Channel:        channel,
+				Channel:        snapst.TrackingChannel,
 				CohortKey:      snapst.CohortKey,
 				ValidationSets: vsets,
 			},

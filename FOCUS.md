@@ -120,19 +120,13 @@ trust `DownloadInfo` and skip the squashfs open.
 | **`Switch`** | `Switch` → `resolveChannel` | **No** | no download task; kernel/gadget model pins still apply |
 | **Remodel snapd** | `remodelSnapdSnapTasks` | Indirect | BB4b pre-remap at planning; then store path goes through `doDownloadSnap` |
 
-**Compiled-in policy (planning side, complementary):**
-Store install/refresh (`resolveChannelForStore`) remaps onto the LTS
-track when the running snapd's map can Resolve **and** the caller did
-not pass `--channel=` / `--revision=`. An explicit channel or revision
-wins; LTS is skipped for that operation. Path/seed/offline-remodel
-cannot retarget a local blob, so LTS does not reject or remap there.
-Unmapped tracks pass through. Not applied to `Switch`. Best-effort; the
-download intercept is the real enforcement for unaware snapd.
-
-Refresh-all / auto-refresh (`initRefreshAllStoreUpdates`) remaps the
-same way, so an aware daemon already at the tip of `latest` still asks
-the store for LTS (download or `switch-snap-channel`). Unaware snapd
-still needs a new `latest` blob.
+**Compiled-in policy (image/remodel only):**
+BB4a (`seedwriter`) and BB4b (remodel) still remap snapd onto the LTS
+track using the running snapd's map. Store install/refresh planning
+does **not**: `resolveChannelForStore` / `initRefreshAllStoreUpdates`
+keep the from-track channel so the download intercept sees the newest
+map. An explicit `--channel=` / `--revision=` skips intercept. Path/seed
+cannot retarget a local blob. Unaware bootstrap is post-restart (BB5).
 
 The intercept keeps `snapsup.CohortKey` on the second LTS `SnapAction`
 (same as an in-cohort channel refresh). Store error if the cohort has no
@@ -237,15 +231,16 @@ tests, and others).
    revert at restart (simpler code).
 3. **BB3 path lockdown vs candidate authority.** **Resolved:** path
    install cannot retarget a blob, so LTS does not reject or remap there.
-   Store remap plus the download intercept remain the mechanism.
+   Store planning does not LTS-remap; download intercept (aware) and
+   post-restart (unaware) are the jumps. BB4a/BB4b still remap seeds.
 4. **Re-download bandwidth.** Tolerate the double download for v1.
    Follow-up: metadata-only pre-fetch (e.g. just the `info` file) or a
    store hint analogous to `redirect-channel` but honoured on refresh.
-5. **Refresh-all LTS remap.** **Resolved:** `initRefreshAllStoreUpdates`
-   calls `maybeRemapSnapdLTSChannel`. Auto-refresh and `snap refresh`
-   with no names match `snap refresh snapd`. See DESIGN.md open question 9.
+5. **Refresh-all LTS remap.** **Dropped:** `initRefreshAllStoreUpdates`
+   no longer remaps. Aware jumps via intercept when a new from-track
+   blob is downloaded. Unaware bootstrap is post-restart (BB5).
 6. **Four leftover install/refresh paths.** **Resolved:** see DESIGN.md
    open question 10. Only a real caller pin (`ExplicitChannel` /
    `--snap=snapd=<channel>`) skips LTS. Model `default-channel`, cluster
-   channel, prereq default, and image-wide `--channel` remap. `$SNAPD_SNAPD_CHANNEL`
-   is an explicit pin.
+   channel, prereq default, and image-wide `--channel` are not pins.
+   `$SNAPD_SNAPD_CHANNEL` is an explicit pin.

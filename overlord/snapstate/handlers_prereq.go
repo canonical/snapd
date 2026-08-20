@@ -99,7 +99,8 @@ func defaultSnapdSnapsChannel() string {
 
 // snapdPrereqRevOpts is the channel pin for a missing snapd prereq.
 // An empty env means omitted channel (same as snap install snapd): LTS
-// remaps. SNAPD_SNAPD_CHANNEL is an explicit operator pin and skips LTS.
+// may jump at download intercept or after restart. SNAPD_SNAPD_CHANNEL
+// is an explicit operator pin and skips LTS.
 func snapdPrereqRevOpts() RevisionOptions {
 	channel := defaultSnapdSnapsChannel()
 	if channel == "" {

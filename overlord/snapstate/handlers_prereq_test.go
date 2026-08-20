@@ -1288,7 +1288,7 @@ func (s *prereqSuite) TestDoPrereqNoRevision(c *C) {
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install prerequisite "prereq1": no snap revision available as specified\)`)
 }
 
-func (s *prereqSuite) TestDoPrereqSnapdLTSRemapsDefaultChannel(c *C) {
+func (s *prereqSuite) TestDoPrereqSnapdDefaultChannelNotRemapped(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -1325,7 +1325,7 @@ func (s *prereqSuite) TestDoPrereqSnapdLTSRemapsDefaultChannel(c *C) {
 		}
 	}
 	c.Assert(snapdAction, NotNil)
-	c.Check(snapdAction.Channel, Equals, "18/stable")
+	c.Check(snapdAction.Channel, Equals, "stable")
 }
 
 func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {

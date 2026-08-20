@@ -7852,7 +7852,7 @@ func (s *snapmgrTestSuite) TestResolveChannelPathInstallDoesNotRemapSnapdLTS(c *
 	}
 }
 
-func (s *snapmgrTestSuite) TestResolveChannelForStoreSnapdLTSRemap(c *C) {
+func (s *snapmgrTestSuite) TestResolveChannelForStoreDoesNotRemapSnapdLTS(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -7869,13 +7869,12 @@ func (s *snapmgrTestSuite) TestResolveChannelForStoreSnapdLTSRemap(c *C) {
 		new      string
 		explicit bool
 		exp      string
-		err      string
 		snap     string
 	}{
 		{cur: "18/stable", new: "18/edge", exp: "18/edge"},
 		{cur: "18/stable", new: "20/stable", exp: "20/stable"},
-		{cur: "18/stable", new: "latest/edge", exp: "18/edge"},
-		{cur: "", new: "stable", exp: "18/stable"},
+		{cur: "18/stable", new: "latest/edge", exp: "latest/edge"},
+		{cur: "", new: "stable", exp: "stable"},
 		{cur: "18/stable", new: "latest/edge", explicit: true, exp: "latest/edge"},
 		{cur: "18/stable", new: "20/stable", explicit: true, exp: "20/stable"},
 		{snap: "some-snap", cur: "stable", new: "latest/edge", exp: "latest/edge"},
@@ -7886,17 +7885,12 @@ func (s *snapmgrTestSuite) TestResolveChannelForStoreSnapdLTSRemap(c *C) {
 		}
 		revOpts := snapstate.RevisionOptions{Channel: tc.new, ExplicitChannel: tc.explicit}
 		err := revOpts.ResolveChannelForStore(snapName, tc.cur, deviceCtx)
-		ch := revOpts.Channel
-		if tc.err != "" {
-			c.Check(err, ErrorMatches, tc.err, Commentf("%#v", tc))
-			continue
-		}
 		c.Check(err, IsNil, Commentf("%#v", tc))
-		c.Check(ch, Equals, tc.exp, Commentf("%#v", tc))
+		c.Check(revOpts.Channel, Equals, tc.exp, Commentf("%#v", tc))
 	}
 }
 
-func (s *snapmgrTestSuite) TestInstallSnapdLTSRemapsChannelKeepsCohort(c *C) {
+func (s *snapmgrTestSuite) TestInstallSnapdKeepsCohortWithoutLTSRemap(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -7919,7 +7913,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdLTSRemapsChannelKeepsCohort(c *C) {
 	c.Assert(err, IsNil)
 	snapsup, err := snapstate.TaskSnapSetup(te)
 	c.Assert(err, IsNil)
-	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.Channel, Equals, "stable")
 	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
 	c.Check(snapsup.ExplicitChannel, Equals, false)
 
@@ -7932,7 +7926,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdLTSRemapsChannelKeepsCohort(c *C) {
 		}
 	}
 	c.Assert(storeAction, NotNil)
-	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.Channel, Equals, "stable")
 	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
 }
 
@@ -7976,7 +7970,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdExplicitChannelKeepsChannelAndCohort(
 	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
 }
 
-func (s *snapmgrTestSuite) TestInstallWithGoalSnapdLTSRemapsPolicyChannel(c *C) {
+func (s *snapmgrTestSuite) TestInstallWithGoalSnapdPolicyChannelNotAPin(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -7992,7 +7986,8 @@ func (s *snapmgrTestSuite) TestInstallWithGoalSnapdLTSRemapsPolicyChannel(c *C) 
 	snapstate.Set(s.state, "snapd", nil)
 
 	// Cluster, prereq, and similar internals fill Channel without
-	// ExplicitChannel. That is not a caller --channel= and must remap.
+	// ExplicitChannel. That is not a caller --channel=; LTS still
+	// applies at download intercept. Planning keeps the policy channel.
 	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
 		InstanceName: "snapd",
 		RevOpts:      snapstate.RevisionOptions{Channel: "latest/stable"},
@@ -8014,7 +8009,7 @@ func (s *snapmgrTestSuite) TestInstallWithGoalSnapdLTSRemapsPolicyChannel(c *C) 
 		}
 	}
 	c.Assert(snapsup, NotNil)
-	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.Channel, Equals, "latest/stable")
 	c.Check(snapsup.ExplicitChannel, Equals, false)
 
 	var storeAction *store.SnapAction
@@ -8026,10 +8021,10 @@ func (s *snapmgrTestSuite) TestInstallWithGoalSnapdLTSRemapsPolicyChannel(c *C) 
 		}
 	}
 	c.Assert(storeAction, NotNil)
-	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.Channel, Equals, "latest/stable")
 }
 
-func (s *snapmgrTestSuite) TestUpdateWithGoalSnapdLTSRemapsPolicyChannel(c *C) {
+func (s *snapmgrTestSuite) TestUpdateWithGoalSnapdPolicyChannelNotAPin(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -8077,7 +8072,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSnapdLTSRemapsPolicyChannel(c *C) {
 		}
 	}
 	c.Assert(snapsup, NotNil)
-	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.Channel, Equals, "latest/stable")
 	c.Check(snapsup.ExplicitChannel, Equals, false)
 
 	var storeAction *store.SnapAction
@@ -8089,7 +8084,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSnapdLTSRemapsPolicyChannel(c *C) {
 		}
 	}
 	c.Assert(storeAction, NotNil)
-	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.Channel, Equals, "latest/stable")
 }
 
 func (s *snapmgrTestSuite) TestInstallSnapdLTSCohortUnsatisfiableFailsAtPlanning(c *C) {
@@ -8120,7 +8115,7 @@ func (s *snapmgrTestSuite) TestInstallSnapdLTSCohortUnsatisfiableFailsAtPlanning
 	c.Check(s.fakeStore.downloads, HasLen, 0)
 }
 
-func (s *snapmgrTestSuite) TestUpdateSnapdLTSRemapsChannelKeepsCohort(c *C) {
+func (s *snapmgrTestSuite) TestUpdateSnapdKeepsTrackingAndCohortForLTSIntercept(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -8153,7 +8148,7 @@ func (s *snapmgrTestSuite) TestUpdateSnapdLTSRemapsChannelKeepsCohort(c *C) {
 	c.Assert(err, IsNil)
 	snapsup, err := snapstate.TaskSnapSetup(te)
 	c.Assert(err, IsNil)
-	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.Channel, Equals, "latest/stable")
 	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
 
 	var storeAction *store.SnapAction
@@ -8165,7 +8160,7 @@ func (s *snapmgrTestSuite) TestUpdateSnapdLTSRemapsChannelKeepsCohort(c *C) {
 		}
 	}
 	c.Assert(storeAction, NotNil)
-	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.Channel, Equals, "latest/stable")
 	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
 }
 
@@ -8222,7 +8217,7 @@ func (s *snapmgrTestSuite) TestUpdateSnapdExplicitChannelKeepsChannelAndCohort(c
 	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
 }
 
-func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsChannelKeepsCohort(c *C) {
+func (s *snapmgrTestSuite) TestUpdateManySnapdKeepsTrackingAndCohortForLTSIntercept(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -8264,7 +8259,7 @@ func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsChannelKeepsCohort(c *C) 
 		break
 	}
 	c.Assert(snapsup, NotNil)
-	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.Channel, Equals, "latest/stable")
 	c.Check(snapsup.CohortKey, Equals, "some-cohort-key")
 
 	var storeAction *store.SnapAction
@@ -8276,11 +8271,11 @@ func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsChannelKeepsCohort(c *C) 
 		}
 	}
 	c.Assert(storeAction, NotNil)
-	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.Channel, Equals, "latest/stable")
 	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
 }
 
-func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsWhenAlreadyAtLatestTip(c *C) {
+func (s *snapmgrTestSuite) TestUpdateManySnapdAtLatestTipDoesNotSwitchForLTS(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -8293,8 +8288,9 @@ func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsWhenAlreadyAtLatestTip(c 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// fake store refresh default is revision 11 on any channel, so this is
-	// already the LTS tip while still tracking latest.
+	// Already at the store tip of latest. Planning must not invent an LTS
+	// switch; unaware bootstrap is post-restart, aware jumps via intercept
+	// when a new latest blob (with an updated map) is downloaded.
 	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Active: true,
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
@@ -8309,32 +8305,8 @@ func (s *snapmgrTestSuite) TestUpdateManySnapdLTSRemapsWhenAlreadyAtLatestTip(c 
 
 	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, nil, s.user.ID, &snapstate.Flags{IsAutoRefresh: true})
 	c.Assert(err, IsNil)
-	c.Check(updated, DeepEquals, []string{"snapd"})
-	c.Assert(tts, Not(HasLen), 0)
-
-	var switchTask *state.Task
-	for _, ts := range tts {
-		for _, t := range ts.Tasks() {
-			if t.Kind() == "switch-snap-channel" {
-				switchTask = t
-			}
-		}
-	}
-	c.Assert(switchTask, NotNil)
-	snapsup, err := snapstate.TaskSnapSetup(switchTask)
-	c.Assert(err, IsNil)
-	c.Check(snapsup.Channel, Equals, "18/stable")
-
-	var storeAction *store.SnapAction
-	for _, op := range s.fakeBackend.ops {
-		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
-			a := op.action
-			storeAction = &a
-			break
-		}
-	}
-	c.Assert(storeAction, NotNil)
-	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(updated, HasLen, 0)
+	c.Check(tts, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestUpdateManySnapdLTSCohortUnsatisfiableFailsAtPlanning(c *C) {
@@ -12135,7 +12107,7 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
 }
 
-func (s *snapmgrTestSuite) TestDownloadSnapdLTSRemapsChannel(c *C) {
+func (s *snapmgrTestSuite) TestDownloadSnapdPolicyChannelNotRemapped(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
 	})
@@ -12158,7 +12130,7 @@ func (s *snapmgrTestSuite) TestDownloadSnapdLTSRemapsChannel(c *C) {
 	var snapsup snapstate.SnapSetup
 	err = downloadSnap.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
-	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.Channel, Equals, "latest/stable")
 	c.Check(snapsup.ExplicitChannel, Equals, false)
 
 	var storeAction *store.SnapAction
@@ -12170,7 +12142,7 @@ func (s *snapmgrTestSuite) TestDownloadSnapdLTSRemapsChannel(c *C) {
 		}
 	}
 	c.Assert(storeAction, NotNil)
-	c.Check(storeAction.Channel, Equals, "18/stable")
+	c.Check(storeAction.Channel, Equals, "latest/stable")
 }
 
 func (s *snapmgrTestSuite) TestDownloadSnapdExplicitChannelKeepsChannel(c *C) {
