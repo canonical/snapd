@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -281,11 +280,14 @@ func installComponentAction(snapst SnapState, revOpts RevisionOptions, opts Opti
 // store.
 func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *snap.Info,
 	path string, opts Options) (*state.TaskSet, error) {
-	if err := opts.setDefaultLane(st); err != nil {
-		return nil, err
-	}
+	// TODO:COMPS: instead of doing this, we should convert this function to
+	// operate on multiple components so that it works like InstallComponents.
+	// this would improve performance, especially in the case of kernel module
+	// components.
 
-	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+	// should we keep this?
+	// XXX: conflict with UpdateWithGoal. target:1265-1273
+	if err := opts.setDefaultLane(st); err != nil {
 		return nil, err
 	}
 
@@ -299,11 +301,9 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 		return nil, err
 	}
 
-	// Read ComponentInfo and verify that the component is consistent with the
-	// data in the snap info
-	compInfo, _, err := backend.OpenComponentFile(path, info, csi)
-	if err != nil {
-		return nil, err
+	// we don't reach this check until very far into UpdateOne
+	if snapst.IsInstalled() && !snapst.Active {
+		return nil, fmt.Errorf("cannot install component %q for disabled snap %q", csi.Component, info.RealName)
 	}
 
 	// TODO: assess if there are other flags we need to copy from the current
@@ -311,47 +311,23 @@ func InstallComponentPath(st *state.State, csi *snap.ComponentSideInfo, info *sn
 	// impact confinement of the snap itself.
 	copyConfinementFlagsFromSnapState(&opts.Flags, &snapst)
 
-	snapsup := SnapSetup{
-		Base:                        info.Base,
-		SideInfo:                    &info.SideInfo,
-		Channel:                     info.Channel,
-		Flags:                       opts.Flags.ForSnapSetup(),
-		Type:                        info.Type(),
-		Version:                     info.Version,
-		PlugsOnly:                   len(info.Slots) == 0,
-		InstanceKey:                 info.InstanceKey,
-		ComponentExclusiveOperation: true,
-	}
-	compSetup := ComponentSetup{
-		CompSideInfo: csi,
-		CompType:     compInfo.Type,
-		CompPath:     path,
-		ComponentInstallFlags: ComponentInstallFlags{
-			// The file passed around is temporary, make sure it gets removed.
-			RemoveComponentPath: true,
+	updateGoal := PathUpdateGoal(PathSnap{
+		InstanceName: info.InstanceName(),
+		SideInfo:     &info.SideInfo,
+		RevOpts: RevisionOptions{
+			Channel: info.Channel,
 		},
-	}
-
-	cts, err := doInstallComponent(st, &snapst, compSetup, &snapsup, nil, nil, nil, ConflictOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO:COMPS: instead of doing this, we should convert this function to
-	// operate on multiple components so that it works like InstallComponents.
-	// this would improve performance, especially in the case of kernel module
-	// components.
-	begin, err := cts.ts.Edge(BeginEdge)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot find begin edge on component install task set: %v", err)
-	}
-
-	begin.Set("component-setup-tasks", []string{cts.compSetupTaskID})
-	cts.ts.MarkEdge(begin, SnapSetupEdge)
-
-	cts.ts.JoinLane(generateLane(st, opts))
-
-	return cts.ts, nil
+		Components: []PathComponent{
+			PathComponent{
+				Path:     path,
+				SideInfo: csi,
+			},
+		},
+	})
+	opts.Flags.NoReRefresh = true
+	// this is used to set the RemoveComponentPath to true later
+	// opts.Flags.RemoveSnapPath = true
+	return UpdateOne(context.Background(), st, updateGoal, nil, opts)
 }
 
 type ComponentInstallFlags struct {

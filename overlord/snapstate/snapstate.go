@@ -1408,10 +1408,12 @@ func areRevisionsSatisfied(snapst *SnapState, targetRevision snap.Revision, targ
 		return false, nil
 	}
 
+	// XXX: should we do this check for component exclusive changes
 	if snapst.Current != targetRevision {
 		return false, nil
 	}
 
+	// XXX: this is causing errors since it reads snap and component file
 	comps, err := snapst.CurrentComponentInfos()
 	if err != nil {
 		return false, err
@@ -1422,6 +1424,7 @@ func areRevisionsSatisfied(snapst *SnapState, targetRevision snap.Revision, targ
 		currentCompRevs[comp.Component.ComponentName] = comp.Revision
 	}
 
+	// XXX: should this account for the unasserted components
 	for _, comp := range targetComponents {
 		if currentCompRevs[comp.CompSideInfo.Component.ComponentName] != comp.Revision() {
 			return false, nil
@@ -1557,6 +1560,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		// if the update is already satisfied, such as we're switching a channel
 		// which carries the same revision as currently installed, then we can
 		// skip it
+		// XXX: issue for unasserted snaps and components
 		ok, err := up.satisfied()
 		if err != nil {
 			return nil, false, nil, err

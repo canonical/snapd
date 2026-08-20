@@ -256,7 +256,9 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			ComponentInstallFlags: ComponentInstallFlags{
 				// if we're removing the snap, then we should remove the
 				// components too
-				RemoveComponentPath:   opts.Flags.RemoveSnapPath,
+				// XXX: this is not correct for comp by path
+				RemoveComponentPath: opts.Flags.RemoveSnapPath,
+				// XXX: should this be just true or len(t.components) > 0
 				MultiComponentInstall: true,
 			},
 		})
@@ -316,6 +318,7 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 			// XXX we store this for the benefit of old snapd
 			Website: t.info.Website(),
 		},
+		ComponentExclusiveOperation: t.setup.ComponentExclusiveOperation,
 	}
 
 	// TODO until dm-verity data are used for all snaps, we will only
@@ -1634,9 +1637,22 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		return target{}, fmt.Errorf("cannot install local snap %q: %v != %v (channel mismatch)", update.InstanceName, update.RevOpts.Channel, si.Channel)
 	}
 
-	info, err := validatedInfoFromPathAndSideInfo(update.InstanceName, update.Path, si)
-	if err != nil {
-		return target{}, err
+	var info *snap.Info
+	if len(update.Path) == 0 {
+		if !snapst.IsInstalled() {
+			return target{}, &snap.NotInstalledError{Snap: update.InstanceName}
+		}
+		var err error
+		info, err = snapst.CurrentInfo()
+		if err != nil {
+			return target{}, err
+		}
+	} else {
+		var err error
+		info, err = validatedInfoFromPathAndSideInfo(update.InstanceName, update.Path, si)
+		if err != nil {
+			return target{}, err
+		}
 	}
 
 	var trackingChannel string
@@ -1657,16 +1673,21 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		return target{}, err
 	}
 
-	return target{
-		setup: SnapSetup{
-			SnapPath:  update.Path,
-			Channel:   update.RevOpts.Channel,
-			CohortKey: update.RevOpts.CohortKey,
+	snapsup := SnapSetup{
+		SnapPath:  update.Path,
+		Channel:   update.RevOpts.Channel,
+		CohortKey: update.RevOpts.CohortKey,
 
-			// mirror store-backed by-revision refresh: an explicit revision should
-			// run the full update path even if the revision is already current.
-			AlwaysUpdate: !update.RevOpts.Revision.Unset(),
-		},
+		// mirror store-backed by-revision refresh: an explicit revision should
+		// run the full update path even if the revision is already current.
+		AlwaysUpdate: !update.RevOpts.Revision.Unset(),
+	}
+	if len(update.Path) == 0 {
+		snapsup.ComponentExclusiveOperation = true
+	}
+
+	return target{
+		setup:      snapsup,
 		info:       info,
 		snapst:     snapst,
 		components: comps,
