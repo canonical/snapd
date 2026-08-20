@@ -239,7 +239,7 @@ func (s *mountinfoSuite) TestLoadMountInfo2(c *C) {
 // Test that trying to load mountinfo without permissions reports an error.
 func (s *mountinfoSuite) TestLoadMountInfo3(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root can read files regardless of mode)")
 	}
 	fname := filepath.Join(c.MkDir(), "mountinfo")
 	err := os.WriteFile(fname, []byte(mountInfoSample), 0644)
