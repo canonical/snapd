@@ -147,6 +147,17 @@ const (
 	TPMProvisionFullWithoutLockout
 )
 
+// PCRProtectionProfileOptions carries the options that influence how a PCR
+// protection profile is built.
+type PCRProtectionProfileOptions struct {
+	// AllowInsufficientDmaProtection allows systems lacking sufficient DMA
+	// protection.
+	AllowInsufficientDmaProtection bool
+	// AllowThunderboltSecurityLevel0 allows systems reporting the "Security
+	// Level is Downgraded to 0" Thunderbolt event.
+	AllowThunderboltSecurityLevel0 bool
+}
+
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
@@ -165,6 +176,8 @@ type SealKeysParams struct {
 	KeyRole string
 	// Whether to allow disabled DMA protection
 	AllowInsufficientDmaProtection bool
+	// Whether to allow the "Security Level is Downgraded to 0" Thunderbolt event
+	AllowThunderboltSecurityLevel0 bool
 }
 
 type SealKeysWithFDESetupHookParams struct {

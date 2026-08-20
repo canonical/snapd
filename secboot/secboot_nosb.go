@@ -110,7 +110,7 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
 }
 
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, opts PCRProtectionProfileOptions) (SerializedPCRProfile, error) {
 	return nil, errBuildWithoutSecboot
 }
 

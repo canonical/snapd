@@ -546,7 +546,11 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) ([]byte, error) {
 		return nil, fmt.Errorf("TPM device is not enabled")
 	}
 
-	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult, params.AllowInsufficientDmaProtection)
+	pcrProfileOpts := PCRProtectionProfileOptions{
+		AllowInsufficientDmaProtection: params.AllowInsufficientDmaProtection,
+		AllowThunderboltSecurityLevel0: params.AllowThunderboltSecurityLevel0,
+	}
+	pcrProfile, err := buildPCRProtectionProfile(params.ModelParams, params.CheckResult, pcrProfileOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -797,16 +801,19 @@ var resealKeysWithTPM = resealKeysWithTPMImpl
 // encryption keys.
 //
 // If checkResult is non-nil, it provides the PCR configuration recommended by
-// the pre-install check. In this mode, allowInsufficientDmaProtection is ignored,
-// because all relevant information is carried by checkResult.
+// the pre-install check. In this mode, opts.AllowInsufficientDmaProtection
+// and opts.AllowThunderboltSecurityLevel0 are ignored, because all relevant
+// information is carried by checkResult.
 //
 // If checkResult is nil, the function falls back to the legacy profile-generation
 // path, which relies on static assumptions about the system’s boot configuration.
-// In this legacy mode, allowInsufficientDmaProtection determines whether systems
-// lacking sufficient DMA protection are still permitted.
-func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
+// In this legacy mode, opts.AllowInsufficientDmaProtection determines whether
+// systems lacking sufficient DMA protection are still permitted, and
+// opts.AllowThunderboltSecurityLevel0 determines whether systems reporting a
+// downgraded Thunderbolt security level are still permitted.
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, opts PCRProtectionProfileOptions) (*sb_tpm2.PCRProtectionProfile, error) {
 	if checkResult == nil {
-		return buildPCRProtectionProfileLegacy(modelParams, allowInsufficientDmaProtection)
+		return buildPCRProtectionProfileLegacy(modelParams, opts)
 	}
 
 	// build EFI load image event trees
@@ -900,7 +907,7 @@ func (lc *LoadChain) loadEvent(params ...sb_efi.ImageLoadParams) (sb_efi.ImageLo
 
 // buildPCRProtectionProfileLegacy constructs a PCR protection profile used for
 // sealing encryption keys using an outdated secboot API.
-func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowInsufficientDmaProtection bool) (*sb_tpm2.PCRProtectionProfile, error) {
+func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, opts PCRProtectionProfileOptions) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
 	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
@@ -939,8 +946,11 @@ func buildPCRProtectionProfileLegacy(modelParams []*SealKeyModelParams, allowIns
 			sb_efi.WithBootManagerCodeProfile(),
 			sb_efi.WithSignatureDBUpdates(updateDB...),
 		)
-		if allowInsufficientDmaProtection {
+		if opts.AllowInsufficientDmaProtection {
 			options = append(options, sb_efi.WithAllowInsufficientDmaProtection())
+		}
+		if opts.AllowThunderboltSecurityLevel0 {
+			options = append(options, sb_efi.WithAllowThunderboltSecurityLevel0())
 		}
 		if err := sbefiAddPCRProfile(
 			tpm2.HashAlgorithmSHA256,
@@ -1013,15 +1023,18 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs *sb_efi.ImageLoadSequence
 // a list of SealKeyModelParams.
 //
 // If checkResult is non-nil, it provides the PCR configuration recommended by
-// the pre-install check. In this mode, allowInsufficientDmaProtection is ignored,
-// because all relevant information is carried by checkResult.
+// the pre-install check. In this mode, opts.AllowInsufficientDmaProtection
+// and opts.AllowThunderboltSecurityLevel0 are ignored, because all relevant
+// information is carried by checkResult.
 //
 // If checkResult is nil, the function falls back to the legacy profile-generation
 // path, which relies on static assumptions about the system’s boot configuration.
-// In this legacy mode, allowInsufficientDmaProtection determines whether systems
-// lacking sufficient DMA protection are still permitted.
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
-	pcrProfile, err := buildPCRProtectionProfile(modelParams, checkResult, allowInsufficientDmaProtection)
+// In this legacy mode, opts.AllowInsufficientDmaProtection determines whether
+// systems lacking sufficient DMA protection are still permitted, and
+// opts.AllowThunderboltSecurityLevel0 determines whether systems reporting a
+// downgraded Thunderbolt security level are still permitted.
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, opts PCRProtectionProfileOptions) (SerializedPCRProfile, error) {
+	pcrProfile, err := buildPCRProtectionProfile(modelParams, checkResult, opts)
 	if err != nil {
 		return nil, err
 	}
