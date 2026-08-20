@@ -7976,6 +7976,122 @@ func (s *snapmgrTestSuite) TestInstallSnapdExplicitChannelKeepsChannelAndCohort(
 	c.Check(storeAction.CohortKey, Equals, "some-cohort-key")
 }
 
+func (s *snapmgrTestSuite) TestInstallWithGoalSnapdLTSRemapsPolicyChannel(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", nil)
+
+	// Cluster, prereq, and similar internals fill Channel without
+	// ExplicitChannel. That is not a caller --channel= and must remap.
+	goal := snapstate.StoreInstallGoal(snapstate.StoreSnap{
+		InstanceName: "snapd",
+		RevOpts:      snapstate.RevisionOptions{Channel: "latest/stable"},
+	})
+	_, tss, err := snapstate.InstallWithGoal(context.Background(), s.state, goal, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	var snapsup *snapstate.SnapSetup
+	for _, ts := range tss {
+		te, err := ts.Edge(snapstate.SnapSetupEdge)
+		if err != nil {
+			continue
+		}
+		got, err := snapstate.TaskSnapSetup(te)
+		c.Assert(err, IsNil)
+		if got.InstanceName() == "snapd" {
+			snapsup = got
+			break
+		}
+	}
+	c.Assert(snapsup, NotNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.ExplicitChannel, Equals, false)
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+}
+
+func (s *snapmgrTestSuite) TestUpdateWithGoalSnapdLTSRemapsPolicyChannel(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{
+			RealName: "snapd",
+			SnapID:   "snapd-snap-id",
+			Revision: snap.R(1),
+		}}),
+		Current:         snap.R(1),
+		TrackingChannel: "18/stable",
+		SnapType:        "snapd",
+	})
+
+	goal := snapstate.StoreUpdateGoal(snapstate.StoreUpdate{
+		InstanceName: "snapd",
+		RevOpts:      snapstate.RevisionOptions{Channel: "latest/stable"},
+	})
+	updated, uts, err := snapstate.UpdateWithGoal(context.Background(), s.state, goal, nil, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Check(updated, DeepEquals, []string{"snapd"})
+	c.Assert(uts, NotNil)
+
+	var snapsup *snapstate.SnapSetup
+	for _, ts := range uts.Refresh {
+		te, err := ts.Edge(snapstate.SnapSetupEdge)
+		if err != nil {
+			continue
+		}
+		got, err := snapstate.TaskSnapSetup(te)
+		c.Assert(err, IsNil)
+		if got.InstanceName() == "snapd" {
+			snapsup = got
+			break
+		}
+	}
+	c.Assert(snapsup, NotNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.ExplicitChannel, Equals, false)
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+}
+
 func (s *snapmgrTestSuite) TestInstallSnapdLTSCohortUnsatisfiableFailsAtPlanning(c *C) {
 	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
 		18: {"latest": "18"},
@@ -12017,6 +12133,140 @@ func (s *snapmgrTestSuite) TestDownload(c *C) {
 	c.Check(snapsupTaskID, Equals, downloadSnap.ID())
 
 	c.Check(prqt.infos, DeepEquals, []*snap.Info{info})
+}
+
+func (s *snapmgrTestSuite) TestDownloadSnapdLTSRemapsChannel(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "snapd", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel: "latest/stable",
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	downloadSnap := ts.MaybeEdge(snapstate.SnapSetupEdge)
+	c.Assert(downloadSnap, NotNil)
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.ExplicitChannel, Equals, false)
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Channel, Equals, "18/stable")
+}
+
+func (s *snapmgrTestSuite) TestDownloadSnapdExplicitChannelKeepsChannel(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, _, err := snapstate.Download(context.Background(), s.state, "snapd", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel:         "latest/stable",
+		ExplicitChannel: true,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+
+	downloadSnap := ts.MaybeEdge(snapstate.SnapSetupEdge)
+	c.Assert(downloadSnap, NotNil)
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Channel, Equals, "latest/stable")
+	c.Check(snapsup.ExplicitChannel, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestDownloadSnapdLTSValidationSetPinsRevision(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restoreTracks()
+	restoreClassic := release.MockOnClassic(false)
+	defer restoreClassic()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapID := snaptest.AssertedSnapID("snapd")
+	s.fakeStore.registerID("snapd", snapID)
+
+	headers := map[string]any{
+		"type":         "validation-set",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"authority-id": "foo",
+		"series":       "16",
+		"account-id":   "foo",
+		"name":         "bar",
+		"sequence":     "1",
+		"snaps": []any{
+			map[string]any{
+				"name":     "snapd",
+				"id":       snapID,
+				"presence": "required",
+				"revision": "11",
+			},
+		},
+	}
+	signing := assertstest.NewStoreStack("can0nical", nil)
+	a, err := signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	vsets := snapasserts.NewValidationSets()
+	c.Assert(vsets.Add(a.(*asserts.ValidationSet)), IsNil)
+
+	ts, info, err := snapstate.Download(context.Background(), s.state, "snapd", nil, c.MkDir(), snapstate.RevisionOptions{
+		Channel:        "latest/stable",
+		ValidationSets: vsets,
+	}, snapstate.Options{})
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(11))
+
+	downloadSnap := ts.MaybeEdge(snapstate.SnapSetupEdge)
+	c.Assert(downloadSnap, NotNil)
+	var snapsup snapstate.SnapSetup
+	err = downloadSnap.Get("snap-setup", &snapsup)
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Revision(), Equals, snap.R(11))
+	c.Check(snapsup.ExplicitChannel, Equals, false)
+
+	var storeAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			storeAction = &a
+			break
+		}
+	}
+	c.Assert(storeAction, NotNil)
+	c.Check(storeAction.Revision, Equals, snap.R(11))
+	// A validation-set revision pin selects the blob; channel is not sent.
+	c.Check(storeAction.Channel, Equals, "")
 }
 
 func (s *snapmgrTestSuite) TestDownloadWithComponents(c *C) {

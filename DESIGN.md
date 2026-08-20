@@ -709,6 +709,24 @@ cannot remap at planning; the intercept covers it only when a
    is also the LTS tip, planning still builds a `switch-snap-channel`
    task. Unaware snapd remains intercept-only (needs a new `latest` blob).
 
+10. **Four leftover install/refresh paths.** **Resolved.**
+    `ExplicitChannel` means this operation's caller supplied a channel. It
+    is not inferred from “some code filled `RevisionOptions.Channel`.”
+    Goal-level `markExplicitPins()` was removed from `validateAndPrune`
+    and `downloadTasks`; user-facing `Install` / `Update` still mark pins
+    at the real caller boundary.
+
+    | Source | LTS |
+    | --- | --- |
+    | CLI/REST `--channel` / `--revision` | Skip |
+    | `prepare-image --snap=snapd=<channel>` | Skip (becomes tracking at firstboot) |
+    | Model `default-channel`, cluster channel, prereq default `stable`, image `--channel` default, `--snap=snapd` with no channel | Remap |
+    | `$SNAPD_SNAPD_CHANNEL` | Treat as an explicit pin (test/image override) |
+
+    Cluster install and update both remap (signed policy, same as model).
+    A validation-set revision pin still selects the blob. Offline
+    create-recovery is unchanged (local blob).
+
 ---
 
 ## 7. Implementation plan and status

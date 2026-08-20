@@ -781,10 +781,17 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUC18(c *C) {
 
 	model := s.uc18SeedModel()
 	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "in scope", "18/stable")
-	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "option channel override", "18/candidate",
+	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "option channel override skips LTS", "latest/candidate",
 		&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"},
 		&seedwriter.OptionsSnap{Name: "snapd", Channel: "latest/candidate"},
 	)
+	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "option snapd with no channel remaps", "18/stable",
+		&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"},
+		&seedwriter.OptionsSnap{Name: "snapd"},
+	)
+	s.opts.DefaultChannel = "candidate"
+	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "image-wide --channel remaps", "18/candidate")
+	s.opts.DefaultChannel = ""
 }
 
 func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackNoMapPassthrough(c *C) {
@@ -820,7 +827,7 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUnknownTrackPassthrough(c 
 	s.makeSnap(c, "cont-consumer", "developerid")
 
 	model := s.uc18SeedModel()
-	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "unmapped track passthrough", "20/stable",
+	s.checkSnapdDownloadChannel(c, model, ltsTrackMap(18, "18"), "", "option pin skips LTS", "20/stable",
 		&seedwriter.OptionsSnap{Name: "pc", Channel: "edge"},
 		&seedwriter.OptionsSnap{Name: "snapd", Channel: "20/stable"},
 	)
@@ -866,7 +873,8 @@ func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUC20(c *C) {
 	s.makeSnap(c, "pc=20", "")
 
 	s.checkSnapdDownloadChannel(c, s.uc20SeedModel(""), ltsTrackMap(20, "20"), "20200101", "implicit snapd", "20/stable")
-	s.checkSnapdDownloadChannel(c, s.uc20SeedModel("latest/edge"), ltsTrackMap(20, "20"), "20200102", "explicit latest/edge", "20/edge")
+	s.checkSnapdDownloadChannel(c, s.uc20SeedModel("latest/edge"), ltsTrackMap(20, "20"), "20200102", "model default-channel remaps", "20/edge")
+	s.checkSnapdDownloadChannel(c, s.uc20SeedModel("18/stable"), ltsTrackMap(20, "20"), "20200103", "unmapped model track passthrough", "18/stable")
 }
 
 func (s *writerSuite) TestSnapsToDownloadSnapdLTSTrackUC22FIPS(c *C) {

@@ -1132,6 +1132,13 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 		if optSnap != nil && optSnap.Path != "" {
 			return resChannel, nil
 		}
+		// --snap=snapd=<channel> is an explicit image-builder pin, same
+		// as CLI --channel=: do not remap onto the LTS track. An option
+		// snap with no channel still remaps (model / image --channel
+		// default).
+		if optSnap != nil && optSnap.Channel != "" {
+			return resChannel, nil
+		}
 		// UC16 has no separate snapd snap (the core snap acts as
 		// snapd); LTS snapd track policy does not apply.
 		if base := w.model.Base(); base == "" || base == "core" {

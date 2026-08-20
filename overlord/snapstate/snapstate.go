@@ -787,9 +787,19 @@ func downloadTasks(
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
 
-	revOpts.markExplicitPins()
+	// Do not infer ExplicitChannel from a filled Channel: create-recovery
+	// and similar internals pass a model/policy channel that is not a
+	// caller --channel=. Callers that mean a pin must set ExplicitChannel
+	// / ExplicitRevision themselves (Install/Update already do).
 	if revOpts.Channel == "" {
 		revOpts.Channel = "stable"
+	}
+
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, nil, err
+	}
+	if err := revOpts.resolveChannelForStore(name, "stable", opts.DeviceCtx); err != nil {
+		return nil, nil, err
 	}
 
 	if revOpts.ValidationSets == nil {
@@ -1969,7 +1979,7 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 // map unavailable, base not yet managed, or the input track is unmapped).
 // Otherwise required is the canonical LTS channel.
 func snapdLTSRequiredChannel(snapName, effectiveChannel string, deviceCtx DeviceContext, unasserted bool) (required string, passthrough bool, err error) {
-	if snapName != "snapd" || unasserted {
+	if snapName != "snapd" || unasserted || deviceCtx == nil {
 		return "", true, nil
 	}
 

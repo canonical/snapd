@@ -244,3 +244,8 @@ tests, and others).
 5. **Refresh-all LTS remap.** **Resolved:** `initRefreshAllStoreUpdates`
    calls `maybeRemapSnapdLTSChannel`. Auto-refresh and `snap refresh`
    with no names match `snap refresh snapd`. See DESIGN.md open question 9.
+6. **Four leftover install/refresh paths.** **Resolved:** see DESIGN.md
+   open question 10. Only a real caller pin (`ExplicitChannel` /
+   `--snap=snapd=<channel>`) skips LTS. Model `default-channel`, cluster
+   channel, prereq default, and image-wide `--channel` remap. `$SNAPD_SNAPD_CHANNEL`
+   is an explicit pin.

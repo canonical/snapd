@@ -787,8 +787,10 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 
 		// only provide a default the channel if the revision is not set, since
 		// we don't want to prevent the user from installing a specific revision
-		// that doesn't happen to exist in the "stable" risk
-		sn.RevOpts.markExplicitPins()
+		// that doesn't happen to exist in the "stable" risk.
+		// Do not infer ExplicitChannel here: a filled Channel may be a policy
+		// default (prereq, cluster, model) rather than a caller --channel=.
+		// User-facing Install/Update already called markExplicitPins().
 		if sn.RevOpts.Channel == "" && sn.RevOpts.Revision.Unset() {
 			sn.RevOpts.Channel = "stable"
 		}

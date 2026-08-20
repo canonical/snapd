@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -1285,6 +1286,46 @@ func (s *prereqSuite) TestDoPrereqNoRevision(c *C) {
 	defer s.state.Unlock()
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*- test \(cannot install prerequisite "prereq1": no snap revision available as specified\)`)
+}
+
+func (s *prereqSuite) TestDoPrereqSnapdLTSRemapsDefaultChannel(c *C) {
+	restoreTracks := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restoreTracks()
+	restoreModel := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer restoreModel()
+
+	s.state.Lock()
+	t := s.state.NewTask("prerequisites", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+		Base: "core18",
+	})
+	chg := s.state.NewChange("sample", "...")
+	chg.AddTask(t)
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Err(), IsNil)
+
+	var snapdAction *store.SnapAction
+	for _, op := range s.fakeBackend.ops {
+		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
+			a := op.action
+			snapdAction = &a
+			break
+		}
+	}
+	c.Assert(snapdAction, NotNil)
+	c.Check(snapdAction.Channel, Equals, "18/stable")
 }
 
 func (s *prereqSuite) TestDoPrereqSnapdNoRevision(c *C) {
