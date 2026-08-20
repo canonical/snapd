@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
@@ -41,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
+	valset_confdb "github.com/snapcore/snapd/overlord/assertstate/confdb"
 	"github.com/snapcore/snapd/overlord/confdbstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -49,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -62,6 +65,8 @@ type confdbTestSuite struct {
 	dbSchema    *confdb.Schema
 	otherSchema *confdb.Schema
 	devAccID    string
+
+	restoreDeviceCtx func()
 }
 
 var _ = Suite(&confdbTestSuite{})
@@ -196,6 +201,13 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 	tr.Commit()
 
 	confdbstate.ResetBlockingSignals()
+}
+
+func (s *confdbTestSuite) TearDownTest(c *C) {
+	if s.restoreDeviceCtx != nil {
+		s.restoreDeviceCtx()
+		s.restoreDeviceCtx = nil
+	}
 }
 
 func parsePath(c *C, path string) []confdb.Accessor {
@@ -1064,7 +1076,7 @@ func (s *confdbTestSuite) TestGetStoredTransaction(c *C) {
 		c.Assert(err, IsNil)
 		c.Assert(val, Equals, "bar")
 
-		c.Assert(tx.Clear(s.state), IsNil)
+		c.Assert(tx.Reset(s.state), IsNil)
 		commitTask.Set("confdb-transaction", tx)
 	}
 }
@@ -1264,7 +1276,7 @@ func (s *confdbTestSuite) checkSetConfdbChange(c *C, chg *state.Change, hooks *[
 	err = s.state.Get("confdb-tx-commits", &txCommits)
 	c.Assert(err, testutil.ErrorIs, &state.NoStateError{})
 
-	err = tx.Clear(s.state)
+	err = tx.Reset(s.state)
 	c.Assert(err, IsNil)
 
 	// was committed (otherwise would've been removed by Clear)
@@ -2185,7 +2197,7 @@ func (s *confdbTestSuite) TestCanHookSetConfdb(c *C) {
 }
 
 func (s *confdbTestSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("confdbmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("confdbmgr.go", c, false)
 }
 
 func (s *confdbTestSuite) TestGetTransactionWithSecretVisibility(c *C) {
@@ -3226,4 +3238,427 @@ func (s *confdbTestSuite) TestAPIBlockingAccessTimedOutRacesWithUnblock(c *C) {
 	case <-time.After(testutil.HostScaledTimeout(2 * time.Second)):
 		c.Fatal("expected access to block but timed out")
 	}
+}
+
+func (s *confdbTestSuite) TestReadSystemConfdbValidationSets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "state")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.ReadConfdb(context.Background(), s.state, view, []string{"my-account.my-set"}, nil, confdb.AdminAccess)
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Assert(chg.Tasks(), HasLen, 0)
+
+	var apiData map[string]any
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, IsNil)
+
+	vals, ok := apiData["values"]
+	c.Assert(ok, Equals, true)
+	c.Assert(vals, DeepEquals, map[string]any{
+		"my-account.my-set": map[string]any{
+			"mode":            "enforce",
+			"status":          "invalid",
+			"pinned-sequence": float64(5),
+			"sequence":        float64(3),
+			"revision":        float64(1),
+			"snaps": []any{
+				map[string]any{
+					"name":     "my-snap",
+					"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+					"presence": "required",
+				},
+				map[string]any{
+					"name":     "other-snap",
+					"id":       "zOqKhntON3vR7kwEbVPsILm7bUViPDzy",
+					"presence": "optional",
+					"revision": float64(7),
+				},
+			},
+		},
+	})
+}
+
+func (s *confdbTestSuite) TestWriteSystemConfdbValidationSetsWithObserveViewHook(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+
+	// set up a snap connected to system/validation-sets/state with an observe-view hook
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	confdbIface := &ifacetest.TestInterface{InterfaceName: "confdb"}
+	err := repo.AddInterface(confdbIface)
+	c.Assert(err, IsNil)
+
+	const coreYaml = `name: core
+version: 1
+type: os
+slots:
+  confdb-slot:
+    interface: confdb
+`
+	coreInfo := mockInstalledSnap(c, s.state, coreYaml, nil)
+	coreSet, err := interfaces.NewSnapAppSet(coreInfo, nil)
+	c.Assert(err, IsNil)
+	err = repo.AddAppSet(coreSet)
+	c.Assert(err, IsNil)
+
+	const observerYaml = `name: observer-snap
+version: 1
+type: app
+plugs:
+  state:
+    interface: confdb
+    account: system
+    view: validation-sets/state
+`
+	hooks := []string{"observe-view-state"}
+	observerInfo := mockInstalledSnap(c, s.state, observerYaml, hooks)
+	observerInfo.Hooks["observe-view-state"] = &snap.HookInfo{
+		Name: "observe-view-state",
+		Snap: observerInfo,
+	}
+
+	observerSet, err := interfaces.NewSnapAppSet(observerInfo, nil)
+	c.Assert(err, IsNil)
+	err = repo.AddAppSet(observerSet)
+	c.Assert(err, IsNil)
+
+	_, err = repo.Connect(&interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "observer-snap", Name: "state"},
+		SlotRef: interfaces.SlotRef{Snap: "core", Name: "confdb-slot"},
+	}, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "admin")
+	c.Assert(err, IsNil)
+
+	// make sure the hook observes the right thing
+	var observeViewCalled bool
+	restore := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		if ctx.HookName() != "observe-view-state" {
+			return nil, nil
+		}
+
+		ctx.State().Lock()
+		defer ctx.State().Unlock()
+
+		req := []string{"my-account.my-set"}
+		tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, req, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		res, err := confdbstate.GetViaView(tx, view, req, nil, confdb.AdminAccess)
+		if err != nil {
+			return nil, err
+		}
+		c.Check(res, DeepEquals, map[string]any{
+			"my-account.my-set": map[string]any{
+				"mode":            "monitor",
+				"status":          "invalid",
+				"pinned-sequence": float64(4),
+				// check that the sequence was updated by the subsystem handler and commit
+				// then updated the transaction object
+				"sequence": float64(4),
+				"revision": float64(1),
+				"snaps": []any{
+					map[string]any{
+						"name":     "pinned-snap",
+						"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+						"presence": "required",
+					},
+				},
+			},
+		})
+
+		observeViewCalled = true
+		return nil, nil
+	})
+	defer restore()
+
+	chgID, err := confdbstate.WriteConfdb(nil, s.state, view, map[string]any{
+		"my-account.my-set.mode":            "monitor",
+		"my-account.my-set.pinned-sequence": 4,
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	// change propagated to val set state
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(s.state, "my-account", "my-set", &tr)
+	c.Assert(err, IsNil)
+	c.Check(tr.PinnedAt, Equals, 4)
+	c.Check(tr.Current, Equals, 4)
+	c.Check(tr.Mode, Equals, assertstate.Monitor)
+
+	// make sure the hook was called and its assertions ran
+	c.Assert(observeViewCalled, Equals, true)
+}
+
+// setup an assertion DB with the builtin system/validation-sets confdb-schema
+// and a my-account/my-set validation set. Also sets up the val sets confdb
+// handler and seeds some initial data.
+func (s *confdbTestSuite) setupSystemConfdbValidationSets(c *C) {
+	storeSigning := assertstest.NewStoreStack("canonical", nil)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore:       asserts.NewMemoryBackstore(),
+		Trusted:         storeSigning.Trusted,
+		OtherPredefined: asserts.Builtin(),
+	})
+	c.Assert(err, IsNil)
+	c.Assert(db.Add(storeSigning.StoreAccountKey("")), IsNil)
+
+	devAcc := assertstest.NewAccount(storeSigning, "my-account-user", map[string]any{
+		"account-id": "my-account",
+	}, "")
+	c.Assert(db.Add(devAcc), IsNil)
+
+	devPrivKey, _ := assertstest.GenerateKey(752)
+	devAccKey := assertstest.NewAccountKey(storeSigning, devAcc, nil, devPrivKey.PublicKey(), "")
+	c.Assert(db.Add(devAccKey), IsNil)
+
+	devSigning := assertstest.NewSigningDB("my-account", devPrivKey)
+	vs, err := devSigning.Sign(asserts.ValidationSetType, map[string]any{
+		"series":       "16",
+		"account-id":   "my-account",
+		"authority-id": "my-account",
+		"name":         "my-set",
+		"sequence":     "3",
+		"revision":     "1",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps": []any{
+			map[string]any{
+				"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+				"name":     "my-snap",
+				"presence": "required",
+			},
+			map[string]any{
+				"id":       "zOqKhntON3vR7kwEbVPsILm7bUViPDzy",
+				"name":     "other-snap",
+				"presence": "optional",
+				"revision": "7",
+			},
+		},
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(db.Add(vs), IsNil)
+
+	vs, err = devSigning.Sign(asserts.ValidationSetType, map[string]any{
+		"series":       "16",
+		"account-id":   "my-account",
+		"authority-id": "my-account",
+		"name":         "my-set",
+		"sequence":     "4",
+		"revision":     "1",
+		"timestamp":    "2030-11-06T09:17:26Z",
+		"snaps": []any{
+			map[string]any{
+				"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+				"name":     "pinned-snap",
+				"presence": "required",
+			},
+		},
+	}, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(db.Add(vs), IsNil)
+	assertstate.ReplaceDB(s.state, db)
+
+	deviceCtx := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: sysdb.GenericClassicModel(),
+		CtxStore:    &assertstatetest.FakeStore{State: s.state, DB: storeSigning},
+	}
+	s.restoreDeviceCtx = snapstatetest.MockDeviceContext(deviceCtx)
+	s.state.Set("seeded", true)
+
+	confdbstate.RegisterConfdbHandler(&valset_confdb.ValsetsConfdbHandler{})
+
+	assertstate.UpdateValidationSet(s.state, &assertstate.ValidationSetTracking{
+		AccountID: "my-account",
+		Name:      "my-set",
+		Mode:      assertstate.Enforce,
+		PinnedAt:  5,
+		Current:   3,
+	})
+}
+
+type mockConfdbHandler struct {
+	c *C
+
+	commitFunc func(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error)
+}
+
+func (h *mockConfdbHandler) SchemaName() string {
+	return "validation-sets"
+}
+
+func (h *mockConfdbHandler) Commit(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+	if h.commitFunc != nil {
+		return h.commitFunc(st, tx)
+	}
+	return nil, nil
+}
+
+func (h *mockConfdbHandler) Databag(st *state.State) (confdb.JSONDatabag, error) {
+	bag := confdb.NewJSONDatabag()
+	bag.Set(parsePath(h.c, "v1.my-account.my-set.mode"), "enforce")
+	bag.Set(parsePath(h.c, "v1.my-account.my-set.sequence"), 3)
+	return bag, nil
+}
+
+func (s *confdbTestSuite) TestSystemConfdbAsyncCommit(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+
+	var asyncTaskRan bool
+	s.o.TaskRunner().AddHandler("mock-async-work", func(t *state.Task, _ *tomb.Tomb) error {
+		st := t.State()
+		st.Lock()
+		defer st.Unlock()
+
+		var commitTask *state.Task
+		for _, haltedTask := range t.HaltTasks() {
+			if haltedTask.Kind() == "commit-confdb-tx" {
+				commitTask = haltedTask
+				break
+			}
+		}
+		c.Assert(commitTask, NotNil)
+		c.Assert(commitTask.Status(), Equals, state.DoStatus)
+
+		asyncTaskRan = true
+		return nil
+	}, nil)
+
+	handler := &mockConfdbHandler{
+		c: c,
+		commitFunc: func(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+			asyncTask := st.NewTask("mock-async-work", "async work from commit handler")
+			return []*state.TaskSet{state.NewTaskSet(asyncTask)}, nil
+		},
+	}
+
+	// overwrite validation-sets handler so we can "use" the validation-sets
+	// confdb-schema and not have to mock another one
+	confdbstate.RegisterConfdbHandler(handler)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "admin")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(nil, s.state, view, map[string]any{"my-account.my-set.pinned-sequence": 10})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+
+	// check commit scheduled the async tasks
+	c.Check(asyncTaskRan, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+}
+
+func (s *confdbTestSuite) TestSystemConfdbAsyncCommitTaskError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+
+	s.o.TaskRunner().AddHandler("mock-async-fail", func(t *state.Task, _ *tomb.Tomb) error {
+		return fmt.Errorf("async task failed")
+	}, nil)
+
+	handler := &mockConfdbHandler{
+		c: c,
+		commitFunc: func(st *state.State, tx *confdbstate.Transaction) ([]*state.TaskSet, error) {
+			asyncTask := st.NewTask("mock-async-fail", "async work that fails")
+			return []*state.TaskSet{state.NewTaskSet(asyncTask)}, nil
+		},
+	}
+	confdbstate.RegisterConfdbHandler(handler)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "admin")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(nil, s.state, view, map[string]any{"my-account.my-set.pinned-sequence": 10})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	var commitTask *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "commit-confdb-tx" {
+			commitTask = t
+			break
+		}
+	}
+	c.Assert(commitTask, NotNil)
+	c.Assert(commitTask.Status(), Equals, state.HoldStatus)
+}
+
+func (s *confdbTestSuite) TestSystemConfdbSyncCommit(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupSystemConfdbValidationSets(c)
+	ifacerepo.Replace(s.state, interfaces.NewRepository())
+
+	var commitCalled bool
+	handler := &mockConfdbHandler{
+		c: c,
+		commitFunc: func(*state.State, *confdbstate.Transaction) ([]*state.TaskSet, error) {
+			commitCalled = true
+			return nil, nil
+		},
+	}
+	confdbstate.RegisterConfdbHandler(handler)
+
+	view, err := confdbstate.GetView(s.state, "system", "validation-sets", "admin")
+	c.Assert(err, IsNil)
+
+	chgID, err := confdbstate.WriteConfdb(nil, s.state, view, map[string]any{"my-account.my-set.pinned-sequence": 10})
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	chg := s.state.Change(chgID)
+	c.Assert(chg, NotNil)
+
+	c.Check(commitCalled, Equals, true)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
 }

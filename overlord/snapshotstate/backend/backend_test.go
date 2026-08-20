@@ -593,7 +593,7 @@ func (s *snapshotSuite) TestAddDirToZipTarFails(c *check.C) {
 	var buf bytes.Buffer
 	z := zip.NewWriter(&buf)
 	savingUserData := false
-	c.Assert(backend.AddSnapDirToZip(ctx, &client.Snapshot{Revision: rev}, z, "", "an/entry", s.root, savingUserData, nil), check.ErrorMatches, ".* context canceled")
+	c.Assert(backend.AddSnapDirToZip(ctx, &client.Snapshot{Revision: rev}, z, "root", "an/entry", s.root, savingUserData, nil), check.ErrorMatches, ".* context canceled")
 }
 
 func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
@@ -610,7 +610,7 @@ func (s *snapshotSuite) TestAddDirToZip(c *check.C) {
 		Revision: rev,
 	}
 	savingUserData := false
-	c.Assert(backend.AddSnapDirToZip(context.Background(), snapshot, z, "", "an/entry", s.root, savingUserData, nil), check.IsNil)
+	c.Assert(backend.AddSnapDirToZip(context.Background(), snapshot, z, "root", "an/entry", s.root, savingUserData, nil), check.IsNil)
 	z.Close() // write out the central directory
 
 	c.Check(snapshot.SHA3_384, check.HasLen, 1)
@@ -1103,6 +1103,10 @@ func (s *snapshotSuite) TestImportCheckError(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+
 	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 	c.Assert(err, check.IsNil)
 
@@ -1132,6 +1136,10 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 }
 
 func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+
 	err := os.MkdirAll(dirs.SnapshotsDir, 0755)
 	c.Assert(err, check.IsNil)
 
@@ -1292,6 +1300,10 @@ func (s *snapshotSuite) TestEstimateSnapshotSizeNotDataDirs(c *check.C) {
 }
 
 func (s *snapshotSuite) TestExportTwice(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+
 	// use mocking done in snapshotSuite.SetUpTest
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
@@ -1659,6 +1671,10 @@ func (s *snapshotSuite) TestMultiErrorCycle(c *check.C) {
 }
 
 func (s *snapshotSuite) TestSnapshotExportContentHash(c *check.C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+
 	ctx := context.TODO()
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{

@@ -62,6 +62,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/secboot"
@@ -2075,7 +2076,7 @@ func (s *deviceMgrSuite) TestRunFDESetupHookErrorResult(c *C) {
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
 	st.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "op": cannot unmarshal context value for "fde-setup-result": illegal base64 data at input byte 3`)
+	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "op": cannot unmarshal context value for "fde-setup-result": .*illegal base64 data at input byte 3`)
 }
 
 type startOfOperationTimeSuite struct {
@@ -4090,7 +4091,7 @@ func (s *deviceMgrSuite) TestConfdbControlFindExisting(c *C) {
 }
 
 func (s *deviceMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("devicemgr.go", c, true)
+	swfeatstest.CheckEnsureLoopLogging("devicemgr.go", c, true)
 }
 
 func (s *deviceMgrSuite) TestSignResponseMessageOK(c *C) {

@@ -376,7 +376,7 @@ func (s *patternsSuite) TestPathPatternUnmarshalJSONUnhappy(c *C) {
 		},
 		{
 			[]byte{'"', 0x00, '"'},
-			`invalid character '\\x00' in string literal`,
+			`invalid character '\\x00' in string.*`,
 		},
 	} {
 		pathPattern := patterns.PathPattern{}

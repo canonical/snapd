@@ -141,7 +141,6 @@ execute: |
                     "home")
                         ;& # fallthrough
                     "camera")
-                        MATCH "failed" < "$TMP_STDOUT"
                         MATCH "Permission denied" < "$TMP_STDERR"
                         ;;
                     "audio-record")

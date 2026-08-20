@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,28 +17,24 @@
  *
  */
 
-package syscheck_test
+package swfeatstest_test
 
 import (
-	"os"
-	"path/filepath"
-
-	. "gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/syscheck"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/swfeats"
 )
 
-func (s *syscheckSuite) TestCheckApparmorUsable(c *C) {
-	if os.Geteuid() == 0 {
-		c.Skip("this test cannot run as root (root can read files regardless of mode)")
-	}
+type ensureLogExampleManager struct{}
 
-	epermProfilePath := filepath.Join(c.MkDir(), "profiles")
-	restore := syscheck.MockAppArmorProfilesPath(epermProfilePath)
-	defer restore()
-	err := os.Chmod(filepath.Dir(epermProfilePath), 0444)
-	c.Assert(err, IsNil)
+func (m *ensureLogExampleManager) Ensure() error {
+	m.ensureExample()
+	return nil
+}
 
-	err = syscheck.CheckApparmorUsable()
-	c.Check(err, ErrorMatches, "apparmor detected but insufficient permissions to use it")
+func (m *ensureLogExampleManager) ensureExample() {
+	logger.Trace("ensure", "manager", "ensureLogExampleManager", "func", "ensureExample")
+}
+
+func init() {
+	swfeats.RegisterEnsure("ensureLogExampleManager", "ensureExample")
 }

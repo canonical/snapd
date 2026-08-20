@@ -65,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
@@ -13008,7 +13009,7 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 }
 
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+	swfeatstest.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
 }
 
 func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {
