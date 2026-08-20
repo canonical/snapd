@@ -125,8 +125,6 @@ execute: |
     fi
 
     if [ "${CLEAR_TPM}" = true ]; then
-      wait_for_auto_repair_state pre-repair-state.json not-attempted
-
       remote.exec "sudo snap debug api /v2/systems?running=true 2>/dev/null" | gojq '.result["storage-encryption"].support' | MATCH "available"
 
       echo '{"action":"generate-recovery-key"}' | remote.exec "sudo snap debug api -X POST -H 'Content-Type: application/json' /v2/systems" >rkey-reprovision.resp
