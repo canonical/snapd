@@ -126,6 +126,24 @@ jobs:
             echo "$env" >> $GITHUB_ENV
           done
 
+    - name: Set remote store
+      run: |
+          # Non-self-hosted runners cannot reach the enterprise store
+          # e.g. gargen executions
+          if [ "${{ runner.environment }}" != "self-hosted" ]; then
+            echo "SPREAD_REMOTE_STORE=production" >> "$GITHUB_ENV"
+            echo "Using production store in the following execution"
+            exit 0
+          fi
+          prob=$(curl -sf https://storage.googleapis.com/snapd-spread-tests/snapd-tests/ci/enterprise-store-usage.txt || echo "0")
+          if awk "BEGIN{srand(); exit(rand() < $prob ? 0 : 1)}"; then
+            echo "SPREAD_REMOTE_STORE=enterprise" >> "$GITHUB_ENV"
+            echo "Using enterprise store in the following tests execution"
+          else
+            echo "SPREAD_REMOTE_STORE=production" >> "$GITHUB_ENV"
+            echo "Using production store in the following tests execution"
+          fi
+
     - name: Set PR labels as environment variables
       if: ${{ github.event.pull_request.number }}
       run: |
@@ -477,8 +495,6 @@ jobs:
           fi
 
           export SPREAD_USE_PREBUILT_SNAPD_SNAP=true
-          export SPREAD_REMOTE_STORE=enterprise
-
           # This could be the case when either there are not systems for a group or
           # the list of tests to run is empty
           TESTS_TO_RUN="$(cat "$RUN_TESTS_FILE")"
