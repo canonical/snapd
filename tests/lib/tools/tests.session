@@ -174,6 +174,14 @@ main() {
 			exit 0
 			;;
 		restore)
+			# Defensively stop any persistent sessions created with
+			# create-session but not destroyed with destroy-session, so that
+			# they cannot leak into subsequent tests. Stopping the unit kills
+			# the session payload and thereby the session itself.
+			systemctl stop "tests.session-persist-*.service" 2>/dev/null || true
+			systemctl reset-failed "tests.session-persist-*.service" 2>/dev/null || true
+			rm -f /run/tests.session/*.id
+
 			# Disable linger for the selected user(s).
 			for u in $(echo "$user" | tr ',' ' '); do
 
@@ -277,7 +285,12 @@ main() {
 			unit_name="tests.session-persist-$user$session_suffix.service"
 			id_file="/run/tests.session/$user$session_suffix.id"
 
-			if systemctl is-active --quiet "$unit_name"; then
+			# A failed leftover unit also occupies the unit name, but
+			# is-active returns false for failed units, so check is-failed
+			# too in order to report the problem instead of failing below
+			# with a confusing "unit was already loaded" error from
+			# systemd-run.
+			if systemctl is-active --quiet "$unit_name" || systemctl is-failed --quiet "$unit_name"; then
 				echo "tests.session: session for user $user$session_suffix already exists, run destroy-session first" >&2
 				exit 1
 			fi
@@ -321,12 +334,24 @@ main() {
 
 			# Wait for the session to be registered, then verify that the
 			# requested class and type were honored by pam_systemd.
-			retry -n 10 --wait 1 test -s "$id_file"
+			if ! retry -n 10 --wait 1 test -s "$id_file"; then
+				# Stop and reset the unit so that its name is freed for a
+				# retry. A failed transient unit keeps occupying the name
+				# until reset-failed is called, even after being stopped.
+				systemctl stop "$unit_name" 2>/dev/null || true
+				systemctl reset-failed "$unit_name" 2>/dev/null || true
+				rm -f "$id_file"
+				echo "tests.session: timed out waiting for the session of user $user$session_suffix to be registered" >&2
+				exit 1
+			fi
 			session_id="$(cat "$id_file")"
 			if [ -n "$session_class" ]; then
 				got_class="$(loginctl show-session "$session_id" --property=Class | cut -d = -f 2-)"
 				if [ "$got_class" != "$session_class" ]; then
-					systemctl stop "$unit_name" || true
+					# Stop and reset the unit to free its name for a
+					# retry, see the comment above.
+					systemctl stop "$unit_name" 2>/dev/null || true
+					systemctl reset-failed "$unit_name" 2>/dev/null || true
 					rm -f "$id_file"
 					echo "tests.session: requested session class $session_class but got $got_class" >&2
 					exit 1
@@ -335,7 +360,10 @@ main() {
 			if [ -n "$session_type" ]; then
 				got_type="$(loginctl show-session "$session_id" --property=Type | cut -d = -f 2-)"
 				if [ "$got_type" != "$session_type" ]; then
-					systemctl stop "$unit_name" || true
+					# Stop and reset the unit to free its name for a
+					# retry, see the comment above.
+					systemctl stop "$unit_name" 2>/dev/null || true
+					systemctl reset-failed "$unit_name" 2>/dev/null || true
 					rm -f "$id_file"
 					echo "tests.session: requested session type $session_type but got $got_type" >&2
 					exit 1
@@ -365,8 +393,11 @@ main() {
 			unit_name="tests.session-persist-$user$session_suffix.service"
 			id_file="/run/tests.session/$user$session_suffix.id"
 
-			systemctl stop "$unit_name" || true
-			systemctl reset-failed "$unit_name" || true
+			# Best effort: the unit and its failure state may already be
+			# gone, e.g. when destroy-session is called more than once, so
+			# the systemctl noise is suppressed.
+			systemctl stop "$unit_name" 2>/dev/null || true
+			systemctl reset-failed "$unit_name" 2>/dev/null || true
 			rm -f "$id_file"
 
 			exit 0
