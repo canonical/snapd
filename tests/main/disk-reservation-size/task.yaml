@@ -24,6 +24,7 @@ prepare: |
   snapd.tool exec snap-mgmt --purge
   mkdir -p "$SNAP_MOUNT_DIR"
   mount -t tmpfs tmpfs -o size="$SUFFICIENT_SIZE",mode=0755 "$TMPFSMOUNT"
+  mkdir -p "$TMPFSMOUNT/snaps"
 
   systemctl start snapd.{socket,service}
   snap wait system seed.loaded
