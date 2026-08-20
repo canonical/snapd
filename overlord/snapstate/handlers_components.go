@@ -418,6 +418,22 @@ func saveCurrentKernelModuleComponents(t *state.Task, snapsup *SnapSetup, snapst
 	return nil
 }
 
+// updateSeqFileForSnap rewrites the on-disk sequence file for the given snap
+// so that it stays consistent with the component information held in the
+// in-memory sequence. The sequence file is written for failover handling
+// (snap-repair) at snap link time, but component link/unlink handlers mutate
+// the sequence afterwards; without this the on-disk file would permanently
+// lack the components that were linked after the snap revision. The file is
+// only rewritten if it already exists, mirroring writeMigrationStatus, so that
+// we never create it for a snap whose link-snap has not run yet. State must be
+// locked by the caller.
+func updateSeqFileForSnap(snapst *SnapState, instanceName string) error {
+	if !osutil.FileExists(snap.SequenceFile(instanceName)) {
+		return nil
+	}
+	return writeSeqFile(instanceName, snapst)
+}
+
 func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	// invariant: component is not in the state (unlink happens previously if necessary)
 	st := t.State()
@@ -468,6 +484,11 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// keep the on-disk sequence file in sync with the newly linked component
+	if err := updateSeqFileForSnap(snapSt, snapsup.InstanceName()); err != nil {
+		return err
+	}
+
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
@@ -514,6 +535,11 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	snapSt.Sequence.RemoveComponentForRevision(snapInfo.Revision,
 		linkedComp.SideInfo.Component)
 
+	// keep the on-disk sequence file in sync with the removed component
+	if err := updateSeqFileForSnap(snapSt, snapsup.InstanceName()); err != nil {
+		return err
+	}
+
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
@@ -551,6 +577,11 @@ func (m *SnapManager) doUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (err
 		return err
 	}
 
+	// keep the on-disk sequence file in sync with the removed component
+	if err := updateSeqFileForSnap(snapSt, snapInfo.InstanceName()); err != nil {
+		return err
+	}
+
 	// Finally, write the state
 	Set(st, snapInfo.InstanceName(), snapSt)
 	// Make sure we won't be rerun
@@ -575,6 +606,11 @@ func (m *SnapManager) doUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err error)
 	// Remove component for the specified revision
 	if err := m.unlinkComponent(
 		t, snapSt, snapSup.InstanceName(), snapSup.Revision(), cref); err != nil {
+		return err
+	}
+
+	// keep the on-disk sequence file in sync with the removed component
+	if err := updateSeqFileForSnap(snapSt, snapSup.InstanceName()); err != nil {
 		return err
 	}
 
@@ -634,6 +670,11 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 		return err
 	}
 
+	// keep the on-disk sequence file in sync with the relinked component
+	if err := updateSeqFileForSnap(snapSt, snapsup.InstanceName()); err != nil {
+		return err
+	}
+
 	// Finally, write the state
 	Set(st, snapsup.InstanceName(), snapSt)
 	// Make sure we won't be rerun
@@ -668,6 +709,11 @@ func (m *SnapManager) undoUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err erro
 
 	if err := m.relinkComponent(
 		t, snapSt, snapSup.InstanceName(), snapSup.Revision()); err != nil {
+		return err
+	}
+
+	// keep the on-disk sequence file in sync with the relinked component
+	if err := updateSeqFileForSnap(snapSt, snapSup.InstanceName()); err != nil {
 		return err
 	}
 
