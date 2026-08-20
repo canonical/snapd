@@ -308,6 +308,10 @@ func (s *snapdataSuite) TestRemoveSnapDataDirWithUnexpectedFiles(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirEnotemptyWithReadDirError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read directories regardless of mode)")
+	}
+
 	baseDataDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap", "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
 	// unexpected folder to make removal fail with ENOTEMPTY
@@ -323,6 +327,10 @@ func (s *snapdataSuite) TestRemoveSnapDataDirEnotemptyWithReadDirError(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirErrorNotEnotempty(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove directories from read-only parents)")
+	}
+
 	parentDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap")
 	baseDataDir := filepath.Join(parentDir, "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
@@ -337,6 +345,10 @@ func (s *snapdataSuite) TestRemoveSnapDataDirErrorNotEnotempty(c *C) {
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirCurrentSymlinkRemovalFails(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
+	}
+
 	baseDataDir := filepath.Join(dirs.GlobalRootDir, "home", "users", "snap", "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
 	// create the current symlink

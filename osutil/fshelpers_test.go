@@ -35,7 +35,7 @@ var _ = Suite(&fshelpersSuite{})
 
 func (s *fshelpersSuite) TestSelfOwnedFile(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (files created by root are owned by root)")
 	}
 	name := filepath.Join(c.MkDir(), "testownedfile")
 	err := os.WriteFile(name, nil, 0644)

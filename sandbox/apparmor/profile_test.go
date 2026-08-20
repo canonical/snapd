@@ -663,6 +663,10 @@ func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError2(c *C) {
 
 // Test behavior when EnsureDirState fails
 func (s *appArmorSuite) TestSetupSnapConfineGeneratedPolicyError3(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can remove files from read-only directories)")
+	}
+
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
 

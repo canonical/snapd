@@ -76,7 +76,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileOverwrite(c *C) {
 
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileSymlinkNoFollow(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	tmpdir := c.MkDir()
 	rodir := filepath.Join(tmpdir, "ro")
@@ -112,7 +112,7 @@ func (ts *AtomicWriteTestSuite) TestAtomicWriteFileAsteriskInBasenameError(c *C)
 
 func (ts *AtomicWriteTestSuite) TestAtomicWriteFileTmpFileCreateError(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	tmpdir := c.MkDir()
 
@@ -296,7 +296,7 @@ var _ = Suite(&AtomicSymlinkTestSuite{})
 
 func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	mustReadSymlink := func(p, exp string) {
 		target, err := os.Readlink(p)
@@ -391,7 +391,7 @@ var _ = Suite(&AtomicLinkTestSuite{})
 
 func (ts *AtomicLinkTestSuite) TestAtomicLink(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	mustReadLink := func(target, link string) {
 		match, err := osutil.ComparePathsByDeviceInode(target, link)
@@ -485,7 +485,7 @@ var _ = Suite(&AtomicRenameTestSuite{})
 
 func (ts *AtomicRenameTestSuite) TestAtomicRenameFile(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
 	}
 	d := c.MkDir()
 

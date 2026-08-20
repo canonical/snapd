@@ -416,6 +416,10 @@ plugs:
 }
 
 func (s *polkitInterfaceSuite) TestSanitizePlugPolicyDirNotWritable(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory writability checks)")
+	}
+
 	_, plugInfo := mockPolkitPolicyConnectedPlug(c)
 
 	// Actions directory is not writable.
@@ -425,6 +429,10 @@ func (s *polkitInterfaceSuite) TestSanitizePlugPolicyDirNotWritable(c *C) {
 }
 
 func (s *polkitInterfaceSuite) TestSanitizePlugRuleDirNotWritable(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory writability checks)")
+	}
+
 	_, plugInfo := mockPolkitRuleConnectedPlug(c, "hash")
 
 	// Rules directory is not writable.
@@ -589,9 +597,11 @@ func (s *polkitInterfaceSuite) TestPolkitPoliciesSupported(c *C) {
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
 
-	// Actions directory is not writable so polkit policies are not supported.
-	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
+	if os.Geteuid() != 0 {
+		// Actions directory is not writable so polkit policies are not supported.
+		c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o500), IsNil)
+		c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
+	}
 
 	// Actions directory is writable so polkit policies are supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitPolicyDir, 0o700), IsNil)
@@ -623,9 +633,11 @@ func (s *polkitInterfaceSuite) TestPolkitRulesSupported(c *C) {
 	c.Assert(os.Chmod(s.daemonPath1, 0o700), IsNil)
 	c.Assert(os.Chmod(s.daemonPath2, 0o700), IsNil)
 
-	// Rules directory is not writable so polkit rules are not supported.
-	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
-	c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
+	if os.Geteuid() != 0 {
+		// Rules directory is not writable so polkit rules are not supported.
+		c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o500), IsNil)
+		c.Check(interfaces.StaticInfoOf(s.iface).ImplicitOnCore, Equals, false)
+	}
 
 	// Rules directory is writable so polkit rules are supported.
 	c.Assert(os.Chmod(dirs.SnapPolkitRuleDir, 0o700), IsNil)

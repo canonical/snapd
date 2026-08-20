@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/strutil"
@@ -250,7 +249,7 @@ If you understand and want to proceed repeat the command including --classic.
 		msg = i18n.G(`snap %q is not compatible with --classic`)
 	case client.ErrorKindLoginRequired:
 		usesSnapName = false
-		u, _ := user.Current()
+		u, _ := userCurrent()
 		if u != nil && u.Username == "root" {
 			// TRANSLATORS: %s is an error message (e.g. “cannot yadda yadda: permission denied”)
 			msg = fmt.Sprintf(i18n.G(`%s (see 'snap help login')`), err.Message)
