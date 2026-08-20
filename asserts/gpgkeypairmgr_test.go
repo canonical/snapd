@@ -66,7 +66,7 @@ func (gkms *gpgKeypairMgrSuite) addSigningSubkey(c *C, fingerprint string) {
 	if err != nil {
 		c.Skip("cannot determine gpg2 version")
 	}
-	versionLine := strings.SplitN(strings.TrimSpace(string(versionOut)), "\n", 2)[0]
+	versionLine, _, _ := strings.Cut(strings.TrimSpace(string(versionOut)), "\n")
 	versionFields := strings.Fields(versionLine)
 	if len(versionFields) == 0 {
 		c.Skip("cannot determine gpg2 version")
