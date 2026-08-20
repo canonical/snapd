@@ -15,11 +15,14 @@ environment:
   TMPFSMOUNT: /var/lib/snapd
   # filling tmpfs mounted under /var/lib/snapd triggers OOM
   SNAPD_NO_MEMORY_LIMIT: 1
-  SUFFICIENT_SIZE: 100M
+  SUFFICIENT_SIZE: 300M
 
 prepare: |
   systemctl stop snapd.{socket,service}
   SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  # preserve the snapd snap under test because snap-mgmt --purge removes it.
+  cp "$TMPFSMOUNT/snaps/snapd_${SNAPD_REV}.snap" \
+  "$TESTSTMP/snapd-under-test.snap"
 
   snapd.tool exec snap-mgmt --purge
   mkdir -p "$SNAP_MOUNT_DIR"
@@ -28,6 +31,8 @@ prepare: |
 
   systemctl start snapd.{socket,service}
   snap wait system seed.loaded
+  snap install --dangerous "$TESTSTMP/snapd-under-test.snap"
+  rm -f "$TESTSTMP/snapd-under-test.snap"
 
 restore: |
   systemctl stop snapd.{socket,service}
