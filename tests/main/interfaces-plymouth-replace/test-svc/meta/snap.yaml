@@ -1,0 +1,8 @@
+name: test-svc
+version: 1.0
+apps:
+    svc:
+        command: bin/service
+        daemon: simple
+        plugs:
+            - plymouth-replace
