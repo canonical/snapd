@@ -16441,6 +16441,175 @@ func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevision(c *C) {
 	c.Assert(snapst.Sequence.Revisions[0], DeepEquals, seq.Revisions[0])
 }
 
+// TestUpdateWithComponentsBackToPrevRevisionUndo exercises the undo path of a
+// refresh that moves back to a snap revision that is already present in the
+// sequence and that carries extra components which must be unlinked. The
+// undo of unlink-component must not fail with "snap revision is not in the
+// sequence".
+func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionUndo(c *C) {
+	const (
+		snapName = "kernel-snap-with-components"
+		snapID   = "kernel-snap-with-components-id"
+		channel  = "channel-for-components-only-component-refresh"
+	)
+
+	r := snapstatetest.MockDeviceModel(MakeModel20("pc", map[string]any{"base": "core24"}))
+	defer r()
+
+	components := []string{"standard-component", "kernel-modules-component"}
+
+	currentSnapRev := snap.R(11)
+	prevSnapRev := snap.R(7)
+
+	sort.Strings(components)
+
+	currentSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: currentSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+	snaptest.MockSnap(c, fmt.Sprintf("name: %s\ntype: kernel\n", snapName), &currentSI)
+
+	restore := snapstate.MockRevisionDate(nil)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	prevSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: prevSnapRev,
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	otherSI := snap.SideInfo{
+		RealName: snapName,
+		Revision: snap.R(99),
+		SnapID:   snapID,
+		Channel:  channel,
+	}
+
+	seq := snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{&otherSI, &prevSI, &currentSI})
+
+	for i, comp := range components {
+		prevCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 1),
+		}
+		err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
+			SideInfo: &prevCsi,
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+
+		currentCsi := snap.ComponentSideInfo{
+			Component: naming.NewComponentRef(snapName, comp),
+			Revision:  snap.R(i + 3),
+		}
+		err = seq.AddComponentForRevision(currentSnapRev, &sequence.ComponentState{
+			SideInfo: &currentCsi,
+			CompType: componentNameToType(c, comp),
+		})
+		c.Assert(err, IsNil)
+	}
+
+	availableComponents := make([]string, len(components))
+	copy(availableComponents, components)
+	availableComponents = append(availableComponents, "standard-component-extra")
+
+	// an extra component installed only for the revision we are moving to; it
+	// will be unlinked by an unlink-component task and then relinked on undo.
+	extraCsi := snap.ComponentSideInfo{
+		Component: naming.NewComponentRef(snapName, "standard-component-extra"),
+		Revision:  snap.R(len(availableComponents) + 1),
+	}
+	err := seq.AddComponentForRevision(prevSnapRev, &sequence.ComponentState{
+		SideInfo: &extraCsi,
+		CompType: componentNameToType(c, extraCsi.Component.ComponentName),
+	})
+	c.Assert(err, IsNil)
+
+	s.fakeStore.snapResourcesFn = func(info *snap.Info) []store.SnapResourceResult {
+		c.Assert(info.InstanceName(), DeepEquals, snapName)
+		var results []store.SnapResourceResult
+		for i, compName := range availableComponents {
+			results = append(results, store.SnapResourceResult{
+				DownloadInfo: snap.DownloadInfo{
+					DownloadURL: "http://example.com/" + compName,
+				},
+				Name:      compName,
+				Revision:  i + 2,
+				Type:      fmt.Sprintf("component/%s", componentNameToType(c, compName)),
+				Version:   "1.0",
+				CreatedAt: "2024-01-01T00:00:00Z",
+			})
+		}
+		return results
+	}
+
+	s.AddCleanup(snapstate.MockReadComponentInfo(func(
+		compMntDir string, info *snap.Info, csi *snap.ComponentSideInfo,
+	) (*snap.ComponentInfo, error) {
+		return &snap.ComponentInfo{
+			Component:         csi.Component,
+			Type:              componentNameToType(c, csi.Component.ComponentName),
+			CompVersion:       "1.0",
+			ComponentSideInfo: *csi,
+		}, nil
+	}))
+
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:          true,
+		Sequence:        seq,
+		Current:         currentSI.Revision,
+		SnapType:        "kernel",
+		TrackingChannel: channel,
+	})
+
+	ts, err := snapstate.Update(s.state, snapName, &snapstate.RevisionOptions{
+		Revision: prevSnapRev,
+	}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	chg.AddAll(ts)
+
+	// an unlink-component task must be present for the extra component,
+	// otherwise this test is not exercising the undo we care about.
+	var hasUnlinkComponent bool
+	for _, t := range ts.Tasks() {
+		if t.Kind() == "unlink-component" {
+			hasUnlinkComponent = true
+		}
+	}
+	c.Assert(hasUnlinkComponent, Equals, true, Commentf("change tasks:\n%s", printTasks(ts.Tasks())))
+
+	last := lastWithLane(ts.Tasks())
+	c.Assert(last, NotNil)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	terr.JoinLane(last.Lanes()[0])
+	chg.AddTask(terr)
+
+	s.settle(c)
+
+	err = chg.Err()
+	c.Assert(err, NotNil, Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+	// the undo of unlink-component must not fail with an internal error about
+	// the snap revision missing from the sequence
+	c.Check(err.Error(), Not(testutil.Contains), "is not in the sequence",
+		Commentf("change tasks:\n%s", printTasks(chg.Tasks())))
+
+	// the system must be back to the original current revision, with the
+	// original sequence restored
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Check(snapst.Current, Equals, currentSnapRev)
+}
+
 func (s *snapmgrTestSuite) TestUpdateWithComponentsBackToPrevRevisionAlreadyPresent(c *C) {
 	s.testUpdateWithComponentsBackToPrevRevisionAlreadyPresent(c, false)
 }
