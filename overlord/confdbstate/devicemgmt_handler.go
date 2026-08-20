@@ -168,14 +168,14 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 			return map[string]any{}, nil
 		}
 
-		return nil, fmt.Errorf("internal error: change %q done with no api-data", chg.Kind())
+		return nil, fmt.Errorf("internal error: %q change (%s) done with no api-data", chg.Kind(), chg.ID())
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	errData, hasErr := apiData["error"]
-	if !hasErr {
+	errData, ok := apiData["error"]
+	if !ok {
 		return apiData, nil
 	}
 
