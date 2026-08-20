@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -165,10 +166,38 @@ func (s *linkCompSnapSuite) TestDoLinkComponentUpdatesSeqFile(c *C) {
 	c.Check(chg.Err(), IsNil)
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
-	// the on-disk sequence file must now contain the linked component
+	// the on-disk sequence file must now contain the linked component. we
+	// compare the unmarshaled content rather than the raw JSON so that the test
+	// does not depend on field ordering or other serialization details.
 	seqContent, err := os.ReadFile(snap.SequenceFile(snapName))
 	c.Assert(err, IsNil)
-	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"mysnap","snap-id":"some-snap-id","revision":"1","components":[{"side-info":{"component":{"snap-name":"mysnap","component-name":"mycomp"},"revision":"7"},"type":"standard"}]}],"current":"1","migrated-hidden":false,"migrated-exposed-home":false}`)
+
+	var got map[string]any
+	c.Assert(json.Unmarshal(seqContent, &got), IsNil)
+	c.Check(got, DeepEquals, map[string]any{
+		"sequence": []any{
+			map[string]any{
+				"name":     "mysnap",
+				"snap-id":  "some-snap-id",
+				"revision": "1",
+				"components": []any{
+					map[string]any{
+						"side-info": map[string]any{
+							"component": map[string]any{
+								"snap-name":      "mysnap",
+								"component-name": "mycomp",
+							},
+							"revision": "7",
+						},
+						"type": "standard",
+					},
+				},
+			},
+		},
+		"current":               "1",
+		"migrated-hidden":       false,
+		"migrated-exposed-home": false,
+	})
 }
 
 func (s *linkCompSnapSuite) TestDoLinkComponentOtherCompPresent(c *C) {

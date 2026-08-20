@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"encoding/json"
 	"os"
 
 	. "gopkg.in/check.v1"
@@ -356,10 +357,26 @@ func (s *discardSnapSuite) TestDoDiscardSnapKeepsSeqFileForNonLastRevision(c *C)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(seqFilePath, testutil.FilePresent)
 
-	// the discarded revision must no longer be present in the sequence file
+	// the discarded revision must no longer be present in the sequence file. we
+	// compare the unmarshaled content rather than the raw JSON so that the test
+	// does not depend on field ordering or other serialization details.
 	seqContent, err := os.ReadFile(seqFilePath)
 	c.Assert(err, IsNil)
-	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
+
+	var got map[string]any
+	c.Assert(json.Unmarshal(seqContent, &got), IsNil)
+	c.Check(got, DeepEquals, map[string]any{
+		"sequence": []any{
+			map[string]any{
+				"name":     "foo",
+				"snap-id":  "",
+				"revision": "33",
+			},
+		},
+		"current":               "33",
+		"migrated-hidden":       false,
+		"migrated-exposed-home": false,
+	})
 }
 
 func (s *discardSnapSuite) TestDoDiscardSnapNoErrorIfSeqFileMissing(c *C) {
