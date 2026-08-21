@@ -73,4 +73,4 @@ execute: |
     snap interfaces | MATCH ":gpio-pin.*gpio-consumer:gpio"
 
     echo "Ensure that our mock service is full functional"
-    systemctl status fake-gpio.service | MATCH "Active: active"
+    systemctl status fake-gpio.service | MATCH 'Active: active'

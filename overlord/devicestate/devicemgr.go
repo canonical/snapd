@@ -1833,9 +1833,6 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 }
 
 func (m *DeviceManager) ensureTriedRecoverySystem() error {
-	if release.OnClassic {
-		return nil
-	}
 	// nothing to do if not UC20 and run mode
 	if m.SystemMode(SysHasModeenv) != "run" {
 		return nil
@@ -1849,10 +1846,40 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
+	if !seeded {
+		return nil
+	}
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		// if we're acting on a tried recovery system, we should have a device
+		// context. if we don't have one, just bail.
+		if errors.Is(err, state.ErrNoState) {
+			return nil
+		}
+		return err
+	}
+
+	// has to be core boot to have a recovery system that was tried
+	if !deviceCtx.IsCoreBoot() {
+		return nil
+	}
+
+	hasSystemSeed, err := checkForSystemSeed(m.state, deviceCtx)
+	if err != nil {
+		return fmt.Errorf("cannot find ubuntu seed role: %w", err)
+	}
+
+	// has to have a system seed to have a recovery system that was tried
+	if !hasSystemSeed {
+		return nil
+	}
+
 	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
 	if err != nil {
 		if !boot.IsInconsistentRecoverySystemState(err) {

@@ -3210,7 +3210,7 @@ func (s *RunSuite) TestGetSnapDirOptions(c *check.C) {
 	dirs.FeaturesDir = root
 
 	// write sequence file
-	seqFile := filepath.Join(dirs.SnapSeqDir, "somesnap.json")
+	seqFile := snap.SequenceFile("somesnap")
 	str := struct {
 		MigratedHidden        bool `json:"migrated-hidden"`
 		MigratedToExposedHome bool `json:"migrated-exposed-home"`

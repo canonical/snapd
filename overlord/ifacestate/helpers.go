@@ -627,11 +627,11 @@ ConnsLoop:
 			policyChecker = connChecker.check
 		}
 
-		plugAppSet, err := interfaces.NewSnapAppSet(plugInfo.Snap, nil)
+		plugAppSet, err := interfaces.NewSnapAppSet(plugInfo.Snap, interfaces.NoComponents)
 		if err != nil {
 			return nil, nil, err
 		}
-		slotAppSet, err := interfaces.NewSnapAppSet(slotInfo.Snap, nil)
+		slotAppSet, err := interfaces.NewSnapAppSet(slotInfo.Snap, interfaces.NoComponents)
 		if err != nil {
 			return nil, nil, err
 		}

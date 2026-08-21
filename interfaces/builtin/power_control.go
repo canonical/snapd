@@ -52,8 +52,14 @@ const powerControlConnectedPlugAppArmor = `
 
 # Needed for ACPI modules to read and set values for battery charging thresholds & other functionality
 # required by auto-cpufreq, reference: https://github.com/snapcore/snapd/pull/13722
-/sys/devices/**/power_supply/BAT[0-9]*/charge_start_threshold rw, 
-/sys/devices/**/power_supply/BAT[0-9]*/charge_stop_threshold rw, 
+# Both charge_start/stop_threshold (legacy ThinkPad naming) and
+# charge_control_start/end_threshold (standardized kernel ABI since v4.16,
+# Documentation/ABI/testing/sysfs-class-power) are allowed; they control the same
+# underlying firmware state on supported hardware but use different sysfs names.
+/sys/devices/**/power_supply/BAT[0-9]*/charge_start_threshold rw,
+/sys/devices/**/power_supply/BAT[0-9]*/charge_stop_threshold rw,
+/sys/devices/**/power_supply/BAT[0-9]*/charge_control_start_threshold rw,
+/sys/devices/**/power_supply/BAT[0-9]*/charge_control_end_threshold rw,
 /sys/devices/**/power_supply/BAT[0-9]*/type r,
 /sys/devices/**/power_supply/BAT[0-9]*/status r,
 /sys/devices/**/power_supply/AC/type r,

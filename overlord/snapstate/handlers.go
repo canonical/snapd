@@ -1632,7 +1632,7 @@ func writeMigrationStatus(t *state.Task, snapst *SnapState, snapsup *SnapSetup) 
 		Set(st, snapName, snapst)
 	}
 
-	seqFile := filepath.Join(dirs.SnapSeqDir, snapName+".json")
+	seqFile := snap.SequenceFile(snapName)
 	if osutil.FileExists(seqFile) {
 		// might've written migration status to seq file in the change; update it
 		// after undo
@@ -1671,7 +1671,7 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 // writeSeqFile writes the sequence file for failover handling
 func writeSeqFile(name string, snapst *SnapState) error {
-	p := filepath.Join(dirs.SnapSeqDir, name+".json")
+	p := snap.SequenceFile(name)
 	if err := os.MkdirAll(filepath.Dir(p), 0755); err != nil {
 		return err
 	}
@@ -3630,7 +3630,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			logger.Noticef("cannot remove store metadata for %q: %v", snapsup.InstanceName(), err)
 		}
 
-		// XXX: also remove sequence files?
+		seqFilePath := snap.SequenceFile(snapsup.InstanceName())
+		if err := os.Remove(seqFilePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 
 		// remove the snap from any quota groups it may have been in, otherwise
 		// that quota group may get into an inconsistent state

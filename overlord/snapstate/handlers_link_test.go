@@ -347,7 +347,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSeqFile(c *C) {
 	c.Assert(err, IsNil)
 
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("foo"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"foo","snap-id":"","revision":"11"},{"name":"foo","snap-id":"","revision":"33"}],"current":"33","migrated-hidden":false,"migrated-exposed-home":false}`)
 }
@@ -412,7 +412,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "foo.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("foo"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[],"current":"unset","migrated-hidden":false,"migrated-exposed-home":false}`)
 
@@ -2817,7 +2817,7 @@ func (s *linkSnapSuite) TestUndoLinkSnapdNthInstall(c *C) {
 
 	// verify sequence file
 	// and check that the sequence file got updated
-	seqContent, err := os.ReadFile(filepath.Join(dirs.SnapSeqDir, "snapd.json"))
+	seqContent, err := os.ReadFile(snap.SequenceFile("snapd"))
 	c.Assert(err, IsNil)
 	c.Check(string(seqContent), Equals, `{"sequence":[{"name":"snapd","snap-id":"snapd-snap-id","revision":"20"}],"current":"20","migrated-hidden":false,"migrated-exposed-home":false}`)
 }

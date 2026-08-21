@@ -290,7 +290,10 @@ main() {
 
 		# Prevent accumulation of failed sessions.
 		if systemctl cat "$unit_name" &>/dev/null; then
-			if systemctl is-failed "$unit_name"; then
+			# only the exit status matters here; keep stdout quiet so that a
+			# failed payload does not print a stray "failed" line that could be
+			# mistaken for the wrapped command's own output
+			if systemctl is-failed --quiet "$unit_name"; then
 				systemctl reset-failed "$unit_name"
 				exit 1
 			fi

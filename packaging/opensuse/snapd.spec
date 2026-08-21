@@ -115,7 +115,7 @@
 
 
 Name:           snapd
-Version:        2.76.3
+Version:        2.77
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -403,6 +403,11 @@ install -D -p -m 0644 %{indigo_srcdir}/data/selinux/snappy.pp.bz2 \
     %{buildroot}%{_datadir}/selinux/packages/snappy.pp.bz2
 %endif
 
+# Drop tools not shipped on openSUSE (handled via snapd multi-call dispatch
+# on Ubuntu/Debian; on openSUSE these binaries are not needed)
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-preseed
+rm -fv %{buildroot}%{_libexecdir}/snapd/snap-gpio-helper
+
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
 chmod 755 %{buildroot}%{_localstatedir}/lib/snapd/void
@@ -662,6 +667,7 @@ fi
 %{_unitdir}/snapd.mounts-pre.target
 %{_userunitdir}/snapd.session-agent.service
 %{_userunitdir}/snapd.session-agent.socket
+%{_libexecdir}/snapd/snapd-tool-wrap
 
 # When apparmor is enabled there are some additional entries.
 %if %{with apparmor}

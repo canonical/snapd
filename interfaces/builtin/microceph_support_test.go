@@ -25,16 +25,22 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type MicrocephSupportInterfaceSuite struct {
-	iface    interfaces.Interface
-	slotInfo *snap.SlotInfo
-	slot     *interfaces.ConnectedSlot
-	plugInfo *snap.PlugInfo
-	plug     *interfaces.ConnectedPlug
+	iface               interfaces.Interface
+	slotInfo            *snap.SlotInfo
+	slot                *interfaces.ConnectedSlot
+	plugInfo            *snap.PlugInfo
+	plug                *interfaces.ConnectedPlug
+	identityPlugInfo    *snap.PlugInfo
+	identityPlug        *interfaces.ConnectedPlug
+	identityOffPlugInfo *snap.PlugInfo
+	identityOffPlug     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&MicrocephSupportInterfaceSuite{
@@ -43,9 +49,26 @@ var _ = Suite(&MicrocephSupportInterfaceSuite{
 
 const microcephSupportConsumerYaml = `name: consumer
 version: 0
+plugs:
+ smb-identity:
+  interface: microceph-support
+  user-identity-switching: true
 apps:
  app:
   plugs: [microceph-support]
+ smbd:
+  plugs: [smb-identity]
+`
+
+const microcephSupportUserIdentitySwitchingFalseConsumerYaml = `name: consumer
+version: 0
+plugs:
+ smb-identity:
+  interface: microceph-support
+  user-identity-switching: false
+apps:
+ smbd:
+  plugs: [smb-identity]
 `
 
 const microcephSupportCoreYaml = `name: core
@@ -57,6 +80,8 @@ slots:
 
 func (s *MicrocephSupportInterfaceSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, microcephSupportConsumerYaml, nil, "microceph-support")
+	s.identityPlug, s.identityPlugInfo = MockConnectedPlug(c, microcephSupportConsumerYaml, nil, "smb-identity")
+	s.identityOffPlug, s.identityOffPlugInfo = MockConnectedPlug(c, microcephSupportUserIdentitySwitchingFalseConsumerYaml, nil, "smb-identity")
 	s.slot, s.slotInfo = MockConnectedSlot(c, microcephSupportCoreYaml, nil, "microceph-support")
 }
 
@@ -70,6 +95,8 @@ func (s *MicrocephSupportInterfaceSuite) TestSanitizeSlot(c *C) {
 
 func (s *MicrocephSupportInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.identityPlugInfo), IsNil)
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.identityOffPlugInfo), IsNil)
 }
 
 func (s *MicrocephSupportInterfaceSuite) TestAppArmorSpec(c *C) {
@@ -79,6 +106,62 @@ func (s *MicrocephSupportInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/sys/bus/rbd/add_single_major rwk,                         # add single major dev\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "capability setuid,")
+
+	// a plain plug adds no seccomp policy
+	seccompSpec := seccomp.NewSpecification(appSet)
+	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(seccompSpec.Snippets(), HasLen, 0)
+}
+
+func (s *MicrocephSupportInterfaceSuite) TestAppArmorSpecUserIdentitySwitching(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.identityPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.identityPlug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.smbd"})
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), testutil.Contains, "capability setuid,")
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), testutil.Contains, "capability setgid,")
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), testutil.Contains, "/sys/bus/rbd/add_single_major rwk,                         # add single major dev\n")
+}
+
+func (s *MicrocephSupportInterfaceSuite) TestAppArmorSpecUserIdentitySwitchingFalse(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.identityOffPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := apparmor.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.identityOffPlug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.smbd"})
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), testutil.Contains, "/sys/bus/rbd/add_single_major rwk,                         # add single major dev\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), Not(testutil.Contains), "capability setuid,")
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), Not(testutil.Contains), "capability setgid,")
+
+	// user-identity-switching: false behaves like an absent attribute for seccomp too
+	seccompSpec := seccomp.NewSpecification(appSet)
+	c.Assert(seccompSpec.AddConnectedPlug(s.iface, s.identityOffPlug, s.slot), IsNil)
+	c.Assert(seccompSpec.Snippets(), HasLen, 0)
+}
+
+func (s *MicrocephSupportInterfaceSuite) TestSecCompSpecUserIdentitySwitching(c *C) {
+	appSet, err := interfaces.NewSnapAppSet(s.identityPlug.Snap(), nil)
+	c.Assert(err, IsNil)
+	spec := seccomp.NewSpecification(appSet)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.identityPlug, s.slot), IsNil)
+	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.smbd"})
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), testutil.Contains, "setgroups\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.smbd"), testutil.Contains, "setgroups32\n")
+}
+
+func (s *MicrocephSupportInterfaceSuite) TestSanitizePlugUserIdentitySwitchingBad(c *C) {
+	const mockSnapYaml = `name: consumer
+version: 0
+plugs:
+ smb-identity:
+  interface: microceph-support
+  user-identity-switching: bad
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	plug := info.Plugs["smb-identity"]
+	c.Assert(interfaces.BeforePreparePlug(s.iface, plug), ErrorMatches, "microceph-support plug requires bool with 'user-identity-switching'")
 }
 
 func (s *MicrocephSupportInterfaceSuite) TestStaticInfo(c *C) {

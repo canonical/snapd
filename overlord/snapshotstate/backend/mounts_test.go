@@ -122,7 +122,7 @@ func (s *snapshotSuite) TestRestoreNoMountsAtDst(c *C) {
 	rs.Cleanup()
 
 	// one ListMountUnits call while processing each of {system common, system rev, user common, user rev}
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		expListMountUnitsParams, expListMountUnitsParams, expListMountUnitsParams, expListMountUnitsParams,
 	})
@@ -150,7 +150,7 @@ func (s *snapshotSuite) TestRestoreStopsAndRestartsSnapctlMounts(c *C) {
 	rs.Cleanup()
 
 	// one ListMountUnits call while processing each of {system common, system rev, user common, user rev}
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		expListMountUnitsParams, expListMountUnitsParams, expListMountUnitsParams, expListMountUnitsParams,
 	})
@@ -177,7 +177,7 @@ func (s *snapshotSuite) TestRestoreNonSnapctlMountReturnsError(c *C) {
 
 	// ListMountUnits called at least once
 	c.Assert(s.sysd.ListMountUnitsCalls, Not(HasLen), 0)
-	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control"})
+	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control", Filter: systemd.LoadedMountUnits})
 	c.Check(s.sysd.StopCalls, HasLen, 0)
 	c.Check(s.sysd.StartCalls, HasLen, 0)
 }
@@ -196,7 +196,7 @@ func (s *snapshotSuite) TestRestoreListMountErrorReturnsError(c *C) {
 	c.Assert(err, ErrorMatches, `.*cannot list mounts.*mock ListMountUnits error.*`)
 
 	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 1)
-	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control"})
+	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control", Filter: systemd.LoadedMountUnits})
 	c.Check(s.sysd.StopCalls, HasLen, 0)
 	c.Check(s.sysd.StartCalls, HasLen, 0)
 }
@@ -222,7 +222,7 @@ func (s *snapshotSuite) TestRestoreStopFailureReturnsError(c *C) {
 	c.Assert(err, ErrorMatches, `.*cannot stop mount unit.*systemd stop failed.*`)
 
 	c.Assert(s.sysd.ListMountUnitsCalls, Not(HasLen), 0)
-	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control"})
+	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control", Filter: systemd.LoadedMountUnits})
 	c.Check(s.sysd.StopCalls, HasLen, 1)
 	c.Check(s.sysd.StartCalls, HasLen, 0)
 }
@@ -251,7 +251,7 @@ func (s *snapshotSuite) TestRestoreRestartFailureIsLoggedNotReturned(c *C) {
 	rs.Cleanup()
 
 	// one ListMountUnits call while processing each of {system common, system rev, user common, user rev}
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "hello-snap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Check(s.sysd.ListMountUnitsCalls, DeepEquals, []systemdtest.ParamsForListMountUnits{
 		expListMountUnitsParams, expListMountUnitsParams, expListMountUnitsParams, expListMountUnitsParams,
 	})
@@ -303,7 +303,7 @@ func (s *snapshotSuite) TestRevertStopsAndRestartsSnapctlMounts(c *C) {
 	}
 	rs.Revert()
 
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
 
@@ -343,7 +343,7 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnNonSnapctlMounts(c *C) {
 	rs.Revert()
 
 	// Both dirs must have been visited (loop continued past dir1).
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 2)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
 	c.Check(s.sysd.ListMountUnitsCalls[1], DeepEquals, expListMountUnitsParams)
@@ -386,7 +386,7 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnStopFailure(c *C) {
 	rs.Revert()
 
 	// Both dirs must have been visited (loop continued past dir1).
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 2)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
 	c.Check(s.sysd.ListMountUnitsCalls[1], DeepEquals, expListMountUnitsParams)
@@ -427,7 +427,7 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnStartFailure(c *C) {
 	}
 	rs.Revert()
 
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 1)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
 	c.Assert(s.sysd.StopCalls, HasLen, 1)
@@ -464,7 +464,7 @@ func (s *snapshotSuite) TestRevertLogsAndContinuesOnListMountError(c *C) {
 	rs.Revert()
 
 	// Both dirs must have been visited (loop continued past the first error).
-	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control"}
+	expListMountUnitsParams := systemdtest.ParamsForListMountUnits{SnapName: "mysnap", Origin: "mount-control", Filter: systemd.LoadedMountUnits}
 	c.Assert(s.sysd.ListMountUnitsCalls, HasLen, 2)
 	c.Check(s.sysd.ListMountUnitsCalls[0], DeepEquals, expListMountUnitsParams)
 	c.Check(s.sysd.ListMountUnitsCalls[1], DeepEquals, expListMountUnitsParams)

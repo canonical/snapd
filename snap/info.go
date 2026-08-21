@@ -273,6 +273,11 @@ func CommonDataDir(name string) string {
 	return filepath.Join(dirs.SnapDataDir, name, "common")
 }
 
+// SequenceFile returns the path to the sequence file for the given snap name.
+func SequenceFile(name string) string {
+	return filepath.Join(dirs.SnapSeqDir, name+".json")
+}
+
 // HooksDir returns the directory containing the snap's hooks for given snap
 // name. The name can be either a snap name or snap instance name.
 func HooksDir(name string, revision Revision) string {

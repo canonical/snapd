@@ -1277,7 +1277,8 @@ func (m *DeviceManager) doInstallFinish(t *state.Task, _ *tomb.Tomb) error {
 		PrepareImageTime: false,
 		// We need the same configuration that a recovery partition,
 		// as we will chainload to grub in the boot partition.
-		Role: bootloader.RoleRecovery,
+		Role:         bootloader.RoleRecovery,
+		HybridSystem: systemAndSnaps.Model.HybridClassic(),
 	}
 	if err := bootMakeBootablePartition(seedMntDir, opts, bootWith, boot.ModeRun, nil); err != nil {
 		return err

@@ -391,7 +391,7 @@ main() {
         # work on and attach to the VM
         if [ -z "${disk}" ]; then
             disk="${PWD}/disk.img"
-            truncate --size=6G "${disk}"
+            truncate --size=8G "${disk}"
         fi
 
         # if a gadget wasn't provided, download one we know should work for hybrid

@@ -215,7 +215,7 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
-func (s *emulation) ListMountUnits(snapName, origin string) ([]string, error) {
+func (s *emulation) ListMountUnits(snapName, origin string, filter MountUnitFilter) ([]string, error) {
 	return nil, &notImplementedError{"ListMountUnits"}
 }
 

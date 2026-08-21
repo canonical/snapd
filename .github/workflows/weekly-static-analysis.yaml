@@ -78,7 +78,10 @@ jobs:
 
     - name: Test Go with coverage
       run: |
-        go install github.com/boumenot/gocover-cobertura@latest
+        # gocover-cobertura was updated May 2026, changes break coverage reporting
+        # TODO: Triage work needed to update to newest version of gocover-cobertura
+        # (https://github.com/boumenot/gocover-cobertura/releases#release-v1.5.0)
+        go install github.com/boumenot/gocover-cobertura@v1.4.0
 
         cd "${{ github.workspace }}/src/github.com/snapcore/snapd"
         COVERAGE_OUT=.coverage/coverage.txt \

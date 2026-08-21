@@ -297,6 +297,40 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	}
 }
 
+// MockSyscallExec is for use in tests
+func MockSyscallExec(f func(argv0 string, argv []string, envv []string) (err error)) func() {
+	// no osutil.IsTestBinary() guard as it checks os.Args, which may have been
+	// modified in the codepath that needed to invoke this mock
+	oldSyscallExec := syscallExec
+	syscallExec = f
+	return func() {
+		syscallExec = oldSyscallExec
+	}
+}
+
+// MockCoreSnapdPaths is for use in tests
+func MockCoreSnapdPaths(newCoreSnap, newSnapdSnap string) func() {
+	// see comment in MockSyscallExec about not using osutil.IsTestBinary()
+	oldCoreSnap := coreSnap
+	oldSnapdSnap := snapdSnap
+	snapdSnap = newSnapdSnap
+	coreSnap = newCoreSnap
+	return func() {
+		snapdSnap = oldSnapdSnap
+		coreSnap = oldCoreSnap
+	}
+}
+
+// MockSelfExe is for use in tests
+func MockSelfExe(newSelfExe string) func() {
+	// see comment in MockSyscallExec about not using osutil.IsTestBinary()
+	oldSelfExe := selfExe
+	selfExe = newSelfExe
+	return func() {
+		selfExe = oldSelfExe
+	}
+}
+
 // exeAndRoot determines the current executable path and the root directory
 // which can either the the global rootfs (/) or the snap mount directory if the
 // process is executing from a snap. The returned executable path is relative to

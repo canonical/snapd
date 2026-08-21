@@ -523,7 +523,7 @@ func arrangeRebootAndUpdateSeed(
 // share transactional lanes, and adds the given seed-refresh tasks to those
 // lanes as well.
 func mergeEssentialAndSeedLanes(
-	essentials map[snap.Type]snapInstallTaskSet, seedUpdates map[string]snapInstallTaskSet, seedTS *SeedRefreshTaskSet,
+	essentials map[snap.Type]snapInstallTaskSet, seedUpdates map[string]snapInstallTaskSet, seedTS *SeedRefreshTasks,
 ) {
 	merge := make(map[string]snapInstallTaskSet)
 	for _, sts := range seedUpdates {

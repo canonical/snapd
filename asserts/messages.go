@@ -203,11 +203,17 @@ func parseDevices(headers map[string]any) ([]DeviceID, error) {
 	}
 
 	var deviceIDs []DeviceID
+	seen := make(map[string]bool, len(devices))
 	for i, rawDeviceID := range devices {
 		deviceID, err := newDeviceIDFromString(rawDeviceID)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse device at position %d: %w", i+1, err)
 		}
+
+		if seen[rawDeviceID] {
+			return nil, fmt.Errorf(`"devices" header contains duplicate device %q`, rawDeviceID)
+		}
+		seen[rawDeviceID] = true
 
 		deviceIDs = append(deviceIDs, deviceID)
 	}

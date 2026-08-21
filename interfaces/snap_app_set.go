@@ -19,6 +19,17 @@ type SnapAppSet struct {
 	components []*snap.ComponentInfo
 }
 
+// NoComponents is a typed nil slice of *snap.ComponentInfo, meant to be passed
+// explicitly to NewSnapAppSet at call sites that only need a SnapAppSet to
+// describe the snap's own apps/hooks and never call SnapAppSet.Runnables,
+// SnapAppSet.SecurityTagsForPlug/Slot, or ExpandSliceSnapVariables* on the
+// result.
+//
+// Using this named value instead of a bare "nil" documents that the omission
+// is deliberate, and makes it easy to find (and reconsider) every place that
+// currently does not thread through accurate component data.
+var NoComponents []*snap.ComponentInfo
+
 // NewSnapAppSet returns a new SnapAppSet for the given snap.Info.
 func NewSnapAppSet(info *snap.Info, components []*snap.ComponentInfo) (*SnapAppSet, error) {
 	for _, c := range components {

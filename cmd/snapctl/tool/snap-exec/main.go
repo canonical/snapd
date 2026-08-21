@@ -52,14 +52,17 @@ var opts struct {
 	Hook    string `long:"hook" description:"hook to run" hidden:"yes"`
 }
 
-func init() {
+func lateInit() {
 	// plug/slot sanitization not used nor possible from snap-exec, make it no-op
 	snap.SanitizePlugsSlots = func(snapInfo *snap.Info) {}
-	logger.SimpleSetup(nil)
 }
 
 // Main is the entry point for snap-exec. It exits the process on error.
 func Main() {
+	lateInit()
+
+	logger.SimpleSetup(nil)
+
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "cannot snap-exec: %s\n", err)
 		os.Exit(1)

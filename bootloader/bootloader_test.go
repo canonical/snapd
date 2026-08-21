@@ -146,6 +146,10 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 	recoveryOpts := &bootloader.Options{
 		Role: bootloader.RoleRecovery,
 	}
+	hybridRecoveryOpts := &bootloader.Options{
+		Role:         bootloader.RoleRecovery,
+		HybridSystem: true,
+	}
 	systemBootOpts := &bootloader.Options{
 		Role: bootloader.RoleRunMode,
 	}
@@ -175,6 +179,14 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 			assetContent:      []byte("hello assets"),
 			// boot config from assets
 			sysFileContent: []byte("hello assets"),
+		}, {
+			name:           "hybrid recovery grub",
+			opts:           hybridRecoveryOpts,
+			gadgetFile:     "grub.conf",
+			sysFile:        "/EFI/ubuntu/grub.cfg",
+			assetName:      "grub-recovery-hybrid.cfg",
+			assetContent:   []byte("hello hybrid assets"),
+			sysFileContent: []byte("hello hybrid assets"),
 		}, {
 			name:              "recovery grub with non empty gadget file",
 			opts:              recoveryOpts,
