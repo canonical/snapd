@@ -667,14 +667,14 @@ func (s *specSuite) TestAddEnsureDirMounts(c *C) {
 	s.spec.AddEnsureDirMounts("personal-files", ensureDirSpecs)
 	c.Check("\n"+strings.Join(s.spec.UpdateNS(), "\n"), Equals, `
   # Allow the personal-files interface to create potentially missing directories
-  owner @{HOME}/ rw,
-  owner @{HOME}/.local/ rw,
-  owner @{HOME}/.local/share/ rw,
-  owner @{HOME}/dir1/ rw,
-  owner @{HOME}/dir1/dir2/ rw,
-  owner / rw,
-  owner /dir1/ rw,
-  owner /dir1/dir2/ rw,`)
+  owner "@{HOME}/" rw,
+  owner "@{HOME}/.local/" rw,
+  owner "@{HOME}/.local/share/" rw,
+  owner "@{HOME}/dir1/" rw,
+  owner "@{HOME}/dir1/dir2/" rw,
+  owner "/" rw,
+  owner "/dir1/" rw,
+  owner "/dir1/dir2/" rw,`)
 }
 
 func (s *specSuite) TestAddEnsureDirMountsReturnsOnDirsMatch(c *C) {

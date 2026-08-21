@@ -870,14 +870,14 @@ func emitEnsureDir(spec *Specification, ifaceName string, ensureDirSpec *interfa
 	for iter.Next() {
 		if iter.CurrentPath() == mustExistDir {
 			emit("  # Allow the %s interface to create potentially missing directories", ifaceName)
-			emit("  owner %s rw,", appArmorDir(replacePrefixHome(mustExistDir)))
+			emit("  owner %q rw,", appArmorDir(replacePrefixHome(mustExistDir)))
 			break
 		}
 	}
 
 	// Create entries for the remaining directories after MustExistDir up to and including EnsureDir
 	for iter.Next() {
-		emit("  owner %s rw,", replacePrefixHome(iter.CurrentPathPlusSlash()))
+		emit("  owner %q rw,", replacePrefixHome(iter.CurrentPathPlusSlash()))
 	}
 }
 
