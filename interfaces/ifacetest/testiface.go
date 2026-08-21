@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
@@ -135,6 +136,13 @@ type TestInterface struct {
 	SymlinksConnectedSlotCallback func(spec *symlinks.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	SymlinksPermanentPlugCallback func(spec *symlinks.Specification, plug *snap.PlugInfo) error
 	SymlinksPermanentSlotCallback func(spec *symlinks.Specification, slot *snap.SlotInfo) error
+
+	// Support for interacting with the export backend.
+
+	ExportConnectedPlugCallback func(spec *export.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	ExportConnectedSlotCallback func(spec *export.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
+	ExportPermanentPlugCallback func(spec *export.Specification, plug *snap.PlugInfo) error
+	ExportPermanentSlotCallback func(spec *export.Specification, slot *snap.SlotInfo) error
 }
 
 // TestHotplugInterface is an interface for various kinds of tests
@@ -588,6 +596,34 @@ func (t *TestInterface) SymlinksPermanentPlug(spec *symlinks.Specification, plug
 func (t *TestInterface) SymlinksPermanentSlot(spec *symlinks.Specification, slot *snap.SlotInfo) error {
 	if t.SymlinksPermanentSlotCallback != nil {
 		return t.SymlinksPermanentSlotCallback(spec, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ExportConnectedPlug(spec *export.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.ExportConnectedPlugCallback != nil {
+		return t.ExportConnectedPlugCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ExportConnectedSlot(spec *export.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	if t.ExportConnectedSlotCallback != nil {
+		return t.ExportConnectedSlotCallback(spec, plug, slot)
+	}
+	return nil
+}
+
+func (t *TestInterface) ExportPermanentPlug(spec *export.Specification, plug *snap.PlugInfo) error {
+	if t.ExportPermanentPlugCallback != nil {
+		return t.ExportPermanentPlugCallback(spec, plug)
+	}
+	return nil
+}
+
+func (t *TestInterface) ExportPermanentSlot(spec *export.Specification, slot *snap.SlotInfo) error {
+	if t.ExportPermanentSlotCallback != nil {
+		return t.ExportPermanentSlotCallback(spec, slot)
 	}
 	return nil
 }

@@ -412,6 +412,8 @@ const (
 	SecurityConfigfiles SecuritySystem = "configfiles"
 	// SecuritySymlinks identifies the symlinks security system.
 	SecuritySymlinks SecuritySystem = "symlinks"
+	// SecurityExport identifies the export security system.
+	SecurityExport SecuritySystem = "export"
 )
 
 var isValidBusName = regexp.MustCompile(`^[a-zA-Z_-][a-zA-Z0-9_-]*(\.[a-zA-Z_-][a-zA-Z0-9_-]*)+$`).MatchString

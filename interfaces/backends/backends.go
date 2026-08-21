@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -57,6 +58,7 @@ func All() []interfaces.SecurityBackend {
 		&ldconfig.Backend{},
 		&configfiles.Backend{},
 		&symlinks.Backend{},
+		&export.Backend{},
 	}
 
 	// TODO use something like:
