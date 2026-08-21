@@ -155,7 +155,7 @@ func run(ch chan os.Signal) error {
 	snap.SanitizePlugsSlots = builtin.SanitizePlugsSlots
 
 	t0 := time.Now().Truncate(time.Millisecond)
-	snapdenv.SetUserAgentFromVersion(snapdtool.Version, sandbox.ForceDevMode)
+	snapdenv.SetUserAgentFromVersion(snapdtool.FullVersion(), sandbox.ForceDevMode)
 
 	d, err := daemon.New()
 	if err != nil {
@@ -178,7 +178,7 @@ func run(ch chan os.Signal) error {
 		checkTicker = tic.C
 	}
 
-	d.Version = snapdtool.Version
+	d.Version = snapdtool.FullVersion()
 
 	if err := d.Start(ctx); err != nil {
 		return err

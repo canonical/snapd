@@ -83,7 +83,7 @@ func maybeResetSublevelForLevel60(s *state.State, sublevel *int) error {
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
-	if errors.Is(err, state.ErrNoState) || lastVersion != snapdtool.Version {
+	if errors.Is(err, state.ErrNoState) || lastVersion != snapdtool.FullVersion() {
 		*sublevel = 0
 		s.Set("patch-sublevel", *sublevel)
 		// unset old reset key in case of revert into old version.
@@ -156,7 +156,7 @@ func Apply(s *state.State) error {
 
 	s.Lock()
 	// store last snapd version last in case system is restarted before patches are applied
-	s.Set("patch-sublevel-last-version", snapdtool.Version)
+	s.Set("patch-sublevel-last-version", snapdtool.FullVersion())
 	s.Unlock()
 
 	return nil
