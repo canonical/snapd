@@ -672,6 +672,158 @@ func (s *fdeMgrSuite) TestChangeAuthErrors(c *C) {
 	c.Check(err, testutil.ErrorIs, &snapstate.ChangeConflictError{})
 }
 
+func (s *fdeMgrSuite) TestConsumeDALockoutToken(c *C) {
+	// initialize fde manager so that the fde state exists
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Date(2026, 4, 11, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// an absent/zero-value bucket starts full, consume all tokens
+	for i := 0; i < fdestate.MaxDALockoutTokens; i++ {
+		c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	}
+
+	tokens, lastRefill, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastRefill.Equal(now), Equals, true)
+
+	// the next attempt is throttled
+	err = fdestate.ConsumeDALockoutToken(s.st)
+	var throttledErr *fdestate.DALockoutThrottledError
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(throttledErr.RetryAfter.Equal(now.Add(fdestate.DALockoutRefillInterval)), Equals, true)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenLazyRefill(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := start
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// drain the bucket
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start), IsNil)
+
+	// throttled while empty
+	c.Check(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "too many authentication attempts, try again later")
+
+	// after one refill interval, one token is available
+	now = start.Add(fdestate.DALockoutRefillInterval)
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	tokens, lastRefill, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+	c.Check(lastRefill.Equal(now), Equals, true)
+
+	// after two more intervals, two tokens are refilled (one is then consumed)
+	now = now.Add(2 * fdestate.DALockoutRefillInterval)
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+	tokens, _, err = fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 1)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenRefillCappedAtMax(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := start
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// drain the bucket
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start), IsNil)
+
+	// let a very long time pass, way more than needed to refill the whole bucket
+	now = start.Add(1000 * fdestate.DALockoutRefillInterval)
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
+
+	// the bucket is capped at max (minus the one just consumed)
+	tokens, _, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, fdestate.MaxDALockoutTokens-1)
+}
+
+func (s *fdeMgrSuite) TestResetDALockoutRateLimit(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// drain the bucket
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, now.Add(-time.Minute)), IsNil)
+
+	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
+
+	tokens, lastRefill, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, fdestate.MaxDALockoutTokens)
+	c.Check(lastRefill.Equal(now), Equals, true)
+}
+
+func (s *fdeMgrSuite) TestResetDALockoutRateLimitNoState(c *C) {
+	// no fde manager started, so no fde state exists
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// resetting is a no-op when there is no fde state
+	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
+}
+
+func (s *fdeMgrSuite) TestChangeAuthConsumesToken(c *C) {
+	keyslots := []fdestate.KeyslotRef{
+		{ContainerRole: "system-data", Name: "default"},
+	}
+	s.mockCurrentKeys(c, nil, keyslots)
+
+	defer fdestate.MockSecbootReadContainerKeyData(func(devicePath, slotName string) (secboot.KeyData, error) {
+		return &mockKeyData{authMode: device.AuthModePassphrase}, nil
+	})()
+
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	now := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	defer fdestate.MockTimeNow(func() time.Time { return now })()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// leave a single token in the bucket
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 1, now), IsNil)
+
+	// first change-auth consumes the last token
+	_, err := fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", keyslots)
+	c.Assert(err, IsNil)
+
+	tokens, _, err := fdestate.GetDALockoutRateLimit(s.st)
+	c.Assert(err, IsNil)
+	c.Check(tokens, Equals, 0)
+
+	// the next change-auth is throttled and creates no change
+	_, err = fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", keyslots)
+	var throttledErr *fdestate.DALockoutThrottledError
+	c.Assert(errors.As(err, &throttledErr), Equals, true)
+	c.Check(throttledErr.RetryAfter.Equal(now.Add(fdestate.DALockoutRefillInterval)), Equals, true)
+}
+
 func (s *fdeMgrSuite) testSystemEncryptedFromState(c *C, hasEncryptedDisks bool) {
 	onClassic := true
 	if hasEncryptedDisks {

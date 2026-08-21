@@ -58,7 +58,34 @@ var (
 
 	SetRepairAttemptResult = setRepairAttemptResult
 	GetRepairAttemptResult = getRepairAttemptResult
+
+	ConsumeDALockoutToken = consumeDALockoutToken
 )
+
+const (
+	MaxDALockoutTokens      = maxDALockoutTokens
+	DALockoutRefillInterval = daLockoutRefillInterval
+)
+
+// GetDALockoutRateLimit returns the current DA lockout token bucket state.
+func GetDALockoutRateLimit(st *state.State) (tokens int, lastRefill time.Time, err error) {
+	var s FdeState
+	if err := st.Get(fdeStateKey, &s); err != nil {
+		return 0, time.Time{}, err
+	}
+	return s.DALockoutRateLimit.Tokens, s.DALockoutRateLimit.LastRefill, nil
+}
+
+// SetDALockoutRateLimit sets the DA lockout token bucket state.
+func SetDALockoutRateLimit(st *state.State, tokens int, lastRefill time.Time) error {
+	var s FdeState
+	if err := st.Get(fdeStateKey, &s); err != nil {
+		return err
+	}
+	s.DALockoutRateLimit = daLockoutRateLimit{Tokens: tokens, LastRefill: lastRefill}
+	st.Set(fdeStateKey, &s)
+	return nil
+}
 
 type ExternalOperation = externalOperation
 

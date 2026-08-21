@@ -197,6 +197,10 @@ const (
 
 	// ErrorKindInvalidRecoveryKey: recovery key itself or its ID is invalid.
 	ErrorKindInvalidRecoveryKey ErrorKind = "invalid-recovery-key"
+
+	// ErrorKindFDEChangeAuthThrottled: request was rejected because too many attempts
+	// have been made in a short period of time (rate-limited to avoid TPM DA lockout).
+	ErrorKindFDEChangeAuthThrottled ErrorKind = "fde-change-auth-throttled"
 )
 
 // Maintenance error kinds.

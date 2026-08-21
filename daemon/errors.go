@@ -340,6 +340,20 @@ func InvalidRecoveryKey(err *fdestate.InvalidRecoveryKeyError) *apiError {
 	}
 }
 
+// FDEChangeAuthThrottled is an error responder used when a change-passphrase or
+// change-pin request is rejected because it is rate-limited to avoid tripping
+// the TPM Dictionary Attack lockout.
+func FDEChangeAuthThrottled(err *fdestate.DALockoutThrottledError) *apiError {
+	return &apiError{
+		Status:  429,
+		Message: err.Error(),
+		Kind:    client.ErrorKindFDEChangeAuthThrottled,
+		Value: map[string]any{
+			"retry-after": err.RetryAfter,
+		},
+	}
+}
+
 // AppNotFound is an error responder used when an operation is
 // requested on a app that doesn't exist.
 func AppNotFound(format string, v ...any) *apiError {
@@ -435,6 +449,8 @@ func errToResponse(err error, snaps []string, fallback errorResponder, format st
 			return InsufficientContainerCapacity(err)
 		case *fdestate.InvalidRecoveryKeyError:
 			return InvalidRecoveryKey(err)
+		case *fdestate.DALockoutThrottledError:
+			return FDEChangeAuthThrottled(err)
 		case net.Error:
 			if err.Timeout() {
 				kind = client.ErrorKindNetworkTimeout
