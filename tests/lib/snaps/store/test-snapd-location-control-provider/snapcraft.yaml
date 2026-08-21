@@ -4,7 +4,7 @@ summary: Basic location control provider snap
 description: A basic snap declaring an location control slot
 confinement: strict
 grade: stable
-base: core
+base: core24
 
 apps:
     provider:
