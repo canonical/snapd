@@ -20,8 +20,10 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -29,17 +31,21 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -157,9 +163,8 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	cmd.WriteAccess = authenticatedAccess{}
 
 	for _, method := range []string{"GET", "POST", "PUT"} {
-		req, err := http.NewRequest(method, "", nil)
+		req := httptest.NewRequest(method, "/", nil)
 		req.Header.Add("User-Agent", fakeUserAgent)
-		c.Assert(err, check.IsNil)
 
 		rec := httptest.NewRecorder()
 		req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;", dirs.SnapdSocket)
@@ -174,8 +179,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 		c.Check(rec.Code, check.Equals, 200)
 	}
 
-	req, err := http.NewRequest("POTATO", "", nil)
-	c.Assert(err, check.IsNil)
+	req := httptest.NewRequest("POTATO", "/", nil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;", dirs.SnapdSocket)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
 	rec := httptest.NewRecorder()
@@ -200,12 +204,12 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 	cmd.WriteAccess = authenticatedAccess{}
 
 	for _, method := range []string{"GET", "POST", "PUT"} {
-		req, err := http.NewRequest(method, "", nil)
+		req := httptest.NewRequest(method, "/", nil)
 		req.Header.Add("User-Agent", fakeUserAgent)
-		c.Assert(err, check.IsNil)
 
 		rec := httptest.NewRecorder()
 		// no ucred => forbidden
+		req.RemoteAddr = ""
 		cmd.ServeHTTP(rec, req)
 		c.Check(rec.Code, check.Equals, 403, check.Commentf(method))
 
@@ -217,8 +221,7 @@ func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 		c.Check(rec.Code, check.Equals, 200)
 	}
 
-	req, err := http.NewRequest("POTATO", "", nil)
-	c.Assert(err, check.IsNil)
+	req := httptest.NewRequest("POTATO", "/", nil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
@@ -1439,8 +1442,7 @@ func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
 }
 
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
-	req, err := http.NewRequest(mth, "", nil)
-	c.Assert(err, check.IsNil)
+	req := httptest.NewRequest(mth, "/", nil)
 	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -1552,4 +1554,790 @@ func (s *daemonSuite) TestNoticesRequestCanceledOnStop(c *check.C) {
 			"message": "request canceled",
 		},
 		"type": "error"})
+}
+
+func (s *daemonSuite) TestRequestBodyPolicy(c *check.C) {
+	for _, tc := range []struct {
+		method, path, ct                 string
+		wantBufferBody, wantDecodeAction bool
+	}{
+		{ct: "", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "APPLICATION/JSON", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "Application/Json", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json; charset=utf-8", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json; charset=windows-1252", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "application/json; boundary=foo", wantBufferBody: true, wantDecodeAction: true},
+		{ct: "text/plain; charset", wantBufferBody: true},
+		// Unparseable types are buffered (and rejected if oversize), not streamed.
+		{ct: "application/json; charset=utf-8; charset=utf-16", wantBufferBody: true},
+		{ct: "application/json extra", wantBufferBody: true},
+		{ct: "application/", wantBufferBody: true},
+		{ct: "application", wantBufferBody: true},
+		{ct: "; charset=utf-8", wantBufferBody: true},
+		{ct: "text/plain", wantBufferBody: true},
+		{ct: "application/json-patch+json", wantBufferBody: true},
+		{ct: "notvalid", wantBufferBody: true},
+		{ct: "multipart/form-data"},
+		{ct: "multipart/mixed"},
+		{ct: client.SnapshotExportMediaType},
+		{ct: asserts.MediaType},
+		{method: "PUT", ct: "application/json", wantBufferBody: true},
+		{method: "PUT", ct: "", wantBufferBody: true},
+		{method: "PUT", path: "/v2/assertions"},
+		{method: "GET", ct: "application/json"},
+		{method: "DELETE", ct: "application/json"},
+		{method: "PATCH", ct: "application/json"},
+		{path: "/v2/assertions"},
+		{path: "/v2/assertions/"},
+		// The path exception is only for an absent Content-Type.
+		{path: "/v2/assertions", ct: "application/json", wantBufferBody: true, wantDecodeAction: true},
+	} {
+		method := tc.method
+		if method == "" {
+			method = "POST"
+		}
+		path := tc.path
+		if path == "" {
+			path = "/"
+		}
+		req := httptest.NewRequest(method, path, strings.NewReader(`{}`))
+		if tc.ct != "" {
+			req.Header.Set("Content-Type", tc.ct)
+		}
+		bufferBody, decodeAction := requestBodyPolicy(req)
+		cmt := check.Commentf("method=%s path=%s ct=%q", method, path, tc.ct)
+		c.Check(bufferBody, check.Equals, tc.wantBufferBody, cmt)
+		c.Check(decodeAction, check.Equals, tc.wantDecodeAction, cmt)
+	}
+}
+
+func (s *daemonSuite) TestExtractRequestAction(c *check.C) {
+	type testCase struct {
+		name          string
+		method        string
+		path          string
+		body          string
+		contentType   string // "" sets application/json; "none" omits the header
+		contentLength int64
+		wantAction    string
+		wantErr       string
+		wantSentinel  error
+	}
+
+	head := `{"action":"ok","pad":"`
+	tail := `"}`
+	atLimit := head + strings.Repeat("x", maxBodySize-len(head)-len(tail)) + tail
+	c.Assert(len(atLimit), check.Equals, maxBodySize)
+
+	for _, tc := range []testCase{
+		{
+			name:       "extracts action",
+			body:       `{"snaps":["x"],"action":"refresh"}`,
+			wantAction: "refresh",
+		},
+		{
+			name:       "action absent",
+			body:       `{"snaps":["x"]}`,
+			wantAction: "",
+		},
+		{
+			name:       "empty action",
+			body:       `{"action":""}`,
+			wantAction: "",
+		},
+		{
+			name:          "content length ignored",
+			body:          `{"action":"install","snaps":["x"]}`,
+			contentLength: 5,
+			wantAction:    "install",
+		},
+		{
+			name:          "content length unknown",
+			body:          `{"action":"install","snaps":["x"]}`,
+			contentLength: -1,
+			wantAction:    "install",
+		},
+		{
+			name:    "non-object top-level",
+			body:    `[{"action":"install"}]`,
+			wantErr: "json: cannot unmarshal array",
+		},
+		{
+			name:    "malformed json",
+			body:    `{not json`,
+			wantErr: "invalid character",
+		},
+		{
+			name:         "data after json",
+			body:         `{"action":"install"} trailing`,
+			wantErr:      "unexpected data after request body",
+			wantSentinel: errUnexpectedDataAfterBody,
+		},
+		{
+			name:         "data after json starting with brace",
+			body:         `{"action":"install"} }morestuff`,
+			wantErr:      "unexpected data after request body",
+			wantSentinel: errUnexpectedDataAfterBody,
+		},
+		{
+			name:         "data after json starting with bracket",
+			body:         `{"action":"install"} ]morestuff`,
+			wantErr:      "unexpected data after request body",
+			wantSentinel: errUnexpectedDataAfterBody,
+		},
+		{
+			name:          "declared content-length oversize",
+			body:          `{"action":"install"}`,
+			contentLength: maxBodySize + 1,
+			wantErr:       "body size limit exceeded",
+			wantSentinel:  errBodyTooLarge,
+		},
+		{
+			name:         "body size limit exceeded",
+			body:         strings.Repeat("x", maxBodySize+1),
+			wantErr:      "body size limit exceeded",
+			wantSentinel: errBodyTooLarge,
+		},
+		{
+			name:          "oversize with unknown content-length",
+			body:          strings.Repeat("x", maxBodySize+1),
+			contentLength: -1,
+			wantErr:       "body size limit exceeded",
+			wantSentinel:  errBodyTooLarge,
+		},
+		{
+			name:       "body at size limit still parsed",
+			body:       atLimit,
+			wantAction: "ok",
+		},
+		{
+			name:         "empty body",
+			body:         "",
+			wantErr:      "empty request body",
+			wantSentinel: errEmptyBody,
+		},
+		{
+			name:         "whitespace-only body",
+			body:         " \n\t",
+			wantErr:      "EOF",
+			wantSentinel: io.EOF,
+		},
+		{
+			name:        "multipart skipped",
+			body:        `{"action":"install"}`,
+			contentType: "multipart/form-data",
+		},
+		{
+			name:         "malformed parameter still size limited",
+			body:         strings.Repeat("x", maxBodySize+1),
+			contentType:  "application/json; charset",
+			wantErr:      "body size limit exceeded",
+			wantSentinel: errBodyTooLarge,
+		},
+		{
+			name:        "text body read but not parsed",
+			body:        `{"action":"install"}`,
+			contentType: "text/plain",
+			wantAction:  "",
+		},
+		{
+			name:         "text body size limited",
+			body:         strings.Repeat("x", maxBodySize+1),
+			contentType:  "text/plain",
+			wantErr:      "body size limit exceeded",
+			wantSentinel: errBodyTooLarge,
+		},
+		{
+			name:         "unknown media type size limited",
+			body:         strings.Repeat("x", maxBodySize+1),
+			contentType:  "application/octet-stream",
+			wantErr:      "body size limit exceeded",
+			wantSentinel: errBodyTooLarge,
+		},
+		{
+			// An unidentifiable Content-Type must not buy an exemption.
+			name:         "unparseable media type size limited",
+			body:         strings.Repeat("x", maxBodySize+1),
+			contentType:  "application/",
+			wantErr:      "body size limit exceeded",
+			wantSentinel: errBodyTooLarge,
+		},
+		{
+			name:        "labelled assertions skipped",
+			path:        "/v2/assertions",
+			body:        strings.Repeat("x", maxBodySize+1),
+			contentType: asserts.MediaType,
+		},
+		{
+			name:        "snapshot archive skipped",
+			path:        "/v2/snapshots",
+			body:        strings.Repeat("x", maxBodySize+1),
+			contentType: client.SnapshotExportMediaType,
+		},
+		{
+			name:       "put not parsed",
+			method:     "PUT",
+			body:       `{"action":"delegate"}`,
+			wantAction: "",
+		},
+		{
+			name:         "put still size limited",
+			method:       "PUT",
+			body:         strings.Repeat("x", maxBodySize+1),
+			wantErr:      "body size limit exceeded",
+			wantSentinel: errBodyTooLarge,
+		},
+		{
+			name:       "put malformed json not parsed",
+			method:     "PUT",
+			body:       `{not json`,
+			wantAction: "",
+		},
+		{
+			name:        "empty content-type still json",
+			path:        "/v2/warnings",
+			body:        `{"action":"okay"}`,
+			contentType: "none",
+			wantAction:  "okay",
+		},
+		{
+			name:        "assertions empty content-type skipped",
+			path:        "/v2/assertions",
+			body:        strings.Repeat("x", maxBodySize+1),
+			contentType: "none",
+		},
+		{
+			name:        "assertions trailing slash empty content-type skipped",
+			path:        "/v2/assertions/",
+			body:        "type: account\n",
+			contentType: "none",
+		},
+	} {
+		method := tc.method
+		if method == "" {
+			method = "POST"
+		}
+		path := tc.path
+		if path == "" {
+			path = "/"
+		}
+		req := httptest.NewRequest(method, path, strings.NewReader(tc.body))
+		switch tc.contentType {
+		case "none":
+		case "":
+			req.Header.Set("Content-Type", "application/json")
+		default:
+			req.Header.Set("Content-Type", tc.contentType)
+		}
+		if tc.contentLength != 0 {
+			req.ContentLength = tc.contentLength
+		}
+
+		got, err := extractRequestAction(req)
+		cmt := check.Commentf("case: %s", tc.name)
+		if tc.wantErr != "" {
+			c.Assert(err, check.ErrorMatches, tc.wantErr+".*", cmt)
+		} else {
+			c.Assert(err, check.IsNil, cmt)
+			c.Check(got, check.Equals, tc.wantAction, cmt)
+		}
+
+		if tc.wantSentinel != errBodyTooLarge || tc.contentLength > maxBodySize {
+			gotBody, readErr := io.ReadAll(req.Body)
+			c.Assert(readErr, check.IsNil, cmt)
+			c.Check(string(gotBody), check.Equals, tc.body, cmt)
+		}
+		if tc.wantSentinel != nil {
+			c.Check(err, check.Equals, tc.wantSentinel, cmt)
+		}
+
+	}
+
+	for _, method := range []string{"GET", "DELETE", "PATCH"} {
+		cmt := check.Commentf("method: %s", method)
+		req := httptest.NewRequest(method, "/", strings.NewReader(`{"action":"install"}`))
+		got, err := extractRequestAction(req)
+		c.Assert(err, check.IsNil, cmt)
+		c.Check(got, check.Equals, "", cmt)
+	}
+}
+
+func (s *daemonSuite) TestExtractRequestActionReadError(c *check.C) {
+	prefix := []byte(`{"action":"install"`)
+	simulatedErr := errors.New("simulated transient read error")
+	// Prefix then a persistent read error, as when the client disconnects.
+	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req.Body = io.NopCloser(io.MultiReader(
+		bytes.NewReader(prefix),
+		iotest.ErrReader(simulatedErr),
+	))
+	req.Header.Set("Content-Type", "application/json")
+
+	action, err := extractRequestAction(req)
+	c.Check(action, check.Equals, "")
+	c.Assert(err, check.NotNil)
+	c.Check(err, check.ErrorMatches, "cannot read request body: "+simulatedErr.Error())
+	c.Check(errors.Is(err, errBodyUnreadable), check.Equals, true)
+	c.Check(isBodyUnusable(err), check.Equals, true)
+}
+
+func (s *daemonSuite) TestRequestActionContext(c *check.C) {
+	for _, tc := range []struct {
+		name   string
+		action string
+		err    error
+	}{
+		{name: "action", action: "install"},
+		{name: "no action field", action: ""},
+		{name: "empty body", err: errEmptyBody},
+		{name: "oversize", err: errBodyTooLarge},
+		{name: "decode failure", err: errUnexpectedDataAfterBody},
+	} {
+		cmt := check.Commentf("case: %s", tc.name)
+		ctx := withRequestAction(context.Background(), tc.action, tc.err)
+		action, err := requestActionFromContext(ctx)
+		c.Check(action, check.Equals, tc.action, cmt)
+		c.Check(err, check.Equals, tc.err, cmt)
+	}
+}
+
+func (s *daemonSuite) TestRequestActionFromContextMissing(c *check.C) {
+	action, err := requestActionFromContext(context.Background())
+	c.Check(action, check.Equals, "")
+	c.Check(err, check.Equals, errRequestActionNotCached)
+	c.Check(err, check.ErrorMatches, "internal error: request action not cached")
+}
+
+// recordingTraceLogger records logger.Trace calls. Log.Trace is a no-op
+// unless structured JSON logging is enabled, so tests that care about
+// SNAPD_TRACE output install this instead of logger.MockLogger.
+type recordingTraceLogger struct {
+	logger.Logger
+	calls []traceCall
+}
+
+type traceCall struct {
+	msg   string
+	attrs []any
+}
+
+func (l *recordingTraceLogger) Trace(msg string, attrs ...any) {
+	l.calls = append(l.calls, traceCall{msg: msg, attrs: append([]any(nil), attrs...)})
+}
+
+// withLogger installs l as the global logger. MockLogger is used only to
+// restore the previous logger when the returned function is called.
+func withLogger(l logger.Logger) (restore func()) {
+	_, restore = logger.MockLogger()
+	logger.SetLogger(l)
+	return restore
+}
+
+func (s *daemonSuite) TestTraceSnapdAPI(c *check.C) {
+	rec := &recordingTraceLogger{Logger: logger.NullLogger}
+	defer withLogger(rec)()
+
+	cmd := &Command{Path: "/v2/test"}
+	simulatedErr := errors.New("simulated transient read error")
+
+	// ServeHTTP cases share one daemon: a second times out on the state file lock.
+	d := s.newTestDaemon(c)
+
+	for _, tc := range []struct {
+		name         string
+		trace        bool
+		method       string
+		path         string
+		contentType  string // "" sets application/json; "none" omits the header
+		body         string
+		customBody   io.ReadCloser
+		serveHTTP    bool
+		wantMsgs     []string
+		wantAction   string
+		wantBodyRead string
+		wantStatus   int
+	}{
+		{
+			name:     "trace disabled",
+			method:   "POST",
+			body:     `{"action":"install"}`,
+			wantMsgs: nil,
+		},
+		{
+			name:     "get skipped",
+			trace:    true,
+			method:   "GET",
+			body:     `{"action":"install"}`,
+			wantMsgs: []string{"endpoint"},
+		},
+		{
+			name:     "delete skipped",
+			trace:    true,
+			method:   "DELETE",
+			body:     `{"action":"install"}`,
+			wantMsgs: []string{"endpoint"},
+		},
+		{
+			name:     "patch skipped",
+			trace:    true,
+			method:   "PATCH",
+			body:     `{"action":"install"}`,
+			wantMsgs: []string{"endpoint"},
+		},
+		{
+			name:        "multipart skipped",
+			trace:       true,
+			method:      "POST",
+			contentType: "multipart/form-data",
+			body:        `{"action":"install"}`,
+			wantMsgs:    []string{"endpoint"},
+		},
+		{
+			name:        "snapshot skipped",
+			trace:       true,
+			method:      "POST",
+			contentType: client.SnapshotExportMediaType,
+			body:        `{"action":"install"}`,
+			wantMsgs:    []string{"endpoint"},
+		},
+		{
+			name:        "assertions unlabeled skipped",
+			trace:       true,
+			method:      "POST",
+			path:        "/v2/assertions",
+			contentType: "none",
+			body:        "type: account\n",
+			wantMsgs:    []string{"endpoint"},
+		},
+		{
+			name:       "post extracts action",
+			trace:      true,
+			method:     "POST",
+			body:       `{"action":"install"}`,
+			wantMsgs:   []string{"endpoint"},
+			wantAction: "install",
+		},
+		{
+			name:     "put action not traced",
+			trace:    true,
+			method:   "PUT",
+			body:     `{"action":"delegate"}`,
+			wantMsgs: []string{"endpoint"},
+		},
+		{
+			name:        "charset json extracts action",
+			trace:       true,
+			method:      "POST",
+			contentType: "application/json; charset=utf-8",
+			body:        `{"action":"okay"}`,
+			wantMsgs:    []string{"endpoint"},
+			wantAction:  "okay",
+		},
+		{
+			name:        "empty content-type extracts action",
+			trace:       true,
+			method:      "POST",
+			path:        "/v2/warnings",
+			contentType: "none",
+			body:        `{"action":"okay"}`,
+			wantMsgs:    []string{"endpoint"},
+			wantAction:  "okay",
+		},
+		{
+			name:     "action absent",
+			trace:    true,
+			method:   "POST",
+			body:     `{"snaps":["x"]}`,
+			wantMsgs: []string{"endpoint"},
+		},
+		{
+			name:     "empty action",
+			trace:    true,
+			method:   "POST",
+			body:     `{"action":""}`,
+			wantMsgs: []string{"endpoint"},
+		},
+		{
+			name:     "empty body",
+			trace:    true,
+			method:   "POST",
+			body:     "",
+			wantMsgs: []string{"endpoint"},
+		},
+		{
+			name:         "whitespace-only",
+			trace:        true,
+			method:       "POST",
+			body:         " \n\t",
+			wantMsgs:     []string{"endpoint-error", "endpoint"},
+			wantBodyRead: "EOF",
+		},
+		{
+			name:         "malformed json",
+			trace:        true,
+			method:       "POST",
+			body:         `{not json`,
+			wantMsgs:     []string{"endpoint-error", "endpoint"},
+			wantBodyRead: "invalid character",
+		},
+		{
+			name:         "non-object json",
+			trace:        true,
+			method:       "POST",
+			body:         `[{"action":"install"}]`,
+			wantMsgs:     []string{"endpoint-error", "endpoint"},
+			wantBodyRead: "cannot unmarshal",
+		},
+		{
+			name:         "trailing data",
+			trace:        true,
+			method:       "POST",
+			body:         `{"action":"install"} trailing`,
+			wantMsgs:     []string{"endpoint-error", "endpoint"},
+			wantBodyRead: "unexpected data after request body",
+		},
+		{
+			name:   "read error rejected before trace",
+			trace:  true,
+			method: "POST",
+			customBody: io.NopCloser(io.MultiReader(
+				bytes.NewReader([]byte(`{"action":"install"`)),
+				iotest.ErrReader(simulatedErr),
+			)),
+			serveHTTP:  true,
+			wantMsgs:   nil,
+			wantStatus: 400,
+		},
+		{
+			name:       "oversize rejected before trace",
+			trace:      true,
+			method:     "POST",
+			body:       strings.Repeat("x", maxBodySize+1),
+			serveHTTP:  true,
+			wantMsgs:   nil,
+			wantStatus: 400,
+		},
+	} {
+		rec.calls = nil
+		if tc.trace {
+			os.Setenv("SNAPD_TRACE", "1")
+		} else {
+			os.Unsetenv("SNAPD_TRACE")
+		}
+
+		method := tc.method
+		if method == "" {
+			method = "POST"
+		}
+		path := tc.path
+		if path == "" {
+			path = "/"
+		}
+		var req *http.Request
+		if tc.customBody != nil {
+			req = httptest.NewRequest(method, path, http.NoBody)
+			req.Body = tc.customBody
+		} else {
+			req = httptest.NewRequest(method, path, strings.NewReader(tc.body))
+		}
+		switch tc.contentType {
+		case "none":
+		case "":
+			req.Header.Set("Content-Type", "application/json")
+		default:
+			req.Header.Set("Content-Type", tc.contentType)
+		}
+
+		cmt := check.Commentf("case: %s", tc.name)
+		if tc.serveHTTP {
+			cmdHTTP := &Command{d: d, Path: path}
+			cmdHTTP.POST = func(*Command, *http.Request, *auth.UserState) Response {
+				c.Fatalf("handler must not run for %s", tc.name)
+				return SyncResponse(nil)
+			}
+			cmdHTTP.WriteAccess = openAccess{}
+			req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+			httprec := httptest.NewRecorder()
+			cmdHTTP.ServeHTTP(httprec, req)
+			c.Check(httprec.Code, check.Equals, tc.wantStatus, cmt)
+		} else {
+			// traceSnapdAPI reads the cached action, so skip ServeHTTP
+			// only after the body has been read and cached.
+			action, err := extractRequestAction(req)
+			c.Assert(isBodyUnusable(err), check.Equals, false, cmt)
+			req = req.WithContext(withRequestAction(req.Context(), action, err))
+			traceSnapdAPI(cmd, req)
+		}
+
+		var gotMsgs []string
+		var gotAction string
+		var gotBodyRead string
+		for _, call := range rec.calls {
+			gotMsgs = append(gotMsgs, call.msg)
+			for i := 0; i+1 < len(call.attrs); i += 2 {
+				key, _ := call.attrs[i].(string)
+				switch key {
+				case "action":
+					gotAction, _ = call.attrs[i+1].(string)
+				case "body-read":
+					gotBodyRead = fmt.Sprint(call.attrs[i+1])
+				}
+			}
+		}
+		c.Check(gotMsgs, check.DeepEquals, tc.wantMsgs, cmt)
+		c.Check(gotAction, check.Equals, tc.wantAction, cmt)
+		if tc.wantBodyRead != "" {
+			c.Check(gotBodyRead, testutil.Contains, tc.wantBodyRead, cmt)
+		} else {
+			c.Check(gotBodyRead, check.Equals, "", cmt)
+		}
+	}
+	os.Unsetenv("SNAPD_TRACE")
+}
+
+func (s *daemonSuite) TestServeHTTPTraceExtractsActionPreservesBody(c *check.C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	d := s.newTestDaemon(c)
+	body := `{"action":"install","snaps":["x"]}`
+
+	var gotBody string
+	cmd := &Command{d: d, Path: "/v2/test"}
+	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+		b, err := io.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		gotBody = string(b)
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = openAccess{}
+
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(gotBody, check.Equals, body)
+}
+
+func (s *daemonSuite) TestServeHTTPOversizeBodyRejected(c *check.C) {
+	d := s.newTestDaemon(c)
+	defer os.Unsetenv("SNAPD_TRACE")
+	for _, trace := range []bool{false, true} {
+		if trace {
+			os.Setenv("SNAPD_TRACE", "1")
+		} else {
+			os.Unsetenv("SNAPD_TRACE")
+		}
+
+		body := strings.Repeat("x", maxBodySize+128)
+		handlerCalled := false
+		cmd := &Command{d: d, Path: "/v2/test"}
+		cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+			handlerCalled = true
+			return SyncResponse(nil)
+		}
+		cmd.WriteAccess = openAccess{}
+
+		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+		rec := httptest.NewRecorder()
+		cmd.ServeHTTP(rec, req)
+
+		c.Check(rec.Code, check.Equals, 400, check.Commentf("trace=%v", trace))
+		c.Check(handlerCalled, check.Equals, false, check.Commentf("trace=%v", trace))
+		c.Check(rec.Body.String(), check.Matches, `(?s).*body size limit exceeded.*`, check.Commentf("trace=%v", trace))
+	}
+}
+
+func (s *daemonSuite) TestServeHTTPUnreadableBodyRejected(c *check.C) {
+	d := s.newTestDaemon(c)
+	simulatedErr := errors.New("simulated transient read error")
+
+	handlerCalled := false
+	cmd := &Command{d: d, Path: "/v2/test"}
+	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+		handlerCalled = true
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = openAccess{}
+
+	req := httptest.NewRequest("POST", "/", http.NoBody)
+	req.Body = io.NopCloser(io.MultiReader(
+		strings.NewReader(`{"action":"install"`),
+		iotest.ErrReader(simulatedErr),
+	))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 400)
+	c.Check(handlerCalled, check.Equals, false)
+	c.Check(rec.Body.String(), check.Matches, `(?s).*cannot read request body: `+simulatedErr.Error()+`.*`)
+}
+
+func (s *daemonSuite) TestServeHTTPSkippedOversizeBodyStillServed(c *check.C) {
+	d := s.newTestDaemon(c)
+	body := strings.Repeat("x", maxBodySize+128)
+	for _, tc := range []struct {
+		path        string
+		contentType string
+	}{
+		{"/v2/assertions", ""},
+		{"/v2/snaps", "multipart/form-data; boundary=x"},
+		{"/v2/snapshots", client.SnapshotExportMediaType},
+	} {
+		var gotLen int
+		cmd := &Command{d: d, Path: tc.path}
+		cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+			b, err := io.ReadAll(r.Body)
+			c.Assert(err, check.IsNil)
+			gotLen = len(b)
+			return SyncResponse(nil)
+		}
+		cmd.WriteAccess = openAccess{}
+
+		req := httptest.NewRequest("POST", tc.path, strings.NewReader(body))
+		if tc.contentType != "" {
+			req.Header.Set("Content-Type", tc.contentType)
+		}
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+		rec := httptest.NewRecorder()
+		cmd.ServeHTTP(rec, req)
+
+		c.Check(rec.Code, check.Equals, 200, check.Commentf("%s %s", tc.path, tc.contentType))
+		c.Check(gotLen, check.Equals, len(body), check.Commentf("%s %s", tc.path, tc.contentType))
+	}
+}
+
+func (s *daemonSuite) TestServeHTTPTraceInvalidJSONStillServed(c *check.C) {
+	os.Setenv("SNAPD_TRACE", "1")
+	defer os.Unsetenv("SNAPD_TRACE")
+
+	d := s.newTestDaemon(c)
+	body := `{not json`
+
+	var gotBody string
+	cmd := &Command{d: d, Path: "/v2/test"}
+	cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+		b, err := io.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		gotBody = string(b)
+		return SyncResponse(nil)
+	}
+	cmd.WriteAccess = openAccess{}
+
+	req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(gotBody, check.Equals, body)
 }
