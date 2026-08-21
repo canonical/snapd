@@ -1,0 +1,9 @@
+if ! output="$(image-garden --version 2>&1)" ; then
+    workshopctl set-health error "$output"
+    exit 1
+fi
+if ! output="$(sudo -iu workshop spread --help 2>&1)" ; then
+    workshopctl set-health error "$output"
+    exit 1
+fi
+workshopctl set-health okay

@@ -1,0 +1,18 @@
+apt update
+
+# For run-checks
+apt install -y shellcheck dbus-x11 clang-format
+snap install --classic golangci-lint
+
+# For building debian package
+apt install -y devscripts
+
+# For building with go-1.23
+apt install -y golang-1.23
+cat <<EOF >> /etc/profile.d/snapd-build-deps.sh
+PATH="/usr/lib/go-1.23/bin:\$PATH"
+EOF
+
+# Alternatively, install the go snap with a particular channel
+# snap install go --classic --channel=1.18/stable
+
