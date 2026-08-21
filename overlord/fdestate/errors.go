@@ -21,6 +21,7 @@ package fdestate
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type KeyslotRefsNotFoundError struct {
@@ -110,4 +111,17 @@ func (e *InsufficientContainerCapacityError) Error() string {
 	}
 
 	return fmt.Sprintf("insufficient capacity on containers [%s]", strings.Join(e.ContainerRoles, ", "))
+}
+
+// DALockoutThrottledError is returned when an operation that trials a
+// credential against the sealed key (e.g. change-auth) is rejected because the
+// DA lockout rate-limit token bucket is empty. This mirrors the TPM Dictionary
+// Attack lockout and prevents snapd from tripping actual hardware DA lockout.
+type DALockoutThrottledError struct {
+	// RetryAfter is the time at which a token will next become available.
+	RetryAfter time.Time
+}
+
+func (e *DALockoutThrottledError) Error() string {
+	return "too many authentication attempts, try again later"
 }

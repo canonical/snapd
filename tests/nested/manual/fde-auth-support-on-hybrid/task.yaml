@@ -194,6 +194,57 @@ execute: |
 
   reboot_with_passphrase "ubuntu-2"
 
+  # Verify that change-auth rate limiting is enforced. This mirrors the TPM
+  # dictionary-attack lockout: the token bucket allows a bounded number of
+  # authentication changes before requests are throttled with HTTP 429. The
+  # bucket is refilled to the maximum whenever the DA lockout counter is reset
+  # (on boot or snapd restart, via ensureFDE).
+  if [ "$AUTH_MODE" = "passphrase" ] || [ "$AUTH_MODE" = "pin" ]; then
+    # A freshly booted system must have a full token bucket.
+    retry -n 30 --wait 1 sh -c 'remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r ".data.fde.\"da-lockout-rate-limit\".tokens" | MATCH "^16$"'
+
+    # Drain the bucket with successful change-passphrase requests using the
+    # correct current passphrase (so the real TPM DA counter is untouched)
+    # until a request is throttled.
+    cur="ubuntu-2"
+    i=0
+    while true; do
+      i=$((i + 1))
+      if [ "$i" -gt 40 ]; then
+        echo "change-auth rate limiting was not enforced after $i attempts"
+        exit 1
+      fi
+      new="ratelimit-$i"
+      remote_action_request "{\"action\": \"change-passphrase\", \"old-passphrase\": \"$cur\", \"new-passphrase\": \"$new\"}"
+      status_code="$(gojq -r '."status-code"' < resp)"
+      if [ "$status_code" = "429" ]; then
+        # Throttled: verify the error shape and that no change was created.
+        MATCH '"status": "Too Many Requests"' < resp
+        gojq -r '.result.kind' < resp | MATCH "^fde-change-auth-throttled$"
+        gojq -r '.change' < resp | MATCH "^null$"
+        break
+      fi
+      # Otherwise the request was accepted and runs asynchronously.
+      change_id="$(gojq --raw-output .change < resp)"
+      remote.exec sudo snap watch "$change_id"
+      cur="$new"
+    done
+
+    # The bucket must now be empty.
+    remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r '.data.fde."da-lockout-rate-limit".tokens' | MATCH "^0$"
+
+    # Restarting snapd re-runs ensureFDE, which resets the DA lockout counter
+    # and refills the token bucket back to the maximum.
+    remote.exec sudo systemctl restart snapd.service
+    retry -n 30 --wait 1 sh -c 'remote.exec "sudo cat /var/lib/snapd/state.json" | gojq -r ".data.fde.\"da-lockout-rate-limit\".tokens" | MATCH "^16$"'
+
+    # Change-auth requests are accepted again; restore the passphrase to
+    # "ubuntu-2" so the rest of the test proceeds from a known state.
+    remote_action_request "{\"action\": \"change-passphrase\", \"old-passphrase\": \"$cur\", \"new-passphrase\": \"ubuntu-2\"}"
+    change_id="$(gojq --raw-output .change < resp)"
+    remote.exec sudo snap watch "$change_id"
+  fi
+
   # Let's reset the passphrase as root (without providing old passphrase)
   remote_action_request '{"action": "replace-platform-key", "auth-mode": "passphrase", "passphrase": "ubuntu-3"}'
   change_id="$(gojq --raw-output .change < resp)"
