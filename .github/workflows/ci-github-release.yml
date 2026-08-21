@@ -4,7 +4,8 @@ on:
   push:
     tags:
       # x.y or x.y.z
-      - "[0-9]*.[0-9]*"
+      - "[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+"
 
   # for debugging only
   workflow_dispatch:
