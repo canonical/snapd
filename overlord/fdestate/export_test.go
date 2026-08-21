@@ -202,10 +202,14 @@ func MockBootloaderFind(f func(rootdir string, opts *bootloader.Options) (bootlo
 	return testutil.Mock(&bootloaderFind, f)
 }
 
+func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
+	return testutil.Mock(&secbootPostinstallCheck, f)
+}
+
 func MockBootReadModeenv(f func(rootdir string) (*boot.Modeenv, error)) (restore func()) {
 	return testutil.Mock(&bootReadModeenv, f)
 }
 
-func MockSecbootPostinstallCheck(f func(ctx context.Context, bootImageFiles []bootloader.BootFile) (*secboot.PreinstallCheckContext, []secboot.PreinstallErrorDetails, error)) (restore func()) {
-	return testutil.Mock(&secbootPostinstallCheck, f)
+func MockBootGetRunBootChain(f func(*boot.Modeenv) ([]bootloader.BootFile, error)) (restore func()) {
+	return testutil.Mock(&bootGetRunBootChain, f)
 }

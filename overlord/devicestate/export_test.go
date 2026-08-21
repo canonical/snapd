@@ -760,10 +760,12 @@ func MockSecbootPostinstallCheck(f func(ctx context.Context, bootChain []bootloa
 	return func() { secbootPostinstallCheck = old }
 }
 
-func MockFdestateGetRunBootChain(f func() ([]bootloader.BootFile, error)) (restore func()) {
-	old := fdestateGetRunBootChain
-	fdestateGetRunBootChain = f
-	return func() { fdestateGetRunBootChain = old }
+func MockBootReadModeenv(f func(rootdir string) (*boot.Modeenv, error)) (restore func()) {
+	return testutil.Mock(&bootReadModeenv, f)
+}
+
+func MockBootGetRunBootChain(f func(*boot.Modeenv) ([]bootloader.BootFile, error)) (restore func()) {
+	return testutil.Mock(&bootGetRunBootChain, f)
 }
 
 func MockSecbootPreinstallCheckAction(f func(pcc *secboot.PreinstallCheckContext, ctx context.Context, action *secboot.PreinstallAction) ([]secboot.PreinstallErrorDetails, error)) (restore func()) {

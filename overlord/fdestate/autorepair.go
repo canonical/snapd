@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -41,13 +40,14 @@ import (
 var (
 	bootloaderFind = bootloader.Find
 
-	bootReadModeenv = boot.ReadModeenv
-
 	secbootProvisionTPM        = secboot.ProvisionTPM
 	secbootShouldAttemptRepair = secboot.ShouldAttemptRepair
 	secbootPostinstallCheck    = secboot.PostinstallCheck
 
 	osutilBootID = osutil.BootID
+
+	bootGetRunBootChain = boot.GetRunBootChain
+	bootReadModeenv     = boot.ReadModeenv
 )
 
 type AutoRepairResult string
@@ -111,115 +111,6 @@ func getRepairAttemptResult(st *state.State) (*repairState, error) {
 	return rs.State, nil
 }
 
-// GetRunBootChain returns the boot chain expected to be used
-// for a normal "run" mode boot.
-//
-// The image files in the bootchain will either point a file in a snap
-// or to a file in the trusted boot asset cache. They will not
-// point to the effective path where the read from, though they
-// are expected to be the same, unless boot partition were compromised.
-func GetRunBootChain() ([]bootloader.BootFile, error) {
-	modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read modeenv: %w", err)
-	}
-
-	rbl, err := bootloaderFind(boot.InitramfsUbuntuSeedDir, &bootloader.Options{
-		Role: bootloader.RoleRecovery,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot find recovery bootloader: %w", err)
-	}
-
-	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return nil, fmt.Errorf("internal error: recovery bootloader does not support trusted assets")
-	}
-
-	bl, err := bootloaderFind(boot.InitramfsUbuntuBootDir, &bootloader.Options{
-		Role:        bootloader.RoleRunMode,
-		NoSlashBoot: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("cannot find run bootloader: %w", err)
-	}
-
-	ebl, ok := bl.(bootloader.ExtractedRunKernelImageBootloader)
-	if !ok {
-		return nil, fmt.Errorf("internal error: run bootloader does not support kernel extraction")
-	}
-
-	info, err := ebl.TryKernel()
-	if err != nil {
-		if err == bootloader.ErrNoTryKernelRef {
-			info, err = ebl.Kernel()
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	trustedAssets, err := tbl.TrustedAssets()
-	if err != nil {
-		return nil, err
-	}
-
-	kernelPath := info.MountFile()
-
-	runModeBootChains, err := tbl.BootChains(bl, kernelPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// runModeBootChains is all possible run boot chains, but only one should exist (there
-	// are legacy boot chains before we registered UEFI boot entries).
-	// The "BootFile"s for the gadget part points to identifier names instead of real path, so we
-	// need to resolve those. To resolve those we need to cross check with the modeenv, and then
-	// find the file in the cache. The last one, is the kernel and should be pointing to the right place.
-	for _, runModeBootChain := range runModeBootChains {
-		var chain []bootloader.BootFile
-
-		if len(runModeBootChain) == 0 {
-			// That is not possible for a boot chain to be size 0, because that would mean there is no
-			// kernel. We should not ignore this, there are bigger problems.
-			return nil, fmt.Errorf("internal error: no file in boot chain")
-		}
-
-		ignoreChain := false
-		for _, bf := range runModeBootChain[:len(runModeBootChain)-1] {
-			path := bf.Path
-			name, ok := trustedAssets[path]
-			if !ok {
-				return nil, fmt.Errorf("internal error: unknown trusted asset %s from boot chain", path)
-			}
-			var hashes []string
-			if bf.Role == bootloader.RoleRecovery {
-				hashes, ok = modeenv.CurrentTrustedRecoveryBootAssets[name]
-			} else {
-				hashes, ok = modeenv.CurrentTrustedBootAssets[name]
-			}
-			if !ok {
-				ignoreChain = true
-				break
-			}
-
-			// In theory we should only have one hash here. Multiple would be when we are trying
-			// a boot chain, and this should have been cleaned. It should be safe to take the last one (newest).
-			if len(hashes) > 1 {
-				logger.Noticef("WARNING: multiple hashes for a trusted boot file were found.")
-			}
-			hash := hashes[len(hashes)-1]
-			p := filepath.Join(dirs.SnapBootAssetsDir, bl.Name(), fmt.Sprintf("%s-%s", name, hash))
-			chain = append(chain, bootloader.NewBootFile("", p, bf.Role))
-		}
-		if !ignoreChain {
-			return append(chain, runModeBootChain[len(runModeBootChain)-1]), nil
-		}
-	}
-
-	return nil, fmt.Errorf("cannot find the active boot chain")
-}
-
 func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, error) {
 	method, err := device.SealedKeysMethod(dirs.GlobalRootDir)
 	if err != nil {
@@ -230,7 +121,12 @@ func autoRepair(st *state.State, runPostInstallChecks bool) (AutoRepairResult, e
 	case device.SealingMethodFDESetupHook:
 	case device.SealingMethodTPM, device.SealingMethodLegacyTPM:
 		if runPostInstallChecks {
-			images, err := GetRunBootChain()
+			modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
+			if err != nil {
+				return AutoRepairNotAttempted, err
+			}
+
+			images, err := bootGetRunBootChain(modeenv)
 			if err != nil {
 				return AutoRepairNotAttempted, err
 			}

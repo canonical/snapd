@@ -80,7 +80,9 @@ var (
 	osutilBootID = osutil.BootID
 
 	fdestateAttemptAutoRepairIfNeeded = fdestate.AttemptAutoRepairIfNeeded
-	fdestateGetRunBootChain           = fdestate.GetRunBootChain
+
+	bootGetRunBootChain = boot.GetRunBootChain
+	bootReadModeenv     = boot.ReadModeenv
 )
 
 var (
@@ -2903,7 +2905,11 @@ func (m *DeviceManager) runningSystemAndGadgetAndEncryptionInfoWithAction(
 	var checkErr error
 
 	if checkAction == nil {
-		bootChain, err := fdestateGetRunBootChain()
+		modeenv, err := bootReadModeenv(dirs.GlobalRootDir)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		bootChain, err := bootGetRunBootChain(modeenv)
 		if err != nil {
 			return nil, nil, nil, err
 		}

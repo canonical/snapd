@@ -120,7 +120,11 @@ func (s *runningSystemInfoSuite) TestRunningSystemAndGadgetAndEncryptionInfoHapp
 		return expectedCheckContext, nil, nil
 	})()
 
-	defer devicestate.MockFdestateGetRunBootChain(func() ([]bootloader.BootFile, error) {
+	defer devicestate.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+		return nil, nil
+	})()
+
+	defer devicestate.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
 		return []bootloader.BootFile{
 			{Snap: "", Path: "/some/path/first.efi", Role: bootloader.RoleRecovery},
 			{Snap: "", Path: "/some/path/second.efi", Role: bootloader.RoleRunMode},
@@ -180,7 +184,7 @@ func (s *runningSystemInfoSuite) TestRunningSystemAndGadgetAndEncryptionInfoNoRu
 	c.Assert(encInfo, IsNil)
 }
 
-func (s *runningSystemInfoSuite) TestRunningSystemAndGadgetAndEncryptionInfoFdestateGetRunBootChainError(c *C) {
+func (s *runningSystemInfoSuite) TestRunningSystemAndGadgetAndEncryptionInfoBootGetRunBootChainError(c *C) {
 	fakeModel := s.makeMockUC20SeedWithGadgetYaml(c, "some-label", mockGadgetUCYaml, false, nil)
 	func() {
 		s.state.Lock()
@@ -234,7 +238,11 @@ func (s *runningSystemInfoSuite) TestRunningSystemAndGadgetAndEncryptionInfoFdes
 		return gadgetSnapInfo, nil
 	})()
 
-	defer devicestate.MockFdestateGetRunBootChain(func() ([]bootloader.BootFile, error) {
+	defer devicestate.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+		return nil, nil
+	})()
+
+	defer devicestate.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
 		return nil, fmt.Errorf("fdestate get boot chain failed")
 	})()
 
@@ -304,7 +312,11 @@ func (s *runningSystemInfoSuite) TestRunningSystemAndGadgetAndEncryptionInfoEncC
 		return expectedCheckContext, nil, fmt.Errorf("tpm not available")
 	})()
 
-	defer devicestate.MockFdestateGetRunBootChain(func() ([]bootloader.BootFile, error) {
+	defer devicestate.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+		return nil, nil
+	})()
+
+	defer devicestate.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
 		return []bootloader.BootFile{
 			{Snap: "", Path: "/some/path/first.efi", Role: bootloader.RoleRecovery},
 			{Snap: "", Path: "/some/path/second.efi", Role: bootloader.RoleRunMode},
@@ -379,7 +391,11 @@ func (s *runningSystemInfoSuite) TestApplyActionOnRunningSystemAndGadgetAndEncry
 		return mockActionCheckContext, nil, nil
 	})()
 
-	defer devicestate.MockFdestateGetRunBootChain(func() ([]bootloader.BootFile, error) {
+	defer devicestate.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+		return nil, nil
+	})()
+
+	defer devicestate.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
 		return []bootloader.BootFile{
 			{Snap: "", Path: "/some/path/first.efi", Role: bootloader.RoleRecovery},
 			{Snap: "", Path: "/some/path/second.efi", Role: bootloader.RoleRunMode},
@@ -535,7 +551,11 @@ func (s *runningSystemInfoSuite) TestApplyActionOnRunningSystemAndGadgetAndEncry
 		return mockActionCheckContext, nil, nil
 	})()
 
-	defer devicestate.MockFdestateGetRunBootChain(func() ([]bootloader.BootFile, error) {
+	defer devicestate.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+		return nil, nil
+	})()
+
+	defer devicestate.MockBootGetRunBootChain(func(*boot.Modeenv) ([]bootloader.BootFile, error) {
 		return []bootloader.BootFile{
 			{Snap: "", Path: "/some/path/first.efi", Role: bootloader.RoleRecovery},
 			{Snap: "", Path: "/some/path/second.efi", Role: bootloader.RoleRunMode},
