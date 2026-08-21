@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
@@ -320,25 +319,4 @@ func CheckAuthQuality(mode AuthMode, authVal string) (AuthQuality, error) {
 		Quality: result,
 		err:     fmt.Errorf("calculated entropy (%d bits) is less than the required minimum entropy (%d bits) for the %q authentication mode", entropy, minEntropy, mode),
 	}
-}
-
-// ModelForSealing provides information about the model for use in the context
-// of (re)sealing the encryption keys.
-type ModelForSealing interface {
-	Series() string
-	BrandID() string
-	Model() string
-	Classic() bool
-	Grade() asserts.ModelGrade
-	SignKeyID() string
-}
-
-// InitialFDEState is a FDE state being built during initial sealing.
-type InitialFDEState interface {
-	// UpdateParameters updates the parameters for given keyslot role and
-	// container role.
-	UpdateParameters(role string, containerRole string, bootModes []string, models []ModelForSealing, tpmPCRProfile []byte) error
-	// UpdatePCRHandle updates the policy revocation counter handler for
-	// a given keyslot role.
-	UpdatePCRHandle(role string, pcrHandle uint32) error
 }

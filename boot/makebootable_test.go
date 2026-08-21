@@ -554,7 +554,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableSealWithHookKeyProtector(c *
 		model *asserts.Model,
 		modeenv *boot.Modeenv,
 		flags boot.MockSealKeyToModeenvFlags,
-		fdeState device.InitialFDEState,
+		sealState boot.InitialSealState,
 	) error {
 		gotFlags = flags
 		return nil
@@ -774,7 +774,7 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, fdeState device.InitialFDEState) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, sealState boot.InitialSealState) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, Equals, myKey)
@@ -1298,7 +1298,7 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, fdeState device.InitialFDEState) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, sealState boot.InitialSealState) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, Equals, myKey)
@@ -1502,7 +1502,7 @@ version: 5.0
 	defer restore()
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, fdeState device.InitialFDEState) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, sealState boot.InitialSealState) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, DeepEquals, myKey)
@@ -2597,15 +2597,7 @@ func (s *makeBootable20Suite) TestMakeBootableImageOptionalKernelArgsSignedAndDa
 	s.testMakeBootableImageOptionalKernelArgs(c, model, options, "", "")
 }
 
-type mockInitialFDEState struct {
-}
-
-func (m *mockInitialFDEState) UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error {
-	return nil
-}
-
-func (m *mockInitialFDEState) UpdatePCRHandle(role string, pcrHandle uint32) error {
-	return nil
+type mockInitialSealState struct {
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
@@ -2678,10 +2670,10 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
 	kernel3, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_3.snap")
 	c.Assert(err, IsNil)
 
-	initialState := &mockInitialFDEState{}
+	initialState := &mockInitialSealState{}
 
 	sealKeyForBootChainsCalled := 0
-	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, fdeState device.InitialFDEState) error {
+	restore = boot.MockSealKeyForBootChains(func(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, params *boot.SealKeyForBootChainsParams, sealState boot.InitialSealState) error {
 		sealKeyForBootChainsCalled++
 		c.Check(method, Equals, device.SealingMethodTPM)
 		c.Check(key, Equals, myKey)
@@ -2689,7 +2681,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnableReprovision(c *C) {
 		c.Check(primaryKey, DeepEquals, chosenPrimaryKey)
 		c.Check(volumesAuth, Equals, myVolumesAuth)
 		c.Check(checkResult, Equals, myCheckResult)
-		c.Check(fdeState, Equals, initialState)
+		c.Check(sealState, Equals, initialState)
 
 		recoveryBootLoader, hasRecovery := params.RoleToBlName[bootloader.RoleRecovery]
 		c.Assert(hasRecovery, Equals, true)

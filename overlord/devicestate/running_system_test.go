@@ -1037,7 +1037,7 @@ version: 1.0
 	})()
 
 	bootMakeRunnableReprovisionCalls := 0
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState device.InitialFDEState) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, sealState boot.InitialSealState) error {
 		bootMakeRunnableReprovisionCalls++
 
 		c.Check(encryption.PrimaryKey(), DeepEquals, []byte("new-primary-key"))
@@ -1062,6 +1062,9 @@ version: 1.0
 		}
 		delete(s.dataKeys.keys, "bootstrap-key")
 		delete(s.saveKeys.keys, "bootstrap-key")
+
+		fdeState, isFdeState := sealState.(*fdestate.FdeState)
+		c.Assert(isFdeState, Equals, true)
 
 		fdeState.UpdateParameters("run+recover", "all", []string{"run", "recover"}, []secboot.ModelForSealing{model}, []byte("profile-run-recover"))
 		fdeState.UpdatePCRHandle("run+recover", 42)
@@ -1396,7 +1399,7 @@ version: 1.0
 	})()
 
 	bootMakeRunnableReprovisionCalls := 0
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState device.InitialFDEState) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, sealState boot.InitialSealState) error {
 		bootMakeRunnableReprovisionCalls++
 
 		c.Check(encryption.PrimaryKey(), DeepEquals, []byte("new-primary-key"))
@@ -1959,7 +1962,7 @@ version: 1.0
 		return &secboot.PreinstallCheckResult{}, nil
 	})()
 
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState device.InitialFDEState) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, sealState boot.InitialSealState) error {
 		return fmt.Errorf("make runnable failed")
 	})()
 

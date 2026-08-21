@@ -37,6 +37,16 @@ var (
 	secbootFindFreeHandle        = secboot.FindFreeHandle
 )
 
+// InitialFDEState is a FDE state being built during initial sealing.
+type InitialFDEState interface {
+       // UpdateParameters updates the parameters for given keyslot role and
+       // container role.
+       UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error
+       // UpdatePCRHandle updates the policy revocation counter handler for
+       // a given keyslot role.
+       UpdatePCRHandle(role string, pcrHandle uint32) error
+}
+
 func runKeySealRequests(key secboot.BootstrappedContainer, useTokens bool) []secboot.SealKeyRequest {
 	var keyFile string
 	if !useTokens {
@@ -96,7 +106,7 @@ func sealRunObjectKeys(
 	pcrHandle uint32,
 	useTokens bool,
 	keyRole string,
-	fdeState device.InitialFDEState,
+	fdeState InitialFDEState,
 ) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -161,7 +171,7 @@ func sealFallbackObjectKeys(
 	pcrHandle uint32,
 	useTokens bool,
 	keyRole string,
-	fdeState device.InitialFDEState,
+	fdeState InitialFDEState,
 ) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
@@ -213,7 +223,7 @@ func sealFallbackObjectKeys(
 	return nil
 }
 
-func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams, fdeState device.InitialFDEState) error {
+func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams, fdeState InitialFDEState) error {
 	if method != device.SealingMethodFDESetupHook {
 		return fmt.Errorf("internal error: sealKeyForBootChainsHook called with unsupported method %q", method)
 	}
@@ -278,8 +288,17 @@ func sealKeyForBootChainsBackend(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 	params *boot.SealKeyForBootChainsParams,
-	fdeState device.InitialFDEState,
+	sealState boot.InitialSealState,
 ) error {
+	var fdeState InitialFDEState
+	if sealState != nil {
+		ok := false
+		fdeState, ok = sealState.(InitialFDEState)
+		if !ok {
+			fmt.Errorf("internal error: an incompatible initial seal state was passed to backend sealing functions")
+		}
+	}
+
 	if method == device.SealingMethodFDESetupHook {
 		// volumes authentication is not supported when using secboot hooks
 		return sealKeyForBootChainsHook(method, key, saveKey, params, fdeState)
