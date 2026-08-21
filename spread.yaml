@@ -2123,7 +2123,7 @@ suites:
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             case "$SNAP_MOUNT_DIR" in
                 /var/lib/snapd/snap)
-                    ln -sf "$SNAP_MOUNT_DIR" /snap
+                    ln -sfn "$SNAP_MOUNT_DIR" /snap
                     tests.cleanup defer rm -f /snap
                     ;;
             esac

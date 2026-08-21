@@ -376,22 +376,24 @@ prepare_project() {
         fi
     fi
 
-    # set up debian symlink as needed
+    # set up debian symlink as needed. Use "ln -sfn" so that an existing symlink
+    # is replaced rather than dereferenced, which would create a nested symlink
+    # inside it and leave the stale packaging in place.
     if os.query is-trusty; then
         # no packaging setup for 14.04, we're no longer building the packages in
         # CI
         :
     elif os.query is-ubuntu-ge 26.04; then
-        ln -sf packaging/ubuntu-26.04 debian
+        ln -sfn packaging/ubuntu-26.04 debian
     elif os.query is-ubuntu; then
         # TODO generate packaging appropriate for a given ubuntu release
-        ln -sf packaging/ubuntu-16.04 debian
+        ln -sfn packaging/ubuntu-16.04 debian
     elif os.query is-debian sid ; then
         # debian sid has special packaging
-        ln -sf packaging/debian-sid debian
+        ln -sfn packaging/debian-sid debian
     elif os.query is-debian; then
         # TODO debian reuses ubuntu 16.04 packaging
-        ln -sf packaging/ubuntu-16.04 debian
+        ln -sfn packaging/ubuntu-16.04 debian
     fi
 
     if os.query is-trusty; then
