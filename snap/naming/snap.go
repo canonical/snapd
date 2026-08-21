@@ -21,25 +21,16 @@ package naming
 
 import "strings"
 
-// SnapName is the global name of a snap (i.e. the store name),
-// corresponding to the $SNAP_NAME environment variable. It never carries an
-// instance key.
+// SnapName is the global name of a snap
 type SnapName string
-
-// InstanceName is the name of a snap decorated with an optional instance key
-// (e.g. "foo" or "foo_bar"), corresponding to the $SNAP_INSTANCE_NAME
-// environment variable.
-type InstanceName string
 
 // String returns the snap name as a plain string.
 func (n SnapName) String() string {
 	return string(n)
 }
 
-// String returns the instance name as a plain string.
-func (n InstanceName) String() string {
-	return string(n)
-}
+// InstanceName is the name of a snap decorated with an optional instance key
+type InstanceName string
 
 // NewInstanceName builds an InstanceName from a snap name and an optional
 // instance key. When instanceKey is empty the instance name is just the snap
@@ -63,4 +54,9 @@ func (n InstanceName) SnapName() SnapName {
 func (n InstanceName) InstanceKey() string {
 	_, instanceKey, _ := strings.Cut(string(n), "_")
 	return instanceKey
+}
+
+// String returns the instance name as a plain string.
+func (n InstanceName) String() string {
+	return string(n)
 }
