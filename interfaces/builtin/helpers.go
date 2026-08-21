@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/configfiles"
+	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
@@ -216,6 +217,69 @@ func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, check
 	return checked, nil
 }
 
+// sourceDirEncodedName computes the encoded name for a single file found by
+// sourceDirsCheck, of the form
+//
+//	<priority>_snap_<instance>[+<component>]_<slotName>_<escapedRelPath>
+//
+// (the priority prefix is omitted when withPriority is false). This same
+// encoding is used verbatim both for the symlink name created by classic's
+// symlinks backend (symlinksForSourceDir) and for the file name delivered by
+// the export backend on Core, so that identical content ends up named
+// identically regardless of which backend delivers it.
+//
+// It also identifies which container - the snap itself, or exactly one of
+// its components - contributed the file: component is "" when the file
+// belongs to the snap itself, and set to the component name (with
+// componentRev set to its revision) otherwise. This information is used by
+// the export backend to group files into per-container units (see
+// export.UnitName).
+func sourceDirEncodedName(pathDirIdx pathWithDirIdx, slot *interfaces.ConnectedSlot, priority int64, withPriority bool) (name string, component string, componentRev snap.Revision, err error) {
+	instance := slot.Snap().InstanceName()
+
+	// First strip out mount dir
+	relPath, err := filepath.Rel(dirs.SnapMountDir, pathDirIdx.path)
+	if err != nil {
+		return "", "", snap.Revision{}, err
+	}
+
+	// If path is in the snap, we ignore below the snap name and revision
+	// when building the name; if in a component, we ignore
+	// <instance>/components/mnt/<comp_name>/<comp_rev>/ (5 path segments).
+	splitNum := 3
+	inComponent := strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance))
+	if inComponent {
+		splitNum = 6
+	}
+	// Named pathSegments (not "dirs") to avoid shadowing the "dirs" package
+	// imported above, which the original version of this code did.
+	pathSegments := strings.SplitN(relPath, "/", splitNum)
+	if len(pathSegments) < splitNum {
+		return "", "", snap.Revision{}, fmt.Errorf("internal error: wrong file path: %s", relPath)
+	}
+
+	compSuffix := ""
+	if inComponent {
+		component = pathSegments[3]
+		compSuffix = "+" + component
+		componentRev, err = snap.ParseRevision(pathSegments[4])
+		if err != nil {
+			return "", "", snap.Revision{}, fmt.Errorf("internal error: wrong file path: %s", relPath)
+		}
+	}
+
+	// Get last path segment and make it an easier to handle name
+	escapedRelPath := systemd.EscapeUnitNamePath(pathSegments[splitNum-1])
+	prefix := ""
+	if withPriority {
+		// The priority depends on the list order of the directories
+		// in the *-source attribute.
+		prefix = fmt.Sprintf("%d_", priority+int64(pathDirIdx.idx))
+	}
+	name = fmt.Sprintf("%ssnap_%s%s_%s_%s", prefix, instance, compSuffix, slot.Name(), escapedRelPath)
+	return name, component, componentRev, nil
+}
+
 // symlinksForSourceDir adds symlinks to be created in targetDir to spec, for the
 // files in the directories found in the sda attribute of slot. The checker function
 // function ensures that the files we are going to point to have the right content.
@@ -242,44 +306,30 @@ func symlinksForSourceDir(
 
 	// Create symlinks to snap content (which is fine as this is for super-privileged slots)
 	for _, pathDirIdx := range sourcePaths {
-		// First strip out mount dir
-		relPath, err := filepath.Rel(dirs.SnapMountDir, pathDirIdx.path)
+		name, _, _, err := sourceDirEncodedName(pathDirIdx, slot, priority, withPriority)
 		if err != nil {
 			return err
 		}
-
-		// If path is in the snap, we ignore below the snap name and revision
-		// when building the symlink name, if in component, we ignore
-		// <snap_name>/components/mnt/<comp_name>/<comp_rev>/ (5 dirs)
-		instance := slot.Snap().InstanceName()
-		splitNum := 3
-		compSuffix := ""
-		if strings.HasPrefix(pathDirIdx.path, snap.ComponentsBaseDir(instance)) {
-			splitNum = 6
-			compSuffix = "+"
-		}
-		dirs := strings.SplitN(relPath, "/", splitNum)
-		if len(dirs) < splitNum {
-			return fmt.Errorf("internal error: wrong file path: %s", relPath)
-		}
-		if compSuffix != "" {
-			compSuffix += dirs[3]
-		}
-
-		// Get last component from dirs and make path an easier to handle name
-		escapedRelPath := systemd.EscapeUnitNamePath(dirs[splitNum-1])
-		prefix := ""
-		if withPriority {
-			// The priority depends on the list order of the directories
-			// in the *-source attribute.
-			prefix = fmt.Sprintf("%d_", priority+int64(pathDirIdx.idx))
-		}
-		linkPath := filepath.Join(targetDir, fmt.Sprintf("%ssnap_%s%s_%s_%s",
-			prefix, instance, compSuffix, slot.Name(), escapedRelPath))
+		linkPath := filepath.Join(targetDir, name)
 		if err := spec.AddSymlink(pathDirIdx.path, linkPath); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// exportUnitAndFileName computes the export unit name (see export.UnitName)
+// and the encoded file name (see sourceDirEncodedName) for a single file
+// found by sourceDirsCheck, for use by the export backend. The file name is
+// identical to what symlinksForSourceDir would produce for the same
+// connection, so that classic and Core never disagree about the identity of
+// a given piece of content.
+func exportUnitAndFileName(pathDirIdx pathWithDirIdx, slot *interfaces.ConnectedSlot, priority int64, withPriority bool) (unit string, fileName string, err error) {
+	fileName, component, componentRev, err := sourceDirEncodedName(pathDirIdx, slot, priority, withPriority)
+	if err != nil {
+		return "", "", err
+	}
+	unit = export.UnitName(slot.Snap().InstanceName(), slot.Name(), slot.Snap().Revision, component, componentRev)
+	return unit, fileName, nil
 }

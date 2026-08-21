@@ -60,6 +60,18 @@ func MprisGetName(iface interfaces.Interface, attribs map[string]any) (string, e
 	return iface.(*mprisInterface).getName(attribs)
 }
 
+func NewPathWithDirIdx(path string, idx int) pathWithDirIdx {
+	return pathWithDirIdx{path: path, idx: idx}
+}
+
+func SourceDirEncodedName(p pathWithDirIdx, slot *interfaces.ConnectedSlot, priority int64, withPriority bool) (name, component string, componentRev snap.Revision, err error) {
+	return sourceDirEncodedName(p, slot, priority, withPriority)
+}
+
+func ExportUnitAndFileName(p pathWithDirIdx, slot *interfaces.ConnectedSlot, priority int64, withPriority bool) (unit, fileName string, err error) {
+	return exportUnitAndFileName(p, slot, priority, withPriority)
+}
+
 // MockInterfaces replaces the set of known interfaces and returns a restore function.
 func MockInterfaces(ifaces map[string]interfaces.Interface) (restore func()) {
 	old := allInterfaces
