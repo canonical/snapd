@@ -174,10 +174,46 @@ func appendHealth(ctx *hookstate.Context, health *HealthState) error {
 		}
 		hs = map[string]*HealthState{}
 	}
+	prev := hs[ctx.InstanceName()]
 	hs[ctx.InstanceName()] = health
 	st.Set("health", hs)
 
+	// Emit a notice whenever the health state changes and the transition
+	// involves a non-okay status: either entering an unhealthy state (new
+	// problem) or leaving one (recovery). Transitions between two identical
+	// okay states are suppressed by healthStateChanged, so okay→okay is
+	// never noisy. The nil→okay case (first health report, already healthy)
+	// is intentionally excluded to avoid a spurious notice on installation.
+	prevUnhealthy := prev != nil && prev.Status != OkayStatus
+	newUnhealthy := health.Status != OkayStatus
+	if healthStateChanged(prev, health) && (newUnhealthy || prevUnhealthy) {
+		data := map[string]string{
+			"status":    health.Status.String(),
+			"message":   health.Message,
+			"code":      health.Code,
+			"revision":  health.Revision.String(),
+			"timestamp": health.Timestamp.UTC().Format(time.RFC3339Nano),
+		}
+		if _, err := st.AddNotice(nil, state.SnapHealthNotice, ctx.InstanceName(), &state.AddNoticeOptions{
+			Data: data,
+		}); err != nil {
+			logger.Noticef("cannot add snap-health notice for snap %q: %v", ctx.InstanceName(), err)
+		}
+	}
+
 	return nil
+}
+
+// healthStateChanged reports whether two health states differ in any field
+// other than the timestamp.
+func healthStateChanged(old, new *HealthState) bool {
+	if old == nil {
+		return true
+	}
+	return old.Status != new.Status ||
+		old.Message != new.Message ||
+		old.Code != new.Code ||
+		old.Revision != new.Revision
 }
 
 // SetFromHookContext extracts the health of a snap from a hook

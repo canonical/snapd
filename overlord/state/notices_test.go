@@ -438,15 +438,17 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	addNotice(c, st, nil, state.WarningNotice, "Warning 2!", nil)
 	time.Sleep(time.Microsecond)
 	addNotice(c, st, nil, state.SnapRunInhibitNotice, "snap-name", nil)
+	time.Sleep(time.Microsecond)
+	addNotice(c, st, nil, state.SnapHealthNotice, "myapp", nil)
 	st.Unlock()
 
 	// No filter
 	notices := st.Notices(nil)
-	c.Assert(notices, HasLen, 6)
+	c.Assert(notices, HasLen, 7)
 
 	// No types
 	notices = st.Notices(&state.NoticeFilter{})
-	c.Assert(notices, HasLen, 6)
+	c.Assert(notices, HasLen, 7)
 
 	// One type
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.WarningNotice}})
@@ -475,6 +477,14 @@ func (s *noticesSuite) TestNoticesFilterType(c *C) {
 	c.Check(n["user-id"], Equals, nil)
 	c.Check(n["type"], Equals, "snap-run-inhibit")
 	c.Check(n["key"], Equals, "snap-name")
+
+	// Another type
+	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{state.SnapHealthNotice}})
+	c.Assert(notices, HasLen, 1)
+	n = noticeToMap(c, notices[0])
+	c.Check(n["user-id"], Equals, nil)
+	c.Check(n["type"], Equals, "snap-health")
+	c.Check(n["key"], Equals, "myapp")
 
 	// Multiple types
 	notices = st.Notices(&state.NoticeFilter{Types: []state.NoticeType{

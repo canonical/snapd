@@ -1,0 +1,34 @@
+summary: Verify that snap-health-observe grants read-access to snap-health notices
+
+details: |
+    The snap-health-observe interface grants read-access to snap health status
+    notifications via the /v2/notices API endpoint.
+
+    Specifically:
+      - /v2/notices: to read snap-health notices
+
+environment:
+    # not all terminals support UTF-8, but Python tries to be smart and attempts
+    # to guess the encoding as if the output would go to the terminal, but in
+    # fact all the test does is pipe the output to (go)jq
+    PYTHONIOENCODING: utf-8
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local api-client
+    echo "The snap-health-observe plug on the api-client snap is initially disconnected"
+    snap connections api-client | MATCH "snap-health-observe +api-client:snap-health-observe +- +-"
+    echo "Connect the snap-health-observe plug"
+    snap connect api-client:snap-health-observe
+
+    echo "Check snap can access snap-health notices under /v2/notices"
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=snap-health" | gojq '."status-code"' | MATCH '^200$'
+    api-client --socket /run/snapd-snap.socket "/v2/notices" | gojq '."status-code"' | MATCH '^200$'
+    echo "But not other notice types"
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=snap-health,warning" | gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=change-update" | gojq '."status-code"' | MATCH '^403$'
+
+    echo "Without snap-health-observe the snap cannot access the API endpoint"
+    snap disconnect api-client:snap-health-observe
+
+    api-client --socket /run/snapd-snap.socket "/v2/notices?types=snap-health" | gojq '."status-code"' | MATCH '^403$'
+    api-client --socket /run/snapd-snap.socket "/v2/notices" | gojq '."status-code"' | MATCH '^403$'
