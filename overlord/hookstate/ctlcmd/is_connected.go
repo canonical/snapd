@@ -45,9 +45,10 @@ type isConnectedCommand struct {
 	Positional struct {
 		PlugOrSlotSpec string `positional-args:"true" positional-arg-name:"<plug|slot>"`
 	} `positional-args:"true"`
-	Pid           int    `long:"pid" description:"Process ID for a plausibly connected process"`
-	AppArmorLabel string `long:"apparmor-label" description:"AppArmor label for a plausibly connected process"`
-	List          bool   `long:"list" description:"List all connected plugs and slots"`
+	Pid             int    `long:"pid" description:"Process ID for a plausibly connected process"`
+	AppArmorLabel   string `long:"apparmor-label" description:"AppArmor label for a plausibly connected process"`
+	CheckSystemSlot bool   `long:"check-system-slot" description:"With --pid or --apparmor-label, also check the connection to equivalent system snap audio slots as acceptable"`
+	List            bool   `long:"list" description:"List all connected plugs and slots"`
 }
 
 var shortIsConnectedHelp = i18n.G(`Return success if the given plug or slot is connected`)
@@ -71,7 +72,13 @@ codes may be returned: 10 if the other snap is not connected but uses
 classic confinement, or 11 if the other process is not snap confined.
 
 The --pid and --apparmor-label options may only be used with slots of
-interface type "pulseaudio", "audio-record", or "cups-control".
+interface type "pulseaudio", "audio-record", "audio-playback", or
+"cups-control".
+
+The --check-system-slot option may be used together with --pid or
+--apparmor-label on a snap that has a "pipewire" or "pulseaudio" slot.
+For audio interfaces, it also treats the equivalent core/snapd slot as
+connected.
 `)
 
 func init() {
@@ -84,11 +91,45 @@ func isConnectedPidCheckAllowed(info *snap.Info, plugOrSlot string) bool {
 	slot := info.Slots[plugOrSlot]
 	if slot != nil {
 		switch slot.Interface {
-		case "pulseaudio", "audio-record", "cups-control":
+		case "pulseaudio", "audio-record", "audio-playback", "cups-control":
 			return true
 		}
 	}
 	return false
+}
+
+// isSoundServerSnap returns true if the snap has a pipewire or pulseaudio
+// slot, indicating it is a registered audio provider that may replace the
+// system (core/snapd) audio slots.
+func isSoundServerSnap(info *snap.Info) bool {
+	for _, slot := range info.Slots {
+		if slot.Interface == "pipewire" || slot.Interface == "pulseaudio" {
+			return true
+		}
+	}
+	return false
+}
+
+// isAudioInterface returns true for audio interfaces where an audio server
+// snap's own slot and the system (core/snapd) slot may be treated as
+// equivalent when checking permissions.
+func isAudioInterface(name string) bool {
+	switch name {
+	case "audio-record", "audio-playback", "pulseaudio", "pipewire":
+		return true
+	}
+	return false
+}
+
+// equivalentSystemAudioSlot returns the name of the equivalent system slot for
+// the given slot of an audio server snap. System audio slots use the interface
+// name as the slot name, which may differ from the calling snap's slot name.
+func equivalentSystemAudioSlot(info *snap.Info, slotName string) (string, bool) {
+	slot := info.Slots[slotName]
+	if slot == nil || !isSoundServerSnap(info) || !isAudioInterface(slot.Interface) {
+		return "", false
+	}
+	return slot.Interface, true
 }
 
 func (c *isConnectedCommand) Execute(args []string) error {
@@ -123,6 +164,16 @@ func (c *isConnectedCommand) Execute(args []string) error {
 	// is-connected, so the limitation is probably moot.
 	if plugOrSlot != "" && info.Plugs[plugOrSlot] == nil && info.Slots[plugOrSlot] == nil {
 		return fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlot)
+	}
+
+	systemSlotName, canCheckSystemSlot := equivalentSystemAudioSlot(info, plugOrSlot)
+	if c.CheckSystemSlot {
+		if c.Pid == 0 && c.AppArmorLabel == "" {
+			return fmt.Errorf("cannot use --check-system-slot without --pid or --apparmor-label")
+		}
+		if !canCheckSystemSlot {
+			return fmt.Errorf("cannot use --check-system-slot with %s:%s", snapName, plugOrSlot)
+		}
 	}
 
 	conns, err := ifacestate.ConnectionStates(st)
@@ -212,6 +263,12 @@ func (c *isConnectedCommand) Execute(args []string) error {
 		matchingSlot := connRef.SlotRef.Snap == snapName && connRef.SlotRef.Name == plugOrSlot
 		if otherSnap != nil {
 			if matchingPlug && connRef.SlotRef.Snap == otherSnap.InstanceName() || matchingSlot && connRef.PlugRef.Snap == otherSnap.InstanceName() {
+				return nil
+			}
+			if c.CheckSystemSlot &&
+				(connRef.SlotRef.Snap == "core" || connRef.SlotRef.Snap == "snapd") &&
+				connRef.SlotRef.Name == systemSlotName &&
+				connRef.PlugRef.Snap == otherSnap.InstanceName() {
 				return nil
 			}
 		} else {
