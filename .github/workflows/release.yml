@@ -1,4 +1,4 @@
-name: Release prepare
+name: Github release prepare
 
 on:
   push:
@@ -23,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+            fetch-depth: 0
             fetch-tags: true
 
       - name: Get the release version from tag push
@@ -56,7 +57,7 @@ jobs:
         run: |
             set -o pipefail
 
-            if ! head -1 ./packaging/ubuntu-16.04/changelog | grep -q "snapd (\"$VERSION\")" ; then
+            if ! head -1 ./packaging/ubuntu-16.04/changelog | grep -q "snapd ($VERSION)" ; then
                  echo "version does not match Ubuntu packaging" >&2
                  exit 1
             fi
@@ -79,6 +80,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+          fetch-depth: 0
+          fetch-tags: true
+
+    - name: Set the release version from create-release job
+      shell: bash
+      run: |
+          echo "VERSION=${{ needs.create-release.outputs.version }}" >> $GITHUB_ENV
 
     - name: Install the Go snap
       run: |
