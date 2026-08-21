@@ -91,16 +91,7 @@ type SealKeyRequest struct {
 	BootModes []string
 }
 
-// ModelForSealing provides information about the model for use in the context
-// of (re)sealing the encryption keys.
-type ModelForSealing interface {
-	Series() string
-	BrandID() string
-	Model() string
-	Classic() bool
-	Grade() asserts.ModelGrade
-	SignKeyID() string
-}
+type ModelForSealing = device.ModelForSealing
 
 type KeyDatabase int
 

@@ -1037,7 +1037,7 @@ version: 1.0
 	})()
 
 	bootMakeRunnableReprovisionCalls := 0
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState boot.InitialFDEState) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState device.InitialFDEState) error {
 		bootMakeRunnableReprovisionCalls++
 
 		c.Check(encryption.PrimaryKey(), DeepEquals, []byte("new-primary-key"))
@@ -1396,7 +1396,7 @@ version: 1.0
 	})()
 
 	bootMakeRunnableReprovisionCalls := 0
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState boot.InitialFDEState) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState device.InitialFDEState) error {
 		bootMakeRunnableReprovisionCalls++
 
 		c.Check(encryption.PrimaryKey(), DeepEquals, []byte("new-primary-key"))
@@ -1959,7 +1959,7 @@ version: 1.0
 		return &secboot.PreinstallCheckResult{}, nil
 	})()
 
-	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState boot.InitialFDEState) error {
+	defer devicestate.MockBootMakeRunnableReprovision(func(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *boot.EncryptionSetup, fdeState device.InitialFDEState) error {
 		return fmt.Errorf("make runnable failed")
 	})()
 

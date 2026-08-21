@@ -512,7 +512,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 			model *asserts.Model,
 			modeenv *boot.Modeenv,
 			flags boot.MockSealKeyToModeenvFlags,
-			fdeState boot.InitialFDEState,
+			fdeState device.InitialFDEState,
 		) error {
 			c.Check(model.Classic(), Equals, opts.installClassic)
 			// Note that we cannot compare the full structure and we check

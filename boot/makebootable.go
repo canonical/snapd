@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/kcmdline"
@@ -474,7 +475,7 @@ func isSealModeenvLocked() bool {
 	return atomic.LoadInt32(&sealModeenvLocked) == 1
 }
 
-func makeRunnableSystemSeal(modeenv *Modeenv, model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, makeOpts makeRunnableOptions, fdeState InitialFDEState) error {
+func makeRunnableSystemSeal(modeenv *Modeenv, model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, makeOpts makeRunnableOptions, fdeState device.InitialFDEState) error {
 	tokens := UseTokens(model)
 	if tokens {
 		logger.Debugf("key data will be stored in tokens")
@@ -824,7 +825,7 @@ func MakeRunnableSystemAfterDataReset(model *asserts.Model, bootWith *BootableSe
 // MakeRunnableSystemReprovision make the systems currently running bootable again.
 // This is intended to repair the boot of a system that was booted for example
 // with a recovery key.
-func MakeRunnableSystemReprovision(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, fdeState InitialFDEState) error {
+func MakeRunnableSystemReprovision(model *asserts.Model, protector secboot.KeyProtectorFactory, encryption *EncryptionSetup, fdeState device.InitialFDEState) error {
 	sealModeenvLock()
 	defer sealModeenvUnlock()
 

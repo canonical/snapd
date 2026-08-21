@@ -96,7 +96,7 @@ func sealRunObjectKeys(
 	pcrHandle uint32,
 	useTokens bool,
 	keyRole string,
-	fdeState boot.InitialFDEState,
+	fdeState device.InitialFDEState,
 ) ([]byte, error) {
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	if err != nil {
@@ -161,7 +161,7 @@ func sealFallbackObjectKeys(
 	pcrHandle uint32,
 	useTokens bool,
 	keyRole string,
-	fdeState boot.InitialFDEState,
+	fdeState device.InitialFDEState,
 ) error {
 	// also seal the keys to the recovery bootchains as a fallback
 	modelParams, err := boot.SealKeyModelParams(pbc, roleToBlName)
@@ -213,7 +213,7 @@ func sealFallbackObjectKeys(
 	return nil
 }
 
-func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams, fdeState boot.InitialFDEState) error {
+func sealKeyForBootChainsHook(method device.SealingMethod, key, saveKey secboot.BootstrappedContainer, params *boot.SealKeyForBootChainsParams, fdeState device.InitialFDEState) error {
 	if method != device.SealingMethodFDESetupHook {
 		return fmt.Errorf("internal error: sealKeyForBootChainsHook called with unsupported method %q", method)
 	}
@@ -278,7 +278,7 @@ func sealKeyForBootChainsBackend(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 	params *boot.SealKeyForBootChainsParams,
-	fdeState boot.InitialFDEState,
+	fdeState device.InitialFDEState,
 ) error {
 	if method == device.SealingMethodFDESetupHook {
 		// volumes authentication is not supported when using secboot hooks

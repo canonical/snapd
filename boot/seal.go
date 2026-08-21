@@ -76,7 +76,7 @@ func MockResealKeyToModeenv(f func(rootdir string, modeenv *Modeenv, opts Reseal
 type MockSealKeyToModeenvFlags = sealKeyToModeenvFlags
 
 // MockSealKeyToModeenv is used for testing from other packages.
-func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags, fdeState InitialFDEState) error) (restore func()) {
+func MockSealKeyToModeenv(f func(key, saveKey secboot.BootstrappedContainer, primaryKey []byte, volumesAuth *device.VolumesAuthOptions, checkResult *secboot.PreinstallCheckResult, model *asserts.Model, modeenv *Modeenv, flags MockSealKeyToModeenvFlags, fdeState device.InitialFDEState) error) (restore func()) {
 	old := sealKeyToModeenv
 	sealKeyToModeenv = f
 	return func() {
@@ -119,7 +119,7 @@ func sealKeyToModeenvImpl(
 	model *asserts.Model,
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
-	fdeState InitialFDEState,
+	fdeState device.InitialFDEState,
 ) error {
 	if !isSealModeenvLocked() {
 		return fmt.Errorf("internal error: cannot seal without the seal modeenv lock")
@@ -184,16 +184,6 @@ type SealKeyForBootChainsParams struct {
 	KeyProtectorFactory secboot.KeyProtectorFactory
 }
 
-// InitialFDEState is a FDE state being built during initial sealing.
-type InitialFDEState interface {
-	// UpdateParameters updates the parameters for given keyslot role and
-	// container role.
-	UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error
-	// UpdatePCRHandle updates the policy revocation counter handler for
-	// a given keyslot role.
-	UpdatePCRHandle(role string, pcrHandle uint32) error
-}
-
 func sealKeyForBootChainsImpl(
 	method device.SealingMethod,
 	key, saveKey secboot.BootstrappedContainer,
@@ -201,7 +191,7 @@ func sealKeyForBootChainsImpl(
 	volumesAuth *device.VolumesAuthOptions,
 	checkResult *secboot.PreinstallCheckResult,
 	params *SealKeyForBootChainsParams,
-	fdeState InitialFDEState,
+	fdeState device.InitialFDEState,
 ) error {
 	return fmt.Errorf("FDE manager backend was not built in")
 }
@@ -217,7 +207,7 @@ func sealKeyToModeenvForMethod(
 	model *asserts.Model,
 	modeenv *Modeenv,
 	flags sealKeyToModeenvFlags,
-	fdeState InitialFDEState,
+	fdeState device.InitialFDEState,
 ) error {
 	params := &SealKeyForBootChainsParams{
 		LegacyFactoryResetKeyPath: flags.LegacyFactoryResetKeyPath,
