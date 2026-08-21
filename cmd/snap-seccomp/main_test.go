@@ -222,12 +222,16 @@ func (s *snapSeccompSuite) SetUpSuite(c *C) {
 	// Amazon Linux 2 is 64bit only and there is no multilib support
 	s.canCheckCompatArch = !release.DistroLike("amzn")
 
-	// Build 32bit runner on amd64 to test non-native syscall handling.
-	// Ideally we would build for ppc64el->powerpc and arm64->armhf but
-	// it seems tricky to find the right gcc-multilib for this.
+	// Build 32bit runner on amd64 to test non-native syscall handling. Use
+	// the 32-bit sub-architecture cross compiler to build 32bit binaries on a
+	// subset of 64bit systems. If such cross-compiler is not available, use
+	// the 32bit sub-architecture.
 	if arch.DpkgArchitecture() == "amd64" && s.canCheckCompatArch {
-		cmd = exec.Command(cmd.Args[0], cmd.Args[1:]...)
-		cmd.Args = append(cmd.Args, "-m32")
+		if _, err := exec.LookPath("i686-linux-gnu-gcc"); err == nil {
+			cmd = exec.Command("i686-linux-gnu-gcc", cmd.Args[1:]...)
+		} else {
+			cmd.Args = append(cmd.Args, "-m32")
+		}
 		for i, k := range cmd.Args {
 			if k == s.seccompSyscallRunner {
 				cmd.Args[i] = s.seccompSyscallRunner + ".m32"
