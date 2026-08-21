@@ -31,7 +31,7 @@ execute: |
     MATCH snap_kernel=pc-kernel < "$IMAGE"/boot/grub/grubenv
 
     # snap-id of core18
-    if [ "$REMOTE_STORE" = production ]; then
+    if [ "$REMOTE_STORE" = production ] || [ "$REMOTE_STORE" = enterprise ]; then
         core18_snap_id="CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
     else
         core18_snap_id="FIXME"

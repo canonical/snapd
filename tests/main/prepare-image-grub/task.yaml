@@ -66,7 +66,7 @@ execute: |
     cat "$IMAGE/var/lib/snapd/seed/seed.yaml"
 
     # snap-id of core
-    if [ "$REMOTE_STORE" = production ]; then
+    if [ "$REMOTE_STORE" = production ] || [ "$REMOTE_STORE" = enterprise ]; then
         core_snap_id="99T7MUlRhtI3U0QFgl5mXXESAiSwt776"
     else
         core_snap_id="xMNMpEm0COPZy7jq9YRwWVLCD9q5peow"
