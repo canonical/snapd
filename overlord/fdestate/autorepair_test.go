@@ -128,8 +128,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeeded(c *C) {
 		return nil
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -185,8 +187,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNotNeeded(c *C) {
 		return fmt.Errorf("Unexpected call")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return false
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -204,6 +206,67 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNotNeeded(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("not-attempted"))
+	c.Check(result.Recommendations, IsNil)
+}
+
+func (s *autoRepairSuite) testAttemptAutoRepairReprovisionRequired(c *C, actions secboot.RemedialActions, expected []fdestate.RecommendedRemedialAction) {
+	const onClassic = false
+	s.startedManager(c, onClassic)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	c.Assert(device.StampSealedKeys(dirs.GlobalRootDir, device.SealingMethodTPM), IsNil)
+
+	s.createUnlockedState(c, sb.ActivationSucceededWithPlatformKey)
+
+	defer fdestate.MockSecbootProvisionTPM(func(mode secboot.TPMProvisionMode, lockoutAuthFile string) error {
+		c.Errorf("Unexpected call")
+		return fmt.Errorf("Unexpected call")
+	})()
+
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return actions
+	})()
+
+	s.mockBootAssetsStateForModeenv(c)
+
+	defer fdestate.MockBackendResealKeyForBootChains(func(manager backend.FDEStateManager, method device.SealingMethod, rootdir string, params *boot.ResealKeyForBootChainsParams) error {
+		c.Errorf("Unexpected call")
+		return fmt.Errorf("Unexpected call")
+	})()
+
+	const runPostInstallChecks = true
+	err := fdestate.AttemptAutoRepairIfNeeded(s.st, nil, runPostInstallChecks)
+	c.Assert(err, IsNil)
+
+	result, err := fdestate.GetRepairAttemptResult(s.st)
+	c.Assert(err, IsNil)
+
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("not-attempted"))
+	c.Check(result.Recommendations, DeepEquals, expected)
+}
+
+func (s *autoRepairSuite) TestAttemptAutoRepairReprovisionRequired(c *C) {
+	actions := secboot.RemedialActions{
+		RequireReprovision: true,
+	}
+	s.testAttemptAutoRepairReprovisionRequired(c, actions, []fdestate.RecommendedRemedialAction{"require-reprovision"})
+}
+
+func (s *autoRepairSuite) TestAttemptAutoRepairReprovisionRequiredPermitManual(c *C) {
+	actions := secboot.RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       true,
+	}
+	s.testAttemptAutoRepairReprovisionRequired(c, actions, []fdestate.RecommendedRemedialAction{"require-reprovision", "permit-manual"})
+}
+
+func (s *autoRepairSuite) TestAttemptAutoRepairPlaformResetRequired(c *C) {
+	actions := secboot.RemedialActions{
+		RequirePlatformReset: true,
+	}
+	s.testAttemptAutoRepairReprovisionRequired(c, actions, []fdestate.RecommendedRemedialAction{"require-platform-reset"})
 }
 
 func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReprovision(c *C) {
@@ -223,8 +286,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReprovision(c *C) {
 		return fmt.Errorf("some error")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -246,6 +311,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReprovision(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+	c.Check(result.Recommendations, DeepEquals, []fdestate.RecommendedRemedialAction{"require-reprovision"})
 }
 
 func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoActivateState(c *C) {
@@ -273,6 +339,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoActivateState(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("not-attempted"))
+	c.Check(result.Recommendations, IsNil)
 
 	c.Check(logbuf.String(), testutil.Contains, `WARNING: the system booted with an old initrd without using activation API`)
 }
@@ -291,8 +358,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoActivateStateRecovery(c *C
 		return nil
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -328,6 +397,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoActivateStateRecovery(c *C
 	c.Assert(err, IsNil)
 
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("success"))
+	c.Check(result.Recommendations, IsNil)
 
 	c.Check(logbuf.String(), testutil.Contains, `WARNING: the system booted with an old initrd without using activation API`)
 
@@ -360,6 +430,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorActivateState(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("not-attempted"))
+	c.Check(result.Recommendations, IsNil)
 
 	c.Check(logbuf.String(), testutil.Contains, `WARNING: error while getting activation state: cannot read state`)
 }
@@ -389,6 +460,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairErrorNoFileActivateState(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("not-attempted"))
+	c.Check(result.Recommendations, IsNil)
 
 	c.Check(logbuf.String(), testutil.Contains, `WARNING: the system booted with an old initrd without unlocked status reporting`)
 }
@@ -411,8 +483,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReseal(c *C) {
 		return nil
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -437,6 +511,7 @@ func (s *autoRepairSuite) TestAttemptAutoRepairNeededBadReseal(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-keyslots"))
+	c.Check(result.Recommendations, DeepEquals, []fdestate.RecommendedRemedialAction{"require-reprovision"})
 }
 
 func (s *autoRepairSuite) TestIgnoreOldAutoRepairResult(c *C) {
@@ -461,6 +536,7 @@ func (s *autoRepairSuite) TestIgnoreOldAutoRepairResult(c *C) {
 	result, err = fdestate.GetRepairAttemptResult(s.st)
 	c.Assert(err, IsNil)
 	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+	c.Check(result.Recommendations, IsNil)
 }
 
 func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
@@ -479,8 +555,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -505,7 +583,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecks(c *C) {
 	result, err := fdestate.GetRepairAttemptResult(s.st)
 	c.Assert(err, IsNil)
 
-	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-encryption-support"))
+	c.Check(result.Recommendations, DeepEquals, []fdestate.RecommendedRemedialAction{"require-reprovision"})
 
 	c.Check(logbuf.String(), testutil.Contains, `WARNING: could not auto repair keyslots due to failed platform initialization: some error`)
 }
@@ -526,8 +605,10 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecksWithDetail
 		return fmt.Errorf("unexpected call")
 	})()
 
-	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState) bool {
-		return true
+	defer fdestate.MockSecbootShouldAttemptRepair(func(as *secboot.ActivateState, lockoutResetErr error) secboot.RemedialActions {
+		return secboot.RemedialActions{
+			AttemptRepair: true,
+		}
 	})()
 
 	s.mockBootAssetsStateForModeenv(c)
@@ -563,7 +644,8 @@ func (s *autoRepairSuite) TestAttemptAutoRepairFailedPostinstallChecksWithDetail
 	result, err := fdestate.GetRepairAttemptResult(s.st)
 	c.Assert(err, IsNil)
 
-	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-platform-init"))
+	c.Check(result.Result, Equals, fdestate.AutoRepairResult("failed-encryption-support"))
+	c.Check(result.Recommendations, DeepEquals, []fdestate.RecommendedRemedialAction{"require-reprovision"})
 
 	c.Check(logbuf.String(), testutil.Contains, "WARNING: could not auto repair keyslots due to failed platform initialization:\n- error-1\n- error-2\n")
 }

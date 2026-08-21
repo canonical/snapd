@@ -207,8 +207,8 @@ func (*ActivateState) NumActivatedContainersWithRecoveryKey() uint {
 	return 0
 }
 
-func ShouldAttemptRepair(a *ActivateState) bool {
-	return false
+func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialActions {
+	return RemedialActions{}
 }
 
 type ActivateContext interface {
