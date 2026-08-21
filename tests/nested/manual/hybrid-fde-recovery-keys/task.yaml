@@ -270,6 +270,23 @@ execute: |
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change}\s+Done"
 
+  remote.exec "sudo cat /var/lib/snapd/state.json" >new-state.json
+
+  primary_alg="$(gojq -r '.data.fde."primary-keys"."0".digest.alg' new-state.json)"
+  primary_digest="$(gojq -r '.data.fde."primary-keys"."0".digest.digest' new-state.json)"
+  primary_salt="$(gojq -r '.data.fde."primary-keys"."0".digest.salt' new-state.json)"
+  test "${primary_alg}" = sha256
+  test -n "${primary_digest}"
+  test -n "${primary_salt}"
+
+  recover_pkey="$(gojq -r '.data.fde."keyslot-roles".recover."primary-key-id"' new-state.json)"
+  run_pkey="$(gojq -r '.data.fde."keyslot-roles".run."primary-key-id"' new-state.json)"
+  runrecover_pkey="$(gojq -r '.data.fde."keyslot-roles"."run+recover"."primary-key-id"' new-state.json)"
+
+  test "${recover_pkey}" = "0"
+  test "${run_pkey}" = "0"
+  test "${runrecover_pkey}" = "0"
+
   # We should be able to boot without recovery key now
   tests.nested vm set-recovery-key ""
   tests.nested vm stop
@@ -290,6 +307,23 @@ execute: |
   reprovision_change_2="$(gojq --raw-output '.change' <reprovision-2.resp)"
   retry -n 100 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${reprovision_change_2}\s+(Done|Undone|Error)'"
   remote.exec sudo snap changes | MATCH "^${reprovision_change_2}\s+Done"
+
+  remote.exec "sudo cat /var/lib/snapd/state.json" >new-state-2.json
+
+  primary_alg="$(gojq -r '.data.fde."primary-keys"."0".digest.alg' new-state-2.json)"
+  primary_digest="$(gojq -r '.data.fde."primary-keys"."0".digest.digest' new-state-2.json)"
+  primary_salt="$(gojq -r '.data.fde."primary-keys"."0".digest.salt' new-state-2.json)"
+  test "${primary_alg}" = sha256
+  test -n "${primary_digest}"
+  test -n "${primary_salt}"
+
+  recover_pkey="$(gojq -r '.data.fde."keyslot-roles".recover."primary-key-id"' new-state-2.json)"
+  run_pkey="$(gojq -r '.data.fde."keyslot-roles".run."primary-key-id"' new-state-2.json)"
+  runrecover_pkey="$(gojq -r '.data.fde."keyslot-roles"."run+recover"."primary-key-id"' new-state-2.json)"
+
+  test "${recover_pkey}" = 0
+  test "${run_pkey}" = 0
+  test "${runrecover_pkey}" = 0
 
   tests.nested vm stop
   tests.nested vm start
