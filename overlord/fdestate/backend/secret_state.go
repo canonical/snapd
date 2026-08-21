@@ -407,6 +407,7 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 	return s, nil
 }
 
+// MockFdstoreNew mocks the returned fdstore instance for testing.
 func MockFdstoreNew(f func() fdstore.Store) (restore func()) {
 	osutil.MustBeTestBinary("fdstoreNew only can be mocked in tests")
 	old := fdstoreNew
