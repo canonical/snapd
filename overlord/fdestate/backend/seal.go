@@ -295,7 +295,7 @@ func sealKeyForBootChainsBackend(
 		ok := false
 		fdeState, ok = sealState.(InitialFDEState)
 		if !ok {
-			fmt.Errorf("internal error: an incompatible initial seal state was passed to backend sealing functions")
+			return fmt.Errorf("internal error: an incompatible initial seal state was passed to backend sealing functions")
 		}
 	}
 
