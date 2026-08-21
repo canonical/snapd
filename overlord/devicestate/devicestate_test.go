@@ -3080,7 +3080,7 @@ func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveBlocksOptionalSnapInCurrentSe
 		InstanceName: "snap-2",
 	}
 	err := devicestate.CheckSeedRefreshRemove(s.state, candidate, dctx)
-	c.Assert(err, ErrorMatches, `cannot remove snap present in the current seed while seed-refresh is enabled`)
+	c.Assert(err, ErrorMatches, `cannot remove snaps or components present in the current seed while seed-refresh is enabled`)
 }
 
 func (s *deviceMgrSuite) TestCheckSeedRefreshRemoveAllowsOptionalSnapNotInCurrentSeed(c *C) {

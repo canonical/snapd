@@ -797,10 +797,6 @@ func RemoveComponents(st *state.State, snapName string, compName []string, opts 
 }
 
 func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *snap.Info, copts ConflictOptions) error {
-	deviceCtx, err := DeviceCtxFromState(st, nil)
-	if err != nil {
-		return err
-	}
 	instName := info.InstanceName()
 	// For the moment we consider the same conflicts as if the component
 	// was actually the snap.
@@ -827,6 +823,10 @@ func canRemoveComponent(st *state.State, compst *sequence.ComponentState, info *
 		return err
 	}
 	if seedRefresh {
+		deviceCtx, err := DeviceCtxFromState(st, nil)
+		if err != nil {
+			return err
+		}
 		// Construct a component exclusive candidate with the component
 		// to test if the component would trigger a seed refresh.
 		// The task id is not involved in the filtering when checking
