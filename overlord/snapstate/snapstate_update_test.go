@@ -6652,7 +6652,7 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, featureFlag, failD
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
 		diskCheckCalled = true
 		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
-		c.Check(sz, Equals, snapstate.SafetyMarginDiskSpace(123))
+		c.Check(sz, Equals, uint64(123)+snapstate.DefaultDiskSpaceReservation)
 		if failDiskCheck {
 			return &osutil.NotEnoughDiskSpaceError{}
 		}
@@ -7319,7 +7319,7 @@ func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
 
 func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInstallSize, failDiskCheck bool) error {
 	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
-		c.Check(sz, Equals, snapstate.SafetyMarginDiskSpace(123))
+		c.Check(sz, Equals, uint64(123)+snapstate.DefaultDiskSpaceReservation)
 		if failDiskCheck {
 			return &osutil.NotEnoughDiskSpaceError{}
 		}
@@ -7368,7 +7368,7 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInsta
 	return err
 }
 
-func (s *snapmgrTestSuite) TestUpdateDiskSpaceError(c *C) {
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceDefaultReservationError(c *C) {
 	featureFlag := true
 	failInstallSize := false
 	failDiskCheck := true
@@ -7377,6 +7377,109 @@ func (s *snapmgrTestSuite) TestUpdateDiskSpaceError(c *C) {
 	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: some-snap`)
 	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
 	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceDefaultReservationHappy(c *C) {
+	featureFlag := true
+	failInstallSize := false
+	failDiskCheck := false
+	// No disk-reservation.size is set, so the default 5MB reservation is used.
+	// The helper asserts required size == 123 + DefaultDiskSpaceReservation.
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	c.Check(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateConfigureDiskSpaceReservation(c *C) {
+	const freeDiskSpace = uint64(1500)
+	var requiredSizes []uint64
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, sz)
+		if sz > freeDiskSpace {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
+	})
+	defer restore()
+
+	restore = snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
+		return 123, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-refresh", true)
+	tr.Set("core", "disk-reservation.size", "2000")
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		}),
+		Current:  snap.R(4),
+		SnapType: "app",
+	})
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, FitsTypeOf, &snapstate.InsufficientSpaceError{})
+
+	tr = config.NewTransaction(s.state)
+	tr.Set("core", "disk-reservation.size", "1000")
+	tr.Commit()
+
+	_, err = snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Check(requiredSizes, DeepEquals, []uint64{2123, 1123})
+}
+
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceReservationZeroChecksNormalSize(c *C) {
+	var requiredSizes []uint64
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		requiredSizes = append(requiredSizes, sz)
+		return nil
+	})
+	defer restore()
+
+	var installSizeCalled bool
+	restore = snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int, prqt snapstate.PrereqTracker) (uint64, error) {
+		installSizeCalled = true
+		c.Assert(snaps, HasLen, 1)
+		c.Check(snaps[0].InstanceName(), Equals, "some-snap")
+		return 123, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-refresh", true)
+	// snap set stores plain numbers in their parsed form, so a zero
+	// reservation comes through as a number rather than a string
+	tr.Set("core", "disk-reservation.size", 0)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		}),
+		Current:  snap.R(4),
+		SnapType: "app",
+	})
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	// 0B reservation means checks run with just the install size, no buffer
+	c.Check(installSizeCalled, Equals, true)
+	c.Check(requiredSizes, DeepEquals, []uint64{123})
 }
 
 func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfDisabled(c *C) {

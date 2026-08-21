@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -507,6 +508,101 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
+}
+
+func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
+	const operationSize = uint64(1024)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, tc := range []struct {
+		description string
+		configured  bool
+		value       any
+		size        uint64
+		expected    uint64
+		err         string
+	}{
+		{description: "unset", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "nil", configured: true, value: nil, size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "invalid", configured: true, value: "invalid", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "numeric bytes", configured: true, value: 2048, size: operationSize, expected: operationSize + 2048},
+		{description: "string bytes", configured: true, value: "4096", size: operationSize, expected: operationSize + 4096},
+		{description: "quantity", configured: true, value: "1G", size: operationSize, expected: operationSize + 1024*1024*1024},
+		{description: "zero", configured: true, value: 0, size: operationSize, expected: operationSize},
+		{description: "configured overflow", configured: true, value: "1", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+		{description: "default overflow", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+	} {
+		tr := config.NewTransaction(s.state)
+		if tc.configured {
+			c.Assert(tr.Set("core", "disk-reservation.size", tc.value), IsNil)
+		}
+
+		reservation, err := snapstate.DiskSpaceReservation(tc.size, tr)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
+			continue
+		}
+
+		c.Check(err, IsNil, Commentf(tc.description))
+		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
+	}
+}
+
+func (s *snapmgrTestSuite) TestEnsureDiskSpaceReservationMigratesFeatureFlags(c *C) {
+	for _, feature := range []features.SnapdFeature{
+		features.CheckDiskSpaceInstall,
+		features.CheckDiskSpaceRefresh,
+		features.CheckDiskSpaceRemove,
+	} {
+		s.state.Lock()
+		tr := config.NewTransaction(s.state)
+		snapName, confName := feature.ConfigOption()
+		c.Assert(tr.Set(snapName, confName, true), IsNil)
+		tr.Commit()
+		s.state.Unlock()
+
+		c.Assert(snapstate.EnsureDiskSpaceReservationMigrated(s.snapmgr), IsNil)
+
+		s.state.Lock()
+		tr = config.NewTransaction(s.state)
+		var reservation uint64
+		c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
+		c.Check(reservation, Equals, uint64(snapstate.DefaultDiskSpaceReservation))
+		tr.Set("core", "disk-reservation.size", nil)
+		tr.Set(snapName, confName, nil)
+		tr.Commit()
+		s.state.Unlock()
+	}
+}
+
+func (s *snapmgrTestSuite) TestEnsureDiskSpaceReservationPreservesConfiguredValue(c *C) {
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	c.Assert(tr.Set("core", "disk-reservation.size", 0), IsNil)
+	tr.Commit()
+	s.state.Unlock()
+
+	c.Assert(snapstate.EnsureDiskSpaceReservationMigrated(s.snapmgr), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr = config.NewTransaction(s.state)
+	var reservation uint64
+	c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
+	c.Check(reservation, Equals, uint64(0))
+}
+
+func (s *snapmgrTestSuite) TestEnsureDiskSpaceReservationDoesNothingWhenFeaturesDisabled(c *C) {
+	c.Assert(snapstate.EnsureDiskSpaceReservationMigrated(s.snapmgr), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	var reservation any
+	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
 }
 
 type ForeignTaskTracker interface {
