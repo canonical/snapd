@@ -65,10 +65,8 @@ mkdir -p .build/{SRPMS,RPMS,SOURCES,SPECS}
 
 ## Container Script
 
-The build script has several sections. As a part of the process we are creating
-two source tarballs (one without vendored dependencies and one with only the
-vendored dependencies), and combining them with the `snapd.spec` file from this
-directory.
+The build script has several sections. The pre-created source tarballs from
+`packaging/.build/` are combined with the `snapd.spec` file from this directory.
 
 ```sh
 # Show the sizes of persistent caches to verify volumes are populated across runs.
@@ -82,7 +80,7 @@ export GOMODCACHE=/var/cache/gomod
 # Install bootstrap packages.
 BASH_XTRACEFD= dnf --assumeyes install --setopt=install_weak_deps=False --setopt=keepcache=True \
     bash coreutils findutils gawk git gzip make rpm-build \
-    rpm-devel systemd-rpm-macros tar xz golang
+    rpm-devel systemd-rpm-macros tar xz
 
 # Copy packaging files to the build directory.
 install -t /build/SPECS/ /src/packaging/fedora/snapd.spec
@@ -90,24 +88,10 @@ install -t /build/SPECS/ /src/packaging/fedora/snapd.spec
 # Determine the version of the package.
 version=$(rpmspec -q --qf "%{VERSION}\n" /build/SPECS/snapd.spec | head -n1)
 
-# Copy the source tree to a temporary location, so that we can call go mod vendor.
-mkdir -p /src-rw
-tar -C /src -c \
-    --exclude='./vendor/*' \
-    --exclude='./c-vendor/squashfuse' \
-    --exclude='.git' \
-    --exclude='.git/*' \
-    --exclude='.image-garden/*' \
-    --exclude='./packaging/*/.build/*' \
-    --exclude='./built-snap/*' \
-    --exclude='./*.snap' \
-. | tar -C /src-rw -x
-
-# Vendor Go modules that are needed.
-( cd /src-rw && go mod vendor )
-
-# Create the no-vendor and only-vendor source archives.
-( cd /src-rw && ./packaging/pack-source -v "$version" -o /build/SOURCES )
+# Copy the pre-created source tarballs from the packaging directory.
+install -t /build/SOURCES \
+    /src/packaging/.build/snapd_"$version".no-vendor.tar.xz \
+    /src/packaging/.build/snapd_"$version".only-vendor.tar.xz
 
 # Discover and install build dependencies.
 rpmspec -q --buildrequires /build/SPECS/snapd.spec >/tmp/buildreqs.txt
