@@ -20,6 +20,8 @@ environment:
 prepare: |
   systemctl stop snapd.{socket,service}
   SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+  SNAPD_REV="$(readlink "$SNAP_MOUNT_DIR/snapd/current")"
+
   # preserve the snapd snap under test because snap-mgmt --purge removes it.
   cp "$TMPFSMOUNT/snaps/snapd_${SNAPD_REV}.snap" \
   "$TESTSTMP/snapd-under-test.snap"
