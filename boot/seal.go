@@ -187,7 +187,7 @@ type SealKeyForBootChainsParams struct {
 // InitialSealState is an opaque interface to forward an FDE state (from overlord/fdestate)
 // in order to record the FDE state based on the initial sealing operation done by
 // sealKeyForBootChains.
-type InitialSealState interface{}
+type InitialSealState any
 
 func sealKeyForBootChainsImpl(
 	method device.SealingMethod,
