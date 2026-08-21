@@ -2472,6 +2472,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	if preserveSnapdLTSVehicleLink(t) {
+		t.Logf("not undoing snapd vehicle link; staying on the LTS-aware revision")
+		return nil
+	}
+
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
@@ -3447,14 +3452,31 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, restartPossibility{info: info, RebootInfo: reboot})
 }
 
+func (m *SnapManager) doCleanup(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return nil
+	}
+	return FinishRestart(t, snapsup, FinishRestartOptions{})
+}
+
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	st.Unlock()
 	if err != nil {
+		st.Unlock()
 		return err
 	}
+	if err := FinishRestart(t, snapsup, FinishRestartOptions{}); err != nil {
+		st.Unlock()
+		return err
+	}
+	st.Unlock()
 
 	st.Lock()
 	info, err := Info(t.State(), snapsup.InstanceName(), snapsup.Revision())
@@ -3551,6 +3573,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
+		return err
+	}
+
+	if err := FinishRestart(t, snapsup, FinishRestartOptions{}); err != nil {
 		return err
 	}
 

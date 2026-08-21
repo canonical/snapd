@@ -665,12 +665,27 @@ var (
 	MaybeRedirectSnapdToLTSTrack  = maybeRedirectSnapdToLTSTrack
 	CheckSnapdLTSTargetPatchLevel = checkSnapdLTSTargetPatchLevel
 	SnapdLTSTrackAlreadyCorrect   = snapdLTSTrackAlreadyCorrect
+
+	SnapdLTSInjectedChangeAttr = snapdLTSInjectedChangeAttr
+	SnapdLTSVehicleLinkAttr    = snapdLTSVehicleLinkAttr
 )
 
 type SnapdLTSInspectResult = snapdLTSInspectResult
 
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)
+}
+
+func (m *SnapManager) MaybeInjectSnapdLTSHop() error {
+	return m.maybeInjectSnapdLTSHop()
+}
+
+func (m *SnapManager) EnsureSnapdLTSTrackTransition() error {
+	return m.ensureSnapdLTSTrackTransition()
+}
+
+func (m *SnapManager) UndoLinkSnap(t *state.Task) error {
+	return m.undoLinkSnap(t, nil)
 }
 
 func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {

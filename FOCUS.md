@@ -212,7 +212,7 @@ missing-map fallback behaviour.
 4. Fast-path gating.
 5. BB7 downgrade safety (if accepted).
 6. BB5 unaware post-restart: StartUp inject + skip `patch.Apply` +
-   change-level `AddBlocked` allowlist ([LTS-POST-RESTART.md](LTS-POST-RESTART.md)).
+   change-level task allowlist ([LTS-POST-RESTART.md](LTS-POST-RESTART.md)).
 
 Before any PR can land: see DESIGN.md §7 step 15 — the spike branch
 carries many unrelated changes that must be split off (sandbox/ebpf,

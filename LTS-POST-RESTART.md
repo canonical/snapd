@@ -6,7 +6,8 @@ track. Operation inventory and omit-channel rules:
 [LTS-OPERATIONS.md](LTS-OPERATIONS.md). Long-form design:
 [DESIGN.md](DESIGN.md) (BB5). Short intercept: [FOCUS.md](FOCUS.md).
 
-Not merged into those files yet. **Not implemented.**
+Not merged into those files yet. StartUp inject, `RestrictToChange`,
+and skip-`patch.Apply` are implemented on this branch.
 
 This is **not** the preferred jump. Already-aware devices jump in
 `doDownloadSnap` and never link `latest`. This path exists because
@@ -261,16 +262,27 @@ different site (UC042 “as it starts to run”).
 ## Open before coding
 
 - Change-level allowlist: **decided** (implement; see above).
-- Exact task set to inject: **decided** — through `link-snap` plus
-  `addCleanupTasks` discards; reuse existing auto-connect after
-  snap-setup retarget.
-- Second restart: remaining tasks and `finish-restart` flags must wait
-  for the **LTS** daemon, not treat the first restart as enough.
-- Quiet-device path: same StartUp inject is a no-op if `link-snap` is
-  not sitting Done-with-pending-auto-connect; then Ensure can create
-  a normal snapd refresh (no in-flight conflict).
+- Exact task set to inject: **implemented** as `installContext.StopAfterLink`
+  in choreograph — through `link-snap` plus `addCleanupTasks` discards;
+  reuse existing auto-connect after snap-setup retarget.
+- StartUp wiring: **implemented** in `SnapManager.StartUp`
+  (`maybeInjectSnapdLTSHop`): gate, extras on their own lane (not
+  `InjectTasks` join), suffix `snap-setup-task` retarget,
+  `snapd-lts-injected` idempotency, `RestrictToChange` on the in-flight
+  change.
+- Skip `patch.Apply`: **implemented** in `overlord.loadState` via
+  `snapstate.ShouldSkipStatePatches` (transition tracking + running
+  map; `ExplicitChannel` still applies patches).
+- Second restart: remaining tasks wait for the **LTS** daemon via
+  `finish-restart` on the original suffix and on extras after LTS
+  `link-snap`. `FinishRestart` Retries while the second restart is
+  pending.
+- Quiet-device path: `ensureSnapdLTSTrackTransition` schedules a snapd
+  refresh onto the LTS track when nothing is in flight.
 - `ExplicitChannel` / `--channel=` on the original unaware refresh:
   skip this jump (omit-channel rule).
-- Undo: if LTS download/link fails, original `link-snap` undo still
-  points at unaware; define whether we stay on `latest` aware or fail
-  the whole change.
+- Undo: if the LTS hop fails, extras abort on their own lane. The
+  original snapd `link-snap` is marked `snapd-lts-vehicle-link` so
+  undo is a no-op and the device stays on the LTS-aware vehicle, not
+  unaware. A shared refresh lane may still *mark* that task Undo;
+  the handler does not roll the link back.

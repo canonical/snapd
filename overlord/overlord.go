@@ -365,10 +365,19 @@ func (o *Overlord) loadState(backend state.Backend, restartHandler restart.Handl
 		return nil, nil, err
 	}
 
-	// one-shot migrations
-	err = patch.Apply(s)
-	if err != nil {
-		return nil, nil, err
+	// one-shot migrations. An unaware snapd may have just linked this
+	// LTS-aware binary from latest; skip patches so the too-new vehicle
+	// cannot raise patch-level before the hop onto the LTS track.
+	s.Lock()
+	skipPatches := snapstate.ShouldSkipStatePatches(s)
+	s.Unlock()
+	if skipPatches {
+		logger.Noticef("skipping state patches: snapd LTS jump is required")
+	} else {
+		err = patch.Apply(s)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	return s, restartMgr, nil
 }
