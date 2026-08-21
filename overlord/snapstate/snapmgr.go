@@ -1703,18 +1703,29 @@ func (m *SnapManager) Ensure() error {
 		m.atSeed(),
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
-		m.ensureUbuntuCoreTransition(),
-		// we should check for full regular refreshes before
-		// considering issuing a hint only refresh request
-		m.autoRefresh.Ensure(),
-		m.refreshHints.Ensure(),
-		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),
 		m.ensureVulnerableSnapConfineVersionsRemovedOnClassic(),
-		m.ensureMountsUpdated(),
-		m.ensureDesktopFilesUpdated(),
-		m.ensureDownloadsCleaned(),
-		m.ensureStoreDownloadsCacheCleaned(),
+	}
+
+	m.state.Lock()
+	seeded, err := SystemSeeded(m.state)
+	m.state.Unlock()
+	if err != nil {
+		errs = append(errs, err)
+	}
+	if seeded {
+		errs = append(errs,
+			m.ensureUbuntuCoreTransition(),
+			// We should check for full regular refreshes before
+			// considering issuing a hint-only refresh request.
+			m.autoRefresh.Ensure(),
+			m.refreshHints.Ensure(),
+			m.catalogRefresh.Ensure(),
+			m.ensureMountsUpdated(),
+			m.ensureDesktopFilesUpdated(),
+			m.ensureDownloadsCleaned(),
+			m.ensureStoreDownloadsCacheCleaned(),
+		)
 	}
 
 	//FIXME: use firstErr helper

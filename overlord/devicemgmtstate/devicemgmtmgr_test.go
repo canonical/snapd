@@ -663,12 +663,7 @@ func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesDeviceNotSeeded(c *C) {
 	s.settle(c)
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
-	c.Assert(changes, HasLen, 1)
-	c.Assert(
-		changes[0].Err(), ErrorMatches,
-		"(?s).*too early for operation, device not yet seeded or device model not acknowledged.*",
-	)
-	c.Assert(changes[0].Tasks(), HasLen, 2)
+	c.Assert(changes, HasLen, 0)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesStoreError(c *C) {

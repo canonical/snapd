@@ -91,21 +91,21 @@ var (
 )
 
 func init() {
-	swfeats.RegisterEnsure("DeviceManager", "ensureOperational")
+	swfeats.RegisterEnsure("DeviceManager", "ensureOperationalAfterSeed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureClassicModelAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureSeeded")
-	swfeats.RegisterEnsure("DeviceManager", "ensureAutoImportAssertions")
-	swfeats.RegisterEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureAutoImportAssertionsWithEarlySeed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureSerialBoundSystemUserAssertionsProcessedAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureFDE")
 	swfeats.RegisterEnsure("DeviceManager", "ensureBootOk")
 	swfeats.RegisterEnsure("DeviceManager", "ensureCloudInitRestricted")
-	swfeats.RegisterEnsure("DeviceManager", "ensureInstalled")
-	swfeats.RegisterEnsure("DeviceManager", "ensureFactoryReset")
-	swfeats.RegisterEnsure("DeviceManager", "ensureSeedInConfig")
-	swfeats.RegisterEnsure("DeviceManager", "ensureSeedInConfig")
+	swfeats.RegisterEnsure("DeviceManager", "ensureInstalledAfterSeed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureFactoryResetAfterSeed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureSeedInConfigAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureTriedRecoverySystem")
 	swfeats.RegisterEnsure("DeviceManager", "ensurePostFactoryReset")
-	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemoved")
-	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdated")
+	swfeats.RegisterEnsure("DeviceManager", "ensureExpiredUsersRemovedAfterSeed")
+	swfeats.RegisterEnsure("DeviceManager", "ensureEarlyBootXKBConfigUpdatedAfterSeed")
 	swfeats.RegisterEnsure("DeviceManager", "ensureExtraSnapdKernelCommandLineFragmentsApplied")
 
 	snapstate.RegisterResealingTaskKind("set-model")
@@ -390,7 +390,7 @@ func (m *DeviceManager) StartUp() error {
 		m.state.Lock()
 		defer m.state.Unlock()
 
-		dev, err := m.earlyDeviceContext()
+		dev, err := m.earlyDeviceContext(false)
 		if err != nil && !errors.Is(err, state.ErrNoState) {
 			return err
 		}
@@ -667,7 +667,28 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) ensureOperational() error {
+func (m *DeviceManager) ensureClassicModelAfterSeed() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.SystemMode(SysAny) != "run" {
+		return nil
+	}
+
+	device, err := m.device()
+	if err != nil {
+		return err
+	}
+	if device.Serial != "" || device.Brand != "" && device.Model != "" {
+		return nil
+	}
+
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureClassicModelAfterSeed")
+
+	return setClassicFallbackModel(m.state, device)
+}
+
+func (m *DeviceManager) ensureOperationalAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -687,7 +708,7 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureOperational")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureOperationalAfterSeed")
 
 	perfTimings := timings.New(map[string]string{"ensure": "become-operational"})
 
@@ -704,22 +725,8 @@ func (m *DeviceManager) ensureOperational() error {
 	//   or no model): we wait to have some snaps installed or be
 	//   in the process to install some
 
-	var seeded bool
-	err = m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-
 	if device.Brand == "" || device.Model == "" {
-		if !release.OnClassic || !seeded {
-			return nil
-		}
-		// we are on classic and seeded but there is no model:
-		// use a fallback model!
-		err := setClassicFallbackModel(m.state, device)
-		if err != nil {
-			return err
-		}
+		return fmt.Errorf("internal error: device brand or model are unset after seeding")
 	}
 
 	if m.noRegister {
@@ -778,14 +785,6 @@ func (m *DeviceManager) ensureOperational() error {
 	var hasPrepareDeviceHook bool
 	// if there's a gadget specified wait for it
 	if gadget != "" {
-		// if have a gadget wait until seeded to proceed
-		if !seeded {
-			// this will be run again, so eventually when the system is
-			// seeded the code below runs
-			return nil
-
-		}
-
 		gadgetInfo, err := snapstate.CurrentInfo(m.state, gadget)
 		if err != nil {
 			return err
@@ -951,13 +950,15 @@ func (m *DeviceManager) systemForPreseeding() string {
 	return m.preseedSystemLabel
 }
 
-func (m *DeviceManager) earlyDeviceContext() (snapstate.DeviceContext, error) {
-	mod, err := findModel(m.state)
-	if err == nil {
-		return newModelDeviceContext(m, mod), nil
-	}
-	if !errors.Is(err, state.ErrNoState) {
-		return nil, err
+func (m *DeviceManager) earlyDeviceContext(noModel bool) (snapstate.DeviceContext, error) {
+	if !noModel {
+		mod, err := findModel(m.state)
+		if err == nil {
+			return newModelDeviceContext(m, mod), nil
+		}
+		if !errors.Is(err, state.ErrNoState) {
+			return nil, err
+		}
 	}
 	dev, _, err := m.earlyLoadDeviceSeed(state.ErrNoState)
 	return dev, err
@@ -1039,6 +1040,26 @@ func (m *DeviceManager) earlyLoadDeviceSeed(seedLoadErr error) (snapstate.Device
 	// cache
 	m.earlyDeviceSeed = deviceSeed
 	return dev, deviceSeed, nil
+}
+
+// retireEarlyDeviceSeed clears the cached early seed after an acknowledged
+// device context becomes available, returning that context to the caller.
+func (m *DeviceManager) retireEarlyDeviceSeed() (snapstate.DeviceContext, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if m.earlyDeviceSeed == nil {
+		return nil, nil
+	}
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err == nil {
+		m.earlyDeviceSeed = nil
+		return deviceCtx, nil
+	}
+	if errors.Is(err, state.ErrNoState) {
+		return nil, nil
+	}
+	return nil, err
 }
 
 func (m *DeviceManager) earlyPreloadGadget() (sysconfig.Device, *gadget.Info, error) {
@@ -1142,9 +1163,10 @@ func (m *DeviceManager) ensureSeeded() error {
 
 var processAutoImportAssertionsImpl = processAutoImportAssertions
 
-// ensureAutoImportAssertions makes sure that auto import assertions
-// get processed. Assertion should be processed while seeding is in progress.
-func (m *DeviceManager) ensureAutoImportAssertions() error {
+// ensureAutoImportAssertionsWithEarlySeed makes sure that auto import
+// assertions get processed. Assertion should be processed while seeding is in
+// progress.
+func (m *DeviceManager) ensureAutoImportAssertionsWithEarlySeed(deviceSeed seed.Seed) error {
 	if release.OnClassic {
 		return nil
 	}
@@ -1152,7 +1174,7 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.earlyDeviceSeed == nil {
+	if deviceSeed == nil {
 		// we have no seed cached yet, no point to check further
 		return nil
 	}
@@ -1161,15 +1183,6 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	if mode == "install" || mode == "factory-reset" {
 		// we do not auto-import assertions during install modes
 		// snap auto-import also does not
-		return nil
-	}
-
-	var seeded bool
-	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	// if system is seeded, stop trying
-	if seeded {
 		return nil
 	}
 
@@ -1182,7 +1195,7 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 		return nil
 	}
 
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureAutoImportAssertions")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureAutoImportAssertionsWithEarlySeed")
 
 	commitTo := func(batch *asserts.Batch) error {
 		return assertstate.AddBatch(m.state, batch, nil)
@@ -1192,7 +1205,7 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	// it should not be re-run. State should not be altered once
 	// processAutoImportAssertionsImpl is called.
 	m.state.Set("asserts-early-auto-imported", true)
-	err := processAutoImportAssertionsImpl(m.state, m.earlyDeviceSeed, db, commitTo)
+	err := processAutoImportAssertionsImpl(m.state, deviceSeed, db, commitTo)
 	if err != nil {
 		// best effort
 		logger.Noticef("cannot process auto import assertion: %v", err)
@@ -1200,7 +1213,7 @@ func (m *DeviceManager) ensureAutoImportAssertions() error {
 	return nil
 }
 
-func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
+func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessedAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	// in situations where a device serial can be anticipated, it is
 	// possible to create a serial-bound system-user assertion beforehand,
 	// this Ensure logic takes care of creating the corresponding user even
@@ -1224,20 +1237,6 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 		return nil
 	}
 
-	var seeded bool
-	if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-
-	// we should always have a model if we are seeded and not on classic
-	model, err := m.Model()
-	if err != nil {
-		return err
-	}
-
 	serial, err := m.Serial()
 	if err != nil {
 		if errors.Is(err, state.ErrNoState) {
@@ -1245,12 +1244,12 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 		}
 		return err
 	}
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSerialBoundSystemUserAssertionsProcessed")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSerialBoundSystemUserAssertionsProcessedAfterSeed")
 
 	db := assertstate.DB(m.state)
 
 	const sudoer = true
-	_, err = createAllKnownSystemUsers(m.state, db, model, serial, sudoer)
+	_, err = createAllKnownSystemUsers(m.state, db, deviceCtx.Model(), serial, sudoer)
 	if err != nil {
 		return err
 	}
@@ -1260,7 +1259,7 @@ func (m *DeviceManager) ensureSerialBoundSystemUserAssertionsProcessed() error {
 	return nil
 }
 
-func (m *DeviceManager) ensureFDE() error {
+func (m *DeviceManager) ensureFDE(deviceCtx snapstate.DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1272,24 +1271,15 @@ func (m *DeviceManager) ensureFDE() error {
 		return nil
 	}
 
-	// Auto-repair should be attempted only once.
-	m.fdeRan = true
-
 	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFDE")
 
-	model, err := m.Model()
+	runPostInstallChecks, err := install.CheckHybridQuestingRelease(deviceCtx.Model())
 	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			logger.Debugf("no model is available, skipping ensureFDE")
-			return nil
-		}
 		return err
 	}
 
-	runPostInstallChecks, err := install.CheckHybridQuestingRelease(model)
-	if err != nil {
-		return err
-	}
+	// Auto-repair should be attempted only once.
+	m.fdeRan = true
 
 	// FIXME: we should rename to something like "reset lockout"
 	lockoutResetErr := secbootMarkSuccessful()
@@ -1323,7 +1313,7 @@ func markBootOkRanForBootID(st *state.State, currentBootID string) {
 	st.Set("ensure-boot-ok-boot-id", currentBootID)
 }
 
-func (m *DeviceManager) ensureBootOk() error {
+func (m *DeviceManager) ensureBootOk(deviceCtx snapstate.DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1346,11 +1336,7 @@ func (m *DeviceManager) ensureBootOk() error {
 		if !bootOkRanForCurrentBootID {
 			markBootOkRanForBootID(m.state, currentBootID)
 
-			deviceCtx, err := DeviceCtx(m.state, nil, nil)
-			if err != nil && !errors.Is(err, state.ErrNoState) {
-				return err
-			}
-			if err == nil && deviceCtx.Model().KernelSnap() != nil {
+			if deviceCtx != nil && deviceCtx.Model().KernelSnap() != nil {
 				// FIXME: we should check if recovery keys
 				// were used and in that case do not mark the
 				// boot successful.
@@ -1569,7 +1555,7 @@ func (m *DeviceManager) installDeviceHookTask(model *asserts.Model) *state.Task 
 	return hookstate.HookTask(m.state, summary, hooksup, nil)
 }
 
-func (m *DeviceManager) ensureInstalled() error {
+func (m *DeviceManager) ensureInstalledAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1585,24 +1571,9 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-
 	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
 
-	model, err := m.Model()
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-		}
-		return err
-	}
+	model := deviceCtx.Model()
 
 	// check if the gadget has an install-device hook, do this before
 	// we mark ensureInstalledRan as true, as this can fail if no gadget
@@ -1612,7 +1583,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return fmt.Errorf("internal error: %v", err)
 	}
 
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureInstalled")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureInstalledAfterSeed")
 
 	m.ensureInstalledRan = true
 
@@ -1655,7 +1626,7 @@ func (m *DeviceManager) ensureInstalled() error {
 	return nil
 }
 
-func (m *DeviceManager) ensureFactoryReset() error {
+func (m *DeviceManager) ensureFactoryResetAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -1671,25 +1642,11 @@ func (m *DeviceManager) ensureFactoryReset() error {
 		return nil
 	}
 
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFactoryReset")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureFactoryResetAfterSeed")
 
 	perfTimings := timings.New(map[string]string{"ensure": "factory-reset"})
 
-	model, err := m.Model()
-	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
-			return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
-		}
-		return err
-	}
+	model := deviceCtx.Model()
 
 	// We perform this check before setting ensureFactoryResetRan in
 	// case this should fail. This should in theory not be possible as
@@ -1783,22 +1740,12 @@ func markSeededInConfig(st *state.State) error {
 	return nil
 }
 
-func (m *DeviceManager) ensureSeedInConfig() error {
+func (m *DeviceManager) ensureSeedInConfigAfterSeed() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
 	if !m.ensureSeedInConfigRan {
-		// get global seeded option
-		var seeded bool
-		if err := m.state.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
-			return err
-		}
-		if !seeded {
-			// wait for ensure again, this is fine because
-			// doMarkSeeded will run "EnsureBefore(0)"
-			return nil
-		}
-		logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeedInConfig")
+		logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeedInConfigAfterSeed")
 
 		// Sync seeding with the configuration state. We need to
 		// do this here to ensure that old systems which did not
@@ -1809,7 +1756,7 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 		}
 		m.ensureSeedInConfigRan = true
 	} else {
-		logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeedInConfig")
+		logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureSeedInConfigAfterSeed")
 	}
 
 	return nil
@@ -1832,12 +1779,18 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	return nil
 }
 
-func (m *DeviceManager) ensureTriedRecoverySystem() error {
+func (m *DeviceManager) ensureTriedRecoverySystem(deviceCtx snapstate.DeviceContext) error {
 	// nothing to do if not UC20 and run mode
 	if m.SystemMode(SysHasModeenv) != "run" {
 		return nil
 	}
+
 	if m.ensureTriedRecoverySystemRan {
+		return nil
+	}
+
+	// has to be core boot to have a recovery system that was tried
+	if !deviceCtx.IsCoreBoot() {
 		return nil
 	}
 
@@ -1845,30 +1798,6 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 
 	m.state.Lock()
 	defer m.state.Unlock()
-
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		// if we're acting on a tried recovery system, we should have a device
-		// context. if we don't have one, just bail.
-		if errors.Is(err, state.ErrNoState) {
-			return nil
-		}
-		return err
-	}
-
-	// has to be core boot to have a recovery system that was tried
-	if !deviceCtx.IsCoreBoot() {
-		return nil
-	}
 
 	hasSystemSeed, err := checkForSystemSeed(m.state, deviceCtx)
 	if err != nil {
@@ -1970,7 +1899,7 @@ func (m *DeviceManager) ensurePostFactoryReset() error {
 
 // ensureExpiredUsersRemoved is periodically called as a part of Ensure()
 // to remove expired users from the system.
-func (m *DeviceManager) ensureExpiredUsersRemoved() error {
+func (m *DeviceManager) ensureExpiredUsersRemovedAfterSeed() error {
 	st := m.state
 	st.Lock()
 	defer st.Unlock()
@@ -1982,21 +1911,12 @@ func (m *DeviceManager) ensureExpiredUsersRemoved() error {
 		return nil
 	}
 
-	// Expect the system to be seeded, otherwise we ignore this.
-	var seeded bool
-	if err := st.Get("seeded", &seeded); err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-
 	users, err := auth.Users(st)
 	if err != nil {
 		return err
 	}
 
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureExpiredUsersRemoved")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureExpiredUsersRemovedAfterSeed")
 
 	for _, user := range users {
 		if !user.HasExpired() {
@@ -2016,7 +1936,7 @@ var (
 	keyboardNewXKBConfigListener = keyboard.NewXKBConfigListener
 )
 
-func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
+func (m *DeviceManager) ensureEarlyBootXKBConfigUpdatedAfterSeed(deviceCtx snapstate.DeviceContext) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -2029,23 +1949,10 @@ func (m *DeviceManager) ensureEarlyBootXKBConfigUpdated() error {
 		return nil
 	}
 
-	var seeded bool
-	err := m.state.Get("seeded", &seeded)
-	if err != nil && !errors.Is(err, state.ErrNoState) {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-
-	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureEarlyBootXKBConfigUpdated")
+	logger.Trace("ensure", "manager", "DeviceManager", "func", "ensureEarlyBootXKBConfigUpdatedAfterSeed")
 
 	m.ensureEarlyBootLocaleConfigUpdatedRan = true
 
-	deviceCtx, err := DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		return err
-	}
 	// Only setup early boot XKB configs for hybrid systems
 	// with versions 25.10 or higher for FDE.
 	supported, err := install.CheckHybridQuestingRelease(deviceCtx.Model())
@@ -2169,80 +2076,146 @@ var seedFailureFmt = `seeding failed with: %v. This indicates an error in your d
 func (m *DeviceManager) Ensure() error {
 	var errs []error
 
-	if err := m.ensureSeeded(); err != nil {
+	seedingErr := m.ensureSeeded()
+	if seedingErr != nil {
 		m.state.Lock()
-		m.state.Warnf(seedFailureFmt, err)
+		m.state.Warnf(seedFailureFmt, seedingErr)
 		m.state.Unlock()
-		errs = append(errs, fmt.Errorf("cannot seed: %v", err))
+		errs = append(errs, fmt.Errorf("cannot seed: %v", seedingErr))
 	}
 
 	if !m.preseed {
-		if err := m.ensureAutoImportAssertions(); err != nil {
-			errs = append(errs, err)
+		m.state.Lock()
+		seeded, seededErr := snapstate.SystemSeeded(m.state)
+		var deviceCtx snapstate.DeviceContext
+		var deviceCtxErr error
+		if seededErr == nil {
+			deviceCtx, deviceCtxErr = snapstate.DeviceCtxForEnsure(m.state)
+		}
+		deviceSeed := m.earlyDeviceSeed
+		m.state.Unlock()
+
+		var classicModelErr error
+		// Seeded classic systems may still need the generic-classic fallback
+		// before an acknowledged device context can be resolved.
+		if seeded && release.OnClassic && errors.Is(deviceCtxErr, state.ErrNoState) {
+			classicModelErr = m.ensureClassicModelAfterSeed()
+			if classicModelErr != nil {
+				errs = append(errs, classicModelErr)
+				deviceCtxErr = nil
+			} else {
+				m.state.Lock()
+				deviceCtx, deviceCtxErr = snapstate.DeviceCtxForEnsure(m.state)
+				m.state.Unlock()
+			}
 		}
 
-		// code below should not need the early loaded device seed
-		// optimistically forget the earlyDeviceSeed here
-		// to free the corresponding memory usage
-		m.earlyDeviceSeed = nil
-
-		if err := m.ensureCloudInitRestricted(); err != nil {
-			errs = append(errs, err)
+		if seededErr != nil {
+			// ensureSeeded reads the same state entry before doing any work.
+			if seedingErr == nil {
+				errs = append(errs, seededErr)
+			}
+		} else if deviceCtxErr != nil && (!errors.Is(deviceCtxErr, state.ErrNoState) || seeded) {
+			errs = append(errs, deviceCtxErr)
 		}
 
-		if err := m.ensureOperational(); err != nil {
+		if !seeded && seededErr == nil {
+			if err := m.ensureAutoImportAssertionsWithEarlySeed(deviceSeed); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		// Code below should not need the full early loaded device seed.
+		// Retire it once an acknowledged device context is available to free
+		// the corresponding memory usage.
+		if acknowledgedDeviceCtx, err := m.retireEarlyDeviceSeed(); err != nil {
 			errs = append(errs, err)
+		} else if acknowledgedDeviceCtx != nil {
+			deviceCtx = acknowledgedDeviceCtx
+		}
+		if seeded && deviceCtx == nil {
+			errs = append(errs, fmt.Errorf("internal error: device context is nil after seeding"))
+		}
+
+		if seeded && deviceCtx != nil {
+			if err := m.ensureCloudInitRestricted(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		if seeded && deviceCtx != nil {
+			if err := m.ensureOperationalAfterSeed(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
 		// XXX: This might trigger a reseal (auto-repair) but
 		// it should not affect resealing tasks since it is
 		// run at most once during startup before
 		// TaskRunner.Ensure() is called.
-		if err := m.ensureFDE(); err != nil {
-			errs = append(errs, err)
+		if deviceCtx != nil {
+			if err := m.ensureFDE(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
 		// XXX: This might trigger a reseal (removal of "try"
 		// entries in modeenv) but it should not affect
 		// resealing tasks since it is run at most once during
 		// startup before TaskRunner.Ensure() is called.
-		if err := m.ensureBootOk(); err != nil {
+		if err := m.ensureBootOk(deviceCtx); err != nil {
 			errs = append(errs, err)
 		}
 
-		if err := m.ensureSeedInConfig(); err != nil {
-			errs = append(errs, err)
+		if seeded {
+			if err := m.ensureSeedInConfigAfterSeed(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		if err := m.ensureInstalled(); err != nil {
-			errs = append(errs, err)
+		if seeded && deviceCtx != nil {
+			if err := m.ensureInstalledAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
 		// XXX: This might trigger a reseal but it should not affect
 		// resealing tasks since it is run at most once during startup
 		// before TaskRunner.Ensure() is called.
-		if err := m.ensureTriedRecoverySystem(); err != nil {
-			errs = append(errs, err)
+		if seeded && deviceCtx != nil {
+			if err := m.ensureTriedRecoverySystem(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		if err := m.ensureFactoryReset(); err != nil {
-			errs = append(errs, err)
+		if seeded && deviceCtx != nil {
+			if err := m.ensureFactoryResetAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		if err := m.ensurePostFactoryReset(); err != nil {
-			errs = append(errs, err)
+		if seeded {
+			if err := m.ensurePostFactoryReset(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		if err := m.ensureSerialBoundSystemUserAssertionsProcessed(); err != nil {
-			errs = append(errs, err)
+		if seeded && deviceCtx != nil {
+			if err := m.ensureSerialBoundSystemUserAssertionsProcessedAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		if err := m.ensureExpiredUsersRemoved(); err != nil {
-			errs = append(errs, err)
+		if seeded {
+			if err := m.ensureExpiredUsersRemovedAfterSeed(); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		if err := m.ensureEarlyBootXKBConfigUpdated(); err != nil {
-			errs = append(errs, err)
+		if seeded && deviceCtx != nil {
+			if err := m.ensureEarlyBootXKBConfigUpdatedAfterSeed(deviceCtx); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
 		// This must come after all ensures that might update extra snapd
@@ -2375,7 +2348,8 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	return privKey, nil
 }
 
-// SignConfdbControl signs a confdb-control assertion using the device's key as it needs to be attested by the device.
+// SignConfdbControl signs a confdb-control assertion using the device's key as
+// it needs to be attested by the device.
 func (m *DeviceManager) SignConfdbControl(groups []any, revision int) (*asserts.ConfdbControl, error) {
 	serial, err := m.Serial()
 	if err != nil {
