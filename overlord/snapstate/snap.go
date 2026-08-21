@@ -46,6 +46,10 @@ import (
 type installContext struct {
 	SkipConfigure       bool
 	NoRestartBoundaries bool
+	// StopAfterLink builds the graph through link-snap and retain
+	// discards, skipping the post-link suffix (auto-connect, aliases,
+	// hooks, start-services, configure). Used by the unaware LTS hop.
+	StopAfterLink bool
 	ConflictOptions
 	DeviceCtx DeviceContext
 }
@@ -681,9 +685,20 @@ func (sc *snapInstallChoreographer) choreograph(st *state.State, ic installConte
 		return snapInstallTaskSet{}, err
 	}
 
-	afterLinkSnapAndPostReboot, err := sc.AfterLinkSnapAndPostReboot(st, b.OpenSpan(), ic)
-	if err != nil {
-		return snapInstallTaskSet{}, err
+	var afterLinkSnapAndPostReboot []*state.Task
+	if ic.StopAfterLink {
+		// Reuse the original change's auto-connect onward; still plan
+		// retain discards against current SnapState (already linked).
+		if sc.snapst.IsInstalled() && !sc.snapsup.Flags.Revert {
+			if err := sc.addCleanupTasks(st, b.OpenSpan(), ic); err != nil {
+				return snapInstallTaskSet{}, err
+			}
+		}
+	} else {
+		afterLinkSnapAndPostReboot, err = sc.AfterLinkSnapAndPostReboot(st, b.OpenSpan(), ic)
+		if err != nil {
+			return snapInstallTaskSet{}, err
+		}
 	}
 
 	if !ic.NoRestartBoundaries {

@@ -1884,8 +1884,9 @@ func (s *snapmgrTestSuite) testParallelInstanceInstallRunThrough(c *C, inputFlag
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "some-channel",
-		UserID:  s.user.ID,
+		Channel:         "some-channel",
+		ExplicitChannel: true,
+		UserID:          s.user.ID,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2258,8 +2259,9 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: "some-channel",
-		UserID:  s.user.ID,
+		Channel:         "some-channel",
+		ExplicitChannel: true,
+		UserID:          s.user.ID,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,
@@ -2474,8 +2476,10 @@ func (s *snapmgrTestSuite) testInstallWithRevisionRunThrough(c *C, snapName, req
 	err = task.Get("snap-setup", &snapsup)
 	c.Assert(err, IsNil)
 	c.Assert(snapsup, DeepEquals, snapstate.SnapSetup{
-		Channel: setupChannel,
-		UserID:  s.user.ID,
+		Channel:          setupChannel,
+		ExplicitChannel:  requestedChannel != "",
+		ExplicitRevision: true,
+		UserID:           s.user.ID,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 			Size:        5,

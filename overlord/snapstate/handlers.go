@@ -392,6 +392,22 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, tomb *tomb.Tomb) error {
 
 	snapsup.SnapPath = targetFn
 
+	st.Lock()
+	deviceCtx, deviceCtxErr := DeviceCtx(st, t, nil)
+	model := (*asserts.Model)(nil)
+	if deviceCtxErr == nil && deviceCtx != nil {
+		model = deviceCtx.Model()
+	}
+	st.Unlock()
+	if deviceCtxErr != nil {
+		logger.Debugf("skipping snapd LTS inspect after download: %v", deviceCtxErr)
+	} else if err := maybeRedirectSnapdToLTSTrack(
+		tomb.Context(nil), st, snapsup, model,
+		theStore, user, meter, dlOpts, perfTimings,
+	); err != nil {
+		return err
+	}
+
 	// update the snap setup for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", snapsup)
@@ -2456,6 +2472,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
+	if preserveSnapdLTSVehicleLink(t) {
+		t.Logf("not undoing snapd vehicle link; staying on the LTS-aware revision")
+		return nil
+	}
+
 	deviceCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
@@ -3431,14 +3452,31 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return m.finishTaskWithMaybeRestart(t, state.UndoneStatus, restartPossibility{info: info, RebootInfo: reboot})
 }
 
+func (m *SnapManager) doCleanup(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapsup, err := TaskSnapSetup(t)
+	if err != nil {
+		return nil
+	}
+	return FinishRestart(t, snapsup, FinishRestartOptions{})
+}
+
 func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	snapsup, snapst, err := snapSetupAndState(t)
-	st.Unlock()
 	if err != nil {
+		st.Unlock()
 		return err
 	}
+	if err := FinishRestart(t, snapsup, FinishRestartOptions{}); err != nil {
+		st.Unlock()
+		return err
+	}
+	st.Unlock()
 
 	st.Lock()
 	info, err := Info(t.State(), snapsup.InstanceName(), snapsup.Revision())
@@ -3535,6 +3573,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapsup, snapst, err := snapSetupAndState(t)
 	if err != nil {
+		return err
+	}
+
+	if err := FinishRestart(t, snapsup, FinishRestartOptions{}); err != nil {
 		return err
 	}
 
@@ -4575,9 +4617,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		}
 		if len(tasksets) > 0 {
 			chg := t.Change()
-			for _, taskset := range tasksets {
-				chg.AddAll(taskset)
-			}
+			addTaskSetsToChange(chg, nil, tasksets)
 			st.EnsureBefore(0)
 			t.SetStatus(state.DoneStatus)
 			return nil
@@ -4616,10 +4656,8 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	} else {
 		t.Logf("Found re-refresh for %s.", strutil.Quoted(updated))
 
-		for _, taskset := range updateTss.Refresh {
-			chg.AddAll(taskset)
-			newTasks = true
-		}
+		addTaskSetsToChange(chg, nil, updateTss.Refresh)
+		newTasks = true
 	}
 
 	if created, err := createPreDownloadChange(st, updateTss); err != nil {
@@ -4922,16 +4960,37 @@ var maybeRestoreValidationSetsAndRevertSnaps = func(st *state.State, refreshedSn
 	return tss, nil
 }
 
-// InjectTasks makes all the halt tasks of the mainTask wait for extraTasks;
-// extraTasks join the same lane and change as the mainTask.
-func InjectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
-	lanes := mainTask.Lanes()
+// joinLanesFrom joins onto ts the lanes of from. Lane 0 alone means no lane.
+func joinLanesFrom(ts *state.TaskSet, from *state.Task) {
+	lanes := from.Lanes()
 	if len(lanes) == 1 && lanes[0] == 0 {
 		lanes = nil
 	}
 	for _, l := range lanes {
-		extraTasks.JoinLane(l)
+		ts.JoinLane(l)
 	}
+}
+
+// addTaskSetsToChange adds task sets to chg, optionally joining lanes from from,
+// and returns the IDs of all tasks added.
+func addTaskSetsToChange(chg *state.Change, from *state.Task, tss []*state.TaskSet) []string {
+	var taskIDs []string
+	for _, ts := range tss {
+		if from != nil {
+			joinLanesFrom(ts, from)
+		}
+		chg.AddAll(ts)
+		for _, task := range ts.Tasks() {
+			taskIDs = append(taskIDs, task.ID())
+		}
+	}
+	return taskIDs
+}
+
+// InjectTasks makes all the halt tasks of the mainTask wait for extraTasks;
+// extraTasks join the same lane and change as the mainTask.
+func InjectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
+	joinLanesFrom(extraTasks, mainTask)
 
 	chg := mainTask.Change()
 	// Change shouldn't normally be nil, except for cases where

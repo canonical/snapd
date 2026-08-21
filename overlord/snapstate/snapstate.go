@@ -704,6 +704,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.markExplicitPins()
 
 	target := StoreInstallGoal(StoreSnap{
 		InstanceName: name,
@@ -785,8 +786,19 @@ func downloadTasks(
 		return nil, nil, errors.New("internal error: cannot specify revision and cohort")
 	}
 
+	// Do not infer ExplicitChannel from a filled Channel: create-recovery
+	// and similar internals pass a model/policy channel that is not a
+	// caller --channel=. Callers that mean a pin must set ExplicitChannel
+	// / ExplicitRevision themselves (Install/Update already do).
 	if revOpts.Channel == "" {
 		revOpts.Channel = "stable"
+	}
+
+	if err := setDefaultSnapstateOptions(st, &opts); err != nil {
+		return nil, nil, err
+	}
+	if err := revOpts.resolveChannelForStore(name, "stable", opts.DeviceCtx); err != nil {
+		return nil, nil, err
 	}
 
 	if revOpts.ValidationSets == nil {
@@ -827,6 +839,8 @@ func downloadTasks(
 		Version:                     info.Version,
 		InstanceKey:                 info.InstanceKey,
 		CohortKey:                   revOpts.CohortKey,
+		ExplicitChannel:             revOpts.ExplicitChannel,
+		ExplicitRevision:            revOpts.ExplicitRevision,
 		ExpectedProvenance:          info.SnapProvenance,
 		DownloadBlobDir:             downloadDir,
 		ComponentExclusiveOperation: skipSnapDownload,
@@ -1005,6 +1019,7 @@ func InstallMany(st *state.State, names []string, revOpts []*RevisionOptions, us
 		}
 		if len(revOpts) > 0 && revOpts[i] != nil {
 			sn.RevOpts = *revOpts[i]
+			sn.RevOpts.markExplicitPins()
 		}
 		snaps = append(snaps, sn)
 	}
@@ -1241,6 +1256,7 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, re
 		opts := RevisionOptions{}
 		if len(revOpts) > 0 {
 			opts = *revOpts[i]
+			opts.markExplicitPins()
 		}
 
 		updates = append(updates, StoreUpdate{
@@ -1602,6 +1618,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 			}
 			return nil, false, nil, err
 		}
+
 		lane := generateLane(st, opts)
 		snapLanes[lane] = struct{}{}
 
@@ -1913,6 +1930,11 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 	return changed, mustPrune, transferTargets, nil
 }
 
+// isUnasserted reports whether the snap has no store identity.
+func isUnasserted(si *snap.SideInfo) bool {
+	return si == nil || si.SnapID == ""
+}
+
 // resolveChannel returns the effective channel to use, based on the requested
 // channel and constrains set by device model, or an error if switching to
 // requested channel is forbidden.
@@ -1934,22 +1956,21 @@ func resolveChannel(snapName, oldChannel, newChannel string, deviceCtx DeviceCon
 
 	if pinnedTrack == "" {
 		// no pinned track
-		return channel.Resolve(oldChannel, newChannel)
-	}
-
-	// channel name is valid and consist of risk level or
-	// risk/branch only, do the right thing and default to risk (or
-	// risk/branch) within the pinned track
-	resChannel, err := channel.ResolvePinned(pinnedTrack, newChannel)
-	if err == channel.ErrPinnedTrackSwitch {
-		// switching to a different track is not allowed
-		return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
-
+		effectiveChannel, err = channel.Resolve(oldChannel, newChannel)
+	} else {
+		// channel name is valid and consist of risk level or
+		// risk/branch only, do the right thing and default to risk (or
+		// risk/branch) within the pinned track
+		effectiveChannel, err = channel.ResolvePinned(pinnedTrack, newChannel)
+		if err == channel.ErrPinnedTrackSwitch {
+			// switching to a different track is not allowed
+			return "", fmt.Errorf("cannot switch from %s track %q as specified for the (device) model to %q", which, pinnedTrack, newChannel)
+		}
 	}
 	if err != nil {
 		return "", err
 	}
-	return resChannel, nil
+	return effectiveChannel, nil
 }
 
 var errRevisionSwitch = errors.New("cannot switch revision")
@@ -2094,6 +2115,30 @@ type RevisionOptions struct {
 	ValidationSets *snapasserts.ValidationSets
 	CohortKey      string
 	LeaveCohort    bool
+
+	// ExplicitChannel is true when the caller requested Channel
+	// (--channel= / API "channel"). LTS policy must not override it.
+	ExplicitChannel bool
+	// ExplicitRevision is true when the caller requested Revision
+	// (--revision= / API "revision"). LTS policy must not override it.
+	ExplicitRevision bool
+}
+
+func (r *RevisionOptions) markExplicitChannel() {
+	if r != nil && r.Channel != "" {
+		r.ExplicitChannel = true
+	}
+}
+
+func (r *RevisionOptions) markExplicitRevision() {
+	if r != nil && !r.Revision.Unset() {
+		r.ExplicitRevision = true
+	}
+}
+
+func (r *RevisionOptions) markExplicitPins() {
+	r.markExplicitChannel()
+	r.markExplicitRevision()
 }
 
 func firstNonEmpty(strs ...string) string {
@@ -2105,7 +2150,10 @@ func firstNonEmpty(strs ...string) string {
 	return ""
 }
 
-// resolveChannel resolves the channel for the given snap.
+// resolveChannel resolves the channel for the given snap (kernel/gadget
+// model-track pins via resolveChannel). LTS track jumps are not applied
+// here: the download intercept (already-aware) and post-restart refresh
+// (unaware) own that.
 func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	resolved, err := resolveChannel(instanceName, fallback, r.Channel, deviceCtx)
 	if err != nil {
@@ -2116,7 +2164,7 @@ func (r *RevisionOptions) resolveChannel(instanceName string, fallback string, d
 }
 
 // resolveChannelForStore conditionally resolves the channel for the given snap.
-// If the the revision is set and the channel is empty, then we assume that the
+// If the revision is set and the channel is empty, then we assume that the
 // caller wants to install by revision and does not mutate the channel.
 func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback string, deviceCtx DeviceContext) error {
 	// if the revision is set and the caller didn't provide a channel, then we
@@ -2126,8 +2174,6 @@ func (r *RevisionOptions) resolveChannelForStore(instanceName string, fallback s
 		return nil
 	}
 
-	// otherwise, we know that the channel is either empty, or it is specified
-	// along with the revision. in either case, we need to resolve the channel.
 	return r.resolveChannel(instanceName, fallback, deviceCtx)
 }
 
@@ -2175,6 +2221,7 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.markExplicitPins()
 
 	// this is to maintain backwards compatibility with the old behavior
 	if flags.Transaction == "" {
@@ -2206,6 +2253,7 @@ func UpdatePathWithDeviceContext(st *state.State, si *snap.SideInfo, path, name 
 	if opts == nil {
 		opts = &RevisionOptions{}
 	}
+	opts.markExplicitPins()
 
 	// this is to maintain backwards compatibility with the old behavior
 	if flags.Transaction == "" {

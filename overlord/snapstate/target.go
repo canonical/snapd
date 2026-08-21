@@ -173,9 +173,11 @@ func targetFromLocalSnapWithStoreComponents(
 		info:   info,
 		snapst: *snapst,
 		setup: SnapSetup{
-			Channel:   trackedChannel,
-			CohortKey: up.RevOpts.CohortKey,
-			SnapPath:  info.MountFile(),
+			Channel:          trackedChannel,
+			CohortKey:        up.RevOpts.CohortKey,
+			ExplicitChannel:  up.RevOpts.ExplicitChannel,
+			ExplicitRevision: up.RevOpts.ExplicitRevision,
+			SnapPath:         info.MountFile(),
 
 			// if the caller specified a revision, then we always run
 			// through the entire update process. this enables something
@@ -230,6 +232,8 @@ func targetFromActionResult(sar store.SnapActionResult, snapst *SnapState, revOp
 			DownloadInfo:      &sar.DownloadInfo,
 			Channel:           trackedChannel,
 			CohortKey:         revOpts.CohortKey,
+			ExplicitChannel:   revOpts.ExplicitChannel,
+			ExplicitRevision:  revOpts.ExplicitRevision || !revOpts.Revision.Unset(),
 			IntegrityDataInfo: sar.IntegrityData,
 		},
 		components: components,
@@ -292,11 +296,13 @@ func (t *target) setups(st *state.State, opts Options) (SnapSetup, []ComponentSe
 	providerContentAttrs := defaultProviderContentAttrs(st, t.info, opts.PrereqTracker)
 
 	snapsup := SnapSetup{
-		Channel:      t.setup.Channel,
-		CohortKey:    t.setup.CohortKey,
-		DownloadInfo: t.setup.DownloadInfo,
-		SnapPath:     t.setup.SnapPath,
-		AlwaysUpdate: t.setup.AlwaysUpdate,
+		Channel:          t.setup.Channel,
+		CohortKey:        t.setup.CohortKey,
+		ExplicitChannel:  t.setup.ExplicitChannel,
+		ExplicitRevision: t.setup.ExplicitRevision,
+		DownloadInfo:     t.setup.DownloadInfo,
+		SnapPath:         t.setup.SnapPath,
+		AlwaysUpdate:     t.setup.AlwaysUpdate,
 
 		Base:               t.info.Base,
 		Prereq:             keys(providerContentAttrs),
@@ -781,7 +787,10 @@ func (s *storeInstallGoal) validateAndPrune(st *state.State, installedSnaps map[
 
 		// only provide a default the channel if the revision is not set, since
 		// we don't want to prevent the user from installing a specific revision
-		// that doesn't happen to exist in the "stable" risk
+		// that doesn't happen to exist in the "stable" risk.
+		// Do not infer ExplicitChannel here: a filled Channel may be a policy
+		// default (prereq, cluster, model) rather than a caller --channel=.
+		// User-facing Install/Update already called markExplicitPins().
 		if sn.RevOpts.Channel == "" && sn.RevOpts.Revision.Unset() {
 			sn.RevOpts.Channel = "stable"
 		}
@@ -1510,7 +1519,9 @@ func initRefreshAllStoreUpdates(st *state.State, opts Options, allSnaps map[stri
 		updates[snapst.InstanceName()] = StoreUpdate{
 			InstanceName: snapst.InstanceName(),
 
-			// default the channel and cohort key to the existing values,
+			// default the channel and cohort key to the existing values.
+			// LTS jumps are not planned here: intercept (aware) or
+			// post-restart (unaware) own that.
 			RevOpts: RevisionOptions{
 				Channel:        snapst.TrackingChannel,
 				CohortKey:      snapst.CohortKey,
@@ -1626,6 +1637,8 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 		return target{}, fmt.Errorf("invalid revision options for snap %q: %w", update.InstanceName, err)
 	}
 
+	update.RevOpts.markExplicitChannel()
+
 	if !update.RevOpts.Revision.Unset() && update.RevOpts.Revision != si.Revision {
 		return target{}, fmt.Errorf("cannot install local snap %q: %v != %v (revision mismatch)", update.InstanceName, update.RevOpts.Revision, si.Revision)
 	}
@@ -1662,6 +1675,9 @@ func targetFromPathSnap(update PathSnap, snapst SnapState, opts Options) (target
 			SnapPath:  update.Path,
 			Channel:   update.RevOpts.Channel,
 			CohortKey: update.RevOpts.CohortKey,
+
+			ExplicitChannel:  update.RevOpts.ExplicitChannel,
+			ExplicitRevision: update.RevOpts.ExplicitRevision,
 
 			// mirror store-backed by-revision refresh: an explicit revision should
 			// run the full update path even if the revision is already current.

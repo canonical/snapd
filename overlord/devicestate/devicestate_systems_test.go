@@ -1453,6 +1453,126 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	c.Assert(otherTaskID, Equals, tskCreate.ID())
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSnapdDownloadNotExplicitChannel(c *C) {
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", nil)
+
+	var snapdRevOpts snapstate.RevisionOptions
+	restoreDownload := devicestate.MockSnapstateDownload(func(
+		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options,
+	) (*state.TaskSet, *snap.Info, error) {
+		c.Assert(name, Equals, "snapd")
+		snapdRevOpts = revOpts
+
+		si := &snap.SideInfo{
+			RealName: "snapd",
+			Revision: snap.R(11),
+			SnapID:   s.ss.AssertedSnapID("snapd"),
+		}
+		_, info := snaptest.MakeTestSnapInfoWithFiles(c, "name: snapd\nversion: 1.0\ntype: snapd\n", nil, si)
+		if opts.PrereqTracker != nil {
+			opts.PrereqTracker.Add(info)
+		}
+
+		tDownload := st.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+			Type:     snap.TypeSnapd,
+		})
+		tValidate := st.NewTask("fake-validate", fmt.Sprintf("Validate %s", name))
+		tValidate.Set("snap-setup-task", tDownload.ID())
+		tValidate.WaitFor(tDownload)
+		ts := state.NewTaskSet(tDownload, tValidate)
+		ts.MarkEdge(tDownload, snapstate.SnapSetupEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, info, nil
+	})
+	defer restoreDownload()
+
+	_, err := devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		TestSystem: true,
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapdRevOpts.Channel, Equals, "latest/stable")
+	c.Check(snapdRevOpts.ExplicitChannel, Equals, false)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemSnapdDownloadValidationSetPinsRevision(c *C) {
+	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
+	defer restore()
+
+	vset, err := s.brands.Signing("canonical").Sign(asserts.ValidationSetType, map[string]any{
+		"type":         "validation-set",
+		"authority-id": "canonical",
+		"series":       "16",
+		"account-id":   "canonical",
+		"name":         "vset-snapd",
+		"sequence":     "1",
+		"snaps": []any{
+			map[string]any{
+				"name":     "snapd",
+				"id":       fakeSnapID("snapd"),
+				"revision": "12",
+				"presence": "required",
+			},
+		},
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapdRevOpts snapstate.RevisionOptions
+	restoreDownload := devicestate.MockSnapstateDownload(func(
+		ctx context.Context, st *state.State, name string, components []string, blobDirectory string, revOpts snapstate.RevisionOptions, opts snapstate.Options,
+	) (*state.TaskSet, *snap.Info, error) {
+		c.Assert(name, Equals, "snapd")
+		snapdRevOpts = revOpts
+
+		si := &snap.SideInfo{
+			RealName: "snapd",
+			Revision: snap.R(12),
+			SnapID:   s.ss.AssertedSnapID("snapd"),
+		}
+		_, info := snaptest.MakeTestSnapInfoWithFiles(c, "name: snapd\nversion: 1.0\ntype: snapd\n", nil, si)
+		if opts.PrereqTracker != nil {
+			opts.PrereqTracker.Add(info)
+		}
+
+		tDownload := st.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, revOpts.Channel))
+		tDownload.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: si,
+			Type:     snap.TypeSnapd,
+		})
+		tValidate := st.NewTask("fake-validate", fmt.Sprintf("Validate %s", name))
+		tValidate.Set("snap-setup-task", tDownload.ID())
+		tValidate.WaitFor(tDownload)
+		ts := state.NewTaskSet(tDownload, tValidate)
+		ts.MarkEdge(tDownload, snapstate.SnapSetupEdge)
+		ts.MarkEdge(tValidate, snapstate.LastBeforeLocalModificationsEdge)
+		return ts, info, nil
+	})
+	defer restoreDownload()
+
+	_, err = devicestate.CreateRecoverySystem(s.state, "1234", devicestate.CreateRecoverySystemOptions{
+		ValidationSets: []*asserts.ValidationSet{vset.(*asserts.ValidationSet)},
+		TestSystem:     true,
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapdRevOpts.Channel, Equals, "latest/stable")
+	c.Check(snapdRevOpts.ExplicitChannel, Equals, false)
+	c.Assert(snapdRevOpts.ValidationSets, NotNil)
+	pres, err := snapdRevOpts.ValidationSets.Presence(naming.Snap("snapd"))
+	c.Assert(err, IsNil)
+	c.Check(pres.Revision, Equals, snap.R(12))
+}
+
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasksWhenDirExists(c *C) {
 	restore := devicestate.SetBootOkRanForCurrentBootID(s.mgr, true)
 	defer restore()
