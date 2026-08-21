@@ -38,7 +38,7 @@ var (
 )
 
 func MockFetchAccountKey(f func(st *state.State, userID int, signKeyID string) error) func() {
-	return testutil.Mock(&assertstateFetchAccountKey, f)
+	return testutil.Mock(&AssertstateFetchAccountKey, f)
 }
 
 func MockMaxSequences(n int) func() {

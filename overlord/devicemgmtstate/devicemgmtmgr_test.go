@@ -161,6 +161,10 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	c.Assert(db.Add(s.storeStack.StoreAccountKey("")), IsNil)
 	assertstate.ReplaceDB(s.st, db)
 
+	devicemgmtstate.AssertstateDB = assertstate.DB
+	devicemgmtstate.AssertstateAccountKey = assertstate.AccountKey
+	devicemgmtstate.AssertstateFetchAccountKey = assertstate.FetchAccountKey
+
 	s.runner = s.o.TaskRunner()
 	s.o.AddManager(s.runner)
 
