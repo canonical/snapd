@@ -192,7 +192,7 @@ sequenceDiagram
 | **Inject only (same, from Ensure)** | First Ensure | Same as StartUp if TaskRunner has not run yet; racey if it has | Same | No | Same |
 | **`FinishRestart` in `auto-connect`** | First post-restart snapd task | Already entering auto-connect of `latest` | Retry + inject is possible but late | No | Only for tasks that wait on this auto-connect |
 | **Ensure exclusive change** (ubuntu-core transition + BB6) | `SnapManager.Ensure` | Does not see the in-flight graph | New snapd change **conflicts** while refresh-all is Doing | No | **No** for mixed refresh |
-| **`AddBlocked` hold-all** | TaskRunner | Does not replace the vehicle | Does not start LTS by itself | No | Yes, complement to inject |
+| **Change-level `AddBlocked` allowlist** | TaskRunner | Complements inject; does not replace the vehicle | Does not start LTS by itself | No | **Yes** for *other changes*. Intra-change waits still order extras → suffix → other snaps |
 
 Quiet device (aware already current on `latest`, no change in flight):
 Ensure exclusive change *is* enough for (2). Mixed auto-refresh is the
@@ -207,7 +207,39 @@ if tracking is a transition track and the running map Resolves to LTS,
 inject a snapd store install/refresh onto that LTS channel after the
 Done `link-snap` and before `auto-connect`; rewrite remaining snapd
 snap-setup onto the LTS revision; let the existing EndEdge keep other
-snaps waiting. Optional `AddBlocked` while that inject is in flight.
+snaps in **this** change waiting. **Change-level task allowlist** (below)
+so no *other* change’s tasks run on the too-new binary.
+
+### Change-level task allowlist
+
+Purpose: lower the mutation surface on the vehicle without changing
+intra-change sequencing.
+
+After inject, before `Loop`, register an in-memory
+[`TaskRunner.AddBlocked`](overlord/state/taskrunner.go) predicate:
+only tasks whose `Change().ID()` is the in-flight refresh may start
+(Do **or** Undo). Every other change’s tasks stay `Do` until this
+process dies.
+
+- **Not persisted.** LTS `link-snap` requests `RestartDaemon`; the next
+  process has no allowlist, so the reused suffix and other snaps run on
+  LTS. Do not store “empty list means run nothing.”
+- **Same change is enough.** Mixed refresh is one change. Inject waits
+  keep extras before the suffix; other snaps wait on snapd EndEdge.
+  Allowlisting that change does **not** let those tasks skip their waits.
+- **Do not use a per-task ID list** unless extras spawn tasks in a
+  *different* change. `InjectTasks` into this change is automatically
+  runnable.
+- **Not a full freeze.** The hop itself mutates state (download / mount /
+  copy-data / LTS link). Sync API (auth, abort, notices, warnings) and
+  manager `Ensure` `st.Set` can still write without tasks. That is
+  accepted: the high-value freeze is other changes’ graphs.
+- **Quiet device:** inject is a no-op, so do **not** set the allowlist.
+  There is no in-flight change to allow; a freeze would stop the
+  Ensure-driven snapd refresh.
+
+Do **not** add a second TaskRunner. Handlers are registered by kind;
+the hop uses the same kinds as everyone else.
 
 **Separate gate:** consider skipping `patch.Apply` on this first start
 when a jump is required, so the too-new binary does not raise
@@ -224,9 +256,10 @@ different site (UC042 “as it starts to run”).
 
 ## Open before coding
 
-- Exact task set to inject: full `Update` graph vs download + mount +
-  link only (then reuse existing auto-connect after snap-setup
-  rewrite).
+- Change-level allowlist: **decided** (implement; see above).
+- Exact task set to inject: **decided** — through `link-snap` plus
+  `addCleanupTasks` discards; reuse existing auto-connect after
+  snap-setup retarget.
 - Second restart: remaining tasks and `finish-restart` flags must wait
   for the **LTS** daemon, not treat the first restart as enough.
 - Quiet-device path: same StartUp inject is a no-op if `link-snap` is

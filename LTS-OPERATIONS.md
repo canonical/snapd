@@ -144,7 +144,7 @@ lines usually combine unless marked illegal.
 | Seedwriter (BB4a) | `seed/seedwriter.Writer.resolveChannel` | `snap prepare-image` / ubuntu-image | Running snapd (image builder) |
 | Remodel (BB4b) | `devicestate` remodel snapd channel | Online remodel of snapd | Running snapd |
 | Download intercept | `maybeRedirectSnapdToLTSTrack` in `doDownloadSnap` | After a **store** `download-snap` of asserted snapd, unless `ExplicitChannel` / `ExplicitRevision`. Preferred jump for **already-aware** snapd (new LTS branches in the `latest` map). | **Candidate** squashfs |
-| Post-restart (BB5) | `SnapManager` StartUp / Ensure (not implemented) | After linking an **unaware→aware** snapd and restarting. Required for shelf / old-image units; not the preferred jump for aware devices. | Running (just-installed) snapd |
+| Post-restart (BB5) | `SnapManager` StartUp + same-change inject + **change-level TaskRunner allowlist** (not implemented) | After linking an **unaware→aware** snapd and restarting. Required for shelf / old-image units; not the preferred jump for aware devices. Vehicle process may run only that refresh change’s tasks until LTS restart. | Running (just-installed) snapd |
 
 Store `resolveChannelForStore` / `initRefreshAllStoreUpdates` do **not**
 LTS-remap. First `SnapAction` stays on the from-track so intercept can

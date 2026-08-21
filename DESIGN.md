@@ -491,10 +491,15 @@ right after the blob lands and **before** the task persists the updated
 
 ### 5.6 Still-open building blocks
 
-- **BB5 `ensureSnapdTrackTransition`** — `SnapManager.Ensure`-driven
-  safety net for "aware snapd installed on wrong track, no refresh in
-  flight". Smaller surface now that the download intercept handles cases
-  1/3/5/6/10. Re-evaluate after spread evidence.
+- **BB5 unaware post-restart jump** — required (shelf / first aware
+  install). Intercept cannot run in unaware snapd. Mechanism:
+  `SnapManager.StartUp` injects an LTS hop into the in-flight change,
+  skips `patch.Apply` on that first start, and a **change-level
+  TaskRunner allowlist** blocks every *other* change’s tasks until LTS
+  restart. Quiet device (no in-flight change): Ensure starts a normal
+  snapd refresh. Details: [LTS-POST-RESTART.md](LTS-POST-RESTART.md).
+  `ensureSnapdTrackTransition` remains the quiet-device fallback, not
+  the mixed-refresh path.
 - **BB6 exclusive change kind** — only required if BB5 lands.
 - **BB7 downgrade safety** — newest-on-track selection, pre-flight
   `patch.Level` guard on the rerouted target, undo restores original
@@ -739,7 +744,7 @@ cannot remap at planning; the intercept covers it only when a
 | 10 | Failure-mode policy: `LTSBaseNotManagedError` (base not yet onboarded) and `LTSNoTrackError` (unmapped track) → pass-through everywhere; `LTSNotAllowedError`/`LTSInternalError` → pass-through in BB4a/BB4b | **done** |
 | 11 | BB7 downgrade safety: `patch.Level` pre-flight on downloaded LTS blob before snap-setup rewrite | **done** |
 | 12 | Architectural review (D1–D5): provenance rewrite, cohort key kept, prereq gate, epoch invariant, re-refresh no-op, prune safety | **done** |
-| 13 | BB5 post-restart jump for unaware snapd (shelf / first aware install) | **required, not implemented** |
+| 13 | BB5 post-restart jump for unaware snapd (shelf / first aware install): StartUp inject + skip patch.Apply + change-level task allowlist | **required, not implemented** |
 | 14 | Spread validation: Case 3 bootstrap (old snapd on latest, candidate carries map, single change lands on UC track); ordering before other snaps; image-build track selection (BB4a); downgrade across redirect boot; missing-map fallback; quiet-device gap simulation | **open** |
 | 15 | Branch hygiene: branch carries only LTS-related changes — no unrelated files present | **done** |
 | 16 | Refresh-all / auto-refresh do **not** LTS-remap at planning; intercept / post-restart own the jump | **done** |

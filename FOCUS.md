@@ -126,7 +126,8 @@ track using the running snapd's map. Store install/refresh planning
 does **not**: `resolveChannelForStore` / `initRefreshAllStoreUpdates`
 keep the from-track channel so the download intercept sees the newest
 map. An explicit `--channel=` / `--revision=` skips intercept. Path/seed
-cannot retarget a local blob. Unaware bootstrap is post-restart (BB5).
+cannot retarget a local blob. Unaware bootstrap is post-restart (BB5);
+see [LTS-POST-RESTART.md](LTS-POST-RESTART.md).
 
 The intercept keeps `snapsup.CohortKey` on the second LTS `SnapAction`
 (same as an in-cohort channel refresh). Store error if the cohort has no
@@ -210,6 +211,8 @@ missing-map fallback behaviour.
    handler tests + spread.
 4. Fast-path gating.
 5. BB7 downgrade safety (if accepted).
+6. BB5 unaware post-restart: StartUp inject + skip `patch.Apply` +
+   change-level `AddBlocked` allowlist ([LTS-POST-RESTART.md](LTS-POST-RESTART.md)).
 
 Before any PR can land: see DESIGN.md §7 step 15 — the spike branch
 carries many unrelated changes that must be split off (sandbox/ebpf,
@@ -238,7 +241,10 @@ tests, and others).
    store hint analogous to `redirect-channel` but honoured on refresh.
 5. **Refresh-all LTS remap.** **Dropped:** `initRefreshAllStoreUpdates`
    no longer remaps. Aware jumps via intercept when a new from-track
-   blob is downloaded. Unaware bootstrap is post-restart (BB5).
+   blob is downloaded. Unaware bootstrap is post-restart (BB5): StartUp
+   inject into the in-flight change plus a **change-level task
+   allowlist** so other changes cannot run on the too-new binary
+   ([LTS-POST-RESTART.md](LTS-POST-RESTART.md)).
 6. **Four leftover install/refresh paths.** **Resolved:** see DESIGN.md
    open question 10. Only a real caller pin (`ExplicitChannel` /
    `--snap=snapd=<channel>`) skips LTS. Model `default-channel`, cluster
