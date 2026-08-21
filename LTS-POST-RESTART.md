@@ -215,15 +215,19 @@ so no *other* change’s tasks run on the too-new binary.
 Purpose: lower the mutation surface on the vehicle without changing
 intra-change sequencing.
 
-After inject, before `Loop`, register an in-memory
-[`TaskRunner.AddBlocked`](overlord/state/taskrunner.go) predicate:
-only tasks whose `Change().ID()` is the in-flight refresh may start
-(Do **or** Undo). Every other change’s tasks stay `Do` until this
-process dies.
+After inject, before `Loop`, call
+[`TaskRunner.RestrictToChange`](overlord/state/taskrunner.go) on the
+daemon’s single runner: only tasks whose `Change().ID()` is the
+in-flight refresh may start (Do **or** Undo), **for every task kind**.
+Hook, interface, device, FDE, … tasks in *other* changes stay `Do`
+until this process dies. Tasks in **this** change still run (including
+injected extras and later suffix).
 
-- **Not persisted.** LTS `link-snap` requests `RestartDaemon`; the next
-  process has no allowlist, so the reused suffix and other snaps run on
-  LTS. Do not store “empty list means run nothing.”
+- **Only before the first Ensure.** `RestrictToChange` is a StartUp-time
+  setup call, before `Loop`. After the runner has started it returns an
+  internal error: it does not cancel tasks already running, so a late
+  call cannot meet the freeze. A new process (new runner) starts
+  unrestricted.
 - **Same change is enough.** Mixed refresh is one change. Inject waits
   keep extras before the suffix; other snaps wait on snapd EndEdge.
   Allowlisting that change does **not** let those tasks skip their waits.
