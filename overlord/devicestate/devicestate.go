@@ -1890,7 +1890,7 @@ func CheckSeedRefreshRemove(st *state.State, candidate snapstate.SeedRefreshCand
 	}
 
 	if ok {
-		return errors.New("cannot remove snap present in the current seed while seed-refresh is enabled")
+		return errors.New("cannot remove snaps or components present in the current seed while seed-refresh is enabled")
 	}
 	return nil
 }
