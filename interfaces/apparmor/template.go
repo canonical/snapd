@@ -491,7 +491,7 @@ var templateCommon = `
 `
 
 var templateFooter = `
-###CORE_RUNTIME_EXTRA###
+###BASE_RUNTIME_EXTRA###
 ###SNIPPETS###
 }
 `
@@ -510,9 +510,7 @@ var defaultPerlTemplateRules = `
 var defaultPythonTemplateRules = `
   # for python apps/services
   #include <abstractions/python>
-  /etc/python3.[0-9]*/**                                r,
-
-  ###PYCACHEDENY###
+  /etc/python3.[0-9]*/** r,
 `
 
 // defaultCoreRuntimeTemplateRules contains core* runtime-specific rules. In general,
@@ -811,7 +809,7 @@ var defaultOtherBaseTemplateRules = `
 
 // defaultOtherBaseTemplate contains the default apparmor template for non-core
 // bases
-var defaultOtherBaseTemplate = templateCommon + defaultPerlTemplateRules + defaultPythonTemplateRules + defaultOtherBaseTemplateRules + templateFooter
+var defaultOtherBaseTemplate = templateCommon + defaultOtherBaseTemplateRules + templateFooter
 
 // Template for privilege drop and chown operations. The specific setuid,
 // setgid and chown operations are controlled via seccomp.

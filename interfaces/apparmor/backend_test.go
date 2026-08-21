@@ -1330,7 +1330,7 @@ func snapYamlWithBase(base string) string {
 	return "name: samba\nversion: 1\n" + baseField + "apps:\n    smbd:\n"
 }
 
-func (s *backendSuite) TestCoreRuntimeExtraRulesPerBase(c *C) {
+func (s *backendSuite) TestBaseRuntimeExtraRulesPerBase(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
@@ -1338,14 +1338,13 @@ func (s *backendSuite) TestCoreRuntimeExtraRulesPerBase(c *C) {
 	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
 	defer restore()
 
-	// Use a minimal template containing templateFooter so that
-	// coreRuntimeExtraRules can insert rules at the correct position.
-	// Unlike MockTemplate, MockCoreRuntimeTemplate does not suppress
-	// coreRuntimeExtraRules, so the perl/python insertion logic is exercised.
-	restoreTemplate := apparmor.MockCoreRuntimeTemplate(
-		"###PROFILEATTACH### ###FLAGS### {\n" +
-			apparmor.TemplateFooter)
+	// Use minimal templates containing templateFooter so that baseRuntimeExtraRules
+	// can insert rules at the correct position for both core and non-core bases.
+	minimalTemplate := "###PROFILEATTACH### ###FLAGS### {\n" + apparmor.TemplateFooter
+	restoreTemplate := apparmor.MockCoreRuntimeTemplate(minimalTemplate)
 	defer restoreTemplate()
+	restoreOtherTemplate := apparmor.MockOtherBaseTemplate(minimalTemplate)
+	defer restoreOtherTemplate()
 
 	perlMarker := "#include <abstractions/perl>"
 	pythonMarker := "#include <abstractions/python>"
@@ -1368,6 +1367,8 @@ func (s *backendSuite) TestCoreRuntimeExtraRulesPerBase(c *C) {
 		{base: "core26", wantPerl: false, wantPython: false, comment: "core26"},
 		// core26+ (core28) → no perl, no python
 		{base: "core28", wantPerl: false, wantPython: false, comment: "core28"},
+		// non-core bases → perl + python
+		{base: "other", wantPerl: true, wantPython: true, comment: "non-core base"},
 	}
 
 	for _, sc := range scenarios {
@@ -3101,11 +3102,10 @@ func (s *backendSuite) TestPromptPrefix(c *C) {
 	}
 }
 
-// TestPycacheDenyRuleCoreRuntime checks that the pycache deny rules reach
-// core-based profiles through coreRuntimeExtraRules (they are inserted as
-// replacement text, so the usual ###PYCACHEDENY### switch case never sees
-// them), and that suppression is honoured there too.
-func (s *backendSuite) TestPycacheDenyRuleCoreRuntime(c *C) {
+// TestPycacheDenyRuleCoreBase checks that the pycache deny rules reach
+// core-based profiles through baseRuntimeExtraRules and that suppression
+// is honoured there too.
+func (s *backendSuite) TestPycacheDenyRuleCoreBase(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
@@ -3139,32 +3139,39 @@ func (s *backendSuite) TestPycacheDenyRuleCoreRuntime(c *C) {
 		c.Assert(string(data), tc.expected, "deny /usr/lib/python3*/{,**/}__pycache__/ w,")
 		s.RemoveSnap(c, snapInfo)
 	}
-	s.Iface.AppArmorPermanentSlotCallback = nil
 }
 
-func (s *backendSuite) TestPycacheDenyRule(c *C) {
-	restoreTemplate := apparmor.MockTemplate("template\n###PYCACHEDENY###\n")
-	defer restoreTemplate()
+// TestPycacheDenyRuleNonCoreBase checks that the pycache deny rules reach
+// non-core-based profiles through baseRuntimeExtraRules and that suppression
+// is honoured there too.
+func (s *backendSuite) TestPycacheDenyRuleNonCoreBase(c *C) {
 	restore := apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
 	defer restore()
 	restore = osutil.MockIsHomeUsingRemoteFS(func() (bool, error) { return false, nil })
 	defer restore()
+	restore = osutil.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+	restoreTemplate := apparmor.MockOtherBaseTemplate(
+		"###PROFILEATTACH### ###FLAGS### {\n" + apparmor.TemplateFooter)
+	defer restoreTemplate()
 
+	// Snap yaml with a non-core base and a slot so that AppArmorPermanentSlotCallback fires.
+	const sambaYamlOtherBase = `
+name: samba
+base: other
+version: 1
+apps:
+    smbd:
+slots:
+    slot:
+        interface: iface
+`
 	for _, tc := range []struct {
-		opts     interfaces.ConfinementOptions
 		suppress bool
 		expected Checker
 	}{
-		{
-			opts:     interfaces.ConfinementOptions{},
-			suppress: true,
-			expected: Not(testutil.Contains),
-		},
-		{
-			opts:     interfaces.ConfinementOptions{},
-			suppress: false,
-			expected: testutil.Contains,
-		},
+		{suppress: true, expected: Not(testutil.Contains)},
+		{suppress: false, expected: testutil.Contains},
 	} {
 		s.Iface.AppArmorPermanentSlotCallback = func(spec *apparmor.Specification, slot *snap.SlotInfo) error {
 			if tc.suppress {
@@ -3173,7 +3180,7 @@ func (s *backendSuite) TestPycacheDenyRule(c *C) {
 			return nil
 		}
 
-		snapInfo := s.InstallSnap(c, tc.opts, "", ifacetest.SambaYamlV1, 1)
+		snapInfo := s.InstallSnap(c, interfaces.ConfinementOptions{}, "", sambaYamlOtherBase, 1)
 		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		data, err := os.ReadFile(profile)
 		c.Assert(err, IsNil)

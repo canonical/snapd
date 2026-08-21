@@ -68,22 +68,30 @@ func MockProcSelfExe(symlink string) (restore func()) {
 // replace it with a shorter snippet.
 func MockTemplate(fakeTemplate string) (restore func()) {
 	origTemplate := defaultCoreRuntimeTemplate
-	origExtraRules := coreRuntimeExtraRules
+	origExtraRules := baseRuntimeExtraRules
 	defaultCoreRuntimeTemplate = fakeTemplate
-	coreRuntimeExtraRules = func(string, bool) string { return "" }
+	baseRuntimeExtraRules = func(string, bool) string { return "" }
 	return func() {
 		defaultCoreRuntimeTemplate = origTemplate
-		coreRuntimeExtraRules = origExtraRules
+		baseRuntimeExtraRules = origExtraRules
 	}
 }
 
 // MockCoreRuntimeTemplate replaces the core runtime apparmor template string
 // only, without suppressing the extra rules insertion. Use this when testing
-// that coreRuntimeExtraRules correctly inserts perl/python rules based on base.
+// that baseRuntimeExtraRules correctly inserts perl/python rules based on base.
 func MockCoreRuntimeTemplate(fakeTemplate string) (restore func()) {
 	orig := defaultCoreRuntimeTemplate
 	defaultCoreRuntimeTemplate = fakeTemplate
 	return func() { defaultCoreRuntimeTemplate = orig }
+}
+
+// MockOtherBaseTemplate replaces the non-core base apparmor template string
+// without suppressing the extra rules insertion.
+func MockOtherBaseTemplate(fakeTemplate string) (restore func()) {
+	orig := defaultOtherBaseTemplate
+	defaultOtherBaseTemplate = fakeTemplate
+	return func() { defaultOtherBaseTemplate = orig }
 }
 
 // MockClassicTemplate replaces the classic apprmor template.
