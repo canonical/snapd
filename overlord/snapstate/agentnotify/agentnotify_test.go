@@ -112,16 +112,13 @@ func (s *agentNotifySuite) TestMaybeAsyncFinishedRefreshNotification(c *C) {
 	})
 	defer restore()
 
-	tr := config.NewTransaction(s.st)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
-
 	agentnotify.MaybeSendClientFinishedRefreshNotification(s.st, sendInfo)
 	// no notification as refresh-appawareness-ux is enabled
 	// i.e. notices + warnings fallback is used instead
 	c.Check(connCheckCalled, Equals, 0)
 	c.Check(notificationCalled, Equals, 0)
 
+	tr := config.NewTransaction(s.st)
 	tr.Set("core", "experimental.refresh-app-awareness-ux", false)
 	tr.Commit()
 

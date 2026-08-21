@@ -2673,7 +2673,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C, refreshAppAwarenessUX bool) {
+func (s *snapmgrTestSuite) testInstallSubsequentLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
@@ -2712,13 +2712,6 @@ epoch: 1*
 			revno: snap.R("x3"),
 		},
 	}
-	// aliases removal is skipped when refresh-app-awareness-ux is enabled
-	if !refreshAppAwarenessUX {
-		expected = append(expected, fakeOp{
-			op:   "remove-snap-aliases",
-			name: "mock",
-		})
-	}
 	expected = append(expected, fakeOps{
 		{
 			op:          "run-inhibit-snap-for-unlink",
@@ -2732,7 +2725,7 @@ epoch: 1*
 		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "mock/x2"),
-			unlinkSkipBinaries: refreshAppAwarenessUX,
+			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		},
 		{
@@ -2815,12 +2808,11 @@ epoch: 1*
 }
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
-	s.testInstallSubsequentLocalRunThrough(c, false)
+	s.testInstallSubsequentLocalRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThroughSkipBinaries(c *C) {
-	s.enableRefreshAppAwarenessUX()
-	s.testInstallSubsequentLocalRunThrough(c, true)
+	s.testInstallSubsequentLocalRunThrough(c)
 }
 
 func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
@@ -2864,10 +2856,6 @@ epoch: 1*
 			revno: snap.R("x1"),
 		},
 		{
-			op:   "remove-snap-aliases",
-			name: "mock",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "mock",
 			inhibitHint: "refresh",
@@ -2877,9 +2865,10 @@ epoch: 1*
 			name: "mock",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "mock/100001"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "mock/100001"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:   "copy-data",

@@ -1785,7 +1785,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool) {
+func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -1814,10 +1814,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -1829,7 +1825,7 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 		{
 			op:                 "unlink-snap",
 			path:               filepath.Join(dirs.SnapMountDir, "some-snap/7"),
-			unlinkSkipBinaries: refreshAppAwarenessUX,
+			unlinkSkipBinaries: true,
 			inhibitHint:        "refresh",
 		},
 		{
@@ -1860,12 +1856,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 			op: "update-aliases",
 		},
 	}
-	// aliases removal is skipped when refresh-app-awareness-ux is enabled
-	if refreshAppAwarenessUX {
-		// remove "remove-snap-aliases" operation
-		expected = expected[1:]
-	}
-
 	// start with an easier-to-read error if this fails:
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -1892,15 +1882,6 @@ func (s *snapmgrTestSuite) testRevertRunThrough(c *C, refreshAppAwarenessUX bool
 	}, nil))
 	c.Check(snapst.RevertStatus, HasLen, 0)
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
-}
-
-func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
-	s.testRevertRunThrough(c, false)
-}
-
-func (s *snapmgrTestSuite) TestRevertRunThroughSkipBinaries(c *C) {
-	s.enableRefreshAppAwarenessUX()
-	s.testRevertRunThrough(c, true)
 }
 
 func (s *snapmgrTestSuite) TestRevertRevisionNotBlocked(c *C) {
@@ -2092,10 +2073,6 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 	if !failing {
 		expected := fakeOps{
 			{
-				op:   "remove-snap-aliases",
-				name: "snap-core18-to-core22",
-			},
-			{
 				op:          "run-inhibit-snap-for-unlink",
 				name:        "snap-core18-to-core22",
 				inhibitHint: "refresh",
@@ -2105,9 +2082,10 @@ func (s *snapmgrTestSuite) revertWithBase(c *C, expectedRev snap.Revision, expec
 				name: "snap-core18-to-core22",
 			},
 			{
-				op:          "unlink-snap",
-				path:        filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
-				inhibitHint: "refresh",
+				op:                 "unlink-snap",
+				path:               filepath.Join(dirs.SnapMountDir, "snap-core18-to-core22/7"),
+				unlinkSkipBinaries: true,
+				inhibitHint:        "refresh",
 			},
 			{
 				op:    "setup-profiles:Doing",
@@ -2189,10 +2167,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap_instance",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap_instance",
 			inhibitHint: "refresh",
@@ -2202,10 +2176,11 @@ func (s *snapmgrTestSuite) TestParallelInstanceRevertRunThrough(c *C) {
 			name: "some-snap_instance",
 		},
 		{
-			op:             "unlink-snap",
-			path:           filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
-			inhibitHint:    "refresh",
-			otherInstances: true,
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
+			otherInstances:     true,
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2296,7 +2271,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 
 	s.settle(c)
 
-	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 10)
+	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
 
 	// verify that LocalRevision is still -7
 	var snapst snapstate.SnapState
@@ -2339,10 +2314,6 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -2352,9 +2323,10 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2435,10 +2407,6 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -2448,9 +2416,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2481,8 +2450,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		// undoing everything from here down...
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
+			op: "update-aliases",
 		},
 		{
 			op:    "auto-connect:Undoing",
@@ -2505,9 +2473,6 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op:     "maybe-set-next-boot",
 			isUndo: true,
-		},
-		{
-			op: "update-aliases",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -2555,10 +2520,6 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 
 	expected := fakeOps{
 		{
-			op:   "remove-snap-aliases",
-			name: "some-snap",
-		},
-		{
 			op:          "run-inhibit-snap-for-unlink",
 			name:        "some-snap",
 			inhibitHint: "refresh",
@@ -2568,9 +2529,10 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op:          "unlink-snap",
-			path:        filepath.Join(dirs.SnapMountDir, "some-snap/2"),
-			inhibitHint: "refresh",
+			op:                 "unlink-snap",
+			path:               filepath.Join(dirs.SnapMountDir, "some-snap/2"),
+			unlinkSkipBinaries: true,
+			inhibitHint:        "refresh",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2605,9 +2567,6 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op:     "maybe-set-next-boot",
 			isUndo: true,
-		},
-		{
-			op: "update-aliases",
 		},
 	}
 
@@ -9276,7 +9235,6 @@ func (s *snapmgrTestSuite) TestRemodelAddGadgetAssetNoRemodelConflict(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestMigrateHome(c *C) {
-	s.enableRefreshAppAwarenessUX()
 	s.state.Lock()
 	defer s.state.Unlock()
 
