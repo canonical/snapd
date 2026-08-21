@@ -44,18 +44,18 @@ execute: |
         udev_tag=snap_test-snapd-udev-input-trigger_app
         
         # systemd >= 247 separates active tags (CURRENT_TAGS) from historical (TAGS)
-        if udevadm info --query property --property=CURRENT_TAGS "$event_dev" | grep -q .; then
+        if udevadm info "$event_dev" | grep -q "^E: CURRENT_TAGS="; then
             tag_field=CURRENT_TAGS
         else
             tag_field=TAGS
         fi
 
         echo "And the snap's tag is applied to the input event device"
-        udevadm info --query property --property="${tag_field}" --value "$event_dev" | MATCH ":${udev_tag}:"
+        udevadm info "$event_dev" | grep "^E: ${tag_field}=" | MATCH ":${udev_tag}:"
 
         echo "When the snap is removed"
         snap remove --purge test-snapd-udev-input-trigger
 
         echo "Then the snap's tag is no longer in the input event device's current tags"
-        udevadm info --query property --property="${tag_field}" --value "$event_dev" | NOMATCH ":${udev_tag}:"
+        udevadm info "$event_dev" | grep "^E: ${tag_field}=" | NOMATCH ":${udev_tag}:"
     fi
