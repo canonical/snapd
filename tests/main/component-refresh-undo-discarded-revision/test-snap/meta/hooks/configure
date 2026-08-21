@@ -1,0 +1,14 @@
+#!/bin/sh -e
+
+# when the marker file "$SNAP_COMMON/fail-configure" exists, this hook fails.
+# this is used to simulate a snap whose configure hook fails during a refresh.
+# a marker file is used (instead of a configuration option) because setting a
+# configuration option would itself run this hook and fail immediately.
+# $SNAP_COMMON is shared across all revisions of the snap, so the hook of the
+# revision being refreshed to sees the marker created before the refresh.
+if [ -e "$SNAP_COMMON/fail-configure" ]; then
+    echo "configure hook failing as requested"
+    exit 1
+fi
+
+exit 0

@@ -1,0 +1,58 @@
+summary: Test that the on-disk sequence file records snap components
+
+details: |
+  The on-disk sequence file (/var/lib/snapd/sequence/<snap>.json) is used for
+  failover handling (snap-repair). It is written by link-snap, before the
+  snap's components are linked. It used to never be updated when the components
+  were subsequently linked, so it permanently lacked the components of the
+  freshly installed revision, diverging from the in-memory sequence held in
+  state.json.
+
+  This test verifies that the sequence file records the components of each
+  installed revision, both on a fresh install and across a refresh.
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-2*, ubuntu-core-*-64*, fedora-*]
+
+environment:
+  SEQ_FILE: /var/lib/snapd/sequence/test-snap-seq-file.json
+
+prepare: |
+  snap pack test-snap
+  snap pack comp-one
+  snap pack comp-two
+
+restore: |
+  if snap list test-snap-seq-file 2>/dev/null; then
+    snap remove --purge test-snap-seq-file
+  fi
+  rm -f test-snap-seq-file_*.snap test-snap-seq-file+*.comp
+
+execute: |
+  echo "Install the snap with its components (revision x1)"
+  snap install --dangerous \
+    ./test-snap-seq-file_1.0_all.snap \
+    ./test-snap-seq-file+comp-one_1.0.comp \
+    ./test-snap-seq-file+comp-two_1.0.comp
+
+  snap list test-snap-seq-file | awk 'NR != 1 { print $3 }' | MATCH x1
+  snap run test-snap-seq-file comp-one
+  snap run test-snap-seq-file comp-two
+
+  echo "The sequence file records the components for the current revision"
+  test -f "$SEQ_FILE"
+  grep -q '"revision":"x1"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-one"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-two"' "$SEQ_FILE"
+
+  echo "Refresh the snap to revision x2"
+  snap install --dangerous \
+    ./test-snap-seq-file_1.0_all.snap \
+    ./test-snap-seq-file+comp-one_1.0.comp \
+    ./test-snap-seq-file+comp-two_1.0.comp
+
+  snap list test-snap-seq-file | awk 'NR != 1 { print $3 }' | MATCH x2
+
+  echo "After the refresh the sequence file records the components for x2"
+  grep -q '"revision":"x2"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-one"' "$SEQ_FILE"
+  grep -q '"component-name":"comp-two"' "$SEQ_FILE"
