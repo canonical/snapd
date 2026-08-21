@@ -1,0 +1,134 @@
+summary: Check that core.system.ntp.* config options configure systemd-timesyncd
+
+details: |
+    core.system.ntp.* configuration options allow configuring NTP time
+    synchronization behavior on Ubuntu Core. Setting these options writes
+    the corresponding settings to /etc/systemd/timesyncd.conf and restarts
+    systemd-timesyncd.service to apply them.
+
+    This test verifies that:
+    - with no configuration set, "snap get system system.ntp" reports no
+      configuration option
+    - setting a full configuration writes the expected values to the
+      configuration file and restarts systemd-timesyncd.service
+    - "snap get" reflects the currently configured (and normalized) values
+    - updating a single option preserves the other, previously configured
+      options
+    - re-applying an identical configuration does not trigger an unnecessary
+      service restart
+    - invalid configurations are rejected without modifying the on-disk
+      configuration file or restarting the service
+    - resetting the configuration to an empty document removes the
+      configuration file and restores the default (unset) behavior
+
+environment:
+    NTP_CONF: /etc/systemd/timesyncd.conf
+    NTP_CONF_RESTORE: /etc/systemd/timesyncd.conf.orig
+    NTP_CONF_VALID: /etc/systemd/timesyncd.conf.valid
+
+prepare: |
+    if [ -f "$NTP_CONF" ]; then
+        mv "$NTP_CONF" "$NTP_CONF_RESTORE"
+    fi
+
+restore: |
+    rm -f "$NTP_CONF"
+    if [ -f "$NTP_CONF_RESTORE" ]; then
+        mv "$NTP_CONF_RESTORE" "$NTP_CONF"
+    fi
+    systemctl reload-or-restart systemd-timesyncd.service
+
+execute: |
+    # Gets restart timestamp. This will be compared before and after settings some snap options
+    # to check if the daemon is restarted or not. If a restart is expected, the values will
+    # be different.
+    get_restart_ts() {
+        systemctl show systemd-timesyncd.service --property=ExecMainStartTimestampMonotonic | cut -d= -f2
+    }
+
+    # Verifies that "snap set $@" fails with error message matching the pattern in the
+    # first argument, that the on-disk configuration file was not modified, and that
+    # the timesyncd service was not restarted.
+    # Expects a pattern to match the error against as first argument, then the
+    # list of arguments for `snap set`
+    check_setting_invalid_config() {
+        pattern="$1"
+        shift
+        ts_before="$(get_restart_ts)"
+        not snap set "$@" 2>&1 | MATCH "$pattern"
+        # Exits with 0 if the files are identical
+        diff -u "$NTP_CONF_VALID" "$NTP_CONF"
+        [ "$ts_before" = "$(get_restart_ts)" ]
+    }
+
+    echo "With no configuration set, snap get reports no configuration option"
+    not snap get system system.ntp
+
+    echo "Setting a full, valid NTP configuration"
+    ts_before="$(get_restart_ts)"
+    snap set -t system system.ntp='{
+      "servers": ["192.168.1.1", "ntp.ubuntu.com"],
+      "fallback-servers": ["pool.ntp.org"],
+      "max-root-time-distance": "5s",
+      "min-poll-interval": "32s",
+      "max-poll-interval": "40m",
+      "connection-retry-interval": "5s",
+      "save-interval": "20s"
+    }'
+
+    echo "The configuration file contains the expected values"
+    MATCH '^\[Time\]$' < "$NTP_CONF"
+    MATCH '^NTP=192.168.1.1 ntp.ubuntu.com$' < "$NTP_CONF"
+    MATCH '^FallbackNTP=pool.ntp.org$' < "$NTP_CONF"
+    MATCH '^RootDistanceMaxSec=5s$' < "$NTP_CONF"
+    MATCH '^PollIntervalMinSec=32s$' < "$NTP_CONF"
+    MATCH '^PollIntervalMaxSec=40m$' < "$NTP_CONF"
+    MATCH '^ConnectionRetrySec=5s$' < "$NTP_CONF"
+    MATCH '^SaveIntervalSec=20s$' < "$NTP_CONF"
+
+    echo "systemd-timesyncd.service was restarted to apply the new configuration"
+    [ "$ts_before" != "$(get_restart_ts)" ]
+
+    echo "snap get reflects the normalized configuration"
+    snap get -d system system.ntp | MATCH '"max-poll-interval": "40m0s"'
+    snap get system system.ntp.min-poll-interval | MATCH '^32s$'
+    snap get system system.ntp.servers | MATCH '192.168.1.1'
+    snap get system system.ntp.servers | MATCH 'ntp.ubuntu.com'
+
+    echo "Updating a single option preserves the other configured options"
+    ts_before="$(get_restart_ts)"
+    snap set system system.ntp.min-poll-interval=1m
+    MATCH '^PollIntervalMinSec=1m$' < "$NTP_CONF"
+    MATCH '^NTP=192.168.1.1 ntp.ubuntu.com$' < "$NTP_CONF"
+    MATCH '^FallbackNTP=pool.ntp.org$' < "$NTP_CONF"
+    MATCH '^SaveIntervalSec=20s$' < "$NTP_CONF"
+    [ "$ts_before" != "$(get_restart_ts)" ]
+
+    echo "Re-applying the exact same configuration does not restart the service"
+    ts_before="$(get_restart_ts)"
+    snap set system system.ntp.min-poll-interval=1m
+    [ "$ts_before" = "$(get_restart_ts)" ]
+
+    echo "Save a copy of the current, valid configuration for later comparison"
+    cp "$NTP_CONF" "$NTP_CONF_VALID"
+
+    echo "Invalid configuration: min-poll-interval greater than max-poll-interval is rejected"
+    check_setting_invalid_config "cannot be greater than max-poll-interval" \
+        system system.ntp.min-poll-interval=1h
+
+    echo "Invalid configuration: malformed server name is rejected"
+    check_setting_invalid_config "is not a valid server name" \
+        -t system system.ntp.servers='["not..a..valid..host"]'
+
+    echo "Invalid configuration: connection-retry-interval below the minimum is rejected"
+    check_setting_invalid_config "cannot be smaller than 1s" \
+        system system.ntp.connection-retry-interval=500ms
+
+    echo "Resetting the configuration to an empty document removes the configuration file"
+    ts_before="$(get_restart_ts)"
+    snap set -t system system.ntp='{}'
+    not test -f "$NTP_CONF"
+    [ "$ts_before" != "$(get_restart_ts)" ]
+
+    echo "snap get reports no configuration option again after the reset"
+    not snap get system system.ntp
