@@ -3053,7 +3053,8 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 	if seedRefresh && removeAll {
-		if err := CheckSeedRefreshRemove(st, si, deviceCtx); err != nil {
+		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName()}
+		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
 	}

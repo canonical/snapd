@@ -431,7 +431,7 @@ func MockRefreshAppsCheck(fn func(info *snap.Info) error) (restore func()) {
 	return func() { refreshAppsCheck = old }
 }
 
-func MockCheckSeedRefreshRemove(fn func(st *state.State, si *snap.Info, dctx DeviceContext) error) (restore func()) {
+func MockCheckSeedRefreshRemove(fn func(st *state.State, candidate SeedRefreshCandidate, dctx DeviceContext) error) (restore func()) {
 	r := testutil.Backup(&CheckSeedRefreshRemove)
 	CheckSeedRefreshRemove = fn
 	return r
