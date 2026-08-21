@@ -93,9 +93,14 @@ type commonInterface struct {
 	serviceSnippets []interfaces.PlugServicesSnippet
 
 	conflictingConnectedInterfaces []string
+
+	unsupportedParallelInstancesPlug bool
+	unsupportedParallelInstancesSlot bool
 }
 
 var _ = interfaces.ConflictingConnectedInterfacesDefiner(&commonInterface{})
+var _ = interfaces.ParallelInstancesPlugDefiner(&commonInterface{})
+var _ = interfaces.ParallelInstancesSlotDefiner(&commonInterface{})
 
 // Name returns the interface name.
 func (iface *commonInterface) Name() string {
@@ -226,4 +231,12 @@ func (iface *commonInterface) UDevConnectedPlug(spec *udev.Specification, plug *
 
 func (iface *commonInterface) ConflictsWithOtherConnectedInterfaces() []string {
 	return iface.conflictingConnectedInterfaces
+}
+
+func (iface *commonInterface) ParallelInstancesSupportedForPlug() bool {
+	return !iface.unsupportedParallelInstancesPlug
+}
+
+func (iface *commonInterface) ParallelInstancesSupportedForSlot() bool {
+	return !iface.unsupportedParallelInstancesSlot
 }
