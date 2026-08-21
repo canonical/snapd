@@ -54,6 +54,7 @@ type (
 var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
 var DiskSpaceReservation = diskSpaceReservation
+var EnsureDiskSpaceReservationMigrated = (*SnapManager).ensureDiskSpaceReservationMigrated
 
 const (
 	None                        = none
