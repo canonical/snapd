@@ -222,6 +222,42 @@ func (s *toolSuite) TestSystemSnapSupportsReExec(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *toolSuite) TestInternalLibExecDirNoReexec(c *C) {
+	c.Assert(os.MkdirAll(dirs.DistroLibExecDir, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
+	})
+	defer restore()
+
+	dir, err := snapdtool.InternalLibExecDir()
+	c.Check(err, IsNil)
+	c.Check(dir, Equals, dirs.DistroLibExecDir)
+}
+
+func (s *toolSuite) TestInternalLibExecDirReadlinkError(c *C) {
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return "", fmt.Errorf("boom")
+	})
+	defer restore()
+
+	dir, err := snapdtool.InternalLibExecDir()
+	c.Check(err, ErrorMatches, "boom")
+	c.Check(dir, Equals, "")
+}
+
+func (s *toolSuite) TestInternalLibExecDirWithReexec(c *C) {
+	libExecDir := filepath.Join(s.snapdPath, "usr/lib/snapd")
+	c.Assert(os.MkdirAll(libExecDir, 0755), IsNil)
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return filepath.Join(s.snapdPath, "/usr/lib/snapd/snapd"), nil
+	})
+	defer restore()
+
+	dir, err := snapdtool.InternalLibExecDir()
+	c.Assert(err, IsNil)
+	c.Check(dir, Equals, libExecDir)
+}
+
 func (s *toolSuite) TestInternalToolPathNoReexec(c *C) {
 	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(dirs.DistroLibExecDir, "snapd"), nil
@@ -231,6 +267,17 @@ func (s *toolSuite) TestInternalToolPathNoReexec(c *C) {
 	path, err := snapdtool.InternalToolPath("potato")
 	c.Check(err, IsNil)
 	c.Check(path, Equals, filepath.Join(dirs.DistroLibExecDir, "potato"))
+}
+
+func (s *toolSuite) TestInternalToolPathReadlinkError(c *C) {
+	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
+		return "", fmt.Errorf("boom")
+	})
+	defer restore()
+
+	path, err := snapdtool.InternalToolPath("potato")
+	c.Check(err, ErrorMatches, "boom")
+	c.Check(path, Equals, "")
 }
 
 func (s *toolSuite) TestInternalToolPathWithReexec(c *C) {

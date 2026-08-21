@@ -4,8 +4,10 @@ details: |
     When snapd is tested in Ubuntu and Debian, .deb files are created using
     the snapd code from the local branch.
 
-    This test verifies that the debs have the 'built-using' header. It also
-    checks that Apparmor & Seccomp are compiled (only in Ubuntu), and that
+    This test verifies that the debs have the 'built-using' header, that
+    /usr/lib/snapd/info does not carry SNAPD_LTS_TRACKS (that map is UC
+    policy and lives in the snapd snap), and that Apparmor & Seccomp
+    are compiled (only in Ubuntu). It also checks that
     the snapd.session-agent.socket is properly enabled. On Ubuntu >= 26.04
     this is done via dh_installsystemduser (postinst calls deb-systemd-helper
     --user enable, creating the symlink in /etc/systemd/user/). On older
@@ -26,6 +28,9 @@ execute: |
         echo "$out" | MATCH 'Built-Using:.*libseccomp \(='
     fi
     echo "$out" | MATCH 'Built-Using:.*libcap2 \(='
+
+    echo "Ensure SNAPD_LTS_TRACKS is not in the snapd deb info file"
+    dpkg-deb --fsys-tarfile "$GOHOME"/snapd_*.deb | tar -xO ./usr/lib/snapd/info | NOMATCH '^SNAPD_LTS_TRACKS='
 
     # not running on 14.04 because we don't have user sessions there
     if not os.query is-trusty; then

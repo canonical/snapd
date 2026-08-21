@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -2087,6 +2088,99 @@ func SnapdInfoFromSnapFile(snapf Container, snapType Type) (version string, flag
 		return "", nil, err
 	}
 	return snapdtool.ParseInfoFile(bytes.NewBuffer(b), fmt.Sprintf("from %s snap", snapType))
+}
+
+// SnapdLTSTrackMapFromSnapFile returns the LTS track map and snapd version from
+// /usr/lib/snapd/info inside the given snapd snap. If SNAPD_LTS_TRACKS is
+// absent or empty, trackMap is nil.
+func SnapdLTSTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	snapdVersion, flags, err := SnapdInfoFromSnapFile(snapf, TypeSnapd)
+	if err != nil {
+		return nil, "", err
+	}
+	if flags == nil {
+		return nil, snapdVersion, nil
+	}
+	raw, ok := flags["SNAPD_LTS_TRACKS"]
+	if !ok {
+		return nil, snapdVersion, nil
+	}
+	trackMap, err = parseSnapdLTSTracks(raw)
+	if err != nil {
+		return nil, snapdVersion, err
+	}
+	return trackMap, snapdVersion, nil
+}
+
+// SnapdLTSTrackMapFromThis returns the LTS track map and snapd version from the
+// info file belonging to this process. Distro packages do not ship
+// SNAPD_LTS_TRACKS; the map lives in the snapd snap. If SNAPD_LTS_TRACKS is
+// absent or empty, trackMap is nil.
+func SnapdLTSTrackMapFromThis() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	return snapdLTSTrackMapFromThis()
+}
+
+var snapdLTSTrackMapFromThis = snapdLTSTrackMapFromThisImpl
+
+// snapdLTSTrackMapFromThisImpl reads the SNAPD_LTS_TRACKS key from the info
+// file next to this process's snapd binary. Distro packages do not ship this
+// key; it is present when executing from the snapd snap. The directory is
+// snapdtool.InternalLibExecDir(): dirs.DistroLibExecDir for a distro package
+// (/usr/lib/snapd or /usr/libexec/snapd), or the libexec dir of a re-execed
+// snapd snap. This is not the same as /usr/lib/snapd/info inside a snap
+// container (see SnapdLTSTrackMapFromSnapFile).
+func snapdLTSTrackMapFromThisImpl() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	dir, err := snapdtool.InternalLibExecDir()
+	if err != nil {
+		return nil, "", err
+	}
+	snapdVersion, flags, err := snapdtool.SnapdVersionFromInfoFile(dir)
+	if err != nil {
+		return nil, "", err
+	}
+	raw, ok := flags["SNAPD_LTS_TRACKS"]
+	if !ok {
+		return nil, snapdVersion, nil
+	}
+	trackMap, err = parseSnapdLTSTracks(raw)
+	if err != nil {
+		return nil, snapdVersion, err
+	}
+	return trackMap, snapdVersion, nil
+}
+
+// parseSnapdLTSTracks parses the value of the SNAPD_LTS_TRACKS key from a
+// snapd info file. The expected JSON shape is a map of UC boot base version
+// (e.g. 18, 20) to input-track → LTS-target-track rules. An empty or
+// whitespace-only value returns (nil, nil). Malformed JSON or non-numeric
+// boot-base keys return an error.
+func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	raw = strings.Trim(raw, "'\"")
+	if raw == "" {
+		return nil, nil
+	}
+
+	var stringKeyed map[string]map[string]string
+	if err := json.Unmarshal([]byte(raw), &stringKeyed); err != nil {
+		return nil, fmt.Errorf("cannot parse SNAPD_LTS_TRACKS: %v", err)
+	}
+	if len(stringKeyed) == 0 {
+		return nil, nil
+	}
+
+	tracks := make(map[int]map[string]string, len(stringKeyed))
+	for bootBaseStr, rules := range stringKeyed {
+		bootBase, err := strconv.Atoi(bootBaseStr)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse SNAPD_LTS_TRACKS boot base %q: %v", bootBaseStr, err)
+		}
+		tracks[bootBase] = rules
+	}
+	return tracks, nil
 }
 
 // SnapdAssertionMaxFormatsFromSnapFile returns the supported assertion max

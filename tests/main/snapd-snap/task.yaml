@@ -208,6 +208,7 @@ execute: |
     echo "Check /usr/lib/snapd/info"
     test -f squashfs-root/usr/lib/snapd/info
     MATCH SNAPD_ASSERTS_FORMATS < squashfs-root/usr/lib/snapd/info
+    MATCH '^SNAPD_LTS_TRACKS=' < squashfs-root/usr/lib/snapd/info
 
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
 
@@ -216,6 +217,7 @@ execute: |
 
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
+    MATCH '^SNAPD_LTS_TRACKS=' < /snap/snapd/current/usr/lib/snapd/info
     cat >> snapd-cleanup.sh <<EOF
     #!/bin/sh
     if [ $(find /snap/snapd/ -maxdepth 1 -type d 2>/dev/null | wc -l) -gt 2 ]; then
