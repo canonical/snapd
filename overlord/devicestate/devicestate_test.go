@@ -4205,6 +4205,59 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureFDE(c *C) {
 	c.Check(called, Equals, 1)
 }
 
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEResetsRateLimitReset(c *C) {
+	s.setHybridModelInState(c)
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "26.04"})()
+	defer release.MockOnClassic(true)()
+
+	// MarkSuccessful (lockout reset) succeeds
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		return nil
+	})()
+
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
+		c.Check(lockoutResetErr, IsNil)
+		return nil
+	})()
+
+	resetCalled := 0
+	defer devicestate.MockFdestateResetDALockoutRateLimit(func(st *state.State) error {
+		resetCalled++
+		return nil
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "run")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
+	// the lockout was reset, so the rate-limit bucket is refilled
+	c.Check(resetCalled, Equals, 1)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureFDENoRateLimitReset(c *C) {
+	s.setHybridModelInState(c)
+	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "26.04"})()
+	defer release.MockOnClassic(true)()
+
+	// MarkSuccessful (lockout reset) fails
+	defer devicestate.MockSecbootMarkSuccessful(func() error {
+		return fmt.Errorf("MarkSuccessful did not work")
+	})()
+
+	defer devicestate.MockFdestateAttemptAutoRepairIfNeeded(func(st *state.State, lockoutResetErr error, runPostInstallChecks bool) error {
+		c.Check(lockoutResetErr, ErrorMatches, `MarkSuccessful did not work`)
+		return nil
+	})()
+
+	defer devicestate.MockFdestateResetDALockoutRateLimit(func(st *state.State) error {
+		c.Errorf("unexpected call to reset DA lockout rate-limit")
+		return nil
+	})()
+
+	devicestate.SetSystemMode(s.mgr, "run")
+	err := devicestate.EnsureFDE(s.mgr)
+	c.Assert(err, IsNil)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerEnsureFDEClassicNoPostInstallChecks(c *C) {
 	s.setHybridModelInState(c)
 	defer release.MockReleaseInfo(&release.OS{ID: "ubuntu", VersionID: "25.04"})()

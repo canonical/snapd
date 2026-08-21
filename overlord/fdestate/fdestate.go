@@ -173,6 +173,100 @@ type FdeState struct {
 	// PendingExternalOperations keeps a list of changes that capture FDE
 	// related operations running outside of snapd.
 	PendingExternalOperations []externalOperation `json:"pending-external-operations"`
+
+	// DALockoutRateLimit is a token bucket that rate-limits operations
+	// which trial a credential against the sealed key (e.g. change-auth).
+	// It mirrors the TPM Dictionary Attack (DA) lockout parameters so that
+	// snapd never lets enough failed attempts through to trip actual
+	// hardware DA lockout. A zero-value bucket is treated as full.
+	DALockoutRateLimit daLockoutRateLimit `json:"da-lockout-rate-limit"`
+}
+
+// daLockoutRateLimit is a token bucket mirroring the TPM DA lockout counter.
+type daLockoutRateLimit struct {
+	Tokens     int       `json:"tokens"`
+	LastRefill time.Time `json:"last-refill"`
+}
+
+const (
+	// maxDALockoutTokens is the maximum number of tokens in the bucket. It
+	// is less than the maximum number of tries (32) (see secboot tpm2/provisioning.go).
+	maxDALockoutTokens = 16
+	// daLockoutRefillInterval is the interval at which one token is refilled.
+	// It mirrors the TPM DA lockout recoveryTime (7200s) (see secboot tpm2/provisioning.go).
+	daLockoutRefillInterval = 2 * time.Hour
+)
+
+// consumeDALockoutToken lazily refills the DA lockout token bucket and then
+// consumes a single token. It must be called with the state lock held.
+//
+// If the bucket is empty a *DALockoutThrottledError is returned and no token
+// is consumed.
+func consumeDALockoutToken(st *state.State) error {
+	var s FdeState
+	if err := st.Get(fdeStateKey, &s); err != nil {
+		return err
+	}
+
+	bucket := s.DALockoutRateLimit
+	now := timeNow()
+
+	// A zero-value bucket (never initialized) starts full.
+	if bucket.LastRefill.IsZero() {
+		bucket.Tokens = maxDALockoutTokens
+		bucket.LastRefill = now
+	}
+
+	// Lazily refill based on the elapsed time since the last refill.
+	if elapsed := now.Sub(bucket.LastRefill); elapsed >= daLockoutRefillInterval {
+		add := int(elapsed / daLockoutRefillInterval)
+		bucket.Tokens += add
+		if bucket.Tokens > maxDALockoutTokens {
+			bucket.Tokens = maxDALockoutTokens
+		}
+		bucket.LastRefill = now
+	}
+
+	if bucket.Tokens <= 0 {
+		return &DALockoutThrottledError{RetryAfter: bucket.LastRefill.Add(daLockoutRefillInterval)}
+	}
+
+	bucket.Tokens--
+	s.DALockoutRateLimit = bucket
+	st.Set(fdeStateKey, &s)
+
+	return nil
+}
+
+// resetDALockoutRateLimit refills the DA lockout token bucket to its maximum.
+// It must be called with the state lock held. If the FDE state does not exist
+// yet, it is a no-op.
+func resetDALockoutRateLimit(st *state.State) error {
+	var s FdeState
+	err := st.Get(fdeStateKey, &s)
+	if errors.Is(err, state.ErrNoState) {
+		// no FDE state yet, nothing to reset
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	s.DALockoutRateLimit = daLockoutRateLimit{
+		Tokens:     maxDALockoutTokens,
+		LastRefill: timeNow(),
+	}
+	st.Set(fdeStateKey, &s)
+
+	return nil
+}
+
+// ResetDALockoutRateLimit refills the DA lockout rate-limit token bucket to its
+// maximum. It is meant to be called right after the TPM DA lockout counter has
+// been reset, so both stay in lockstep. It must be called with the state lock
+// held.
+func ResetDALockoutRateLimit(st *state.State) error {
+	return resetDALockoutRateLimit(st)
 }
 
 const fdeStateKey = "fde"
@@ -783,6 +877,15 @@ func ChangeAuth(st *state.State, authMode device.AuthMode, old, new string, keys
 		if kd.AuthMode() != authMode {
 			return nil, fmt.Errorf("invalid key slot reference %s: unsupported authentication mode %q, expected %q", keyslot.Ref().String(), kd.AuthMode(), authMode)
 		}
+	}
+
+	// Consume a rate-limit token as the final gate before the credentials are
+	// trialed against the sealed key. This mirrors the TPM DA lockout counter
+	// and ensures snapd never lets enough attempts through to trip actual
+	// hardware DA lockout. This is intentionally response-agnostic: every
+	// attempt consumes a token regardless of the eventual trial result.
+	if err := consumeDALockoutToken(st); err != nil {
+		return nil, err
 	}
 
 	// Auth data must be in memory to avoid leaking credentials.

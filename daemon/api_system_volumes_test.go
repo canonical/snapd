@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -946,6 +947,27 @@ func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseChangeAuthEr
 	c.Check(rsp.Kind, Equals, client.ErrorKindKeyslotsNotFound)
 	c.Check(rsp.Message, Equals, `key slot reference (container-role: "some-container-role", name: "some-name") not found`)
 	c.Check(rsp.Value, DeepEquals, []fdestate.KeyslotRef{{ContainerRole: "some-container-role", Name: "some-name"}})
+}
+
+func (s *systemVolumesSuite) TestSystemVolumesActionChangePassphraseThrottled(c *C) {
+	s.daemon(c)
+	s.mockHybridSystem()
+
+	retryAfter := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	s.AddCleanup(daemon.MockFdestateChangeAuth(func(st *state.State, authMode device.AuthMode, old, new string, keyslotRefs []fdestate.KeyslotRef) (*state.TaskSet, error) {
+		return nil, &fdestate.DALockoutThrottledError{RetryAfter: retryAfter}
+	}))
+
+	body := strings.NewReader(`{"action": "change-passphrase", "old-passphrase": "old", "new-passphrase": "new"}`)
+	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	rsp := s.errorReq(c, req, nil, actionIsExpected)
+	c.Assert(rsp.Status, Equals, 429)
+	c.Check(rsp.Kind, Equals, client.ErrorKindFDEChangeAuthThrottled)
+	c.Check(rsp.Message, Equals, "too many authentication attempts, try again later")
+	c.Check(rsp.Value, DeepEquals, map[string]any{"retry-after": retryAfter})
 }
 
 func (s *systemVolumesSuite) TestSystemVolumesActionChangePIN(c *C) {
