@@ -117,17 +117,6 @@ var templateCommon = `
   owner @{HOME}/.Private/ r,
   owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
 
-  # for python apps/services
-  #include <abstractions/python>
-  /etc/python3.[0-9]*/**                                r,
-
-  ###PYCACHEDENY###
-
-  # for perl apps/services
-  #include <abstractions/perl>
-  # Missing from perl abstraction
-  /usr/lib/@{multiarch}/perl{,5,-base}/auto/**.so* mr,
-
   # Note: the following dangerous accesses should not be allowed in most
   # policy, but we cannot explicitly deny since other trusted interfaces might
   # add them.
@@ -502,8 +491,26 @@ var templateCommon = `
 `
 
 var templateFooter = `
+###BASE_RUNTIME_EXTRA###
 ###SNIPPETS###
 }
+`
+
+// defaultPerlTemplateRules contains perl runtime-specific rules.
+// Perl has been removed from core24 onwards.
+var defaultPerlTemplateRules = `
+  # for perl apps/services
+  #include <abstractions/perl>
+  # Missing from perl abstraction
+  /usr/lib/@{multiarch}/perl{,5,-base}/auto/**.so* mr,
+`
+
+// defaultPythonTemplateRules contains python runtime-specific rules.
+// Python has been removed from core26 onwards.
+var defaultPythonTemplateRules = `
+  # for python apps/services
+  #include <abstractions/python>
+  /etc/python3.[0-9]*/** r,
 `
 
 // defaultCoreRuntimeTemplateRules contains core* runtime-specific rules. In general,
@@ -516,21 +523,6 @@ var defaultCoreRuntimeTemplateRules = `
   /{,usr/}lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
-
-  # for python apps/services
-  /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
-  # additional accesses needed for newer pythons in later bases
-  /usr/lib{,32,64}/python3.[0-9]*/**.{pyc,so}           mr,
-  /usr/lib{,32,64}/python3.[0-9]*/**.{egg,py,pth}       r,
-  /usr/lib{,32,64}/python3.[0-9]*/{site,dist}-packages/ r,
-  /usr/lib{,32,64}/python3.[0-9]*/lib-dynload/*.so      mr,
-  /usr/include/python3.[0-9]*/pyconfig.h               r,
-
-  # for perl apps/services
-  /usr/bin/perl{,5*} ixr,
-  # AppArmor <2.12 doesn't have rules for perl-base, so add them here
-  /usr/lib/@{multiarch}/perl{,5,-base}/**            r,
-  /usr/lib/@{multiarch}/perl{,5,-base}/[0-9]*/**.so* mr,
 
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
@@ -684,6 +676,29 @@ var defaultCoreRuntimeTemplateRules = `
   # Allow pidof (and killall5, as pidof can be a symlink to killall5 in some distros)
   /{,usr/}bin/pidof ixr,
   /{,usr/}sbin/killall5 ixr,
+`
+
+// defaultCoreRuntimePerlTemplateRules contains perl runtime-specific rules
+// for core* bases. Perl has been removed from core24 onwards.
+var defaultCoreRuntimePerlTemplateRules = `
+  # for perl apps/services
+  /usr/bin/perl{,5*} ixr,
+  # AppArmor <2.12 doesn't have rules for perl-base, so add them here
+  /usr/lib/@{multiarch}/perl{,5,-base}/**            r,
+  /usr/lib/@{multiarch}/perl{,5,-base}/[0-9]*/**.so* mr,
+`
+
+// defaultCoreRuntimePythonTemplateRules contains python runtime-specific rules
+// for core* bases. Python has been removed from core26 onwards.
+var defaultCoreRuntimePythonTemplateRules = `
+  # for python apps/services
+  /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
+  # additional accesses needed for newer pythons in later bases
+  /usr/lib{,32,64}/python3.[0-9]*/**.{pyc,so}           mr,
+  /usr/lib{,32,64}/python3.[0-9]*/**.{egg,py,pth}       r,
+  /usr/lib{,32,64}/python3.[0-9]*/{site,dist}-packages/ r,
+  /usr/lib{,32,64}/python3.[0-9]*/lib-dynload/*.so      mr,
+  /usr/include/python3.[0-9]*/pyconfig.h               r,
 `
 
 // defaultCoreRuntimeTemplate contains the default apparmor template for core* bases. It

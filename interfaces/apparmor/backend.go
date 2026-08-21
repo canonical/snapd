@@ -45,6 +45,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
@@ -666,6 +667,36 @@ var (
 	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
+// isNonCoreBase reports whether base names a non-core base.
+// An empty base is the implicit "core" base, so it returns false.
+func isNonCoreBase(base string) bool {
+	return base != "" && !coreRuntimePattern.MatchString(base)
+}
+
+// baseRuntimeExtraRules returns additional apparmor rules for perl/python
+// runtimes for all core and non-core bases, including the pycache deny
+// snippet unless suppressPycacheDeny is set.
+var baseRuntimeExtraRules = func(base string, suppressPycacheDeny bool) string {
+	pycacheDeny := pycacheDenySnippet
+	if suppressPycacheDeny {
+		pycacheDeny = ""
+	}
+	pythonRules := defaultPythonTemplateRules + pycacheDeny
+	if isNonCoreBase(base) {
+		return defaultPerlTemplateRules + pythonRules
+	}
+	// For base "" (implicit core) or "core" (explicit), TrimPrefix yields ""
+	// so coreVer=0 and Atoi error intentionally ignored. Any other value here
+	// matches ^core[0-9][0-9]$ so TrimPrefix yields two digits and Atoi succeeds.
+	coreVer, _ := strconv.Atoi(strings.TrimPrefix(base, "core"))
+	if coreVer >= 26 {
+		return ""
+	} else if base == "core24" {
+		return pythonRules + defaultCoreRuntimePythonTemplateRules
+	}
+	return defaultPerlTemplateRules + defaultCoreRuntimePerlTemplateRules + pythonRules + defaultCoreRuntimePythonTemplateRules
+}
+
 func (b *Backend) deriveContent(spec *Specification, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions) (content map[string]osutil.FileState) {
 	runnables := appSet.Runnables()
 	content = make(map[string]osutil.FileState, len(runnables))
@@ -748,7 +779,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	// case, the 'core' snap is used for the runtime), use the base
 	// apparmor template, otherwise use the default template.
 	var policy string
-	if snapInfo.Base != "" && !coreRuntimePattern.MatchString(snapInfo.Base) {
+	if isNonCoreBase(snapInfo.Base) {
 		policy = defaultOtherBaseTemplate
 	} else {
 		policy = defaultCoreRuntimeTemplate
@@ -763,6 +794,8 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
+		case "###BASE_RUNTIME_EXTRA###":
+			return baseRuntimeExtraRules(snapInfo.Base, spec.SuppressPycacheDeny())
 		case "###KERNEL_MODULES_AND_FIRMWARE###":
 			if opts.KernelSnap != "" {
 				return fmt.Sprintf(`
@@ -971,11 +1004,6 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 			} else {
 				return ""
 			}
-		case "###PYCACHEDENY###":
-			if spec.SuppressPycacheDeny() {
-				return ""
-			}
-			return pycacheDenySnippet
 		case "###CHANGEPROFILE_RULE###":
 			features, _ := parserFeatures()
 			if strutil.ListContains(features, "unsafe") {
