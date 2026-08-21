@@ -39,12 +39,12 @@ var (
 
 // InitialFDEState is a FDE state being built during initial sealing.
 type InitialFDEState interface {
-       // UpdateParameters updates the parameters for given keyslot role and
-       // container role.
-       UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error
-       // UpdatePCRHandle updates the policy revocation counter handler for
-       // a given keyslot role.
-       UpdatePCRHandle(role string, pcrHandle uint32) error
+	// UpdateParameters updates the parameters for given keyslot role and
+	// container role.
+	UpdateParameters(role string, containerRole string, bootModes []string, models []secboot.ModelForSealing, tpmPCRProfile []byte) error
+	// UpdatePCRHandle updates the policy revocation counter handler for
+	// a given keyslot role.
+	UpdatePCRHandle(role string, pcrHandle uint32) error
 }
 
 func runKeySealRequests(key secboot.BootstrappedContainer, useTokens bool) []secboot.SealKeyRequest {
