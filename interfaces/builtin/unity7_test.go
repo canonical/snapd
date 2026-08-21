@@ -117,6 +117,59 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Check(seccompSpec.SnippetForTag("snap.other-snap.app2"), testutil.Contains, "bind\n")
 }
 
+func (s *Unity7InterfaceSuite) TestAppIndicatorAppArmor(c *C) {
+	apparmorSpec := apparmor.NewSpecification(s.plug.AppSet())
+	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, IsNil)
+	snippet := apparmorSpec.SnippetForTag("snap.other-snap.app2")
+
+	c.Check(snippet, testutil.Contains, `dbus (bind)
+    bus=session
+    name=org.freedesktop.StatusNotifierItem-[0-9]*-[0-9]*,`)
+	c.Check(snippet, testutil.Contains, `dbus (send)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierItem
+    member="New{AttentionIcon,Icon,IconThemePath,OverlayIcon,Status,Title,ToolTip}"
+    peer=(label="{plasmashell,unconfined}"),`)
+	c.Check(snippet, testutil.Contains, `dbus (send)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.StatusNotifierItem
+    member="New{Icon,IconThemePath,ToolTip}"
+    peer=(label="{plasmashell,unconfined}"),`)
+	c.Check(snippet, testutil.Contains, `dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*,org/ayatana/NotificationItem/*}
+    interface=org.kde.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate,ProvideXdgActivationToken,XAyatanaSecondaryActivate}
+    peer=(label="{plasmashell,unconfined}"),`)
+	c.Check(snippet, testutil.Contains, `dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.StatusNotifierItem
+    member={Activate,ContextMenu,Scroll,SecondaryActivate}
+    peer=(label="{plasmashell,unconfined}"),`)
+	c.Check(snippet, testutil.Contains, `dbus (send)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label="{plasmashell,unconfined}"),`)
+	c.Check(snippet, testutil.Contains, `dbus (send)
+    bus=session
+    path=/{StatusNotifierItem/menu,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/*/Menu}
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(label="{plasmashell,unconfined}"),`)
+	c.Check(snippet, testutil.Contains, `dbus (receive)
+    bus=session
+    path=/{StatusNotifierItem{,/[0-9]*},StatusNotifierItem/menu,org/chromium/StatusNotifierItem/[0-9]*,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/**}
+    interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
+    member={Get*,AboutTo*,Event*}
+    peer=(label="{plasmashell,unconfined}"),`)
+}
+
 func (s *Unity7InterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
