@@ -12,12 +12,14 @@ permissions:
 
 jobs:
   scan-open-prs:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, spread-enabled]
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       MAX_RUN_ATTEMPTS: 5
       MAX_FAILED_TASKS: 30
+      TEST_PREDICTOR_THRESHOLD: "0.5"
+      TEST_PREDICTOR_URL: http://test-predictor.snapd.canonical.com:5000
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -27,6 +29,105 @@ jobs:
           set -euo pipefail
 
           source .github/scripts/common.sh
+
+          predictor_allows_rerun() {
+            local workflow_run_id="$1"
+            local workflow_run_attempt="$2"
+            local parser="$GITHUB_WORKSPACE/.github/scripts/parse-results-predictor.py"
+            local test_predictor_url="${TEST_PREDICTOR_URL%/}"
+            local results_dir artifact_rows artifact_id artifact_name
+            local verb response probability
+            local predictor_rows=()
+
+            results_dir=$(mktemp -d)
+
+            # This mirrors spread-results-reporter.yaml: list every artifact for the
+            # run, then download the spread result artifacts for the current attempt.
+            GH_RETRY_CONTEXT="list artifacts for run_id=$workflow_run_id"
+            if ! artifact_rows=$(gh_retry api --paginate \
+              "repos/$GH_REPO/actions/runs/$workflow_run_id/artifacts?per_page=100" \
+              --jq ".artifacts[] | select(.name | startswith(\"spread-results-${workflow_run_id}-${workflow_run_attempt}\")) | [.id, .name] | @tsv"); then
+              echo "Could not list artifacts for run_id=$workflow_run_id"
+              GH_RETRY_CONTEXT=""
+              rm -rf "$results_dir"
+              return 1
+            fi
+            GH_RETRY_CONTEXT=""
+
+            if [[ -z "$artifact_rows" ]]; then
+              echo "No spread result artifacts found for run_id=$workflow_run_id attempt=$workflow_run_attempt"
+              rm -rf "$results_dir"
+              return 1
+            fi
+
+            while IFS=$'\t' read -r artifact_id artifact_name; do
+              echo "Downloading artifact: $artifact_name.zip"
+              if ! gh api \
+                -H "Accept: application/vnd.github+json" \
+                "repos/$GH_REPO/actions/artifacts/$artifact_id/zip" \
+                >"$results_dir/$artifact_name.zip"; then
+                echo "Could not download artifact $artifact_name"
+                rm -rf "$results_dir"
+                return 1
+              fi
+
+              mkdir "$results_dir/$artifact_name"
+              if ! unzip -q "$results_dir/$artifact_name.zip" -d "$results_dir/$artifact_name"; then
+                echo "Could not unzip artifact $artifact_name"
+                rm -rf "$results_dir"
+                return 1
+              fi
+            done <<<"$artifact_rows"
+
+            if ! compgen -G "$results_dir/spread-results-${workflow_run_id}-*/*.json" >/dev/null; then
+              echo "No spread result JSON files found for run_id=$workflow_run_id"
+              rm -rf "$results_dir"
+              return 1
+            fi
+
+            # Consolidate and query predictions using the same parser, fields, and
+            # endpoint as test-predictor-reporter.sh.
+            if ! python3 "$parser" consolidate \
+              "$results_dir/consolidated-report.json" \
+              "$results_dir"/spread-results-"$workflow_run_id"-*/*.json; then
+              echo "Could not consolidate spread results for run_id=$workflow_run_id"
+              rm -rf "$results_dir"
+              return 1
+            fi
+
+            for verb in preparing executing restoring; do
+              mapfile -t predictor_rows < <(
+                python3 "$parser" predictor-rows "$results_dir/consolidated-report.json" "$verb"
+              )
+              if ((${#predictor_rows[@]} == 0)); then
+                continue
+              fi
+
+              while IFS=$'\t' read -r display_name occurrences full_name system scenario; do
+                response=$(curl -sf -G "$test_predictor_url/predict" \
+                  --max-time 10 \
+                  --data-urlencode "name=$full_name" \
+                  --data-urlencode "verb=$verb" \
+                  --data-urlencode "system=$system" \
+                  --data-urlencode "scenario=$scenario" \
+                  --data-urlencode "attempt=$workflow_run_attempt" \
+                  2>/dev/null) || response='{}'
+                probability=$(python3 "$parser" success-probability <<<"$response")
+
+                if [[ -n "$probability" ]] && awk \
+                  -v probability="$probability" \
+                  -v threshold="$TEST_PREDICTOR_THRESHOLD" \
+                  'BEGIN { exit !(probability > threshold) }'; then
+                  echo "$display_name has predicted success probability $probability, above $TEST_PREDICTOR_THRESHOLD"
+                  rm -rf "$results_dir"
+                  return 0
+                fi
+              done < <(printf '%s\n' "${predictor_rows[@]}")
+            done
+
+            rm -rf "$results_dir"
+            return 1
+          }
 
           GH_RETRY_CONTEXT="ci-auto-trigger checkpoint lookup"
           if ! checkpoint_runs=$(gh_retry run list \
@@ -187,6 +288,13 @@ jobs:
             echo "PR #$pr_number | Step: required spread failure threshold checks"
             if ! required_spread_failure_threshold_allows_rerun "$last_run" "$pr_base" "$GH_REPO" "$MAX_FAILED_TASKS"; then
               echo "PR #$pr_number | Skip: $NOT_RERUN_REASON"
+              echo "----- End PR #$pr_number -----"
+              continue
+            fi
+
+            echo "PR #$pr_number | Step: test predictor eligibility"
+            if ! predictor_allows_rerun "$last_run" "$run_attempt"; then
+              echo "PR #$pr_number | Skip: no failed test has predicted success above $TEST_PREDICTOR_THRESHOLD"
               echo "----- End PR #$pr_number -----"
               continue
             fi
