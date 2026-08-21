@@ -68,6 +68,10 @@ prepare: |
     rm -r "$snapddir"
 
 execute: |
+    profile_regeneration_change_count() {
+        snap changes | awk '/Regenerate security profiles/ { count++ } END { print count + 0 }'
+    }
+
     if [ "$SNAP_TO_USE_FIRST" = "core" ]; then
 
         # first install our core snap because we don't have the snapd snap on 
@@ -102,6 +106,8 @@ execute: |
         # snaps from inside the devmode non-core based snap
         snap install --devmode "$BASE_NON_CORE_DEVMODE_SNAP"
 
+        regeneration_changes_count="$(profile_regeneration_change_count)"
+
         # umask is the command we execute to avoid yet another layer of quoting
         OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | snap run --shell "${BASE_CORE_DEVMODE_SNAP}")
         if [ "$OUTPUT" != "0022" ]; then
@@ -114,6 +120,10 @@ execute: |
             echo "test failed"
             exit 1
         fi
+
+        # ensure running a snap from a devmode snap does not cause snapd to
+        # regenerate security profiles.
+        test "$(profile_regeneration_change_count)" = "$regeneration_changes_count"
 
     elif [ "$SNAP_TO_USE_FIRST" = "snapd" ]; then
         # we already had the core snap installed, so we need to purge things
@@ -150,6 +160,8 @@ execute: |
         snap install --devmode --beta "$BASE_CORE_DEVMODE_SNAP"
         snap install "$BASE_CORE_STRICT_SNAP"
 
+        regeneration_changes_count="$(profile_regeneration_change_count)"
+
         OUTPUT=$(echo "snap run ${BASE_CORE_STRICT_SNAP}.sh -c umask" | snap run --shell "${BASE_CORE_DEVMODE_SNAP}")
         if [ "$OUTPUT" != "0022" ]; then
             echo "test failed"
@@ -161,6 +173,10 @@ execute: |
             echo "test failed"
             exit 1
         fi
+
+        # ensure running a snap from a devmode snap does not cause snapd to
+        # regenerate security profiles.
+        test "$(profile_regeneration_change_count)" = "$regeneration_changes_count"
 
         # undo the purging
         apt install -y "$GOHOME"/snapd_*.deb
