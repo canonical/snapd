@@ -298,6 +298,8 @@ parts:
       fi
       # make sure to set the version we declared in pull
       ./mkversion.sh "$VERSION"
+      # SNAPD_LTS_TRACKS is UC policy and is not shipped in distro packages.
+      go run -mod=vendor ./snap/ltstrack/info >> data/info
 
       # double check the toolchain
       echo "--- go version $(go version)"
