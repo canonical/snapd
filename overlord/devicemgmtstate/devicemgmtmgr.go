@@ -326,7 +326,7 @@ func Manager(state *state.State, runner *state.TaskRunner, backend deviceBackend
 	m := &DeviceMgmtManager{
 		state:    state,
 		device:   backend,
-		handlers: map[string]MessageHandler{},
+		handlers: make(map[string]MessageHandler),
 	}
 
 	runner.AddHandler("exchange-mgmt-messages", m.doExchangeMessages, nil)
