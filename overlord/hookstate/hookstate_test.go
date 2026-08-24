@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -1585,5 +1586,5 @@ func (s *componentHookManagerSuite) TestComponentHookWithoutHookIsError(c *C) {
 }
 
 func (s *componentHookManagerSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("hookmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("hookmgr.go", c, false)
 }

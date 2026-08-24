@@ -381,7 +381,7 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 		kModsRevs:     kModsRevs,
 		types:         []snap.Type{snap.TypeKernel, snap.TypeBase, snap.TypeGadget},
 	}
-	gadgetSnapPath, kernelSnapPath, kCompsPaths, ginfo, mountCmd, _ := s.mockSystemSeedWithLabel(
+	gadgetSnapPath, kernelSnapPath, kCompsPaths, ginfo, mountCmd, model := s.mockSystemSeedWithLabel(
 		c, label, seedCopyFn, seedOpts)
 
 	// Unpack gadget snap from seed where it would have been mounted
@@ -734,6 +734,15 @@ func (s *deviceMgrInstallAPISuite) testInstallFinishStep(c *C, opts finishStepOp
 	}
 	for _, f := range expectedFiles {
 		c.Check(f, testutil.FilePresent)
+	}
+	seedGrubCfg := filepath.Join(seedDir, "EFI/ubuntu/grub.cfg")
+	seedGrubCfgData, err := os.ReadFile(seedGrubCfg)
+	c.Assert(err, IsNil)
+	if model.HybridClassic() {
+		c.Check(string(seedGrubCfgData), testutil.Contains, `if [ "$snapd_recovery_mode" != "run" ]; then`)
+		c.Check(string(seedGrubCfgData), Not(testutil.Contains), `menuentry "Recover using`)
+	} else {
+		c.Check(string(seedGrubCfgData), testutil.Contains, `menuentry "Recover using`)
 	}
 
 	if opts.hasRecoveryKey {

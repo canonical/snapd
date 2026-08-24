@@ -223,6 +223,9 @@ func (s *EnsureDirStateSuite) TestReportsAbnormalPatterns(c *C) {
 }
 
 func (s *EnsureDirStateSuite) TestRemovesAllManagedFilesOnError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root can read directories regardless of mode)")
+	}
 	// Create a "prior.snap" file
 	prior := filepath.Join(s.dir, "prior.snap")
 	err := os.WriteFile(prior, []byte("data"), 0600)

@@ -215,6 +215,7 @@ func (s *sealSuite) TestSealKeyForBootChains(c *C) {
 		sealKeysCalls := 0
 		restore = fdeBackend.MockSecbootSealKeys(func(keys []secboot.SealKeyRequest, params *secboot.SealKeysParams) ([]byte, error) {
 			c.Check(params.AllowInsufficientDmaProtection, Equals, tc.onCore)
+			c.Check(params.AllowThunderboltSecurityLevel0, Equals, tc.onCore)
 			c.Assert(provisionCalls, Equals, 1, Commentf("TPM must have been provisioned before"))
 			c.Check(params.PCRPolicyCounterHandle, Equals, uint32(42))
 			sealKeysCalls++

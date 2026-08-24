@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1080,6 +1081,14 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	}
 
 	downloadComp := s.state.NewTask("download-component", "...")
+	downloadComp.Set("component-setup", snapstate.NewComponentSetup(
+		snap.NewComponentSideInfo(
+			naming.NewComponentRef("some-app", "some-comp"),
+			snap.R(1),
+		),
+		snap.StandardComponent,
+		"",
+	))
 	prereqSync := s.state.NewTask("prerequisites", "...")
 	prereqSync.Set("prerequisites-sync", true)
 	prereqSync.WaitFor(downloadComp)
@@ -1128,7 +1137,7 @@ func (s *rebootSuite) TestArrangeSnapInstallTaskSetsSeedRefreshComponentExclusiv
 	c.Assert(observed.initial, HasLen, 1)
 	c.Check(observed.initial[0], testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
 		InstanceName:          "some-app",
-		ComponentSetupTaskIDs: componentSetupTasks,
+		ComponentSetupTaskIDs: map[string]string{"some-comp": componentSetupTasks[0]},
 	}})
 }
 

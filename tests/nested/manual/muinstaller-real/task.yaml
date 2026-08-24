@@ -369,6 +369,17 @@ execute: |
       remote.exec not test -e /run/mnt/ubuntu-seed/systems/classic
       exit 0
   fi
+
+  # check that the hybrid recovery menu only contains an entry for the recovery
+  # mode selected by snapd, not entries for selecting arbitrary recovery modes
+  remote.exec "sudo cat /run/mnt/ubuntu-seed/EFI/ubuntu/grub.cfg" > grub.cfg
+  MATCH "Continue to run mode" < grub.cfg
+  MATCH "menuentry \"Continue to \\\$snapd_recovery_mode mode\"" < grub.cfg
+  MATCH "UEFI Firmware Settings" < grub.cfg
+  NOMATCH "Recover using" < grub.cfg
+  NOMATCH "Install using" < grub.cfg
+  NOMATCH "Factory reset using" < grub.cfg
+
   if [ "$version" == 22 ]; then
       # We are not mounting the users file for 22.04, the full recover
       # feature is not supported until 24.04+.
@@ -413,6 +424,11 @@ execute: |
   # we explicitly provide a password since the sudo group is not configured to
   # allow passwordless sudo
   timeout -v 300 remote.exec "echo ubuntu | sudo -S snap wait system seed.loaded"
+
+  # booted into recover mode
+  remote.exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=recover snapd_recovery_system=classic"
+  # but next boot will be run mode
+  remote.exec "echo ubuntu | sudo -S snap debug boot-vars --root-dir /run/mnt/ubuntu-seed" | MATCH '^snapd_recovery_mode=run$'
 
   remote.exec "groups" | tr ' ' '\n' | sort | xargs | MATCH 'sudo user1'
 

@@ -561,7 +561,7 @@ if [ "$STATIC" = 1 ]; then
         exit 1
     fi
 
-    if gcil=$(command -v golangci-lint) || [ -z "${SKIP_GOLANGCI_LINT:-}" ]; then
+    if gcil=$(command -v golangci-lint) && [ -z "${SKIP_GOLANGCI_LINT:-}" ]; then
         echo ">> [Go] Checking golangci-lint"
         if echo "$gcil" | grep -q '/snap/bin/'; then
             # golangci-lint was installed from the snap
@@ -643,7 +643,7 @@ if [ "$STATIC" = 1 ]; then
             echo "Missing ensure function registration. Add the following to the relevant file: swfeats.RegEnsure(\"$manager\", \"$func\")"
             missing=1
         fi
-    done < <(grep -r '.Trace("ensure"' overlord | sed -n 's/.*\.Trace("ensure",.*"manager",.*"\([^"]*\)",.*"func",.*"\([^"]*\)").*/\1 \2/p')
+    done < <(grep --exclude '*_test.go'  --exclude 'ensurelogchecker.go' -r '.Trace("ensure"' overlord | sed -n 's/.*\.Trace("ensure",.*"manager",.*"\([^"]*\)",.*"func",.*"\([^"]*\)").*/\1 \2/p')
     if [ $missing -eq 1 ]; then
         exit 1
     fi

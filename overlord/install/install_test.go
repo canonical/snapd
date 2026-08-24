@@ -1654,9 +1654,9 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		{`{"features":["a"]}`, "", device.EncryptionTypeLUKS},
 		{`{"features":["a","b"]}`, "", device.EncryptionTypeLUKS},
 		// features must be list of strings
-		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, device.EncryptionTypeNone},
-		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, device.EncryptionTypeNone},
-		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`, device.EncryptionTypeNone},
+		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into.*`, device.EncryptionTypeNone},
+		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into.*`, device.EncryptionTypeNone},
+		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into.*`, device.EncryptionTypeNone},
 		// valid and uses ice
 		{`{"features":["a","inline-crypto-engine","b"]}`, "", device.EncryptionTypeLUKSWithICE},
 	} {

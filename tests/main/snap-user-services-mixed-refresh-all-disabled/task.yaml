@@ -81,37 +81,37 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-mixed-service
 
     echo "Verify status of running services after install"
-    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "active"
-    systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH "enabled"
+    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH '^active$'
+    systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH '^enabled$'
 
-    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
-    systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
+    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH '^active$'
+    systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH '^enabled$'
 
-    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH "active"
-    systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH "enabled"
+    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH '^active$'
+    systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH '^enabled$'
 
     # stop and disable both services, scope of user one for all
     snap stop --disable --system --users=all test-snapd-mixed-service
 
     # verify this worked
-    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "inactive"
-    systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH "disabled"
+    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH '^inactive$'
+    systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH '^disabled$'
 
-    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH "inactive"
-    systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH "disabled"
+    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH '^inactive$'
+    systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH '^disabled$'
 
-    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH "inactive"
-    systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH "disabled"
+    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH '^inactive$'
+    systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH '^disabled$'
 
     # now refresh snap to a new version
     "$TESTSTOOLS"/snaps-state install-local test-snapd-mixed-service-v2
     
     # verify nothing changed
-    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH "inactive"
-    systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH "disabled"
+    systemctl is-active snap.test-snapd-mixed-service.sys-service | MATCH '^inactive$'
+    systemctl is-enabled snap.test-snapd-mixed-service.sys-service | MATCH '^disabled$'
 
-    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH "inactive"
-    systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH "disabled"
+    systemctl_as_test is-active snap.test-snapd-mixed-service.user-service | MATCH '^inactive$'
+    systemctl_as_test is-enabled snap.test-snapd-mixed-service.user-service | MATCH '^disabled$'
 
-    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH "inactive"
-    systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH "disabled"
+    systemctl_as_test2 is-active snap.test-snapd-mixed-service.user-service | MATCH '^inactive$'
+    systemctl_as_test2 is-enabled snap.test-snapd-mixed-service.user-service | MATCH '^disabled$'

@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -455,6 +456,10 @@ func (s *deviceMgmtMgrSuite) TestEnsureFeatureDisabledWithReadyResponses(c *C) {
 	c.Check(ms.LastReceivedToken, Equals, "")
 	c.Check(ms.ReadyResponses, HasLen, 0)
 	c.Check(ms.Sequences, HasLen, 0)
+}
+
+func (s *deviceMgmtMgrSuite) TestEnsureLoopLogging(c *C) {
+	swfeatstest.CheckEnsureLoopLogging("devicemgmtmgr.go", c, false)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoExchangeMessagesFetchOK(c *C) {

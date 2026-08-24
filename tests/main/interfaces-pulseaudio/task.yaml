@@ -58,7 +58,7 @@ prepare: |
     # User session services do not posses a logind session session so
     # pulseaudio immediately quits, and remains inactive outside of the moments
     # we execute paplay through tests.session.
-    tests.session -u test exec systemctl --user is-active pulseaudio.socket | MATCH active
+    tests.session -u test exec systemctl --user is-active pulseaudio.socket | MATCH '^active$'
 
     # Start pulseaudio to give it a chance to write the pulseaudio cookie file.
     # Otherwise paplay invocation will race with pulse startup, and will race

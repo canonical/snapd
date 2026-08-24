@@ -230,7 +230,7 @@ func (t *Transaction) Commit(st *state.State, schema confdb.DatabagSchema) error
 	return nil
 }
 
-func (t *Transaction) Clear(st *state.State) error {
+func (t *Transaction) Reset(st *state.State) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
