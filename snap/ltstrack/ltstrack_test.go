@@ -107,7 +107,7 @@ func ltsTrackMap(bootBase int, tracks ...string) map[int]map[string]string {
 	return map[int]map[string]string{bootBase: rules}
 }
 
-const uc18CandidateInfo = `VERSION=2.99
+const uc18CandidateSnapdInfo = `VERSION=2.99
 SNAPD_LTS_TRACKS='{"18":{"latest":"18","fips-updates":"18-fips"}}'`
 
 func (s *ltsSuite) snapdContainer(c *C, info string) snap.Container {
@@ -287,32 +287,32 @@ func (s *ltsSuite) TestResolveUC16Rejected(c *C) {
 	}
 }
 
-func (s *ltsSuite) TestResolveCandidateRemap(c *C) {
+func (s *ltsSuite) TestResolveCandidateSnapdRemap(c *C) {
 	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{})
 	defer restore()
 
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
-	candidate := s.snapdContainer(c, uc18CandidateInfo)
+	candidateSnapd := s.snapdContainer(c, uc18CandidateSnapdInfo)
 
-	resolved, err := ltstrack.Resolve(model, "latest/stable", candidate)
+	resolved, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "18/stable")
 
-	resolved, err = ltstrack.Resolve(model, "18/stable", candidate)
+	resolved, err = ltstrack.Resolve(model, "18/stable", candidateSnapd)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "18/stable")
 
-	resolved, err = ltstrack.Resolve(model, "fips-updates/candidate", candidate)
+	resolved, err = ltstrack.Resolve(model, "fips-updates/candidate", candidateSnapd)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "18-fips/candidate")
 
-	resolved, err = ltstrack.Resolve(model, "18-fips/beta", candidate)
+	resolved, err = ltstrack.Resolve(model, "18-fips/beta", candidateSnapd)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "18-fips/beta")
 }
 
-func (s *ltsSuite) TestResolveCandidateUsesMapNotThis(c *C) {
-	// This process's map has no UC18 onboarded; nil candidate errors.
+func (s *ltsSuite) TestResolveCandidateSnapdUsesMapNotThis(c *C) {
+	// This process's map has no UC18 onboarded; nil candidateSnapd errors.
 	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{})
 	defer restore()
 
@@ -322,41 +322,41 @@ func (s *ltsSuite) TestResolveCandidateUsesMapNotThis(c *C) {
 	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from running snapd 2.75`)
 	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
 
-	candidate := s.snapdContainer(c, uc18CandidateInfo)
-	resolved, err := ltstrack.Resolve(model, "latest/stable", candidate)
+	candidateSnapd := s.snapdContainer(c, uc18CandidateSnapdInfo)
+	resolved, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "18/stable")
 }
 
-func (s *ltsSuite) TestResolveCandidateWithoutMapErrors(c *C) {
+func (s *ltsSuite) TestResolveCandidateSnapdWithoutMapErrors(c *C) {
 	restore := ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{})
 	defer restore()
 
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
-	candidate := s.snapdContainer(c, "VERSION=2.99\n")
+	candidateSnapd := s.snapdContainer(c, "VERSION=2.99\n")
 
-	_, err := ltstrack.Resolve(model, "latest/stable", candidate)
+	_, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
 	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from candidate snapd snap 2.99`)
 	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
 }
 
-func (s *ltsSuite) TestResolveCandidateUnmanagedBootBaseErrors(c *C) {
+func (s *ltsSuite) TestResolveCandidateSnapdUnmanagedBootBaseErrors(c *C) {
 	model := s.coreModel(c, "core22", "pc=22", "pc-kernel=22")
-	candidate := s.snapdContainer(c, uc18CandidateInfo)
+	candidateSnapd := s.snapdContainer(c, uc18CandidateSnapdInfo)
 
-	_, err := ltstrack.Resolve(model, "latest/stable", candidate)
+	_, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
 	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 22 from candidate snapd snap 2.99`)
 	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
 }
 
-func (s *ltsSuite) TestResolveCandidateErrors(c *C) {
+func (s *ltsSuite) TestResolveCandidateSnapdErrors(c *C) {
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
-	candidate := s.snapdContainer(c, uc18CandidateInfo)
+	candidateSnapd := s.snapdContainer(c, uc18CandidateSnapdInfo)
 
-	_, err := ltstrack.Resolve(nil, "latest/stable", candidate)
+	_, err := ltstrack.Resolve(nil, "latest/stable", candidateSnapd)
 	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
 
-	_, err = ltstrack.Resolve(model, "20/stable", candidate)
+	_, err = ltstrack.Resolve(model, "20/stable", candidateSnapd)
 	c.Check(err, ErrorMatches, `cannot find LTS track for input track 20 for boot base 18 from candidate snapd snap 2.99`)
 	c.Check(errors.Is(err, ltstrack.ErrNoTrack), Equals, true)
 
@@ -371,16 +371,16 @@ SNAPD_LTS_TRACKS='{"18":{"latest":"18/stable"}}'`)
 	c.Check(err, ErrorMatches, `cannot retrieve LTS track map from candidate snapd snap 2.99: cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable" for boot base 18 is not a track-only channel`)
 }
 
-func (s *ltsSuite) TestResolveCandidateUsesCandidateMap(c *C) {
+func (s *ltsSuite) TestResolveCandidateSnapdMapTakesPrecedence(c *C) {
 	restore := ltstrack.MockSnapdLTSTrackMap(ltsTrackMap(18, "18"))
 	defer restore()
 
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
-	// This process's map would remap latest to 18; candidate map takes precedence.
-	candidate := s.snapdContainer(c, `VERSION=2.70
+	// This process's map would remap latest to 18; candidateSnapd map takes precedence.
+	candidateSnapd := s.snapdContainer(c, `VERSION=2.70
 SNAPD_LTS_TRACKS='{"18":{"latest":"20"}}'`)
 
-	resolved, err := ltstrack.Resolve(model, "latest/stable", candidate)
+	resolved, err := ltstrack.Resolve(model, "latest/stable", candidateSnapd)
 	c.Assert(err, IsNil)
 	c.Check(resolved, Equals, "20/stable")
 }
