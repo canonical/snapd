@@ -718,7 +718,11 @@ static void sc_mount_egl(const char *rootfs_dir) {
                                       egl_vendor_globs, egl_vendor_globs_len);
 }
 
-void sc_mount_nvidia_driver(const char *rootfs_dir, const char *base_snap_name) {
+void sc_mount_snap_gpu_driver(const char *rootfs_dir, const char *base_snap_name, sc_distro distro) {
+    // TODO: distro is currently unused; a subsequent change will use it to
+    // also run on Ubuntu Core (see TODO_CORE_DRIVER_LIBS.md).
+    (void)distro;
+
     /* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
     if (access(nvidia_driver_version_file(), F_OK) != 0) {
         return;

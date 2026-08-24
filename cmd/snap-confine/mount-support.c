@@ -715,14 +715,11 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config) {
     sc_must_snprintf(dst, sizeof dst, "%s/%s", scratch_dir, SC_HOSTFS_DIR);
     sc_do_mount(dst, dst, NULL, MS_BIND, NULL);
     sc_do_mount("none", dst, NULL, MS_PRIVATE, NULL);
-    // On classic mount the nvidia driver. Ideally this would be done in an
-    // uniform way after pivot_root but this is good enough and requires less
-    // code changes the nvidia code assumes it has access to the existing
-    // pre-pivot filesystem.
-    /* TODO: enable on core */
-    /* if (config->distro == SC_DISTRO_CLASSIC) { */
-    sc_mount_nvidia_driver(scratch_dir, config->base_snap_name);
-    /* } */
+    // Mount GPU driver content (see sc_mount_snap_gpu_driver()). Ideally this
+    // would be done in an uniform way after pivot_root but this is good
+    // enough and requires less code changes: the nvidia code assumes it has
+    // access to the existing pre-pivot filesystem.
+    sc_mount_snap_gpu_driver(scratch_dir, config->base_snap_name, config->distro);
     // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     //                    pivot_root
     // XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
