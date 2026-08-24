@@ -417,6 +417,11 @@ profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     ## nvidia libraries exported by a snap
     # read source paths
     /var/lib/snapd/export/{,*} r,
+    # read the export.sources manifests and exported files for the
+    # driver-libs interfaces (see interfaces/export) - a subtree of the
+    # above, but needs to be readable at full depth, unlike the flat
+    # *.library-source files above
+    /var/lib/snapd/export/system/{,**} r,
     # for the tmpfs
     /var/lib/snapd/lib/system/ w,
     /var/lib/snapd/lib/system/gpu/ w,
@@ -425,6 +430,9 @@ profile @LIBEXECDIR@/snap-confine flags=(attach_disconnected) {
     # mounts for the source paths
     /tmp/snap-private-tmp/snap.rootfs_*/var/lib/snapd/lib/system/gpu/{,**} w,
     mount options=(ro bind) /{,var/lib/snapd/}snap/** -> /tmp/snap-private-tmp/snap.rootfs_*/var/lib/snapd/lib/system/gpu/**,
+    # bind-mount exported driver-libs config files (ICD/layer JSON) into the
+    # pooled per-interface tree
+    mount options=(ro bind) /var/lib/snapd/export/system/** -> /tmp/snap-private-tmp/snap.rootfs_*/var/lib/snapd/lib/system/gpu/system/**,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
