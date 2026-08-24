@@ -256,7 +256,7 @@ type ConflictingConnectedInterfacesDefiner interface {
 type ParallelInstancesPlugDefiner interface {
 	// ParallelInstancesSupportedForPlug returns whether the interface
 	// supports being plugged by a snap installed as a parallel instance.
-	ParallelInstancesSupportedForPlug() bool
+	ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool
 }
 
 // ParallelInstancesSlotDefiner can be implemented by Interfaces to declare
@@ -265,7 +265,7 @@ type ParallelInstancesPlugDefiner interface {
 type ParallelInstancesSlotDefiner interface {
 	// ParallelInstancesSupportedForSlot returns whether the interface
 	// supports being slotted by a snap installed as a parallel instance.
-	ParallelInstancesSupportedForSlot() bool
+	ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool
 }
 
 // StaticInfo describes various static-info of a given interface.

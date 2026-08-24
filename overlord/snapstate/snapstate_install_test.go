@@ -1530,7 +1530,7 @@ func (t *testParallelInstancesPlugRejectingInterface) Name() string {
 	return "pi-nok-plug-iface"
 }
 
-func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug() bool {
+func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
 	return false
 }
 
@@ -1544,7 +1544,7 @@ func (t *testParallelInstancesSlotRejectingInterface) Name() string {
 	return "pi-nok-slot-iface"
 }
 
-func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot() bool {
+func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
 	return false
 }
 
@@ -1558,11 +1558,11 @@ func (t *testParallelInstancesSupportedInterface) Name() string {
 	return "pi-ok-iface"
 }
 
-func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug() bool {
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
 	return true
 }
 
-func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot() bool {
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
 	return true
 }
 

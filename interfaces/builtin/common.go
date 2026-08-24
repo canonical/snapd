@@ -233,10 +233,14 @@ func (iface *commonInterface) ConflictsWithOtherConnectedInterfaces() []string {
 	return iface.conflictingConnectedInterfaces
 }
 
-func (iface *commonInterface) ParallelInstancesSupportedForPlug() bool {
+// ParallelInstancesSupportedForPlug returns false if unsupportedParallelInstancesPlug
+// is set, ignoring plug attributes.
+func (iface *commonInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) bool {
 	return !iface.unsupportedParallelInstancesPlug
 }
 
-func (iface *commonInterface) ParallelInstancesSupportedForSlot() bool {
+// ParallelInstancesSupportedForSlot returns false if unsupportedParallelInstancesSlot
+// is set, ignoring slot attributes.
+func (iface *commonInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) bool {
 	return !iface.unsupportedParallelInstancesSlot
 }

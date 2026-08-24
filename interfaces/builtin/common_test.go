@@ -282,24 +282,24 @@ slots:
 func (s *commonIfaceSuite) TestParallelInstancesSupported(c *C) {
 	// default: both sides supported
 	iface := &commonInterface{name: "common"}
-	c.Check(iface.ParallelInstancesSupportedForPlug(), Equals, true)
-	c.Check(iface.ParallelInstancesSupportedForSlot(), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, true)
 
 	// plug-side unsupported
 	iface = &commonInterface{
 		name:                             "common",
 		unsupportedParallelInstancesPlug: true,
 	}
-	c.Check(iface.ParallelInstancesSupportedForPlug(), Equals, false)
-	c.Check(iface.ParallelInstancesSupportedForSlot(), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, true)
 
 	// slot-side unsupported
 	iface = &commonInterface{
 		name:                             "common",
 		unsupportedParallelInstancesSlot: true,
 	}
-	c.Check(iface.ParallelInstancesSupportedForPlug(), Equals, true)
-	c.Check(iface.ParallelInstancesSupportedForSlot(), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, true)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, false)
 
 	// both unsupported
 	iface = &commonInterface{
@@ -307,6 +307,6 @@ func (s *commonIfaceSuite) TestParallelInstancesSupported(c *C) {
 		unsupportedParallelInstancesPlug: true,
 		unsupportedParallelInstancesSlot: true,
 	}
-	c.Check(iface.ParallelInstancesSupportedForPlug(), Equals, false)
-	c.Check(iface.ParallelInstancesSupportedForSlot(), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForPlug(nil), Equals, false)
+	c.Check(iface.ParallelInstancesSupportedForSlot(nil), Equals, false)
 }
