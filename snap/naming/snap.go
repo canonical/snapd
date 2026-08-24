@@ -21,7 +21,7 @@ package naming
 
 import "strings"
 
-// SnapName is the global name of a snap
+// SnapName is the global name of a snap.
 type SnapName string
 
 // String returns the snap name as a plain string.
@@ -29,7 +29,7 @@ func (n SnapName) String() string {
 	return string(n)
 }
 
-// InstanceName is the name of a snap decorated with an optional instance key
+// InstanceName is the name of a snap decorated with an optional instance key.
 type InstanceName string
 
 // NewInstanceName builds an InstanceName from a snap name and an optional
