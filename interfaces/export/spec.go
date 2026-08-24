@@ -21,8 +21,12 @@ package export
 
 import (
 	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -36,6 +40,10 @@ import (
 type Specification struct {
 	// plugs is the list of plugs using the export backend for the snap.
 	plugs []string
+	// files holds the exported tree content declared so far, keyed by
+	// interface name, then by unit name (see UnitName), then by the
+	// file's path relative to the unit (see AddExportedFile).
+	files map[string]map[string]map[string]osutil.FileState
 }
 
 // Plugs returns the plugs that use the export backend.
@@ -43,9 +51,61 @@ func (spec *Specification) Plugs() []string {
 	return spec.plugs
 }
 
-// Methods called by interfaces are added in a follow-up change, once the
-// on-disk layout (export.sources manifest, per-connection unit directories)
-// is implemented.
+// Files returns the export tree content declared so far via
+// AddExportedFile, keyed by interface name, then by unit name (see
+// UnitName), then by the file's path relative to the unit.
+func (spec *Specification) Files() map[string]map[string]map[string]osutil.FileState {
+	return spec.files
+}
+
+// AddExportedFile records that state must be exported at path
+// "<unit>/<relPath>" within the tree for ifaceName (see InterfaceRoot).
+//
+// unit groups the file together with every other file contributed by the
+// same connection and, for content coming from a component, the same
+// component (see UnitName and exportUnitAndFileName in
+// interfaces/builtin/helpers.go). relPath is the file's path within the
+// unit, and must have at least one directory component (matching the
+// layout used by every current caller, e.g. "egl_vendor.d/<encoded-name>"),
+// since it is used verbatim, stripped of the unit prefix, to place the file
+// in the pooled directory delivered into a consuming snap's mount
+// namespace.
+//
+// It is an error to declare the same (ifaceName, unit, relPath) tuple
+// twice.
+func (spec *Specification) AddExportedFile(ifaceName, unit, relPath string, state osutil.FileState) error {
+	if ifaceName == "" || strings.ContainsRune(ifaceName, '/') {
+		return fmt.Errorf("export internal error: invalid interface name: %q", ifaceName)
+	}
+	if unit == "" || strings.ContainsRune(unit, '/') {
+		return fmt.Errorf("export internal error: invalid unit name: %q", unit)
+	}
+	if relPath != filepath.Clean(relPath) || filepath.IsAbs(relPath) {
+		return fmt.Errorf("export internal error: unclean or absolute path: %q", relPath)
+	}
+	if filepath.Dir(relPath) == "." {
+		return fmt.Errorf("export internal error: path must be inside a subdirectory: %q", relPath)
+	}
+
+	if spec.files == nil {
+		spec.files = make(map[string]map[string]map[string]osutil.FileState)
+	}
+	units, ok := spec.files[ifaceName]
+	if !ok {
+		units = make(map[string]map[string]osutil.FileState)
+		spec.files[ifaceName] = units
+	}
+	files, ok := units[unit]
+	if !ok {
+		files = make(map[string]osutil.FileState)
+		units[unit] = files
+	}
+	if _, ok := files[relPath]; ok {
+		return fmt.Errorf("export internal error: already declared file: %q", filepath.Join(unit, relPath))
+	}
+	files[relPath] = state
+	return nil
+}
 
 // Implementation of methods required by interfaces.Specification
 
