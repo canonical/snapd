@@ -1,0 +1,10 @@
+name: test-shm-no-private
+version: 1.0
+apps:
+  cmd:
+    command: bin/cmd
+    plugs: [shmem]
+plugs:
+  shmem:
+    interface: shared-memory
+    # private defaults to false when omitted
