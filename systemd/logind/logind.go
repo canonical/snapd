@@ -22,6 +22,7 @@ package logind
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -84,6 +85,11 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("loginctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
+// ErrNoSessionFound is returned by SessionClass when the current user has
+// no display-eligible session. The error returned by SessionClass wraps it,
+// so it can be tested for with errors.Is.
+var ErrNoSessionFound = errors.New("cannot find display-eligible session for the current user")
+
 // SessionClass returns the class of the display session of the current
 // user as reported by loginctl.
 //
@@ -99,8 +105,9 @@ func (e *Error) Error() string {
 // or "user-early-light" (on systemd >= 259). User sessions of class
 // "background" or "manager", for example, are never display-eligible.
 //
-// An error is returned if loginctl fails, if no session for the current
-// user could be found, or if the output is malformed or class empty.
+// An error is returned if loginctl fails, if the output is malformed or class
+// is empty, or if no display-eligible session for the current user could be
+// found, in which case the returned error wraps ErrNoSessionFound.
 func SessionClass(ctx context.Context) (string, error) {
 	uid := os.Getuid()
 	// Note: --value is not passed to loginctl as it is only available
@@ -118,7 +125,7 @@ func SessionClass(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if sessionID == "" {
-		return "", fmt.Errorf("cannot find session for the current user: %d", uid)
+		return "", fmt.Errorf("%w: %d", ErrNoSessionFound, uid)
 	}
 
 	out, err = loginctlCmd(ctx, "show-session", sessionID, "--all", "-p", "Class")

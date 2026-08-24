@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/systemd/logind"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -103,14 +104,16 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 	_, err := logind.SessionClass(context.Background())
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "loginctl command .* failed with exit status 1: Failed to look up user")
+	c.Check(err, Not(testutil.ErrorIs), logind.ErrNoSessionFound)
 
-	// an empty "Display=" means the user has no display session
+	// an empty "Display=" means the user has no display-eligible session
 	for _, displayOutput := range []string{"Display=\n", "Display="} {
 		restore := logind.MockLoginctl(sessionClassLoginctlMock(c, displayOutput, "Class=user\n"))
 		defer restore()
 
 		_, err := logind.SessionClass(context.Background())
-		c.Assert(err, ErrorMatches, "cannot find session for the current user: .*")
+		c.Assert(err, testutil.ErrorIs, logind.ErrNoSessionFound)
+		c.Check(err, ErrorMatches, "cannot find display-eligible session for the current user: .*")
 	}
 
 	// the display session may vanish between the two calls
@@ -135,6 +138,7 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 	_, err = logind.SessionClass(context.Background())
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "loginctl command .* failed with exit status 1: No session 'c5' known")
+	c.Check(err, Not(testutil.ErrorIs), logind.ErrNoSessionFound)
 	c.Check(calls, Equals, 2)
 }
 

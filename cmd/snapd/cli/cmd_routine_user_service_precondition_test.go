@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snapd/cli"
+	"github.com/snapcore/snapd/systemd/logind"
 )
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNonGreeter(c *C) {
@@ -100,26 +101,38 @@ func (s *SnapSuite) TestRoutineUserServicePreconditionGreeterInvalidErrorExitCod
 
 func (s *SnapSuite) TestRoutineUserServicePreconditionNoSession(c *C) {
 	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
-		return "", fmt.Errorf("cannot find session for the current user: 1000")
+		return "", fmt.Errorf("%w: 1000", logind.ErrNoSessionFound)
+	})
+	defer restore()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "cannot determine session class: cannot find display-eligible session for the current user: 1000\n")
+}
+
+func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrorExitCode(c *C) {
+	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("%w: 1000", logind.ErrNoSessionFound)
+	})
+	defer restore()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "3"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "cannot determine session class: cannot find display-eligible session for the current user: 1000\n")
+}
+
+func (s *SnapSuite) TestRoutineUserServicePreconditionSessionClassError(c *C) {
+	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
+		return "", fmt.Errorf("loginctl command [show-user 1000 --all -p Display] failed with exit status 1: Failed to look up user")
 	})
 	defer restore()
 
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition"})
 	c.Assert(err, NotNil)
 	c.Check(snap.ExitCodeFromError(err), Equals, 1)
-	c.Check(err.Error(), Equals, "cannot determine session class: cannot find session for the current user: 1000")
-	c.Check(s.Stderr(), Equals, "")
-}
-
-func (s *SnapSuite) TestRoutineUserServicePreconditionNoSessionWithErrorExitCode(c *C) {
-	restore := snap.MockLogindSessionClass(func(ctx context.Context) (string, error) {
-		return "", fmt.Errorf("cannot find session for the current user: 1000")
-	})
-	defer restore()
-
-	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"routine", "user-service-precondition", "--error-exit-code", "3"})
-	c.Assert(err, NotNil)
-	c.Check(snap.ExitCodeFromError(err), Equals, 3)
-	c.Check(err.Error(), Equals, "cannot determine session class: cannot find session for the current user: 1000")
+	c.Check(err.Error(), Equals, "cannot determine session class: loginctl command [show-user 1000 --all -p Display] failed with exit status 1: Failed to look up user")
+	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
