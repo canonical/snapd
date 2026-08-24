@@ -193,7 +193,7 @@ jobs:
           fi
 
     - name: Setup for local run
-      if: ${{ inputs.backend == 'garden' }}
+      if: ${{ inputs.backend == 'garden' && env.SKIP_SPREAD_LABEL != 'true' }}
       uses: ./.github/actions/setup-image-garden
       with:
         garden-system: ${{ inputs.systems }}

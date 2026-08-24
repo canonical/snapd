@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -53,9 +54,9 @@ type SeedRefreshCandidate struct {
 	// recovery system creation. Will be empty for component-only refreshes.
 	SnapSetupTaskIDs []string
 	// ComponentSetupTaskIDs are the component tasks that should be considered as
-	// inputs to recovery system creation. Will be empty for snap-only
-	// refreshes.
-	ComponentSetupTaskIDs []string
+	// inputs to recovery system creation where the key is the component name.
+	// Will be empty for snap-only refreshes.
+	ComponentSetupTaskIDs map[string]string
 }
 
 // CreateSeedRefreshTasks is set by devicestate to avoid an import cycle. See
@@ -96,15 +97,44 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 		return SeedRefreshCandidate{}, err
 	}
 
-	candidate := SeedRefreshCandidate{
-		InstanceName: snapsup.InstanceName(),
-	}
-	if !snapsup.ComponentExclusiveOperation {
-		candidate.SnapSetupTaskIDs = append(candidate.SnapSetupTaskIDs, t.ID())
+	lookup := func(id string) *state.Task {
+		for _, t := range ts.Tasks() {
+			if t.ID() == id {
+				return t
+			}
+		}
+		return nil
 	}
 
-	if err := t.Get("component-setup-tasks", &candidate.ComponentSetupTaskIDs); err != nil && !errors.Is(err, state.ErrNoState) {
+	var compsupTaskIDs []string
+	if err := t.Get("component-setup-tasks", &compsupTaskIDs); err != nil && !errors.Is(err, state.ErrNoState) {
 		return SeedRefreshCandidate{}, err
+	}
+
+	var compSetupTaskIDs map[string]string
+	if len(compsupTaskIDs) > 0 {
+		compSetupTaskIDs = make(map[string]string, len(compsupTaskIDs))
+		for _, id := range compsupTaskIDs {
+			compsupTask := lookup(id)
+			if compsupTask == nil {
+				return SeedRefreshCandidate{}, fmt.Errorf("internal error: task %q not found in refresh taskset", id)
+			}
+			var compSetup ComponentSetup
+			err := compsupTask.Get("component-setup", &compSetup)
+			if err != nil {
+				return SeedRefreshCandidate{}, err
+			}
+			compSetupTaskIDs[compSetup.ComponentName()] = id
+		}
+	}
+
+	candidate := SeedRefreshCandidate{
+		InstanceName:          snapsup.InstanceName(),
+		ComponentSetupTaskIDs: compSetupTaskIDs,
+	}
+
+	if !snapsup.ComponentExclusiveOperation {
+		candidate.SnapSetupTaskIDs = append(candidate.SnapSetupTaskIDs, t.ID())
 	}
 
 	return candidate, nil

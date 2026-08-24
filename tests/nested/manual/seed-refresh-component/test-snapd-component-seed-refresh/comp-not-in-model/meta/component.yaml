@@ -1,0 +1,4 @@
+component: test-snapd-component-seed-refresh+comp-not-in-model
+type: test
+version: 1.0
+summary: Component not in the model for test-snapd-component-seed-refresh
