@@ -239,3 +239,121 @@ required_spread_failure_threshold_allows_rerun() {
 
     return 0
 }
+
+predictor_allows_rerun() {
+    local workflow_run_id="$1"
+    local workflow_run_attempt="$2"
+    local parser="$GITHUB_WORKSPACE/.github/scripts/parse-results-predictor.py"
+    local test_predictor_url="${TEST_PREDICTOR_URL:-}"
+    local threshold="${TEST_PREDICTOR_THRESHOLD:-0.5}"
+    local results_dir artifact_rows artifact_id artifact_name
+    local verb rows response probability
+    local valid_predictions=0
+
+    test_predictor_url="${test_predictor_url%/}"
+    results_dir=$(mktemp -d)
+
+    GH_RETRY_CONTEXT="list artifacts for run_id=$workflow_run_id"
+    if ! artifact_rows=$(gh_retry api --paginate \
+        "repos/$GH_REPO/actions/runs/$workflow_run_id/artifacts?per_page=100" \
+        --jq ".artifacts[] | select(.name | startswith(\"spread-results-${workflow_run_id}-${workflow_run_attempt}\")) | [.id, .name] | @tsv"); then
+        echo "Could not list artifacts for run_id=$workflow_run_id; allowing rerun"
+        GH_RETRY_CONTEXT=""
+        rm -rf "$results_dir"
+        return 0
+    fi
+    GH_RETRY_CONTEXT=""
+
+    if [[ -z "$artifact_rows" ]]; then
+        echo "No spread result artifacts found for run_id=$workflow_run_id attempt=$workflow_run_attempt; allowing rerun"
+        rm -rf "$results_dir"
+        return 0
+    fi
+
+    while IFS=$'\t' read -r artifact_id artifact_name; do
+        echo "Downloading artifact: $artifact_name.zip"
+        if ! gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/$GH_REPO/actions/artifacts/$artifact_id/zip" \
+            >"$results_dir/$artifact_name.zip"; then
+            echo "Could not download artifact $artifact_name; allowing rerun"
+            rm -rf "$results_dir"
+            return 0
+        fi
+
+        mkdir "$results_dir/$artifact_name"
+        if ! unzip -q "$results_dir/$artifact_name.zip" -d "$results_dir/$artifact_name"; then
+            echo "Could not unzip artifact $artifact_name; allowing rerun"
+            rm -rf "$results_dir"
+            return 0
+        fi
+    done <<<"$artifact_rows"
+
+    if ! compgen -G "$results_dir/spread-results-${workflow_run_id}-*/*.json" >/dev/null; then
+        echo "No spread result JSON files found for run_id=$workflow_run_id; allowing rerun"
+        rm -rf "$results_dir"
+        return 0
+    fi
+
+    if ! python3 "$parser" consolidate \
+        "$results_dir/consolidated-report.json" \
+        "$results_dir"/spread-results-"$workflow_run_id"-*/*.json; then
+        echo "Could not consolidate spread results for run_id=$workflow_run_id; allowing rerun"
+        rm -rf "$results_dir"
+        return 0
+    fi
+
+    for verb in preparing executing restoring; do
+        if ! rows=$(python3 "$parser" predictor-rows "$results_dir/consolidated-report.json" "$verb"); then
+            echo "Could not parse $verb predictor rows; allowing rerun"
+            rm -rf "$results_dir"
+            return 0
+        fi
+        [[ -z "$rows" ]] && continue
+
+        while IFS=$'\t' read -r display_name occurrences full_name system scenario; do
+            if [[ -z "$test_predictor_url" ]]; then
+                echo "Test predictor URL is unavailable; allowing rerun"
+                rm -rf "$results_dir"
+                return 0
+            fi
+
+            if ! response=$(curl -sf -G "$test_predictor_url/predict" \
+                --connect-timeout 2 \
+                --max-time 5 \
+                --data-urlencode "name=$full_name" \
+                --data-urlencode "verb=$verb" \
+                --data-urlencode "system=$system" \
+                --data-urlencode "scenario=$scenario" \
+                --data-urlencode "attempt=$workflow_run_attempt" \
+                2>/dev/null); then
+                echo "Prediction unavailable for $display_name; allowing rerun"
+                rm -rf "$results_dir"
+                return 0
+            fi
+
+            if ! probability=$(python3 "$parser" success-probability <<<"$response") || [[ -z "$probability" ]]; then
+                echo "Prediction malformed or invalid for $display_name; allowing rerun"
+                rm -rf "$results_dir"
+                return 0
+            fi
+
+            valid_predictions=$((valid_predictions + 1))
+            if awk -v probability="$probability" -v threshold="$threshold" \
+                'BEGIN { exit !(probability > threshold) }'; then
+                echo "$display_name has predicted success probability $probability, above $threshold"
+                rm -rf "$results_dir"
+                return 0
+            fi
+        done <<<"$rows"
+    done
+
+    rm -rf "$results_dir"
+    if ((valid_predictions == 0)); then
+        echo "No test predictions were available; allowing rerun"
+        return 0
+    fi
+
+    NOT_RERUN_REASON="all predicted success probabilities are at or below $threshold"
+    return 1
+}

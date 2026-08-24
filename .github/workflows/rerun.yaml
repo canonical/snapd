@@ -37,7 +37,9 @@ jobs:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
       MAX_FAILED_TASKS: 30
-    runs-on: ubuntu-latest
+      TEST_PREDICTOR_THRESHOLD: "0.5"
+      TEST_PREDICTOR_URL: http://test-predictor.snapd.canonical.com:5000
+    runs-on: [self-hosted, spread-enabled]
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -120,9 +122,22 @@ jobs:
           else
             echo "threshold_ok=true" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Check test predictor
+        id: predictor
+        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true'
+        run: |
+          source .github/scripts/common.sh
+
+          if ! predictor_allows_rerun "$RUN_ID" "${{ github.event.workflow_run.run_attempt }}"; then
+            echo "Setting rerun to false because $NOT_RERUN_REASON"
+            echo "predictor_ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "predictor_ok=true" >> "$GITHUB_OUTPUT"
+          fi
       
       - name: Rerun workflow
-        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true'
+        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true' && steps.predictor.outputs.predictor_ok == 'true'
         run: |
           source .github/scripts/common.sh
 
