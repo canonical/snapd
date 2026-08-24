@@ -654,6 +654,31 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecSkipsOnlyFileWithMissingLi
 	})
 }
 
+// TestExportSpecMissingLibraryIsNotFatal mirrors
+// TestSymlinksSpecNoLibrary/TestSymlinksSpecSkipsOnlyFileWithMissingLibrary
+// for the export backend, verifying the same "skip the offending file, do
+// not fail the connection" behavior applies there too (both go through the
+// same sourceDirFilesCheck/checkEglIcdFile).
+func (s *EglDriverLibsInterfaceSuite) TestExportSpecMissingLibraryIsNotFatal(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// Write ICD file
+	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	os.WriteFile(filepath.Join(icdDir, "nvidia.json"), []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_nvidia.so.0"
+    }
+}
+`), 0655)
+
+	spec := &export.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Files(), HasLen, 0)
+}
+
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {
 	// Write ICD file
 	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
