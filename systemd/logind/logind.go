@@ -87,9 +87,9 @@ func (e *Error) Error() string {
 // SessionClass returns the class of the display session of the current
 // user as reported by loginctl.
 //
-// It first invokes "loginctl show-user <uid> -p Display" to resolve the
+// It first invokes "loginctl show-user <uid> --all -p Display" to resolve the
 // display session of the current user, and then "loginctl show-session <id>
-// -p Class" to get the class of that session, parsing the "Class=<value>"
+// --all -p Class" to get the class of that session, parsing the "Class=<value>"
 // output.
 //
 // Note that when invoked from inside a session, the class of the display
@@ -107,7 +107,7 @@ func SessionClass(ctx context.Context) (string, error) {
 	uid := os.Getuid()
 	// Note: --value is not passed to loginctl as it is only available
 	// since systemd 230, and the "Name=value" output is parsed instead.
-	out, err := loginctlCmd(ctx, "show-user", strconv.Itoa(uid), "-p", "Display")
+	out, err := loginctlCmd(ctx, "show-user", strconv.Itoa(uid), "--all", "-p", "Display")
 	if err != nil {
 		return "", err
 	}
@@ -123,7 +123,7 @@ func SessionClass(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("cannot find session for the current user: %d", uid)
 	}
 
-	out, err = loginctlCmd(ctx, "show-session", sessionID, "-p", "Class")
+	out, err = loginctlCmd(ctx, "show-session", sessionID, "--all", "-p", "Class")
 	if err != nil {
 		return "", err
 	}

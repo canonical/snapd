@@ -45,10 +45,10 @@ func sessionClassLoginctlMock(c *C, displayOutput, classOutput string) func(ctx 
 	return func(ctx context.Context, args ...string) ([]byte, error) {
 		switch args[0] {
 		case "show-user":
-			c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "-p", "Display"})
+			c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "--all", "-p", "Display"})
 			return []byte(displayOutput), nil
 		case "show-session":
-			c.Check(args, DeepEquals, []string{"show-session", "c5", "-p", "Class"})
+			c.Check(args, DeepEquals, []string{"show-session", "c5", "--all", "-p", "Class"})
 			return []byte(classOutput), nil
 		}
 		return nil, nil
@@ -95,7 +95,7 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 	loginctlErr.SetMsg([]byte("Failed to look up user"))
 
 	restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
-		c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "-p", "Display"})
+		c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "--all", "-p", "Display"})
 		return nil, loginctlErr
 	})
 	defer restore()
@@ -123,7 +123,7 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 		calls++
 		switch args[0] {
 		case "show-user":
-			c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "-p", "Display"})
+			c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "--all", "-p", "Display"})
 			return []byte("Display=c5\n"), nil
 		case "show-session":
 			return nil, loginctlErr
