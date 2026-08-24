@@ -21,12 +21,3 @@ package ltstrack
 
 // SystemBootBaseAllowed exposes systemBootBaseAllowed for tests.
 var SystemBootBaseAllowed = systemBootBaseAllowed
-
-// MockSupportUbuntuCore replaces supportUbuntuCore for tests.
-func MockSupportUbuntuCore(supportUC bool) (restore func()) {
-	restoreUC := supportUbuntuCore
-	supportUbuntuCore = supportUC
-	return func() {
-		supportUbuntuCore = restoreUC
-	}
-}

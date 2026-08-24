@@ -129,15 +129,6 @@ func (s *ltsSuite) TestSystemBootBaseAllowedHybridClassic(c *C) {
 	c.Assert(err, ErrorMatches, "cannot use LTS tracks on a hybrid classic system")
 }
 
-func (s *ltsSuite) TestSystemBootBaseAllowedUbuntuCoreDisabled(c *C) {
-	restore := ltstrack.MockSupportUbuntuCore(false)
-	defer restore()
-
-	uc18 := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
-	_, err := ltstrack.SystemBootBaseAllowed(uc18)
-	c.Assert(err, ErrorMatches, "cannot use LTS tracks on ubuntu core system")
-}
-
 func (s *ltsSuite) TestSystemBootBaseAllowedUC18(c *C) {
 	uc18 := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
 	bootBase, err := ltstrack.SystemBootBaseAllowed(uc18)

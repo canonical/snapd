@@ -48,11 +48,6 @@ var (
 	ErrNoTrack = errors.New("cannot find LTS track for input track")
 )
 
-var (
-	// supportUbuntuCore gates Ubuntu Core models.
-	supportUbuntuCore = true
-)
-
 // Resolve applies LTS track policy to channel for model. On success it
 // returns the remapped channel with the LTS target track, the original risk, and
 // any branch dropped. On failure it returns ("", err). Policy errors wrap
@@ -151,10 +146,6 @@ func systemBootBaseAllowed(model *asserts.Model) (int, error) {
 			return 0, fmt.Errorf("%w on a hybrid classic system", ErrNotAllowed)
 		}
 		return 0, fmt.Errorf("%w on a classic system", ErrNotAllowed)
-	}
-
-	if !supportUbuntuCore {
-		return 0, fmt.Errorf("%w on ubuntu core system", ErrNotAllowed)
 	}
 
 	// A model without a "base" header, or with base "core", is UC16-equivalent:
