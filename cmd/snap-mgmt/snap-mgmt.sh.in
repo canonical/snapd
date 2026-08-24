@@ -216,6 +216,16 @@ purge() {
     echo "Removing features exported from snapd to helper tools"
     rm -rf /var/lib/snapd/features
 
+    # TODO: this does not remove /var/lib/snapd/export (written by the
+    # export and configfiles backends, see interfaces/export and
+    # interfaces/builtin/helpers.go's systemLibrarySourcePath), nor the
+    # symlink directories tracked by interfaces.SymlinksUser
+    # (/etc/glvnd/egl_vendor.d, /etc/vulkan/{icd,implicit_layer,explicit_layer}.d,
+    # /usr/lib/<arch>-linux-gnu/gbm - see egl/vulkan/gbm_driver_libs.go's
+    # TrackedDirectories), even though interfaces.SymlinksUser's doc comment
+    # explicitly calls for tracked directories to be added here. Pre-existing
+    # gap, found while adding driver-libs support for Ubuntu Core.
+
     echo "Final directory cleanup"
     for snap_mount_dir in /snap /var/lib/snapd/snap; do
         if [ -L "$snap_mount_dir" ]; then

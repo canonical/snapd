@@ -21,8 +21,11 @@
 // a snap (or its components) into a staging tree under
 // /var/lib/snapd/export/system/<interface-name>/, for later consumption by
 // snap-confine. Unlike the configfiles and symlinks backends, which modify
-// the classic rootfs, this backend targets a snapd-owned location that is
-// meaningful on both classic and Ubuntu Core systems.
+// the classic rootfs, this backend targets a snapd-owned location instead -
+// the mechanism itself is not tied to classic or Core, but every interface
+// currently using it (see ConnectedPlugCallback implementations in
+// interfaces/builtin) only does so on Core, since on classic the same
+// content is already made discoverable via the symlinks backend.
 package export
 
 import (
