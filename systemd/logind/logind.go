@@ -112,7 +112,7 @@ func SessionClass(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// Using -p implies that empty properties are shown too, so an empty
+	// Using --all implies that empty properties are shown too, so an empty
 	// "Display=" is printed when the user has no display session, in
 	// which case no session can be determined for the user.
 	sessionID, err := parseProperty(string(out), "Display")
