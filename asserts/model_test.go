@@ -356,6 +356,52 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.PreseedAuthority(), DeepEquals, []string{"brand-id1", "preseed-delegate"})
 }
 
+func (mods *modelSuite) TestCoreVersion(c *C) {
+	for _, tc := range []struct {
+		comment string
+		encoded string
+		version int
+		err     string
+	}{
+		{
+			comment: "core18",
+			encoded: strings.Replace(modelExample, "TSLINE", mods.tsLine, 1),
+			version: 18,
+		},
+		{
+			comment: "core",
+			encoded: strings.Replace(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1), "base: core18\n", "base: core\n", 1),
+			version: 16,
+		},
+		{
+			comment: "core16",
+			encoded: strings.Replace(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1), "base: core18\n", "base: core16\n", 1),
+			version: 16,
+		},
+		{
+			comment: "core20",
+			encoded: strings.Replace(strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1), "OTHER", "", 1),
+			version: 20,
+		},
+		{
+			comment: "classic without base",
+			encoded: strings.Replace(classicModelExample, "TSLINE", mods.tsLine, 1),
+			err:     "not a core base",
+		},
+	} {
+		a, err := asserts.Decode([]byte(tc.encoded))
+		c.Assert(err, IsNil, Commentf("%s", tc.comment))
+		model := a.(*asserts.Model)
+		v, err := model.CoreVersion()
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, Commentf("%s", tc.comment))
+			continue
+		}
+		c.Assert(err, IsNil, Commentf("%s", tc.comment))
+		c.Check(v, Equals, tc.version, Commentf("%s", tc.comment))
+	}
+}
+
 func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
 	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 	encoded := strings.Replace(withTimestamp, "store: brand-store\n", "store: \n", 1)

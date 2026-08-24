@@ -116,18 +116,18 @@ func resolveLTSTrack(trackMap map[int]map[string]string, version, origin string,
 	if !ok {
 		return "", fmt.Errorf("%w %d from %s %s", ErrBootBaseNotManaged, bootBase, origin, version)
 	}
-	ltsTrack, ok := lookupLTSTrack(baseTrackMap, inputTrack)
-	if !ok {
+	ltsTrack, found := lookupLTSTrack(baseTrackMap, inputTrack)
+	if !found {
 		return "", fmt.Errorf("%w %s for boot base %d from %s %s", ErrNoTrack, inputTrack, bootBase, origin, version)
 	}
 	return ltsTrack, nil
 }
 
-// lookupLTSTrack returns the LTS target for inputTrack. Keys are transitions
-// (latest → 18). If inputTrack is not a key but equals any map value, the
-// switch already happened and that track is kept. An explicit key wins over
-// implicit identity, so a later onboard can remap an LTS track onward.
-func lookupLTSTrack(baseTrackMap map[string]string, inputTrack string) (string, bool) {
+// lookupLTSTrack returns the LTS target for inputTrack. Keys are
+// transitions (latest → 18). If inputTrack already matches a target
+// (e.g. "18" after a previous jump), it is kept. An explicit key wins,
+// so a later onboard can remap onward ("18": "24").
+func lookupLTSTrack(baseTrackMap map[string]string, inputTrack string) (ltsTrack string, found bool) {
 	if ltsTrack, ok := baseTrackMap[inputTrack]; ok && ltsTrack != "" {
 		return ltsTrack, true
 	}
