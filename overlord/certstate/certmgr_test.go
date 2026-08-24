@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/certstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -342,6 +343,10 @@ func (s *certMgrTestSuite) TestEnsureGarbageCollectionSkipsWhileUpdateInProgress
 		c.Assert(err, IsNil)
 		c.Assert(filepath.Join(path, ".snapd-inactive"), testutil.FileEquals, "boot-1")
 	}
+}
+
+func (s *certMgrTestSuite) TestEnsureLoopLogging(c *C) {
+	swfeatstest.CheckEnsureLoopLogging("certmgr.go", c, true)
 }
 
 func (s *certMgrTestSuite) TestDoUpdateCertificateDatabaseGeneratesMerged(c *C) {

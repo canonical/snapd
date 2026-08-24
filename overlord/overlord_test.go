@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2022 Canonical Ltd
+ * Copyright (C) 2016-2026 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1464,15 +1464,29 @@ func (ovs *overlordSuite) TestAllStateManagersHaveEnsureLoggingTest(c *C) {
 		if !entry.IsDir() || !strings.HasSuffix(entry.Name(), "state") {
 			continue
 		}
-		testPath := filepath.Join(entry.Name(), entry.Name()+"_test.go")
 		prefix := strings.TrimSuffix(entry.Name(), "state")
 		mgrPath := filepath.Join(entry.Name(), prefix+"mgr.go")
-		if !osutil.FileExists(testPath) || !osutil.FileExists(mgrPath) {
+		if !osutil.FileExists(mgrPath) {
 			continue
 		}
-		content, err := os.ReadFile(testPath)
-		c.Assert(err, IsNil)
-		containsEnsureChecks := strings.Contains(string(content), fmt.Sprintf(`swfeatstest.CheckEnsureLoopLogging("%s`, prefix+"mgr.go"))
-		c.Assert(containsEnsureChecks, Equals, true, Commentf("File %s does not contain a unit test that calls swfeatstest.CheckEnsureLoopLogging on the file containing its Ensure() method", testPath))
+
+		candidates := []string{
+			filepath.Join(entry.Name(), entry.Name()+"_test.go"),
+			filepath.Join(entry.Name(), prefix+"mgr_test.go"),
+		}
+
+		containsEnsureChecks := false
+		for _, testPath := range candidates {
+			if !osutil.FileExists(testPath) {
+				continue
+			}
+			content, err := os.ReadFile(testPath)
+			c.Assert(err, IsNil)
+			if strings.Contains(string(content), fmt.Sprintf(`swfeatstest.CheckEnsureLoopLogging("%s`, prefix+"mgr.go")) {
+				containsEnsureChecks = true
+				break
+			}
+		}
+		c.Assert(containsEnsureChecks, Equals, true, Commentf("None of %s calls swfeatstest.CheckEnsureLoopLogging on the file containing %s's Ensure() method", strings.Join(candidates, ", "), entry.Name()))
 	}
 }
