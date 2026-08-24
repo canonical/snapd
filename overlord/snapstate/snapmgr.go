@@ -193,15 +193,15 @@ type SnapSetup struct {
 	IntegrityDataInfo *snap.IntegrityDataInfo `json:"integrity-data-info,omitempty"`
 }
 
-func (snapsup *SnapSetup) InstanceName() string {
-	return snap.InstanceName(snapsup.SnapName(), snapsup.InstanceKey)
+func (snapsup *SnapSetup) InstanceName() naming.InstanceName {
+	return naming.InstanceName(snap.InstanceName(snapsup.SnapName().String(), snapsup.InstanceKey))
 }
 
-func (snapsup *SnapSetup) SnapName() string {
+func (snapsup *SnapSetup) SnapName() naming.SnapName {
 	if snapsup.SideInfo.RealName == "" {
 		panic("SnapSetup.SideInfo.RealName not set")
 	}
-	return snapsup.SideInfo.RealName
+	return naming.SnapName(snapsup.SideInfo.RealName)
 }
 
 func (snapsup *SnapSetup) Revision() snap.Revision {
@@ -746,12 +746,12 @@ func (snapst *SnapState) CurrentComponentInfo(cref naming.ComponentRef) (*snap.C
 	return ReadComponentInfo(si, csi)
 }
 
-func (snapst *SnapState) InstanceName() string {
+func (snapst *SnapState) InstanceName() naming.InstanceName {
 	cur := snapst.CurrentSideInfo()
 	if cur == nil {
 		return ""
 	}
-	return snap.InstanceName(cur.RealName, snapst.InstanceKey)
+	return naming.InstanceName(snap.InstanceName(cur.RealName, snapst.InstanceKey))
 }
 
 // RefreshInhibitProceedTime is the time after which a pending refresh is forced
