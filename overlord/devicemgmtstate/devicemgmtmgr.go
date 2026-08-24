@@ -25,6 +25,7 @@
 package devicemgmtstate
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -82,15 +83,15 @@ type deviceBackend interface {
 // Caller must hold state lock when using this interface.
 type MessageHandler interface {
 	// Validate checks subsystem-specific constraints.
-	Validate(st *state.State, msg *RequestMessage) error
+	Validate(ctx context.Context, st *state.State, msg *RequestMessage) error
 
 	// Apply creates a change to process the message and returns its ID.
 	// Implementations must call MarkChangeForMessage on the created change before
 	// releasing the state lock.
-	Apply(st *state.State, msg *RequestMessage) (changeID string, err error)
+	Apply(ctx context.Context, st *state.State, msg *RequestMessage) (changeID string, err error)
 
 	// ResultFromChange reads the completed change and returns the full result.
-	ResultFromChange(chg *state.Change) (body map[string]any, err error)
+	ResultFromChange(ctx context.Context, chg *state.Change) (body map[string]any, err error)
 }
 
 // UnauthorizedError is returned by MessageHandler.Validate when the operator
@@ -616,7 +617,7 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Chang
 }
 
 // doValidateMessage performs snapd-level and subsystem-level validation on a message.
-func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -700,7 +701,7 @@ func (m *DeviceMgmtManager) doValidateMessage(t *state.Task, _ *tomb.Tomb) error
 		return nil
 	}
 
-	err = handler.Validate(m.state, msg)
+	err = handler.Validate(tomb.Context(nil), m.state, msg)
 	if err != nil {
 		var unauthorizedErr *UnauthorizedError
 		status := asserts.MessageStatusRejected
@@ -743,7 +744,7 @@ func (m *DeviceMgmtManager) ensureAccountKey(signKeyID string) (fetched bool, er
 }
 
 // doApplyMessage dispatches the message to its subsystem handler for processing.
-func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -779,7 +780,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	chgID, applyErr := handler.Apply(m.state, msg)
+	chgID, applyErr := handler.Apply(tomb.Context(nil), m.state, msg)
 
 	// handler.Apply may drop the state lock internally. Concurrent tasks in
 	// other lanes may have mutated the state in that window, so re-read before mutating.
@@ -801,7 +802,7 @@ func (m *DeviceMgmtManager) doApplyMessage(t *state.Task, _ *tomb.Tomb) error {
 
 // doQueueResponse builds a response, signs it, and queues it for transmission on the next exchange.
 // Retries until the subsystem change (if any) completes.
-func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, tomb *tomb.Tomb) error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -822,7 +823,7 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	err = m.setMessageResponseFromChange(msg)
+	err = m.setMessageResponseFromChange(tomb.Context(nil), msg)
 	if err != nil {
 		return err
 	}
@@ -877,7 +878,7 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 }
 
 // setMessageResponseFromChange populates msg's response fields from the completed apply change.
-func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) error {
+func (m *DeviceMgmtManager) setMessageResponseFromChange(ctx context.Context, msg *RequestMessage) error {
 	if msg.ResponseStatus != "" {
 		return nil
 	}
@@ -889,15 +890,20 @@ func (m *DeviceMgmtManager) setMessageResponseFromChange(msg *RequestMessage) er
 		return nil
 	}
 
-	change := m.state.Change(msg.ApplyChangeID)
-	if change == nil {
+	chg := m.state.Change(msg.ApplyChangeID)
+	if chg == nil {
 		return fmt.Errorf("internal error: cannot find subsystem change %q", msg.ApplyChangeID)
 	}
-	if !change.Status().Ready() {
+	if !chg.Status().Ready() {
 		return &state.Retry{After: awaitSubsystemRetryInterval}
 	}
+	if chg.Status() == state.ErrorStatus {
+		msg.ResponseStatus = asserts.MessageStatusError
+		msg.ResponseBody = map[string]any{"message": chg.Err().Error()}
+		return nil
+	}
 
-	body, err := handler.ResultFromChange(change)
+	body, err := handler.ResultFromChange(ctx, chg)
 	if err != nil {
 		msg.ResponseStatus = asserts.MessageStatusError
 		msg.ResponseBody = map[string]any{"message": err.Error()}

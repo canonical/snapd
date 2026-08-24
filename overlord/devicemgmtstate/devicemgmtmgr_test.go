@@ -85,30 +85,30 @@ func (m *mockDeviceBackend) SignResponseMessage(accountID, messageID string, sta
 }
 
 type mockMessageHandler struct {
-	validate         func(st *state.State, msg *devicemgmtstate.RequestMessage) error
-	apply            func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error)
-	resultFromChange func(chg *state.Change) (map[string]any, error)
+	validate         func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) error
+	apply            func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error)
+	resultFromChange func(ctx context.Context, chg *state.Change) (map[string]any, error)
 }
 
-func (h *mockMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) error {
+func (h *mockMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) error {
 	if h.validate != nil {
-		return h.validate(st, msg)
+		return h.validate(ctx, st, msg)
 	}
 
 	return nil
 }
 
-func (h *mockMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+func (h *mockMessageHandler) Apply(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 	if h.apply != nil {
-		return h.apply(st, msg)
+		return h.apply(ctx, st, msg)
 	}
 
 	return "", nil
 }
 
-func (h *mockMessageHandler) ResultFromChange(chg *state.Change) (map[string]any, error) {
+func (h *mockMessageHandler) ResultFromChange(ctx context.Context, chg *state.Change) (map[string]any, error) {
 	if h.resultFromChange != nil {
-		return h.resultFromChange(chg)
+		return h.resultFromChange(ctx, chg)
 	}
 
 	return nil, nil
@@ -172,7 +172,19 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	s.mgr = devicemgmtstate.Manager(s.st, s.runner, nil)
 	s.o.AddManager(s.mgr)
 
-	s.mgr.MockBackend(&mockDeviceBackend{serial: s.makeSerial(c, "serial-1")})
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
 
 	err = s.o.StartUp()
 	c.Assert(err, IsNil)
@@ -184,15 +196,15 @@ func (s *deviceMgmtMgrSuite) SetUpTest(c *C) {
 	setRemoteMgmtFeatureFlag(c, s.st, true)
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(*state.State, *devicemgmtstate.RequestMessage) error {
+		validate: func(context.Context, *state.State, *devicemgmtstate.RequestMessage) error {
 			return nil
 		},
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			chg := st.NewChange("subsystem", "apply payload")
 			devicemgmtstate.MarkChangeForMessage(chg, msg)
 			return chg.ID(), nil
 		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
 			return map[string]any{"values": "ok"}, nil
 		},
 	})
@@ -1160,31 +1172,6 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesLaneIsolation(c *C) {
 		return nil
 	}, nil)
 
-	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			devicemgmtstate.MarkChangeForMessage(chg, msg)
-			return chg.ID(), nil
-		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return map[string]any{"result": "ok"}, nil
-		},
-	})
-
-	s.mgr.MockBackend(&mockDeviceBackend{
-		serial: s.makeSerial(c, "serial-1"),
-		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
-			return assertstest.FakeAssertionWithBody(body, map[string]any{
-				"type":        "response-message",
-				"account-id":  accountID,
-				"message-id":  messageID,
-				"device":      "serial-1.my-model.my-brand",
-				"status":      string(status),
-				"body-length": strconv.Itoa(len(body)),
-			}).(*asserts.ResponseMessage), nil
-		},
-	})
-
 	s.settle(c)
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
@@ -1480,7 +1467,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageUnauthorized(c *C) {
 	})
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
+		validate: func(context.Context, *state.State, *devicemgmtstate.RequestMessage) error {
 			return &devicemgmtstate.UnauthorizedError{Operator: "alice"}
 		},
 	})
@@ -1510,7 +1497,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageHandlerError(c *C) {
 	})
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
+		validate: func(context.Context, *state.State, *devicemgmtstate.RequestMessage) error {
 			return fmt.Errorf("cannot validate message: invalid payload")
 		},
 	})
@@ -1543,7 +1530,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageIdempotent(c *C) {
 
 	validateCalls := 0
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(_ *state.State, _ *devicemgmtstate.RequestMessage) error {
+		validate: func(context.Context, *state.State, *devicemgmtstate.RequestMessage) error {
 			validateCalls++
 			return fmt.Errorf("cannot validate message: invalid payload")
 		},
@@ -1641,7 +1628,7 @@ func (s *deviceMgmtMgrSuite) TestDoValidateMessageConcurrentWriteAfterValidate(c
 
 	firstCall := true
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(st *state.State, _ *devicemgmtstate.RequestMessage) error {
+		validate: func(ctx context.Context, st *state.State, _ *devicemgmtstate.RequestMessage) error {
 			if firstCall {
 				firstCall = false
 				// Wait for the other lane's full write before resuming.
@@ -1731,7 +1718,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageSkipIfAlreadyFailed(c *C) {
 	}, nil)
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(*state.State, *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(context.Context, *state.State, *devicemgmtstate.RequestMessage) (string, error) {
 			c.Fatal("apply call not expected for already-failed message")
 
 			return "", nil
@@ -1807,7 +1794,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageApplyError(c *C) {
 	})
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			return "", fmt.Errorf("cannot apply message: system in inconsistent state")
 		},
 	})
@@ -1835,7 +1822,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageIdempotent(c *C) {
 
 	applyCalls := 0
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			applyCalls++
 			chg := st.NewChange("subsystem", "apply payload")
 			devicemgmtstate.MarkChangeForMessage(chg, msg)
@@ -1911,7 +1898,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageRecoverExistingChange(c *C) {
 	devicemgmtstate.MarkChangeForMessage(existingChg, ms.Sequences["msg1"].Messages[0])
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(*state.State, *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(context.Context, *state.State, *devicemgmtstate.RequestMessage) (string, error) {
 			c.Fatal("apply must not be called when a marked change already exists")
 			return "", nil
 		},
@@ -2004,7 +1991,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageConcurrentWriteAfterApply(c *C) {
 
 	firstCall := true
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			if firstCall {
 				firstCall = false
 				// Wait for the other lane's full write before resuming.
@@ -2102,20 +2089,6 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseUnsequencedOK(c *C) {
 		}, nil
 	})
 
-	s.mgr.MockBackend(&mockDeviceBackend{
-		serial: s.makeSerial(c, "serial-1"),
-		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
-			return assertstest.FakeAssertionWithBody(body, map[string]any{
-				"type":        "response-message",
-				"account-id":  accountID,
-				"message-id":  messageID,
-				"device":      "serial-1.my-model.my-brand",
-				"status":      string(status),
-				"body-length": strconv.Itoa(len(body)),
-			}).(*asserts.ResponseMessage), nil
-		},
-	})
-
 	s.settle(c)
 
 	ms, err := s.mgr.GetState()
@@ -2155,12 +2128,12 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseStatusAlreadyKnown(c *C) {
 	}, nil)
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(*state.State, *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(context.Context, *state.State, *devicemgmtstate.RequestMessage) (string, error) {
 			c.Fatal("apply must not be called when ResponseStatus is already set")
 
 			return "", nil
 		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
 			// A message whose ResponseStatus was set earlier in the pipeline (e.g. by
 			// rejectSequence) must be signed and queued without calling handler.ResultFromChange.
 			c.Fatal("resultFromChange must not be called when ResponseStatus is already set")
@@ -2274,13 +2247,12 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseResultFromChangeError(c *C) {
 	})
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(*state.State, *devicemgmtstate.RequestMessage) error { return nil },
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			chg := st.NewChange("subsystem", "apply payload")
 			devicemgmtstate.MarkChangeForMessage(chg, msg)
 			return chg.ID(), nil
 		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
 			return nil, fmt.Errorf("cannot get result from change: operation failed")
 		},
 	})
@@ -2342,7 +2314,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
 	s.mgr.SetState(ms)
 
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		resultFromChange: func(*state.Change) (map[string]any, error) {
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
 			c.Error("resultFromChange must not be called when subsystem change cannot be found")
 
 			return nil, nil
@@ -2358,6 +2330,67 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotFound(c *C) {
 	err := s.mgr.DoQueueResponse(t, &tomb.Tomb{})
 	s.st.Lock()
 	c.Assert(err, ErrorMatches, `internal error: cannot find subsystem change "16384"`)
+}
+
+func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeError(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	s.mockStore(func(_ context.Context, _ *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
+		return &store.MessageExchangeResponse{
+			Messages: []store.MessageWithToken{
+				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
+			},
+		}, nil
+	})
+
+	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
+		apply: func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+			chg := st.NewChange("subsystem", "apply payload")
+			devicemgmtstate.MarkChangeForMessage(chg, msg)
+
+			t := st.NewTask("subsys-task", "subsystem task")
+			chg.AddTask(t)
+			t.SetStatus(state.ErrorStatus)
+			t.Errorf("an error occurred")
+			t.SetClean()
+
+			return chg.ID(), nil
+		},
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
+			c.Error("resultFromChange must not be called when subsystem change errored")
+			return nil, nil
+		},
+	})
+
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			c.Check(messageID, Equals, "mesg-1")
+			c.Check(status, Equals, asserts.MessageStatusError)
+			c.Check(string(body), Equals, "{\"message\":\"cannot perform the following tasks:\\n- subsystem task (an error occurred)\"}")
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	s.settle(c)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+
+	c.Check(ms.Sequences["mesg"].Messages, HasLen, 0)
+	c.Check(ms.Sequences["mesg"].Applied, Equals, 0)
+
+	c.Assert(ms.ReadyResponses, HasLen, 1)
+	c.Check(ms.ReadyResponses["mesg-1"].Format, Equals, "assertion")
 }
 
 func (s *deviceMgmtMgrSuite) TestDoQueueResponseNoHandlerForMessageKind(c *C) {
@@ -2454,7 +2487,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 
 	changeReady := false
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		resultFromChange: func(*state.Change) (map[string]any, error) {
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
 			if !changeReady {
 				c.Error("resultFromChange must not be called while subsystem change is not ready")
 			}
@@ -2481,20 +2514,6 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSubsystemChangeNotReady(c *C) {
 	changeReady = true
 	subsysChg.SetStatus(state.DoneStatus)
 
-	s.mgr.MockBackend(&mockDeviceBackend{
-		serial: s.makeSerial(c, "serial-1"),
-		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
-			return assertstest.FakeAssertionWithBody(body, map[string]any{
-				"type":        "response-message",
-				"account-id":  accountID,
-				"message-id":  messageID,
-				"device":      "serial-1.my-model.my-brand",
-				"status":      string(status),
-				"body-length": strconv.Itoa(len(body)),
-			}).(*asserts.ResponseMessage), nil
-		},
-	})
-
 	s.st.Unlock()
 	err = s.mgr.DoQueueResponse(t, &tomb.Tomb{})
 	s.st.Lock()
@@ -2517,18 +2536,6 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 				s.makeStoreRequestMessage(c, "mesg-1", "test-kind", "token-1"),
 			},
 		}, nil
-	})
-
-	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		validate: func(*state.State, *devicemgmtstate.RequestMessage) error { return nil },
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
-			chg := st.NewChange("subsystem", "apply payload")
-			devicemgmtstate.MarkChangeForMessage(chg, msg)
-			return chg.ID(), nil
-		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
-			return map[string]any{"values": "ok"}, nil
-		},
 	})
 
 	s.mgr.MockBackend(&mockDeviceBackend{
@@ -2570,12 +2577,12 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromCh
 
 	firstCall := true
 	s.mgr.RegisterHandler("test-kind", &mockMessageHandler{
-		apply: func(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+		apply: func(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 			chg := st.NewChange("subsystem", "apply payload")
 			devicemgmtstate.MarkChangeForMessage(chg, msg)
 			return chg.ID(), nil
 		},
-		resultFromChange: func(*state.Change) (map[string]any, error) {
+		resultFromChange: func(context.Context, *state.Change) (map[string]any, error) {
 			if firstCall {
 				firstCall = false
 				// Wait for the other lane's full write before resuming.
@@ -2594,20 +2601,6 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseConcurrentWriteAfterResultFromCh
 			}
 
 			return map[string]any{"values": "ok"}, nil
-		},
-	})
-
-	s.mgr.MockBackend(&mockDeviceBackend{
-		serial: s.makeSerial(c, "serial-1"),
-		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
-			return assertstest.FakeAssertionWithBody(body, map[string]any{
-				"type":        "response-message",
-				"account-id":  accountID,
-				"message-id":  messageID,
-				"device":      "serial-1.my-model.my-brand",
-				"status":      string(status),
-				"body-length": strconv.Itoa(len(body)),
-			}).(*asserts.ResponseMessage), nil
 		},
 	})
 

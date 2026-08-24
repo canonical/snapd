@@ -60,7 +60,7 @@ type confdbMessageHandler struct {
 
 // Validate checks that the operator sending the message has been granted
 // access to the requested confdb view in the device's confdb-control assertion.
-func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.RequestMessage) error {
+func (h *confdbMessageHandler) Validate(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) error {
 	var body confdbMessageBody
 	err := json.Unmarshal([]byte(msg.Body), &body)
 	if err != nil {
@@ -117,7 +117,7 @@ func (h *confdbMessageHandler) Validate(st *state.State, msg *devicemgmtstate.Re
 }
 
 // Apply schedules the confdb action described in the message and returns the change ID.
-func (h *confdbMessageHandler) Apply(st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
+func (h *confdbMessageHandler) Apply(ctx context.Context, st *state.State, msg *devicemgmtstate.RequestMessage) (string, error) {
 	var body confdbMessageBody
 	err := json.Unmarshal([]byte(msg.Body), &body)
 	if err != nil {
@@ -133,9 +133,9 @@ func (h *confdbMessageHandler) Apply(st *state.State, msg *devicemgmtstate.Reque
 	var chgID string
 	switch body.Action {
 	case "get":
-		chgID, err = confdbstateReadConfdb(context.Background(), st, view, body.Keys, body.Constraints, confdb.AdminAccess)
+		chgID, err = confdbstateReadConfdb(ctx, st, view, body.Keys, body.Constraints, confdb.AdminAccess)
 	case "set":
-		chgID, err = confdbstateWriteConfdb(context.Background(), st, view, body.Values)
+		chgID, err = confdbstateWriteConfdb(ctx, st, view, body.Values)
 	default:
 		return "", fmt.Errorf("cannot apply message: unknown action %q", body.Action)
 	}
@@ -153,14 +153,7 @@ func (h *confdbMessageHandler) Apply(st *state.State, msg *devicemgmtstate.Reque
 }
 
 // ResultFromChange returns the result of a completed confdb action.
-func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]any, error) {
-	if chg.Status() == state.ErrorStatus {
-		return nil, chg.Err()
-	}
-	if chg.Status() != state.DoneStatus {
-		return nil, fmt.Errorf("internal error: unexpected change status %s", chg.Status())
-	}
-
+func (h *confdbMessageHandler) ResultFromChange(ctx context.Context, chg *state.Change) (map[string]any, error) {
 	var apiData map[string]any
 	err := chg.Get("api-data", &apiData)
 	if errors.Is(err, state.ErrNoState) {
@@ -184,6 +177,10 @@ func (h *confdbMessageHandler) ResultFromChange(chg *state.Change) (map[string]a
 		return nil, fmt.Errorf("internal error: api-data error field is not a map")
 	}
 
-	msg, _ := errMap["message"].(string)
+	msg, ok := errMap["message"].(string)
+	if !ok {
+		return nil, fmt.Errorf("internal error: api-data error field has no message")
+	}
+
 	return nil, fmt.Errorf("%s", msg)
 }

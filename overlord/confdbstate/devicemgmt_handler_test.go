@@ -107,7 +107,7 @@ func (s *confdbHandlerSuite) TestValidateOK(c *C) {
 		Kind:      "confdb",
 		Body:      `{"action":"get","account":"system","view":"network/wifi-admin","constraints":{"iface":"wlan0"}}`,
 	}
-	err := handler.Validate(s.st, msg)
+	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, IsNil)
 }
 
@@ -123,7 +123,7 @@ func (s *confdbHandlerSuite) TestValidateUnauthorized(c *C) {
 		Kind:      "confdb",
 		Body:      `{"action":"get","account":"system","view":"network/wifi-admin"}`,
 	}
-	err := handler.Validate(s.st, msg)
+	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
 
 	var authErr *devicemgmtstate.UnauthorizedError
@@ -143,7 +143,7 @@ func (s *confdbHandlerSuite) TestValidateNoConfdbControl(c *C) {
 		Kind:      "confdb",
 		Body:      `{"action":"get","account":"system","view":"network/wifi-admin"}`,
 	}
-	err := handler.Validate(s.st, msg)
+	err := handler.Validate(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
 
 	var authErr *devicemgmtstate.UnauthorizedError
@@ -216,7 +216,7 @@ func (s *confdbHandlerSuite) TestValidateInvalidBody(c *C) {
 		cmt := Commentf("%s test", tt.name)
 
 		msg := &devicemgmtstate.RequestMessage{AccountID: "alice", Kind: "confdb", Body: tt.body}
-		err := handler.Validate(s.st, msg)
+		err := handler.Validate(context.Background(), s.st, msg)
 		c.Assert(err, NotNil, cmt)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 
@@ -255,7 +255,7 @@ func (s *confdbHandlerSuite) TestApplyGetOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	chgID, err := handler.Apply(s.st, msg)
+	chgID, err := handler.Apply(context.Background(), s.st, msg)
 	c.Assert(err, IsNil)
 	c.Check(chgID, Not(Equals), "")
 
@@ -291,7 +291,7 @@ func (s *confdbHandlerSuite) TestApplySetOK(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	chgID, err := handler.Apply(s.st, msg)
+	chgID, err := handler.Apply(context.Background(), s.st, msg)
 	c.Assert(err, IsNil)
 	c.Check(chgID, Not(Equals), "")
 
@@ -334,7 +334,7 @@ func (s *confdbHandlerSuite) TestApplyInvalidBody(c *C) {
 
 		msg := &devicemgmtstate.RequestMessage{Kind: "confdb", Body: tt.body}
 
-		chgID, err := handler.Apply(s.st, msg)
+		chgID, err := handler.Apply(context.Background(), s.st, msg)
 		c.Assert(err, NotNil, cmt)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 		c.Check(chgID, Equals, "", cmt)
@@ -353,7 +353,7 @@ func (s *confdbHandlerSuite) TestApplyGetViewError(c *C) {
 		Kind: "confdb",
 		Body: `{"action":"get","account":"system","view":"network/wifi-who"}`,
 	}
-	chgID, err := handler.Apply(s.st, msg)
+	chgID, err := handler.Apply(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "cannot find view .* in confdb schema .*")
 	c.Check(chgID, Equals, "")
@@ -376,7 +376,7 @@ func (s *confdbHandlerSuite) TestApplyWriteConfdbError(c *C) {
 		Kind: "confdb",
 		Body: `{"action":"set","account":"system","view":"network/wifi-admin","values":{"ssid":"my-network"}}`,
 	}
-	chgID, err := handler.Apply(s.st, msg)
+	chgID, err := handler.Apply(context.Background(), s.st, msg)
 	c.Assert(err, NotNil)
 	c.Check(err, ErrorMatches, "cannot write confdb")
 	c.Check(chgID, Equals, "")
@@ -416,7 +416,7 @@ func (s *confdbHandlerSuite) TestResultFromChangeOK(c *C) {
 			chg.Set("api-data", tt.apiData)
 		}
 
-		body, err := handler.ResultFromChange(chg)
+		body, err := handler.ResultFromChange(context.Background(), chg)
 		c.Assert(err, IsNil, cmt)
 		c.Check(body, DeepEquals, tt.expectedBody, cmt)
 	}
@@ -437,29 +437,10 @@ func (s *confdbHandlerSuite) TestResultFromChangeInvalid(c *C) {
 		expectedErr string
 	}{
 		{
-			name:    "task error",
-			chgKind: "get-confdb",
-			addTasks: func(st *state.State, chg *state.Change) {
-				t := st.NewTask("load-confdb-change", "Load confdb data into the change")
-				chg.AddTask(t)
-				t.SetStatus(state.ErrorStatus)
-				t.Errorf("cannot read view")
-			},
-			expectedErr: "" +
-				"cannot perform the following tasks:\n" +
-				"- Load confdb data into the change \\(cannot read view\\)",
-		},
-		{
-			name:        "not done",
-			chgKind:     "get-confdb",
-			chgStatus:   state.DoingStatus,
-			expectedErr: `internal error: unexpected change status Doing`,
-		},
-		{
 			name:        "no api-data on get change",
 			chgKind:     "get-confdb",
 			chgStatus:   state.DoneStatus,
-			expectedErr: `internal error: change "get-confdb" done with no api-data`,
+			expectedErr: `internal error: "get-confdb" change \(\d+\) done with no api-data`,
 		},
 		{
 			name:      "confdb error in api-data",
@@ -485,6 +466,13 @@ func (s *confdbHandlerSuite) TestResultFromChangeInvalid(c *C) {
 			apiData:     map[string]any{"error": `cannot find view "wifi-admin" in confdb schema system/network`},
 			expectedErr: "internal error: api-data error field is not a map",
 		},
+		{
+			name:        "api-data error field has no message",
+			chgKind:     "get-confdb",
+			chgStatus:   state.DoneStatus,
+			apiData:     map[string]any{"error": map[string]any{"kind": "option-not-found"}},
+			expectedErr: "internal error: api-data error field has no message",
+		},
 	}
 
 	for _, tt := range tests {
@@ -501,7 +489,7 @@ func (s *confdbHandlerSuite) TestResultFromChangeInvalid(c *C) {
 			chg.Set("api-data", tt.apiData)
 		}
 
-		body, err := handler.ResultFromChange(chg)
+		body, err := handler.ResultFromChange(context.Background(), chg)
 		c.Assert(err, NotNil, cmt)
 		c.Check(err, ErrorMatches, tt.expectedErr, cmt)
 		c.Check(body, IsNil, cmt)
