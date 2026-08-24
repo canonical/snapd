@@ -123,6 +123,22 @@ var _ = interfaces.SymlinksUser(&gbmDriverLibsInterface{})
 var _ = symlinks.ConnectedPlugCallback(&gbmDriverLibsInterface{})
 var _ = interfaces.ConfigfilesUser(&gbmDriverLibsInterface{})
 
+// TODO(core): gbm-driver-libs does not implement export.ConnectedPlugCallback,
+// unlike egl-driver-libs and vulkan-driver-libs. Those two interfaces list
+// their content via a "vendor JSON" convention (icd-source), which is what
+// a consumer scans to discover drivers, so the export backend just needs to
+// reproduce that listing under /var/lib/snapd/export. GBM has no such
+// listing: SymlinksConnectedPlug below places a single symlink, named after
+// the client-driver attribute, at a fixed path
+// (/usr/lib/<arch>-linux-gnu/gbm/<client-driver>) that a consumer is
+// expected to already know about or probe directly - there is nothing
+// equivalent to enumerate into an export unit, and no agreed-on path for a
+// consumer to look under on Core instead. This is a real, currently
+// undetermined gap: a gbm-driver-libs connection on Core makes the driver's
+// library-source available in the connecting snap's mount namespace (via
+// the existing per-snap bind mounts from Phase 1), but does not make it
+// discoverable there, so GBM driver discovery does not work on Core yet.
+
 func gbmVendorPath() string {
 	// TODO consider alternative architectures?
 	return fmt.Sprintf("/usr/lib/%s-linux-gnu/gbm", osutil.MachineName())

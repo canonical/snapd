@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
+	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
@@ -726,6 +727,192 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecOnCore(c *C) {
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.Symlinks(), HasLen, 0)
+}
+
+// writeSnapIcdAndLayerFixtures writes the snap-level ICD and layer files
+// plus the libraries they reference, returning the exported files a core
+// export is expected to produce for them, keyed by path relative to the
+// unit.
+//
+// The libraries matter as much as the ICD/layer files: one that cannot be
+// found in library-source makes the export skip the file naming it, so
+// writing only the JSON would yield an empty spec regardless of what the
+// interface does - which would silently defeat TestExportSpecOnClassic.
+func (s *VulkanDriverLibsInterfaceSuite) writeSnapIcdAndLayerFixtures(c *C) map[string]osutil.FileState {
+	expected := map[string]osutil.FileState{}
+	for _, icdData := range []struct {
+		gpu    string
+		subDir string
+	}{{"mesa", "vulkan/icd.d"}, {"nvidia", "vulkan/icd.d"}, {"radeon", "vulkan_alt.d"}} {
+		icdDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5", icdData.subDir)
+		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
+		os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libvulkan_%s.so.0",
+        "api_version" : "1.4.303"
+    }
+}
+`, icdData.gpu)), 0655)
+		libDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/lib2")
+		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+		libPath := filepath.Join(libDir, "libvulkan_"+icdData.gpu+".so.0")
+		os.WriteFile(libPath, []byte{}, 0655)
+
+		fileName := "snap_vulkan-provider_vulkan-slot_" + strings.ReplaceAll(icdData.subDir, "/", "-") + "-" + icdData.gpu + ".json"
+		expected[filepath.Join("icd.d", fileName)] = osutil.FileReference{Path: icdPath}
+	}
+
+	// Write layers
+	implicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/implicit_layer.d")
+	c.Assert(os.MkdirAll(implicitDir, 0755), IsNil)
+	implicitPath := filepath.Join(implicitDir, "gpu_layer.json")
+	os.WriteFile(implicitPath, []byte(`{
+    "file_format_version" : "1.0.1",
+    "layers" : [
+       {
+         "name": "layer1",
+         "library_path" : "libvulkan_nvidia.so.0",
+         "api_version" : "1.4.303"
+       },
+       {
+         "name": "layer2",
+         "library_path" : "libvulkan_nvidia.so.0",
+         "api_version" : "1.4.303"
+       }
+     ]
+}
+`), 0644)
+	expected[filepath.Join("implicit_layer.d", "snap_vulkan-provider_vulkan-slot_vulkan-implicit_layer.d-gpu_layer.json")] =
+		osutil.FileReference{Path: implicitPath}
+
+	explicitDir := filepath.Join(dirs.GlobalRootDir, "snap/vulkan-provider/5/vulkan/explicit_layer.d")
+	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
+	os.WriteFile(explicitPath, []byte(`{
+    "file_format_version" : "1.0.1",
+    "layer": {
+       "name": "layer1",
+       "library_path" : "libvulkan_nvidia.so.0",
+       "api_version" : "1.4.303"
+     }
+}
+`), 0644)
+	expected[filepath.Join("explicit_layer.d", "snap_vulkan-provider_vulkan-slot_vulkan-explicit_layer.d-gpu_layer.json")] =
+		osutil.FileReference{Path: explicitPath}
+
+	return expected
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestExportSpec(c *C) {
+	// export is only active on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	expected := s.writeSnapIcdAndLayerFixtures(c)
+
+	spec := &export.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Files(), DeepEquals, map[string]map[string]map[string]osutil.FileState{
+		"vulkan-driver-libs": {
+			"vulkan-provider_vulkan-slot_5": expected,
+		},
+	})
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestExportToComps(c *C) {
+	// export is only active on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	gpu := "nvidia"
+	compRev := snap.R(11)
+	compMnt := snap.ComponentMountDir("comp1", compRev, "vulkan-provider")
+
+	// Write ICD file
+	icdDir := filepath.Join(compMnt, "icd.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+	icdPath := filepath.Join(icdDir, gpu+".json")
+	os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libvulkan_%s.so.0",
+        "api_version" : "1.4.303"
+    }
+}
+`, gpu)), 0655)
+
+	// Write provider library
+	libDir := filepath.Join(compMnt, "lib1")
+	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	libPath := filepath.Join(libDir, "libvulkan_"+gpu+".so.0")
+	os.WriteFile(libPath, []byte{}, 0655)
+
+	expected := map[string]osutil.FileState{
+		filepath.Join("icd.d", "snap_vulkan-provider+comp1_vulkan-slot_icd.d-"+gpu+".json"): osutil.FileReference{Path: icdPath},
+	}
+
+	// Write layers
+	implicitDir := filepath.Join(compMnt, "implicit_layer.d")
+	c.Assert(os.MkdirAll(implicitDir, 0755), IsNil)
+	implicitPath := filepath.Join(implicitDir, "gpu_layer.json")
+	os.WriteFile(implicitPath, []byte(`{
+    "file_format_version" : "1.0.1",
+    "layers" : [
+       {
+         "name": "layer1",
+         "library_path" : "libvulkan_nvidia.so.0",
+         "api_version" : "1.4.303"
+       },
+       {
+         "name": "layer2",
+         "library_path" : "libvulkan_nvidia.so.0",
+         "api_version" : "1.4.303"
+       }
+     ]
+}
+`), 0644)
+	expected[filepath.Join("implicit_layer.d", "snap_vulkan-provider+comp1_vulkan-slot_implicit_layer.d-gpu_layer.json")] =
+		osutil.FileReference{Path: implicitPath}
+
+	explicitDir := filepath.Join(compMnt, "explicit_layer.d")
+	c.Assert(os.MkdirAll(explicitDir, 0755), IsNil)
+	explicitPath := filepath.Join(explicitDir, "gpu_layer.json")
+	os.WriteFile(explicitPath, []byte(`{
+    "file_format_version" : "1.0.1",
+    "layer": {
+       "name": "layer1",
+       "library_path" : "libvulkan_nvidia.so.0",
+       "api_version" : "1.4.303"
+     }
+}
+`), 0644)
+	expected[filepath.Join("explicit_layer.d", "snap_vulkan-provider+comp1_vulkan-slot_explicit_layer.d-gpu_layer.json")] =
+		osutil.FileReference{Path: explicitPath}
+
+	spec := &export.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Files(), DeepEquals, map[string]map[string]map[string]osutil.FileState{
+		"vulkan-driver-libs": {
+			"vulkan-provider_vulkan-slot_5+comp1_11": expected,
+		},
+	})
+}
+
+func (s *VulkanDriverLibsInterfaceSuite) TestExportSpecOnClassic(c *C) {
+	// export is skipped on classic; the equivalent content is already
+	// discoverable there via the symlinks backend.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// Write the same fixtures the core test uses, so that an empty spec
+	// can only be the OnClassic check and not simply an absence of input.
+	s.writeSnapIcdAndLayerFixtures(c)
+
+	spec := &export.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Files(), HasLen, 0)
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestStaticInfo(c *C) {

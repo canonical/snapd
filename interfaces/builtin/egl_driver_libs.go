@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
+	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/release"
@@ -104,10 +105,15 @@ func (iface *eglDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Specif
 
 var _ = symlinks.ConnectedPlugCallback(&eglDriverLibsInterface{})
 var _ = interfaces.ConfigfilesUser(&eglDriverLibsInterface{})
+var _ = export.ConnectedPlugCallback(&eglDriverLibsInterface{})
 
 const (
 	eglDriverLibs = "egl-driver-libs"
 	eglVendorPath = "/etc/glvnd/egl_vendor.d"
+	// eglVendorSubDir is the last path component of eglVendorPath, reused
+	// as the export backend's subdirectory name for the same content on
+	// Core - see ExportConnectedPlug.
+	eglVendorSubDir = "egl_vendor.d"
 )
 
 func (iface *eglDriverLibsInterface) TrackedDirectories() []string {
@@ -145,6 +151,21 @@ func (iface *eglDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 	const withPriority = true
 	return symlinksForSourceDir(spec, slot,
 		sourceDirAttr{attrName: "icd-source", isOptional: false}, eglVendorPath,
+		checkEglIcdFile, withPriority)
+}
+
+func (iface *eglDriverLibsInterface) ExportConnectedPlug(spec *export.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Inverted polarity vs. LdconfigConnectedPlug/SymlinksConnectedPlug
+	// above: those are classic-only, this is their Core counterpart -
+	// files are exported via /var/lib/snapd/export only on core, on
+	// classic the ICD files are already discoverable via the symlinks
+	// backend.
+	if release.OnClassic {
+		return nil
+	}
+	const withPriority = true
+	return exportedFilesForSourceDir(spec, eglDriverLibs, slot,
+		sourceDirAttr{attrName: "icd-source", isOptional: false}, eglVendorSubDir,
 		checkEglIcdFile, withPriority)
 }
 

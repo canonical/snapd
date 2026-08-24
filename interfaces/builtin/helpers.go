@@ -333,3 +333,47 @@ func exportUnitAndFileName(pathDirIdx pathWithDirIdx, slot *interfaces.Connected
 	unit = export.UnitName(slot.Snap().InstanceName(), slot.Name(), slot.Snap().Revision, component, componentRev)
 	return unit, fileName, nil
 }
+
+// exportedFilesForSourceDir declares, in spec, the files found in the
+// directories specified by the sda attribute of slot, for consumption by
+// the export backend on Core - the counterpart of symlinksForSourceDir for
+// classic. Each file is placed at "<unit>/<targetSubDir>/<encoded-name>"
+// (see AddExportedFile), where <encoded-name> is byte-identical to the
+// symlink name symlinksForSourceDir would create in targetSubDir for the
+// same connection (see sourceDirEncodedName). The checker function ensures
+// that the files we are going to export have the right content.
+// withPriority tells the function if there is a priority attribute that
+// needs to be considered when creating the encoded file name.
+func exportedFilesForSourceDir(
+	spec *export.Specification, ifaceName string, slot *interfaces.ConnectedSlot,
+	sda sourceDirAttr,
+	targetSubDir string,
+	checker func(slot *interfaces.ConnectedSlot, content []byte) error,
+	withPriority bool,
+) error {
+	var priority int64
+	if withPriority {
+		if err := slot.Attr("priority", &priority); err != nil {
+			return fmt.Errorf("invalid priority: %w", err)
+		}
+	}
+
+	sourcePaths, err := sourceDirsCheck(slot, sda, checker)
+	if err != nil {
+		return fmt.Errorf("invalid %s: %w", sda.attrName, err)
+	}
+
+	for _, pathDirIdx := range sourcePaths {
+		unit, fileName, err := exportUnitAndFileName(pathDirIdx, slot, priority, withPriority)
+		if err != nil {
+			return err
+		}
+		relPath := filepath.Join(targetSubDir, fileName)
+		if err := spec.AddExportedFile(ifaceName, unit, relPath,
+			osutil.FileReference{Path: pathDirIdx.path}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

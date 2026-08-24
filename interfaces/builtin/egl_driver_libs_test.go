@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/configfiles"
+	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/osutil"
@@ -428,6 +429,130 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecOnCore(c *C) {
 	spec := &symlinks.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Check(spec.Symlinks(), HasLen, 0)
+}
+
+// writeSnapIcdFixtures writes the snap-level ICD files, the libraries they
+// reference, and a couple of entries that must be ignored. It returns the
+// exported files a core export is expected to produce for them, keyed by
+// path relative to the unit.
+//
+// Both the ICD files and the libraries they name have to be written: a
+// library that cannot be found in library-source makes the export skip that
+// ICD file (see TestExportSpecMissingLibraryIsNotFatal), so writing only the
+// ICD files would yield an empty spec no matter what the interface does -
+// which would silently defeat the point of TestExportSpecOnClassic.
+func (s *EglDriverLibsInterfaceSuite) writeSnapIcdFixtures(c *C) map[string]osutil.FileState {
+	expected := map[string]osutil.FileState{}
+	for _, icdData := range []struct {
+		gpu    string
+		subDir string
+		dirIdx int
+	}{{"mesa", "egl.d", 10}, {"nvidia", "egl.d", 10}, {"radeon", "egl_alt.d", 11}} {
+		icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5", icdData.subDir)
+		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
+		os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_%s.so.0"
+    }
+}
+`, icdData.gpu)), 0655)
+		libDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")
+		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+		libPath := filepath.Join(libDir, "libEGL_"+icdData.gpu+".so.0")
+		os.WriteFile(libPath, []byte{}, 0655)
+
+		// Ignored file
+		otherPath := filepath.Join(icdDir, "foo.bar")
+		os.WriteFile(otherPath, []byte{}, 0655)
+
+		// Ignored symlink
+		os.Symlink("not_exists", filepath.Join(icdDir, "foo.json"))
+
+		fileName := fmt.Sprintf("%d_snap_egl-provider_egl-slot_%s-%s.json",
+			icdData.dirIdx, icdData.subDir, icdData.gpu)
+		expected[filepath.Join("egl_vendor.d", fileName)] = osutil.FileReference{Path: icdPath}
+	}
+	return expected
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestExportSpec(c *C) {
+	// export is only active on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	expected := s.writeSnapIcdFixtures(c)
+
+	spec := &export.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Files(), DeepEquals, map[string]map[string]map[string]osutil.FileState{
+		"egl-driver-libs": {
+			"egl-provider_egl-slot_5": expected,
+		},
+	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestExportToComps(c *C) {
+	// export is only active on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	// Write ICD files
+	comp1Files := map[string]osutil.FileState{}
+	comp2Files := map[string]osutil.FileState{}
+	for _, icdData := range []struct {
+		gpu      string
+		compSuff string
+		rev      snap.Revision
+		dirIdx   int
+		files    map[string]osutil.FileState
+	}{{"nvidia", "1", snap.R(11), 13, comp1Files}, {"mesa", "1", snap.R(11), 13, comp1Files},
+		{"nvidia", "2", snap.R(22), 14, comp2Files}, {"mesa", "2", snap.R(22), 14, comp2Files}} {
+		compMnt := snap.ComponentMountDir("comp"+icdData.compSuff, icdData.rev, "egl-provider")
+		icdDir := filepath.Join(compMnt, "egl.d")
+		c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+		icdPath := filepath.Join(icdDir, icdData.gpu+".json")
+		os.WriteFile(icdPath, []byte(fmt.Sprintf(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_%s.so.0"
+    }
+}
+`, icdData.gpu)), 0655)
+		libDir := filepath.Join(compMnt, "lib"+icdData.compSuff)
+		c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+		libPath := filepath.Join(libDir, "libEGL_"+icdData.gpu+".so.0")
+		os.WriteFile(libPath, []byte{}, 0655)
+
+		fileName := fmt.Sprintf("%d_snap_egl-provider+comp%s_egl-slot_egl.d-%s.json",
+			icdData.dirIdx, icdData.compSuff, icdData.gpu)
+		icdData.files[filepath.Join("egl_vendor.d", fileName)] = osutil.FileReference{Path: icdPath}
+	}
+
+	spec := &export.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Files(), DeepEquals, map[string]map[string]map[string]osutil.FileState{
+		"egl-driver-libs": {
+			"egl-provider_egl-slot_5+comp1_11": comp1Files,
+			"egl-provider_egl-slot_5+comp2_22": comp2Files,
+		},
+	})
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestExportSpecOnClassic(c *C) {
+	// export is skipped on classic; the equivalent content is already
+	// discoverable there via the symlinks backend.
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// Write the same fixtures the core test uses, so that an empty spec
+	// can only be the OnClassic check and not simply an absence of input.
+	s.writeSnapIcdFixtures(c)
+
+	spec := &export.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Files(), HasLen, 0)
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestConfigfilesSpec(c *C) {

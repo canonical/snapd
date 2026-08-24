@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/compatibility"
 	"github.com/snapcore/snapd/interfaces/configfiles"
+	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
 	"github.com/snapcore/snapd/release"
@@ -107,12 +108,19 @@ func (iface *vulkanDriverLibsInterface) LdconfigConnectedPlug(spec *ldconfig.Spe
 
 var _ = symlinks.ConnectedPlugCallback(&vulkanDriverLibsInterface{})
 var _ = interfaces.ConfigfilesUser(&vulkanDriverLibsInterface{})
+var _ = export.ConnectedPlugCallback(&vulkanDriverLibsInterface{})
 
 const (
 	vulkanDriverLibs        = "vulkan-driver-libs"
 	vulkanIcdPath           = "/etc/vulkan/icd.d"
 	vulkanExplicitLayerPath = "/etc/vulkan/explicit_layer.d"
 	vulkanImplicitLayerPath = "/etc/vulkan/implicit_layer.d"
+	// The following are the export backend's subdirectory names for the
+	// same content on Core (see ExportConnectedPlug), matching the last
+	// path component of the classic paths above.
+	vulkanIcdSubDir           = "icd.d"
+	vulkanExplicitLayerSubDir = "explicit_layer.d"
+	vulkanImplicitLayerSubDir = "implicit_layer.d"
 )
 
 // Implementation of the SymlinksUser interface
@@ -263,6 +271,36 @@ func (iface *vulkanDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Spe
 		const withPriority = false
 		if err := symlinksForSourceDir(spec, slot,
 			sourceAttr.sda, sourceAttr.targetDir, sourceAttr.checker, withPriority); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (iface *vulkanDriverLibsInterface) ExportConnectedPlug(spec *export.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// Inverted polarity vs. LdconfigConnectedPlug/SymlinksConnectedPlug
+	// above: those are classic-only, this is their Core counterpart -
+	// files are exported via /var/lib/snapd/export only on core, on
+	// classic the ICD/layer files are already discoverable via the
+	// symlinks backend.
+	if release.OnClassic {
+		return nil
+	}
+	for _, sourceAttr := range []struct {
+		sda          sourceDirAttr
+		targetSubDir string
+		checker      func(slot *interfaces.ConnectedSlot, content []byte) error
+	}{
+		{sourceDirAttr{attrName: "icd-source", isOptional: false},
+			vulkanIcdSubDir, checkVulkanIcdFile},
+		{sourceDirAttr{attrName: "implicit-layer-source", isOptional: true},
+			vulkanImplicitLayerSubDir, checkVulkanLayersFile},
+		{sourceDirAttr{attrName: "explicit-layer-source", isOptional: true},
+			vulkanExplicitLayerSubDir, checkVulkanLayersFile},
+	} {
+		const withPriority = false
+		if err := exportedFilesForSourceDir(spec, vulkanDriverLibs, slot,
+			sourceAttr.sda, sourceAttr.targetSubDir, sourceAttr.checker, withPriority); err != nil {
 			return err
 		}
 	}
