@@ -23,8 +23,8 @@
 // channels. LTS awareness does not imply that snapd carries an LTS track map;
 // maps are added incrementally as LTS branches are onboarded.
 //
-// Resolve reads the LTS track map from this process, or from a
-// candidate snapd snap when one is supplied for inspection.
+// Resolve reads the LTS track map from the running snapd, or from
+// candidateSnapd when a snapd install/refresh candidate is supplied.
 package ltstrack
 
 import (
@@ -56,14 +56,17 @@ var (
 // neither a transition key nor an LTS target, and ErrBootBaseNotManaged when the
 // boot base has no map entry. Channel parse and map-load failures are plain
 // errors. Programming errors (nil model, undetermined boot base) are prefixed
-// with "internal error:". When candidate is non-nil the map is read from that
-// snapd snap; otherwise from this process.
+// with "internal error:".
+//
+// candidateSnapd is the snapd snap being installed or refreshed.
+// It is not a store channel risk. If nil, the map is read from the
+// running snapd.
 //
 // Channel is the planned store channel (typically SnapSetup.Channel after
 // resolveChannel). Risk-only names are interpreted as the store does: a
 // missing track means latest, so "stable" is latest/stable. This function
 // does not inherit a tracking track; that merge must already have happened.
-func Resolve(model *asserts.Model, channel string, candidate snap.Container) (string, error) {
+func Resolve(model *asserts.Model, channel string, candidateSnapd snap.Container) (string, error) {
 	if model == nil {
 		return "", fmt.Errorf("internal error: cannot use nil model")
 	}
@@ -82,22 +85,11 @@ func Resolve(model *asserts.Model, channel string, candidate snap.Container) (st
 		return "", err
 	}
 
-	var (
-		trackMap map[int]map[string]string
-		version  string
-		source   string
-	)
-	if candidate != nil {
-		source = "candidate"
-		trackMap, version, err = snap.SnapdLTSTrackMapFromSnapFile(candidate)
-	} else {
-		source = "this"
-		trackMap, version, err = snap.SnapdLTSTrackMapFromThis()
-	}
+	trackMap, version, origin, err := loadLTSTrackMap(candidateSnapd)
 	if err != nil {
-		return "", fmt.Errorf("cannot retrieve LTS track map from %s snapd version %s: %v", source, version, err)
+		return "", fmt.Errorf("cannot retrieve LTS track map from %s %s: %v", origin, version, err)
 	}
-	ltsTrack, err := resolveLTSTrack(trackMap, version, source, bootBase, inputTrack)
+	ltsTrack, err := resolveLTSTrack(trackMap, version, origin, bootBase, inputTrack)
 	if err != nil {
 		return "", err
 	}
@@ -107,16 +99,26 @@ func Resolve(model *asserts.Model, channel string, candidate snap.Container) (st
 	return parsed.Clean().String(), nil
 }
 
+func loadLTSTrackMap(candidateSnapd snap.Container) (trackMap map[int]map[string]string, version, origin string, err error) {
+	if candidateSnapd != nil {
+		trackMap, version, err = snap.SnapdLTSTrackMapFromSnapFile(candidateSnapd)
+		return trackMap, version, "candidate snapd snap", err
+	}
+	trackMap, version, err = snap.SnapdLTSTrackMapFromThis()
+	return trackMap, version, "running snapd", err
+}
+
 // resolveLTSTrack looks up the LTS target for bootBase and inputTrack in
-// trackMap. source labels the map origin in errors ("this" or "candidate").
-func resolveLTSTrack(trackMap map[int]map[string]string, version, source string, bootBase int, inputTrack string) (string, error) {
+// trackMap. origin labels the map source in errors ("running snapd" or
+// "candidate snapd snap").
+func resolveLTSTrack(trackMap map[int]map[string]string, version, origin string, bootBase int, inputTrack string) (string, error) {
 	baseTrackMap, ok := trackMap[bootBase]
 	if !ok {
-		return "", fmt.Errorf("%w %d from %s snapd version %s", ErrBootBaseNotManaged, bootBase, source, version)
+		return "", fmt.Errorf("%w %d from %s %s", ErrBootBaseNotManaged, bootBase, origin, version)
 	}
 	ltsTrack, ok := lookupLTSTrack(baseTrackMap, inputTrack)
 	if !ok {
-		return "", fmt.Errorf("%w %s for boot base %d from %s snapd version %s", ErrNoTrack, inputTrack, bootBase, source, version)
+		return "", fmt.Errorf("%w %s for boot base %d from %s %s", ErrNoTrack, inputTrack, bootBase, origin, version)
 	}
 	return ltsTrack, nil
 }

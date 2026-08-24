@@ -221,7 +221,7 @@ func (s *ltsSuite) TestResolveUnmanagedBootBaseErrors(c *C) {
 
 	for _, channel := range []string{"latest/stable", "22/stable", "stable"} {
 		_, err := ltstrack.Resolve(model, channel, nil)
-		c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 22 from this snapd version 2.75`, Commentf("channel %q", channel))
+		c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 22 from running snapd 2.75`, Commentf("channel %q", channel))
 		c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true, Commentf("channel %q", channel))
 	}
 }
@@ -232,7 +232,7 @@ func (s *ltsSuite) TestResolveMockEmptyMapErrors(c *C) {
 
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
 	_, err := ltstrack.Resolve(model, "latest/stable", nil)
-	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from this snapd version 2.75`)
+	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from running snapd 2.75`)
 	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
 }
 
@@ -260,7 +260,7 @@ func (s *ltsSuite) TestResolveErrors(c *C) {
 
 	// Unknown track on a managed boot base errors.
 	_, err = ltstrack.Resolve(uc18, "20/stable", nil)
-	c.Check(err, ErrorMatches, `cannot find LTS track for input track 20 for boot base 18 from this snapd version 2.75`)
+	c.Check(err, ErrorMatches, `cannot find LTS track for input track 20 for boot base 18 from running snapd 2.75`)
 	c.Check(errors.Is(err, ltstrack.ErrNoTrack), Equals, true)
 }
 
@@ -319,7 +319,7 @@ func (s *ltsSuite) TestResolveCandidateUsesMapNotThis(c *C) {
 	model := s.coreModel(c, "core18", "pc=18", "pc-kernel=18")
 
 	_, err := ltstrack.Resolve(model, "latest/stable", nil)
-	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from this snapd version 2.75`)
+	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from running snapd 2.75`)
 	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
 
 	candidate := s.snapdContainer(c, uc18CandidateInfo)
@@ -336,7 +336,7 @@ func (s *ltsSuite) TestResolveCandidateWithoutMapErrors(c *C) {
 	candidate := s.snapdContainer(c, "VERSION=2.99\n")
 
 	_, err := ltstrack.Resolve(model, "latest/stable", candidate)
-	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from candidate snapd version 2.99`)
+	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 18 from candidate snapd snap 2.99`)
 	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
 }
 
@@ -345,7 +345,7 @@ func (s *ltsSuite) TestResolveCandidateUnmanagedBootBaseErrors(c *C) {
 	candidate := s.snapdContainer(c, uc18CandidateInfo)
 
 	_, err := ltstrack.Resolve(model, "latest/stable", candidate)
-	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 22 from candidate snapd version 2.99`)
+	c.Assert(err, ErrorMatches, `cannot find LTS track map for boot base 22 from candidate snapd snap 2.99`)
 	c.Check(errors.Is(err, ltstrack.ErrBootBaseNotManaged), Equals, true)
 }
 
@@ -357,18 +357,18 @@ func (s *ltsSuite) TestResolveCandidateErrors(c *C) {
 	c.Check(err, ErrorMatches, "internal error: cannot use nil model")
 
 	_, err = ltstrack.Resolve(model, "20/stable", candidate)
-	c.Check(err, ErrorMatches, `cannot find LTS track for input track 20 for boot base 18 from candidate snapd version 2.99`)
+	c.Check(err, ErrorMatches, `cannot find LTS track for input track 20 for boot base 18 from candidate snapd snap 2.99`)
 	c.Check(errors.Is(err, ltstrack.ErrNoTrack), Equals, true)
 
 	bad := s.snapdContainer(c, "VERSION=2.99\nSNAPD_LTS_TRACKS='{bad'\n")
 	_, err = ltstrack.Resolve(model, "latest/stable", bad)
-	c.Check(err, ErrorMatches, `cannot retrieve LTS track map from candidate snapd version 2.99: cannot parse SNAPD_LTS_TRACKS:.*`)
+	c.Check(err, ErrorMatches, `cannot retrieve LTS track map from candidate snapd snap 2.99: cannot parse SNAPD_LTS_TRACKS:.*`)
 
 	// A full channel as the LTS target must not be rewritten into track/risk/risk.
 	full := s.snapdContainer(c, `VERSION=2.99
 SNAPD_LTS_TRACKS='{"18":{"latest":"18/stable"}}'`)
 	_, err = ltstrack.Resolve(model, "latest/stable", full)
-	c.Check(err, ErrorMatches, `cannot retrieve LTS track map from candidate snapd version 2.99: cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable" for boot base 18 is not a track-only channel`)
+	c.Check(err, ErrorMatches, `cannot retrieve LTS track map from candidate snapd snap 2.99: cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable" for boot base 18 is not a track-only channel`)
 }
 
 func (s *ltsSuite) TestResolveCandidateUsesCandidateMap(c *C) {
