@@ -372,6 +372,12 @@ func (s *ltsSuite) TestResolveCandidateErrors(c *C) {
 	bad := s.snapdContainer(c, "VERSION=2.99\nSNAPD_LTS_TRACKS='{bad'\n")
 	_, err = ltstrack.Resolve(model, "latest/stable", bad)
 	c.Check(err, ErrorMatches, `cannot retrieve LTS track map from candidate snapd version 2.99: cannot parse SNAPD_LTS_TRACKS:.*`)
+
+	// A full channel as the LTS target must not be rewritten into track/risk/risk.
+	full := s.snapdContainer(c, `VERSION=2.99
+SNAPD_LTS_TRACKS='{"18":{"latest":"18/stable"}}'`)
+	_, err = ltstrack.Resolve(model, "latest/stable", full)
+	c.Check(err, ErrorMatches, `cannot retrieve LTS track map from candidate snapd version 2.99: cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable" for boot base 18 is not a track-only channel`)
 }
 
 func (s *ltsSuite) TestResolveCandidateUsesCandidateMap(c *C) {

@@ -29,6 +29,9 @@
 //
 // Shape: snapdLTSTracks[bootBase][inputTrack] = LTSTargetTrack
 //
+// Input tracks and LTS targets must be track-only names (e.g. "latest",
+// "18", "18-fips"), never a risk or full channel such as "18/stable".
+//
 // Entries are transitions only (latest → 18). If the input track already
 // equals any output of that boot-base map, Resolve keeps it (implicit
 // identity). A later onboard can remap an LTS track onward by adding an
@@ -47,6 +50,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+
+	snapchannel "github.com/snapcore/snapd/snap/channel"
 )
 
 // snapdLTSTracks is the LTS track map this snapd build carries. Empty by
@@ -55,15 +61,38 @@ var snapdLTSTracks = map[int]map[string]string{}
 
 // renderInfoLine returns the single-line SNAPD_LTS_TRACKS entry for the snapd
 // info file. The JSON value is single-quoted, matching the format of
-// SNAPD_ASSERTS_FORMATS produced by asserts/info.
-func renderInfoLine(tracks map[int]map[string]string) string {
+// SNAPD_ASSERTS_FORMATS produced by asserts/info. Input tracks and LTS
+// targets must be track-only channel names (no risk or branch).
+func renderInfoLine(tracks map[int]map[string]string) (string, error) {
+	if err := checkLTSTracks(tracks); err != nil {
+		return "", err
+	}
 	b, err := json.Marshal(tracks)
 	if err != nil {
-		panic(fmt.Sprintf("cannot json marshal snapd LTS tracks: %v", err))
+		return "", fmt.Errorf("cannot json marshal snapd LTS tracks: %v", err)
 	}
-	return fmt.Sprintf("SNAPD_LTS_TRACKS='%s'", b)
+	return fmt.Sprintf("SNAPD_LTS_TRACKS='%s'", b), nil
+}
+
+func checkLTSTracks(tracks map[int]map[string]string) error {
+	for bootBase, rules := range tracks {
+		for input, target := range rules {
+			if !snapchannel.IsVerbatimTrackOnly(input) {
+				return fmt.Errorf("cannot encode snapd LTS tracks: input track %q for boot base %d is not a track-only channel", input, bootBase)
+			}
+			if !snapchannel.IsVerbatimTrackOnly(target) {
+				return fmt.Errorf("cannot encode snapd LTS tracks: LTS target %q for boot base %d is not a track-only channel", target, bootBase)
+			}
+		}
+	}
+	return nil
 }
 
 func main() {
-	fmt.Println(renderInfoLine(snapdLTSTracks))
+	line, err := renderInfoLine(snapdLTSTracks)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println(line)
 }

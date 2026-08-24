@@ -47,7 +47,8 @@ func parseInfoLineValue(line string) (map[string]map[string]string, error) {
 }
 
 func (s *infoSuite) TestRenderInfoLineEmpty(c *C) {
-	line := renderInfoLine(map[int]map[string]string{})
+	line, err := renderInfoLine(map[int]map[string]string{})
+	c.Assert(err, IsNil)
 	c.Check(line, Equals, "SNAPD_LTS_TRACKS='{}'")
 
 	parsed, err := parseInfoLineValue(line)
@@ -59,7 +60,8 @@ func (s *infoSuite) TestRenderInfoLineNilMarshalsToNull(c *C) {
 	// json.Marshal(nil map) is 'null', not '{}'. Production snapdLTSTracks is
 	// a non-nil empty map, so the generator emits '{}'. The runtime parser
 	// treats absence, empty, and 'null' as no map.
-	line := renderInfoLine(nil)
+	line, err := renderInfoLine(nil)
+	c.Assert(err, IsNil)
 	c.Check(line, Equals, "SNAPD_LTS_TRACKS='null'")
 }
 
@@ -73,7 +75,8 @@ func (s *infoSuite) TestRenderInfoLineRoundTrip(c *C) {
 			"latest": "20",
 		},
 	}
-	line := renderInfoLine(tracks)
+	line, err := renderInfoLine(tracks)
+	c.Assert(err, IsNil)
 	c.Assert(strings.HasPrefix(line, "SNAPD_LTS_TRACKS='"), Equals, true,
 		Commentf("got: %s", line))
 	c.Assert(strings.HasSuffix(line, "'"), Equals, true,
@@ -94,4 +97,44 @@ func (s *infoSuite) TestRenderInfoLineRoundTrip(c *C) {
 func (s *infoSuite) TestPackageDefaultIsEmpty(c *C) {
 	// Until a UC version is onboarded the policy must ship empty.
 	c.Check(snapdLTSTracks, HasLen, 0)
+}
+
+func (s *infoSuite) TestRenderInfoLineRejectsNonTrackOnly(c *C) {
+	for _, t := range []struct {
+		tracks map[int]map[string]string
+		err    string
+	}{
+		{
+			tracks: map[int]map[string]string{18: {"latest": "18/stable"}},
+			err:    `cannot encode snapd LTS tracks: LTS target "18/stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			tracks: map[int]map[string]string{18: {"latest": "stable"}},
+			err:    `cannot encode snapd LTS tracks: LTS target "stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			tracks: map[int]map[string]string{18: {"latest/stable": "18"}},
+			err:    `cannot encode snapd LTS tracks: input track "latest/stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			tracks: map[int]map[string]string{18: {"latest": ""}},
+			err:    `cannot encode snapd LTS tracks: LTS target "" for boot base 18 is not a track-only channel`,
+		},
+		{
+			tracks: map[int]map[string]string{18: {"": "18"}},
+			err:    `cannot encode snapd LTS tracks: input track "" for boot base 18 is not a track-only channel`,
+		},
+		{
+			tracks: map[int]map[string]string{18: {"stable": "18"}},
+			err:    `cannot encode snapd LTS tracks: input track "stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			tracks: map[int]map[string]string{18: {"latest": "18/stable/hotfix"}},
+			err:    `cannot encode snapd LTS tracks: LTS target "18/stable/hotfix" for boot base 18 is not a track-only channel`,
+		},
+	} {
+		line, err := renderInfoLine(t.tracks)
+		c.Check(err, ErrorMatches, t.err, Commentf("%v", t.tracks))
+		c.Check(line, Equals, "", Commentf("%v", t.tracks))
+	}
 }

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/metautil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snap/integrity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
@@ -2152,8 +2153,9 @@ func snapdLTSTrackMapFromThisImpl() (trackMap map[int]map[string]string, snapdVe
 // parseSnapdLTSTracks parses the value of the SNAPD_LTS_TRACKS key from a
 // snapd info file. The expected JSON shape is a map of UC boot base version
 // (e.g. 18, 20) to input-track → LTS-target-track rules. An empty or
-// whitespace-only value returns (nil, nil). Malformed JSON or non-numeric
-// boot-base keys return an error.
+// whitespace-only value returns (nil, nil). Malformed JSON, non-numeric
+// boot-base keys, or input/target names that are not track-only channels
+// return an error.
 func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -2178,9 +2180,24 @@ func parseSnapdLTSTracks(raw string) (map[int]map[string]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse SNAPD_LTS_TRACKS boot base %q: %v", bootBaseStr, err)
 		}
+		if err := checkSnapdLTSTrackRules(bootBase, rules); err != nil {
+			return nil, err
+		}
 		tracks[bootBase] = rules
 	}
 	return tracks, nil
+}
+
+func checkSnapdLTSTrackRules(bootBase int, rules map[string]string) error {
+	for input, target := range rules {
+		if !channel.IsVerbatimTrackOnly(input) {
+			return fmt.Errorf("cannot parse SNAPD_LTS_TRACKS: input track %q for boot base %d is not a track-only channel", input, bootBase)
+		}
+		if !channel.IsVerbatimTrackOnly(target) {
+			return fmt.Errorf("cannot parse SNAPD_LTS_TRACKS: LTS target %q for boot base %d is not a track-only channel", target, bootBase)
+		}
+	}
+	return nil
 }
 
 // SnapdAssertionMaxFormatsFromSnapFile returns the supported assertion max

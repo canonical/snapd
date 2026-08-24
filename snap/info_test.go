@@ -2391,6 +2391,45 @@ func (s *infoSuite) TestParseSnapdLTSTracksInvalidBootBase(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS boot base "core18":.*`)
 }
 
+func (s *infoSuite) TestParseSnapdLTSTracksRejectsNonTrackOnly(c *C) {
+	for _, t := range []struct {
+		raw string
+		err string
+	}{
+		{
+			raw: `{"18":{"latest":"18/stable"}}`,
+			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			raw: `{"18":{"latest":"stable"}}`,
+			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			raw: `{"18":{"latest/stable":"18"}}`,
+			err: `cannot parse SNAPD_LTS_TRACKS: input track "latest/stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			raw: `{"18":{"latest":""}}`,
+			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "" for boot base 18 is not a track-only channel`,
+		},
+		{
+			raw: `{"18":{"":"18"}}`,
+			err: `cannot parse SNAPD_LTS_TRACKS: input track "" for boot base 18 is not a track-only channel`,
+		},
+		{
+			raw: `{"18":{"stable":"18"}}`,
+			err: `cannot parse SNAPD_LTS_TRACKS: input track "stable" for boot base 18 is not a track-only channel`,
+		},
+		{
+			raw: `{"18":{"latest":"18/stable/hotfix"}}`,
+			err: `cannot parse SNAPD_LTS_TRACKS: LTS target "18/stable/hotfix" for boot base 18 is not a track-only channel`,
+		},
+	} {
+		_, err := snap.ParseSnapdLTSTracks(t.raw)
+		c.Check(err, ErrorMatches, t.err, Commentf("raw=%s", t.raw))
+	}
+}
+
 func (s *infoSuite) TestSnapdLTSTrackMapFromSnapFile(c *C) {
 	info := `VERSION=2.99
 SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`
