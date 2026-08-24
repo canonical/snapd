@@ -15,6 +15,13 @@ environment:
   COMP2: comp2
 
 prepare: |
+  # Note: comp{1,2}/libs/lib{square,multiply}.so are empty stub files. The
+  # egl-driver-libs slot validates that the library_path named by each ICD
+  # file exists somewhere in library-source (filePathInLibDirs only checks
+  # for existence), and a library that cannot be found makes the export
+  # backend skip that ICD file. Without the stubs nothing would be exported
+  # and the export path would not be exercised at all. Nothing here loads
+  # them, so their content does not matter.
   snap pack "$PROVIDER_SNAP"
   snap pack "$COMP1"
   snap pack "$COMP2"
