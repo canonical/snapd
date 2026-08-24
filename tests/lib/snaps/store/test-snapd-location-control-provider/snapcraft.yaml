@@ -6,6 +6,9 @@ confinement: strict
 grade: stable
 base: core24
 
+environment:
+    PYTHONPATH: "$SNAP/usr/lib/python3/dist-packages:${PYTHONPATH}"
+
 apps:
     provider:
         command: wrapper
