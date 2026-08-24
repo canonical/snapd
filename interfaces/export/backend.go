@@ -57,6 +57,18 @@ func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
+	// Collect the set of interfaces that use the export backend at all,
+	// regardless of whether they currently have any connections. This is
+	// what lets a fully disconnected interface's export tree be garbage
+	// collected down to nothing, mirroring how the symlinks backend
+	// collects symlinkDirs from interfaces.SymlinksUser.
+	exportIfaces := map[string]bool{}
+	for _, iface := range repo.AllInterfaces() {
+		if _, ok := iface.(ConnectedPlugCallback); ok {
+			exportIfaces[iface.Name()] = true
+		}
+	}
+
 	snapName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
@@ -65,7 +77,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			snapName, err)
 	}
 
-	return b.ensureExports(spec.(*Specification))
+	return b.ensureExports(spec.(*Specification), exportIfaces)
 }
 
 // Remove removes exported files specific to a given snap.
@@ -93,21 +105,4 @@ func (b *Backend) NewSpecification(*interfaces.SnapAppSet,
 // SandboxFeatures returns the list of features supported by snapd for export.
 func (b *Backend) SandboxFeatures() []string {
 	return []string{"mediated-export"}
-}
-
-// ensureExports reconciles the on-disk export tree with what is declared in
-// spec.
-//
-// TODO(export): this currently does nothing. The reconciliation logic
-// (materialising per-connection unit directories, atomically flipping the
-// export.sources manifest, garbage-collecting stale units) is added in a
-// follow-up change.
-func (b *Backend) ensureExports(spec *Specification) error {
-	// Setup exports only if the snap has plugs that require it. For the
-	// moment this is only the system snap.
-	if len(spec.plugs) == 0 {
-		return nil
-	}
-
-	return nil
 }
