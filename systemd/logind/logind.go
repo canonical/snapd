@@ -29,7 +29,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/systemd"
 )
 
 // loginctlCmd calls loginctl with the given args, returning its standard
@@ -85,63 +84,26 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("loginctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
-// SessionClass returns the class of the current session as reported by
-// loginctl.
+// SessionClass returns the class of the display session of the current
+// user as reported by loginctl.
 //
-// On systemd >= 245 it invokes "loginctl show-session auto -p Class", which
-// resolves to the caller's own session if the process is inside one, and to
-// the user's display session otherwise. On older systemd it falls back to
-// resolving the user's display session via "loginctl show-user <uid> -p
-// Display" followed by "loginctl show-session <id> -p Class", which is what
-// "auto" resolves to for processes outside any session.
+// It first invokes "loginctl show-user <uid> -p Display" to resolve the
+// display session of the current user, and then "loginctl show-session <id>
+// -p Class" to get the class of that session, parsing the "Class=<value>"
+// output.
 //
-// Note: on systemd < 245, when invoked from inside a session, the class of
-// the user's display session is returned instead of the class of the
-// caller's own session. We could consult the XDG_SESSION_ID environment
-// variable to replicate the "caller's own session" clause of "auto", but the
-// environment may leak a stale session id of another user across "sudo"
-// invocations, so we don't do this, and when executed by an ExecCondition
-// the variable is never set in the first place.
+// Note that when invoked from inside a session, the class of the display
+// session of the current user is returned, which may be a different session
+// than the one the current process is part of (if any). User sessions are
+// display-eligible if and only if they are of class "user", "greeter", or
+// "user-early" (on systemd >= 256), "user-light" or "user-early-light" (on
+// systemd >= 259). User sessions of class "background" or "manager" are never
+// display-eligible, for example.
 //
-// The primary user of this function runs as an ExecCondition of systemd user
-// services, i.e. as a child of user@UID.service which is never part of a
-// session scope, so on both paths the display session is what gets resolved.
-// Only user- and greeter-class sessions are ever display-eligible, so
-// sessions of other classes (background, and on systemd >= 256 the
-// manager-class session of the user manager itself) cannot shadow it.
-//
-// An error is returned if loginctl fails, if no session for the current user
-// could be found, or if the output is malformed. An empty class ("Class=") is
-// valid and will be returned as "" without error.
+// An error is returned if loginctl fails, if no session for the current
+// user could be found, or if the output is malformed. An empty class
+// ("Class=") is valid and will be returned as "" without error.
 func SessionClass(ctx context.Context) (string, error) {
-	// The special session name "auto" for "loginctl show-session" and
-	// friends was introduced in systemd 245; on older systemd, "auto" is
-	// treated as a literal session id and never resolves to anything.
-	if err := systemd.EnsureAtLeast(245); err != nil {
-		if !systemd.IsSystemdTooOld(err) {
-			// the systemd version could not be determined at all
-			return "", err
-		}
-		return sessionClassFromUserDisplay(ctx)
-	}
-	return sessionClassFromAuto(ctx)
-}
-
-// sessionClassFromAuto returns the class of the session resolved by the
-// special session name "auto" (systemd >= 245).
-func sessionClassFromAuto(ctx context.Context) (string, error) {
-	out, err := loginctlCmd(ctx, "show-session", "auto", "-p", "Class")
-	if err != nil {
-		return "", err
-	}
-
-	return parseProperty(string(out), "Class")
-}
-
-// sessionClassFromUserDisplay returns the class of the display session of
-// the current user, resolved with "loginctl show-user" and "loginctl
-// show-session" (works on all supported systemd versions).
-func sessionClassFromUserDisplay(ctx context.Context) (string, error) {
 	uid := os.Getuid()
 	// Note: --value is not passed to loginctl as it is only available
 	// since systemd 230, and the "Name=value" output is parsed instead.
@@ -150,9 +112,9 @@ func sessionClassFromUserDisplay(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// On old systemd, using -p implies --all, so an empty "Display=" is
-	// printed when the user has no display session, in which case no
-	// session can be determined for the user.
+	// Using -p implies that empty properties are shown too, so an empty
+	// "Display=" is printed when the user has no display session, in
+	// which case no session can be determined for the user.
 	sessionID, err := parseProperty(string(out), "Display")
 	if err != nil {
 		return "", err
