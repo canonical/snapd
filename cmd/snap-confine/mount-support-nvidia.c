@@ -55,6 +55,19 @@
 #define SC_SNAP_DIR "/snap"
 #define SC_LIBGPU_DIR SC_EXTRA_LIB_DIR "/system/gpu"
 
+// Layout of the export backend's tree (see interfaces/export in the snapd
+// tree): one directory per interface under SC_SNAPD_EXPORT_SYSTEM, each
+// containing per-connection "unit" directories plus a flat manifest file,
+// SC_EXPORT_MANIFEST_NAME, listing every exported file as a path relative to
+// the interface's own directory, one per line, of the form
+// "<unit>/<subdir>/<file>". Exported files are pooled into the read-only gpu
+// tmpfs under SC_LIBGPU_SYSTEM_DIR, mirroring that same per-interface,
+// per-subdir layout but without the unit path component (see
+// sc_mount_exported_config_files() below).
+#define SC_SNAPD_EXPORT_SYSTEM SC_SNAPD_EXPORT "/system"
+#define SC_EXPORT_MANIFEST_NAME "export.sources"
+#define SC_LIBGPU_SYSTEM_DIR SC_LIBGPU_DIR "/system"
+
 // Globs for files to copy when exporting configuration from snaps
 #define SC_ETC_GLVND_EGL_SOURCE_DIR "/etc/glvnd/egl_vendor.d"
 #define SC_SNAP_EGL_VENDOR_GLOB SC_ETC_GLVND_EGL_SOURCE_DIR "/*_snap_*_*_*.json"
@@ -503,6 +516,175 @@ static void sc_mount_nvidia_driver_multiarch(const char *rootfs_dir, const char 
     }
 }
 
+// The set of driver-libs interfaces that may populate an export.sources
+// manifest under SC_SNAPD_EXPORT_SYSTEM. Shared by sc_has_exported_config_files()
+// and sc_mount_exported_config_files() below so there is exactly one place
+// that needs to be kept in sync with the Go side (interfaces/builtin) as new
+// interfaces adopt the export backend - a second, independently-maintained
+// copy of this list would risk the two silently disagreeing (e.g. the
+// existence check finding a manifest that the mount loop then never visits).
+static const char *const gpu_export_ifaces[] = {
+    "cuda-driver-libs",   "egl-driver-libs",      "gbm-driver-libs",    "nvidia-video-driver-libs",
+    "opengl-driver-libs", "opengles-driver-libs", "vulkan-driver-libs",
+};
+
+// Longest tolerated export.sources manifest line, i.e. the longest
+// "<unit>/<subdir>/<file>" relative path we are willing to build a
+// destination path out of. Chosen so that even the longest interface name in
+// gpu_export_ifaces plus this bound fits comfortably under PATH_MAX once
+// combined with SC_SNAPD_EXPORT_SYSTEM and SC_LIBGPU_SYSTEM_DIR (see the
+// sc_must_snprintf calls in sc_mount_exported_config_files) - real manifest
+// lines produced by the Go side are on the order of a few hundred bytes at
+// most, so this is generous headroom, not a tight fit.
+#define SC_EXPORT_MANIFEST_LINE_MAX 3000
+
+// sc_manifest_line_relpath validates one line from an export.sources
+// manifest, of the form "<unit>/<relPath>" (see AddExportedFile in
+// interfaces/export/spec.go), and returns a pointer within line to the
+// start of relPath - i.e. line with the leading "<unit>/" path component
+// stripped off - or NULL if line does not look like a valid manifest entry.
+//
+// The manifest is written entirely by snapd, and its lines never contain
+// ".." components, escape the interface's own directory, or exceed
+// SC_EXPORT_MANIFEST_LINE_MAX, so these checks are defense in depth against
+// unexpected content, not an expected failure mode. In particular the length
+// check exists so that a malformed or unexpectedly long line is turned away
+// here - visibly, as just another rejected manifest entry - rather than
+// reaching the sc_must_snprintf calls that build src/dst paths out of it
+// further down, which would die() on truncation instead of degrading
+// gracefully.
+static const char *sc_manifest_line_relpath(const char *line) {
+    if (line[0] == '\0' || line[0] == '/') {
+        return NULL;
+    }
+    if (strlen(line) > SC_EXPORT_MANIFEST_LINE_MAX) {
+        return NULL;
+    }
+    const char *sep = strchr(line, '/');
+    if (sep == NULL || sep[1] == '\0') {
+        return NULL;
+    }
+    if (strstr(line, "..") != NULL) {
+        return NULL;
+    }
+    return sep + 1;
+}
+
+// sc_has_exported_config_files reports whether any interface in
+// gpu_export_ifaces currently has an export.sources manifest, without
+// reading or mounting anything. Used by sc_mount_exported_paths() to decide
+// whether the gpu tmpfs needs to be created even when there are no
+// .library-source files to bind-mount - the two are independent facts about
+// a connection (a slot's icd-source and library-source attributes are
+// unrelated), so config export must not be gated on library export existing.
+static bool sc_has_exported_config_files(void) {
+    char manifest_path[PATH_MAX] = {0};
+    for (size_t i = 0; i < SC_ARRAY_SIZE(gpu_export_ifaces); ++i) {
+        sc_must_snprintf(manifest_path, sizeof manifest_path, "%s/%s/%s", SC_SNAPD_EXPORT_SYSTEM, gpu_export_ifaces[i],
+                         SC_EXPORT_MANIFEST_NAME);
+        if (access(manifest_path, F_OK) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// sc_mount_exported_config_files reads the export.sources manifest (see
+// SC_EXPORT_MANIFEST_NAME) for each interface in gpu_export_ifaces and
+// bind-mounts every file it lists into the pooled tree under
+// SC_LIBGPU_SYSTEM_DIR/<iface>/, so that a snap using the corresponding
+// interface can see vendor ICD/layer configuration alongside the libraries
+// mounted by the rest of sc_mount_exported_paths(). It must run before that
+// function's closing sc_remount_ro() call, since it needs to create
+// directories and placeholder files in the not-yet-read-only tmpfs.
+//
+// A missing manifest (ENOENT) means the interface currently has no
+// connections that export configuration files, and is silently skipped -
+// the expected, common case both for interfaces that never populate a
+// manifest (e.g. gbm-driver-libs, at the time of writing) and for
+// driver-libs interfaces with no current connections.
+//
+// A listed file that has disappeared since the manifest was read (e.g. the
+// exporting snap was refreshed or disconnected concurrently with this
+// snap's launch) is tolerated the same way, via sc_do_optional_mount(): a
+// launch must not fail because of a benign race with an unrelated snap. In
+// that case the placeholder file created below is removed again rather than
+// left behind empty, so a consumer never sees a zero-length stand-in for a
+// file that was never actually there.
+static void sc_mount_exported_config_files(const char *rootfs_dir) {
+    char manifest_path[PATH_MAX] = {0};
+    char line[PATH_MAX] = {0};
+    char src[PATH_MAX] = {0};
+    char dst[PATH_MAX] = {0};
+
+    for (size_t i = 0; i < SC_ARRAY_SIZE(gpu_export_ifaces); ++i) {
+        const char *iface = gpu_export_ifaces[i];
+
+        sc_must_snprintf(manifest_path, sizeof manifest_path, "%s/%s/%s", SC_SNAPD_EXPORT_SYSTEM, iface,
+                         SC_EXPORT_MANIFEST_NAME);
+
+        FILE *file SC_CLEANUP(sc_cleanup_file) = NULL;
+        file = fopen(manifest_path, "r");
+        if (file == NULL) {
+            if (errno != ENOENT) {
+                die("cannot open %s", manifest_path);
+            }
+            continue;
+        }
+
+        debug("reading export manifest %s", manifest_path);
+        while (fgets(line, sizeof line, file) != NULL) {
+            sc_str_chomp(line);
+            const char *relpath = sc_manifest_line_relpath(line);
+            if (relpath == NULL) {
+                debug("WARNING: ignoring malformed manifest entry %s in %s", line, manifest_path);
+                continue;
+            }
+
+            sc_must_snprintf(src, sizeof src, "%s/%s/%s", SC_SNAPD_EXPORT_SYSTEM, iface, line);
+            sc_must_snprintf(dst, sizeof dst, "%s" SC_LIBGPU_SYSTEM_DIR "/%s/%s", rootfs_dir, iface, relpath);
+
+            // If the destination already exists, this entry has already
+            // been mounted - encoded filenames should not collide across
+            // units, so in practice this is a safety net, not the primary
+            // defence against repeated entries.
+            struct stat stat_buf;
+            if (stat(dst, &stat_buf) == 0) {
+                debug("%s is already mounted, skipping", dst);
+                continue;
+            }
+
+            // POSIX dirname() may modify its argument, so operate on a copy.
+            char *dst_copy SC_CLEANUP(sc_cleanup_string) = sc_strdup(dst);
+            char *dst_dir = dirname(dst_copy);
+            if (sc_nonfatal_mkpath(dst_dir, 0755, 0, 0) != 0) {
+                die("cannot create %s", dst_dir);
+            }
+
+            // A regular file, not a directory, must already exist at dst
+            // before we can bind-mount a file onto it.
+            int fd = open(dst, O_CREAT | O_WRONLY | O_NOFOLLOW, 0644);
+            if (fd < 0) {
+                die("cannot create placeholder file %s", dst);
+            }
+            close(fd);
+
+            debug("mounting %s at %s", src, dst);
+            if (!sc_do_optional_mount(src, dst, NULL, MS_BIND | MS_RDONLY, NULL)) {
+                // The source vanished between the manifest being read and
+                // this mount attempt (e.g. a concurrent refresh or
+                // disconnect of the exporting snap) - remove the now-unused
+                // placeholder rather than leaving an empty file behind for a
+                // consumer to trip over.
+                debug("%s vanished before it could be mounted, removing placeholder", src);
+                if (unlink(dst) != 0) {
+                    debug("WARNING: cannot remove placeholder %s: %s", dst, strerror(errno));
+                }
+            }
+        }
+    }
+}
+
 static int sc_mount_exported_paths(const char *rootfs_dir) {
     // We are interested only in exports from GPU related interfaces to the
     // system, so we check the interface name in the files.
@@ -527,7 +709,16 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
             die("cannot search using glob pattern %s: %d", glob_pattern, err);
         }
     }
-    if (glob_res.gl_pathc == 0) {
+    // Whether to create the gpu tmpfs at all depends on two independent
+    // facts about current connections: are there .library-source files to
+    // bind-mount (glob_res, above), or is there an export.sources manifest
+    // with configuration files to bind-mount (see
+    // sc_mount_exported_config_files() below)? A slot's icd-source and
+    // library-source attributes are unrelated, so an interface that only
+    // exports configuration (nothing currently does, but the export backend
+    // is meant to be usable that way) must not be skipped just because
+    // glob_res came back empty.
+    if (glob_res.gl_pathc == 0 && !sc_has_exported_config_files()) {
         debug("no relevant sources in snaps export folder");
         return 0;
     }
@@ -594,6 +785,11 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
             sc_do_mount(path, dest_path, NULL, MS_BIND | MS_RDONLY, NULL);
         }
     }
+
+    // Config files (ICD/layer manifests etc.) exported by snaps via the
+    // export backend - see interfaces/export - must land in the same tmpfs
+    // before it is made read-only below.
+    sc_mount_exported_config_files(rootfs_dir);
 
     // Make the tmpfs read-only
     sc_remount_ro(tmpfs_path);
