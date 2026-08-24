@@ -506,11 +506,16 @@ func (s *appOpSuite) TestAppStatusInvalidUserGlobalSwitches(c *check.C) {
 
 func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 	n := 0
+	var hasGlobal bool
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
-		case 0:
+		case 0, 1:
 			c.Check(r.URL.Path, check.Equals, "/v2/apps")
-			c.Check(r.URL.Query(), check.HasLen, 1)
+			if hasGlobal {
+				c.Check(r.URL.Query(), check.HasLen, 2)
+			} else {
+				c.Check(r.URL.Query(), check.HasLen, 1)
+			}
 			c.Check(r.URL.Query().Get("select"), check.Equals, "service")
 			c.Check(r.Method, check.Equals, "GET")
 			w.WriteHeader(200)
@@ -522,17 +527,36 @@ func (s *appOpSuite) TestAppStatusNoServices(c *check.C) {
 				"status-code": 200,
 			})
 		default:
-			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
 		}
+
 		n++
 	})
-	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
-	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.HasLen, 0)
-	c.Check(s.Stdout(), check.Equals, "")
-	c.Check(s.Stderr(), check.Equals, "There are no services provided by installed snaps.\n")
-	// ensure that the fake server api was actually hit
-	c.Check(n, check.Equals, 1)
+
+	tests := []string{"0", "1337"}
+	var testsRun int
+	for _, uid := range tests {
+		testsRun++
+		s.stdout.Reset()
+		s.stderr.Reset()
+		hasGlobal = uid == "0"
+		r := snap.MockUserCurrent(func() (*user.User, error) {
+			return &user.User{
+				Uid: uid,
+			}, nil
+		})
+
+		rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"services"})
+		c.Assert(err, check.IsNil)
+		c.Assert(rest, check.HasLen, 0)
+		c.Check(s.Stdout(), check.Equals, "")
+		c.Check(s.Stderr(), check.Equals, "There are no services provided by installed snaps.\n")
+		// ensure that the fake server api was actually hit
+		c.Check(n, check.Equals, testsRun)
+
+		// restore the user mock
+		r()
+	}
 }
 
 func (s *appOpSuite) TestLogsCommand(c *check.C) {

@@ -99,6 +99,16 @@ func (s *confdbSuite) TestConfdbSanitizePlug(c *C) {
 			view:    "network/wifi",
 		},
 		{
+			account: "system",
+			view:    "network/wifi",
+		},
+		{
+			account: "system",
+			view:    "network/wifi",
+			role:    "custodian",
+			err:     `snaps cannot be custodians of "system" confdb schemas`,
+		},
+		{
 			err: `confdb plug must have an "account" attribute`,
 		},
 		{

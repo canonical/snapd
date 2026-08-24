@@ -80,6 +80,7 @@ execute: |
                 $PROXY_PARAM \
                 ${skip:-} \
                 SKIP_TESTS_FORMAT_CHECK=1 \
+                AUTO_INSTALL=0 \
                 IGNORE_MISSING=1 \
                 ./run-checks --static"
         else
@@ -89,6 +90,7 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
+                AUTO_INSTALL=0 \
                 IGNORE_MISSING=1 \
                 ./run-checks --unit"
         fi
@@ -117,6 +119,7 @@ execute: |
                 $PROXY_PARAM \
                 ${skip:-} \
                 SKIP_TESTS_FORMAT_CHECK=1 \
+                AUTO_INSTALL=0 \
                 IGNORE_MISSING=1 \
                 ./run-checks --static" test
         else
@@ -126,6 +129,7 @@ execute: |
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
+                AUTO_INSTALL=0 \
                 IGNORE_MISSING=1 \
                 ./run-checks --unit" test
         fi

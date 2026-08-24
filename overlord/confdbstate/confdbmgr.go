@@ -124,7 +124,7 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 	st.Lock()
 	defer st.Unlock()
 
-	tx, _, _, err := GetStoredTransaction(t)
+	tx, _, saveTxChanges, err := GetStoredTransaction(t)
 	if err != nil {
 		return err
 	}
@@ -151,6 +151,65 @@ func (m *ConfdbManager) doCommitTransaction(t *state.Task, _ *tomb.Tomb) (err er
 			hasSaveViewHook = true
 			break
 		}
+	}
+
+	// changes to "system" confdbs are persisted by subsystem handlers, not by
+	// the usual databag commit path
+	if tx.ConfdbAccount == "system" {
+		handler, ok := systemHandlers[tx.ConfdbName]
+		if !ok {
+			// shouldn't happen; we check for this early
+			return fmt.Errorf("internal error: no system handler registered for confdb-schema %q", tx.ConfdbName)
+		}
+
+		var committed bool
+		if err := t.Get("scheduled-tasks", &committed); err != nil && !errors.Is(err, state.ErrNoState) {
+			return err
+		}
+
+		if committed {
+			// a previous run of this task scheduled async tasks which have now
+			// finished (see the async path below) so we're done. Reset the tx which
+			// re-reads state, so hooks get fully updated state since the subsystem
+			// handlers may make state changes.
+			if err := tx.Reset(st); err != nil {
+				return err
+			}
+			saveTxChanges()
+			return nil
+		}
+
+		taskSets, err := handler.Commit(st, tx)
+		if err != nil {
+			return err
+		}
+
+		if len(taskSets) == 0 {
+			// synchronous commit, nothing to wait for. Reset the tx which re-reads
+			// state, so hooks get fully updated state since the subsystem handlers
+			// may make state changes.
+			if err := tx.Reset(st); err != nil {
+				return err
+			}
+			saveTxChanges()
+			return nil
+		}
+
+		// this confdb handler needs to run tasks asynchronously, so make this task
+		// wait for those and rerun when they're done
+		chg := t.Change()
+		for _, ts := range taskSets {
+			chg.AddAll(ts)
+			t.WaitAll(ts)
+		}
+		// set this to done, so it's picked up again after the dependencies finish
+		t.SetStatus(state.DoStatus)
+		t.Set("scheduled-tasks", true)
+
+		// ensure the new tasks are picked up by the task runner
+		st.EnsureBefore(0)
+
+		return &state.Retry{}
 	}
 
 	// we error early if a write may affect ephemeral data but no save-view hook
@@ -587,7 +646,7 @@ func (h *saveViewHandler) Error(origErr error) (ignoreErr bool, err error) {
 	}
 
 	// clear the transaction changes
-	err = tx.Clear(st)
+	err = tx.Reset(st)
 	if err != nil {
 		return false, fmt.Errorf("cannot rollback failed save-view: cannot clear transaction changes: %v", err)
 	}

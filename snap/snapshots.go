@@ -80,7 +80,7 @@ func (opts *SnapshotOptions) Validate() error {
 	}
 	const invalidChars = "[]{}?"
 	for _, excludePath := range opts.Exclude {
-		firstComponent := strings.SplitN(excludePath, "/", 2)[0]
+		firstComponent, _, _ := strings.Cut(excludePath, "/")
 		if !strutil.ListContains(validFirstComponents, firstComponent) {
 			return fmt.Errorf("snapshot exclude path must start with one of %q (got: %q)", validFirstComponents, excludePath)
 		}

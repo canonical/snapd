@@ -34,9 +34,9 @@ prepare: |
   case "$PROBLEM_TYPE" in
       crash)
           if [ "$version" -le 22 ]; then
-            uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+            uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-after-snap-bootstrap
           else
-            uc24_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+            uc24_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-after-snap-bootstrap
           fi
           ;;
       nolink)

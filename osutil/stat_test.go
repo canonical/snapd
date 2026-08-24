@@ -148,7 +148,7 @@ func makeTestPathInDir(c *C, dir, path string, mode os.FileMode) string {
 
 func (ts *StatTestSuite) TestIsWritableDir(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses file permission checks)")
 	}
 	for _, t := range []struct {
 		path       string
@@ -199,7 +199,7 @@ func (ts *StatTestSuite) TestIsDirNotExist(c *C) {
 
 func (ts *StatTestSuite) TestDirExists(c *C) {
 	if os.Geteuid() == 0 {
-		c.Skip("cannot run test as root")
+		c.Skip("this test cannot run as root (root bypasses directory traversal permissions)")
 	}
 	for _, t := range []struct {
 		make   string

@@ -166,7 +166,7 @@ reset_all_snap() {
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
-    rm -rf /root/.snap
+    rm -rf /root/.snap /root/snap
     rm -rf /tmp/snap-private-tmp/snap.*
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.service snapd.socket

@@ -95,35 +95,16 @@ endif
 EXTRA_GO_STATIC_LDFLAGS ?= -linkmode external -extldflags="$(GO_STATIC_EXTLDFLAG)" $(EXTRA_GO_LDFLAGS)
 
 # sourcedir is the path to the source directory tree (where the go source files are).
-# This is used by prepare-debian-build-tree to remove unnecessary code, and by
-# check-static-binaries to locate C binaries built by the autotools cmd/ build.
-# Can be set in snapd.defines.mk or on the make command line; defaults to $(CURDIR).
-# For Debian/dh-golang, this would be: sourcedir=_build/src/github.com/snapcore/snapd
+# This is used by check-static-binaries to locate C binaries built by the autotools
+# cmd/ build. Can be set in snapd.defines.mk or on the make command line; defaults
+# to $(CURDIR). For Debian/dh-golang, this would be:
+# sourcedir=_build/src/github.com/snapcore/snapd
 sourcedir ?= $(CURDIR)
 
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
 all: $(go_binaries)
-
-# Prepare the build tree by removing code that is not used in non-embedded builds.
-# This removes snap-bootstrap, snap-fde-keymgr, and secboot-related code that
-# is only needed for embedded systems and UC20+ builds. This could be somewhat
-# avoided if we had all the dependencies in Debian OR if dh-golang supported
-# build tags properly.
-.PHONY: prepare-debian-build-tree
-prepare-debian-build-tree:
-	# exclude certain parts that won't be used by debian
-	find $(sourcedir)/cmd/snap-bootstrap -name "*.go" 2>/dev/null | xargs -r rm -f
-	find $(sourcedir)/cmd/snap-fde-keymgr -name "*.go" 2>/dev/null | xargs -r rm -f
-	find $(sourcedir)/gadget/install -name "*.go" -not -name "params.go" -not -name "install_placeholder.go" -not -name "kernel.go" 2>/dev/null | xargs -r rm -f
-	# XXX: once dh-golang understands go build tags this would not be needed
-	find $(sourcedir)/secboot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go|.*_tpm(_test)?\.go|secboot_hooks.go|auth_requestor.go|keymgr/)' | xargs -r rm -f
-	# Rename plainkey files to indicate they are secboot variants
-	if [ -f $(sourcedir)/secboot/keys/plainkey.go ]; then mv $(sourcedir)/secboot/keys/plainkey.go $(sourcedir)/secboot/keys/plainkey_sb.go; fi
-	if [ -f $(sourcedir)/secboot/keys/plainkey_test.go ]; then mv $(sourcedir)/secboot/keys/plainkey_test.go $(sourcedir)/secboot/keys/plainkey_sb_test.go; fi
-	find $(sourcedir)/secboot/keys/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs -r rm -f
-	find $(sourcedir)/boot/ -name "*.go" 2>/dev/null | grep -E '(.*_sb(_test)?\.go)' | xargs -r rm -f
 
 # FIXME: not all Go toolchains we build with support '-B gobuildid', replace a
 # random GNU build ID with something more predictable, use something similar to

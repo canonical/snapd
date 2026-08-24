@@ -1,0 +1,4 @@
+component: test-snapd-component-seed-refresh+comp-optional-not-in-seed
+type: test
+version: 1.0
+summary: Optional component not in the seed for test-snapd-component-seed-refresh
