@@ -719,18 +719,38 @@ static void sc_mount_egl(const char *rootfs_dir) {
 }
 
 void sc_mount_snap_gpu_driver(const char *rootfs_dir, const char *base_snap_name, sc_distro distro) {
-    // TODO: distro is currently unused; a subsequent change will use it to
-    // also run on Ubuntu Core (see TODO_CORE_DRIVER_LIBS.md).
-    (void)distro;
+    const bool is_classic = (distro == SC_DISTRO_CLASSIC);
+    const bool nvidia_present = access(nvidia_driver_version_file(), F_OK) == 0;
 
-    /* If NVIDIA module isn't loaded, don't attempt to mount the drivers */
-    if (access(nvidia_driver_version_file(), F_OK) != 0) {
+    // Skip entirely only on classic without an NVIDIA kernel module loaded -
+    // preserving today's trigger condition there. On core we always
+    // proceed: the snap-provided GPU content mounted below (library
+    // directories from .library-source, and on core config files from
+    // export.sources - see sc_mount_exported_paths()) is vendor-neutral and
+    // does not depend on an NVIDIA kernel module being loaded at all.
+    if (is_classic && !nvidia_present) {
         return;
     }
 
     if (sc_nonfatal_mkpath(SC_EXTRA_LIB_DIR, 0755, 0, 0) != 0) {
         die("cannot create " SC_EXTRA_LIB_DIR);
     }
+
+    int exported_paths = 0;
+#ifdef NVIDIA_MULTIARCH
+    // Snap-provided GPU library directories from .library-source: always
+    // attempted, on both classic and core, regardless of NVIDIA presence -
+    // this is vendor-neutral and not gated by is_classic/nvidia_present.
+    exported_paths = sc_mount_exported_paths(rootfs_dir);
+#endif
+
+    if (!is_classic) {
+        // Core has no host driver to scan for, and /usr/share/{vulkan,glvnd}
+        // below belong to the base snap, not a host - nothing further to do.
+        return;
+    }
+
+    // ---- Everything below is classic-only host driver scanning ----
 
 #if defined(NVIDIA_BIARCH) || defined(NVIDIA_MULTIARCH)
     /* We include the globs for the glvnd libraries for old snaps
@@ -757,11 +777,7 @@ void sc_mount_snap_gpu_driver(const char *rootfs_dir, const char *base_snap_name
     }
 #endif
 
-    int exported_paths = 0;
 #ifdef NVIDIA_MULTIARCH
-    // For hybrid we might have exported paths from snaps, otherwise do the
-    // regular multiarch.
-    exported_paths = sc_mount_exported_paths(rootfs_dir);
     if (exported_paths > 0) {
         // Copy configuration files created by {egl,vulkan}-driver-libs. The
         // sources are symlinks to files shipped by snaps, so we cannot just
