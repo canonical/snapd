@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <glob.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -601,15 +602,38 @@ static int sc_mount_exported_paths(const char *rootfs_dir) {
 }
 
 // TODO move to utils.c and add some unit tests
-static void sc_copy_file(const char *src, const char *dest) {
+//
+// Copies the content of src to dest. Returns true if the file was copied,
+// false if it was skipped because src could not be opened or stat()'d.
+//
+// A missing or unreadable source is not treated as fatal: the classic-only
+// /etc/glvnd and /etc/vulkan directories this function copies from (see
+// sc_copy_glob_files() below, its only caller) contain symlinks that the
+// symlinks backend plants and removes on connect/disconnect, so src having
+// disappeared since it was discovered by the caller's glob() is an expected,
+// recoverable condition, not a bug - a snap launch must not fail just
+// because a driver snap was refreshed or disconnected at the wrong moment.
+// Once open() succeeds, POSIX unlink semantics mean the fd keeps the inode
+// alive for the rest of this function, so fstat() and sendfile() below
+// cannot fail due to a concurrent removal of src - the only source-side
+// race is in open() itself, and fstat() is guarded the same way purely for
+// defense in depth.
+//
+// Failures on the dest side (creat(), sendfile() writing to it) remain
+// fatal: those indicate a problem with our own scratch tmpfs, which we do
+// not expect anyone else to be mutating concurrently, so masking them would
+// hide a real bug rather than tolerate an expected race.
+static bool sc_copy_file(const char *src, const char *dest) {
     int fd_in SC_CLEANUP(sc_cleanup_close) = -1;
     int fd_out SC_CLEANUP(sc_cleanup_close) = -1;
     if ((fd_in = open(src, O_RDONLY)) == -1) {
-        die("cannot open %s", src);
+        debug("cannot open %s: %s, skipping", src, strerror(errno));
+        return false;
     }
     struct stat f_stat = {0};
     if (fstat(fd_in, &f_stat) == -1) {
-        die("cannot stat %s", src);
+        debug("cannot stat %s: %s, skipping", src, strerror(errno));
+        return false;
     }
     if ((fd_out = creat(dest, f_stat.st_mode)) == -1) {
         die("cannot create %s", dest);
@@ -623,6 +647,7 @@ static void sc_copy_file(const char *src, const char *dest) {
         }
         copied += written;
     }
+    return true;
 }
 
 // Copy files matching path_glob to the target directory.
@@ -664,7 +689,9 @@ static void sc_copy_glob_files(const char *rootfs_dir, const char *mnt_dir, cons
         sc_must_snprintf(target, sizeof target, "%s%s/%s", rootfs_dir, target_dir, filename);
 
         debug("copying %s to %s", glob_res.gl_pathv[i], target);
-        sc_copy_file(glob_res.gl_pathv[i], target);
+        if (!sc_copy_file(glob_res.gl_pathv[i], target)) {
+            debug("skipped %s, source vanished or became unreadable", glob_res.gl_pathv[i]);
+        }
     }
 
     // Make the tmpfs read-only
