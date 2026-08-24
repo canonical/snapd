@@ -1414,7 +1414,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c 
 	}
 
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" uses interface "pi-nok-slot-iface" which is not supported for parallel instances`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances`)
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithImplicitlySupportedInterface(c *C) {
