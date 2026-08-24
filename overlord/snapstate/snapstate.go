@@ -587,7 +587,7 @@ func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 		}
 		if !definer.ParallelInstancesSupportedForPlug(plugInfo) {
 			return fmt.Errorf("cannot install snap %q as parallel instance: "+
-				"plug %q uses interface %q which is not supported for parallel instances",
+				"plug %q with interface %q is not supported for parallel instances",
 				info.InstanceName(), plugName, plugInfo.Interface)
 		}
 	}
@@ -600,7 +600,7 @@ func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
 		}
 		if !definer.ParallelInstancesSupportedForSlot(slotInfo) {
 			return fmt.Errorf("cannot install snap %q as parallel instance: "+
-				"slot %q uses interface %q which is not supported for parallel instances",
+				"slot %q with interface %q is not supported for parallel instances",
 				info.InstanceName(), slotName, slotInfo.Interface)
 		}
 	}
