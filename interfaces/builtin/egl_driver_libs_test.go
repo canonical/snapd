@@ -608,10 +608,50 @@ func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 }
 `), 0655)
 
-	// Now check symlinks to be created
+	// The library referenced by the ICD file is not present anywhere
+	// under library-source: this ICD file is skipped, not an error - see
+	// errLibraryNotFound.
 	spec := &symlinks.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`invalid icd-source: nvidia.json: "libEGL_nvidia.so.0" not found in the library-source directories`)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), HasLen, 0)
+}
+
+func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecSkipsOnlyFileWithMissingLibrary(c *C) {
+	// Two ICD files in the same directory: one whose library is present,
+	// one whose library is not. Only the latter is skipped - a single
+	// missing library must not take out sibling, otherwise valid ICD
+	// files (see errLibraryNotFound).
+	icdDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/egl.d")
+	c.Assert(os.MkdirAll(icdDir, 0755), IsNil)
+
+	missingPath := filepath.Join(icdDir, "nvidia.json")
+	os.WriteFile(missingPath, []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_nvidia.so.0"
+    }
+}
+`), 0655)
+
+	foundPath := filepath.Join(icdDir, "mesa.json")
+	os.WriteFile(foundPath, []byte(`{
+    "file_format_version" : "1.0.0",
+    "ICD" : {
+        "library_path" : "libEGL_mesa.so.0"
+    }
+}
+`), 0655)
+	libDir := filepath.Join(dirs.SnapMountDir, "egl-provider/5/lib2")
+	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	os.WriteFile(filepath.Join(libDir, "libEGL_mesa.so.0"), []byte{}, 0655)
+
+	spec := &symlinks.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), DeepEquals, map[string]symlinks.SymlinkToTarget{
+		"/etc/glvnd/egl_vendor.d": {
+			"10_snap_egl-provider_egl-slot_egl.d-mesa.json": foundPath,
+		},
+	})
 }
 
 func (s *EglDriverLibsInterfaceSuite) TestSymlinksSpecBadJson(c *C) {

@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
@@ -209,4 +211,25 @@ func (s *helpersSuite) TestExportUnitAndFileNameMultipleComponentsAreSeparateUni
 	c.Check(unit0, Not(Equals), unit1)
 	c.Check(unit0, Not(Equals), unit2)
 	c.Check(unit1, Not(Equals), unit2)
+}
+
+func (s *helpersSuite) TestFilePathInLibDirsFound(c *C) {
+	libDir := filepath.Join(dirs.SnapMountDir, "helpers-provider/5/lib1")
+	c.Assert(os.MkdirAll(libDir, 0755), IsNil)
+	libPath := filepath.Join(libDir, "libfoo.so")
+	c.Assert(os.WriteFile(libPath, []byte{}, 0644), IsNil)
+
+	path, err := builtin.FilePathInLibDirs(s.slot, "libfoo.so")
+	c.Assert(err, IsNil)
+	c.Check(path, Equals, libPath)
+}
+
+// TestFilePathInLibDirsNotFound verifies that a missing library is reported
+// via an error wrapping errLibraryNotFound - this is the contract callers
+// (sourceDirFilesCheck, gbm's SymlinksConnectedPlug) rely on to tell "this
+// specific file/symlink should be skipped" apart from other, fatal errors.
+func (s *helpersSuite) TestFilePathInLibDirsNotFound(c *C) {
+	_, err := builtin.FilePathInLibDirs(s.slot, "libfoo.so")
+	c.Assert(err, ErrorMatches, `library not found: "libfoo.so" not found in the library-source directories`)
+	c.Check(errors.Is(err, builtin.ErrLibraryNotFound), Equals, true)
 }

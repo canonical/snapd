@@ -37,7 +37,12 @@ var (
 	ImplicitSystemPermanentSlot = implicitSystemPermanentSlot
 	ImplicitSystemConnectedSlot = implicitSystemConnectedSlot
 	StringListAttribute         = stringListAttribute
+	ErrLibraryNotFound          = errLibraryNotFound
 )
+
+func FilePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string, error) {
+	return filePathInLibDirs(slot, fileName)
+}
 
 type GbmDriverLibsInterface gbmDriverLibsInterface
 

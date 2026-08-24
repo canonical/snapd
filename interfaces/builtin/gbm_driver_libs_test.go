@@ -307,9 +307,13 @@ func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClient(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
+	// The client-driver library is not present anywhere under
+	// library-source (e.g. because the component that would have
+	// provided it is not installed): this is a no-op, not an error - see
+	// errLibraryNotFound.
 	spec := &symlinks.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`"nvidia-drm_gbm\.so" not found in the library-source directories`)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), HasLen, 0)
 }
 
 func (s *GbmDriverLibsInterfaceSuite) TestSymlinksSpecNoClientDriver(c *C) {

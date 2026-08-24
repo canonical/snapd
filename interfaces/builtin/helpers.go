@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/export"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
@@ -129,8 +130,21 @@ func addConfigfilesForSystemLibrarySourcePaths(iface string, spec *configfiles.S
 		&osutil.MemoryFileState{Content: []byte(content), Mode: 0644})
 }
 
+// errLibraryNotFound is wrapped by the error filePathInLibDirs returns when
+// the referenced library cannot be found in any of the library-source
+// directories. It exists so that callers going through a checker function
+// (see sourceDirFilesCheck) can tell this specific, environment-dependent
+// condition - e.g. a component that would have provided the library is not
+// currently installed, or an ICD/layer file is stale - apart from other,
+// unconditionally fatal errors such as malformed JSON. The former is logged
+// and the offending file is skipped rather than failing the whole
+// connection; see LP: 1866424 for why hard-failing an interface callback on
+// a missing, possibly-transient resource is undesirable in general.
+var errLibraryNotFound = errors.New("library not found")
+
 // filePathInLibDirs returns the path of the first occurrence of fileName in the
-// list of library directories of the slot.
+// list of library directories of the slot. If fileName cannot be found in any
+// of them, the returned error wraps errLibraryNotFound.
 func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string, error) {
 	libDirs := []string{}
 	if err := slot.Attr("library-source", &libDirs); err != nil {
@@ -144,7 +158,7 @@ func filePathInLibDirs(slot *interfaces.ConnectedSlot, fileName string) (string,
 			return path, nil
 		}
 	}
-	return "", fmt.Errorf("%q not found in the library-source directories", fileName)
+	return "", fmt.Errorf("%w: %q not found in the library-source directories", errLibraryNotFound, fileName)
 }
 
 type pathWithDirIdx struct {
@@ -184,6 +198,8 @@ func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, check
 	if err != nil {
 		// We do not care if the directory does not exist
 		if errors.Is(err, fs.ErrNotExist) {
+			logger.Debugf("%s: %s: source directory does not exist, skipping",
+				slot.Interface(), sourceDir)
 			return nil, nil
 		} else {
 			return nil, err
@@ -202,16 +218,24 @@ func sourceDirFilesCheck(slot *interfaces.ConnectedSlot, sourceDir string, check
 			continue
 		}
 
-		content, err := os.ReadFile(filepath.Join(sourceDir, entry.Name()))
+		path := filepath.Join(sourceDir, entry.Name())
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
 		if err := checker(slot, content); err != nil {
+			if errors.Is(err, errLibraryNotFound) {
+				// Environment-dependent condition (see
+				// errLibraryNotFound): skip just this file
+				// instead of failing the whole connection.
+				logger.Noticef("%s: %s: %v, skipping", slot.Interface(), path, err)
+				continue
+			}
 			return nil, fmt.Errorf("%s: %w", entry.Name(), err)
 		}
 
 		// Good enough
-		checked = append(checked, filepath.Join(sourceDir, entry.Name()))
+		checked = append(checked, path)
 	}
 
 	return checked, nil

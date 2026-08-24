@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/configfiles"
 	"github.com/snapcore/snapd/interfaces/ldconfig"
 	"github.com/snapcore/snapd/interfaces/symlinks"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -158,13 +160,18 @@ func (iface *gbmDriverLibsInterface) SymlinksConnectedPlug(spec *symlinks.Specif
 	if err := slot.Attr("client-driver", &clientDriver); err != nil {
 		return fmt.Errorf("invalid client-driver: %w", err)
 	}
-	// Look for the driver library
-	// TODO: if all library-source paths refer to components that are not
-	// installed, this should be a no-op. currently filePathInLibDirs returns an
-	// error for a missing client-driver when all backing component paths were
-	// filtered out.
+	// Look for the driver library. If it cannot be found - e.g. because
+	// every component that would have provided library-source content is
+	// not currently installed - there is simply nothing to link to yet;
+	// skip silently (logging why) instead of failing the whole
+	// connection, matching how a missing library referenced by an
+	// egl/vulkan ICD or layer file is handled (see errLibraryNotFound).
 	path, err := filePathInLibDirs(slot, clientDriver)
 	if err != nil {
+		if errors.Is(err, errLibraryNotFound) {
+			logger.Noticef("%s: %v, skipping", gbmDriverLibs, err)
+			return nil
+		}
 		return err
 	}
 

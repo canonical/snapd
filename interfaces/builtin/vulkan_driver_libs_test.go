@@ -446,9 +446,12 @@ func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecNoLibrary(c *C) {
 }
 `), 0655)
 
+	// The library referenced by the ICD file is not present anywhere
+	// under library-source: this ICD file is skipped, not an error - see
+	// errLibraryNotFound.
 	spec := &symlinks.Specification{}
-	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), ErrorMatches,
-		`invalid icd-source: nvidia.json: "libGLX_nvidia.so.0" not found in the library-source directories`)
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Check(spec.Symlinks(), HasLen, 0)
 }
 
 func (s *VulkanDriverLibsInterfaceSuite) TestSymlinksSpecOptional(c *C) {

@@ -174,6 +174,18 @@ func (b *Backend) ensureSymlinks(spec *Specification, symlinkDirs map[string]boo
 			for ln, target := range lnsToTarget {
 				lnPath := filepath.Join(dir, ln)
 				logger.Debugf("ensuring symlink %q -> %q", lnPath, target)
+				// TODO: the returned error is discarded here, so a
+				// failure to create/update a symlink (e.g. a
+				// permission problem, or the target vanishing
+				// between the spec being built and this point) is
+				// silently ignored instead of being reported or
+				// even logged - unlike the removal path just above
+				// (removeUnwantedInDir), which at least logs via
+				// logger.Noticef when os.Remove fails. Found while
+				// reviewing error handling for the export backend's
+				// equivalent write path (interfaces/export); not
+				// fixed here as it is pre-existing, unrelated
+				// behavior of this backend.
 				osutil.EnsureFileState(lnPath, &osutil.SymlinkFileState{Target: target})
 			}
 		}
