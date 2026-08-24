@@ -87,8 +87,73 @@ static void test_is_subdir(void) {
     g_assert_false(is_subdir("/", ""));
 }
 
+// sc_manifest_line_relpath() and its callers are only compiled when
+// NVIDIA_MULTIARCH is defined (see the #ifdef NVIDIA_MULTIARCH block around
+// sc_mount_exported_paths() in mount-support-nvidia.c, which is
+// deliberately not hoisted out of it - the shipped snapd snap always
+// builds with --enable-nvidia-multiarch), so these tests must be
+// conditional on the same macro or they fail to link/compile under
+// --enable-nvidia-biarch and the plain (neither) configure variant.
+#ifdef NVIDIA_MULTIARCH
+static void test_manifest_line_relpath__valid(void) {
+    // The common case: one unit, one subdir, one file.
+    g_assert_cmpstr(sc_manifest_line_relpath("15_snap_provider_egl-driver-libs/egl_vendor.d/foo.json"), ==,
+                    "egl_vendor.d/foo.json");
+    // Only the leading "<unit>/" component is stripped, however many further
+    // path components relpath itself has.
+    g_assert_cmpstr(sc_manifest_line_relpath("unit/a/b/c"), ==, "a/b/c");
+    // The minimal valid shape: "<unit>/<file>".
+    g_assert_cmpstr(sc_manifest_line_relpath("unit/file"), ==, "file");
+}
+
+static void test_manifest_line_relpath__invalid(void) {
+    // Empty line.
+    g_assert_null(sc_manifest_line_relpath(""));
+    // Absolute path.
+    g_assert_null(sc_manifest_line_relpath("/unit/subdir/file"));
+    // No "/" separator at all, so there is no unit component to strip.
+    g_assert_null(sc_manifest_line_relpath("nounit"));
+    // Separator is the very last character, leaving an empty relpath.
+    g_assert_null(sc_manifest_line_relpath("unit/"));
+    // ".." anywhere in the line is rejected, whether in the unit or the
+    // relpath component.
+    g_assert_null(sc_manifest_line_relpath("unit/../etc/passwd"));
+    g_assert_null(sc_manifest_line_relpath("../unit/subdir/file"));
+    // The check is a plain substring match, not a path-component match, so
+    // it also (over-broadly, but safely - see the comment on
+    // sc_manifest_line_relpath) rejects a filename that merely contains
+    // ".." without it being a path traversal, such as two dots in a row
+    // inside an otherwise normal name.
+    g_assert_null(sc_manifest_line_relpath("unit/foo..bar.json"));
+}
+
+static void test_manifest_line_relpath__too_long(void) {
+    // One byte over SC_EXPORT_MANIFEST_LINE_MAX must be rejected, the same
+    // way any other malformed entry is - rather than being handed to the
+    // sc_must_snprintf calls in sc_mount_exported_config_files(), which
+    // would die() on truncation instead of degrading gracefully (see the
+    // comment on SC_EXPORT_MANIFEST_LINE_MAX).
+    char too_long[SC_EXPORT_MANIFEST_LINE_MAX + 2] = {0};
+    memset(too_long, 'a', sizeof too_long - 1);
+    // Give it the shape of an otherwise-valid entry: "unit/<filler>".
+    too_long[4] = '/';
+    g_assert_null(sc_manifest_line_relpath(too_long));
+
+    // The boundary itself must still be accepted.
+    char at_limit[SC_EXPORT_MANIFEST_LINE_MAX + 1] = {0};
+    memset(at_limit, 'a', sizeof at_limit - 1);
+    at_limit[4] = '/';
+    g_assert_nonnull(sc_manifest_line_relpath(at_limit));
+}
+#endif  // ifdef NVIDIA_MULTIARCH
+
 static void __attribute__((constructor)) init(void) {
     g_test_add_func("/mount/get_nextpath/typical", test_get_nextpath__typical);
     g_test_add_func("/mount/get_nextpath/weird", test_get_nextpath__weird);
     g_test_add_func("/mount/is_subdir", test_is_subdir);
+#ifdef NVIDIA_MULTIARCH
+    g_test_add_func("/mount/manifest_line_relpath/valid", test_manifest_line_relpath__valid);
+    g_test_add_func("/mount/manifest_line_relpath/invalid", test_manifest_line_relpath__invalid);
+    g_test_add_func("/mount/manifest_line_relpath/too_long", test_manifest_line_relpath__too_long);
+#endif  // ifdef NVIDIA_MULTIARCH
 }
