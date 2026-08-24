@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -100,7 +101,7 @@ func validateCupsSocketDirSlotAttr(a interfaces.Attrer, snapInfo *snap.Info) (st
 	}
 
 	// make sure that the cups socket dir is not an AppArmor Regular expression
-	if err := apparmor.ValidateNoAppArmorRegexp(cupsdSocketSourceDir); err != nil {
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(cupsdSocketSourceDir); err != nil {
 		return "", fmt.Errorf("cups-socket-directory is not usable: %v", err)
 	}
 
