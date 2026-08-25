@@ -42,7 +42,6 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/dirs/dirstest"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
@@ -548,61 +547,6 @@ func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
 		c.Check(err, IsNil, Commentf(tc.description))
 		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
 	}
-}
-
-func (s *snapmgrTestSuite) TestEnsureDiskSpaceReservationMigratesFeatureFlags(c *C) {
-	for _, feature := range []features.SnapdFeature{
-		features.CheckDiskSpaceInstall,
-		features.CheckDiskSpaceRefresh,
-		features.CheckDiskSpaceRemove,
-	} {
-		s.state.Lock()
-		tr := config.NewTransaction(s.state)
-		snapName, confName := feature.ConfigOption()
-		c.Assert(tr.Set(snapName, confName, true), IsNil)
-		tr.Commit()
-		s.state.Unlock()
-
-		c.Assert(snapstate.EnsureDiskSpaceReservationMigrated(s.snapmgr), IsNil)
-
-		s.state.Lock()
-		tr = config.NewTransaction(s.state)
-		var reservation uint64
-		c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
-		c.Check(reservation, Equals, uint64(snapstate.DefaultDiskSpaceReservation))
-		tr.Set("core", "disk-reservation.size", nil)
-		tr.Set(snapName, confName, nil)
-		tr.Commit()
-		s.state.Unlock()
-	}
-}
-
-func (s *snapmgrTestSuite) TestEnsureDiskSpaceReservationPreservesConfiguredValue(c *C) {
-	s.state.Lock()
-	tr := config.NewTransaction(s.state)
-	c.Assert(tr.Set("core", "experimental.check-disk-space-install", true), IsNil)
-	c.Assert(tr.Set("core", "disk-reservation.size", 0), IsNil)
-	tr.Commit()
-	s.state.Unlock()
-
-	c.Assert(snapstate.EnsureDiskSpaceReservationMigrated(s.snapmgr), IsNil)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr = config.NewTransaction(s.state)
-	var reservation uint64
-	c.Assert(tr.Get("core", "disk-reservation.size", &reservation), IsNil)
-	c.Check(reservation, Equals, uint64(0))
-}
-
-func (s *snapmgrTestSuite) TestEnsureDiskSpaceReservationDoesNothingWhenFeaturesDisabled(c *C) {
-	c.Assert(snapstate.EnsureDiskSpaceReservationMigrated(s.snapmgr), IsNil)
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	var reservation any
-	c.Check(config.IsNoOption(tr.Get("core", "disk-reservation.size", &reservation)), Equals, true)
 }
 
 type ForeignTaskTracker interface {

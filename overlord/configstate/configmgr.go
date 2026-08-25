@@ -55,6 +55,9 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
 		return err
 	}
+	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
+		return err
+	}
 	rt.Commit()
 
 	var homedirs string

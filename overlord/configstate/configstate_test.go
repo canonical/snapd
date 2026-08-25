@@ -349,6 +349,29 @@ func (s *configcoreHijackSuite) TestConfigMngrInitPrunesGraduatedExperimentalFea
 	c.Check(config.IsNoOption(err), Equals, true)
 }
 
+func (s *configcoreHijackSuite) TestConfigMngrInitMigratesDiskSpaceReservation(c *C) {
+	s.o = overlord.Mock()
+	s.state = s.o.State()
+	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	t := config.NewTransaction(s.state)
+	c.Assert(t.Set("core", "experimental.check-disk-space-install", true), IsNil)
+	t.Commit()
+	s.state.Unlock()
+
+	c.Assert(configstate.Init(s.state, hookMgr), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t = config.NewTransaction(s.state)
+	var reservation uint64
+	c.Assert(t.Get("core", "disk-reservation.size", &reservation), IsNil)
+	c.Check(reservation, Equals, uint64(5*1024*1024))
+}
+
 type witnessManager struct {
 	state     *state.State
 	committed bool

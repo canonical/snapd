@@ -32,11 +32,9 @@ import (
 
 	"github.com/snapcore/snapd/confdb"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/state"
@@ -64,7 +62,6 @@ var (
 func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
 	swfeats.RegisterEnsure("SnapManager", "ensureForceDevmodeDropsDevmodeFromState")
-	swfeats.RegisterEnsure("SnapManager", "ensureDiskSpaceReservationMigrated")
 	swfeats.RegisterEnsure("SnapManager", "ensureUbuntuCoreTransition")
 	swfeats.RegisterEnsure("SnapManager", "atSeed")
 	swfeats.RegisterEnsure("SnapManager", "ensureMountsUpdated")
@@ -1295,46 +1292,6 @@ func (m *SnapManager) ensureForceDevmodeDropsDevmodeFromState() error {
 	return nil
 }
 
-// ensureDiskSpaceReservationMigrated preserves disk space checks for systems
-// that enabled one of the legacy experimental feature flags. It can be removed
-// with those flags after one release.
-func (m *SnapManager) ensureDiskSpaceReservationMigrated() error {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	tr := config.NewTransaction(m.state)
-	var reservation any
-	err := tr.Get("core", "disk-reservation.size", &reservation)
-	if err == nil {
-		return nil
-	}
-	if !config.IsNoOption(err) {
-		return err
-	}
-
-	logger.Trace("ensure", "manager", "SnapManager", "func", "ensureDiskSpaceReservationMigrated")
-
-	for _, feature := range []features.SnapdFeature{
-		features.CheckDiskSpaceInstall,
-		features.CheckDiskSpaceRefresh,
-		features.CheckDiskSpaceRemove,
-	} {
-		enabled, err := features.Flag(tr, feature)
-		if err != nil {
-			return err
-		}
-		if enabled {
-			if err := tr.Set("core", "disk-reservation.size", defaultDiskSpaceReservation); err != nil {
-				return err
-			}
-			tr.Commit()
-			break
-		}
-	}
-
-	return nil
-}
-
 // changeInFlight returns true if there is any change in the state
 // in non-ready state.
 func changeInFlight(st *state.State) bool {
@@ -1746,7 +1703,6 @@ func (m *SnapManager) Ensure() error {
 		m.atSeed(),
 		m.ensureAliasesV2(),
 		m.ensureForceDevmodeDropsDevmodeFromState(),
-		m.ensureDiskSpaceReservationMigrated(),
 		m.ensureUbuntuCoreTransition(),
 		// we should check for full regular refreshes before
 		// considering issuing a hint only refresh request

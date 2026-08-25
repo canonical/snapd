@@ -20,10 +20,46 @@
 
 package configcore
 
-import "github.com/snapcore/snapd/gadget/quantity"
+import (
+	"github.com/snapcore/snapd/features"
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
+)
+
+const defaultDiskSpaceReservation = uint64(5 * quantity.SizeMiB)
 
 func init() {
 	supportedConfigurations["core.disk-reservation.size"] = true
+}
+
+// MigrateDiskSpaceReservation preserves disk space checks for systems that
+// enabled one of the legacy experimental feature flags. It can be removed with
+// those flags after one release.
+func MigrateDiskSpaceReservation(tr RunTransaction) error {
+	var reservation any
+	err := tr.Get("core", "disk-reservation.size", &reservation)
+	if err == nil {
+		return nil
+	}
+	if !config.IsNoOption(err) {
+		return err
+	}
+
+	for _, feature := range []features.SnapdFeature{
+		features.CheckDiskSpaceInstall,
+		features.CheckDiskSpaceRefresh,
+		features.CheckDiskSpaceRemove,
+	} {
+		enabled, err := features.Flag(tr, feature)
+		if err != nil {
+			return err
+		}
+		if enabled {
+			return tr.Set("core", "disk-reservation.size", defaultDiskSpaceReservation)
+		}
+	}
+
+	return nil
 }
 
 func validateDiskSpaceReservation(tr RunTransaction) error {
