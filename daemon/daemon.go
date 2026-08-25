@@ -245,13 +245,10 @@ func requestActionFromContext(ctx context.Context) (string, error) {
 // Selection is loose so tracing can still see an action; callers apply
 // stricter rules themselves.
 func requestBodyPolicy(r *http.Request) (bufferBody, decodeAction bool) {
-	switch r.Method {
-	case "POST", "PUT":
-	default:
+	// TODO: buffer PUT once size limits for snap conf and confdb are established
+	if r.Method != "POST" {
 		return false, false
 	}
-	// No PUT endpoint defines an action.
-	decodeAction = r.Method == "POST"
 
 	ct := r.Header.Get("Content-Type")
 	if ct == "" {
@@ -261,7 +258,7 @@ func requestBodyPolicy(r *http.Request) (bufferBody, decodeAction bool) {
 		if strings.TrimSuffix(r.URL.Path, "/") == "/v2/assertions" {
 			return false, false
 		}
-		return true, decodeAction
+		return true, true
 	}
 
 	mediaType, _, _ := mime.ParseMediaType(ct)
@@ -278,11 +275,12 @@ func requestBodyPolicy(r *http.Request) (bufferBody, decodeAction bool) {
 		return false, false
 	}
 
-	return true, decodeAction && mediaType == "application/json"
+	return true, mediaType == "application/json"
 }
 
 // extractRequestAction buffers the request body once, rejecting it if oversize
-// and extracting the action.
+// and extracting the action. Bodies that requestBodyPolicy leaves unread
+// (recognised streams, PUT, non-POST) are not touched.
 func extractRequestAction(r *http.Request) (string, error) {
 	bufferBody, decodeAction := requestBodyPolicy(r)
 	if !bufferBody {

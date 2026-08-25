@@ -1582,8 +1582,9 @@ func (s *daemonSuite) TestRequestBodyPolicy(c *check.C) {
 		{ct: "multipart/mixed"},
 		{ct: client.SnapshotExportMediaType},
 		{ct: asserts.MediaType},
-		{method: "PUT", ct: "application/json", wantBufferBody: true},
-		{method: "PUT", ct: "", wantBufferBody: true},
+		// PUT is not buffered until confdb / snap-conf size limits exist.
+		{method: "PUT", ct: "application/json"},
+		{method: "PUT", ct: ""},
 		{method: "PUT", path: "/v2/assertions"},
 		{method: "GET", ct: "application/json"},
 		{method: "DELETE", ct: "application/json"},
@@ -1782,11 +1783,9 @@ func (s *daemonSuite) TestExtractRequestAction(c *check.C) {
 			wantAction: "",
 		},
 		{
-			name:         "put still size limited",
-			method:       "PUT",
-			body:         strings.Repeat("x", maxBodySize+1),
-			wantErr:      "body size limit exceeded",
-			wantSentinel: errBodyTooLarge,
+			name:   "put not size limited",
+			method: "PUT",
+			body:   strings.Repeat("x", maxBodySize+1),
 		},
 		{
 			name:       "put malformed json not parsed",
@@ -1854,7 +1853,7 @@ func (s *daemonSuite) TestExtractRequestAction(c *check.C) {
 
 	}
 
-	for _, method := range []string{"GET", "DELETE", "PATCH"} {
+	for _, method := range []string{"GET", "PUT", "DELETE", "PATCH"} {
 		cmt := check.Commentf("method: %s", method)
 		req := httptest.NewRequest(method, "/", strings.NewReader(`{"action":"install"}`))
 		got, err := extractRequestAction(req)
