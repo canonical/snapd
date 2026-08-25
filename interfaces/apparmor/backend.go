@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -379,11 +380,10 @@ type profilePathsResults struct {
 }
 
 func (b *Backend) setupHostAppArmorForCoreAndSnapd(appSet *interfaces.SnapAppSet) error {
-	instanceName := appSet.InstanceName().TODOInstanceName()
 	snapInfo := appSet.Info()
 
 	// core on classic is special
-	if instanceName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+	if appSet.InstanceName() == naming.Core && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
 			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}

@@ -21,6 +21,11 @@ package naming
 
 import "strings"
 
+const (
+	Core  = InstanceName("core") // or LegacyCore
+	Snapd = InstanceName("snapd")
+)
+
 // SnapName is the global name of a snap.
 type SnapName string
 
