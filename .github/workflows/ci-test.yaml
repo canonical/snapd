@@ -550,6 +550,17 @@ jobs:
                 echo "nested-systems=" >> $GITHUB_OUTPUT
               fi
             fi
+
+            if grep -q '^Skip spread$' <<<$labels; then
+              github_hosted_runs_on="['ubuntu-latest']"
+              fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-fundamental-systems.json)"
+              non_fundamental_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-non-fundamental-systems.json)"
+              nested_systems="$(jq -c --arg runs_on "$github_hosted_runs_on" '.include |= map(."runs-on" = $runs_on)' .github/workflows/data-nested-systems.json)"
+
+              echo "fundamental-systems=$fundamental_systems" >> $GITHUB_OUTPUT
+              echo "non-fundamental-systems=$non_fundamental_systems" >> $GITHUB_OUTPUT
+              echo "nested-systems=$nested_systems" >> $GITHUB_OUTPUT
+            fi
           fi
 
   spread-fundamental:
