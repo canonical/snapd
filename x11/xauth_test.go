@@ -41,7 +41,7 @@ func (s *xauthTestSuite) TestXauthFileNotAvailable(c *C) {
 }
 
 func (s *xauthTestSuite) TestXauthFileExistsButIsEmpty(c *C) {
-	xauthPath, err := x11.MockXauthority(0)
+	xauthPath, err := x11.MockXauthorityAt(c.MkDir(), 0)
 	c.Assert(err, IsNil)
 	defer os.Remove(xauthPath)
 
@@ -64,8 +64,9 @@ func (s *xauthTestSuite) TestXauthFileExistsButHasInvalidContent(c *C) {
 }
 
 func (s *xauthTestSuite) TestValidXauthFile(c *C) {
+	dir := c.MkDir()
 	for _, n := range []int{1, 2, 4} {
-		path, err := x11.MockXauthority(n)
+		path, err := x11.MockXauthorityAt(dir, n)
 		c.Assert(err, IsNil)
 		err = x11.ValidateXauthorityFile(path)
 		c.Assert(err, IsNil)

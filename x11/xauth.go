@@ -118,10 +118,9 @@ func ValidateXauthority(r io.Reader) error {
 	return nil
 }
 
-// MockXauthority will create a fake xauthority file and place it
-// on a temporary path which is returned as result.
-func MockXauthority(cookies int) (string, error) {
-	f, err := os.CreateTemp("", "xauth")
+// MockXauthorityAt creates a fake xauthority file in dir and returns its path.
+func MockXauthorityAt(dir string, cookies int) (string, error) {
+	f, err := os.CreateTemp(dir, "xauth")
 	if err != nil {
 		return "", err
 	}

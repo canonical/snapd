@@ -907,10 +907,11 @@ func (s *realSystemSuite) SetUpTest(c *C) {
 // This doesn't test the chown logic as that requires root.
 func (s *realSystemSuite) TestSecureMkdirAllWithinForReal(c *C) {
 	d := c.MkDir()
+	tmpDir := os.TempDir()
 	// Create d (which already exists) with mode 0777 (but c.MkDir() used 0700
 	// internally and since we are not creating the directory we should not be
 	// changing that.
-	c.Assert(update.MkdirAllWithin(d, "/tmp", 0777, sys.FlagID, sys.FlagID, nil), IsNil)
+	c.Assert(update.MkdirAllWithin(d, tmpDir, 0777, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err := os.Stat(d)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -920,7 +921,7 @@ func (s *realSystemSuite) TestSecureMkdirAllWithinForReal(c *C) {
 	// check that it was applied. Note that default umask 022 is subtracted so
 	// effective directory has different permissions.
 	d1 := filepath.Join(d, "subdir")
-	c.Assert(update.MkdirAllWithin(d1, "/tmp", 0707, sys.FlagID, sys.FlagID, nil), IsNil)
+	c.Assert(update.MkdirAllWithin(d1, tmpDir, 0707, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err = os.Stat(d1)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
@@ -929,7 +930,7 @@ func (s *realSystemSuite) TestSecureMkdirAllWithinForReal(c *C) {
 	// Create d2, which is a deeper subdirectory, with another distinct mode
 	// and check that it was applied.
 	d2 := filepath.Join(d, "subdir/subdir/subdir")
-	c.Assert(update.MkdirAllWithin(d2, "/tmp", 0750, sys.FlagID, sys.FlagID, nil), IsNil)
+	c.Assert(update.MkdirAllWithin(d2, tmpDir, 0750, sys.FlagID, sys.FlagID, nil), IsNil)
 	fi, err = os.Stat(d1)
 	c.Assert(err, IsNil)
 	c.Check(fi.IsDir(), Equals, true)
