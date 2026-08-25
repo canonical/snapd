@@ -169,7 +169,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		BadRequest(err.Error()).ServeHTTP(w, r)
 		return
 	}
-	r = r.WithContext(withRequestAction(r.Context(), action, err))
+	r = r.WithContext(withActionResult(r.Context(), action, err))
 
 	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
 		rspe.ServeHTTP(w, r)
@@ -205,7 +205,7 @@ var (
 	errBodyUnreadable          = errors.New("cannot read request body")
 	errEmptyBody               = errors.New("empty request body")
 	errUnexpectedDataAfterBody = errors.New("unexpected data after request body")
-	errRequestActionNotCached  = errors.New("internal error: request action not cached")
+	errActionResultNotCached   = errors.New("internal error: request action not cached")
 )
 
 // isBodyUnusable reports a body later stages cannot be served from (oversize
@@ -214,28 +214,31 @@ func isBodyUnusable(err error) bool {
 	return errors.Is(err, errBodyTooLarge) || errors.Is(err, errBodyUnreadable)
 }
 
-type actionRequest struct {
+// actionInRequest is the JSON shape used to pick the top-level "action" out of a body.
+type actionInRequest struct {
 	Action string `json:"action"`
 }
 
 type actionContextKey struct{}
 
-type requestAction struct {
+// actionResult is the cached outcome of extractRequestAction: the action, if
+// any, and the parse error, if any. A decode error does not clear the action.
+type actionResult struct {
 	action   string
 	parseErr error
 }
 
-func withRequestAction(ctx context.Context, action string, err error) context.Context {
-	return context.WithValue(ctx, actionContextKey{}, requestAction{action: action, parseErr: err})
+func withActionResult(ctx context.Context, action string, err error) context.Context {
+	return context.WithValue(ctx, actionContextKey{}, actionResult{action: action, parseErr: err})
 }
 
-// requestActionFromContext returns the action cached by withRequestAction.
-// A miss is errRequestActionNotCached: ServeHTTP always caches first, so a miss
+// actionResultFromContext returns the action cached by withActionResult.
+// A miss is errActionResultNotCached: ServeHTTP always caches first, so a miss
 // means the caller skipped that step rather than that the request had no action.
-func requestActionFromContext(ctx context.Context) (string, error) {
-	cached, ok := ctx.Value(actionContextKey{}).(requestAction)
+func actionResultFromContext(ctx context.Context) (string, error) {
+	cached, ok := ctx.Value(actionContextKey{}).(actionResult)
 	if !ok {
-		return "", errRequestActionNotCached
+		return "", errActionResultNotCached
 	}
 	return cached.action, cached.parseErr
 }
@@ -319,7 +322,7 @@ func decodeActionFromBody(body []byte) (string, error) {
 		return "", errEmptyBody
 	}
 
-	var req actionRequest
+	var req actionInRequest
 	dec := json.NewDecoder(bytes.NewReader(body))
 	if err := dec.Decode(&req); err != nil {
 		return "", err
@@ -336,7 +339,7 @@ func traceSnapdAPI(c *Command, r *http.Request) {
 	if !osutil.GetenvBool("SNAPD_TRACE") {
 		return
 	}
-	action, err := requestActionFromContext(r.Context())
+	action, err := actionResultFromContext(r.Context())
 	if err != nil && !errors.Is(err, errEmptyBody) {
 		logger.Trace("endpoint-error", "body-read", err)
 	} else if action != "" {

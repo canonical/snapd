@@ -404,7 +404,7 @@ var (
 	// Together these reproduce what Command.ServeHTTP does to a request
 	// before access checking.
 	ExtractRequestAction = extractRequestAction
-	WithRequestAction    = withRequestAction
+	WithActionResult     = withActionResult
 	IsBodyUnusable       = isBodyUnusable
 
 	// The rules Command.ServeHTTP uses to find a request's action, shared

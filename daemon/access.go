@@ -437,9 +437,9 @@ func (ac byActionAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet
 		return BadRequest("unexpected content type: %q", contentType)
 	}
 
-	action, err := requestActionFromContext(r.Context())
+	action, err := actionResultFromContext(r.Context())
 	switch {
-	case errors.Is(err, errRequestActionNotCached):
+	case errors.Is(err, errActionResultNotCached):
 		return InternalError(err.Error())
 	case err != nil:
 		return BadRequest(err.Error())

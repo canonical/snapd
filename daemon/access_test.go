@@ -890,7 +890,7 @@ func withCachedAction(c *C, req *http.Request) *http.Request {
 	action, err := daemon.ExtractRequestAction(req)
 	// ServeHTTP answers 400 first, so an unusable body never reaches a checker.
 	c.Assert(daemon.IsBodyUnusable(err), Equals, false)
-	return req.WithContext(daemon.WithRequestAction(req.Context(), action, err))
+	return req.WithContext(daemon.WithActionResult(req.Context(), action, err))
 }
 
 func (s *accessSuite) TestByActionAccess(c *C) {

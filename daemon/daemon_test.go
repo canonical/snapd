@@ -1881,7 +1881,7 @@ func (s *daemonSuite) TestExtractRequestActionReadError(c *check.C) {
 	c.Check(isBodyUnusable(err), check.Equals, true)
 }
 
-func (s *daemonSuite) TestRequestActionContext(c *check.C) {
+func (s *daemonSuite) TestActionResultContext(c *check.C) {
 	for _, tc := range []struct {
 		name   string
 		action string
@@ -1894,17 +1894,17 @@ func (s *daemonSuite) TestRequestActionContext(c *check.C) {
 		{name: "decode failure", err: errUnexpectedDataAfterBody},
 	} {
 		cmt := check.Commentf("case: %s", tc.name)
-		ctx := withRequestAction(context.Background(), tc.action, tc.err)
-		action, err := requestActionFromContext(ctx)
+		ctx := withActionResult(context.Background(), tc.action, tc.err)
+		action, err := actionResultFromContext(ctx)
 		c.Check(action, check.Equals, tc.action, cmt)
 		c.Check(err, check.Equals, tc.err, cmt)
 	}
 }
 
-func (s *daemonSuite) TestRequestActionFromContextMissing(c *check.C) {
-	action, err := requestActionFromContext(context.Background())
+func (s *daemonSuite) TestActionResultFromContextMissing(c *check.C) {
+	action, err := actionResultFromContext(context.Background())
 	c.Check(action, check.Equals, "")
-	c.Check(err, check.Equals, errRequestActionNotCached)
+	c.Check(err, check.Equals, errActionResultNotCached)
 	c.Check(err, check.ErrorMatches, "internal error: request action not cached")
 }
 
@@ -2165,7 +2165,7 @@ func (s *daemonSuite) TestTraceSnapdAPI(c *check.C) {
 			// only after the body has been read and cached.
 			action, err := extractRequestAction(req)
 			c.Assert(isBodyUnusable(err), check.Equals, false, cmt)
-			req = req.WithContext(withRequestAction(req.Context(), action, err))
+			req = req.WithContext(withActionResult(req.Context(), action, err))
 			traceSnapdAPI(cmd, req)
 		}
 
