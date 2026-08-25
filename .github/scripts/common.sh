@@ -311,7 +311,7 @@ predictor_allows_rerun() {
         fi
         [[ -z "$rows" ]] && continue
 
-        while IFS=$'\t' read -r display_name occurrences full_name system scenario; do
+        while IFS=$'\t' read -r display_name _occurrences full_name system scenario; do
             if [[ -z "$test_predictor_url" ]]; then
                 echo "Test predictor URL is unavailable; allowing rerun"
                 rm -rf "$results_dir"
