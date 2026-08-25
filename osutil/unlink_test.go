@@ -22,6 +22,7 @@ package osutil_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 
 	"gopkg.in/check.v1"
@@ -89,11 +90,11 @@ func (s *unlinkSuite) TestUnlinkManyFails(c *check.C) {
 		{
 			dirname:   filepath.Join(s.d, "does-not-exist"),
 			filenames: []string{"bar", "baz"},
-			expected:  `open /tmp/.*/does-not-exist: no such file or directory`,
+			expected:  `open ` + regexp.QuoteMeta(filepath.Join(s.d, "does-not-exist")) + `: no such file or directory`,
 		}, {
 			dirname:   filepath.Join(s.d, "foo"),
 			filenames: []string{"bar", "baz"},
-			expected:  `open /tmp/.*/foo: not a directory`,
+			expected:  `open ` + regexp.QuoteMeta(filepath.Join(s.d, "foo")) + `: not a directory`,
 		}, {
 			dirname:   s.d,
 			filenames: []string{"bar", "dir", "baz"},
