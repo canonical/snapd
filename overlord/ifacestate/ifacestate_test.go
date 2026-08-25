@@ -4230,7 +4230,7 @@ slots:
 					c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"read": []any{"/etc/foo"}})
 					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz"}})
-					if appSet.InstanceName().String() == "consumer" {
+					if appSet.InstanceName() == "consumer" {
 						// called for consumer when updating consumer
 						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 					} else {
@@ -4242,7 +4242,7 @@ slots:
 					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]any{"content": "foo", "attr": "slot-value"})
 					c.Check(shmConn.Plug.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz"})
 					c.Check(shmConn.Slot.StaticAttrs(), DeepEquals, map[string]any{"shared-memory": "baz", "read": []any{"baz", "qux"}})
-					if appSet.InstanceName().String() == "producer" {
+					if appSet.InstanceName() == "producer" {
 						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOwnUpdate})
 					} else {
 						c.Check(sctx, DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonConnectedSlotProviderUpdate})
@@ -13644,7 +13644,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughMultipl
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
 			c.Check([]string{"consumer1", "consumer2"}, testutil.Contains, appSet.InstanceName().String())
-			if appSet.InstanceName().String() == "consumer1" {
+			if appSet.InstanceName() == "consumer1" {
 				c.Check(effs, DeepEquals, []interfaces.DelayedSideEffect{
 					{
 						ID:          interfaces.DelayedEffect("effect"),
@@ -13803,7 +13803,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughProduce
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
 			c.Check([]string{"consumer1", "consumer2"}, testutil.Contains, appSet.InstanceName().String())
-			if appSet.InstanceName().String() == "consumer1" {
+			if appSet.InstanceName() == "consumer1" {
 				c.Check(effs, DeepEquals, []interfaces.DelayedSideEffect{
 					{
 						ID:          interfaces.DelayedEffect("effect"),
@@ -14034,7 +14034,7 @@ func (s *interfaceManagerSuite) TestDelayedEffectsSetupProfilesRunThroughForSnap
 			},
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
-			if appSet.InstanceName().String() == "consumer" {
+			if appSet.InstanceName() == "consumer" {
 				return fmt.Errorf("mock error")
 			} else {
 				c.Errorf("unexpected call for snap %q", appSet.InstanceName())

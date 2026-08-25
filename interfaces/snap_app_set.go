@@ -234,7 +234,7 @@ func labelExpr(connected interface {
 	// all security tags are prefixed with snap.$snap_instance, we use this
 	// knowledge to build a pattern that will match against all of the connected
 	// runnables
-	prefix := fmt.Sprintf("snap.%s", appSet.InstanceName().String())
+	prefix := fmt.Sprintf("snap.%s", appSet.InstanceName())
 
 	suffixes := make([]string, 0, len(runnables))
 	for _, r := range runnables {

@@ -15287,7 +15287,7 @@ func (s *mgrsSuite) testDelayedSecurityBackendSideEffectsTransactionallyApplied(
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
 			name := appSet.InstanceName()
 			effectsAppliedFor = append(effectsAppliedFor, name.String())
-			if name.String() == "consumer2" && scenario == failure {
+			if name == "consumer2" && scenario == failure {
 				return fmt.Errorf("mock error")
 			}
 			return nil

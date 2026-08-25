@@ -121,7 +121,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		// 'system' slots such as snapd, or another snap with content slots to
 		// which we are connected.
 		logger.Debugf("delaying update of mount namespaces for snap %q (triggered due to slot provider update)",
-			appSet.InstanceName().String())
+			appSet.InstanceName())
 
 		if sctx.DelayEffect != nil {
 			sctx.DelayEffect(b, interfaces.DelayedSideEffect{

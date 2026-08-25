@@ -61,7 +61,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain ldconfig specification for snap %q: %s",
-			appSet.InstanceName().String(), err)
+			appSet.InstanceName(), err)
 	}
 
 	return b.setupLdconfigCache(spec.(*Specification))
