@@ -34,7 +34,7 @@ func (n SnapName) String() string {
 	return string(n)
 }
 
-// TODOInstanceName is the same as String, but marks all the places
+// TODOSnapName is the same as String, but marks all the places
 // that need to be updated to take SnapName type instance.
 func (n SnapName) TODOSnapName() string {
 	return string(n)

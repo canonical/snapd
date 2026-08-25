@@ -422,7 +422,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 ) (delayedEffects delayedEffectsForSnaps, err error) {
 	st := task.State()
 
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName()
 	disconnectedSnaps, reloadedConns, err := m.refreshAppSetConnections(task, appSet)
 	if err != nil {
 		return nil, err
@@ -448,10 +448,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		// Snaps on the plug or slot side, other than the current one, are
 		// indirectly affected.
-		if connRef.PlugRef.Snap != snapName.TODOInstanceName() {
+		if connRef.PlugRef.Snap != instanceName.TODOInstanceName() {
 			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
 		}
-		if connRef.SlotRef.Snap != snapName.TODOInstanceName() {
+		if connRef.SlotRef.Snap != instanceName.TODOInstanceName() {
 			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
 		}
 	}
@@ -468,13 +468,13 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// back to a slice
 	affectedNames := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
-		if name != snapName.TODOInstanceName() {
+		if name != instanceName.TODOInstanceName() {
 			affectedNames = append(affectedNames, name)
 		}
 	}
 	sort.Strings(affectedNames)
 	// the snap for which profiles are being set up comes first
-	affectedNames = append([]string{snapName.TODOInstanceName()}, affectedNames...)
+	affectedNames = append([]string{instanceName.TODOInstanceName()}, affectedNames...)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.

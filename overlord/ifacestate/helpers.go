@@ -735,7 +735,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 
 func (m *InterfaceManager) setupSnapSecurity(task *state.Task, appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, tm timings.Measurer) error {
 	sctxs := map[string]interfaces.SetupContext{
-		appSet.InstanceName().String(): {
+		appSet.InstanceName().TODOInstanceName(): {
 			Reason: interfaces.SnapSetupReasonOther,
 			// this is called only in the contexts where all backend effects
 			// are expected to be immediate
