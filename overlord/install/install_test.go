@@ -900,6 +900,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 		isSupportedUbuntuHybrid bool
 		detectedErrors          ErrorsDetected
 		checkFailErrors         ErrorsDetected
+		runMode                 string
 
 		expectedCheckContext      *secboot.PreinstallCheckContext
 		expectedUnavailableReason string
@@ -912,6 +913,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorNone,
 			ErrorNone,
+			"",
 			preinstallCheckContext,
 			"",
 			nil,
@@ -923,6 +925,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorsDetectedCompound,
 			ErrorNone,
+			"",
 			preinstallCheckContext,
 			"preinstall check identified 2 errors",
 			preinstallErrorDetails,
@@ -934,6 +937,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			false,
 			ErrorNone,
 			ErrorNone,
+			"",
 			nil,
 			"",
 			nil,
@@ -945,6 +949,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			false,
 			ErrorsDetectedSingle,
 			ErrorNone,
+			"",
 			nil,
 			"cannot connect to TPM device",
 			nil,
@@ -956,6 +961,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorNone,
 			ErrorCheckSupported,
+			"",
 			nil,
 			"",
 			nil,
@@ -967,6 +973,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorNone,
 			ErrorBootImages,
+			"",
 			nil,
 			"",
 			nil,
@@ -978,6 +985,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorNone,
 			ErrorActionNoContext, // only applicable to preinstall check action
+			"",
 			preinstallCheckContext,
 			"",
 			nil,
@@ -989,6 +997,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorNone,
 			ErrorSecbootPreinstall,
+			"",
 			nil,
 			"",
 			nil,
@@ -1000,6 +1009,7 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorNone,
 			ErrorSecbootTimeout,
+			"",
 			nil,
 			"",
 			nil,
@@ -1012,13 +1022,62 @@ func (s *installSuite) TestEncryptionAvailabilityCheck(c *C) {
 			true,
 			ErrorNone,
 			ErrorNone,
+			"run",
 			preinstallCheckContext,
 			"",
 			nil,
 			"",
 		},
+		// post install case, recover mode
+		{
+			false,
+			true,
+			true,
+			ErrorNone,
+			ErrorNone,
+			"recover",
+			nil,
+			"",
+			nil,
+			"cannot locate ordered current boot images: orderedCurrentBootImages: ephemeral boot mode is not yet implemented",
+		},
+		// post install case, factory-reset mode
+		{
+			false,
+			true,
+			true,
+			ErrorNone,
+			ErrorNone,
+			"factory-reset",
+			nil,
+			"",
+			nil,
+			"cannot locate ordered current boot images: orderedCurrentBootImages: ephemeral boot mode is not yet implemented",
+		},
+		// post install case, install mode
+		{
+			false,
+			true,
+			true,
+			ErrorNone,
+			ErrorNone,
+			"install",
+			nil,
+			"",
+			nil,
+			"cannot locate ordered current boot images: orderedCurrentBootImages: ephemeral boot mode is not yet implemented",
+		},
 	} {
 		mockModel := s.mockHelperForEncryptionAvailabilityCheck(c, tc.isSupportedUbuntuHybrid, tc.detectedErrors, tc.checkFailErrors, nil, tc.fromISO, tc.provisioned)
+		if tc.runMode != "" {
+			defer install.MockBootMaybeReadModeenv(func() (*boot.Modeenv, error) {
+				return &boot.Modeenv{Mode: tc.runMode}, nil
+			})()
+
+			defer install.MockBootReadModeenv(func(rootDir string) (*boot.Modeenv, error) {
+				return &boot.Modeenv{Mode: tc.runMode}, nil
+			})()
+		}
 
 		// exercise secboot.PreinstallCheck
 		newCheckContext, unavailableReason, errorDetails, err := install.EncryptionAvailabilityCheck(nil, nil, mockModel)

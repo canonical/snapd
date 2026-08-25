@@ -469,7 +469,7 @@ type bootMode int
 const (
 	ubuntuISOBootMode bootMode = iota
 	runBootMode
-	recoverBootMode
+	ephemeralBootMode
 )
 
 func encryptionAvailabilityCheck(
@@ -497,7 +497,7 @@ func encryptionAvailabilityCheck(
 	} else {
 		switch modeenv.Mode {
 		case "install":
-			currentBootMode = recoverBootMode
+			currentBootMode = ephemeralBootMode
 			postInstall = false
 			tpmMode = secboot.TPMProvisionFull
 		case "run":
@@ -505,11 +505,11 @@ func encryptionAvailabilityCheck(
 			postInstall = true
 			tpmMode = secboot.TPMPartialReprovision
 		case "recover":
-			currentBootMode = recoverBootMode
+			currentBootMode = ephemeralBootMode
 			postInstall = true
 			tpmMode = secboot.TPMPartialReprovision
 		case "factory-reset":
-			currentBootMode = recoverBootMode
+			currentBootMode = ephemeralBootMode
 			postInstall = true
 			tpmMode = secboot.TPMPartialReprovision
 		default:
@@ -622,11 +622,11 @@ func orderedCurrentBootImages(currentBootMode bootMode) ([]bootloader.BootFile, 
 			return nil, err
 		}
 		return bootGetRunBootChain(modeenv)
-	case recoverBootMode:
+	case ephemeralBootMode:
 		// TODO: When support for post/pre install checks in
 		// Core, we will need to find the recover boot
 		// chain. For now this is not used.
-		return nil, nil
+		return nil, fmt.Errorf("orderedCurrentBootImages: ephemeral boot mode is not yet implemented")
 	default:
 		return nil, fmt.Errorf("cannot find current boot chain: unknown current boot mode")
 	}

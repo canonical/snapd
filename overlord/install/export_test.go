@@ -39,7 +39,7 @@ var (
 
 	UbuntuISOBootMode = ubuntuISOBootMode
 	RunBootMode       = runBootMode
-	RecoverBootMode   = recoverBootMode
+	EphemeralBootMode   = ephemeralBootMode
 )
 
 type BootMode = bootMode
