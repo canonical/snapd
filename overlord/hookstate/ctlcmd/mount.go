@@ -187,7 +187,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 		return fmt.Errorf("internal error: cannot get connections: %s", err)
 	}
 
-	m.snapInfo, err = snapstate.CurrentInfo(st, snapName)
+	m.snapInfo, err = snapstate.CurrentInfo(st, snapName.String())
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get snap info: %s", err)
 	}
@@ -206,7 +206,7 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 			return err
 		}
 
-		if connRef.PlugRef.Snap != snapName {
+		if connRef.PlugRef.Snap != snapName.String() {
 			continue
 		}
 

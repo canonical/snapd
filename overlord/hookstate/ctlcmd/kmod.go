@@ -162,7 +162,7 @@ var kmodCheckConnection = func(context *hookstate.Context, moduleName string, mo
 			return err
 		}
 
-		if connRef.PlugRef.Snap != snapName {
+		if connRef.PlugRef.Snap != snapName.String() {
 			continue
 		}
 
