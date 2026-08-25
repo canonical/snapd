@@ -83,6 +83,13 @@ func (spec *Specification) AddExportedFile(ifaceName, unit, relPath string, stat
 	if relPath != filepath.Clean(relPath) || filepath.IsAbs(relPath) {
 		return fmt.Errorf("export internal error: unclean or absolute path: %q", relPath)
 	}
+	// filepath.Clean does not, and cannot, remove a leading ".." that has
+	// nothing to cancel against (filepath.Clean("../x") == "../x"), so the
+	// check above alone does not stop relPath from escaping the unit
+	// directory it is supposed to be confined to - reject that explicitly.
+	if relPath == ".." || strings.HasPrefix(relPath, "../") {
+		return fmt.Errorf("export internal error: path escapes its unit: %q", relPath)
+	}
 	if filepath.Dir(relPath) == "." {
 		return fmt.Errorf("export internal error: path must be inside a subdirectory: %q", relPath)
 	}

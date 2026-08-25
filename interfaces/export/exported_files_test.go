@@ -121,6 +121,24 @@ func (s *exportedFilesSuite) TestAddExportedFileInvalidRelPath(c *C) {
 	}
 }
 
+// TestAddExportedFileRelPathCannotEscapeUnit covers a gap filepath.Clean does
+// not close on its own: filepath.Clean("../x") == "../x" (there is nothing
+// for the leading ".." to cancel against), so relPath == filepath.Clean(relPath)
+// is true for these inputs and they are not absolute either - without an
+// explicit check they would pass AddExportedFile's validation and let a
+// caller place a file outside the interface's own export root.
+func (s *exportedFilesSuite) TestAddExportedFileRelPathCannotEscapeUnit(c *C) {
+	state := &osutil.MemoryFileState{}
+	for _, relPath := range []string{
+		"..",
+		"../x",
+		"../../etc/passwd",
+	} {
+		err := s.spec.AddExportedFile("egl-driver-libs", "unit", relPath, state)
+		c.Check(err, ErrorMatches, `export internal error: path escapes its unit: .*`, Commentf("relPath: %q", relPath))
+	}
+}
+
 func (s *exportedFilesSuite) TestAddExportedFileRelPathMustHaveSubdirectory(c *C) {
 	state := &osutil.MemoryFileState{}
 	err := s.spec.AddExportedFile("egl-driver-libs", "unit", "onlyfile.json", state)
