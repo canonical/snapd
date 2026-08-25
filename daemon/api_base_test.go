@@ -802,7 +802,8 @@ const (
 
 // recordAction records req's action for TestMain coverage, using the same
 // selection and decoding as Command.ServeHTTP. The body is restored so the
-// request can still be served.
+// request can still be served. Trailing data still yields an action and is
+// recorded; the Actions-list check applies only to a clean decode.
 func recordAction(c *check.C, cmd *daemon.Command, req *http.Request) {
 	if req.Body == nil || !daemon.RequestDecodesAction(req) {
 		return
@@ -813,11 +814,14 @@ func recordAction(c *check.C, cmd *daemon.Command, req *http.Request) {
 	req.Body = io.NopCloser(bytes.NewReader(body))
 
 	action, err := daemon.DecodeAction(body)
-	if err != nil || action == "" {
+	if action == "" {
 		return
 	}
 
 	actionsMap.AddAction(cmd, action)
+	if err != nil {
+		return
+	}
 	if !strutil.ListContains(cmd.Actions, action) {
 		c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", action, cmd.Path)
 	}

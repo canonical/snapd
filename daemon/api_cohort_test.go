@@ -59,7 +59,7 @@ func (s *cohortSuite) TestCreateCohort(c *check.C) {
 		"bar": "cohort for bar",
 	}
 
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
+	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}`))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
@@ -68,7 +68,7 @@ func (s *cohortSuite) TestCreateCohort(c *check.C) {
 }
 
 func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}]`))
+	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}`))
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil, actionIsExpected)
@@ -77,10 +77,10 @@ func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
 }
 
 func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}]`))
+	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}`))
 	c.Assert(err, check.IsNil)
 
-	rspe := s.errorReq(c, req, nil, actionIsExpected)
+	rspe := s.errorReq(c, req, nil, actionIsUnexpected)
 	c.Check(rspe.Status, check.Equals, 400)
 	c.Check(rspe.Message, check.Equals, `unknown cohort action "pupate"`)
 }
@@ -88,7 +88,7 @@ func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
 func (s *cohortSuite) TestCreateCohortError(c *check.C) {
 	s.err = errors.New("something went wrong")
 
-	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
+	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}`))
 	c.Assert(err, check.IsNil)
 
 	rspe := s.errorReq(c, req, nil, actionIsExpected)

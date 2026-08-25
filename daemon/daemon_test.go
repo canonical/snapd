@@ -1672,18 +1672,21 @@ func (s *daemonSuite) TestExtractRequestAction(c *check.C) {
 		{
 			name:         "data after json",
 			body:         `{"action":"install"} trailing`,
+			wantAction:   "install",
 			wantErr:      "unexpected data after request body",
 			wantSentinel: errUnexpectedDataAfterBody,
 		},
 		{
 			name:         "data after json starting with brace",
 			body:         `{"action":"install"} }morestuff`,
+			wantAction:   "install",
 			wantErr:      "unexpected data after request body",
 			wantSentinel: errUnexpectedDataAfterBody,
 		},
 		{
 			name:         "data after json starting with bracket",
 			body:         `{"action":"install"} ]morestuff`,
+			wantAction:   "install",
 			wantErr:      "unexpected data after request body",
 			wantSentinel: errUnexpectedDataAfterBody,
 		},
@@ -1839,8 +1842,8 @@ func (s *daemonSuite) TestExtractRequestAction(c *check.C) {
 			c.Assert(err, check.ErrorMatches, tc.wantErr+".*", cmt)
 		} else {
 			c.Assert(err, check.IsNil, cmt)
-			c.Check(got, check.Equals, tc.wantAction, cmt)
 		}
+		c.Check(got, check.Equals, tc.wantAction, cmt)
 
 		if tc.wantSentinel != errBodyTooLarge || tc.contentLength > maxBodySize {
 			gotBody, readErr := io.ReadAll(req.Body)
@@ -1891,7 +1894,7 @@ func (s *daemonSuite) TestActionResultContext(c *check.C) {
 		{name: "no action field", action: ""},
 		{name: "empty body", err: errEmptyBody},
 		{name: "oversize", err: errBodyTooLarge},
-		{name: "decode failure", err: errUnexpectedDataAfterBody},
+		{name: "trailing data keeps action", action: "install", err: errUnexpectedDataAfterBody},
 	} {
 		cmt := check.Commentf("case: %s", tc.name)
 		ctx := withActionResult(context.Background(), tc.action, tc.err)
@@ -2089,12 +2092,13 @@ func (s *daemonSuite) TestTraceSnapdAPI(c *check.C) {
 			wantBodyRead: "cannot unmarshal",
 		},
 		{
-			name:         "trailing data",
-			trace:        true,
-			method:       "POST",
-			body:         `{"action":"install"} trailing`,
-			wantMsgs:     []string{"endpoint-error", "endpoint"},
-			wantBodyRead: "unexpected data after request body",
+			name:       "trailing data rejected before trace",
+			trace:      true,
+			method:     "POST",
+			body:       `{"action":"install"} trailing`,
+			serveHTTP:  true,
+			wantMsgs:   nil,
+			wantStatus: 400,
 		},
 		{
 			name:   "read error rejected before trace",
@@ -2278,6 +2282,33 @@ func (s *daemonSuite) TestServeHTTPUnreadableBodyRejected(c *check.C) {
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(handlerCalled, check.Equals, false)
 	c.Check(rec.Body.String(), check.Matches, `(?s).*cannot read request body: `+simulatedErr.Error()+`.*`)
+}
+
+func (s *daemonSuite) TestServeHTTPTrailingDataRejected(c *check.C) {
+	d := s.newTestDaemon(c)
+	for _, body := range []string{
+		`{"action":"install"} trailing`,
+		`{"action":"install"} }morestuff`,
+		`{"action":"install"} ]morestuff`,
+	} {
+		handlerCalled := false
+		cmd := &Command{d: d, Path: "/v2/test"}
+		cmd.POST = func(_ *Command, r *http.Request, _ *auth.UserState) Response {
+			handlerCalled = true
+			return SyncResponse(nil)
+		}
+		cmd.WriteAccess = openAccess{}
+
+		req := httptest.NewRequest("POST", "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+		rec := httptest.NewRecorder()
+		cmd.ServeHTTP(rec, req)
+
+		c.Check(rec.Code, check.Equals, 400, check.Commentf("%q", body))
+		c.Check(handlerCalled, check.Equals, false, check.Commentf("%q", body))
+		c.Check(rec.Body.String(), check.Matches, `(?s).*unexpected data after request body.*`, check.Commentf("%q", body))
+	}
 }
 
 func (s *daemonSuite) TestServeHTTPSkippedOversizeBodyStillServed(c *check.C) {

@@ -1056,6 +1056,8 @@ func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
 }
 
 func (s *accessSuite) TestByActionAccessDataAfterJSON(c *C) {
+	// Trailing data is refused by ServeHTTP; the checker still 400s if reached
+	// with a cached parse error, even though the action was decoded.
 	body := strings.NewReader(`{"action": "some-action"} data`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)

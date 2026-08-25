@@ -170,6 +170,10 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r = r.WithContext(withActionResult(r.Context(), action, err))
+	if errors.Is(err, errUnexpectedDataAfterBody) {
+		BadRequest(err.Error()).ServeHTTP(w, r)
+		return
+	}
 
 	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
 		rspe.ServeHTTP(w, r)
@@ -316,7 +320,9 @@ func extractRequestAction(r *http.Request) (string, error) {
 	return decodeActionFromBody(body)
 }
 
-// decodeActionFromBody returns the top-level "action", empty when the body has no such field.
+// decodeActionFromBody returns the top-level "action", empty when the body has
+// no such field. Trailing data after the JSON value is an error and does not
+// discard a decoded action.
 func decodeActionFromBody(body []byte) (string, error) {
 	if len(body) == 0 {
 		return "", errEmptyBody
@@ -330,7 +336,7 @@ func decodeActionFromBody(body []byte) (string, error) {
 	// Decode again rather than Decoder.More(), which misses trailing } and ].
 	var extra any
 	if err := dec.Decode(&extra); err != io.EOF {
-		return "", errUnexpectedDataAfterBody
+		return req.Action, errUnexpectedDataAfterBody
 	}
 	return req.Action, nil
 }
@@ -342,7 +348,8 @@ func traceSnapdAPI(c *Command, r *http.Request) {
 	action, err := actionResultFromContext(r.Context())
 	if err != nil && !errors.Is(err, errEmptyBody) {
 		logger.Trace("endpoint-error", "body-read", err)
-	} else if action != "" {
+	}
+	if action != "" {
 		logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
 		return
 	}
