@@ -1150,6 +1150,22 @@ func (p *updatePlan) filter(f func(t target) (bool, error)) error {
 	return nil
 }
 
+func checkUpdatePlanDiskSpace(st *state.State, plan updatePlan, opts Options) error {
+	changeKind := "refresh"
+	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
+	for _, t := range plan.targets {
+		installInfos = append(installInfos, installSnapInfo{t.info})
+
+		// if any of the snaps are not installed, then we should use the
+		// "install" change as the kind
+		if !t.snapst.IsInstalled() {
+			changeKind = "install"
+		}
+	}
+
+	return checkDiskSpace(st, changeKind, installInfos, opts.UserID, opts.PrereqTracker)
+}
+
 // filterHeldSnaps removes any targets from the update plan that are held.
 // If the update plan is not refreshing all snaps, then this function does
 // nothing.
@@ -1306,20 +1322,46 @@ func UpdateWithGoal(ctx context.Context, st *state.State, goal UpdateGoal, filte
 		return nil, nil, err
 	}
 
-	changeKind := "refresh"
-	installInfos := make([]minimalInstallInfo, 0, len(plan.targets))
-	for _, t := range plan.targets {
-		installInfos = append(installInfos, installSnapInfo{t.info})
-
-		// if any of the snaps are not installed, then we should use the
-		// "install" change as the kind
-		if !t.snapst.IsInstalled() {
-			changeKind = "install"
+	if err := checkUpdatePlanDiskSpace(st, plan, opts); err != nil {
+		var noSpaceErr *InsufficientSpaceError
+		if !errors.As(err, &noSpaceErr) || !plan.refreshAll() || opts.Flags.Transaction != client.TransactionPerSnap {
+			return nil, nil, err
 		}
-	}
 
-	if err := checkDiskSpace(st, changeKind, installInfos, opts.UserID, opts.PrereqTracker); err != nil {
-		return nil, nil, err
+		// since this was a all-snap refresh using TransactionAllSnaps, we
+		// should retry the disk space checks with just the essential snaps. if
+		// that passes, we'll run the refresh for just that subset of snaps.
+
+		originalCount := len(plan.targets)
+		bootBase, err := deviceModelBootBase(st, opts.DeviceCtx)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := plan.filter(func(t target) (bool, error) {
+			return isEssentialSnap(t.info.InstanceName(), t.info.Type(), bootBase), nil
+		}); err != nil {
+			return nil, nil, err
+		}
+
+		// if the plan was fully filtered (no essential snaps in the original
+		// plan), or the plan didn't change at all, just return the original
+		// error.
+		if len(plan.targets) == 0 || len(plan.targets) == originalCount {
+			return nil, nil, noSpaceErr
+		}
+
+		// check if we can fit at least the essential snaps
+		if err := checkUpdatePlanDiskSpace(st, plan, opts); err != nil {
+			// if the check failed again with another InsufficientSpaceError, we
+			// return the original error so that it contains the names of all
+			// the snaps from the original check
+			var retryNoSpaceErr *InsufficientSpaceError
+			if errors.As(err, &retryNoSpaceErr) {
+				return nil, nil, noSpaceErr
+			}
+			return nil, nil, err
+		}
 	}
 
 	updated, uts, err := updateFromPlan(st, plan, opts)
