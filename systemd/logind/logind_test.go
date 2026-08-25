@@ -148,7 +148,7 @@ func (s *logindSuite) TestSessionClassMalformedOutput(c *C) {
 		c.Check(err, ErrorMatches, `cannot parse value from loginctl output for property "Display": .*`)
 	}
 
-	for _, output := range []string{"", "unexpected-no-equals\n", "foo=user\n", "Class=foo=\n"} {
+	for _, output := range []string{"", "unexpected-no-equals\n", "foo=user\n", "Class=foo=\n", "Class=", "Class=\n"} {
 		restore := logind.MockLoginctl(sessionClassLoginctlMock(c, "Display=c5\n", output))
 		defer restore()
 

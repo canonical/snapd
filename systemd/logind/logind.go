@@ -92,17 +92,15 @@ func (e *Error) Error() string {
 // --all -p Class" to get the class of that session, parsing the "Class=<value>"
 // output.
 //
-// Note that when invoked from inside a session, the class of the display
-// session of the current user is returned, which may be a different session
-// than the one the current process is part of (if any). User sessions are
-// display-eligible if and only if they are of class "user", "greeter", or
-// "user-early" (on systemd >= 256), "user-light" or "user-early-light" (on
-// systemd >= 259). User sessions of class "background" or "manager" are never
-// display-eligible, for example.
+// Note that the class of the display session of the current user is returned,
+// which may be a different session than the one the current process is part of
+// (if any). User sessions are display-eligible if and only if they are of
+// class "user", "greeter", or "user-early" (on systemd >= 256), "user-light"
+// or "user-early-light" (on systemd >= 259). User sessions of class
+// "background" or "manager", for example, are never display-eligible.
 //
 // An error is returned if loginctl fails, if no session for the current
-// user could be found, or if the output is malformed. An empty class
-// ("Class=") is valid and will be returned as "" without error.
+// user could be found, or if the output is malformed or class empty.
 func SessionClass(ctx context.Context) (string, error) {
 	uid := os.Getuid()
 	// Note: --value is not passed to loginctl as it is only available
@@ -115,7 +113,7 @@ func SessionClass(ctx context.Context) (string, error) {
 	// Using --all implies that empty properties are shown too, so an empty
 	// "Display=" is printed when the user has no display session, in
 	// which case no session can be determined for the user.
-	sessionID, err := parseProperty(string(out), "Display")
+	sessionID, err := parseProperty(string(out), "Display", true)
 	if err != nil {
 		return "", err
 	}
@@ -128,16 +126,16 @@ func SessionClass(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	return parseProperty(string(out), "Class")
+	return parseProperty(string(out), "Class", false)
 }
 
 // parseProperty parses the "Name=value" output of loginctl's -p option. A
 // malformed output results in an error. An empty value (e.g. "Foo=") is not
 // treated as an error.
-func parseProperty(output string, name string) (string, error) {
+func parseProperty(output string, name string, allowEmpty bool) (string, error) {
 	orig := strings.TrimSpace(output)
 	propName, propValue, ok := strings.Cut(orig, "=")
-	if !ok || propName != name || strings.Contains(propValue, "=") {
+	if !ok || propName != name || strings.Contains(propValue, "=") || !allowEmpty && propValue == "" {
 		return "", fmt.Errorf("cannot parse value from loginctl output for property %q: %q", name, orig)
 	}
 
