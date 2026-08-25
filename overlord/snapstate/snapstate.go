@@ -103,6 +103,7 @@ var TestingLeaveOutKernelUpdateGadgetAssets bool = false
 
 type minimalInstallInfo interface {
 	InstanceName() string
+	Revision() snap.Revision
 	Type() snap.Type
 	SnapBase() string
 	DownloadSize() int64
@@ -115,6 +116,10 @@ type installSnapInfo struct {
 
 func (ins installSnapInfo) DownloadSize() int64 {
 	return ins.DownloadInfo.Size
+}
+
+func (ins installSnapInfo) Revision() snap.Revision {
+	return ins.Info.Revision
 }
 
 // SnapBase returns the base snap of the snap.
