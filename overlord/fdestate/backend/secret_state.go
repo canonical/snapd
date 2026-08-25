@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"os"
 	"runtime"
 
@@ -33,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd/fdstore"
 )
@@ -42,6 +40,9 @@ var (
 	// ErrInsufficientCapacity is returned by SecretState.Set when the serialized
 	// state does not fit in the fixed-size backing store.
 	ErrInsufficientCapacity = errors.New("insufficient capacity in secret state")
+
+	// ErrNoState is returned by SecretState.Get in the case of no state entry for a given key.
+	ErrNoState = errors.New("no state entry for key")
 )
 
 var (
@@ -68,7 +69,7 @@ const (
 type SecretState interface {
 	// Get unmarshals the stored value associated with the provided key
 	// into the value parameter.
-	// It returns state.ErrNoState if there is no entry for key.
+	// It returns ErrNoState if there is no entry for key.
 	Get(key string, value any) error
 
 	// Has returns whether the provided key has an associated value.
@@ -128,7 +129,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value any) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return &state.NoStateError{Key: key}
+		return ErrNoState
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {
@@ -154,6 +155,15 @@ func (data customData) set(key string, value any) {
 	data[key] = &entryJSON
 }
 
+func (data customData) load(header secretStateHeader, mmap []byte) error {
+	if header.size > 0 {
+		if err := json.Unmarshal(mmap[secretStateHeaderSize:secretStateHeaderSize+header.size], &data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type StateLockChecker interface {
 	// EnsureLocked panics if the state lock is not held.
 	EnsureLocked()
@@ -165,9 +175,7 @@ type secretState struct {
 	header secretStateHeader
 	mmap   []byte
 
-	closed bool
-	// TODO: once state.State exposes an exported method to check that the state
-	// lock is held (e.g. state.EnsureLocked), use it instead.
+	closed       bool
 	stateChecker StateLockChecker
 }
 
@@ -292,18 +300,15 @@ func openSecretStateFile() (f *os.File, retErr error) {
 	}()
 	if errors.Is(err, fdstore.ErrNotFound) || errors.Is(err, fdstore.ErrUnsupportedSystemdVersion) {
 		fdstoreSupported := !errors.Is(err, fdstore.ErrUnsupportedSystemdVersion)
-		fd, err := sysMemfdSecret(0)
+		fd, err := sysMemfdSecret(unix.FD_CLOEXEC)
 		if err != nil {
 			// fallback to memfd-create if memfd-secret is not supported
 			logger.Debugf("cannot create memfd-secret (%v), falling back to memfd-create", err)
-			fd, err = unixMemfdCreate("secret-state", 0)
+			fd, err = unixMemfdCreate("secret-state", unix.MFD_CLOEXEC)
 			if err != nil {
 				return nil, fmt.Errorf("cannot create secret state file: %w", err)
 			}
 		}
-		// TODO: Use raw fcntl and check for errors.
-		unix.CloseOnExec(fd)
-
 		f = os.NewFile(uintptr(fd), "secret-state")
 		// memfd-secret files are created with size 0, so we need
 		// to truncate it to the desired size.
@@ -339,7 +344,11 @@ func openSecretStateFile() (f *os.File, retErr error) {
 //
 // Note that only a single instance of the secret state should be opened
 // at a time.
+//
+// The caller must hold the state lock.
 func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retErr error) {
+	stateChecker.EnsureLocked()
+
 	f, err := openSecretStateFile()
 	if err != nil {
 		return nil, fmt.Errorf("cannot open secret state file: %w", err)
@@ -362,10 +371,11 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 	}
 
 	size := finfo.Size()
-	if size > math.MaxInt {
-		return nil, fmt.Errorf("cannot mmap memfd-secret state: memfd-secret state size too large: %d", size)
+	if size > secretStateSize {
+		// clump to the maximum size we support.
+		size = secretStateSize
 	}
-	mmap, err := unixMmap(int(f.Fd()), 0, int(finfo.Size()), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	mmap, err := unixMmap(int(f.Fd()), 0, int(size), unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		return nil, fmt.Errorf("cannot mmap memfd-secret state: %w", err)
 	}
@@ -394,10 +404,8 @@ func OpenSecretState(stateChecker StateLockChecker) (retState SecretState, retEr
 	}
 
 	// load the existing state from the mmaped file.
-	if s.header.size > 0 {
-		if err := json.Unmarshal(mmap[secretStateHeaderSize:secretStateHeaderSize+s.header.size], &s.data); err != nil {
-			return nil, fmt.Errorf("cannot unmarshal memfd-secret state: %w", err)
-		}
+	if err := s.data.load(s.header, mmap); err != nil {
+		return nil, fmt.Errorf("cannot load memfd-secret state: %w", err)
 	}
 
 	// The finalizer runs on the GC goroutine without holding the state lock.

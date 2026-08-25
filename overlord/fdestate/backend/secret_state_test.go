@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/fdestate/backend"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd/fdstore"
 	"github.com/snapcore/snapd/testutil"
@@ -229,9 +228,11 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	}
 
 	// Open and initialize the secret state
+	s.stateLockChecker.locked = true
 	secretState, err := backend.OpenSecretState(s.stateLockChecker)
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
+	s.stateLockChecker.locked = false
 
 	// ensure the secret state is closed at the end of the test
 	s.AddCleanup(func() {
@@ -255,7 +256,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	// Get a non-existing key
 	var value string
 	err = secretState.Get("non-existing", &value)
-	c.Check(err, testutil.ErrorIs, state.ErrNoState)
+	c.Check(err, testutil.ErrorIs, backend.ErrNoState)
 
 	// Set a key
 	err = secretState.Set("key-1", "some-value")
@@ -327,7 +328,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	} else {
 		// if fdstore is not supported, the memfd-secret file is recreated
 		// on reopening and the previous state is lost.
-		c.Check(err, testutil.ErrorIs, state.ErrNoState)
+		c.Check(err, testutil.ErrorIs, backend.ErrNoState)
 	}
 
 	err = secretState.Close()
@@ -390,9 +391,11 @@ func (s *secretStateSuite) testMemfdSecretStateSetTooLarge(c *C, stateBackend st
 	}
 	expectedOps = append(expectedOps, "fdstore-add: memfd-secret-state") // add the new secret state file to fdstore
 
+	s.stateLockChecker.locked = true
 	secretState, err := backend.OpenSecretState(s.stateLockChecker)
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
+	s.stateLockChecker.locked = false
 
 	// ensure the secret state is closed at the end of the test
 	s.AddCleanup(func() {
@@ -462,10 +465,71 @@ func (s *secretStateSuite) TestMemfdSecretStateSetTooLargeMemfdCreate(c *C) {
 	s.testMemfdSecretStateSetTooLarge(c, stateBackend)
 }
 
-func (s *secretStateSuite) TestMemfdSecretStateMethodsPanicWithoutLock(c *C) {
+func (s *secretStateSuite) TestOpenSecretStateFailsWhenFileTooSmall(c *C) {
+	fd, err := unix.MemfdCreate("secret-state-too-small", unix.MFD_CLOEXEC)
+	c.Assert(err, IsNil)
+
+	f := os.NewFile(uintptr(fd), "secret-state-too-small")
+	s.AddCleanup(func() {
+		f.Close()
+	})
+
+	// Ensure the file does not even fit the 32-byte header.
+	c.Assert(f.Truncate(31), IsNil)
+	s.fdstoreFile = f
+
+	s.stateLockChecker.locked = true
+	secretState, err := backend.OpenSecretState(s.stateLockChecker)
+	c.Assert(secretState, IsNil)
+	c.Assert(err, ErrorMatches, `secret state file size 31 is too small`)
+
+	// Open should fail before any mmap attempt.
+	c.Assert(s.ops, DeepEquals, []string{"fdstore-get: memfd-secret-state"})
+}
+
+func (s *secretStateSuite) TestOpenSecretStateClampsOversizedFile(c *C) {
+	fd, err := unix.MemfdCreate("secret-state-oversized", unix.MFD_CLOEXEC)
+	c.Assert(err, IsNil)
+
+	f := os.NewFile(uintptr(fd), "secret-state-oversized")
+	s.AddCleanup(func() {
+		f.Close()
+	})
+
+	// Create an fdstore-backed file larger than the supported size.
+	c.Assert(f.Truncate(16*1024), IsNil)
+	s.fdstoreFile = f
+
+	s.stateLockChecker.locked = true
 	secretState, err := backend.OpenSecretState(s.stateLockChecker)
 	c.Assert(err, IsNil)
 	c.Assert(secretState, NotNil)
+
+	// Capacity should match the fixed supported mmap size: 8KB - 32B header.
+	memfdSecretState := secretState.(*backend.MemfdSecretState)
+	c.Assert(memfdSecretState.Capacity(), Equals, uint64(1024*8-32))
+
+	// Open should mmap only the clamped supported size.
+	c.Assert(s.ops, DeepEquals, []string{
+		"fdstore-get: memfd-secret-state",
+		"mmap: 8192",
+	})
+
+	c.Assert(secretState.Close(), IsNil)
+	c.Assert(s.ops, DeepEquals, []string{
+		"fdstore-get: memfd-secret-state",
+		"mmap: 8192",
+		"munmap: 8192",
+	})
+	s.stateLockChecker.locked = false
+}
+
+func (s *secretStateSuite) TestMemfdSecretStateMethodsPanicWithoutLock(c *C) {
+	s.stateLockChecker.locked = true
+	secretState, err := backend.OpenSecretState(s.stateLockChecker)
+	c.Assert(err, IsNil)
+	c.Assert(secretState, NotNil)
+	s.stateLockChecker.locked = false
 
 	// ensure the secret state is closed at the end of the test
 	s.AddCleanup(func() {

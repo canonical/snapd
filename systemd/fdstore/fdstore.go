@@ -89,7 +89,7 @@ type Store interface {
 
 type store struct{}
 
-// Returns an instance of the fdstore.
+// New returns an instance of the fdstore.
 func New() Store {
 	return &store{}
 }
