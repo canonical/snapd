@@ -496,7 +496,8 @@ var templateFooter = `
 }
 `
 
-// defaultPerlTemplateRules contains perl runtime-specific rules.
+// defaultPerlTemplateRules contains perl runtime-specific rules
+// common to core* and non-core bases.
 // Perl has been removed from core24 onwards.
 var defaultPerlTemplateRules = `
   # for perl apps/services
@@ -505,7 +506,8 @@ var defaultPerlTemplateRules = `
   /usr/lib/@{multiarch}/perl{,5,-base}/auto/**.so* mr,
 `
 
-// defaultPythonTemplateRules contains python runtime-specific rules.
+// defaultPythonTemplateRules contains python runtime-specific rules
+// common to core* and non-core bases.
 // Python has been removed from core26 onwards.
 var defaultPythonTemplateRules = `
   # for python apps/services

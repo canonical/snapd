@@ -1348,27 +1348,32 @@ func (s *backendSuite) TestBaseRuntimeExtraRulesPerBase(c *C) {
 
 	perlMarker := "#include <abstractions/perl>"
 	pythonMarker := "#include <abstractions/python>"
+	// unique lines present only in defaultCoreRuntime{Perl,Python}TemplateRules
+	coreRuntimePerlMarker := "/usr/bin/perl{,5*} ixr,"
+	coreRuntimePythonMarker := "/usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,"
 
 	type scenario struct {
-		base       string
-		wantPerl   bool
-		wantPython bool
-		comment    string
+		base           string
+		wantPerl       bool
+		wantCorePerl   bool
+		wantPython     bool
+		wantCorePython bool
+		comment        string
 	}
 	scenarios := []scenario{
-		// empty base = implicit core → perl + python
-		{base: "", wantPerl: true, wantPython: true, comment: "empty base (core)"},
-		// core18, core20 → perl + python
-		{base: "core18", wantPerl: true, wantPython: true, comment: "core18"},
-		{base: "core20", wantPerl: true, wantPython: true, comment: "core20"},
-		// core24 → python only, no perl
-		{base: "core24", wantPerl: false, wantPython: true, comment: "core24"},
+		// empty base = implicit core → perl + python, including core-specific rules
+		{base: "", wantPerl: true, wantCorePerl: true, wantPython: true, wantCorePython: true, comment: "empty base (core)"},
+		// core18, core20 → same as above
+		{base: "core18", wantPerl: true, wantCorePerl: true, wantPython: true, wantCorePython: true, comment: "core18"},
+		{base: "core20", wantPerl: true, wantCorePerl: true, wantPython: true, wantCorePython: true, comment: "core20"},
+		// core24 → python only, with core-specific python rules; no perl at all
+		{base: "core24", wantPerl: false, wantCorePerl: false, wantPython: true, wantCorePython: true, comment: "core24"},
 		// core26 → no perl, no python
-		{base: "core26", wantPerl: false, wantPython: false, comment: "core26"},
+		{base: "core26", wantPerl: false, wantCorePerl: false, wantPython: false, wantCorePython: false, comment: "core26"},
 		// core26+ (core28) → no perl, no python
-		{base: "core28", wantPerl: false, wantPython: false, comment: "core28"},
-		// non-core bases → perl + python
-		{base: "other", wantPerl: true, wantPython: true, comment: "non-core base"},
+		{base: "core28", wantPerl: false, wantCorePerl: false, wantPython: false, wantCorePython: false, comment: "core28"},
+		// non-core bases → base perl + python rules only; no core-specific rules
+		{base: "other", wantPerl: true, wantCorePerl: false, wantPython: true, wantCorePython: false, comment: "non-core base"},
 	}
 
 	for _, sc := range scenarios {
@@ -1380,21 +1385,29 @@ func (s *backendSuite) TestBaseRuntimeExtraRulesPerBase(c *C) {
 		profileStr := string(content)
 		c.Check(strings.Contains(profileStr, perlMarker), Equals, sc.wantPerl,
 			Commentf("perl rules presence mismatch for scenario: %s", sc.comment))
+		c.Check(strings.Contains(profileStr, coreRuntimePerlMarker), Equals, sc.wantCorePerl,
+			Commentf("core perl rules presence mismatch for scenario: %s", sc.comment))
 		c.Check(strings.Contains(profileStr, pythonMarker), Equals, sc.wantPython,
 			Commentf("python rules presence mismatch for scenario: %s", sc.comment))
+		c.Check(strings.Contains(profileStr, coreRuntimePythonMarker), Equals, sc.wantCorePython,
+			Commentf("core python rules presence mismatch for scenario: %s", sc.comment))
 
 		// Verify extra rules are inside the profile block (before the closing brace).
 		closingBrace := strings.Index(profileStr, "\n}\n")
 		c.Assert(closingBrace, Not(Equals), -1, Commentf("no closing brace found for scenario: %s", sc.comment))
-		if sc.wantPerl {
-			perlIdx := strings.Index(profileStr, perlMarker)
-			c.Check(perlIdx < closingBrace, Equals, true,
-				Commentf("perl rules must appear before closing brace for scenario: %s", sc.comment))
-		}
-		if sc.wantPython {
-			pythonIdx := strings.Index(profileStr, pythonMarker)
-			c.Check(pythonIdx < closingBrace, Equals, true,
-				Commentf("python rules must appear before closing brace for scenario: %s", sc.comment))
+		for _, tc := range []struct {
+			want   bool
+			marker string
+		}{
+			{sc.wantPerl, perlMarker},
+			{sc.wantCorePerl, coreRuntimePerlMarker},
+			{sc.wantPython, pythonMarker},
+			{sc.wantCorePython, coreRuntimePythonMarker},
+		} {
+			if tc.want {
+				c.Check(strings.Index(profileStr, tc.marker) < closingBrace, Equals, true,
+					Commentf("marker %q must appear before closing brace for scenario: %s", tc.marker, sc.comment))
+			}
 		}
 
 		s.RemoveSnap(c, snapInfo)

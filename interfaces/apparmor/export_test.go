@@ -28,16 +28,12 @@ import (
 )
 
 var (
-	NsProfile                             = nsProfile
-	ProfileGlobs                          = profileGlobs
-	SnapConfineFromSnapProfile            = snapConfineFromSnapProfile
-	DefaultCoreRuntimeTemplateRules       = defaultCoreRuntimeTemplateRules
-	DefaultOtherBaseTemplateRules         = defaultOtherBaseTemplateRules
-	DefaultPerlTemplateRules              = defaultPerlTemplateRules
-	DefaultCoreRuntimePerlTemplateRules   = defaultCoreRuntimePerlTemplateRules
-	DefaultPythonTemplateRules            = defaultPythonTemplateRules
-	DefaultCoreRuntimePythonTemplateRules = defaultCoreRuntimePythonTemplateRules
-	TemplateFooter                        = templateFooter
+	NsProfile                       = nsProfile
+	ProfileGlobs                    = profileGlobs
+	SnapConfineFromSnapProfile      = snapConfineFromSnapProfile
+	DefaultCoreRuntimeTemplateRules = defaultCoreRuntimeTemplateRules
+	DefaultOtherBaseTemplateRules   = defaultOtherBaseTemplateRules
+	TemplateFooter                  = templateFooter
 )
 
 func MockLoadProfiles(f func(fnames []string, cacheDir string, flags apparmor_sandbox.AaParserFlags) error) (restore func()) {
@@ -62,7 +58,7 @@ func MockProcSelfExe(symlink string) (restore func()) {
 	}
 }
 
-// MockTemplate replaces apprmor template.
+// MockTemplate replaces apparmor template and suppresses the extra rules insertion.
 //
 // NOTE: The real apparmor template is long. For testing it is convenient for
 // replace it with a shorter snippet.
@@ -78,8 +74,7 @@ func MockTemplate(fakeTemplate string) (restore func()) {
 }
 
 // MockCoreRuntimeTemplate replaces the core runtime apparmor template string
-// only, without suppressing the extra rules insertion. Use this when testing
-// that baseRuntimeExtraRules correctly inserts perl/python rules based on base.
+// without suppressing the extra rules insertion.
 func MockCoreRuntimeTemplate(fakeTemplate string) (restore func()) {
 	orig := defaultCoreRuntimeTemplate
 	defaultCoreRuntimeTemplate = fakeTemplate
