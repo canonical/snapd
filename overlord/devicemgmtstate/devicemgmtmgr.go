@@ -506,13 +506,15 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	// Evict oldest sequences when the LRU exceeds capacity.
-	for len(ms.SequenceLRU) > maxSequences {
-		baseID := ms.SequenceLRU[0]
-		ms.SequenceLRU = ms.SequenceLRU[1:]
-		err = m.rejectSequence(ms, t, baseID, "cannot process message: sequence evicted due to capacity limits")
-		if err != nil {
-			return err
+	// Reject oldest sequences when the LRU exceeds capacity.
+	excess := len(ms.SequenceLRU) - maxSequences
+	if excess > 0 {
+		toReject := append([]string(nil), ms.SequenceLRU[:excess]...)
+		for _, baseID := range toReject {
+			err = m.rejectSequence(ms, t, baseID, "cannot process message: sequence evicted due to capacity limits")
+			if err != nil {
+				return err
+			}
 		}
 	}
 

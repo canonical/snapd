@@ -1064,7 +1064,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	c.Assert(seqB.Messages, HasLen, 1, Commentf("the 2nd message in seqB should have been deleted"))
 	c.Check(seqB.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 
-	c.Check(msAfterDispatch.SequenceLRU, DeepEquals, []string{"seqC", "seqD", "seqE", "seqF"})
+	c.Check(msAfterDispatch.SequenceLRU, DeepEquals, []string{"seqA", "seqB", "seqC", "seqD", "seqE", "seqF"})
 
 	// Eventually: rejection responses signed and both sequences evicted.
 	c.Check(signed["seqA-1"], Equals, asserts.MessageStatusRejected)
