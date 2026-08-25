@@ -954,9 +954,9 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 		}
 	}
 
-	snapName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName().String()
 	if backend == nil {
-		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", snapName, securitySystem)
+		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", instanceName, securitySystem)
 	}
 
 	spec := backend.NewSpecification(appSet, opts)
@@ -977,7 +977,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 	// to add a connected plug that will never work.
 
 	// slot side
-	for _, slotInfo := range r.slots[snapName] {
+	for _, slotInfo := range r.slots[instanceName] {
 		iface := r.ifaces[slotInfo.Interface]
 		if err := spec.AddPermanentSlot(iface, slotInfo); err != nil {
 			return nil, err
@@ -989,7 +989,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 		}
 	}
 	// plug side
-	for _, plugInfo := range r.plugs[snapName] {
+	for _, plugInfo := range r.plugs[instanceName] {
 		iface := r.ifaces[plugInfo.Interface]
 		if err := spec.AddPermanentPlug(iface, plugInfo); err != nil {
 			return nil, err

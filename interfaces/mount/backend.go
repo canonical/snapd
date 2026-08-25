@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -74,10 +75,10 @@ const (
 // Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all changes to the mount system for this snap.
-	snapName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
-		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", instanceName, err)
 	}
 
 	snapInfo := appSet.Info()
@@ -88,7 +89,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	ms.AddExtraLayouts(opts.ExtraLayouts)
 	content := deriveContent(spec.(*Specification), snapInfo)
 	// synchronize the content with the filesystem
-	glob := fmt.Sprintf("snap.%s.*fstab", snapName)
+	glob := fmt.Sprintf("snap.%s.*fstab", instanceName)
 	dir := dirs.SnapMountPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
@@ -96,7 +97,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 
 	chg, rm, err := osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", instanceName, err)
 	}
 
 	mutated := len(chg) != 0 || len(rm) != 0
@@ -132,26 +133,26 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 		return nil
 	}
 
-	return b.updateOrDiscard(snapName, snapInfo)
+	return b.updateOrDiscard(instanceName, snapInfo)
 }
 
 // updateOrDiscard attempts to update the mount namespace for a snap, and if
 // that fails, tries to discard the namespace (unless the snap has enduring daemons).
-func (b *Backend) updateOrDiscard(snapName string, snapInfo *snap.Info) error {
+func (b *Backend) updateOrDiscard(instanceName naming.InstanceName, snapInfo *snap.Info) error {
 	logger.Debugf("update or discard mount ns for snap %v", snapInfo.InstanceName())
 
-	if err := UpdateSnapNamespace(snapName); err != nil {
+	if err := UpdateSnapNamespace(instanceName.String()); err != nil {
 		// try to discard the mount namespace but only if there aren't enduring daemons in the snap
 		for _, app := range snapInfo.Apps {
 			if app.Daemon != "" && app.RefreshMode == "endure" {
-				return fmt.Errorf("cannot update mount namespace of snap %q, and cannot discard it because it contains an enduring daemon: %s", snapName, err)
+				return fmt.Errorf("cannot update mount namespace of snap %q, and cannot discard it because it contains an enduring daemon: %s", instanceName, err)
 			}
 		}
-		logger.Noticef("discarding mount namespace of snap %q due update failure: %v", snapName, err)
+		logger.Noticef("discarding mount namespace of snap %q due update failure: %v", instanceName, err)
 		// In some snaps, if the layout change from a version to the next by replacing a bind by a symlink,
 		// the update can fail. Discarding the namespace allows to solve this.
-		if err = DiscardSnapNamespace(snapName); err != nil {
-			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", snapName, err)
+		if err = DiscardSnapNamespace(instanceName.String()); err != nil {
+			return fmt.Errorf("cannot discard mount namespace of snap %q when trying to update it: %s", instanceName, err)
 		}
 	}
 	return nil
@@ -250,10 +251,10 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 	case len(deduped) > 1:
 		return fmt.Errorf("internal error: expecting at most one delayed effect to apply")
 	case len(deduped) == 1:
-		snapName := appSet.InstanceName().String()
+		instanceName := appSet.InstanceName()
 		snapInfo := appSet.Info()
 
-		logger.Debugf("setup delayed for %v", snapName)
+		logger.Debugf("setup delayed for %v", instanceName)
 
 		// attempt to discard the mount namespace of affected snap if no
 		// applications or service of that snap are running
@@ -268,7 +269,7 @@ func (b *Backend) ApplyDelayedEffects(appSet *interfaces.SnapAppSet, work []inte
 
 		// Assuming all non-deferred work was done in Setup(), perform only the
 		// remaining work, specifically update or discard the mount namespace
-		return b.updateOrDiscard(snapName, snapInfo)
+		return b.updateOrDiscard(instanceName, snapInfo)
 	}
 	return nil
 }

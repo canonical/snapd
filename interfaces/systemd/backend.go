@@ -68,11 +68,11 @@ func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
 // them or application present in the snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
 	// Record all the extra systemd services for this snap.
-	snapName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName()
 	// Get the services that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
-		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain systemd services for snap %q: %s", instanceName, err)
 	}
 	content := deriveContent(spec.(*Specification), appSet)
 	// synchronize the content with the filesystem
@@ -80,7 +80,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
-	glob := serviceName(snapName, "*")
+	glob := serviceName(instanceName.String(), "*")
 
 	var systemd sysd.Systemd
 	if b.preseed {

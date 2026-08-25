@@ -67,12 +67,12 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			}
 		}
 	}
-	snapName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName()
 	// Get the spec that applies to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain symlinks specification for snap %q: %s",
-			snapName, err)
+			instanceName, err)
 	}
 
 	return b.ensureSymlinks(spec.(*Specification), symlinkDirs)

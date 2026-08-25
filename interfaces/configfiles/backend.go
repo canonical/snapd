@@ -63,12 +63,12 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 			cfgPatterns = append(cfgPatterns, cfgIface.PathPatterns()...)
 		}
 	}
-	snapName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
 		return fmt.Errorf("cannot obtain configfiles specification for snap %q: %s",
-			snapName, err)
+			instanceName, err)
 	}
 
 	return b.ensureConfigfiles(spec.(*Specification), cfgPatterns)

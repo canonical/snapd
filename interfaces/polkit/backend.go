@@ -70,15 +70,15 @@ func (b *Backend) Prepare(_ *interfaces.SnapAppSet) error {
 //
 // Polkit has no concept of a complain mode so confinment type is ignored.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName()
 	// Get the policies and rules that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
-		return fmt.Errorf("cannot obtain polkit specification for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain polkit specification for snap %q: %s", instanceName, err)
 	}
 
 	// Get the policy files that this snap should have
-	glob := polkitPolicyName(snapName, "*")
+	glob := polkitPolicyName(instanceName.String(), "*")
 	content := derivePoliciesContent(spec.(*Specification), appSet)
 	dir := dirs.SnapPolkitPolicyDir
 	// If we do not have any content to write, there is no point
@@ -90,17 +90,17 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	}
 	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize polkit policy files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize polkit policy files for snap %q: %s", instanceName, err)
 	}
 
 	// Get the rule files that this snap should have
-	glob = polkitRuleName(snapName, "*")
+	glob = polkitRuleName(instanceName.String(), "*")
 	content = deriveRulesContent(spec.(*Specification), appSet)
 	// Rules directory should already exist as it comes with distro packaging, don't attempt
 	// to create it to avoid messing with permissions and just fail if it doesn't exist.
 	_, _, err = osutil.EnsureDirState(dirs.SnapPolkitRuleDir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize polkit rule files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize polkit rule files for snap %q: %s", instanceName, err)
 	}
 
 	return nil

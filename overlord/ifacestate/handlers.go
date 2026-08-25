@@ -367,7 +367,7 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 // that reloadConnections changed or dropped.
 func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName().String()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -379,14 +379,14 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 	// - restore connections based on what is kept in the state
 	//   - if a connection cannot be restored then remove it from the state
 	// - setup the security of all the affected snaps
-	disconnectedSnaps, err := m.repo.DisconnectSnap(snapName.String())
+	disconnectedSnaps, err := m.repo.DisconnectSnap(instanceName)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// XXX: what about snap renames? We should remove the old name (or switch
 	// to IDs in the interfaces repository)
-	if err := m.repo.RemoveSnap(snapName.String()); err != nil {
+	if err := m.repo.RemoveSnap(instanceName); err != nil {
 		return nil, nil, err
 	}
 	if err := m.repo.AddAppSet(appSet); err != nil {
@@ -397,7 +397,7 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(snapName.String())
+	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(instanceName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,7 +406,7 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 	// original connections so that setup-profiles' undo can restore them, if
 	// needed
 	if task.Status() != state.UndoingStatus {
-		if err := snapshotChangedConnectionsForUndo(task, snapName.String(), changedOrDroppedConns); err != nil {
+		if err := snapshotChangedConnectionsForUndo(task, instanceName, changedOrDroppedConns); err != nil {
 			return nil, nil, err
 		}
 	}
