@@ -102,7 +102,7 @@ func (s *runBootChainsSuite) TestGetRunBootChains(c *C) {
 	c.Check(bootFiles, DeepEquals, []bootloader.BootFile{
 		{
 			Path: filepath.Join(s.rootdir, "/var/lib/snapd/boot-assets/run/ubuntu:shim-hash-shim-recovery"),
-			Snap:"",
+			Snap: "",
 			Role: "recovery",
 		},
 		{
@@ -175,7 +175,7 @@ func (s *runBootChainsSuite) TestGetRunBootChainsTryKernel(c *C) {
 	c.Check(bootFiles, DeepEquals, []bootloader.BootFile{
 		{
 			Path: filepath.Join(s.rootdir, "/var/lib/snapd/boot-assets/run/ubuntu:shim-hash-shim-recovery"),
-			Snap:"",
+			Snap: "",
 			Role: "recovery",
 		},
 		{
