@@ -76,7 +76,7 @@ execute: |
         if [ "$VARIANT" = "static" ] ; then
             tests.session -u test exec sh -c "cd $testdir/snapd && \
                 PATH=$PATH \
-                GOPATH=/tmp/static-unit-tests \
+                TMPDIR=/var/tmp \
                 $PROXY_PARAM \
                 ${skip:-} \
                 SKIP_TESTS_FORMAT_CHECK=1 \
@@ -86,7 +86,7 @@ execute: |
         else
             tests.session -u test exec sh -c "cd $testdir/snapd && \
                 PATH=$PATH \
-                GOPATH=/tmp/static-unit-tests \
+                TMPDIR=/var/tmp \
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
@@ -115,7 +115,7 @@ execute: |
             # 14.04 only
             su -l -c "cd $testdir/snapd && \
                 PATH=$PATH \
-                GOPATH=/tmp/static-unit-tests \
+                TMPDIR=/var/tmp \
                 $PROXY_PARAM \
                 ${skip:-} \
                 SKIP_TESTS_FORMAT_CHECK=1 \
@@ -125,7 +125,7 @@ execute: |
         else
             su -l -c "cd $testdir/snapd && \
                 PATH=$PATH \
-                GOPATH=/tmp/static-unit-tests \
+                TMPDIR=/var/tmp \
                 $PROXY_PARAM \
                 SKIP_COVERAGE=1 \
                 CC=$VARIANT \
