@@ -954,7 +954,7 @@ func (r *Repository) SnapSpecification(securitySystem SecuritySystem, appSet *Sn
 		}
 	}
 
-	instanceName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName().TODOInstanceName()
 	if backend == nil {
 		return nil, fmt.Errorf("cannot handle interfaces of snap %q, security system %q is not known", instanceName, securitySystem)
 	}

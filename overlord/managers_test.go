@@ -15101,7 +15101,7 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsApplied(c *C) {
 			},
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
-			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName().String())
+			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName().TODOInstanceName())
 			return nil
 		},
 	}
@@ -15261,9 +15261,9 @@ func (s *mgrsSuite) testDelayedSecurityBackendSideEffectsTransactionallyApplied(
 					// past the point of initial Setup() calls, this is
 					// called for each snap that is affected by a connection, producer and consumer
 					switch {
-					case strings.HasPrefix(name.String(), "producer"):
+					case strings.HasPrefix(name.TODOInstanceName(), "producer"):
 						return nil
-					case strings.HasPrefix(name.String(), "consumer"):
+					case strings.HasPrefix(name.TODOInstanceName(), "consumer"):
 						c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonConnectedSlotProviderUpdate)
 						// in do path effects are delayed, but not in undo
 						if sctx.CanDelayEffects {
@@ -15286,7 +15286,7 @@ func (s *mgrsSuite) testDelayedSecurityBackendSideEffectsTransactionallyApplied(
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
 			name := appSet.InstanceName()
-			effectsAppliedFor = append(effectsAppliedFor, name.String())
+			effectsAppliedFor = append(effectsAppliedFor, name.TODOInstanceName())
 			if name == "consumer2" && scenario == failure {
 				return fmt.Errorf("mock error")
 			}

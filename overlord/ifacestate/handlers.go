@@ -257,7 +257,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 			// task, so their hook context still needs baseline confinement and
 			// backend artifacts such as snap device cgroup policy files.
 			sctxs := map[string]interfaces.SetupContext{
-				appSet.InstanceName().String(): {
+				appSet.InstanceName().TODOInstanceName(): {
 					Reason:          interfaces.SnapSetupReasonOwnUpdate,
 					CanDelayEffects: false,
 				},
@@ -367,7 +367,7 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 // that reloadConnections changed or dropped.
 func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
-	instanceName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName().TODOInstanceName()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -448,10 +448,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		// Snaps on the plug or slot side, other than the current one, are
 		// indirectly affected.
-		if connRef.PlugRef.Snap != snapName.String() {
+		if connRef.PlugRef.Snap != snapName.TODOInstanceName() {
 			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
 		}
-		if connRef.SlotRef.Snap != snapName.String() {
+		if connRef.SlotRef.Snap != snapName.TODOInstanceName() {
 			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
 		}
 	}
@@ -468,13 +468,13 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// back to a slice
 	affectedNames := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
-		if name != snapName.String() {
+		if name != snapName.TODOInstanceName() {
 			affectedNames = append(affectedNames, name)
 		}
 	}
 	sort.Strings(affectedNames)
 	// the snap for which profiles are being set up comes first
-	affectedNames = append([]string{snapName.String()}, affectedNames...)
+	affectedNames = append([]string{snapName.TODOInstanceName()}, affectedNames...)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.
@@ -485,7 +485,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// For the snap being setup we know exactly what was requested.
 	affectedSnapSets = append(affectedSnapSets, appSet)
 	confinementOpts = append(confinementOpts, opts)
-	setupContexts[appSet.InstanceName().String()] = interfaces.SetupContext{
+	setupContexts[appSet.InstanceName().TODOInstanceName()] = interfaces.SetupContext{
 		// We are being updated
 		Reason:          interfaces.SnapSetupReasonOwnUpdate,
 		CanDelayEffects: false,

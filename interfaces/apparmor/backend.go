@@ -379,7 +379,7 @@ type profilePathsResults struct {
 }
 
 func (b *Backend) setupHostAppArmorForCoreAndSnapd(appSet *interfaces.SnapAppSet) error {
-	instanceName := appSet.InstanceName().String()
+	instanceName := appSet.InstanceName().TODOInstanceName()
 	snapInfo := appSet.Info()
 
 	// core on classic is special
@@ -546,7 +546,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
 	for _, set := range appSets {
-		opts := confinement(set.InstanceName().String())
+		opts := confinement(set.InstanceName().TODOInstanceName())
 		prof, err := b.prepareProfiles(set, opts, repo)
 		if err != nil {
 			fallback = true
@@ -595,7 +595,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	// if an error was encountered when processing all profiles at once, re-try them one by one
 	if fallback {
 		for _, set := range appSets {
-			instanceName := set.InstanceName().String()
+			instanceName := set.InstanceName().TODOInstanceName()
 			opts := confinement(instanceName)
 			if err := b.Setup(set, opts, sctx(instanceName), repo, tm); err != nil {
 				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", instanceName, err))

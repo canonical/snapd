@@ -6419,8 +6419,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Assert(err, IsNil)
 
 	connRef := &interfaces.ConnRef{
-		PlugRef: interfaces.PlugRef{Snap: siC.InstanceName().String(), Name: "plug"},
-		SlotRef: interfaces.SlotRef{Snap: siP.InstanceName().String(), Name: "slot"},
+		PlugRef: interfaces.PlugRef{Snap: siC.InstanceName().TODOInstanceName(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: siP.InstanceName().TODOInstanceName(), Name: "slot"},
 	}
 	_, err = repo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
@@ -7032,7 +7032,7 @@ apps:
 `, 2)
 
 	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
-		if appSet.InstanceName().String() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
+		if appSet.InstanceName().TODOInstanceName() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
 			return fmt.Errorf("fail setup consumer rev 2")
 		}
 		return nil
@@ -7120,7 +7120,7 @@ apps:
 `, 2)
 
 	s.secBackend.SetupCallback = func(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository) error {
-		if appSet.InstanceName().String() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
+		if appSet.InstanceName().TODOInstanceName() == newConsumerInfo.InstanceName() && appSet.Info().Revision == newConsumerInfo.Revision {
 			return fmt.Errorf("fail setup consumer rev 2")
 		}
 		return nil
@@ -12480,9 +12480,9 @@ func (s *interfaceManagerSuite) TestDoRegenerateSecurityProfilesHappy(c *C) {
 			// expecting 2 calls, first from manager startup, 2nd from handler
 			c.Check(appSets, HasLen, 2)
 			for _, appSet := range appSets {
-				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName().String()))
+				_, err := repo.SnapSpecification("test", appSet, confinement(appSet.InstanceName().TODOInstanceName()))
 				c.Assert(err, IsNil)
-				c.Check(sctx(appSet.InstanceName().String()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
+				c.Check(sctx(appSet.InstanceName().TODOInstanceName()), DeepEquals, interfaces.SetupContext{Reason: interfaces.SnapSetupReasonOther})
 			}
 
 			if setupCalls == 2 {

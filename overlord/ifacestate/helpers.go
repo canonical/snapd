@@ -250,13 +250,13 @@ func (m *InterfaceManager) regenerateAllSecurityProfiles(tm timings.Measurer, un
 		}
 
 		instanceName := set.InstanceName()
-		optsForAppSet, err := computeConfinementOpts(instanceName.String())
+		optsForAppSet, err := computeConfinementOpts(instanceName.TODOInstanceName())
 		if err != nil {
 			logger.Noticef("cannot get confinement options for snap %q: %v", instanceName, err)
 			continue
 		}
 
-		precompOpts[instanceName.String()] = optsForAppSet
+		precompOpts[instanceName.TODOInstanceName()] = optsForAppSet
 	}
 
 	// The reason the system key is unlinked is to prevent snapd from believing
@@ -706,7 +706,7 @@ func (m *InterfaceManager) setupSecurityByBackend(task *state.Task, appSets []*i
 	}
 	confOpts := make(map[string]interfaces.ConfinementOptions, len(appSets))
 	for i, set := range appSets {
-		confOpts[set.InstanceName().String()] = opts[i]
+		confOpts[set.InstanceName().TODOInstanceName()] = opts[i]
 	}
 
 	st := task.State()
