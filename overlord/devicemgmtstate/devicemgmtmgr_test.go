@@ -1018,14 +1018,21 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		},
 	})
 
-	var msAfterDispatch *devicemgmtstate.DeviceMgmtState
+	var msAfterExchange, msAfterDispatch *devicemgmtstate.DeviceMgmtState
 	s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
-		if t.Kind() != "dispatch-mgmt-messages" || new != state.DoneStatus {
+		if new != state.DoneStatus {
 			return false
 		}
 
-		msAfterDispatch, _ = s.mgr.GetState()
-		return true
+		switch t.Kind() {
+		case "exchange-mgmt-messages":
+			msAfterExchange, _ = s.mgr.GetState()
+		case "dispatch-mgmt-messages":
+			msAfterDispatch, _ = s.mgr.GetState()
+			return true
+		}
+
+		return false
 	})
 
 	s.settle(c)
@@ -1033,6 +1040,10 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
 	ti := buildTaskIndex(changes[0])
+
+	// After exchange: nothing evicted yet, LRU reflects arrival order.
+	c.Assert(msAfterExchange, NotNil)
+	c.Check(msAfterExchange.SequenceLRU, DeepEquals, []string{"seq0", "seqA", "seqB", "seqC", "seqD", "seqE", "seqF"})
 
 	// After dispatch: seq0 evicted immediately (empty, no message to reject).
 	// seqA and seqB are rejected and trimmed.
