@@ -599,7 +599,7 @@ func instanceNameFromTask(t *state.Task) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return snapsup.InstanceName().String(), true
+	return snapsup.InstanceName().TODOInstanceName(), true
 }
 
 func isInstalled(st *state.State, snapName string) (bool, error) {
@@ -628,7 +628,7 @@ func maybeFindTaskInChangeForSnap(chg *state.Change, kind, snapName string) (*st
 		if err != nil {
 			return nil, err
 		}
-		if snapsup.InstanceName().String() == snapName {
+		if snapsup.InstanceName().TODOInstanceName() == snapName {
 			return t, nil
 		}
 	}

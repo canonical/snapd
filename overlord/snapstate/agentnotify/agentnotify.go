@@ -85,7 +85,7 @@ var maybeSendClientFinishRefreshNotification = func(st *state.State, snapsup *sn
 		return
 	}
 	refreshInfo := &userclient.FinishedSnapRefreshInfo{
-		InstanceName: snapsup.InstanceName().String(),
+		InstanceName: snapsup.InstanceName().TODOInstanceName(),
 	}
 	asyncFinishRefreshNotification(refreshInfo)
 }

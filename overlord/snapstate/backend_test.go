@@ -1841,7 +1841,7 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, snapsup *snapstate.SnapSetup, compsup *snapstate.ComponentSetup) error {
 	op := &fakeOp{
 		op:    kind + ":" + status.String(),
-		name:  snapsup.InstanceName().String(),
+		name:  snapsup.InstanceName().TODOInstanceName(),
 		revno: snapsup.Revision(),
 	}
 

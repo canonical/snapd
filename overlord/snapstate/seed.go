@@ -129,7 +129,7 @@ func seedRefreshCandidateForTaskSet(ts *state.TaskSet) (SeedRefreshCandidate, er
 	}
 
 	candidate := SeedRefreshCandidate{
-		InstanceName:          snapsup.InstanceName().String(),
+		InstanceName:          snapsup.InstanceName().TODOInstanceName(),
 		ComponentSetupTaskIDs: compSetupTaskIDs,
 	}
 
@@ -193,8 +193,8 @@ func seedRefreshAndSeedSnapTaskSets(st *state.State, stss []snapInstallTaskSet, 
 
 	seedSnapTaskSets := make(map[string]snapInstallTaskSet, len(added))
 	for _, sts := range stss {
-		if added[sts.snapsup.InstanceName().String()] {
-			seedSnapTaskSets[sts.snapsup.InstanceName().String()] = sts
+		if added[sts.snapsup.InstanceName().TODOInstanceName()] {
+			seedSnapTaskSets[sts.snapsup.InstanceName().TODOInstanceName()] = sts
 		}
 	}
 

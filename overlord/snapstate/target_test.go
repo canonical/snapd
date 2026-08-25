@@ -476,7 +476,7 @@ func (s *targetTestSuite) TestUpdateSnapInstallIfMissingChannelCases(c *C) {
 		var snapsup *snapstate.SnapSetup
 		for _, task := range ts.Tasks() {
 			cand, setupErr := snapstate.TaskSnapSetup(task)
-			if setupErr == nil && cand.InstanceName().String() == tc.update.InstanceName {
+			if setupErr == nil && cand.InstanceName().TODOInstanceName() == tc.update.InstanceName {
 				snapsup = cand
 				break
 			}

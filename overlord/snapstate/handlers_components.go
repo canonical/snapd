@@ -105,7 +105,7 @@ func compSetupAndState(t *state.Task) (*ComponentSetup, *SnapSetup, *SnapState, 
 		return nil, nil, nil, err
 	}
 	var snapst SnapState
-	err = Get(t.State(), ssup.InstanceName().String(), &snapst)
+	err = Get(t.State(), ssup.InstanceName().TODOInstanceName(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return nil, nil, nil, err
 	}
@@ -191,7 +191,7 @@ func (m *SnapManager) doDownloadComponent(t *state.Task, tomb *tomb.Tomb) error 
 		rate = autoRefreshRateLimited(st)
 	}
 
-	target := compsup.BlobPath(snapsup.InstanceName().String())
+	target := compsup.BlobPath(snapsup.InstanceName().TODOInstanceName())
 
 	sto := Store(st, deviceCtx)
 	meter := NewTaskProgressAdapterUnlocked(t)
@@ -252,7 +252,7 @@ func (m *SnapManager) doMountComponent(t *state.Task, _ *tomb.Tomb) (retErr erro
 
 	csi := compSetup.CompSideInfo
 	cpi := snap.MinimalComponentContainerPlaceInfo(compSetup.ComponentName(),
-		csi.Revision, snapsup.InstanceName().String())
+		csi.Revision, snapsup.InstanceName().TODOInstanceName())
 
 	defer func() {
 		st.Lock()
@@ -357,7 +357,7 @@ func (m *SnapManager) undoMountComponent(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.undoSetupComponent(t, compSetup.CompSideInfo, snapsup.InstanceName().String(),
+	return m.undoSetupComponent(t, compSetup.CompSideInfo, snapsup.InstanceName().TODOInstanceName(),
 		undoComponentOpts{maybeInitramfsMounted: false})
 }
 
@@ -469,7 +469,7 @@ func (m *SnapManager) doLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// Finally, write the state
-	Set(st, snapsup.InstanceName().String(), snapSt)
+	Set(st, snapsup.InstanceName().TODOInstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
 
@@ -515,7 +515,7 @@ func (m *SnapManager) undoLinkComponent(t *state.Task, _ *tomb.Tomb) error {
 		linkedComp.SideInfo.Component)
 
 	// Finally, write the state
-	Set(st, snapsup.InstanceName().String(), snapSt)
+	Set(st, snapsup.InstanceName().TODOInstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
@@ -574,12 +574,12 @@ func (m *SnapManager) doUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err error)
 	cref := compSetup.CompSideInfo.Component
 	// Remove component for the specified revision
 	if err := m.unlinkComponent(
-		t, snapSt, snapSup.InstanceName().String(), snapSup.Revision(), cref); err != nil {
+		t, snapSt, snapSup.InstanceName().TODOInstanceName(), snapSup.Revision(), cref); err != nil {
 		return err
 	}
 
 	// Finally, write the state
-	Set(st, snapSup.InstanceName().String(), snapSt)
+	Set(st, snapSup.InstanceName().TODOInstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.DoneStatus)
 
@@ -635,7 +635,7 @@ func (m *SnapManager) undoUnlinkCurrentComponent(t *state.Task, _ *tomb.Tomb) (e
 	}
 
 	// Finally, write the state
-	Set(st, snapsup.InstanceName().String(), snapSt)
+	Set(st, snapsup.InstanceName().TODOInstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
@@ -655,12 +655,12 @@ func (m *SnapManager) undoUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err erro
 	}
 
 	if err := m.relinkComponent(
-		t, snapSt, snapSup.InstanceName().String(), snapSup.Revision()); err != nil {
+		t, snapSt, snapSup.InstanceName().TODOInstanceName(), snapSup.Revision()); err != nil {
 		return err
 	}
 
 	// Finally, write the state
-	Set(st, snapSup.InstanceName().String(), snapSt)
+	Set(st, snapSup.InstanceName().TODOInstanceName(), snapSt)
 	// Make sure we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 
@@ -713,7 +713,7 @@ func (m *SnapManager) doPrepareKernelModulesComponents(t *state.Task, _ *tomb.To
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	err = m.backend.SetupKernelModulesComponents(
-		snapsup.PreUpdateKernelModuleComponents, newComps, snapsup.InstanceName().String(), snapsup.Revision(), pm,
+		snapsup.PreUpdateKernelModuleComponents, newComps, snapsup.InstanceName().TODOInstanceName(), snapsup.Revision(), pm,
 	)
 	st.Lock()
 	if err != nil {
@@ -740,7 +740,7 @@ func (m *SnapManager) doPrepareKernelModulesComponents(t *state.Task, _ *tomb.To
 		// configuration has been already written but DoneStatus in the state
 		// has not.
 		cand := sequence.NewRevisionSideState(snapsup.SideInfo, nil)
-		newInfo, err = readInfo(snapsup.InstanceName().String(), cand.Snap, 0)
+		newInfo, err = readInfo(snapsup.InstanceName().TODOInstanceName(), cand.Snap, 0)
 		if err != nil {
 			return err
 		}
@@ -784,7 +784,7 @@ func (m *SnapManager) undoPrepareKernelModulesComponents(t *state.Task, _ *tomb.
 	st.Unlock()
 	pm := NewTaskProgressAdapterUnlocked(t)
 	err = m.backend.SetupKernelModulesComponents(
-		justSetupComps, snapsup.PreUpdateKernelModuleComponents, snapsup.InstanceName().String(), snapsup.Revision(), pm,
+		justSetupComps, snapsup.PreUpdateKernelModuleComponents, snapsup.InstanceName().TODOInstanceName(), snapsup.Revision(), pm,
 	)
 	st.Lock()
 	if err != nil {
@@ -816,7 +816,7 @@ func infoForCompUndo(t *state.Task) (*sequence.ComponentState, string, error) {
 		return nil, "", fmt.Errorf("internal error: no component to discard: %w", err)
 	}
 
-	return &unlinkedComp, snapsup.InstanceName().String(), nil
+	return &unlinkedComp, snapsup.InstanceName().TODOInstanceName(), nil
 }
 
 func (m *SnapManager) doDiscardComponent(t *state.Task, _ *tomb.Tomb) error {

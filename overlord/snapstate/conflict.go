@@ -90,7 +90,7 @@ func SnapsAffectedByTask(t *state.Task) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("internal error: cannot obtain snap setup from task: %s", t.Summary())
 		}
-		return []string{snapsup.InstanceName().String()}, nil
+		return []string{snapsup.InstanceName().TODOInstanceName()}, nil
 	}
 
 	if f := affectedSnapsByKind[t.Kind()]; f != nil {
@@ -125,12 +125,12 @@ func changeIsSnapdDowngrade(st *state.State, chg *state.Change) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if snapsup == nil || snapsup.SnapName().String() != "snapd" {
+	if snapsup == nil || snapsup.SnapName() != "snapd" {
 		return false, nil
 	}
 
 	var snapst SnapState
-	if err := Get(st, snapsup.InstanceName().String(), &snapst); err != nil {
+	if err := Get(st, snapsup.InstanceName().TODOInstanceName(), &snapst); err != nil {
 		return false, err
 	}
 

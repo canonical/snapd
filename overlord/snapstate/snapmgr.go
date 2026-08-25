@@ -209,16 +209,16 @@ func (snapsup *SnapSetup) Revision() snap.Revision {
 }
 
 func (snapsup *SnapSetup) containerInfo() snap.ContainerPlaceInfo {
-	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalSnapContainerPlaceInfo(snapsup.InstanceName().TODOInstanceName(), snapsup.Revision())
 }
 
 func (snapsup *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MinimalPlaceInfo(snapsup.InstanceName().TODOInstanceName(), snapsup.Revision())
 }
 
 // MountDir returns the path to the directory where this snap would be mounted.
 func (snapsup *SnapSetup) MountDir() string {
-	return snap.MountDir(snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountDir(snapsup.InstanceName().TODOInstanceName(), snapsup.Revision())
 }
 
 // BlobPath returns the path to the snap/squashfs file that backs the snap that
@@ -229,7 +229,7 @@ func (snapsup *SnapSetup) BlobPath() string {
 	if blobDir == "" {
 		blobDir = dirs.SnapBlobDir
 	}
-	return snap.MountFileInDir(blobDir, snapsup.InstanceName().String(), snapsup.Revision())
+	return snap.MountFileInDir(blobDir, snapsup.InstanceName().TODOInstanceName(), snapsup.Revision())
 }
 
 // ComponentSetup holds the necessary component details to perform

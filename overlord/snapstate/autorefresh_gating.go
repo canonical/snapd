@@ -611,7 +611,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		if inf.Base == "" {
 			base = "core"
 		}
-		byBase[base] = append(byBase[base], snapSt.InstanceName().String())
+		byBase[base] = append(byBase[base], snapSt.InstanceName().TODOInstanceName())
 	}
 
 	affected := make(map[string]*AffectedSnapInfo)
@@ -652,7 +652,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		// on core system, affected by update of boot base
 		if bootBase != "" && up.InstanceName() == bootBase {
 			for _, snapSt := range snapsWithHook {
-				addAffected(snapSt.InstanceName().String(), up.InstanceName(), true, false)
+				addAffected(snapSt.InstanceName().TODOInstanceName(), up.InstanceName(), true, false)
 			}
 		}
 
@@ -660,7 +660,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 		// XXX: gadget refresh doesn't always require reboot, refine this
 		if up.Type() == snap.TypeKernel || up.Type() == snap.TypeGadget {
 			for _, snapSt := range snapsWithHook {
-				addAffected(snapSt.InstanceName().String(), up.InstanceName(), true, false)
+				addAffected(snapSt.InstanceName().TODOInstanceName(), up.InstanceName(), true, false)
 			}
 			continue
 		}

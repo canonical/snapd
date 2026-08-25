@@ -10385,12 +10385,12 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 
 	tasksByName := make(map[string]*state.TaskSet)
 	for _, sts := range stss {
-		tasksByName[sts.snapsup.InstanceName().String()] = sts.ts
+		tasksByName[sts.snapsup.InstanceName().TODOInstanceName()] = sts.ts
 	}
 
 	// verify ordering between snaps
 	for _, sts := range stss {
-		if classic && !strutil.ListContains(essentials, sts.snapsup.InstanceName().String()) {
+		if classic && !strutil.ListContains(essentials, sts.snapsup.InstanceName().TODOInstanceName()) {
 			// in the split-refresh classic case, the only direct dependency that
 			// non-essential snap tasks gain on the essential set is via snapd.
 			for _, t := range sts.begin.WaitTasks() {
@@ -10401,7 +10401,7 @@ func validateEnforcementOrder(c *C, st *state.State, tss []*state.TaskSet, class
 		}
 
 		switch {
-		case strutil.ListContains(essentials, sts.snapsup.InstanceName().String()):
+		case strutil.ListContains(essentials, sts.snapsup.InstanceName().TODOInstanceName()):
 			// essential snap updates may depend on other essential snaps, but not
 			// on non-essential work.
 			for _, t := range sts.begin.WaitTasks() {

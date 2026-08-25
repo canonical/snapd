@@ -198,7 +198,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	canDelay := delayedTask != nil
 	logger.Debugf("has delayed effects support? %v", canDelay)
 
-	snapInfo, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.InstanceName().TODOInstanceName(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 		// Keep PendingSecurity updated for restart durability while this
 		// revision remains inactive.
-		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet)
+		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().TODOInstanceName(), appSet)
 	}
 
 	delayedEffects, err := m.setupProfilesForAppSet(task, appSet, opts, newConns, canDelay, perfTimings)
@@ -277,7 +277,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet); err != nil {
+	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().TODOInstanceName(), appSet); err != nil {
 		return err
 	}
 
@@ -666,7 +666,7 @@ func shouldUndoSetupProfiles(task *state.Task, instanceName string) bool {
 			continue
 		}
 		taskSnapSetup, err := snapstate.TaskSnapSetup(t)
-		if err != nil || taskSnapSetup.InstanceName().String() != instanceName {
+		if err != nil || taskSnapSetup.InstanceName().TODOInstanceName() != instanceName {
 			continue
 		}
 
@@ -1830,7 +1830,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// Only retry if the task that installs the
 				// content provider is not waiting for us
 				// (or this will just hang forever).
-				_, ok := defaultProviders[snapsup.InstanceName().String()]
+				_, ok := defaultProviders[snapsup.InstanceName().TODOInstanceName()]
 				if ok && !inSameChangeWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
@@ -1918,7 +1918,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 					return fmt.Errorf("internal error: unexpected state of mark-preseeded task: %s", markPreseeded.Status())
 				}
 
-				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName().String(), markPreseeded)
+				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName().TODOInstanceName(), markPreseeded)
 				if err != nil {
 					return err
 				}
@@ -2608,7 +2608,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 				if err != nil {
 					return fmt.Errorf("internal error: task snap setup not found through link-snap task")
 				}
-				seenSnaps = append(seenSnaps, sup.InstanceName().String())
+				seenSnaps = append(seenSnaps, sup.InstanceName().TODOInstanceName())
 			}
 		}
 		if laneFailed {
