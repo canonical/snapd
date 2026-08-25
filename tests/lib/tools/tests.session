@@ -266,25 +266,6 @@ main() {
 			#
 			# The session ID is stored in /run/tests.session/<user>[-<label>].id
 			# so that destroy-session can later find and stop the exact session.
-			#
-			# Note: if the user has several concurrent display-eligible
-			# sessions (only classes user and greeter are ever
-			# display-eligible), "loginctl show-session auto" (systemd >=
-			# 245) resolves to "the caller's own session if they have one,
-			# otherwise their user's display session". The display election
-			# prefers class user over greeter, then graphical types
-			# (x11/wayland/mir) over tty over unspecified. Background sessions
-			# (and manager-class sessions on systemd >= 256, when they were
-			# introduced) are never display-eligible, so they cannot shadow
-			# the session created here.
-			#
-			# Note: the session created here is observed only by processes that
-			# are NOT themselves inside a logind session (e.g. a user service's
-			# ExecCondition, which runs outside any session scope and resolves
-			# "auto" via the user's elected display session). In contrast, a
-			# command run via "tests.session -u USER exec ..." always spawns its
-			# own separate, transient "background"-class session and never
-			# joins the session created here.
 			if [ -z "$user" ] || [ "$user" = "root" ] || echo "$user" | grep -q ','; then
 				echo "tests.session: invalid user, must be single non-root username: '$user'" >&2
 				exit 1
