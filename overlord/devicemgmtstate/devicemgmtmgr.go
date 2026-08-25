@@ -506,12 +506,11 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	chg := t.Change()
 	// Evict oldest sequences when the LRU exceeds capacity.
 	for len(ms.SequenceLRU) > maxSequences {
 		baseID := ms.SequenceLRU[0]
 		ms.SequenceLRU = ms.SequenceLRU[1:]
-		err = m.rejectSequence(ms, chg, baseID, "cannot process message: sequence evicted due to capacity limits")
+		err = m.rejectSequence(ms, t, baseID, "cannot process message: sequence evicted due to capacity limits")
 		if err != nil {
 			return err
 		}
@@ -522,7 +521,7 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 		// If nothing was dispatched, the sequence is stuck at a gap (one or more missing predecessors).
 		// Reject if too many messages have accumulated waiting on it.
 		if dispatched == 0 && len(seq.Messages) > maxBlockedMessagesPerSequence {
-			err = m.rejectSequence(ms, chg, baseID, "cannot process message: too many messages waiting on missing predecessors in sequence")
+			err = m.rejectSequence(ms, t, baseID, "cannot process message: too many messages waiting on missing predecessors in sequence")
 			if err != nil {
 				return err
 			}
@@ -593,7 +592,7 @@ func (m *DeviceMgmtManager) dispatchMessage(prevTask *state.Task, msg *RequestMe
 
 // rejectSequence queues a rejection response for the earliest pending message
 // in a sequence and discards the rest. An empty sequence is evicted.
-func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Change, baseID, reason string) error {
+func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, dispatchTask *state.Task, baseID, reason string) error {
 	seq := ms.Sequences[baseID]
 	if seq == nil {
 		return fmt.Errorf("internal error: rejectSequence called for unknown sequence %q", baseID)
@@ -616,7 +615,8 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, chg *state.Chang
 	queue := m.state.NewTask("queue-mgmt-response", fmt.Sprintf("Queue response for message with id %q", earliest.ID()))
 	queue.Set("message-id", earliest.ID())
 	queue.JoinLane(lane)
-	chg.AddTask(queue)
+	queue.WaitFor(dispatchTask)
+	dispatchTask.Change().AddTask(queue)
 
 	return nil
 }
@@ -873,8 +873,9 @@ func (m *DeviceMgmtManager) doQueueResponse(t *state.Task, _ *tomb.Tomb) error {
 		} else {
 			ms.evictSequence(msg.BaseID)
 			// Abort all pending tasks in the sequence from message N+1 onwards.
+			chg := t.Change()
 			for _, ht := range t.HaltTasks() {
-				t.Change().AbortLanes(ht.Lanes())
+				chg.AbortLanes(ht.Lanes())
 			}
 		}
 	} else {

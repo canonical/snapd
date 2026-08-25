@@ -1001,25 +1001,46 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+	signed := make(map[string]asserts.MessageStatus)
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			signed[messageID] = status
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	var msAfterDispatch *devicemgmtstate.DeviceMgmtState
+	s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+		if t.Kind() != "dispatch-mgmt-messages" || new != state.DoneStatus {
+			return false
+		}
+
+		msAfterDispatch, _ = s.mgr.GetState()
+		return true
+	})
 
 	s.settle(c)
 
-	ms, err := s.mgr.GetState()
-	c.Assert(err, IsNil)
-
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	c.Check(changes[0].Status(), Equals, state.DoneStatus)
-
 	ti := buildTaskIndex(changes[0])
 
-	// Empty sequence has no message to reject, so it's evicted immediately.
-	c.Check(ms.Sequences["seq0"], IsNil)
+	// After dispatch: seq0 evicted immediately (empty, no message to reject).
+	// seqA and seqB are rejected and trimmed.
+	c.Assert(msAfterDispatch, NotNil)
+	c.Check(msAfterDispatch.Sequences["seq0"], IsNil)
 	c.Check(ti.queue["seq0"], IsNil)
 
-	// seqA evicted (2nd oldest in LRU, after seq0).
-	seqA := ms.Sequences["seqA"]
+	seqA := msAfterDispatch.Sequences["seqA"]
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("the 2nd message in seqA should have been deleted"))
 	c.Check(seqA.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 	c.Check(seqA.Messages[0].ResponseBody["message"], Equals, "cannot process message: sequence evicted due to capacity limits")
@@ -1028,11 +1049,20 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 	c.Check(ti.apply["seqA-1"], IsNil)
 	c.Check(ti.queue["seqA-1"], NotNil)
 
-	// seqB also evicted.
-	seqB := ms.Sequences["seqB"]
+	seqB := msAfterDispatch.Sequences["seqB"]
 	c.Assert(seqB.Messages, HasLen, 1, Commentf("the 2nd message in seqB should have been deleted"))
 	c.Check(seqB.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 
+	c.Check(msAfterDispatch.SequenceLRU, DeepEquals, []string{"seqC", "seqD", "seqE", "seqF"})
+
+	// Eventually: rejection responses signed and both sequences evicted.
+	c.Check(signed["seqA-1"], Equals, asserts.MessageStatusRejected)
+	c.Check(signed["seqB-1"], Equals, asserts.MessageStatusRejected)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.Sequences["seqA"], IsNil)
+	c.Check(ms.Sequences["seqB"], IsNil)
 	c.Check(ms.SequenceLRU, DeepEquals, []string{"seqC", "seqD", "seqE", "seqF"})
 }
 
@@ -1054,17 +1084,43 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 		return &store.MessageExchangeResponse{Messages: messages}, nil
 	})
 
-	s.runner.AddHandler("queue-mgmt-response", noopTask, nil)
+	signed := make(map[string]asserts.MessageStatus)
+	s.mgr.MockBackend(&mockDeviceBackend{
+		serial: s.makeSerial(c, "serial-1"),
+		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
+			signed[messageID] = status
+
+			return assertstest.FakeAssertionWithBody(body, map[string]any{
+				"type":        "response-message",
+				"account-id":  accountID,
+				"message-id":  messageID,
+				"device":      "serial-1.my-model.my-brand",
+				"status":      string(status),
+				"body-length": strconv.Itoa(len(body)),
+			}).(*asserts.ResponseMessage), nil
+		},
+	})
+
+	var msAfterDispatch *devicemgmtstate.DeviceMgmtState
+	s.st.AddTaskStatusChangedHandler(func(t *state.Task, _, new state.Status) (remove bool) {
+		if t.Kind() != "dispatch-mgmt-messages" || new != state.DoneStatus {
+			return false
+		}
+
+		msAfterDispatch, _ = s.mgr.GetState()
+		return true
+	})
 
 	s.settle(c)
 
-	ms, err := s.mgr.GetState()
-	c.Assert(err, IsNil)
-
-	seqA := ms.Sequences["seqA"]
+	// After dispatch: rejected and trimmed, but not yet evicted.
+	c.Assert(msAfterDispatch, NotNil)
+	seqA := msAfterDispatch.Sequences["seqA"]
+	c.Assert(seqA, NotNil)
 	c.Assert(seqA.Messages, HasLen, 1, Commentf("remaining messages should have been deleted"))
 	c.Check(seqA.Messages[0].ResponseStatus, Equals, asserts.MessageStatusRejected)
 	c.Check(seqA.Messages[0].ResponseBody["message"], Equals, "cannot process message: too many messages waiting on missing predecessors in sequence")
+	c.Check(msAfterDispatch.SequenceLRU, DeepEquals, []string{"seqA"})
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
@@ -1072,6 +1128,14 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 	c.Check(ti.queue["seqA-2"], NotNil)
 	c.Check(ti.validate["seqA-2"], IsNil)
 	c.Check(ti.apply["seqA-2"], IsNil)
+
+	// Eventually: response queued and sequence evicted.
+	c.Check(signed["seqA-2"], Equals, asserts.MessageStatusRejected)
+
+	ms, err := s.mgr.GetState()
+	c.Assert(err, IsNil)
+	c.Check(ms.Sequences["seqA"], IsNil)
+	c.Check(ms.SequenceLRU, HasLen, 0)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
