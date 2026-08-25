@@ -45,8 +45,9 @@ import (
 )
 
 var (
-	CreateQuotaValues = createQuotaValues
-	ParseOptionalTime = parseOptionalTime
+	CreateQuotaValues   = createQuotaValues
+	ParseOptionalTime   = parseOptionalTime
+	SeclogPeerFromUcred = seclogPeerFromUcred
 )
 
 func APICommands() []*Command {
@@ -400,7 +401,22 @@ var (
 	MaxReadBuflen = maxReadBuflen
 
 	IsRequestFromSnapCmd = isRequestFromSnapCmd
+
+	// Together these reproduce what Command.ServeHTTP does to a request
+	// before access checking.
+	ExtractRequestAction = extractRequestAction
+	WithRequestAction    = withRequestAction
+	IsBodyUnusable       = isBodyUnusable
+
+	// The rules Command.ServeHTTP uses to find a request's action, shared
+	// with the action coverage check in api_base_test.go.
+	DecodeAction = decodeActionFromBody
 )
+
+func RequestDecodesAction(r *http.Request) bool {
+	_, decodeAction := requestBodyPolicy(r)
+	return decodeAction
+}
 
 func MockRebootNoticeWait(d time.Duration) (restore func()) {
 	restore = testutil.Backup(&rebootNoticeWait)
@@ -419,6 +435,22 @@ func MockOsReadlink(f func(string) (string, error)) func() {
 	osReadlink = f
 	return func() {
 		osReadlink = old
+	}
+}
+
+func MockSecurityLabelsFromPid(f func(int) (map[string]string, error)) func() {
+	old := securityLabelsFromPid
+	securityLabelsFromPid = f
+	return func() {
+		securityLabelsFromPid = old
+	}
+}
+
+func MockCgroupPathFromPid(f func(int) (string, error)) func() {
+	old := cgroupPathFromPid
+	cgroupPathFromPid = f
+	return func() {
+		cgroupPathFromPid = old
 	}
 }
 

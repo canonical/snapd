@@ -800,6 +800,29 @@ const (
 	actionIsExpected   actionExpectedBool = true
 )
 
+// recordAction records req's action for TestMain coverage, using the same
+// selection and decoding as Command.ServeHTTP. The body is restored so the
+// request can still be served.
+func recordAction(c *check.C, cmd *daemon.Command, req *http.Request) {
+	if req.Body == nil || !daemon.RequestDecodesAction(req) {
+		return
+	}
+
+	body, err := io.ReadAll(req.Body)
+	c.Assert(err, check.IsNil)
+	req.Body = io.NopCloser(bytes.NewReader(body))
+
+	action, err := daemon.DecodeAction(body)
+	if err != nil || action == "" {
+		return
+	}
+
+	actionsMap.AddAction(cmd, action)
+	if !strutil.ListContains(cmd.Actions, action) {
+		c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", action, cmd.Path)
+	}
+}
+
 func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, actionExpected actionExpectedBool) daemon.Response {
 	if s.d == nil {
 		panic("call s.daemon(c) etc in your test first")
@@ -821,21 +844,8 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState, act
 		acc = cmd.WriteAccess
 		expAcc = s.expectedWriteAccess
 		whichAcc = "WriteAccess"
-		if actionExpected && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
-			bodyBytes, err := io.ReadAll(req.Body)
-			c.Assert(err, check.IsNil)
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					actionsMap.AddAction(cmd, data.Action)
-					if !strutil.ListContains(cmd.Actions, data.Action) {
-						c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
-					}
-				}
-			}
-			req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		if actionExpected {
+			recordAction(c, cmd, req)
 		}
 	case "PUT":
 		f = cmd.PUT
@@ -884,22 +894,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
-	if req.Method == "POST" && req.Body != nil && (req.Header.Get("Content-Type") == "application/json" || req.Header.Get("Content-Type") == "") {
-		bodyBytes, err := io.ReadAll(req.Body)
-		c.Assert(err, check.IsNil)
-		var data struct {
-			Action string `json:"action"`
-		}
-		if err := json.Unmarshal(bodyBytes, &data); err == nil {
-			if data.Action != "" {
-				actionsMap.AddAction(cmd, data.Action)
-				if !strutil.ListContains(cmd.Actions, data.Action) {
-					c.Errorf("The action, %s, is not registered in the list of Actions of the corresponding command %s", data.Action, cmd.Path)
-				}
-			}
-		}
-		req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-	}
+	recordAction(c, cmd, req)
 
 	cmd.ServeHTTP(w, req)
 }
