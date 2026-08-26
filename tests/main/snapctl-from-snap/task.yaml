@@ -75,8 +75,8 @@ execute: |
     echo "Verify invalid field names are rejected"
     if [ "$SNAP" == "snapctl-from-snap-core26" ]; then
             "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set Foo=123 2>&1 | MATCH 'error: snapctl: invalid option name ""Foo"": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'
-            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]' 2>&1 | MATCH "invalid JSON field name \"Bar\": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash"
-            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo={"bar_baz":1}' 2>&1 | MATCH "invalid JSON field name \"bar_baz\": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash"
+            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo=[{"Bar":1}]' 2>&1 | MATCH 'invalid JSON field name ""Bar"": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'
+            "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set -t 'foo={"bar_baz":1}' 2>&1 | MATCH 'invalid JSON field name ""bar_baz"": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash'
       # we don't need to re-run the rest of the test
       exit 0
     else
