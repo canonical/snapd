@@ -80,7 +80,7 @@ var u2fDevices = []u2fDevice{
 	{
 		Name:             "Feitian ePass FIDO, BioPass FIDO2",
 		VendorIDPattern:  "096e",
-		ProductIDPattern: "0850|0852|0853|0854|0856|0858|085a|085b|085d",
+		ProductIDPattern: "0850|0852|0853|0854|0856|0858|0867|085a|085b|085d",
 	},
 	{
 		Name:             "JaCarta U2F",
