@@ -21,3 +21,15 @@ package ltstrack
 
 // SystemBootBaseAllowed exposes systemBootBaseAllowed for tests.
 var SystemBootBaseAllowed = systemBootBaseAllowed
+
+// MockSnapdLTSTrackMap replaces this snapd's LTS track map for tests.
+// The mocked snapd version is 2.75.
+func MockSnapdLTSTrackMap(tracks map[int]map[string]string) (restore func()) {
+	restoreLoader := snapdLTSTrackMapFromCurrentSnapd
+	snapdLTSTrackMapFromCurrentSnapd = func() (map[int]map[string]string, string, error) {
+		return tracks, "2.75", nil
+	}
+	return func() {
+		snapdLTSTrackMapFromCurrentSnapd = restoreLoader
+	}
+}

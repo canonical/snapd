@@ -99,12 +99,14 @@ func Resolve(model *asserts.Model, channel string, candidateSnapd snap.Container
 	return parsed.Clean().String(), nil
 }
 
+var snapdLTSTrackMapFromCurrentSnapd = snap.SnapdLTSTrackMapFromCurrentSnapd
+
 func loadLTSTrackMap(candidateSnapd snap.Container) (trackMap map[int]map[string]string, version, origin string, err error) {
 	if candidateSnapd != nil {
 		trackMap, version, err = snap.SnapdLTSTrackMapFromSnapFile(candidateSnapd)
 		return trackMap, version, "candidate snapd snap", err
 	}
-	trackMap, version, err = snap.SnapdLTSTrackMapFromCurrentSnapd()
+	trackMap, version, err = snapdLTSTrackMapFromCurrentSnapd()
 	return trackMap, version, "running snapd", err
 }
 
