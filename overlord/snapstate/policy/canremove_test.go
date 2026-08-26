@@ -2,6 +2,7 @@ package policy_test
 
 import (
 	"errors"
+	"fmt"
 
 	"gopkg.in/check.v1"
 
@@ -258,6 +259,82 @@ func (s *canRemoveSuite) TestLastOSWithModelBaseIsOk(c *check.C) {
 		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
 	}
 
+	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
+}
+
+func (s *canRemoveSuite) TestBaseUsageCheckIncludesOngoingChanges(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	for _, kind := range []string{"install-snap", "refresh-snap", "revert-snap"} {
+		t := s.st.NewTask("some-task", "...")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			Base:     "some-base",
+			SideInfo: &snap.SideInfo{RealName: kind},
+			Type:     snap.TypeApp,
+		})
+		chg := s.st.NewChange(kind, "...")
+		chg.AddTask(t)
+	}
+
+	baseState := &snapstate.SnapState{
+		Current: snap.R(1),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "some-base"},
+		}),
+	}
+	basePolicy := policy.NewBasePolicy("core18")
+	c.Check(basePolicy.CanRemove(s.st, baseState, snap.R(0), coreDev, nil), check.DeepEquals,
+		policy.InUseByErr("install-snap", "refresh-snap", "revert-snap"))
+}
+
+func (s *canRemoveSuite) TestBaseUsageCheckSkipsIrrelevantChanges(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	baseState := &snapstate.SnapState{
+		Current: snap.R(1),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{Revision: snap.R(1), RealName: "some-base"},
+		}),
+	}
+	basePolicy := policy.NewBasePolicy("core18")
+
+	for _, kind := range []string{
+		"pre-download", "remove-snap", "enable-snap", "disable-snap", "switch-snap",
+		"install-component", "snapctl-install", "snapctl-remove", "migrate-home", "alias", "unalias", "prefer",
+	} {
+		t := s.st.NewTask("some-task", "...")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			Base:     "some-base",
+			SideInfo: &snap.SideInfo{RealName: kind},
+			Type:     snap.TypeApp,
+		})
+		chg := s.st.NewChange(kind, "...")
+		chg.AddTask(t)
+	}
+
+	c.Check(basePolicy.CanRemove(s.st, baseState, snap.R(0), coreDev, nil), check.IsNil)
+}
+
+func (s *canRemoveSuite) TestBaseUsageCheckSkipsNonApps(c *check.C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	chg := s.st.NewChange("install-snap", "...")
+	for i, typ := range []snap.Type{"", snap.TypeBase, snap.TypeKernel, snap.TypeOS, snap.TypeSnapd} {
+		t := s.st.NewTask("download-snap", "...")
+		t.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{RealName: fmt.Sprintf("some-snap-%d", i)},
+			Type:     typ,
+		})
+		chg.AddTask(t)
+	}
+
+	snapst := &snapstate.SnapState{
+		Current:  snap.R(1),
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{{Revision: snap.R(1), RealName: "core"}}),
+	}
 	c.Check(policy.NewOSPolicy("core18").CanRemove(s.st, snapst, snap.R(0), coreDev, nil), check.IsNil)
 }
 
