@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/secboot/keys"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func (s *fdeMgrSuite) mockCurrentKeys(c *C, rkeys, unlockKeys []fdestate.KeyslotRef) {
@@ -1078,7 +1079,7 @@ func (s *fdeMgrSuite) TestDoChangeAuthKeys(c *C) {
 				// Auth options are removed on completion
 				var opts fdestate.ExpiringChangeAuthOptions
 				err := m.SecretState().Get(changeAuthID, &opts)
-				c.Assert(errors.Is(err, state.ErrNoState), Equals, true)
+				c.Assert(err, testutil.ErrorIs, backend.ErrNoState)
 			}
 		} else {
 			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
@@ -1145,7 +1146,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		},
 		{
 			authMode: device.AuthModePIN, noVolumesAuth: true,
-			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
+			expectedErr: "cannot find authentication options in memory: unexpected system restart",
 		},
 		{
 			authMode: device.AuthModePassphrase, recoveryMode: true,
@@ -1153,7 +1154,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 		},
 		{
 			authMode: device.AuthModePassphrase, noVolumesAuth: true,
-			expectedErr: "cannot find authentication options in memory: unexpected snapd restart",
+			expectedErr: "cannot find authentication options in memory: unexpected system restart",
 		},
 		{
 			authMode:    device.AuthModePassphrase,
@@ -1409,7 +1410,7 @@ func (s *fdeMgrSuite) TestDoAddPlatformKeys(c *C) {
 			if volumesAuthID != "" {
 				var opts fdestate.ExpiringVolumesAuthOptions
 				err := m.SecretState().Get(volumesAuthID, &opts)
-				c.Assert(errors.Is(err, state.ErrNoState), Equals, true, cmt)
+				c.Assert(err, testutil.ErrorIs, backend.ErrNoState, cmt)
 			}
 		} else {
 			c.Check(chg.Err(), ErrorMatches, fmt.Sprintf(`cannot perform the following tasks:
