@@ -654,6 +654,18 @@ func (m *SnapManager) undoUnlinkComponent(t *state.Task, _ *tomb.Tomb) (err erro
 		return err
 	}
 
+	// The snap revision this component belonged to may no longer be in the
+	// sequence. This happens when unlink-component ran as part of discarding an
+	// old revision (removeInactiveRevision) during a refresh, and the later
+	// discard-snap task (which has no undo handler) removed the whole revision
+	// from the sequence before a subsequent failure triggered the undo. In that
+	// case the revision, its files and its components are gone for good, so
+	// there is nothing to relink and the undo is a no-op.
+	if snapSt.Sequence.LastIndex(snapSup.Revision()) == -1 {
+		t.SetStatus(state.UndoneStatus)
+		return nil
+	}
+
 	if err := m.relinkComponent(
 		t, snapSt, snapSup.InstanceName(), snapSup.Revision()); err != nil {
 		return err
