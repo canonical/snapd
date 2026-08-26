@@ -54,8 +54,9 @@ const powerControlConnectedPlugAppArmor = `
 # required by auto-cpufreq, reference: https://github.com/snapcore/snapd/pull/13722
 /sys/devices/**/power_supply/BAT[0-9]*/charge_start_threshold rw, 
 /sys/devices/**/power_supply/BAT[0-9]*/charge_stop_threshold rw, 
-/sys/devices/**/power_supply/BAT[0-9]*/type r,
-/sys/devices/**/power_supply/BAT[0-9]*/status r,
+# Allow reading all battery state files (capacity, voltage, current, health,
+# identification, etc.). See Documentation/ABI/testing/sysfs-class-power.
+/sys/devices/**/power_supply/BAT[0-9]*/** r,
 /sys/devices/**/power_supply/AC/type r,
 /sys/devices/**/power_supply/AC/online r,
 `
