@@ -5,14 +5,14 @@ on:
     inputs:
       run_id:
         required: true
-  workflow_run:
-    workflows: [Tests]
-    types:
-      - completed
+      run_attempt:
+        required: false
+      pr_number:
+        required: false
 
 jobs:
   rerun:
-    if: github.event_name == 'workflow_dispatch'
+    if: inputs.pr_number == ''
     permissions:
       actions: write
       contents: read
@@ -28,7 +28,7 @@ jobs:
           gh run rerun ${{ inputs.run_id }} --failed
 
   rerun-pr:
-    if: github.event.workflow_run && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 5
+    if: inputs.pr_number != '' && fromJSON(inputs.run_attempt) < 5
     permissions:
       actions: write
       contents: read
@@ -37,53 +37,17 @@ jobs:
       GH_REPO: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
       MAX_FAILED_TASKS: 30
-      TEST_PREDICTOR_THRESHOLD: "0.5"
-      TEST_PREDICTOR_URL: http://test-predictor.snapd.canonical.com:5000
-    runs-on: [self-hosted, spread-enabled]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-
-      - name: Get PR number
-        uses: actions/github-script@v9
-        with:
-          script: |
-            let page = 1;
-            let per_page = 100;
-            let allArtifacts = [];
-            let response;
-            do {
-              response = await github.rest.actions.listWorkflowRunArtifacts({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                run_id: context.payload.workflow_run.id,
-                per_page: per_page,
-                page: page
-              });
-              allArtifacts = allArtifacts.concat(response.data.artifacts);
-              page++;
-            } while (allArtifacts.length < response.data.total_count);
-            let matchArtifact = allArtifacts.filter((artifact) => {
-              return artifact.name == "pr_number"
-            })[0];
-            let download = await github.rest.actions.downloadArtifact({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              artifact_id: matchArtifact.id,
-              archive_format: 'zip',
-            });
-            let fs = require('fs');
-            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
-           
-      - name: Unzip PR number
-        run: unzip pr_number.zip
 
       - name: Check for rerun eligibility
         id: eligibility
         run: |
           source .github/scripts/common.sh
 
-          pr_number=$(cat pr_number)
+          pr_number="${{ inputs.pr_number }}"
 
           GH_RETRY_CONTEXT="PR #$pr_number view lookup"
           if ! pr_json=$(gh_retry pr view "$pr_number" --json number,isDraft,labels,reviews,baseRefName); then
@@ -103,12 +67,7 @@ jobs:
           echo "auto_rerun=true" >> "$GITHUB_OUTPUT"
           echo "PR_NUMBER=$pr_number" >> "$GITHUB_ENV"
           echo "PR_BASE=$(echo "$pr_json" | jq -r '.baseRefName // empty')" >> "$GITHUB_ENV"
-      
-      - name: Set run ID
-        if: steps.eligibility.outputs.auto_rerun == 'true'
-        run: |
-          run_id=$(awk -F'/' '{print $(NF-1)}' <<<"${{ github.event.workflow_run.rerun_url }}")
-          echo "RUN_ID=$run_id" >> $GITHUB_ENV
+          echo "RUN_ID=${{ inputs.run_id }}" >> "$GITHUB_ENV"
 
       - name: Check number of required system failures
         id: threshold
@@ -123,21 +82,8 @@ jobs:
             echo "threshold_ok=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check test predictor
-        id: predictor
-        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true'
-        run: |
-          source .github/scripts/common.sh
-
-          if ! predictor_allows_rerun "$RUN_ID" "${{ github.event.workflow_run.run_attempt }}"; then
-            echo "Setting rerun to false because $NOT_RERUN_REASON"
-            echo "predictor_ok=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "predictor_ok=true" >> "$GITHUB_OUTPUT"
-          fi
-      
       - name: Rerun workflow
-        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true' && steps.predictor.outputs.predictor_ok == 'true'
+        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true'
         run: |
           source .github/scripts/common.sh
 

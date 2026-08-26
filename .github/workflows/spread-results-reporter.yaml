@@ -11,6 +11,8 @@ jobs:
     if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled' }}
     runs-on: [self-hosted, spread-enabled]
     permissions:
+      actions: read
+      contents: read
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
