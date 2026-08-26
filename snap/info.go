@@ -2113,24 +2113,24 @@ func SnapdLTSTrackMapFromSnapFile(snapf Container) (trackMap map[int]map[string]
 	return trackMap, snapdVersion, nil
 }
 
-// SnapdLTSTrackMapFromThis returns the LTS track map and snapd version from the
-// info file belonging to this process. Distro packages do not ship
+// SnapdLTSTrackMapFromCurrentSnapd returns the LTS track map and snapd version from the
+// info file belonging to the current snapd snap. Distro packages do not ship
 // SNAPD_LTS_TRACKS; the map lives in the snapd snap. If SNAPD_LTS_TRACKS is
 // absent or empty, trackMap is nil.
-func SnapdLTSTrackMapFromThis() (trackMap map[int]map[string]string, snapdVersion string, err error) {
-	return snapdLTSTrackMapFromThis()
+func SnapdLTSTrackMapFromCurrentSnapd() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+	return snapdLTSTrackMapFromCurrentSnapd()
 }
 
-var snapdLTSTrackMapFromThis = snapdLTSTrackMapFromThisImpl
+var snapdLTSTrackMapFromCurrentSnapd = snapdLTSTrackMapFromCurrentSnapdImpl
 
-// snapdLTSTrackMapFromThisImpl reads the SNAPD_LTS_TRACKS key from the info
+// snapdLTSTrackMapFromCurrentSnapdImpl reads the SNAPD_LTS_TRACKS key from the info
 // file next to this process's snapd binary. Distro packages do not ship this
 // key; it is present when executing from the snapd snap. The directory is
 // snapdtool.InternalLibExecDir(): dirs.DistroLibExecDir for a distro package
 // (/usr/lib/snapd or /usr/libexec/snapd), or the libexec dir of a re-execed
 // snapd snap. This is not the same as /usr/lib/snapd/info inside a snap
 // container (see SnapdLTSTrackMapFromSnapFile).
-func snapdLTSTrackMapFromThisImpl() (trackMap map[int]map[string]string, snapdVersion string, err error) {
+func snapdLTSTrackMapFromCurrentSnapdImpl() (trackMap map[int]map[string]string, snapdVersion string, err error) {
 	dir, err := snapdtool.InternalLibExecDir()
 	if err != nil {
 		return nil, "", err

@@ -19,7 +19,7 @@
 
 // info produces the SNAPD_LTS_TRACKS line for the snapd snap's info file
 // (/usr/lib/snapd/info). Distro packages do not include this key. The map is
-// the source of truth for this process (snap.SnapdLTSTrackMapFromThis) and
+// the source of truth for the current snapd (snap.SnapdLTSTrackMapFromCurrentSnapd) and
 // for a candidate snapd snap (snap.SnapdLTSTrackMapFromSnapFile).
 //
 // The map is intentionally empty in master / latest snapd until the first UC

@@ -2480,20 +2480,20 @@ func writeSnapdInfoFile(c *C, libExecDir, contents string) {
 	c.Assert(os.WriteFile(filepath.Join(libExecDir, "info"), []byte(contents), 0644), IsNil)
 }
 
-func (s *infoSuite) mockThisSnapdLibExecDir(c *C, libExecDir string) (restore func()) {
+func (s *infoSuite) mockCurrentSnapdLibExecDir(c *C, libExecDir string) (restore func()) {
 	c.Assert(os.MkdirAll(libExecDir, 0755), IsNil)
 	return snapdtool.MockOsReadlink(func(string) (string, error) {
 		return filepath.Join(libExecDir, "snapd"), nil
 	})
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromThisDistro(c *C) {
-	restore := s.mockThisSnapdLibExecDir(c, dirs.DistroLibExecDir)
+func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdDistro(c *C) {
+	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, `VERSION=2.99
 SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromThis()
+	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, DeepEquals, map[int]map[string]string{
@@ -2501,48 +2501,48 @@ SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`)
 	})
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromThisMissingKey(c *C) {
-	restore := s.mockThisSnapdLibExecDir(c, dirs.DistroLibExecDir)
+func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdMissingKey(c *C) {
+	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, "VERSION=2.99\n")
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromThis()
+	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, IsNil)
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromThisMalformed(c *C) {
-	restore := s.mockThisSnapdLibExecDir(c, dirs.DistroLibExecDir)
+func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdMalformed(c *C) {
+	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, `VERSION=2.99
 SNAPD_LTS_TRACKS='{bad'`)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromThis()
+	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
 	c.Assert(err, ErrorMatches, `cannot parse SNAPD_LTS_TRACKS:.*`)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, IsNil)
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromThisMissingInfoFile(c *C) {
-	restore := s.mockThisSnapdLibExecDir(c, dirs.DistroLibExecDir)
+func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdMissingInfoFile(c *C) {
+	restore := s.mockCurrentSnapdLibExecDir(c, dirs.DistroLibExecDir)
 	defer restore()
 
-	_, _, err := snap.SnapdLTSTrackMapFromThis()
+	_, _, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
 	c.Assert(err, ErrorMatches, `cannot open snapd info file .*`)
 }
 
-func (s *infoSuite) TestSnapdLTSTrackMapFromThisReexec(c *C) {
+func (s *infoSuite) TestSnapdLTSTrackMapFromCurrentSnapdReexec(c *C) {
 	writeSnapdInfoFile(c, dirs.DistroLibExecDir, `VERSION=2.70
 SNAPD_LTS_TRACKS='{"20":{"latest":"20"}}'`)
 
 	reexecLibExecDir := filepath.Join(dirs.SnapMountDir, "snapd/42/usr/lib/snapd")
-	restore := s.mockThisSnapdLibExecDir(c, reexecLibExecDir)
+	restore := s.mockCurrentSnapdLibExecDir(c, reexecLibExecDir)
 	defer restore()
 	writeSnapdInfoFile(c, reexecLibExecDir, `VERSION=2.99
 SNAPD_LTS_TRACKS='{"18":{"latest":"18"}}'`)
 
-	trackMap, version, err := snap.SnapdLTSTrackMapFromThis()
+	trackMap, version, err := snap.SnapdLTSTrackMapFromCurrentSnapd()
 	c.Assert(err, IsNil)
 	c.Check(version, Equals, "2.99")
 	c.Assert(trackMap, DeepEquals, map[int]map[string]string{

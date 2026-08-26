@@ -104,7 +104,7 @@ func loadLTSTrackMap(candidateSnapd snap.Container) (trackMap map[int]map[string
 		trackMap, version, err = snap.SnapdLTSTrackMapFromSnapFile(candidateSnapd)
 		return trackMap, version, "candidate snapd snap", err
 	}
-	trackMap, version, err = snap.SnapdLTSTrackMapFromThis()
+	trackMap, version, err = snap.SnapdLTSTrackMapFromCurrentSnapd()
 	return trackMap, version, "running snapd", err
 }
 

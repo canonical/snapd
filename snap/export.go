@@ -19,19 +19,19 @@
 
 package snap
 
-// MockSnapdLTSTrackMapFromThis replaces SnapdLTSTrackMapFromThis for tests.
+// MockSnapdLTSTrackMapFromCurrentSnapd replaces SnapdLTSTrackMapFromCurrentSnapd for tests.
 // version defaults to 2.75 when empty.
 //
 // Lives outside export_test.go because other packages' tests import it.
-func MockSnapdLTSTrackMapFromThis(version string, tracks map[int]map[string]string) (restore func()) {
-	restoreLoader := snapdLTSTrackMapFromThis
+func MockSnapdLTSTrackMapFromCurrentSnapd(version string, tracks map[int]map[string]string) (restore func()) {
+	restoreLoader := snapdLTSTrackMapFromCurrentSnapd
 	if version == "" {
 		version = "2.75"
 	}
-	snapdLTSTrackMapFromThis = func() (map[int]map[string]string, string, error) {
+	snapdLTSTrackMapFromCurrentSnapd = func() (map[int]map[string]string, string, error) {
 		return tracks, version, nil
 	}
 	return func() {
-		snapdLTSTrackMapFromThis = restoreLoader
+		snapdLTSTrackMapFromCurrentSnapd = restoreLoader
 	}
 }

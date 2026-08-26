@@ -26,5 +26,5 @@ import "github.com/snapcore/snapd/snap"
 //
 // Lives outside export_test.go because other packages' tests import it.
 func MockSnapdLTSTrackMap(tracks map[int]map[string]string) (restore func()) {
-	return snap.MockSnapdLTSTrackMapFromThis("2.75", tracks)
+	return snap.MockSnapdLTSTrackMapFromCurrentSnapd("2.75", tracks)
 }
