@@ -4194,8 +4194,7 @@ type storeCtxSetupSuite struct {
 	o  *overlord.Overlord
 	sc store.DeviceAndAuthContext
 
-	storeSigning   *assertstest.StoreStack
-	restoreTrusted func()
+	storeSigning *assertstest.StoreStack
 
 	brands *assertstest.SigningAccounts
 

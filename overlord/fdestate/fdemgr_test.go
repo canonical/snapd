@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/hmac"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -120,44 +119,6 @@ func (m *mockFdstore) Remove(name fdstore.FdName) error {
 
 func (m *mockFdstore) ActivationListeners() ([]net.Listener, error) {
 	return nil, errors.New("mockFdstore.ActivationListeners() not implemented")
-}
-
-type mockSecretState struct {
-	data map[string]*json.RawMessage
-}
-
-func (s mockSecretState) Get(key string, value any) error {
-	entryJSON := s.data[key]
-	if entryJSON == nil {
-		return &state.NoStateError{Key: key}
-	}
-	err := json.Unmarshal(*entryJSON, value)
-	if err != nil {
-		return fmt.Errorf("internal error: could not unmarshal state entry %q: %v", key, err)
-	}
-	return nil
-}
-
-func (s mockSecretState) Has(key string) bool {
-	return s.data[key] != nil
-}
-
-func (s mockSecretState) Set(key string, value any) error {
-	if value == nil {
-		delete(s.data, key)
-		return nil
-	}
-	serialized, err := json.Marshal(value)
-	if err != nil {
-		logger.Panicf("internal error: could not marshal value for state entry %q: %v", key, err)
-	}
-	entryJSON := json.RawMessage(serialized)
-	s.data[key] = &entryJSON
-	return nil
-}
-
-func (s mockSecretState) Close() error {
-	return nil
 }
 
 var _ = Suite(&fdeMgrSuite{})
