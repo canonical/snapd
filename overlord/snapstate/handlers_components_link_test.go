@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -518,4 +519,106 @@ func (s *linkCompSnapSuite) TestDoUnlinkThenUndoUnlinkComponent(c *C) {
 
 	s.testDoUnlinkThenUndoUnlinkComponent(c, snapName, snapRev,
 		compName, compRev, "unlink-component")
+}
+
+// TestUndoUnlinkComponentAfterSnapRevisionDiscarded reproduces a failure seen
+// when a refresh with components fails (e.g. in the configure hook) after the
+// cleanup of an old revision already ran. The old revision's components are
+// unlinked by unlink-component tasks (via removeInactiveRevision), and then
+// discard-snap (which has no undo handler) removes the whole old revision from
+// the sequence. When a later task fails, the undo of unlink-component must not
+// error out with "snap revision is not in the sequence": the revision is gone
+// for good, so the undo must be a no-op.
+//
+// This builds the real task chain that removeInactiveRevision produces
+// (clear-snap, unlink-component, discard-component, discard-snap) and runs the
+// real task handlers, so the revision is genuinely discarded by discard-snap
+// before the undo of unlink-component runs.
+func (s *linkCompSnapSuite) TestUndoUnlinkComponentAfterSnapRevisionDiscarded(c *C) {
+	const snapName = "mysnap"
+	const compName = "mycomp"
+	oldSnapRev := snap.R(1)
+	currentSnapRev := snap.R(2)
+	compRev := snap.R(7)
+
+	s.state.Lock()
+
+	// state with two revisions, the old one carrying the component
+	oldSI := &snap.SideInfo{RealName: snapName, Revision: oldSnapRev, SnapID: "some-snap-id"}
+	currentSI := &snap.SideInfo{RealName: snapName, Revision: currentSnapRev, SnapID: "some-snap-id"}
+	csi := snap.NewComponentSideInfo(naming.NewComponentRef(snapName, compName), compRev)
+	comps := []*sequence.ComponentState{sequence.NewComponentState(csi, snap.StandardComponent)}
+	snapstate.Set(s.state, snapName, &snapstate.SnapState{
+		Active:   true,
+		SnapType: "app",
+		Sequence: snapstatetest.NewSequenceFromRevisionSideInfos(
+			[]*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(oldSI, comps),
+				sequence.NewRevisionSideState(currentSI, nil),
+			}),
+		Current: currentSnapRev,
+	})
+
+	chg := s.state.NewChange("test change", "change desc")
+
+	// the tasks below mirror removeInactiveRevision for the old revision:
+	// clear-snap, then unlink-component + discard-component for each component,
+	// then discard-snap.
+	clearData := s.state.NewTask("clear-snap", "clear data for old revision")
+	clearData.Set("snap-setup", &snapstate.SnapSetup{SideInfo: oldSI})
+	chg.AddTask(clearData)
+
+	unlink := s.state.NewTask("unlink-component", "unlink old revision component")
+	unlink.Set("snap-setup-task", clearData.ID())
+	unlink.Set("component-setup", snapstate.NewComponentSetup(csi, snap.StandardComponent, ""))
+	unlink.WaitFor(clearData)
+	chg.AddTask(unlink)
+
+	discardComp := s.state.NewTask("discard-component", "discard old revision component")
+	discardComp.Set("snap-setup-task", clearData.ID())
+	discardComp.Set("component-setup-task", unlink.ID())
+	discardComp.WaitFor(unlink)
+	chg.AddTask(discardComp)
+
+	discardSnap := s.state.NewTask("discard-snap", "discard old revision")
+	discardSnap.Set("snap-setup-task", clearData.ID())
+	discardSnap.WaitFor(discardComp)
+	chg.AddTask(discardSnap)
+
+	// then something fails, provoking the undo of the whole change
+	terr := s.state.NewTask("error-trigger", "provoking undo")
+	terr.WaitFor(discardSnap)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 10; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// discard-snap really ran and removed the old revision from the sequence
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, snapName, &snapst), IsNil)
+	c.Check(snapst.Sequence.LastIndex(oldSnapRev), Equals, -1)
+	c.Check(snapst.Current, Equals, currentSnapRev)
+
+	// the change fails because of the error-trigger, but the undo of
+	// unlink-component must succeed (as a no-op) rather than error with
+	// "snap revision is not in the sequence"
+	err := chg.Err()
+	c.Assert(err, NotNil)
+	c.Check(strings.Contains(err.Error(), "is not in the sequence"), Equals, false,
+		Commentf("unexpected error: %v", err))
+
+	// the unlink-component task must have been undone cleanly
+	c.Check(unlink.Status(), Equals, state.UndoneStatus)
+
+	// the component symlink is not re-created: the old revision is gone
+	for _, op := range s.fakeBackend.ops {
+		c.Check(op.op, Not(Equals), "link-component")
+	}
 }
