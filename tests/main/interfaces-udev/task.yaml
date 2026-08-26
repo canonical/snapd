@@ -6,13 +6,16 @@ details: |
     dependency has a related udev snippet, then the udev rules files are created
     on install and removed after it is uninstalled.
 
-    Currently the ony interface that declares a udev snippet is the modem-manager
-    interface for its slot. This test can be easily extended with variants when
-    more interfaces declare udev snippets.
+    A second scenario verifies that interfaces which call TriggerSubsystem() cause
+    the rules file to contain a subsystem-triggers comment, which is later read by
+    Remove() to replay the correct udevadm triggers on snap removal.
 
 prepare: |
     echo "Given a snap declaring a slot with associated udev rules is installed"
     "$TESTSTOOLS"/snaps-state install-local modem-manager-consumer
+
+restore: |
+    snap remove --purge test-snapd-udev-input-trigger
 
 execute: |
     echo "Then the udev rules files specific to it are created"
@@ -25,3 +28,34 @@ execute: |
 
     echo "Then the udev rules files are removed"
     not test -f /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
+
+    echo "Given a strict snap with an interface that triggers the input subsystem is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-udev-input-trigger
+
+    echo "Then the rules file records the subsystem triggers"
+    MATCH '^# subsystem-triggers: \["input"\]$' < /etc/udev/rules.d/70-snap.test-snapd-udev-input-trigger.rules
+
+    # Verify that Remove() correctly triggers --subsystem-match=input by checking
+    # that the snap's tag is gone from a representative input event device's tags.
+    # all event[0-9]* devices are tagged by the mir rule; pick one as a representative
+    event_dev=$(find /dev/input -maxdepth 1 -name 'event[0-9]*' 2>/dev/null | head -1)
+    # Skipped in containers because the udev backend is disabled there (udevadm trigger never runs).
+    if ! systemd-detect-virt --quiet --container 2>/dev/null && [ -n "$event_dev" ]; then
+        udev_tag=snap_test-snapd-udev-input-trigger_app
+        
+        # systemd >= 247 separates active tags (CURRENT_TAGS) from historical (TAGS)
+        if udevadm info "$event_dev" | grep -q "^E: CURRENT_TAGS="; then
+            tag_field=CURRENT_TAGS
+        else
+            tag_field=TAGS
+        fi
+
+        echo "And the snap's tag is applied to the input event device"
+        udevadm info "$event_dev" | grep "^E: ${tag_field}=" | MATCH ":${udev_tag}:"
+
+        echo "When the snap is removed"
+        snap remove --purge test-snapd-udev-input-trigger
+
+        echo "Then the snap's tag is no longer in the input event device's current tags"
+        udevadm info "$event_dev" | grep "^E: ${tag_field}=" | NOMATCH ":${udev_tag}:"
+    fi
