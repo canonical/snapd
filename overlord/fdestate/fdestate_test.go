@@ -505,6 +505,9 @@ func (s *fdeMgrSuite) testChangeAuth(c *C, authMode device.AuthMode, withWarning
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	// Reset the rate-limiter
+	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
+
 	logBuf, restore := logger.MockLogger()
 	defer restore()
 	if withWarning {
@@ -683,7 +686,13 @@ func (s *fdeMgrSuite) TestConsumeDALockoutToken(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	// an absent/zero-value bucket starts full, consume all tokens
+	// a non-initialized bucket is an error
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "DA lockout rate-limit bucket is not initialized: reboot required")
+
+	// reset the rate-limiter
+	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
+
+	// now it is initialized, consume all tokens
 	for i := 0; i < fdestate.MaxDALockoutTokens; i++ {
 		c.Assert(fdestate.ConsumeDALockoutToken(s.st), IsNil)
 	}
@@ -712,7 +721,7 @@ func (s *fdeMgrSuite) TestConsumeDALockoutTokenLazyRefill(c *C) {
 	defer s.st.Unlock()
 
 	// drain the bucket
-	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start), IsNil)
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start, s.bootId), IsNil)
 
 	// throttled while empty
 	c.Check(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "too many authentication attempts, try again later")
@@ -745,7 +754,7 @@ func (s *fdeMgrSuite) TestConsumeDALockoutTokenRefillCappedAtMax(c *C) {
 	defer s.st.Unlock()
 
 	// drain the bucket
-	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start), IsNil)
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, start, s.bootId), IsNil)
 
 	// let a very long time pass, way more than needed to refill the whole bucket
 	now = start.Add(1000 * fdestate.DALockoutRefillInterval)
@@ -755,6 +764,19 @@ func (s *fdeMgrSuite) TestConsumeDALockoutTokenRefillCappedAtMax(c *C) {
 	tokens, _, err := fdestate.GetDALockoutRateLimit(s.st)
 	c.Assert(err, IsNil)
 	c.Check(tokens, Equals, fdestate.MaxDALockoutTokens-1)
+}
+
+func (s *fdeMgrSuite) TestConsumeDALockoutTokenBadBootID(c *C) {
+	const onClassic = true
+	s.startedManager(c, onClassic)
+
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	// full bucket, but with a bad boot ID (e.g. after a reboot, before reset)
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, fdestate.MaxDALockoutTokens, time.Now(), "bad-boot-id"), IsNil)
+
+	c.Assert(fdestate.ConsumeDALockoutToken(s.st), ErrorMatches, "DA lockout rate-limit bucket is from a previous boot: reboot required")
 }
 
 func (s *fdeMgrSuite) TestResetDALockoutRateLimit(c *C) {
@@ -768,7 +790,7 @@ func (s *fdeMgrSuite) TestResetDALockoutRateLimit(c *C) {
 	defer s.st.Unlock()
 
 	// drain the bucket
-	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, now.Add(-time.Minute)), IsNil)
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 0, now.Add(-time.Minute), s.bootId), IsNil)
 
 	c.Assert(fdestate.ResetDALockoutRateLimit(s.st), IsNil)
 
@@ -807,7 +829,7 @@ func (s *fdeMgrSuite) TestChangeAuthConsumesToken(c *C) {
 	defer s.st.Unlock()
 
 	// leave a single token in the bucket
-	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 1, now), IsNil)
+	c.Assert(fdestate.SetDALockoutRateLimit(s.st, 1, now, s.bootId), IsNil)
 
 	// first change-auth consumes the last token
 	_, err := fdestate.ChangeAuth(s.st, device.AuthModePassphrase, "old", "new", keyslots)

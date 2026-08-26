@@ -77,12 +77,12 @@ func GetDALockoutRateLimit(st *state.State) (tokens int, lastRefill time.Time, e
 }
 
 // SetDALockoutRateLimit sets the DA lockout token bucket state.
-func SetDALockoutRateLimit(st *state.State, tokens int, lastRefill time.Time) error {
+func SetDALockoutRateLimit(st *state.State, tokens int, lastRefill time.Time, bootID string) error {
 	var s FdeState
 	if err := st.Get(fdeStateKey, &s); err != nil {
 		return err
 	}
-	s.DALockoutRateLimit = daLockoutRateLimit{Tokens: tokens, LastRefill: lastRefill}
+	s.DALockoutRateLimit = &daLockoutRateLimit{Tokens: tokens, LastRefill: lastRefill, BootID: bootID}
 	st.Set(fdeStateKey, &s)
 	return nil
 }
