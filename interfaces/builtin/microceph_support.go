@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -117,11 +118,13 @@ func (iface *microcephSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) e
 
 func init() {
 	registerIface(&microcephSupportInterface{commonInterface{
-		name:                 "microceph-support",
-		summary:              microcephSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: microcephSupportBaseDeclarationSlots,
-		baseDeclarationPlugs: microcephSupportBaseDeclarationPlugs,
+		name:                     "microceph-support",
+		summary:                  microcephSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     microcephSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     microcephSupportBaseDeclarationPlugs,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

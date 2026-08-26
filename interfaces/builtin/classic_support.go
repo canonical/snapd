@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 )
@@ -142,8 +143,10 @@ func init() {
 			baseDeclarationPlugs: classicSupportBaseDeclarationPlugs,
 			baseDeclarationSlots: classicSupportBaseDeclarationSlots,
 			// handled by AppArmorConnectedPlug
-			connectedPlugAppArmor: "",
-			connectedPlugSecComp:  classicSupportPlugSecComp,
+			connectedPlugAppArmor:    "",
+			connectedPlugSecComp:     classicSupportPlugSecComp,
+			parallelInstancesPlugErr: errors.New("todo"),
+			parallelInstancesSlotErr: errors.New("todo"),
 		},
 	})
 }

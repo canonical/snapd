@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 const nvidiaDriversSupportSummary = `NVIDIA drivers userspace system setup support`
 
 const nvidiaDriversSupportBaseDeclarationPlugs = `
@@ -71,13 +73,15 @@ type nvidiaDriversSupportInterface struct {
 
 func init() {
 	registerIface(&nvidiaDriversSupportInterface{commonInterface: commonInterface{
-		name:                  "nvidia-drivers-support",
-		summary:               nvidiaDriversSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  nvidiaDriversSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  nvidiaDriversSupportBaseDeclarationSlots,
-		connectedPlugAppArmor: nvidiaDriversSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  nvidiaDriversSupportConnectedPlugSecComp,
+		name:                     "nvidia-drivers-support",
+		summary:                  nvidiaDriversSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     nvidiaDriversSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     nvidiaDriversSupportBaseDeclarationSlots,
+		connectedPlugAppArmor:    nvidiaDriversSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:     nvidiaDriversSupportConnectedPlugSecComp,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

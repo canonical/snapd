@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 /*
  * The dm-multipath interface allows snaps to manage and access device-mapper
  * multipath maps by communicating with the multipathd daemon. It is intended
@@ -87,5 +89,7 @@ func init() {
 		connectedPlugAppArmor:    dmMultipathConnectedPlugAppArmor,
 		connectedPlugKModModules: dmMultipathConnectedPlugKmod,
 		connectedPlugUDev:        dmMultipathConnectedPlugUDev,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

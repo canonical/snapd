@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -878,14 +879,16 @@ func (iface *dockerSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 
 func init() {
 	registerIface(&dockerSupportInterface{commonInterface{
-		name:                 "docker-support",
-		summary:              dockerSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
-		baseDeclarationSlots: dockerSupportBaseDeclarationSlots,
-		controlsDeviceCgroup: true,
-		serviceSnippets:      []interfaces.PlugServicesSnippet{dockerSupportServiceSnippet},
+		name:                     "docker-support",
+		summary:                  dockerSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     dockerSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     dockerSupportBaseDeclarationSlots,
+		controlsDeviceCgroup:     true,
+		serviceSnippets:          []interfaces.PlugServicesSnippet{dockerSupportServiceSnippet},
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 		// docker-support also uses ptrace(trace), but it already declares this in
 		// the AppArmorConnectedPlug method
 	}})
