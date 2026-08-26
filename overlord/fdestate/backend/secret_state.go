@@ -45,6 +45,28 @@ var (
 	ErrNoState = errors.New("no state entry for key")
 )
 
+// NoStateError represents the case where no state could be found for a given key.
+type NoStateError struct {
+	// Key is the key for which no state could be found.
+	Key string
+}
+
+func (e *NoStateError) Error() string {
+	var keyMsg string
+	if e.Key != "" {
+		keyMsg = fmt.Sprintf(" %q", e.Key)
+	}
+
+	return fmt.Sprintf("no state entry for key%s", keyMsg)
+}
+
+// Is returns true if the error is of type *NoStateError or equal to ErrNoState.
+// NoStateError's key isn't compared between errors.
+func (e *NoStateError) Is(err error) bool {
+	_, ok := err.(*NoStateError)
+	return ok || errors.Is(err, ErrNoState)
+}
+
 var (
 	fdstoreNew      = fdstore.New
 	sysMemfdSecret  = sys.MemfdSecret
@@ -129,7 +151,7 @@ type customData map[string]*json.RawMessage
 func (data customData) get(key string, value any) error {
 	entryJSON := data[key]
 	if entryJSON == nil {
-		return ErrNoState
+		return &NoStateError{Key: key}
 	}
 	err := json.Unmarshal(*entryJSON, value)
 	if err != nil {

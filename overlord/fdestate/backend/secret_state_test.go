@@ -257,6 +257,7 @@ func (s *secretStateSuite) testMemfdSecretStateHappy(c *C, stateBackend string, 
 	var value string
 	err = secretState.Get("non-existing", &value)
 	c.Check(err, testutil.ErrorIs, backend.ErrNoState)
+	c.Check(err, ErrorMatches, `no state entry for key "non-existing"`)
 
 	// Set a key
 	err = secretState.Set("key-1", "some-value")
