@@ -175,10 +175,13 @@ func (s *snapdataSuite) TestSnapCommonDataDirs(c *C) {
 	})
 }
 
-// TestSnapDataDirsSkipsInaccessibleHomeDir verifies that home directories
-// that cannot be accessed (e.g. NFS with root_squash) are omitted from
-// the returned list so that callers do not encounter permission errors.
-func (s *snapdataSuite) TestSnapDataDirsSkipsInaccessibleHomeDir(c *C) {
+// TestSnapDataDirsSkipsInaccessibleSnapDir verifies that snap dirs under home
+// directories that cannot be accessed (e.g. NFS with root_squash) are omitted
+// from the returned list so that callers do not encounter permission errors.
+func (s *snapdataSuite) TestSnapDataDirsSkipsInaccessibleSnapDir(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory permission checks)")
+	}
 	homedir1 := filepath.Join(dirs.GlobalRootDir, "home_nfs", "user1")
 	homedir2 := filepath.Join(dirs.GlobalRootDir, "home", "user2")
 	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
@@ -189,8 +192,8 @@ func (s *snapdataSuite) TestSnapDataDirsSkipsInaccessibleHomeDir(c *C) {
 	})
 	defer restore()
 
-	// homedir1 is chmod'd to 0000 to simulate NFS root_squash (EACCES).
-	// homedir2 is accessible normally.
+	// homedir1 is chmod'd to 0000 so its snap subdir is also inaccessible (EACCES),
+	// simulating NFS root_squash. homedir2 is accessible normally.
 	c.Assert(os.MkdirAll(homedir1, 0755), IsNil)
 	c.Assert(os.Chmod(homedir1, 0000), IsNil)
 	defer os.Chmod(homedir1, 0755)
@@ -207,10 +210,13 @@ func (s *snapdataSuite) TestSnapDataDirsSkipsInaccessibleHomeDir(c *C) {
 	})
 }
 
-// TestSnapCommonDataDirsSkipsInaccessibleHomeDir verifies that home directories
-// that cannot be accessed (e.g. NFS with root_squash) are omitted from
-// the returned list, while XDG runtime dirs (not under home) are still included.
-func (s *snapdataSuite) TestSnapCommonDataDirsSkipsInaccessibleHomeDir(c *C) {
+// TestSnapCommonDataDirsSkipsInaccessibleSnapDir verifies that snap dirs under
+// home directories that cannot be accessed (e.g. NFS with root_squash) are
+// omitted from the returned list, while XDG runtime dirs (not under home) are still included.
+func (s *snapdataSuite) TestSnapCommonDataDirsSkipsInaccessibleSnapDir(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory permission checks)")
+	}
 	homedir1 := filepath.Join(dirs.GlobalRootDir, "home_nfs", "user1")
 	homedir2 := filepath.Join(dirs.GlobalRootDir, "home", "user2")
 	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
@@ -221,8 +227,8 @@ func (s *snapdataSuite) TestSnapCommonDataDirsSkipsInaccessibleHomeDir(c *C) {
 	})
 	defer restore()
 
-	// homedir1 is chmod'd to 0000 to simulate NFS root_squash (EACCES).
-	// homedir2 is accessible normally.
+	// homedir1 is chmod'd to 0000 so its snap subdir is also inaccessible (EACCES),
+	// simulating NFS root_squash. homedir2 is accessible normally.
 	c.Assert(os.MkdirAll(homedir1, 0755), IsNil)
 	c.Assert(os.Chmod(homedir1, 0000), IsNil)
 	defer os.Chmod(homedir1, 0755)
@@ -453,7 +459,7 @@ func (s *snapdataSuite) TestRemoveSnapDataDirEnotemptyWithReadDirError(c *C) {
 	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello: directory not empty`)
 }
 
-func (s *snapdataSuite) TestRemoveSnapDataDirErrorNotEnotempty(c *C) {
+func (s *snapdataSuite) TestRemoveSnapDataDirSkipsInaccessibleSnapDir(c *C) {
 	if os.Geteuid() == 0 {
 		c.Skip("this test cannot run as root (root can remove directories from read-only parents)")
 	}
@@ -469,14 +475,15 @@ func (s *snapdataSuite) TestRemoveSnapDataDirErrorNotEnotempty(c *C) {
 	parentDir := filepath.Join(homeDir, "snap")
 	baseDataDir := filepath.Join(parentDir, "hello")
 	c.Assert(os.MkdirAll(baseDataDir, 0755), IsNil)
-	// make parent non-writable so removal fails with EACCES, not ENOTEMPTY;
-	// dir contents should not be appended to the error message in this case
+	// make the snap dir non-writable; canAccessSnapDir skips the user
 	c.Assert(os.Chmod(parentDir, 0555), IsNil)
 	defer os.Chmod(parentDir, 0755)
 
 	info := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	err := s.be.RemoveSnapDataDir(info, false, nil)
-	c.Assert(err, ErrorMatches, `failed to remove snap "hello" base directory: remove .*/home/users/snap/hello: permission denied`)
+	c.Assert(err, IsNil)
+	// data is left in place because the user was skipped
+	c.Assert(osutil.FileExists(baseDataDir), Equals, true)
 }
 
 func (s *snapdataSuite) TestRemoveSnapDataDirCurrentSymlinkRemovalFails(c *C) {

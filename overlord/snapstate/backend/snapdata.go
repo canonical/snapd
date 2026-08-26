@@ -161,11 +161,12 @@ func removeDirs(dirs []string) error {
 	return nil
 }
 
-// canAccess reports whether the process is not denied access to dir.
+// canAccessSnapDir reports whether the process is not denied access to user snap dir.
 // unix.Access uses the real UID, so on NFS with root_squash it correctly
 // reflects the nobody mapping.
-func canAccess(dir string) bool {
-	err := unix.Access(dir, unix.R_OK|unix.W_OK|unix.X_OK)
+func canAccessSnapDir(homeDir string, opts *dirs.SnapDirOptions) bool {
+	snapDir := snap.SnapDir(homeDir, opts)
+	err := unix.Access(snapDir, unix.R_OK|unix.W_OK|unix.X_OK)
 	return !errors.Is(err, unix.EACCES)
 }
 
@@ -182,11 +183,11 @@ func snapBaseDataDirs(snapName string, opts *dirs.SnapDirOptions) ([]string, err
 			// root is ordered explicitly below
 			continue
 		}
-		// Skip users whose home is inaccessible (e.g. NFS root_squash maps
+		// Skip users whose snap dir is inaccessible (e.g. NFS root_squash maps
 		// root to nobody); snap subdirs under it are similarly restricted.
 		// Filtering early avoids spreading EACCES handling across the several
 		// consumers of snap data dir lists (remove, copy, undo etc).
-		if !canAccess(usr.HomeDir) {
+		if !canAccessSnapDir(usr.HomeDir, opts) {
 			continue
 		}
 		found = append(found, snap.UserSnapDir(usr.HomeDir, snapName, opts))
@@ -213,11 +214,11 @@ func snapDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, error) 
 			// root is ordered explicitly below
 			continue
 		}
-		// Skip users whose home is inaccessible (e.g. NFS root_squash maps
+		// Skip users whose snap dir is inaccessible (e.g. NFS root_squash maps
 		// root to nobody); snap subdirs under it are similarly restricted.
 		// Filtering early avoids spreading EACCES handling across the several
 		// consumers of snap data dir lists (remove, copy, undo etc).
-		if !canAccess(usr.HomeDir) {
+		if !canAccessSnapDir(usr.HomeDir, opts) {
 			continue
 		}
 		found = append(found, info.UserDataDir(usr.HomeDir, opts))
@@ -244,11 +245,11 @@ func snapCommonDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) ([]string, e
 			// root is ordered explicitly below
 			continue
 		}
-		// Skip users whose home is inaccessible (e.g. NFS root_squash maps
+		// Skip users whose snap dir is inaccessible (e.g. NFS root_squash maps
 		// root to nobody); snap subdirs under it are similarly restricted.
 		// Filtering early avoids spreading EACCES handling across the several
 		// consumers of snap data dir lists (remove, copy, undo etc).
-		if !canAccess(usr.HomeDir) {
+		if !canAccessSnapDir(usr.HomeDir, opts) {
 			continue
 		}
 		found = append(found, info.UserCommonDataDir(usr.HomeDir, opts))
