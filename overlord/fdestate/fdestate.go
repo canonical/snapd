@@ -542,7 +542,7 @@ func checkRecoveryKeyIDExists(fdemgr *FDEManager, recoveryKeyID string) error {
 	var rkeyInfo RecoveryKeyInfo
 	err := fdemgr.secretState.Get(recoveryKeyID, &rkeyInfo)
 	if err != nil {
-		if errors.Is(err, state.ErrNoState) {
+		if errors.Is(err, backend.ErrNoState) {
 			// This might mean that the recovery key id is not valid or system
 			// rebooted and the associated recovery key was lost from the cache.
 			return &InvalidRecoveryKeyError{Reason: InvalidRecoveryKeyReasonNotFound}

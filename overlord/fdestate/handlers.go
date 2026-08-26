@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/fdestate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
@@ -352,8 +353,8 @@ func (m *FDEManager) doAddPlatformKeys(t *state.Task, _ *tomb.Tomb) (err error) 
 		}
 		var opts expiringVolumesAuthOptions
 		if err := m.secretState.Get(volumesAuthID, &opts); err != nil {
-			if errors.Is(err, state.ErrNoState) {
-				return errors.New("cannot find authentication options in memory: unexpected snapd restart")
+			if errors.Is(err, backend.ErrNoState) {
+				return errors.New("cannot find authentication options in memory: unexpected system restart")
 			}
 			return err
 		}
@@ -499,7 +500,7 @@ func (m *FDEManager) doChangeAuth(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	var opts expiringChangeAuthOptions
 	if err := m.secretState.Get(changeAuthID, &opts); err != nil {
-		if errors.Is(err, state.ErrNoState) {
+		if errors.Is(err, backend.ErrNoState) {
 			return errors.New("cannot find authentication options in memory: unexpected system restart")
 		}
 		return err

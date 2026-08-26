@@ -118,14 +118,15 @@ func Manager(st *state.State, runner *state.TaskRunner) (*FDEManager, error) {
 		}
 	}
 
+	st.Lock()
+	defer st.Unlock()
+
 	secretState, err := backend.OpenSecretState(m)
 	if err != nil {
 		return nil, err
 	}
 	m.secretState = secretState
 
-	st.Lock()
-	defer st.Unlock()
 	st.Cache(fdeMgrKey{}, m)
 
 	snapstate.RegisterAffectedSnapsByKind("efi-secureboot-db-update", dbxUpdateAffectedSnaps)
