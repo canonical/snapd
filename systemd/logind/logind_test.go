@@ -21,6 +21,8 @@ package logind_test
 
 import (
 	"context"
+	"os"
+	"strconv"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +36,24 @@ func Test(t *testing.T) { TestingT(t) }
 type logindSuite struct{}
 
 var _ = Suite(&logindSuite{})
+
+// sessionClassLoginctlMock returns a loginctl mock for logind.SessionClass,
+// responding to the "show-user <uid> -p Display" invocation with
+// displayOutput, and to the "show-session c5 -p Class" invocation with
+// classOutput.
+func sessionClassLoginctlMock(c *C, displayOutput, classOutput string) func(ctx context.Context, args ...string) ([]byte, error) {
+	return func(ctx context.Context, args ...string) ([]byte, error) {
+		switch args[0] {
+		case "show-user":
+			c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "--all", "-p", "Display"})
+			return []byte(displayOutput), nil
+		case "show-session":
+			c.Check(args, DeepEquals, []string{"show-session", "c5", "--all", "-p", "Class"})
+			return []byte(classOutput), nil
+		}
+		return nil, nil
+	}
+}
 
 func (s *logindSuite) TestSessionClass(c *C) {
 	// All known session classes from systemd's logind-session.h
@@ -51,21 +71,15 @@ func (s *logindSuite) TestSessionClass(c *C) {
 		"manager-early",
 		"none",
 	} {
-		restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
-			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
-			return []byte("Class=" + class + "\n"), nil
-		})
+		restore := logind.MockLoginctl(sessionClassLoginctlMock(c, "Display=c5\n", "Class="+class+"\n"))
 		defer restore()
 
 		got, err := logind.SessionClass(context.Background())
 		c.Assert(err, IsNil)
 		c.Check(got, Equals, class)
 
-		// Try without trailing \n
-		restore = logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
-			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
-			return []byte("Class=" + class), nil
-		})
+		// Try without trailing \n on the show-session output
+		restore = logind.MockLoginctl(sessionClassLoginctlMock(c, "Display=c5\n", "Class="+class))
 		defer restore()
 
 		got, err = logind.SessionClass(context.Background())
@@ -78,53 +92,92 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 	var loginctlErr *logind.Error
 	loginctlErr = &logind.Error{}
 	loginctlErr.SetExitCode(1)
-	loginctlErr.SetMsg([]byte("No session for PID"))
+	loginctlErr.SetMsg([]byte("Failed to look up user"))
 
 	restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
-		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
+		c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "--all", "-p", "Display"})
 		return nil, loginctlErr
 	})
 	defer restore()
 
 	_, err := logind.SessionClass(context.Background())
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "loginctl command .* failed with exit status 1: No session for PID")
-}
+	c.Check(err, ErrorMatches, "loginctl command .* failed with exit status 1: Failed to look up user")
 
-func (s *logindSuite) TestSessionClassEmptyOutput(c *C) {
-	restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
-		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
-		return []byte(""), nil
+	// an empty "Display=" means the user has no display session
+	for _, displayOutput := range []string{"Display=\n", "Display="} {
+		restore := logind.MockLoginctl(sessionClassLoginctlMock(c, displayOutput, "Class=user\n"))
+		defer restore()
+
+		_, err := logind.SessionClass(context.Background())
+		c.Assert(err, ErrorMatches, "cannot find session for the current user: .*")
+	}
+
+	// the display session may vanish between the two calls
+	loginctlErr = &logind.Error{}
+	loginctlErr.SetExitCode(1)
+	loginctlErr.SetMsg([]byte("No session 'c5' known"))
+
+	calls := 0
+	restore = logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
+		calls++
+		switch args[0] {
+		case "show-user":
+			c.Check(args, DeepEquals, []string{"show-user", strconv.Itoa(os.Getuid()), "--all", "-p", "Display"})
+			return []byte("Display=c5\n"), nil
+		case "show-session":
+			return nil, loginctlErr
+		}
+		return nil, nil
 	})
 	defer restore()
 
-	_, err := logind.SessionClass(context.Background())
+	_, err = logind.SessionClass(context.Background())
 	c.Assert(err, NotNil)
-	c.Check(err, ErrorMatches, "invalid property format from loginctl for Class: .*")
+	c.Check(err, ErrorMatches, "loginctl command .* failed with exit status 1: No session 'c5' known")
+	c.Check(calls, Equals, 2)
 }
 
 func (s *logindSuite) TestSessionClassMalformedOutput(c *C) {
-	for _, output := range []string{"", "unexpected-no-equals\n", "foo=user\n", "Class=\n", "Class=foo=\n"} {
-		restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
-			c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
-			return []byte(output), nil
-		})
+	for _, output := range []string{"", "unexpected-no-equals\n", "foo=c5\n", "Display=foo=x\n"} {
+		restore := logind.MockLoginctl(sessionClassLoginctlMock(c, output, "Class=user\n"))
 		defer restore()
 
 		_, err := logind.SessionClass(context.Background())
 		c.Assert(err, NotNil)
-		c.Check(err, ErrorMatches, "invalid property format from loginctl for Class: .*")
+		c.Check(err, ErrorMatches, `cannot parse value from loginctl output for property "Display": .*`)
+	}
+
+	for _, output := range []string{"", "unexpected-no-equals\n", "foo=user\n", "Class=foo=\n", "Class=", "Class=\n"} {
+		restore := logind.MockLoginctl(sessionClassLoginctlMock(c, "Display=c5\n", output))
+		defer restore()
+
+		_, err := logind.SessionClass(context.Background())
+		c.Assert(err, NotNil)
+		c.Check(err, ErrorMatches, `cannot parse value from loginctl output for property "Class": .*`)
 	}
 }
 
 func (s *logindSuite) TestSessionClassWithWhitespace(c *C) {
-	restore := logind.MockLoginctl(func(ctx context.Context, args ...string) ([]byte, error) {
-		c.Check(args, DeepEquals, []string{"show-session", "auto", "-p", "Class"})
-		return []byte("  Class=user  \n"), nil
-	})
+	restore := logind.MockLoginctl(sessionClassLoginctlMock(c, "  Display=c5  \n", "Class=user\n"))
 	defer restore()
 
 	got, err := logind.SessionClass(context.Background())
+	c.Assert(err, IsNil)
+	c.Check(got, Equals, "user")
+
+	// no trailing \n on the display session id
+	restore = logind.MockLoginctl(sessionClassLoginctlMock(c, "Display=c5", "Class=user\n"))
+	defer restore()
+
+	got, err = logind.SessionClass(context.Background())
+	c.Assert(err, IsNil)
+	c.Check(got, Equals, "user")
+
+	restore = logind.MockLoginctl(sessionClassLoginctlMock(c, "Display=c5\n", "  Class=user  \n"))
+	defer restore()
+
+	got, err = logind.SessionClass(context.Background())
 	c.Assert(err, IsNil)
 	c.Check(got, Equals, "user")
 }
