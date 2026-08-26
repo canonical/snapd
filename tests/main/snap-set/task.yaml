@@ -85,7 +85,7 @@ execute: |
         echo "Expected usage of an invalid key to result in an error"
         exit 1
     fi
-    [[ "$obtained" == *"invalid field name"* ]]
+    [[ "$obtained" == *"invalid option name"* ]]
 
     # although the "Foo" field is invalid, we only error on this for core26+ snaps.
     # For other snaps we log a warning
