@@ -1153,6 +1153,9 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
+	const maxBlockedMessagesPerSequence = 1
+	s.AddCleanup(devicemgmtstate.MockMaxBlockedMessagesPerSequence(maxBlockedMessagesPerSequence))
+
 	s.mockStore(func(ctx context.Context, req *store.MessageExchangeRequest) (*store.MessageExchangeResponse, error) {
 		return &store.MessageExchangeResponse{}, nil
 	})
@@ -1189,7 +1192,34 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 					},
 				},
 			},
+			"seqA": {
+				Messages: []*devicemgmtstate.RequestMessage{
+					{
+						AccountID:   "my-brand",
+						AuthorityID: "my-brand",
+						BaseID:      "seqA",
+						SeqNum:      6,
+						Kind:        "test-kind",
+						Devices:     []string{"serial-1.my-model.my-brand"},
+						ValidSince:  fixedTestTime,
+						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
+						Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+					},
+					{
+						AccountID:   "my-brand",
+						AuthorityID: "my-brand",
+						BaseID:      "seqA",
+						SeqNum:      7,
+						Kind:        "test-kind",
+						Devices:     []string{"serial-1.my-model.my-brand"},
+						ValidSince:  fixedTestTime,
+						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
+						Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
+					},
+				},
+			},
 		},
+		SequenceLRU: []string{"seqA"},
 	}
 	s.mgr.SetState(ms)
 
@@ -1202,18 +1232,24 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	s.settle(c)
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
-
-	// Each message should have been dispatched exactly once:
-	// 3 dispatch tasks + 2 messages * 3 tasks each = 9 tasks.
-	c.Assert(chg.Tasks(), HasLen, 9)
+	c.Assert(chg.Tasks(), HasLen, 10)
 
 	ti := buildTaskIndex(c, chg)
+	// Successful messages have 3 tasks each
 	c.Check(ti.validate["msg1"], NotNil)
 	c.Check(ti.apply["msg1"], NotNil)
 	c.Check(ti.queue["msg1"], NotNil)
 	c.Check(ti.validate["msg2"], NotNil)
 	c.Check(ti.apply["msg2"], NotNil)
 	c.Check(ti.queue["msg2"], NotNil)
+
+	// Rejected sequence only has 1 queue-mgmt-response
+	c.Check(ti.validate["seqA-6"], IsNil)
+	c.Check(ti.apply["seqA-6"], IsNil)
+	c.Check(ti.queue["seqA-6"], NotNil)
+	c.Check(ti.validate["seqA-7"], IsNil)
+	c.Check(ti.apply["seqA-7"], IsNil)
+	c.Check(ti.queue["seqA-7"], IsNil)
 }
 
 func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesLaneIsolation(c *C) {
