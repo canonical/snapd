@@ -617,7 +617,9 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, dispatchTask *st
 
 	earliest := seq.Messages[0]
 	if earliest.ResponseStatus != "" {
-		return fmt.Errorf("internal error: rejectSequence called for sequence %q whose earliest message already has status %q", baseID, earliest.ResponseStatus)
+		// The sequence was already rejected by a previous call and is pending
+		// eviction once its queued response is processed.
+		return nil
 	}
 
 	earliest.ResponseStatus = asserts.MessageStatusRejected
