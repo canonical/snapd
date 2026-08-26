@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
@@ -602,5 +603,5 @@ func (s *earlyConfigSuite) TestEarlyConfigNoGadget(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("configmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("configmgr.go", c, false)
 }

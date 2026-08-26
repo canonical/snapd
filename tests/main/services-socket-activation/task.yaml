@@ -21,7 +21,7 @@ prepare: |
                 # although classic snaps do not work out of the box on fedora,
                 # we still want to verify if the basics do work if the user
                 # symlinks /snap to $SNAP_MOUNT_DIR themselves
-                ln -sf "$SNAP_MOUNT_DIR" /snap
+                ln -sfn "$SNAP_MOUNT_DIR" /snap
                 tests.cleanup defer rm -f /snap
             fi
             "$TESTSTOOLS"/snaps-state install-local socket-activation-classic --classic
@@ -49,12 +49,12 @@ execute: |
         MATCH "     2\s+socket-activation.sleep-daemon\s+${ENABLED}\s+${MAIN_ACTIVE}\s+socket-activated$" < svcs.txt
 
         echo "Check that systemctl for the main unit is as expected"
-        systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.service | grep "static"
-        systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.service | grep "ActiveState=${MAIN_ACTIVE}"
+        systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.service | MATCH '^UnitFileState=static$'
+        systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.service | MATCH "^ActiveState=${MAIN_ACTIVE}$"
 
         echo "Check that systemctl for the socket is looking correct too"
-        systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | grep "${ENABLED}"
-        systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | grep "ActiveState=${ACT_ACTIVE}"
+        systemctl show --property=UnitFileState snap.socket-activation.sleep-daemon.sock.socket | MATCH "^UnitFileState=${ENABLED}$"
+        systemctl show --property=ActiveState snap.socket-activation.sleep-daemon.sock.socket | MATCH "^ActiveState=${ACT_ACTIVE}$"
     }
 
     # verify default behavior on install is that the main service

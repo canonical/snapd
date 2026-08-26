@@ -108,6 +108,7 @@ nested_wait_for_snap_command() {
         retry=$(( retry - 1 ))
         sleep "$wait"
     done
+    echo "Snap command is ready"
 }
 
 nested_wait_for_snap_seeded() {
@@ -504,12 +505,7 @@ nested_cleanup_env() {
 }
 
 nested_get_image_channel() {
-    if nested_is_core_26_system; then
-        # TODO: Remove when it becomes available in the other channels
-        echo "edge"
-    else
-        echo "${NESTED_CORE_CHANNEL}"
-    fi
+    echo "${NESTED_CORE_CHANNEL}"
 }
 
 nested_get_base_channel() {
@@ -530,12 +526,7 @@ nested_get_kernel_channel() {
 }
 
 nested_get_gadget_channel() {
-    if nested_is_core_26_system; then
-        # TODO: Remove when it becomes available in the other channels
-        echo "edge"
-    else
-        echo "${NESTED_GADGET_CHANNEL}"
-    fi
+    echo "${NESTED_GADGET_CHANNEL}"
 }
 
 nested_get_image_name_base() {
@@ -1012,7 +1003,7 @@ nested_create_core_vm() {
         else
             # create the ubuntu-core image
             local UBUNTU_IMAGE="$GOHOME"/bin/ubuntu-image
-            if os.query is-xenial || os.query is-arm; then
+            if os.query is-xenial; then
                 # ubuntu-image on 16.04 needs to be installed from a snap
                 UBUNTU_IMAGE=/snap/bin/ubuntu-image
             fi
@@ -1329,9 +1320,12 @@ nested_create_vm_service() {
     elif [ "$SPREAD_BACKEND" = "qemu-nested" ] || [ "$SPREAD_BACKEND" = "garden" ]; then
         PARAM_MEM="-m ${NESTED_MEM:-2048}"
         PARAM_SMP="-smp ${NESTED_CPUS:-1}"
-    elif [[ "$SPREAD_BACKEND" = openstack* ]]; then
+    elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
+        PARAM_MEM="-m ${NESTED_MEM:-8192}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-6}"
+    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
-        PARAM_SMP="-smp ${NESTED_CPUS:-2}"
+        PARAM_SMP="-smp ${NESTED_CPUS:-3}"
     else
         echo "unknown spread backend $SPREAD_BACKEND"
         exit 1
@@ -1389,7 +1383,7 @@ nested_create_vm_service() {
         # considers removable devices for cold-plug first-boot runs
         # the nec-usb-xhci device is necessary to create the bus we attach the
         # storage to
-        PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=none,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
+        PARAM_ASSERTIONS="-drive if=none,id=stick,format=raw,file=$NESTED_ASSETS_DIR/assertions.disk,cache=unsafe,aio=threads,format=raw -device nec-usb-xhci,id=xhci -device usb-storage,bus=xhci.0,removable=true,drive=stick"
     fi
 
     local PARAM_BIOS PARAM_TPM PARAM_IMAGE
@@ -1451,7 +1445,7 @@ nested_create_vm_service() {
     
         if os.query is-arm; then
             PARAM_MACHINE="-machine virt${ENABLE_ARM_TRUSTZONE} -accel tcg,thread=multi"
-            PARAM_CPU="-cpu cortex-a57"
+            PARAM_CPU="-cpu neoverse-n1"
         else
             PARAM_MACHINE="-machine q35${ATTR_KVM}"
         fi
@@ -1543,10 +1537,13 @@ nested_start_core_vm_unit() {
         # Wait for the snap command to be available
         nested_wait_for_snap_command 120 1
         nested_wait_for_snap_seeded
+        echo "Waiting for snap seeding to complete"
         # Copy tools to be used on tests
         nested_prepare_tools
         # Wait for cloud init to be done if the system is using cloud-init
-        if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
+        # Do not wait for cloud-init on arm because it is disabled and takes delayes the tests
+        if [ "$NESTED_USE_CLOUD_INIT" = true ] && ! os.query is-arm; then
+            echo "Waiting for cloud-init to finish"
             if ! remote.exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"; then
                 # Error 2 means 'recoverable error', ignore that case
                 ret=0
@@ -1568,10 +1565,12 @@ nested_start_core_vm_unit() {
 }
 
 nested_setup_vm(){
+    echo "Setting up the nested VM"
     local modified
     modified=0
 
     if [ "${SNAPD_USE_PROXY:-}" = true ]; then
+        echo "Configuring proxy on the nested VM"
         nested_no_proxy="${NO_PROXY},10.0.2.2"
 
         # Ensure the nameservers used are the same than the host vm
@@ -1609,8 +1608,11 @@ nested_setup_vm(){
         remote.exec "sudo systemctl daemon-reload"
         remote.exec "sudo systemctl start snapd.service snapd.socket"
         modified=1
+        echo "Proxy configuration added to the nested VM"
     fi
+
     if [ -n "${NTP_SERVER:-}" ]; then
+        echo "Configuring NTP server on the nested VM"
         # We reconfigure both chrony and timesyncd if installed. But
         # we only restart the one started.
         if remote.exec "[ -d /etc/chrony/sources.d ]"; then
@@ -1636,9 +1638,11 @@ nested_setup_vm(){
             remote.exec "sudo systemctl try-restart systemd-timesyncd"
             modified=1
         fi
+        echo "NTP server configuration added to the nested VM"
     fi
 
     if [ "${modified}" != 0 ]; then
+      echo "Modifications have been made to the nested VM, syncing changes to disk"
       # Some modification have happened, before return back to a test
       # that might do a hard reset, we need to make sure the
       # modification are saved to disk.
@@ -1832,20 +1836,24 @@ remote.exec_as() {
 }
 
 nested_prepare_tools() {
+    echo "Preparing test tools in nested vm"
+
     TOOLS_PATH=/writable/test-tools
     if ! remote.exec "test -d $TOOLS_PATH" &>/dev/null; then
         remote.exec "sudo mkdir -p $TOOLS_PATH"
-        remote.exec "sudo chown user1:user1 $TOOLS_PATH"
+        remote.exec "sudo chown $NESTED_REMOTE_USER_NAME:$NESTED_REMOTE_USER_NAME $TOOLS_PATH"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
         remote.push "$TESTSTOOLS/retry"
         remote.exec "mv retry $TOOLS_PATH/retry"
+        echo "retry tool copied to nested vm"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/not" &>/dev/null; then
         remote.push "$TESTSTOOLS/not"
         remote.exec "mv not $TOOLS_PATH/not"
+        echo "not tool copied to nested vm"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
@@ -1858,6 +1866,7 @@ nested_prepare_tools() {
         remote.push "MATCH_FILE"
         remote.exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
         rm -f MATCH_FILE
+        echo "MATCH tool copied to nested vm"
     fi
 
     if ! remote.exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
@@ -1870,12 +1879,14 @@ nested_prepare_tools() {
         remote.push "NOMATCH_FILE"
         remote.exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
         rm -f NOMATCH_FILE
+        echo "NOMATCH tool copied to nested vm"
     fi
 
     if ! remote.exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
         REMOTE_PATH="$(remote.exec 'echo $PATH')"
         remote.exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH:/usr/lib/python | sudo tee -a /etc/environment"
+        echo "PATH updated in /etc/environment"
     fi
 
     if [ -n "$TAG_FEATURES" ]; then

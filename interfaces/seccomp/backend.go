@@ -204,17 +204,17 @@ func parallelCompile(compiler Compiler, profiles []string) error {
 // This method should be called after changing plug, slots, connections between
 // them or application present in the snap.
 func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, sctx interfaces.SetupContext, repo *interfaces.Repository, tm timings.Measurer) error {
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName()
 	// Get the snippets that apply to this snap
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
-		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain seccomp specification for snap %q: %s", instanceName, err)
 	}
 
 	// Get the snippets that apply to this snap
 	content, err := b.deriveContent(spec.(*Specification), opts, appSet)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", instanceName, err)
 	}
 
 	dir := dirs.SnapSeccompDir
@@ -223,7 +223,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	}
 
 	var globs []string
-	for _, g := range interfaces.SecurityTagGlobs(snapName) {
+	for _, g := range interfaces.SecurityTagGlobs(instanceName.TODOInstanceName()) {
 		globs = append(globs, fmt.Sprintf("%s.src", g))
 	}
 
@@ -238,7 +238,7 @@ func (b *Backend) Setup(appSet *interfaces.SnapAppSet, opts interfaces.Confineme
 	//   appear in that time, `snap-confine` will fail and die
 	changed, removed, err := osutil.EnsureDirStateGlobs(dir, globs, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize security files for snap %q: %s", instanceName, err)
 	}
 	for _, c := range removed {
 		err := os.Remove(bpfBinPath(c))

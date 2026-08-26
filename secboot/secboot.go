@@ -147,6 +147,17 @@ const (
 	TPMProvisionFullWithoutLockout
 )
 
+// PCRProtectionProfileOptions carries the options that influence how a PCR
+// protection profile is built.
+type PCRProtectionProfileOptions struct {
+	// AllowInsufficientDmaProtection allows systems lacking sufficient DMA
+	// protection.
+	AllowInsufficientDmaProtection bool
+	// AllowThunderboltSecurityLevel0 allows systems reporting the "Security
+	// Level is Downgraded to 0" Thunderbolt event.
+	AllowThunderboltSecurityLevel0 bool
+}
+
 type SealKeysParams struct {
 	// The parameters we're sealing the key to
 	ModelParams []*SealKeyModelParams
@@ -165,6 +176,8 @@ type SealKeysParams struct {
 	KeyRole string
 	// Whether to allow disabled DMA protection
 	AllowInsufficientDmaProtection bool
+	// Whether to allow the "Security Level is Downgraded to 0" Thunderbolt event
+	AllowThunderboltSecurityLevel0 bool
 }
 
 type SealKeysWithFDESetupHookParams struct {
@@ -370,4 +383,22 @@ type Partition interface {
 type Disk interface {
 	PartitionWithFsLabel(string) (Partition, error)
 	DiskModel() string
+}
+
+// RemedialActions is a set of actions recommended to repair detected
+// issues with FDE state.
+type RemedialActions struct {
+	// AttemptRepair tells whether an auto-repair should be attempted.
+	// If the attempt fails, then it means a reprovision is required.
+	AttemptRepair bool
+	// RequireReprovision tells whether issues require a reprovision
+	// and it was detected that auto-repair would not be enough.
+	RequireReprovision bool
+	// PermitManual signals that there are some issues that could
+	// be fixed by administrator.
+	PermitManual bool
+	// RequirePlatformReset tells that the platform is owned by another
+	// system, we lost ownership of the platform. In that case
+	// the security device (e.g. TPM) needs to be cleared.
+	RequirePlatformReset bool
 }

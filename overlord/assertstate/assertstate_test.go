@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/integrity"
@@ -5996,7 +5997,7 @@ func (s *assertMgrSuite) TestSnapResourcePair(c *C) {
 }
 
 func (s *assertMgrSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("assertmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("assertmgr.go", c, false)
 }
 
 func (s *assertMgrSuite) TestOfflineErrorSurfaced(c *C) {

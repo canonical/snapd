@@ -726,11 +726,14 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 		}
 
 		if checkFailErrors == ErrorSecbootTimeout {
-			select {
-			case <-ctx.Done():
-				return nil, nil, ctx.Err()
-			case <-time.After(20 * time.Millisecond):
-			}
+			// Wait deterministically for the context to expire (its
+			// timeout is mocked to be very short) instead of racing
+			// it against a fixed sleep. Racing an unrelated timer is
+			// flaky on slow or heavily loaded machines, where
+			// scheduling delays can let both timers become ready by
+			// the time the select is evaluated.
+			<-ctx.Done()
+			return nil, nil, ctx.Err()
 		}
 
 		switch errorsDetected {
@@ -762,11 +765,10 @@ func (s *installSuite) mockHelperForEncryptionAvailabilityCheck(c *C, isSupporte
 			}
 
 			if checkFailErrors == ErrorSecbootTimeout {
-				select {
-				case <-ctx.Done():
-					return nil, ctx.Err()
-				case <-time.After(20 * time.Millisecond):
-				}
+				// See the equivalent comment in the
+				// secboot.PreinstallCheck mock above.
+				<-ctx.Done()
+				return nil, ctx.Err()
 			}
 
 			switch errorsDetected {
@@ -1654,9 +1656,9 @@ func (s *installSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		{`{"features":["a"]}`, "", device.EncryptionTypeLUKS},
 		{`{"features":["a","b"]}`, "", device.EncryptionTypeLUKS},
 		// features must be list of strings
-		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, device.EncryptionTypeNone},
-		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, device.EncryptionTypeNone},
-		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`, device.EncryptionTypeNone},
+		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into.*`, device.EncryptionTypeNone},
+		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into.*`, device.EncryptionTypeNone},
+		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into.*`, device.EncryptionTypeNone},
 		// valid and uses ice
 		{`{"features":["a","inline-crypto-engine","b"]}`, "", device.EncryptionTypeLUKSWithICE},
 	} {

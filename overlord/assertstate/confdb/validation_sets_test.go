@@ -21,6 +21,7 @@ package confdb_test
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -100,7 +101,7 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 
 	s.mockInstalledSnap(c, "enforced-snap", "qOqKhntON3vR7kwEbVPsILm7bUViPDzz", snap.R(7))
 
-	s.addValidationSetAssert(c, "my-account", "my-set", 1, []any{
+	s.addValidationSetAssert(c, "my-account", "my-set", 1, 0, []any{
 		map[string]any{
 			"id":       "cccchntON3vR7kwEbVPsILm7bUViPDcc",
 			"name":     "missing-snap",
@@ -117,7 +118,7 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 	})
 
 	// valid-set's constraints are met and the set can be enforced
-	s.addValidationSetAssert(c, "my-account", "valid-set", 1, []any{
+	s.addValidationSetAssert(c, "my-account", "valid-set", 1, 1, []any{
 		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "enforced-snap",
@@ -136,7 +137,7 @@ func (s *confdbHandlerSuite) SetUpTest(c *C) {
 // local DB allows tests that only inspect tracking (e.g. via Databag) to work
 // without going through a Commit. Developer accounts and signing keys are
 // created on first use per account.
-func (s *confdbHandlerSuite) addValidationSetAssert(c *C, accountID, name string, sequence int, snaps []any) {
+func (s *confdbHandlerSuite) addValidationSetAssert(c *C, accountID, name string, sequence, revision int, snaps []any) {
 	if _, ok := s.devSignings[accountID]; !ok {
 		privKey, _ := assertstest.GenerateKey(752)
 		acct := assertstest.NewAccount(s.storeSigning, accountID, map[string]any{
@@ -160,10 +161,12 @@ func (s *confdbHandlerSuite) addValidationSetAssert(c *C, accountID, name string
 		"authority-id": accountID,
 		"publisher-id": accountID,
 		"name":         name,
-		"sequence":     fmt.Sprintf("%d", sequence),
+		"sequence":     strconv.Itoa(sequence),
 		"snaps":        snaps,
 		"timestamp":    time.Now().Format(time.RFC3339),
-		"revision":     "1",
+	}
+	if revision > 0 {
+		headers["revision"] = strconv.Itoa(revision)
 	}
 	a, err := s.devSignings[accountID].Sign(asserts.ValidationSetType, headers, nil, "")
 	c.Assert(err, IsNil)
@@ -204,7 +207,7 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 		Mode:      assertstate.Monitor,
 		Current:   1,
 	})
-	s.addValidationSetAssert(c, "acct1", "set-b", 4, []any{
+	s.addValidationSetAssert(c, "acct1", "set-b", 4, 2, []any{
 		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "enforced-snap",
@@ -219,7 +222,7 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 		PinnedAt:  5,
 		Current:   4,
 	})
-	s.addValidationSetAssert(c, "acct2", "set-c", 1, nil)
+	s.addValidationSetAssert(c, "acct2", "set-c", 1, 0, nil)
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "acct2",
 		Name:      "set-c",
@@ -239,7 +242,6 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 				"mode":     "monitor",
 				"status":   "invalid",
 				"sequence": float64(1),
-				"revision": float64(1),
 				"snaps": []any{
 					map[string]any{
 						"name":     "missing-snap",
@@ -265,7 +267,7 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 				"status":          "valid",
 				"sequence":        float64(4),
 				"pinned-sequence": float64(5),
-				"revision":        float64(1),
+				"revision":        float64(2),
 				"snaps": []any{
 					map[string]any{
 						"name":     "enforced-snap",
@@ -281,7 +283,6 @@ func (s *confdbHandlerSuite) TestDatabagMultipleSetsAndAccounts(c *C) {
 				"mode":     "enforce",
 				"status":   "valid",
 				"sequence": float64(1),
-				"revision": float64(1),
 			},
 		},
 	})
@@ -293,7 +294,7 @@ func (s *confdbHandlerSuite) TestUpdateEntireValidationSet(c *C) {
 
 	// add an assertion at sequence 5 with an installed snap so the enforce
 	// constraint check succeeds
-	s.addValidationSetAssert(c, "my-account", "my-set", 5, []any{
+	s.addValidationSetAssert(c, "my-account", "my-set", 5, 0, []any{
 		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "enforced-snap",
@@ -494,14 +495,14 @@ func (s *confdbHandlerSuite) TestCommitMultipleSetsAcrossAccounts(c *C) {
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.addValidationSetAssert(c, "acct1", "set-a", 1, nil)
+	s.addValidationSetAssert(c, "acct1", "set-a", 1, 0, nil)
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "acct1",
 		Name:      "set-a",
 		Mode:      assertstate.Monitor,
 		Current:   1,
 	})
-	s.addValidationSetAssert(c, "acct1", "set-b", 1, nil)
+	s.addValidationSetAssert(c, "acct1", "set-b", 1, 0, nil)
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "acct1",
 		Name:      "set-b",
@@ -509,8 +510,8 @@ func (s *confdbHandlerSuite) TestCommitMultipleSetsAcrossAccounts(c *C) {
 		PinnedAt:  1,
 		Current:   1,
 	})
-	s.addValidationSetAssert(c, "acct2", "set-c", 1, nil)
-	s.addValidationSetAssert(c, "acct2", "set-c", 2, nil)
+	s.addValidationSetAssert(c, "acct2", "set-c", 1, 0, nil)
+	s.addValidationSetAssert(c, "acct2", "set-c", 2, 0, nil)
 	assertstate.UpdateValidationSet(s.st, &assertstate.ValidationSetTracking{
 		AccountID: "acct2",
 		Name:      "set-c",
@@ -589,7 +590,7 @@ func (s *confdbHandlerSuite) TestCommitEnforceFailureLeavesStateUnchanged(c *C) 
 	s.st.Lock()
 	defer s.st.Unlock()
 
-	s.addValidationSetAssert(c, "my-account", "another-valid-set", 1, []any{
+	s.addValidationSetAssert(c, "my-account", "another-valid-set", 1, 0, []any{
 		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "enforced-snap",
@@ -685,7 +686,7 @@ func (s *confdbHandlerSuite) TestCommitForgetFailureDoesNotRollbackEnforceOrMoni
 		CtxStore:    &assertstatetest.FakeStore{State: s.st, DB: s.storeSigning},
 	}))
 
-	s.addValidationSetAssert(c, "my-account", "another-valid-set", 1, []any{
+	s.addValidationSetAssert(c, "my-account", "another-valid-set", 1, 0, []any{
 		map[string]any{
 			"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 			"name":     "enforced-snap",

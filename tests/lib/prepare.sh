@@ -917,7 +917,7 @@ repack_core_snap_with_tweaks() {
 
     local UNPACK_DIR
     # TODO set up a trap to clean this up properly?
-    UNPACK_DIR="$(mktemp -d /tmp/core-unpack.XXXXXXXX)"
+    UNPACK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/core-unpack.XXXXXXXX")"
     unsquashfs -no-progress -f -d "$UNPACK_DIR" "$CORESNAP"
 
     # determine destination directory for systemd configuration files
@@ -1025,7 +1025,7 @@ uc20_build_corrupt_kernel_snap() {
 
 uc_write_bootstrap_wrapper() {
     local SKELETON_PATH="$1"
-    local INJECT_ERR="${2:-false}"
+    local INJECT_KERNEL_PANIC="${2:-}"
 
     cp -a /usr/lib/snapd/snap-bootstrap "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap.real
     cat <<'EOF' >"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
@@ -1034,6 +1034,11 @@ set -eux
 if [ "$1" != initramfs-mounts ]; then
     exec /usr/lib/snapd/snap-bootstrap.real "$@"
 fi
+EOF
+    if [ "$INJECT_KERNEL_PANIC" = "before-snap-bootstrap" ]; then
+        echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
+    fi
+    cat <<'EOF' >>"$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
 beforeDate="$(date --utc '+%s')"
 /usr/lib/snapd/snap-bootstrap.real "$@"
 if [ -d /run/mnt/data/system-data ]; then
@@ -1049,8 +1054,7 @@ stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/test/${mode}-clock-epo
 echo "$beforeDate" > /run/mnt/ubuntu-seed/test/${mode}-before-snap-bootstrap-date
 date --utc '+%s' > /run/mnt/ubuntu-seed/test/${mode}-after-snap-bootstrap-date
 EOF
-    if [ "$INJECT_ERR" = "true" ]; then
-        # add a kernel panic to the end of the-tool execution
+    if [ "$INJECT_KERNEL_PANIC" = "after-snap-bootstrap" ]; then
         echo "echo 'forcibly panicking'; echo c > /proc/sysrq-trigger" >> "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
     fi
     chmod +x "$SKELETON_PATH"/usr/lib/snapd/snap-bootstrap
@@ -1076,13 +1080,16 @@ uc20_build_initramfs_kernel_snap() {
     # TODO proper option support here would be nice but bash is hard and this is
     # easier, and likely we won't need to both inject a panic and set the epoch
     # bump simultaneously
-    local injectKernelPanic=false
+    local injectKernelPanic=
     local initramfsEpochBumpTime
     initramfsEpochBumpTime=$(date '+%s')
     optArg=${3:-}
     case "$optArg" in
-        --inject-kernel-panic-in-initramfs)
-            injectKernelPanic=true
+        --inject-kernel-panic-before-snap-bootstrap)
+            injectKernelPanic=before-snap-bootstrap
+            ;;
+        --inject-kernel-panic-after-snap-bootstrap)
+            injectKernelPanic=after-snap-bootstrap
             ;;
         --epoch-bump-time=*)
             # this strips the option and just gives us the value
@@ -1232,16 +1239,18 @@ uc24_build_initramfs_kernel_snap() {
     local TARGET="$2"
     local OPT_ARG="${3:-}"
 
-    injectKernelPanic=false
+    local injectKernelPanic=
     case "$OPT_ARG" in
-        --inject-kernel-panic-in-initramfs)
-            injectKernelPanic=true
+        --inject-kernel-panic-before-snap-bootstrap)
+            injectKernelPanic=before-snap-bootstrap
+            ;;
+        --inject-kernel-panic-after-snap-bootstrap)
+            injectKernelPanic=after-snap-bootstrap
             ;;
     esac
 
     unsquashfs -d pc-kernel "$ORIG_SNAP"
     kernelver=$(find pc-kernel/modules/ -maxdepth 1 -mindepth 1 -printf "%f")
-
     # TODO: update ubuntu-core-initramfs to use a disk-backed tmpdir by default
     TMPDIR=/var/tmp ubuntu-core-initramfs create-initrd --kernelver="$kernelver" --kerneldir pc-kernel/modules/"$kernelver" \
                           --firmwaredir pc-kernel/firmware --output initrd.img
@@ -1274,7 +1283,6 @@ uc24_build_initramfs_kernel_snap() {
     # Build signed uki image - snakeoil keys shipped by ubuntu-core-initramfs
     # are used by default
     objcopy -O binary -j .linux pc-kernel/kernel.efi linux-"$kernelver"
-
     # TODO: update ubuntu-core-initramfs to use a disk-backed tmpdir by default
     TMPDIR=/var/tmp ubuntu-core-initramfs create-efi --kernelver="$kernelver" --initrd initrd.img --kernel linux --output kernel.efi
     cp kernel.efi-"$kernelver" pc-kernel/kernel.efi

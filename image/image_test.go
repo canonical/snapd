@@ -2081,13 +2081,17 @@ func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := os.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
+	prepareDir := filepath.Join(c.MkDir(), "no-where")
+	err = os.WriteFile(prepareDir, nil, 0644)
+	c.Assert(err, IsNil)
 
 	err = image.Prepare(&image.Options{
 		ModelFile:  fn,
 		Channel:    "stable",
-		PrepareDir: "/no-where",
+		PrepareDir: prepareDir,
 	})
-	c.Assert(err, ErrorMatches, `cannot create unpack dir "/no-where/gadget": mkdir .*`)
+	gadgetUnpackDir := filepath.Join(prepareDir, "gadget")
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot create unpack dir %q: mkdir %s: not a directory`, gadgetUnpackDir, prepareDir))
 }
 
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
@@ -2803,6 +2807,9 @@ func (s *imageSuite) TestSetupSeedMissingContentProvider(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedClassic(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root-owned files do not trigger the ownership warning)")
+	}
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
@@ -3048,6 +3055,9 @@ func (s *imageSuite) TestSetupSeedClassicWithLocalClassicSnap(c *C) {
 }
 
 func (s *imageSuite) TestSetupSeedClassicSnapdOnly(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root-owned files do not trigger the ownership warning)")
+	}
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 

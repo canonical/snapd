@@ -213,6 +213,9 @@ func (s *copydataSuite) testCopyDataMulti(c *C, snapDir string, opts *dirs.SnapD
 }
 
 func (s *copydataSuite) TestCopyDataBails(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
 
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 	c.Assert(s.be.CopySnapData(v1, nil, nil, progress.Null), IsNil)
@@ -558,6 +561,10 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 }
 
 func (s *copydataSuite) TestCopyDataPartialFailure(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (root bypasses directory write permissions)")
+	}
+
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
 
 	s.populateData(c, snap.R(10))

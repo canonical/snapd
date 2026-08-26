@@ -241,7 +241,7 @@ parts:
       - xz-utils
     override-pull: |
       craftctl default
-      ln -sf packaging/ubuntu-16.04 debian
+      ln -sfn packaging/ubuntu-16.04 debian
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       VERSION="$(./mkversion.sh --output-only)"
 
@@ -339,7 +339,6 @@ parts:
             lib/snapd/snap-bootstrap
             lib/snapd/snap-failure
             lib/snapd/snap-fde-keymgr
-            lib/snapd/snap-recovery-chooser
             lib/snapd/snap-repair
             lib/snapd/snap-seccomp
             lib/snapd/snap-update-ns
@@ -466,6 +465,9 @@ parts:
       # link snap-gpio-helper -> snapd-tool-wrap (C tool wrapper multi-call)
       ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
          "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-gpio-helper"
+      # link snap-recovery-chooser -> snapd-tool-wrap (C tool wrapper multi-call)
+      ln -v -s -r "${CRAFT_PART_INSTALL}/usr/lib/snapd/snapd-tool-wrap" \
+         "${CRAFT_PART_INSTALL}/usr/lib/snapd/snap-recovery-chooser"
 
       if [ -f fips-build ]; then
         # Set up FIPS dispatch: replace each original binary with a symlink

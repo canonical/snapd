@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -2125,5 +2126,5 @@ func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
 }
 
 func (s *snapshotSuite) TestEnsureLoopLogging(c *check.C) {
-	testutil.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
+	swfeatstest.CheckEnsureLoopLogging("snapshotmgr.go", c, false)
 }

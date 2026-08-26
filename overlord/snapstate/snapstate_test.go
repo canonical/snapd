@@ -65,6 +65,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/sequence"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/overlord/swfeats/swfeatstest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
@@ -506,6 +507,46 @@ func (s *snapmgrBaseTest) TearDownTest(c *C) {
 	snapstate.ValidateRefreshes = nil
 	snapstate.AutoAliases = nil
 	snapstate.CanAutoRefresh = nil
+}
+
+func (s *snapmgrTestSuite) TestDiskSpaceReservationCalc(c *C) {
+	const operationSize = uint64(1024)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, tc := range []struct {
+		description string
+		configured  bool
+		value       any
+		size        uint64
+		expected    uint64
+		err         string
+	}{
+		{description: "unset", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "nil", configured: true, value: nil, size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "invalid", configured: true, value: "invalid", size: operationSize, expected: operationSize + snapstate.DefaultDiskSpaceReservation},
+		{description: "numeric bytes", configured: true, value: 2048, size: operationSize, expected: operationSize + 2048},
+		{description: "string bytes", configured: true, value: "4096", size: operationSize, expected: operationSize + 4096},
+		{description: "quantity", configured: true, value: "1G", size: operationSize, expected: operationSize + 1024*1024*1024},
+		{description: "zero", configured: true, value: 0, size: operationSize, expected: operationSize},
+		{description: "configured overflow", configured: true, value: "1", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+		{description: "default overflow", size: ^uint64(0), err: "cannot calculate required disk space: size overflow"},
+	} {
+		tr := config.NewTransaction(s.state)
+		if tc.configured {
+			c.Assert(tr.Set("core", "disk-reservation.size", tc.value), IsNil)
+		}
+
+		reservation, err := snapstate.DiskSpaceReservation(tc.size, tr)
+		if tc.err != "" {
+			c.Check(err, ErrorMatches, tc.err, Commentf(tc.description))
+			continue
+		}
+
+		c.Check(err, IsNil, Commentf(tc.description))
+		c.Check(reservation, Equals, tc.expected, Commentf(tc.description))
+	}
 }
 
 type ForeignTaskTracker interface {
@@ -13008,7 +13049,7 @@ func (s *snapStateSuite) TestUnmountAllSnaps(c *C) {
 }
 
 func (s *snapStateSuite) TestEnsureLoopLogging(c *C) {
-	testutil.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
+	swfeatstest.CheckEnsureLoopLogging("snapmgr.go", c, true, "autorefresh.go", "catalogrefresh.go", "refreshhints.go")
 }
 
 func (s *snapStateSuite) TestShouldScheduleUpdateCertDBForRefresh(c *C) {

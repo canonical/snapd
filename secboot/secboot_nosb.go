@@ -110,7 +110,7 @@ func DeleteKeys(node string, matches map[string]bool) error {
 	return errBuildWithoutSecboot
 }
 
-func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, allowInsufficientDmaProtection bool) (SerializedPCRProfile, error) {
+func BuildPCRProtectionProfile(modelParams []*SealKeyModelParams, checkResult *PreinstallCheckResult, opts PCRProtectionProfileOptions) (SerializedPCRProfile, error) {
 	return nil, errBuildWithoutSecboot
 }
 
@@ -207,8 +207,8 @@ func (*ActivateState) NumActivatedContainersWithRecoveryKey() uint {
 	return 0
 }
 
-func ShouldAttemptRepair(a *ActivateState) bool {
-	return false
+func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialActions {
+	return RemedialActions{}
 }
 
 type ActivateContext interface {

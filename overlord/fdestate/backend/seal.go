@@ -118,6 +118,7 @@ func sealRunObjectKeys(
 		PCRPolicyCounterHandle:         pcrHandle,
 		KeyRole:                        keyRole,
 		AllowInsufficientDmaProtection: !hasClassicModel,
+		AllowThunderboltSecurityLevel0: !hasClassicModel,
 	}
 
 	if !useTokens {
@@ -172,6 +173,7 @@ func sealFallbackObjectKeys(
 		PCRPolicyCounterHandle:         pcrHandle,
 		KeyRole:                        keyRole,
 		AllowInsufficientDmaProtection: !hasClassicModel,
+		AllowThunderboltSecurityLevel0: !hasClassicModel,
 	}
 	logger.Debugf("sealing fallback key with PCR handle: %#x", sealKeyParams.PCRPolicyCounterHandle)
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The

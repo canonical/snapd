@@ -86,11 +86,11 @@ func (escapeSuite) TestBadStrings(c *check.C) {
 
 	table := map[string][][]byte{
 		// these are from json itself (so we're not checking them):
-		"invalid character '.+' in string literal":     cc0,
-		"invalid character '.+' in string escape code": badesc,
-		`invalid character '.+' in \\u .*`:             {[]byte(`"\u02"`), []byte(`"\u02zz"`)},
-		"invalid character '\"' after top-level value": {[]byte(`"""`)},
-		"unexpected end of JSON input":                 {[]byte(`"\"`)},
+		"invalid character '.+' in string.*":                                                                cc0,
+		"(invalid character '.+' in string escape code|invalid escape sequence .+ in string)":               badesc,
+		`(invalid character '.+' in \\u hexadecimal character escape|invalid escape sequence .+ in string)`: {[]byte(`"\u02"`), []byte(`"\u02zz"`)},
+		"invalid character '\"' after top-level value":                                                      {[]byte(`"""`)},
+		"unexpected end of JSON input":                                                                      {[]byte(`"\"`)},
 	}
 
 	for e, js := range table {

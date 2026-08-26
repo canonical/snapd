@@ -273,6 +273,11 @@ func CommonDataDir(name string) string {
 	return filepath.Join(dirs.SnapDataDir, name, "common")
 }
 
+// SequenceFile returns the path to the sequence file for the given snap name.
+func SequenceFile(name string) string {
+	return filepath.Join(dirs.SnapSeqDir, name+".json")
+}
+
 // HooksDir returns the directory containing the snap's hooks for given snap
 // name. The name can be either a snap name or snap instance name.
 func HooksDir(name string, revision Revision) string {
@@ -1241,7 +1246,7 @@ func gatherDefaultContentProvider(providerSnapsToContentTag map[string][]string,
 		if err := plug.Attr("default-provider", &dprovider); err == nil && dprovider != "" {
 			// usage can be "snap:slot" but slot
 			// is ignored/unused
-			name := strings.Split(dprovider, ":")[0]
+			name, _, _ := strings.Cut(dprovider, ":")
 			var contentTag string
 			plug.Attr("content", &contentTag)
 			if filterTags[contentTag] {

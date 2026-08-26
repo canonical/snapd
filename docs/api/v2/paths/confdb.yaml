@@ -54,10 +54,25 @@ get:
       in: query
       description: |-
         A JSON object holding values used to constrain parameters, keyed by the
-        parameter names. Used to filter data according to the placeholders and 
+        parameter names. Used to filter data according to the placeholders and
         field filters in the matched requests.
       schema:
         type: string
+    - name: access-timeout
+      in: query
+      description: |-
+        How long to wait for other confdb accesses to complete before
+        cancelling the request and failing with an error. If not specified,
+        a default timeout of 10 minutes is applied.
+      schema:
+        type: string
+        format: Go duration
+        externalDocs:
+          description: |-
+            Read more about how Go handles time and durations in the official
+            Go Time package documentation.
+          url: https://pkg.go.dev/time#ParseDuration
+      example: 2m30s
 
   responses:
     202:
@@ -91,6 +106,23 @@ put:
                 A map of configuration paths to JSON values to be set.
                 Use null to unset a value.
               additionalProperties: true
+            options:
+              type: object
+              properties:
+                access-timeout:
+                  type: string
+                  description: |-
+                    How long to wait for other confdb accesses to complete
+                    before cancelling the request and failing with an error.
+                    If not specified, a default timeout of 10 minutes is
+                    applied.
+                  format: Go duration
+                  externalDocs:
+                    description: |-
+                      Read more about how Go handles time and durations in the
+                      official Go Time package documentation.
+                    url: https://pkg.go.dev/time#ParseDuration
+                  example: 15s
           example:
             values:
               office.ssid: foo
