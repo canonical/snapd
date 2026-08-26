@@ -118,7 +118,7 @@ execute: |
         systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
 
         # Check that there are no sessions for $USER when filtering out "manager"
-        loginctl list-sessions --no-legend | grep -v 'manager' | NOMATCH "$USER"
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | NOMATCH \"$USER\""
         if [ "$systemd_ver" -lt 256 ]; then
             # Truly no sessions for $USER on < 256
             loginctl list-sessions --no-legend | NOMATCH "$USER"
@@ -150,7 +150,7 @@ execute: |
         # Running `tests.session exec` executes in its own background session,
         # so there are two sessions while `tests.session exec` is running
         tests.session -u "$USER" exec loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^2$'
-        loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^1$'
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | grep --count \"$USER\" | MATCH '^1$'"
 
         # A second session with the same class/type but a distinct label can co-exist.
         tests.session create-session -u "$USER" -c user -t wayland -l second
