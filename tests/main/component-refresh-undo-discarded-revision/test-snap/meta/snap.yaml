@@ -1,0 +1,24 @@
+name: test-snap-discarded-rev-undo
+version: '1.0'
+summary: A snap with components and a configure hook that can be made to fail
+description: |
+  A snap with components and a snap-wide configure hook whose failure can be
+  armed via a marker file, used to test the undo path of a refresh that
+  discards an old revision.
+architectures:
+- all
+base: core24
+confinement: strict
+grade: stable
+apps:
+  test-snap-discarded-rev-undo:
+    command: test
+components:
+  comp-one:
+    summary: test component
+    description: test component
+    type: standard
+  comp-two:
+    summary: test component
+    description: test component
+    type: standard
