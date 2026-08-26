@@ -25,7 +25,6 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -50,10 +49,6 @@ func (s *snapmgrTestSuite) TestDoRemoveAliasesExcludeFromRefreshAppAwareness(c *
 		},
 	})
 
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
 	// With excluded from refresh-app-awareness
 	restore := snapstate.MockExcludeFromRefreshAppAwareness(func(t snap.Type) bool {
 		return true
@@ -162,10 +157,6 @@ func (s *snapmgrTestSuite) TestDoRemoveAliasesSkipped(c *C) {
 		},
 	})
 
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
 	t := s.state.NewTask("remove-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
@@ -211,10 +202,6 @@ func (s *snapmgrTestSuite) TestDoUndoRemoveAliasesSkipped(c *C) {
 		},
 	})
 
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
 	t := s.state.NewTask("remove-aliases", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
@@ -1025,10 +1012,6 @@ func (s *snapmgrTestSuite) TestDoSetupAliasesAutoPruneOldAliases(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	}
 
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
@@ -1124,10 +1107,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAutoPruneOldAliases(c *C) {
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	}
 
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
@@ -1240,10 +1219,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAutoErrorMidwayPruneOldAliases(
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	}
 
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
@@ -1420,10 +1395,6 @@ func (s *snapmgrTestSuite) TestDoUndoSetupAliasesAutoPruneOldAliasesConflict(c *
 		SideInfo: &snap.SideInfo{RealName: "alias-snap"},
 	}
 
-	// enable experimental refresh-app-awareness-ux
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.refresh-app-awareness-ux", true)
-	tr.Commit()
 	// remove-aliases + refresh-app-awareness task triggers pruning
 	removeAliasesTask := s.state.NewTask("remove-aliases", "test")
 	removeAliasesTask.Set("snap-setup", &snapsup)
