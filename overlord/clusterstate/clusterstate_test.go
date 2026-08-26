@@ -692,6 +692,106 @@ func (s *managerSuite) TestApplyClusterStateInstallRemoveAndUpdate(c *check.C) {
 	c.Assert([]string{tasks[0].Kind(), tasks[1].Kind(), tasks[2].Kind()}, check.DeepEquals, []string{"remove", "update", "install"})
 }
 
+func (s *managerSuite) TestApplyClusterStateSnapdChannelNotExplicit(c *check.C) {
+	st, stack := newStateWithStoreStack(c)
+
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		Current:         snap.R(1),
+		TrackingChannel: "18/stable",
+		Sequence: sequence.SnapSequence{
+			Revisions: []*sequence.RevisionSideState{
+				sequence.NewRevisionSideState(&snap.SideInfo{Revision: snap.R(1)}, nil),
+			},
+		},
+	})
+
+	bundle, _ := makeClusterBundle(c, stack, []map[string]any{
+		{
+			"id":        "1",
+			"device":    "serial-1.ubuntu-core-24-amd64.canonical",
+			"addresses": []any{"192.168.0.10"},
+		},
+	}, []map[string]any{{
+		"name":    "default",
+		"devices": []any{"1"},
+		"snaps": []any{
+			map[string]any{
+				"state":    "clustered",
+				"instance": "snapd",
+				"channel":  "latest/stable",
+			},
+			map[string]any{
+				"state":    "clustered",
+				"instance": "to-install",
+				"channel":  "latest/stable",
+			},
+		},
+	}})
+
+	serial := makeSerialAssertion(c, stack, "serial-1")
+	addSerialToState(c, st, serial)
+
+	var updates []snapstate.StoreUpdate
+	var installs []snapstate.StoreSnap
+
+	restore := clusterstate.MockStoreUpdateGoal(func(upds ...snapstate.StoreUpdate) snapstate.UpdateGoal {
+		updates = append(updates, upds...)
+		return snapstate.StoreUpdateGoal(upds...)
+	})
+	defer restore()
+
+	restore = clusterstate.MockStoreInstallGoal(func(snaps ...snapstate.StoreSnap) snapstate.InstallGoal {
+		installs = append(installs, snaps...)
+		return snapstate.StoreInstallGoal(snaps...)
+	})
+	defer restore()
+
+	restore = clusterstate.MockSnapstateUpdateWithGoal(func(ctx context.Context, st *state.State, goal snapstate.UpdateGoal, filter func(*snap.Info, *snapstate.SnapState) bool, opts snapstate.Options) ([]string, *snapstate.UpdateTaskSets, error) {
+		task := st.NewTask("update", "update channel")
+		return []string{"snapd"}, &snapstate.UpdateTaskSets{
+			Refresh: []*state.TaskSet{state.NewTaskSet(task)},
+		}, nil
+	})
+	defer restore()
+
+	restore = clusterstate.MockInstallWithGoal(func(ctx context.Context, st *state.State, goal snapstate.InstallGoal, opts snapstate.Options) ([]*snap.Info, []*state.TaskSet, error) {
+		task := st.NewTask("install", "install snaps")
+		return nil, []*state.TaskSet{state.NewTaskSet(task)}, nil
+	})
+	defer restore()
+
+	err := clusterstate.InitializeNewCluster(st, bytes.NewReader(bundle))
+	c.Assert(err, check.IsNil)
+	mgr := clusterstate.Manager(st)
+
+	st.Unlock()
+	defer st.Lock()
+	c.Assert(mgr.Ensure(), check.IsNil)
+
+	c.Assert(installs, check.DeepEquals, []snapstate.StoreSnap{
+		{
+			InstanceName:  "to-install",
+			SkipIfPresent: true,
+			RevOpts: snapstate.RevisionOptions{
+				Channel: "latest/stable",
+			},
+		},
+	})
+	c.Assert(updates, check.DeepEquals, []snapstate.StoreUpdate{
+		{
+			InstanceName: "snapd",
+			RevOpts: snapstate.RevisionOptions{
+				Channel: "latest/stable",
+			},
+		},
+	})
+	c.Check(installs[0].RevOpts.ExplicitChannel, check.Equals, false)
+	c.Check(updates[0].RevOpts.ExplicitChannel, check.Equals, false)
+}
+
 func (s *managerSuite) TestApplyClusterStateMultipleSubclusters(c *check.C) {
 	st, stack := newStateWithStoreStack(c)
 

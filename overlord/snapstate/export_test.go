@@ -319,6 +319,14 @@ var (
 	MaybeRestoreValidationSetsAndRevertSnaps = maybeRestoreValidationSetsAndRevertSnaps
 )
 
+func JoinLanesFrom(ts *state.TaskSet, from *state.Task) {
+	joinLanesFrom(ts, from)
+}
+
+func AddTaskSetsToChange(chg *state.Change, from *state.Task, tss []*state.TaskSet) []string {
+	return addTaskSetsToChange(chg, from, tss)
+}
+
 type UpdateFilter = updateFilter
 
 func MockReRefreshUpdateMany(f func(context.Context, *state.State, []string, []*RevisionOptions, int, UpdateFilter, *Flags, string) ([]string, *UpdateTaskSets, error)) (restore func()) {
@@ -651,10 +659,43 @@ func NewSnapInstallTaskSetForTest(
 
 var ArrangeRebootAndUpdateSeed = arrangeRebootAndUpdateSeed
 
+var (
+	NeedsSnapdLTSTrackResolve     = needsSnapdLTSTrackResolve
+	InspectSnapdLTSAfterDownload  = inspectSnapdLTSAfterDownload
+	MaybeRedirectSnapdToLTSTrack  = maybeRedirectSnapdToLTSTrack
+	CheckSnapdLTSTargetPatchLevel = checkSnapdLTSTargetPatchLevel
+	SnapdLTSTrackAlreadyCorrect   = snapdLTSTrackAlreadyCorrect
+
+	SnapdLTSInjectedChangeAttr = snapdLTSInjectedChangeAttr
+	SnapdLTSVehicleLinkAttr    = snapdLTSVehicleLinkAttr
+)
+
+type SnapdLTSInspectResult = snapdLTSInspectResult
+
 func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []int, joinLane int) (ts *state.TaskSet)) (restore func()) {
 	return testutil.Mock(&ProcessDelayedSecurityBackendEffects, f)
 }
 
+func (m *SnapManager) MaybeInjectSnapdLTSHop() error {
+	return m.maybeInjectSnapdLTSHop()
+}
+
+func (m *SnapManager) EnsureSnapdLTSTrackTransition() error {
+	return m.ensureSnapdLTSTrackTransition()
+}
+
+func (m *SnapManager) UndoLinkSnap(t *state.Task) error {
+	return m.undoLinkSnap(t, nil)
+}
+
 func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 	return s.catalogRefreshDelayWithDelta
+}
+
+func (r *RevisionOptions) ResolveChannel(instanceName, fallback string, deviceCtx DeviceContext) error {
+	return r.resolveChannel(instanceName, fallback, deviceCtx)
+}
+
+func (r *RevisionOptions) ResolveChannelForStore(instanceName, fallback string, deviceCtx DeviceContext) error {
+	return r.resolveChannelForStore(instanceName, fallback, deviceCtx)
 }

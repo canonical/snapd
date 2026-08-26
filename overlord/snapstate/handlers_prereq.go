@@ -94,11 +94,22 @@ func defaultBaseSnapsChannel() string {
 }
 
 func defaultSnapdSnapsChannel() string {
-	channel := os.Getenv("SNAPD_SNAPD_CHANNEL")
+	return os.Getenv("SNAPD_SNAPD_CHANNEL")
+}
+
+// snapdPrereqRevOpts is the channel pin for a missing snapd prereq.
+// An empty env means omitted channel (same as snap install snapd): LTS
+// may jump at download intercept or after restart. SNAPD_SNAPD_CHANNEL
+// is an explicit operator pin and skips LTS.
+func snapdPrereqRevOpts() RevisionOptions {
+	channel := defaultSnapdSnapsChannel()
 	if channel == "" {
-		return "stable"
+		return RevisionOptions{}
 	}
-	return channel
+	return RevisionOptions{
+		Channel:         channel,
+		ExplicitChannel: true,
+	}
 }
 
 func defaultPrereqSnapsChannel() string {
@@ -247,9 +258,7 @@ func installPrereqs(t *state.Task, snapsup *SnapSetup, dctx DeviceContext, tm ti
 		timings.Run(tm, "install-prereq", "install snapd", func(timings.Measurer) {
 			snapdTS, err = ensurePrerequisite(t, nil, StoreSnap{
 				InstanceName: "snapd",
-				RevOpts: RevisionOptions{
-					Channel: defaultSnapdSnapsChannel(),
-				},
+				RevOpts:      snapdPrereqRevOpts(),
 			}, opts)
 		})
 		if err != nil {

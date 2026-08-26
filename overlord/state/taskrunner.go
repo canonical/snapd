@@ -20,6 +20,7 @@
 package state
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -78,6 +79,14 @@ type TaskRunner struct {
 
 	blocked     []blockedFunc
 	someBlocked bool
+
+	// restrictToChangeID, if non-empty, is the only change whose tasks
+	// may start. Process-local, not persisted. Protected by the state
+	// lock (written by RestrictToChange, read from Ensure).
+	restrictToChangeID string
+	// ensureStarted is set on the first Ensure. RestrictToChange may
+	// only be used before that (StartUp, before Loop).
+	ensureStarted bool
 
 	// optional callback executed on task errors
 	taskErrorCallback func(err error)
@@ -186,6 +195,43 @@ func (r *TaskRunner) AddBlocked(pred func(t *Task, running []*Task) bool) {
 	defer r.mu.Unlock()
 
 	r.blocked = append(r.blocked, pred)
+}
+
+// RestrictToChange, when chg is non-nil, lets only that change's tasks start
+// (Do or Undo) on this runner. Passing nil clears the restriction.
+//
+// The restriction applies to every task this runner handles, regardless of
+// which manager registered the handler. The daemon has one TaskRunner, so
+// this freezes all other changes' graphs.
+//
+// This may only be called before the runner's first Ensure (daemon StartUp,
+// before Loop). After Ensure has started, in-flight tasks would not be
+// cancelled; calling this then is an internal error. The restriction is
+// in-memory only: it is not persisted, and a new process starts unrestricted.
+// Callers must hold the state lock.
+func (r *TaskRunner) RestrictToChange(chg *Change) error {
+	// Must not lock r.mu: Ensure holds r.mu then the state lock.
+	if r.ensureStarted {
+		return fmt.Errorf("internal error: cannot restrict task runner after it has started")
+	}
+	if chg == nil {
+		r.restrictToChangeID = ""
+		return nil
+	}
+	r.restrictToChangeID = chg.ID()
+	logger.Noticef("restricting task runner to change %s", chg.ID())
+	return nil
+}
+
+func (r *TaskRunner) restrictToChangeBlocks(t *Task) bool {
+	if r.restrictToChangeID == "" {
+		return false
+	}
+	chg := t.Change()
+	if chg == nil {
+		return true
+	}
+	return chg.ID() != r.restrictToChangeID
 }
 
 // run must be called with the state lock in place
@@ -393,6 +439,8 @@ func (r *TaskRunner) Ensure() error {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	r.ensureStarted = true
+
 	r.someBlocked = false
 	running := make([]*Task, 0, len(r.tombs))
 	for tid := range r.tombs {
@@ -471,6 +519,10 @@ ConsiderTasks:
 				r.someBlocked = true
 				continue ConsiderTasks
 			}
+		}
+		if r.restrictToChangeBlocks(t) {
+			r.someBlocked = true
+			continue ConsiderTasks
 		}
 
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())

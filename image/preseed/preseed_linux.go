@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
-	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -134,7 +133,7 @@ var systemSnapFromSeed = func(seedDir, sysLabel string) (systemSnap string, base
 			fmt.Fprintf(Stdout, "ubuntu classic preseeding\n")
 		}
 	} else {
-		coreVersion, err := naming.CoreVersion(model.Base())
+		coreVersion, err := model.CoreVersion()
 		if err != nil {
 			return "", "", fmt.Errorf("preseeding of ubuntu core with base %s is not supported: %v", model.Base(), err)
 		}

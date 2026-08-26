@@ -55,14 +55,16 @@ import (
 )
 
 var (
-	removeSnapChangeKind           = swfeats.RegisterChangeKind("remove-snap")
-	transitionUbuntuCoreChangeKind = swfeats.RegisterChangeKind("transition-ubuntu-core")
+	removeSnapChangeKind              = swfeats.RegisterChangeKind("remove-snap")
+	transitionUbuntuCoreChangeKind    = swfeats.RegisterChangeKind("transition-ubuntu-core")
+	snapdLTSTrackTransitionChangeKind = swfeats.RegisterChangeKind("snapd-lts-track-transition")
 )
 
 func init() {
 	swfeats.RegisterEnsure("SnapManager", "ensureVulnerableSnapConfineVersionsRemovedOnClassic")
 	swfeats.RegisterEnsure("SnapManager", "ensureForceDevmodeDropsDevmodeFromState")
 	swfeats.RegisterEnsure("SnapManager", "ensureUbuntuCoreTransition")
+	swfeats.RegisterEnsure("SnapManager", "ensureSnapdLTSTrackTransition")
 	swfeats.RegisterEnsure("SnapManager", "atSeed")
 	swfeats.RegisterEnsure("SnapManager", "ensureMountsUpdated")
 	swfeats.RegisterEnsure("SnapManager", "ensureDesktopFilesUpdated")
@@ -79,6 +81,7 @@ func init() {
 // SnapManager is responsible for the installation and removal of snaps.
 type SnapManager struct {
 	state   *state.State
+	runner  *state.TaskRunner
 	backend managerBackend
 
 	autoRefresh    *autoRefresh
@@ -111,6 +114,14 @@ type SnapSetup struct {
 	Version string `json:"version,omitempty"`
 
 	CohortKey string `json:"cohort-key,omitempty"`
+
+	// ExplicitChannel is set when the caller requested a channel
+	// (--channel= / API "channel"). LTS policy must not override it.
+	ExplicitChannel bool `json:"explicit-channel,omitempty"`
+
+	// ExplicitRevision is set when the caller requested a revision
+	// (--revision= / API "revision"). LTS policy must not override it.
+	ExplicitRevision bool `json:"explicit-revision,omitempty"`
 
 	// FIXME: implement rename of this as suggested in
 	//  https://github.com/snapcore/snapd/pull/4103#discussion_r169569717
@@ -816,6 +827,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	preseed := snapdenv.Preseeding()
 	m := &SnapManager{
 		state:                      st,
+		runner:                     runner,
 		autoRefresh:                newAutoRefresh(st),
 		refreshHints:               newRefreshHints(st),
 		catalogRefresh:             newCatalogRefresh(st),
@@ -866,7 +878,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)
-	runner.AddHandler("cleanup", func(*state.Task, *tomb.Tomb) error { return nil }, nil)
+	runner.AddHandler("cleanup", m.doCleanup, nil)
 
 	// remove related
 	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.undoStopSnapServices)
@@ -942,6 +954,10 @@ func (m *SnapManager) StartUp() error {
 	if CheckExpectedRestart(m.state) == ErrUnexpectedRuntimeRestart {
 		logger.Noticef("detected a restart at runtime without a corresponding snapd change")
 		return ErrUnexpectedRuntimeRestart
+	}
+
+	if err := m.maybeInjectSnapdLTSHop(); err != nil {
+		return err
 	}
 
 	return nil
@@ -1707,6 +1723,7 @@ func (m *SnapManager) Ensure() error {
 		// we should check for full regular refreshes before
 		// considering issuing a hint only refresh request
 		m.autoRefresh.Ensure(),
+		m.ensureSnapdLTSTrackTransition(),
 		m.refreshHints.Ensure(),
 		m.catalogRefresh.Ensure(),
 		m.localInstallCleanup(),

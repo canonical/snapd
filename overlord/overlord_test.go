@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/store"
@@ -246,6 +247,111 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 	c.Assert(data, NotNil)
 
 	c.Check(got, DeepEquals, expected)
+}
+
+func (ovs *overlordSuite) TestNewSkipsPatchesWhenLTSJumpRequired(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restore()
+	restore = snapstatetest.ReplaceDeviceCtxHook(nil)
+	defer restore()
+	restore = patch.Mock(1, 0, map[int][]patch.PatchFunc{
+		1: {func(*state.State) error {
+			c.Fatal("state patches must not run on an LTS jump vehicle")
+			return nil
+		}},
+	})
+	defer restore()
+
+	fakeState := []byte(`{
+		"data": {
+			"patch-level": 0,
+			"patch-sublevel": 0,
+			"refresh-privacy-key": "0123456789ABCDEF",
+			"snaps": {
+				"snapd": {
+					"type": "snapd",
+					"current": "1",
+					"channel": "latest/stable",
+					"sequence": [{"name": "snapd", "snap-id": "snapd-snap-id", "revision": "1"}]
+				}
+			}
+		},
+		"changes": null,
+		"tasks": null,
+		"last-change-id": 0,
+		"last-task-id": 0,
+		"last-lane-id": 0
+	}`)
+	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	var level int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Check(level, Equals, 0)
+}
+
+func (ovs *overlordSuite) TestNewAppliesPatchesWhenAlreadyOnLTSTrack(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{
+		18: {"latest": "18"},
+	})
+	defer restore()
+	restore = snapstatetest.ReplaceDeviceCtxHook(nil)
+	defer restore()
+
+	applied := false
+	restore = patch.Mock(1, 0, map[int][]patch.PatchFunc{
+		1: {func(s *state.State) error {
+			applied = true
+			return nil
+		}},
+	})
+	defer restore()
+
+	fakeState := []byte(`{
+		"data": {
+			"patch-level": 0,
+			"patch-sublevel": 0,
+			"refresh-privacy-key": "0123456789ABCDEF",
+			"snaps": {
+				"snapd": {
+					"type": "snapd",
+					"current": "1",
+					"channel": "18/stable",
+					"sequence": [{"name": "snapd", "snap-id": "snapd-snap-id", "revision": "1"}]
+				}
+			}
+		},
+		"changes": null,
+		"tasks": null,
+		"last-change-id": 0,
+		"last-task-id": 0,
+		"last-lane-id": 0
+	}`)
+	err := os.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	c.Check(applied, Equals, true)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+	var level int
+	c.Assert(st.Get("patch-level", &level), IsNil)
+	c.Check(level, Equals, 1)
 }
 
 func (ovs *overlordSuite) TestNewWithStateSnapmgrUpdate(c *C) {
