@@ -70,6 +70,7 @@ func (s *linkSuiteCommon) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)
+	s.AddCleanup(systemd.MockSystemdVersion(243, nil))
 }
 
 type linkSuite struct {

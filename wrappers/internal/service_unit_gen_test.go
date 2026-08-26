@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/wrappers/internal"
@@ -136,6 +137,7 @@ Type=%s
 func (s *serviceUnitGenSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
+	s.BaseTest.AddCleanup(systemd.MockSystemdVersion(243, nil))
 }
 
 func (s *serviceUnitGenSuite) TearDownTest(c *C) {
@@ -1142,4 +1144,44 @@ func (s *serviceUnitGenSuite) TestExecConditionAllCodesOccupied(c *C) {
 
 	_, err := internal.GenerateSnapServiceUnitFile(service, nil)
 	c.Check(err, ErrorMatches, `cannot find available exit code for user-service-precondition: all exit codes 1-254 are in success-exit-status`)
+}
+
+func (s *serviceUnitGenSuite) TestExecConditionNotPresentOnOldSystemd(c *C) {
+	defer systemd.MockSystemdVersion(242, nil)()
+
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.UserDaemon,
+	}
+
+	generatedWrapper, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Assert(err, IsNil)
+
+	c.Check(string(generatedWrapper), Not(Matches), `(?s).*ExecCondition.*`)
+}
+
+func (s *serviceUnitGenSuite) TestExecConditionSystemdVersionError(c *C) {
+	defer systemd.MockSystemdVersion(0, fmt.Errorf("boom"))()
+
+	service := &snap.AppInfo{
+		Snap: &snap.Info{
+			SuggestedName: "snap",
+			Version:       "0.3.4",
+			SideInfo:      snap.SideInfo{Revision: snap.R(44)},
+		},
+		Name:        "app",
+		Command:     "bin/foo start",
+		Daemon:      "simple",
+		DaemonScope: snap.UserDaemon,
+	}
+
+	_, err := internal.GenerateSnapServiceUnitFile(service, nil)
+	c.Check(err, ErrorMatches, "boom")
 }

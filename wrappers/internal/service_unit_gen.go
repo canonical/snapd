@@ -366,6 +366,14 @@ WantedBy={{.ServicesTarget}}
 		// FIXME: ideally use UserDataDir("%h"), but then the
 		// unit fails if the directory doesn't exist.
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
+
+		// ExecCondition requires systemd 243
+		if err := systemd.EnsureAtLeast(243); err != nil {
+			if !systemd.IsSystemdTooOld(err) {
+				return nil, err
+			}
+			break // out of case
+		}
 		// identify the first error value that is not reserved as a successful exit status
 		errExitCode, err := userServicePreconditionErrorExitCode(appInfo.SuccessExitStatus)
 		if err != nil {

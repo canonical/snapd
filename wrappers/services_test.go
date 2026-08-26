@@ -61,6 +61,7 @@ type servicesTestSuite struct {
 	sysdLog [][]string
 
 	systemctlRestorer, delaysRestorer func()
+	systemdVersionRestorer            func()
 
 	perfTimings timings.Measurer
 
@@ -81,6 +82,7 @@ func (s *servicesTestSuite) SetUpTest(c *C) {
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.delaysRestorer = systemd.MockStopDelays(2*time.Millisecond, 4*time.Millisecond)
+	s.systemdVersionRestorer = systemd.MockSystemdVersion(243, nil)
 	s.perfTimings = timings.New(nil)
 
 	xdgRuntimeDir := fmt.Sprintf("%s/%d", dirs.XdgRuntimeDirBase, os.Getuid())
@@ -98,6 +100,7 @@ func (s *servicesTestSuite) TearDownTest(c *C) {
 	}
 	s.systemctlRestorer()
 	s.delaysRestorer()
+	s.systemdVersionRestorer()
 	dirs.SetRootDir("")
 	s.DBusTest.TearDownTest(c)
 }
