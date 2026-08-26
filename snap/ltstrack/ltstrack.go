@@ -152,18 +152,12 @@ func systemBootBaseAllowed(model *asserts.Model) (int, error) {
 		return 0, fmt.Errorf("%w on a classic system", ErrNotAllowed)
 	}
 
-	// A model without a "base" header, or with base "core", is UC16-equivalent:
-	// the core snap acts as both base and snapd, so there is no separate snapd
-	// snap to apply LTS track policy to.
-	base := model.Base()
-	if base == "" || base == "core" {
-		return 0, fmt.Errorf("%w: unsupported Ubuntu Core 16 model", ErrNotAllowed)
-	}
-
 	bootBase, err := model.CoreVersion()
 	if err != nil {
 		return 0, fmt.Errorf("internal error: cannot determine boot base: %v", err)
 	}
+	// UC16 uses the core snap as both base and snapd, so there is no
+	// separate snapd snap to apply LTS track policy to.
 	if bootBase == 16 {
 		return 0, fmt.Errorf("%w: unsupported Ubuntu Core 16 model", ErrNotAllowed)
 	}

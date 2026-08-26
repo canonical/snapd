@@ -707,10 +707,15 @@ func (mod *Model) Base() string {
 }
 
 // CoreVersion returns the Ubuntu Core version derived from the model's base
-// snap (e.g. "core18" -> 18, "core" -> 16). It returns an error for a
+// snap (e.g. "core18" -> 18, "core" -> 16). An omitted base on a non-classic
+// model is treated as 16 (the core snap). It returns an error for a
 // non-core base.
 func (mod *Model) CoreVersion() (int, error) {
-	return naming.CoreVersion(mod.Base())
+	base := mod.Base()
+	if !mod.Classic() && base == "" {
+		return 16, nil
+	}
+	return naming.CoreVersion(base)
 }
 
 // BaseSnap returns the details of the base snap the model uses.

@@ -379,6 +379,11 @@ func (mods *modelSuite) TestCoreVersion(c *C) {
 			version: 16,
 		},
 		{
+			comment: "core without base header",
+			encoded: strings.Replace(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1), "base: core18\n", "", 1),
+			version: 16,
+		},
+		{
 			comment: "core20",
 			encoded: strings.Replace(strings.Replace(core20ModelExample, "TSLINE", mods.tsLine, 1), "OTHER", "", 1),
 			version: 20,

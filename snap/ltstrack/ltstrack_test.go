@@ -50,12 +50,15 @@ func (s *ltsSuite) SetUpTest(c *C) {
 }
 
 func (s *ltsSuite) coreModel(c *C, base, gadget, kernel string) *asserts.Model {
-	return s.brands.Model("my-brand", "my-model", map[string]any{
+	headers := map[string]any{
 		"architecture": "amd64",
-		"base":         base,
 		"gadget":       gadget,
 		"kernel":       kernel,
-	})
+	}
+	if base != "" {
+		headers["base"] = base
+	}
+	return s.brands.Model("my-brand", "my-model", headers)
 }
 
 func (s *ltsSuite) classicModel(c *C) *asserts.Model {
@@ -137,7 +140,7 @@ func (s *ltsSuite) TestSystemBootBaseAllowedUC18(c *C) {
 }
 
 func (s *ltsSuite) TestSystemBootBaseAllowedUC16HardError(c *C) {
-	for _, base := range []string{"core", "core16"} {
+	for _, base := range []string{"", "core", "core16"} {
 		uc16 := s.coreModel(c, base, "pc", "pc-kernel")
 		_, err := ltstrack.SystemBootBaseAllowed(uc16)
 		c.Assert(err, ErrorMatches, "cannot use LTS tracks: unsupported Ubuntu Core 16 model", Commentf("base %q", base))
@@ -279,7 +282,7 @@ func (s *ltsSuite) TestResolveOutOfScopeNotAllowed(c *C) {
 }
 
 func (s *ltsSuite) TestResolveUC16Rejected(c *C) {
-	for _, base := range []string{"core", "core16"} {
+	for _, base := range []string{"", "core", "core16"} {
 		uc16 := s.coreModel(c, base, "pc", "pc-kernel")
 		_, err := ltstrack.Resolve(uc16, "latest/stable", nil)
 		c.Check(err, ErrorMatches, "cannot use LTS tracks: unsupported Ubuntu Core 16 model", Commentf("base %q", base))
