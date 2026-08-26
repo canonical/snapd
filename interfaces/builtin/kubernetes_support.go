@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -394,11 +395,13 @@ func (iface *kubernetesSupportInterface) BeforePreparePlug(plug *snap.PlugInfo) 
 
 func init() {
 	registerIface(&kubernetesSupportInterface{commonInterface{
-		name:                 "kubernetes-support",
-		summary:              kubernetesSupportSummary,
-		implicitOnClassic:    true,
-		implicitOnCore:       true,
-		baseDeclarationPlugs: kubernetesSupportBaseDeclarationPlugs,
-		baseDeclarationSlots: kubernetesSupportBaseDeclarationSlots,
+		name:                     "kubernetes-support",
+		summary:                  kubernetesSupportSummary,
+		implicitOnClassic:        true,
+		implicitOnCore:           true,
+		baseDeclarationPlugs:     kubernetesSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     kubernetesSupportBaseDeclarationSlots,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

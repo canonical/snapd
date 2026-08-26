@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 const checkboxSupportSummary = `allows checkbox to execute arbitrary system tests`
 
 const checkboxSupportBaseDeclarationPlugs = `
@@ -83,12 +85,14 @@ dbus (receive)
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "checkbox-support",
-		summary:               checkboxSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		connectedPlugAppArmor: checkboxSupportConnectedPlugAppArmor,
-		baseDeclarationSlots:  checkboxSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  checkboxSupportBaseDeclarationPlugs,
+		name:                     "checkbox-support",
+		summary:                  checkboxSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		connectedPlugAppArmor:    checkboxSupportConnectedPlugAppArmor,
+		baseDeclarationSlots:     checkboxSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     checkboxSupportBaseDeclarationPlugs,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	})
 }

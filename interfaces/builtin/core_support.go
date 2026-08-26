@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 const coreSupportSummary = `special permissions for the core snap`
 
 const coreSupportBaseDeclarationPlugs = `
@@ -41,11 +43,13 @@ const coreSupportBaseDeclarationSlots = `
 // This hollow interface should be removed once it is deemed safe to do so.
 func init() {
 	registerIface(&commonInterface{
-		name:                 "core-support",
-		summary:              coreSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationPlugs: coreSupportBaseDeclarationPlugs,
-		baseDeclarationSlots: coreSupportBaseDeclarationSlots,
+		name:                     "core-support",
+		summary:                  coreSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     coreSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     coreSupportBaseDeclarationSlots,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	})
 }

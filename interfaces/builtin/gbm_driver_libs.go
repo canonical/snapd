@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -178,8 +179,10 @@ func init() {
 			baseDeclarationPlugs: gbmDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: gbmDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:    false,
-			implicitPlugOnClassic: true,
+			implicitPlugOnCore:       false,
+			implicitPlugOnClassic:    true,
+			parallelInstancesPlugErr: errors.New("todo"),
+			parallelInstancesSlotErr: errors.New("todo"),
 		},
 	})
 }

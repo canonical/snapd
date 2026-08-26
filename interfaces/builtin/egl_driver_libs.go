@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 
@@ -166,8 +167,10 @@ func init() {
 			baseDeclarationPlugs: eglDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: eglDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:    false,
-			implicitPlugOnClassic: true,
+			implicitPlugOnCore:       false,
+			implicitPlugOnClassic:    true,
+			parallelInstancesPlugErr: errors.New("todo"),
+			parallelInstancesSlotErr: errors.New("todo"),
 		},
 	})
 }

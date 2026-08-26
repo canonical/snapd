@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 const rosSnapdSupportSummary = `allows ros-snapd the use of snapd's apps control API`
 
 const rosSnapdSupportBaseDeclarationPlugs = `
@@ -37,11 +39,13 @@ const rosSnapdSupportBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                 "ros-snapd-support",
-		summary:              rosSnapdSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationPlugs: rosSnapdSupportBaseDeclarationPlugs,
-		baseDeclarationSlots: rosSnapdSupportBaseDeclarationSlots,
+		name:                     "ros-snapd-support",
+		summary:                  rosSnapdSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     rosSnapdSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     rosSnapdSupportBaseDeclarationSlots,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	})
 }

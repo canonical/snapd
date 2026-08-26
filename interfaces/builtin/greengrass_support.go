@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"errors"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
@@ -485,11 +486,13 @@ type greengrassSupportInterface struct {
 
 func init() {
 	registerIface(&greengrassSupportInterface{commonInterface{
-		name:                 "greengrass-support",
-		summary:              greengrassSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationSlots: greengrassSupportBaseDeclarationSlots,
-		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
+		name:                     "greengrass-support",
+		summary:                  greengrassSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     greengrassSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     greengrassSupportBaseDeclarationPlugs,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

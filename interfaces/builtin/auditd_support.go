@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 const auditdSupportSummary = `allows hosting the auditd daemon with control over the kernel audit system`
 
 const auditdSupportBaseDeclarationPlugs = `
@@ -67,13 +69,15 @@ type auditdSupportInterface struct {
 
 func init() {
 	registerIface(&auditdSupportInterface{commonInterface{
-		name:                  "auditd-support",
-		summary:               auditdSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationPlugs:  auditdSupportBaseDeclarationPlugs,
-		baseDeclarationSlots:  auditdSupportBaseDeclarationSlots,
-		connectedPlugSecComp:  auditdSupportConnectedPlugSecComp,
-		connectedPlugAppArmor: auditdSupportConnectedPlugAppArmor,
+		name:                     "auditd-support",
+		summary:                  auditdSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     auditdSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     auditdSupportBaseDeclarationSlots,
+		connectedPlugSecComp:     auditdSupportConnectedPlugSecComp,
+		connectedPlugAppArmor:    auditdSupportConnectedPlugAppArmor,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	}})
 }

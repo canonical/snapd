@@ -381,5 +381,8 @@ func (iface *posixMQInterface) SecCompConnectedPlug(spec *seccomp.Specification,
 }
 
 func init() {
-	registerIface(&posixMQInterface{})
+	registerIface(&posixMQInterface{commonInterface{
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
+	}})
 }

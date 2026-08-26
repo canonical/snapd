@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 /*
  * Multipass is a tool to create and manage Virtual Machines and their images.
  * Each VM runs as a separate "qemu" process (on Linux). VM images are automatically
@@ -116,13 +118,15 @@ lchownat
 
 func init() {
 	registerIface(&commonInterface{
-		name:                  "multipass-support",
-		summary:               multipassSupportSummary,
-		implicitOnCore:        true,
-		implicitOnClassic:     true,
-		baseDeclarationSlots:  multipassSupportBaseDeclarationSlots,
-		baseDeclarationPlugs:  multipassSupportBaseDeclarationPlugs,
-		connectedPlugAppArmor: multipassSupportConnectedPlugAppArmor,
-		connectedPlugSecComp:  multipassSupportConnectedPlugSecComp,
+		name:                     "multipass-support",
+		summary:                  multipassSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationSlots:     multipassSupportBaseDeclarationSlots,
+		baseDeclarationPlugs:     multipassSupportBaseDeclarationPlugs,
+		connectedPlugAppArmor:    multipassSupportConnectedPlugAppArmor,
+		connectedPlugSecComp:     multipassSupportConnectedPlugSecComp,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	})
 }

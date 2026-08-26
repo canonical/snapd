@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"errors"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/snap"
@@ -105,6 +107,14 @@ func (iface *desktopLaunchInterface) AppArmorConnectedPlug(spec *apparmor.Specif
 	// those rules when desktop-launch plug is connected.
 	spec.AddPrioritizedSnippet("", prioritizedSnippetDesktopFileAccess, desktopLaunchPriority)
 	return nil
+}
+
+func (iface *desktopLaunchInterface) ParallelInstancesSupportedForPlug(_ *snap.PlugInfo) error {
+	return errors.New("todo")
+}
+
+func (iface *desktopLaunchInterface) ParallelInstancesSupportedForSlot(_ *snap.SlotInfo) error {
+	return errors.New("todo")
 }
 
 func (iface *desktopLaunchInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {

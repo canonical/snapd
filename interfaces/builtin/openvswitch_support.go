@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 const openvswitchSupportSummary = `allows operating as the openvswitch service`
 
 const openvswitchSupportBaseDeclarationSlots = `
@@ -39,5 +41,7 @@ func init() {
 		implicitOnClassic:        true,
 		baseDeclarationSlots:     openvswitchSupportBaseDeclarationSlots,
 		connectedPlugKModModules: openvswitchSupportConnectedPlugKmod,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	})
 }

@@ -288,8 +288,10 @@ func init() {
 			baseDeclarationPlugs: vulkanDriverLibsBaseDeclarationPlugs,
 			baseDeclarationSlots: vulkanDriverLibsBaseDeclarationSlots,
 			// Not supported on core yet
-			implicitPlugOnCore:    false,
-			implicitPlugOnClassic: true,
+			implicitPlugOnCore:       false,
+			implicitPlugOnClassic:    true,
+			parallelInstancesPlugErr: errors.New("todo"),
+			parallelInstancesSlotErr: errors.New("todo"),
 		},
 	})
 }

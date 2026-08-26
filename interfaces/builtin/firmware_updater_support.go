@@ -19,6 +19,8 @@
 
 package builtin
 
+import "errors"
+
 const firmwareUpdaterSupportSummary = `allows operating as the Firmware Updater`
 
 const firmwareUpdaterSupportBaseDeclarationPlugs = `
@@ -37,11 +39,13 @@ const firmwareUpdaterSupportBaseDeclarationSlots = `
 
 func init() {
 	registerIface(&commonInterface{
-		name:                 "firmware-updater-support",
-		summary:              firmwareUpdaterSupportSummary,
-		implicitOnCore:       true,
-		implicitOnClassic:    true,
-		baseDeclarationPlugs: firmwareUpdaterSupportBaseDeclarationPlugs,
-		baseDeclarationSlots: firmwareUpdaterSupportBaseDeclarationSlots,
+		name:                     "firmware-updater-support",
+		summary:                  firmwareUpdaterSupportSummary,
+		implicitOnCore:           true,
+		implicitOnClassic:        true,
+		baseDeclarationPlugs:     firmwareUpdaterSupportBaseDeclarationPlugs,
+		baseDeclarationSlots:     firmwareUpdaterSupportBaseDeclarationSlots,
+		parallelInstancesPlugErr: errors.New("todo"),
+		parallelInstancesSlotErr: errors.New("todo"),
 	})
 }
