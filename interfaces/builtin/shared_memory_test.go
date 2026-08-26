@@ -520,6 +520,12 @@ func (s *SharedMemoryInterfaceSuite) TestParallelInstancesSupportedForPlug(c *C)
 	c.Check(definer.ParallelInstancesSupportedForPlug(s.privatePlugInfo), IsNil)
 }
 
+func (s *SharedMemoryInterfaceSuite) TestParallelInstancesSupportedForSlot(c *C) {
+	definer, ok := s.iface.(interfaces.ParallelInstancesSlotDefiner)
+	c.Assert(ok, Equals, true)
+	c.Check(definer.ParallelInstancesSupportedForSlot(s.slotInfo), ErrorMatches, "todo")
+}
+
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
