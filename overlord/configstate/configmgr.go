@@ -52,10 +52,12 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 
 	// ensure that graduated features are cleared from the state
 	rt := configcore.NewRunTransaction(tr, nil)
-	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
+
+	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
 		return err
 	}
-	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
+
+	if err := configcore.PruneGraduatedExperimentalConfig(rt); err != nil {
 		return err
 	}
 	rt.Commit()

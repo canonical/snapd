@@ -38,9 +38,11 @@ func init() {
 func MigrateDiskSpaceReservation(tr RunTransaction) error {
 	var reservation any
 	err := tr.Get("core", "disk-reservation.size", &reservation)
+	// If the option is already set, we don't need to do anything.
 	if err == nil {
 		return nil
 	}
+
 	if !config.IsNoOption(err) {
 		return err
 	}
