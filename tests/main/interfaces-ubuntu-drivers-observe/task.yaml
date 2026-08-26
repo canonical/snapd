@@ -1,0 +1,47 @@
+summary: Ensure that the ubuntu-drivers-observe interface works
+
+details: |
+    Verify that a snap using the ubuntu-drivers-observe interface can activate
+    and query the ubuntu-drivers-common D-Bus service, and that the interface
+    is not connected by default.
+
+systems:
+    # limit to releases where ubuntu-drivers-common is available
+    - ubuntu-26.10-64
+
+prepare: |
+    tests.pkgs install ubuntu-drivers-common
+
+    test -f /usr/share/dbus-1/system-services/com.ubuntu.Drivers.service
+    test -f /usr/share/dbus-1/system.d/com.ubuntu.Drivers.conf
+    test -f /usr/lib/systemd/system/ubuntu-drivers.service
+
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-ubuntu-drivers-observe
+
+execute: |
+    echo "The plug is disconnected by default"
+    snap connections test-snapd-ubuntu-drivers-observe | MATCH "ubuntu-drivers-observe +test-snapd-ubuntu-drivers-observe:ubuntu-drivers-observe +- +-"
+
+    echo "The disconnected snap cannot query the service"
+    if test-snapd-ubuntu-drivers-observe.drivers 2> disconnected.error; then
+        echo "Expected permission error while interface is disconnected"
+        exit 1
+    fi
+    MATCH "Permission denied" < disconnected.error
+
+    echo "The plug can be connected"
+    snap connect test-snapd-ubuntu-drivers-observe:ubuntu-drivers-observe
+    snap connections test-snapd-ubuntu-drivers-observe | MATCH "ubuntu-drivers-observe +test-snapd-ubuntu-drivers-observe:ubuntu-drivers-observe +:ubuntu-drivers-observe +manual"
+
+    echo "A query activates the service and returns a driver array"
+    systemctl stop ubuntu-drivers.service
+    test-snapd-ubuntu-drivers-observe.drivers | MATCH "method return"
+    systemctl is-active ubuntu-drivers.service
+
+    echo "The disconnected snap can no longer query the service"
+    snap disconnect test-snapd-ubuntu-drivers-observe:ubuntu-drivers-observe
+    if test-snapd-ubuntu-drivers-observe.drivers 2> disconnected-again.error; then
+        echo "Expected permission error while interface is disconnected"
+        exit 1
+    fi
+    MATCH "Permission denied" < disconnected-again.error

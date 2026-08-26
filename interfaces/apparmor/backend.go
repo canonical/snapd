@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -379,11 +380,10 @@ type profilePathsResults struct {
 }
 
 func (b *Backend) setupHostAppArmorForCoreAndSnapd(appSet *interfaces.SnapAppSet) error {
-	snapName := appSet.InstanceName()
 	snapInfo := appSet.Info()
 
 	// core on classic is special
-	if snapName == "core" && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
+	if appSet.InstanceName() == naming.Core && release.OnClassic && apparmor_sandbox.ProbedLevel() != apparmor_sandbox.Unsupported {
 		if err := b.setupSnapConfineReexec(snapInfo); err != nil {
 			return fmt.Errorf("cannot create host snap-confine apparmor configuration: %s", err)
 		}
@@ -423,10 +423,10 @@ func (b *Backend) Prepare(appSet *interfaces.SnapAppSet) error {
 }
 
 func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions, repo *interfaces.Repository) (prof *profilePathsResults, err error) {
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName()
 	spec, err := repo.SnapSpecification(b.Name(), appSet, opts)
 	if err != nil {
-		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", snapName, err)
+		return nil, fmt.Errorf("cannot obtain apparmor specification for snap %q: %s", instanceName, err)
 	}
 
 	snapInfo := appSet.Info()
@@ -459,7 +459,7 @@ func (b *Backend) prepareProfiles(appSet *interfaces.SnapAppSet, opts interfaces
 	changed, removedPaths, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, content)
 	// XXX: in the old code this error was reported late, after doing load/removeCached.
 	if errEnsure != nil {
-		return nil, fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
+		return nil, fmt.Errorf("cannot synchronize security files for snap %q: %s", instanceName, errEnsure)
 	}
 
 	// Find the set of unchanged profiles.
@@ -546,7 +546,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	var allChangedPaths, allUnchangedPaths, allRemovedPaths []string
 	var fallback bool
 	for _, set := range appSets {
-		opts := confinement(set.InstanceName())
+		opts := confinement(set.InstanceName().TODOInstanceName())
 		prof, err := b.prepareProfiles(set, opts, repo)
 		if err != nil {
 			fallback = true
@@ -595,7 +595,7 @@ func (b *Backend) SetupMany(appSets []*interfaces.SnapAppSet, confinement func(s
 	// if an error was encountered when processing all profiles at once, re-try them one by one
 	if fallback {
 		for _, set := range appSets {
-			instanceName := set.InstanceName()
+			instanceName := set.InstanceName().TODOInstanceName()
 			opts := confinement(instanceName)
 			if err := b.Setup(set, opts, sctx(instanceName), repo, tm); err != nil {
 				errors = append(errors, fmt.Errorf("cannot setup profiles for snap %q: %s", instanceName, err))

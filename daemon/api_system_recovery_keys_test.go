@@ -124,8 +124,7 @@ func (s *recoveryKeysSuite) TestPostSystemRecoveryKeysAsUserErrors(c *C) {
 	s.daemon(c)
 	mockSystemRecoveryKeys(c)
 
-	req, err := http.NewRequest("POST", "/v2/system-recovery-keys", nil)
-	c.Assert(err, IsNil)
+	req := httptest.NewRequest("POST", "/v2/system-recovery-keys", nil)
 
 	// being properly authorized as user is not enough, needs root
 	s.asUserAuth(c, req)

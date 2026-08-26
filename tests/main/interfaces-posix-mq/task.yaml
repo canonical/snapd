@@ -25,6 +25,10 @@ systems:
     - -opensuse-*
 
 prepare: |
+    # Clear any pre-existing warnings.
+    snap warnings >/dev/null
+    snap okay || true
+
     # Source code is at https://github.com/canonical/test-snapd-posix-mq
     snap install test-snapd-posix-mq
     snap warnings | MATCH 'No further warnings.|No warnings.'

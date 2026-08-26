@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -112,19 +113,18 @@ func validateSharedMemoryPath(path string) error {
 		return fmt.Errorf("shared-memory interface path has leading or trailing spaces: %q", path)
 	}
 
-	// allow specifically only "*" globbing character, but disallow all other
-	// AARE characters
-
-	// same as from ValidateNoAppArmorRegexp, but with globbing
-	const aareWithoutGlob = `?[]{}^"` + "\x00"
-	if strings.ContainsAny(path, aareWithoutGlob) {
-		return fmt.Errorf("shared-memory interface path is invalid: %q contains a reserved apparmor char from %s", path, aareWithoutGlob)
-	}
-
-	// in addition to only allowing "*", we don't want to allow double "**"
-	// because "**" can traverse sub-directories as well which we don't want
+	// allow specifically only the "*" globbing character, but disallow all
+	// other AARE characters; reject anything beyond a single "*" up-front,
+	// since "**" can traverse sub-directories as well which we don't want
 	if strings.Contains(path, "**") {
 		return fmt.Errorf("shared-memory interface path is invalid: %q contains ** which is unsupported", path)
+	}
+
+	// strip the at-most-one allowed "*" and validate the rest with the
+	// shared AARE check; note the stripped string is only used for the
+	// check, the error below re-reports the original path
+	if err := apparmor_sandbox.ValidateNoAppArmorRegexp(strings.Replace(path, "*", "", 1)); err != nil {
+		return fmt.Errorf("shared-memory interface path is invalid: %q contains a reserved apparmor char", path)
 	}
 
 	// TODO: consider whether we should remove this check and allow full SHM path

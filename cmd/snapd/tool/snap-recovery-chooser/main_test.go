@@ -17,7 +17,7 @@
  *
  */
 
-package main_test
+package snap_recovery_chooser_test
 
 import (
 	"bytes"
@@ -35,7 +35,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	main "github.com/snapcore/snapd/cmd/snap-recovery-chooser"
+	"github.com/snapcore/snapd/cmd/snapd/tool/snap-recovery-chooser"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/testutil"
@@ -56,7 +56,7 @@ func (s *baseCmdSuite) SetUpTest(c *C) {
 	buf, r := logger.MockLogger()
 	s.buf = buf
 	s.AddCleanup(r)
-	r = main.MockStdStreams(&s.stdout, &s.stderr)
+	r = snap_recovery_chooser.MockStdStreams(&s.stdout, &s.stderr)
 	s.AddCleanup(r)
 	d := c.MkDir()
 	s.markerFile = filepath.Join(d, "marker")
@@ -70,7 +70,7 @@ type cmdSuite struct {
 
 var _ = Suite(&cmdSuite{})
 
-var mockSystems = &main.ChooserSystems{
+var mockSystems = &snap_recovery_chooser.ChooserSystems{
 	Systems: []client.System{
 		{
 			Label: "foo",
@@ -87,7 +87,7 @@ echo '{}'
 `)
 	defer mockCmd.Restore()
 
-	rsp, err := main.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
+	rsp, err := snap_recovery_chooser.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
 	c.Assert(err, IsNil)
 	c.Assert(rsp, NotNil)
 }
@@ -98,7 +98,7 @@ echo 'garbage'
 `)
 	defer mockCmd.Restore()
 
-	rsp, err := main.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
+	rsp, err := snap_recovery_chooser.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
 	c.Assert(err, ErrorMatches, "cannot decode response: .*")
 	c.Assert(rsp, IsNil)
 }
@@ -110,7 +110,7 @@ exit 22
 `)
 	defer mockCmd.Restore()
 
-	_, err := main.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
+	_, err := snap_recovery_chooser.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
 	c.Assert(err, ErrorMatches, "cannot collect output of the UI process: exit status 22")
 }
 
@@ -123,12 +123,12 @@ echo '{}'
 `, tf))
 	defer mockCmd.Restore()
 
-	_, err := main.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
+	_, err := snap_recovery_chooser.RunUI(exec.Command(mockCmd.Exe()), mockSystems)
 	c.Assert(err, IsNil)
 
 	data, err := os.ReadFile(tf)
 	c.Assert(err, IsNil)
-	var input *main.ChooserSystems
+	var input *snap_recovery_chooser.ChooserSystems
 	err = json.Unmarshal(data, &input)
 	c.Assert(err, IsNil)
 
@@ -137,10 +137,10 @@ echo '{}'
 
 func (s *cmdSuite) TestStdoutUI(c *C) {
 	var buf bytes.Buffer
-	err := main.OutputForUI(&buf, mockSystems)
+	err := snap_recovery_chooser.OutputForUI(&buf, mockSystems)
 	c.Assert(err, IsNil)
 
-	var out *main.ChooserSystems
+	var out *snap_recovery_chooser.ChooserSystems
 
 	err = json.Unmarshal(buf.Bytes(), &out)
 	c.Assert(err, IsNil)
@@ -172,7 +172,7 @@ type mockSystemRequestResponse struct {
 	expect map[string]any
 }
 
-func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *main.ChooserSystems, rspPostSystem *mockSystemRequestResponse) {
+func (s *mockedClientCmdSuite) mockSuccessfulResponse(c *C, rspSystems *snap_recovery_chooser.ChooserSystems, rspPostSystem *mockSystemRequestResponse) {
 	n := 0
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -231,7 +231,7 @@ type apiResponse struct {
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserWithTool(c *C) {
-	r := main.MockDefaultMarkerFile(s.markerFile)
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
@@ -242,7 +242,7 @@ cat - > %s
 echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 `, capturedStdinPath))
 	defer mockCmd.Restore()
-	r = main.MockChooserTool(func() (*exec.Cmd, error) {
+	r = snap_recovery_chooser.MockChooserTool(func() (*exec.Cmd, error) {
 		return exec.Command(mockCmd.Exe()), nil
 	})
 	defer r()
@@ -258,7 +258,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 		reboot: true,
 	})
 
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, IsNil)
 	c.Assert(rbt, Equals, true)
 	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
@@ -267,7 +267,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 
 	capturedStdin, err := os.ReadFile(capturedStdinPath)
 	c.Assert(err, IsNil)
-	var stdoutSystems main.ChooserSystems
+	var stdoutSystems snap_recovery_chooser.ChooserSystems
 	err = json.Unmarshal(capturedStdin, &stdoutSystems)
 	c.Assert(err, IsNil)
 	c.Check(&stdoutSystems, DeepEquals, mockSystems)
@@ -276,19 +276,19 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
-	r := main.MockDefaultMarkerFile(s.markerFile)
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
 
 	s.mockSuccessfulResponse(c, mockSystems, nil)
 
-	r = main.MockChooserTool(func() (*exec.Cmd, error) {
+	r = snap_recovery_chooser.MockChooserTool(func() (*exec.Cmd, error) {
 		return nil, fmt.Errorf("tool not found")
 	})
 	defer r()
 
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot locate the chooser UI tool: tool not found")
 	c.Assert(rbt, Equals, false)
 
@@ -296,7 +296,7 @@ func (s *mockedClientCmdSuite) TestMainChooserToolNotFound(c *C) {
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
-	r := main.MockDefaultMarkerFile(s.markerFile)
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
@@ -321,7 +321,7 @@ func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
 		n++
 	})
 
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot list recovery systems: no systems for you")
 	c.Assert(rbt, Equals, false)
 
@@ -329,7 +329,7 @@ func (s *mockedClientCmdSuite) TestMainChooserBadAPI(c *C) {
 }
 
 func (s *mockedClientCmdSuite) testMainChooserConsoleConfAlternatives(c *C, setupCmd func(script string) *testutil.MockCmd) {
-	r := main.MockDefaultMarkerFile(s.markerFile)
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
@@ -350,7 +350,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 
 	defer mockCmd.Restore()
 
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, IsNil)
 	c.Assert(rbt, Equals, false)
 
@@ -393,7 +393,7 @@ func (s *mockedClientCmdSuite) TestMainChooserNoConsoleConf(c *C) {
 	dirs.SetRootDir(d)
 	defer dirs.SetRootDir("/")
 
-	r := main.MockDefaultMarkerFile(s.markerFile)
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
@@ -402,7 +402,7 @@ func (s *mockedClientCmdSuite) TestMainChooserNoConsoleConf(c *C) {
 	s.mockSuccessfulResponse(c, mockSystems, nil)
 
 	// tries to look up the console-conf binary but fails
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, `cannot locate the chooser UI tool: chooser UI tools \[".*/usr/bin/console-conf" ".*snap/bin/console-conf"\] do not exist`)
 	c.Assert(rbt, Equals, false)
 	c.Assert(s.markerFile, testutil.FileAbsent)
@@ -413,7 +413,7 @@ func (s *mockedClientCmdSuite) TestMainChooserGarbageNoActionRequested(c *C) {
 	dirs.SetRootDir(d)
 	defer dirs.SetRootDir("/")
 
-	r := main.MockDefaultMarkerFile(s.markerFile)
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
@@ -426,7 +426,7 @@ echo 'garbage'
 `)
 	defer mockCmd.Restore()
 
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "UI process failed: cannot decode response: .*")
 	c.Assert(rbt, Equals, false)
 
@@ -438,19 +438,19 @@ echo 'garbage'
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserNoMarkerNoCalls(c *C) {
-	r := main.MockDefaultMarkerFile(s.markerFile + ".notfound")
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile + ".notfound")
 	defer r()
 
 	mockCmd := testutil.MockCommand(c, "tool", `
 exit 123
 `)
 	defer mockCmd.Restore()
-	r = main.MockChooserTool(func() (*exec.Cmd, error) {
+	r = snap_recovery_chooser.MockChooserTool(func() (*exec.Cmd, error) {
 		return exec.Command(mockCmd.Exe()), nil
 	})
 	defer r()
 
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot run chooser without the marker file")
 	c.Assert(rbt, Equals, false)
 
@@ -458,7 +458,7 @@ exit 123
 }
 
 func (s *mockedClientCmdSuite) TestMainChooserSnapdAPIBad(c *C) {
-	r := main.MockDefaultMarkerFile(s.markerFile)
+	r := snap_recovery_chooser.MockDefaultMarkerFile(s.markerFile)
 	defer r()
 	// validity
 	c.Assert(s.markerFile, testutil.FilePresent)
@@ -467,7 +467,7 @@ func (s *mockedClientCmdSuite) TestMainChooserSnapdAPIBad(c *C) {
 echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 `)
 	defer mockCmd.Restore()
-	r = main.MockChooserTool(func() (*exec.Cmd, error) {
+	r = snap_recovery_chooser.MockChooserTool(func() (*exec.Cmd, error) {
 		return exec.Command(mockCmd.Exe()), nil
 	})
 	defer r()
@@ -482,7 +482,7 @@ echo '{"label":"label","action":{"mode":"install","title":"reinstall"}}'
 		},
 	})
 
-	rbt, err := main.Chooser(client.New(&s.config))
+	rbt, err := snap_recovery_chooser.Chooser(client.New(&s.config))
 	c.Assert(err, ErrorMatches, "cannot request system action: .* failed in mock")
 	c.Assert(rbt, Equals, false)
 	c.Assert(mockCmd.Calls(), DeepEquals, [][]string{
@@ -507,7 +507,7 @@ func (s *mockedSyslogCmdSuite) SetUpTest(c *C) {
 	s.term = os.Getenv("TERM")
 	s.AddCleanup(func() { os.Setenv("TERM", s.term) })
 
-	r := main.MockSyslogNew(func(p syslog.Priority, t string) (io.Writer, error) {
+	r := snap_recovery_chooser.MockSyslogNew(func(p syslog.Priority, t string) (io.Writer, error) {
 		c.Fatal("not mocked")
 		return nil, fmt.Errorf("not mocked")
 	})
@@ -519,12 +519,12 @@ func (s *mockedSyslogCmdSuite) TestNoSyslogFallback(c *C) {
 	c.Assert(err, IsNil)
 
 	called := false
-	r := main.MockSyslogNew(func(_ syslog.Priority, _ string) (io.Writer, error) {
+	r := snap_recovery_chooser.MockSyslogNew(func(_ syslog.Priority, _ string) (io.Writer, error) {
 		called = true
 		return nil, fmt.Errorf("no syslog")
 	})
 	defer r()
-	main.LoggerWithSyslogMaybe()
+	snap_recovery_chooser.LoggerWithSyslogMaybe()
 	c.Check(called, Equals, true)
 
 	logger.Noticef("ping")
@@ -540,14 +540,14 @@ func (s *mockedSyslogCmdSuite) TestWithSyslog(c *C) {
 	tag := ""
 	prio := syslog.Priority(0)
 	buf := bytes.Buffer{}
-	r := main.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
+	r := snap_recovery_chooser.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
 		tag = tg
 		prio = p
 		called = true
 		return &buf, nil
 	})
 	defer r()
-	main.LoggerWithSyslogMaybe()
+	snap_recovery_chooser.LoggerWithSyslogMaybe()
 	c.Check(called, Equals, true)
 	c.Check(tag, Equals, "snap-recovery-chooser")
 	c.Check(prio, Equals, syslog.LOG_INFO|syslog.LOG_DAEMON)
@@ -560,10 +560,10 @@ func (s *mockedSyslogCmdSuite) TestSimple(c *C) {
 	err := os.Unsetenv("TERM")
 	c.Assert(err, IsNil)
 
-	r := main.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
+	r := snap_recovery_chooser.MockSyslogNew(func(p syslog.Priority, tg string) (io.Writer, error) {
 		c.Fatalf("unexpected call")
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer r()
-	main.LoggerWithSyslogMaybe()
+	snap_recovery_chooser.LoggerWithSyslogMaybe()
 }

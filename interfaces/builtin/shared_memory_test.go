@@ -308,6 +308,28 @@ apps:
 			`shared-memory interface path is invalid: "mem\*\*" contains \*\* which is unsupported.*`,
 		},
 		{
+			`read: ["mem?"]`,
+			`shared-memory interface path is invalid: "mem\?" contains a reserved apparmor char`,
+		},
+		{
+			`read: ["m[em]"]`,
+			`shared-memory interface path is invalid: "m\[em\]" contains a reserved apparmor char`,
+		},
+		{
+			`read: ['me"m']`,
+			`shared-memory interface path is invalid: "me\\"m" contains a reserved apparmor char`,
+		},
+		{
+			// a single "*" is fine, but other AARE chars are still
+			// rejected even in its presence
+			`read: ["m*em?"]`,
+			`shared-memory interface path is invalid: "m\*em\?" contains a reserved apparmor char`,
+		},
+		{
+			`read: ["mem{"]`,
+			`shared-memory interface path is invalid: "mem{" contains a reserved apparmor char`,
+		},
+		{
 			`read: [..]`,
 			`shared-memory interface path is not clean: ".."`,
 		},

@@ -35,7 +35,7 @@
 //
 // No action is forwarded to snapd if the chooser UI exits with an error code or
 // the response structure is invalid.
-package main
+package snap_recovery_chooser
 
 import (
 	"bytes"
@@ -208,7 +208,7 @@ func loggerWithSyslogMaybe() {
 	logger.SetLogger(l)
 }
 
-func main() {
+func Main() {
 	loggerWithSyslogMaybe()
 
 	reboot, err := chooser(client.New(nil))

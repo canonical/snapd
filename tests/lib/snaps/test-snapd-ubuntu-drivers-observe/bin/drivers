@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+exec dbus-send --system --print-reply --reply-timeout=120000 \
+    --dest=com.ubuntu.Drivers \
+    /com/ubuntu/Drivers \
+    com.ubuntu.Drivers.drivers

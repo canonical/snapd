@@ -10,6 +10,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // SnapAppSet is a helper that provides information about executable elements of
@@ -52,8 +53,8 @@ func (a *SnapAppSet) Components() []*snap.ComponentInfo {
 
 // InstanceName returns the instance name of the snap that this SnapAppSet is
 // based on.
-func (a *SnapAppSet) InstanceName() string {
-	return a.info.InstanceName()
+func (a *SnapAppSet) InstanceName() naming.InstanceName {
+	return naming.InstanceName(a.info.InstanceName())
 }
 
 // ExpandSliceSnapVariablesInRootfs resolves $SNAP, $SNAP_DATA, $SNAP_COMMON

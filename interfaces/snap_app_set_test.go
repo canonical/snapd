@@ -530,7 +530,7 @@ func (s *snapAppSetSuite) TestInstanceName(c *C) {
 	set, err := interfaces.NewSnapAppSet(info, nil)
 	c.Assert(err, IsNil)
 
-	c.Check(set.InstanceName(), Equals, "test-snap")
+	c.Check(set.InstanceName(), Equals, naming.InstanceName("test-snap"))
 }
 
 func (s *snapAppSetSuite) TestNewAppSetWithWrongComponent(c *C) {

@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"os"
@@ -37,7 +38,9 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -159,12 +162,25 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// One read, so later stages look the action up from context instead of
+	// touching the body again.
+	action, err := extractRequestAction(r)
+	if isBodyUnusable(err) {
+		BadRequest(err.Error()).ServeHTTP(w, r)
+		return
+	}
+	r = r.WithContext(withActionResult(r.Context(), action, err))
+	if errors.Is(err, errUnexpectedDataAfterBody) {
+		BadRequest(err.Error()).ServeHTTP(w, r)
+		return
+	}
+
 	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
 		rspe.ServeHTTP(w, r)
 		return
 	}
 
-	traceSnapdAPI(c, w, r)
+	traceSnapdAPI(c, r)
 
 	rsp := rspf(c, r, user)
 
@@ -186,30 +202,158 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp.ServeHTTP(w, r)
 }
 
-func traceSnapdAPI(c *Command, w http.ResponseWriter, r *http.Request) {
-	if osutil.GetenvBool("SNAPD_TRACE") {
-		loggedWithAction := false
-		if r.Method == "POST" && (r.Header.Get("Content-Type") == "application/json" || r.Header.Get("Content-Type") == "") {
-			r.Body = http.MaxBytesReader(w, r.Body, 3*1024*1024) // 3 MB limit
-			bodyBytes, err := io.ReadAll(r.Body)
-			if err != nil {
-				logger.Trace("endpoint-error", "body-read", err)
-			}
-			var data struct {
-				Action string `json:"action"`
-			}
-			if err := json.Unmarshal(bodyBytes, &data); err == nil {
-				if data.Action != "" {
-					loggedWithAction = true
-					logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", data.Action)
-				}
-			}
-			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-		}
-		if !loggedWithAction {
-			logger.Trace("endpoint", "method", r.Method, "path", c.Path)
-		}
+const maxBodySize = 4 * 1024 * 1024
+
+var (
+	errBodyTooLarge            = errors.New("body size limit exceeded")
+	errBodyUnreadable          = errors.New("cannot read request body")
+	errEmptyBody               = errors.New("empty request body")
+	errUnexpectedDataAfterBody = errors.New("unexpected data after request body")
+	errActionResultNotCached   = errors.New("internal error: request action not cached")
+)
+
+// isBodyUnusable reports a body later stages cannot be served from (oversize
+// or a broken stream). A decode failure is not unusable.
+func isBodyUnusable(err error) bool {
+	return errors.Is(err, errBodyTooLarge) || errors.Is(err, errBodyUnreadable)
+}
+
+// actionInRequest is the JSON shape used to pick the top-level "action" out of a body.
+type actionInRequest struct {
+	Action string `json:"action"`
+}
+
+type actionContextKey struct{}
+
+// actionResult is the cached outcome of extractRequestAction: the action, if
+// any, and the parse error, if any. A decode error does not clear the action.
+type actionResult struct {
+	action   string
+	parseErr error
+}
+
+func withActionResult(ctx context.Context, action string, err error) context.Context {
+	return context.WithValue(ctx, actionContextKey{}, actionResult{action: action, parseErr: err})
+}
+
+// actionResultFromContext returns the action cached by withActionResult.
+// A miss is errActionResultNotCached: ServeHTTP always caches first, so a miss
+// means the caller skipped that step rather than that the request had no action.
+func actionResultFromContext(ctx context.Context) (string, error) {
+	cached, ok := ctx.Value(actionContextKey{}).(actionResult)
+	if !ok {
+		return "", errActionResultNotCached
 	}
+	return cached.action, cached.parseErr
+}
+
+// requestBodyPolicy reports whether the body is buffered in memory (and
+// rejected if larger than maxBodySize) and whether it is decoded for "action".
+// Selection is loose so tracing can still see an action; callers apply
+// stricter rules themselves.
+func requestBodyPolicy(r *http.Request) (bufferBody, decodeAction bool) {
+	// TODO: buffer PUT once size limits for snap conf and confdb are established
+	if r.Method != "POST" {
+		return false, false
+	}
+
+	ct := r.Header.Get("Content-Type")
+	if ct == "" {
+		// The snap client often omits Content-Type on JSON. snap ack is
+		// the exception: it streams assertions to POST /v2/assertions
+		// with no Content-Type at all.
+		if strings.TrimSuffix(r.URL.Path, "/") == "/v2/assertions" {
+			return false, false
+		}
+		return true, true
+	}
+
+	mediaType, _, _ := mime.ParseMediaType(ct)
+	if mediaType == "" {
+		// Unrecognised type is not a stream exemption.
+		return true, false
+	}
+
+	// snap try shares POST /v2/snaps and multipart/form-data with sideload;
+	// telling them apart means buffering the form, so both are left unread.
+	if strings.HasPrefix(mediaType, "multipart/") ||
+		mediaType == client.SnapshotExportMediaType ||
+		mediaType == asserts.MediaType {
+		return false, false
+	}
+
+	return true, mediaType == "application/json"
+}
+
+// extractRequestAction buffers the request body once, rejecting it if oversize
+// and extracting the action. Bodies that requestBodyPolicy leaves unread
+// (recognised streams, PUT, non-POST) are not touched.
+func extractRequestAction(r *http.Request) (string, error) {
+	bufferBody, decodeAction := requestBodyPolicy(r)
+	if !bufferBody {
+		if decodeAction {
+			return "", errors.New("internal error: cannot decode action without buffering the body")
+		}
+		return "", nil
+	}
+
+	if r.ContentLength > maxBodySize {
+		return "", errBodyTooLarge
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodySize+1))
+	if err != nil {
+		// Partial bytes are not the whole body, and the rest was never limited.
+		return "", fmt.Errorf("%w: %v", errBodyUnreadable, err)
+	}
+	if len(body) > maxBodySize {
+		return "", errBodyTooLarge
+	}
+
+	// net/http closes the body it captured when the request was read, not
+	// whatever r.Body holds later, so this does not leak the original.
+	r.Body = io.NopCloser(bytes.NewReader(body))
+
+	if !decodeAction {
+		return "", nil
+	}
+	return decodeActionFromBody(body)
+}
+
+// decodeActionFromBody returns the top-level "action", empty when the body has
+// no such field. Trailing data after the JSON value is an error and does not
+// discard a decoded action.
+func decodeActionFromBody(body []byte) (string, error) {
+	if len(body) == 0 {
+		return "", errEmptyBody
+	}
+
+	var req actionInRequest
+	dec := json.NewDecoder(bytes.NewReader(body))
+	if err := dec.Decode(&req); err != nil {
+		return "", err
+	}
+	// Decode again rather than Decoder.More(), which misses trailing } and ].
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		return req.Action, errUnexpectedDataAfterBody
+	}
+	return req.Action, nil
+}
+
+func traceSnapdAPI(c *Command, r *http.Request) {
+	if !osutil.GetenvBool("SNAPD_TRACE") {
+		return
+	}
+	action, err := actionResultFromContext(r.Context())
+	if err != nil && !errors.Is(err, errEmptyBody) {
+		logger.Trace("endpoint-error", "body-read", err)
+	}
+	if action != "" {
+		logger.Trace("endpoint", "method", r.Method, "path", c.Path, "action", action)
+		return
+	}
+	logger.Trace("endpoint", "method", r.Method, "path", c.Path)
 }
 
 type wrappedWriter struct {

@@ -34,6 +34,22 @@ prepare: |
   echo "Install podman"
   tests.pkgs install podman
 
+  if os.query is-ubuntu 26.10; then
+      # See https://bugs.launchpad.net/ubuntu/+source/podman/+bug/2165050 for
+      # problem root cause. This should be reverted once containers-storage 1.63
+      # gets out of proposed
+      echo "Install containers-storage 1.63 from proposed"
+      PROPOSED_SOURCE=/etc/apt/sources.list.d/snapd-podman-proposed.list
+      echo "deb http://archive.ubuntu.com/ubuntu/ stonking-proposed universe" > "$PROPOSED_SOURCE"
+      apt-get update
+      apt-get install -y -t "stonking-proposed" containers-storage
+      rm -f "$PROPOSED_SOURCE"
+      apt-get update
+
+      test "$(dpkg-query -W -f='${Version}' containers-storage)" = 1.63.0-1
+      not grep -Eq '^[[:space:]]*(graphroot|runroot)[[:space:]]*=' /usr/share/containers/storage.conf
+  fi
+
   echo "Enable and start the podman system socket"
   systemctl enable --now podman.socket
 
@@ -60,6 +76,7 @@ prepare: |
   "$TESTSTOOLS"/snaps-state install-local podman-consumer
 
 restore: |
+  rm -f /etc/apt/sources.list.d/snapd-podman-proposed.list
   tests.session -u test exec systemctl --user disable --now podman.socket || true
   tests.session -u test restore
   snap unset system experimental.user-daemons

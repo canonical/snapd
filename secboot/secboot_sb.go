@@ -35,6 +35,7 @@ import (
 	sb "github.com/snapcore/secboot"
 	sb_luks2 "github.com/snapcore/secboot/luks2"
 	sb_plainkey "github.com/snapcore/secboot/plainkey"
+	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 
 	"github.com/snapcore/snapd/gadget/device"
 	"github.com/snapcore/snapd/kernel/fde"
@@ -109,89 +110,160 @@ func LockSealedKeys() error {
 
 type ActivateState = sb.ActivateState
 
-func shouldAttemptRepairOnFailure(a *ActivateState) bool {
-	for _, activation := range a.Activations {
-		for _, errorType := range activation.KeyslotErrors {
-			switch errorType {
-			case sb.KeyslotErrorPlatformFailure:
-				return false
-			case sb.KeyslotErrorIncorrectUserAuth:
-				return false
-			case sb.KeyslotErrorInvalidKeyData:
-				// FIXME: for now when not using tokens, we get this error. We should get
-				// a different error to ignore when we use external keydata
-				// return false
-			case sb.KeyslotErrorInvalidPrimaryKey:
-				return false
-			case sb.KeyslotErrorUnknown:
-				return false
-			case sb.KeyslotErrorNone:
-				// This is not really clear if that should happen.
-				return false
-			// FIXME: add this case after updating secboot when we have this error
-			//case sb.KeyslotErrorIncorrectRoleParams:
-			//	return false
-			case sb.KeyslotErrorIncompatibleRoleParams:
-				// FIXME: we should ignore this case only if the given keyslot is not expected
-				// to work for the boot mode. For now we just ignore it for every keyslot.
-			}
-		}
-	}
-	// We only encountered IncompatibleRoleParams errors. That
-	// means it could be repaired.
-	return true
-}
-
 // ShouldAttemptRepair reads an activate state and decides whether
-// a repair should be attempted.
-func ShouldAttemptRepair(a *ActivateState) bool {
-	// First case: recovery. We do attempt repair if all keyslots
-	// of any disk unlocked with recovery key failed with
-	// IncompatibleRoleParams
+// a repair should be attempted, or what other operations need
+// to be done manually in order to repair it.
+func ShouldAttemptRepair(a *ActivateState, lockoutResetErr error) RemedialActions {
+	needsFixes := false
+	canFixManually := true
+	canAutoRepair := true
+
+	// FIXME: we need to verify the SRK and ask for repair if missing
+
+	// FIXME: if we did not unlock any primary key, it is useless to try auto repair.
+	// We should instead require reprovision. However for now, we likely will try
+	// auto repair, fail, then require reprovision.
+
+	switch {
+	case errors.Is(lockoutResetErr, sb_tpm2.ErrTPMLockout):
+		return RemedialActions{
+			RequirePlatformReset: true,
+		}
+	case errors.Is(lockoutResetErr, sb_tpm2.ErrLockoutAuthNotInitialized):
+		// authorization was performed with an empty auth value, we need to repair that.
+		needsFixes = true
+	case lockoutResetErr != nil:
+		// Maybe post install check during reprovision will help diagnostic the issue.
+		// This includes errors like LockoutAuthPolicyNotSupported.
+		needsFixes = true
+		canFixManually = false
+		canAutoRepair = false
+	}
+
 	for _, activation := range a.Activations {
 		if activation.Status == sb.ActivationSucceededWithRecoveryKey || activation.Status == sb.ActivationFailed {
-			return shouldAttemptRepairOnFailure(a)
-		}
-	}
+			// Failed mode
+			for _, errorType := range activation.KeyslotErrors {
+				if errorType == sb.KeyslotErrorPlatformFailure {
+					// TODO: spec is incomplete about this case
+					needsFixes = true
+					canFixManually = false
+					canAutoRepair = false
+				}
+			}
 
-	// Second case: degraded. All disk were unlocked
-	// successfully. But we check for some specific errors.
-	//  * We ignore errors due to wrong user auth (failed attempt).
-	//  * Some errors can be repaired:
-	//    - If the role params are incompatible and we detect that this key should have been actually used.
-	//    - If the role params were incorrect.
-	//  * Other error point to more complicated issues that will need reprovision instead.
-	needAutoRepair := false
-	for _, activation := range a.Activations {
-		for _, errorType := range activation.KeyslotErrors {
-			switch errorType {
-			// No error
-			case sb.KeyslotErrorNone:
-			case sb.KeyslotErrorIncorrectUserAuth:
+			allKeySlotsFailWithIncompatibleRoleParams := true
+			allKeySlotsFailWithIncorrectUserAuth := true
+			allKeySlotsFailWithUserAuthUnavailable := true
 
-			// Require reprovision, auto-repair is not enough
-			case sb.KeyslotErrorInvalidKeyData:
-				return false
-			case sb.KeyslotErrorInvalidPrimaryKey:
-				return false
-			case sb.KeyslotErrorPlatformFailure:
-				return false
-			case sb.KeyslotErrorUnknown:
-				return false
+			for _, errorType := range activation.KeyslotErrors {
+				if errorType == sb.KeyslotErrorInvalidKeyData {
+					// FIXME: because some systems do not use tokens we have to
+					// ignore this error. We need to fix secboot to discriminate with
+					// other type of invalid key data errors.
+					if errors.Is(lockoutResetErr, sb_tpm2.ErrLockoutAuthNotInitialized) {
+						// Unless we have a cleared TPM, which always gives invalid key data +
+						// ErrLockoutAuthNotInitialized on lockout reset. Then we
+						// are sure auto repair cannot work.
+						//
+						// FIXME: The invalid key data also provides "either the sealed key object is
+						// bad or the TPM owner has changed". It would be nice in that case to have a different
+						// type of error if the TPM owner changed.
+						needsFixes = true
+						canFixManually = false
+						canAutoRepair = false
+					}
+					continue
+				}
+				if errorType != sb.KeyslotErrorIncorrectUserAuth {
+					allKeySlotsFailWithIncorrectUserAuth = false
+				}
+				if errorType != sb.KeyslotErrorIncompatibleRoleParams {
+					allKeySlotsFailWithIncompatibleRoleParams = false
+				}
+				if errorType != sb.KeyslotErrorUserAuthUnavailable {
+					allKeySlotsFailWithUserAuthUnavailable = false
+				}
+			}
 
-			// Repair
-			case sb.KeyslotErrorIncompatibleRoleParams:
-				// FIXME: we need to verify the keyslot is expected to work in the current mode.
-				// For now, it is likely we attempted the "default" keyslots first and we are in run mode.
-				needAutoRepair = true
-				// FIXME: add this case after updating secboot when we have this error
-				//case sb.KeyslotErrorIncorrectRoleParams:
-				// needAutoRepair = true
+			if allKeySlotsFailWithUserAuthUnavailable && len(activation.KeyslotErrors) != 0 {
+				// In this case lockout reset has fixed the issue.
+				// We guard against missing errors, maybe platform keyslots were removed?
+				continue
+			}
+
+			needsFixes = true
+
+			if allKeySlotsFailWithIncompatibleRoleParams {
+				continue
+			}
+
+			canAutoRepair = false
+
+			if allKeySlotsFailWithIncorrectUserAuth {
+				continue
+			}
+
+			canFixManually = false
+		} else {
+			// Disk was unlocked. We now check if it was degraded.
+			//  * We ignore errors due to wrong user auth (failed attempt).
+			//  * Some errors can be repaired:
+			//    - If the role params are incompatible and we detect that this key should have been actually used.
+			//    - If the role params were incorrect.
+			//  * Other error point to more complicated issues that will need reprovision instead.
+			for _, errorType := range activation.KeyslotErrors {
+				switch errorType {
+				// No error
+				case sb.KeyslotErrorNone:
+				case sb.KeyslotErrorIncorrectUserAuth:
+				// It is fine to type user auth wrong sometimes.
+				case sb.KeyslotErrorUserAuthUnavailable:
+				// This is underspecified. This one is expected to happen only with
+				// recovery key used. So that should not reach here. If we booted, this is anyway
+				// fixed when resetting lockout, so we should see an error in lockoutResetErr.
+				// So we can ignore this error here.
+
+				case sb.KeyslotErrorInvalidKeyData:
+					// TODO: we should handle KeyslotErrorInvalidKeyData once we can
+					// discriminate the case of not using token.
+
+				case sb.KeyslotErrorInvalidPrimaryKey:
+					needsFixes = true
+					canFixManually = false
+					canAutoRepair = false
+				case sb.KeyslotErrorPlatformFailure:
+					needsFixes = true
+					canFixManually = false
+					canAutoRepair = false
+				case sb.KeyslotErrorUnknown:
+					needsFixes = true
+					canFixManually = false
+					canAutoRepair = false
+
+				case sb.KeyslotErrorIncompatibleRoleParams:
+					// This can be fixed with auto repair
+					needsFixes = true
+				case sb.KeyslotErrorInvalidRoleParams:
+					// This can be fixed with auto repair
+					needsFixes = true
+				}
 			}
 		}
 	}
 
-	return needAutoRepair
+	if !needsFixes {
+		return RemedialActions{}
+	}
+
+	if canAutoRepair {
+		return RemedialActions{AttemptRepair: true}
+	}
+
+	return RemedialActions{
+		RequireReprovision: true,
+		PermitManual:       canFixManually,
+	}
 }
 
 // ActivateStateHasDegradedErrors looks for any error that is not
@@ -213,6 +285,8 @@ func ActivateStateHasDegradedErrors(a *ActivateState) bool {
 				// key data files. Maybe secboot should
 				// provide a different error code.
 
+			case sb.KeyslotErrorInvalidRoleParams:
+				return true
 			case sb.KeyslotErrorInvalidPrimaryKey:
 				return true
 			case sb.KeyslotErrorPlatformFailure:

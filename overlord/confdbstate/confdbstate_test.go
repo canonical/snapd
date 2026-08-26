@@ -205,6 +205,7 @@ func (s *confdbTestSuite) SetUpTest(c *C) {
 }
 
 func (s *confdbTestSuite) TearDownTest(c *C) {
+	c.Assert(s.o.Stop(), IsNil)
 	if s.restoreDeviceCtx != nil {
 		s.restoreDeviceCtx()
 		s.restoreDeviceCtx = nil
@@ -313,7 +314,8 @@ func (s *confdbTestSuite) TestSetView(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	s.o.Settle(5 * time.Second)
+	err = s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 	s.state.Lock()
 
 	chg := s.state.Change(chgID)
@@ -341,7 +343,8 @@ func (s *confdbTestSuite) TestSetViewDoesNotEraseOtherSchemaUnderSameAccount(c *
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	s.o.Settle(5 * time.Second)
+	err = s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 	s.state.Lock()
 
 	c.Assert(s.state.Change(chgID).Status(), Equals, state.DoneStatus)
@@ -354,7 +357,8 @@ func (s *confdbTestSuite) TestSetViewDoesNotEraseOtherSchemaUnderSameAccount(c *
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	s.o.Settle(5 * time.Second)
+	err = s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 	s.state.Lock()
 
 	c.Assert(s.state.Change(chgID).Status(), Equals, state.DoneStatus)
@@ -434,7 +438,8 @@ func (s *confdbTestSuite) TestUnsetView(c *C) {
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()
-	s.o.Settle(5 * time.Second)
+	err = s.o.Settle(5 * time.Second)
+	c.Assert(err, IsNil)
 	s.state.Lock()
 
 	chg := s.state.Change(chgID)
@@ -1125,7 +1130,8 @@ func (s *confdbTestSuite) TestWriteConfdbCreatesNewChange(c *C) {
 	c.Assert(chg.ID(), Equals, chgID)
 
 	s.state.Unlock()
-	s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	c.Assert(err, IsNil)
 	s.state.Lock()
 
 	s.checkSetConfdbChange(c, chg, hooks)
@@ -1135,10 +1141,13 @@ func (s *confdbTestSuite) TestWriteConfdbFromSnapCreatesNewChange(c *C) {
 	hooks, restore := s.mockConfdbHooks()
 	defer restore()
 
+	settleErr := make(chan error, 1)
 	restore = confdbstate.MockEnsureNow(func(*state.State) {
 		s.checkOngoingWriteConfdbTx(c, s.devAccID, "network")
 
-		go s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+		go func() {
+			settleErr <- s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+		}()
 	})
 	defer restore()
 
@@ -1158,6 +1167,9 @@ func (s *confdbTestSuite) TestWriteConfdbFromSnapCreatesNewChange(c *C) {
 	ctx.Lock()
 	err = confdbstate.WriteConfdbFromSnap(ctx, view, map[string]any{"ssid": "foo"}, nil)
 	c.Assert(err, IsNil)
+	ctx.Unlock()
+	c.Assert(<-settleErr, IsNil)
+	ctx.Lock()
 
 	// this is called automatically by hooks or manually for daemon/
 	ctx.Done()
@@ -1605,9 +1617,12 @@ func (s *confdbTestSuite) testReadConfdbFromSnap(c *C, ctx *hookstate.Context) *
 	hooks, restore := s.mockConfdbHooks()
 	defer restore()
 
+	settleErr := make(chan error, 1)
 	restore = confdbstate.MockEnsureNow(func(*state.State) {
 		s.checkOngoingReadConfdbTx(c, s.devAccID, "network")
-		go s.o.Settle(5 * time.Second)
+		go func() {
+			settleErr <- s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+		}()
 	})
 	defer restore()
 
@@ -1624,6 +1639,14 @@ func (s *confdbTestSuite) testReadConfdbFromSnap(c *C, ctx *hookstate.Context) *
 	view := s.dbSchema.View("setup-wifi")
 	tx, err := confdbstate.ReadConfdbFromSnap(ctx, view, []string{"ssid"}, nil, nil)
 	c.Assert(err, IsNil)
+	ctx.Unlock()
+	select {
+	case err = <-settleErr:
+		c.Assert(err, IsNil)
+	case <-time.After(testutil.HostScaledTimeout(6 * time.Second)):
+		c.Fatal("timed out waiting for settle")
+	}
+	ctx.Lock()
 	c.Assert(s.state.Changes(), HasLen, 1)
 
 	val, err := tx.Get(parsePath(c, "wifi.ssid"), nil)
@@ -1753,7 +1776,8 @@ func (s *confdbTestSuite) TestGetTransactionTimesOut(c *C) {
 	c.Assert(tx, IsNil)
 
 	s.state.Unlock()
-	s.o.Settle(testutil.HostScaledTimeout(2 * time.Second))
+	err = s.o.Settle(testutil.HostScaledTimeout(2 * time.Second))
+	c.Assert(err, IsNil)
 	s.state.Lock()
 
 	err = confdbstate.WriteConfdbFromSnap(ctx, view, nil, nil)
@@ -2070,10 +2094,13 @@ func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C
 	s.setupConfdbScenario(c, map[string]confdbHooks{"custodian-snap": hooks}, nil)
 	s.state.Unlock()
 
+	settleErr := make(chan error, 1)
 	restore := confdbstate.MockEnsureNow(func(*state.State) {
 		s.checkOngoingWriteConfdbTx(c, s.devAccID, "network")
 
-		go s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+		go func() {
+			settleErr <- s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+		}()
 	})
 	defer restore()
 
@@ -2097,6 +2124,14 @@ func (s *confdbTestSuite) TestWriteAffectingEphemeralMustDefineSaveViewHook(c *C
 		"ssid": "foo",
 	}, nil)
 	c.Assert(err, IsNil)
+	ctx.Unlock()
+	select {
+	case err = <-settleErr:
+		c.Assert(err, IsNil)
+	case <-time.After(testutil.HostScaledTimeout(6 * time.Second)):
+		c.Fatal("timed out waiting for settle")
+	}
+	ctx.Lock()
 }
 
 func (s *confdbTestSuite) TestReadCoveringEphemeralMustDefineLoadViewHook(c *C) {

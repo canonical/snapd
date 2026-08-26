@@ -537,7 +537,7 @@ func (s *helpersSuite) TestProfileRegenerationDoesNotDelay(c *C) {
 				appSet *interfaces.SnapAppSet, opts interfaces.ConfinementOptions,
 				sctx interfaces.SetupContext, repo *interfaces.Repository,
 			) error {
-				setupCalls = append(setupCalls, appSet.InstanceName())
+				setupCalls = append(setupCalls, appSet.InstanceName().String())
 				c.Check(sctx.CanDelayEffects, Equals, false)
 				c.Check(sctx.Reason, Equals, interfaces.SnapSetupReasonOther)
 				return nil
