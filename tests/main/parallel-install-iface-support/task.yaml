@@ -11,32 +11,211 @@ prepare: |
     tests.cleanup defer snap unset system experimental.parallel-instances
 
 execute: |
-    check_parallel_install_rejected() {
+    make_test_snap() {
         local snap_name="$1"
+        local iface_name="$2"
+        local side="$3"  # plug or slot
+        shift 3
+        local -a attrs=("$@")
+        local snapdir
+        snapdir=$(mktemp -d)
+        chmod 755 "$snapdir"
+        tests.cleanup defer rm -rf "$snapdir"
+        mkdir -p "$snapdir/meta" "$snapdir/bin"
+        printf '#!/bin/sh\n' > "$snapdir/bin/cmd"
+        chmod +x "$snapdir/bin/cmd"
+        {
+            printf 'name: %s\n' "$snap_name"
+            printf 'version: "1.0"\n'
+            printf 'apps:\n  cmd:\n    command: bin/cmd\n'
+            printf '%ss:\n  iface:\n    interface: %s\n' "$side" "$iface_name"
+            for attr in "${attrs[@]}"; do printf '    %s\n' "$attr"; done
+        } > "$snapdir/meta/snap.yaml"
+        snap pack --filename="/tmp/${snap_name}.snap" "$snapdir" >/dev/null
+        tests.cleanup defer rm -f "/tmp/${snap_name}.snap"
+        # cleanup now
+        rm -rf "$snapdir"
+    }
+
+    check_parallel_install_rejected() {
+        local iface_name="$1"
+        local side="$2"  # plug or slot
+        shift 2
+        local -a attrs=("$@")
+        local snap_name="test-${iface_name}-${side}"
+        make_test_snap "$snap_name" "$iface_name" "$side" "${attrs[@]}"
         echo "Snap $snap_name can be installed without an instance key"
-        "$TESTSTOOLS"/snaps-state install-local "$snap_name"
-        tests.cleanup defer snap remove --purge "$snap_name"
-        snap list | MATCH "^${snap_name} "
+        if snap install --dangerous "/tmp/${snap_name}.snap" 2>install-noinstance.err; then
+            tests.cleanup defer snap remove --purge "$snap_name"
+            snap list | MATCH "^${snap_name} "
+        else
+            # ensure the failure is not the parallel-instance check firing on a non-instanced install
+            NOMATCH "cannot install snap .* as parallel instance" < install-noinstance.err
+        fi
         echo "Installing $snap_name as a parallel instance is rejected"
-        if "$TESTSTOOLS"/snaps-state install-local-as "$snap_name" "${snap_name}_foo" 2>install.err; then
+        if snap install --dangerous --name "${snap_name}_foo" "/tmp/${snap_name}.snap" 2>install.err; then
             echo "installation of ${snap_name}_foo was expected to fail"
-            tests.cleanup defer snap remove --purge "${snap_name}_foo"
+            snap remove --purge "${snap_name}_foo"
             exit 1
         fi
-        tr '\n' ' ' < install.err | tr -s ' ' | MATCH "cannot install snap \"${snap_name}_foo\" as parallel instance"
+        tr '\n' ' ' < install.err | tr -s ' ' | MATCH "cannot install snap \"${snap_name}_foo\" as parallel instance: ${side} \"iface\" with interface \"$iface_name\""
+        # cleanup now
+        snap remove --purge "$snap_name"
+        rm -f "/tmp/${snap_name}.snap"
+        echo
     }
+
+    check_parallel_install_plug_rejected() {
+        local iface_name="$1"
+        shift
+        local -a attrs=("$@")
+        check_parallel_install_rejected "$iface_name" plug "${attrs[@]}"
+    }
+
+    check_parallel_install_slot_rejected() {
+        local iface_name="$1"
+        shift
+        local -a attrs=("$@")
+        check_parallel_install_rejected "$iface_name" slot "${attrs[@]}"
+    }
+
+    check_parallel_install_plug_and_slot_rejected() {
+        local iface_name="$1"
+        shift
+        local -a attrs=("$@")
+        check_parallel_install_rejected "$iface_name" plug "${attrs[@]}"
+        check_parallel_install_rejected "$iface_name" slot "${attrs[@]}"
+    }
+
+    ####################################################################
+
+    check_parallel_install_plug_and_slot_rejected acrn-support
+
+    check_parallel_install_plug_and_slot_rejected adb-support
+
+    check_parallel_install_plug_and_slot_rejected auditd-support
+
+    check_parallel_install_plug_and_slot_rejected checkbox-support
+
+    check_parallel_install_plug_and_slot_rejected classic-support
+
+    check_parallel_install_plug_and_slot_rejected core-support
+
+    check_parallel_install_plug_rejected cuda-driver-libs
+
+    check_parallel_install_slot_rejected cuda-driver-libs \
+        "compatibility: cuda-(9..12)-ubuntu-2404" \
+        "library-source: [\$SNAP/lib]"
+
+    check_parallel_install_plug_and_slot_rejected desktop-launch
+
+    check_parallel_install_plug_and_slot_rejected dm-crypt
+
+    check_parallel_install_plug_and_slot_rejected dm-multipath
+
+    check_parallel_install_plug_and_slot_rejected docker-support
+
+    check_parallel_install_plug_rejected egl-driver-libs
+
+    check_parallel_install_slot_rejected egl-driver-libs \
+        "priority: 10" \
+        "compatibility: egl-1-5-ubuntu-2404" \
+        "icd-source: [\$SNAP/icd]" \
+        "library-source: [\$SNAP/lib]"
+
+    check_parallel_install_plug_and_slot_rejected firmware-updater-support
+
+    check_parallel_install_plug_rejected gbm-driver-libs
+
+    check_parallel_install_slot_rejected gbm-driver-libs \
+        "client-driver: driver.so" \
+        "compatibility: gbmbackend-(0..2)-arch64-ubuntu-2510" \
+        "library-source: [\$SNAP/lib]"
+
+    check_parallel_install_plug_and_slot_rejected greengrass-support
+
+    check_parallel_install_plug_and_slot_rejected iscsi-initiator
+
+    check_parallel_install_plug_and_slot_rejected kubernetes-support
+
+    check_parallel_install_plug_and_slot_rejected lxd-support
+
+    check_parallel_install_plug_and_slot_rejected microceph-support
+
+    check_parallel_install_plug_and_slot_rejected microstack-support
+
+    check_parallel_install_plug_and_slot_rejected multipass-support
+
+    check_parallel_install_plug_and_slot_rejected nomad-support
+
+    check_parallel_install_plug_and_slot_rejected nvidia-drivers-support
+
+    check_parallel_install_plug_rejected nvidia-video-driver-libs
+
+    check_parallel_install_slot_rejected nvidia-video-driver-libs \
+        "compatibility: nvidia-video-(6..12)-(0..2)-ubuntu-2404" \
+        "library-source: [\$SNAP/lib]"
+
+    check_parallel_install_plug_rejected opengl-driver-libs
+
+    check_parallel_install_slot_rejected opengl-driver-libs \
+        "compatibility: opengl-4-6-ubuntu-2510" \
+        "library-source: [\$SNAP/lib]"
+
+    check_parallel_install_plug_rejected opengles-driver-libs
+
+    check_parallel_install_slot_rejected opengles-driver-libs \
+        "compatibility: opengles-2-0-ubuntu-2510" \
+        "library-source: [\$SNAP/lib]"
+
+    check_parallel_install_plug_and_slot_rejected openvswitch-support
+
+    check_parallel_install_plug_rejected posix-mq
+
+    check_parallel_install_slot_rejected posix-mq \
+        "path: /test-mq-slot"
+
+    check_parallel_install_plug_and_slot_rejected ros-snapd-support
+
+    # without private attribute (defaults to false)
+    check_parallel_install_plug_rejected shared-memory
+
+    check_parallel_install_slot_rejected shared-memory \
+        "write: [myshm]"
+
+    check_parallel_install_plug_and_slot_rejected steam-support
+
+    check_parallel_install_plug_rejected vulkan-driver-libs
+
+    check_parallel_install_slot_rejected vulkan-driver-libs \
+        "compatibility: vulkan-1-(2..5)-ubuntu-2404" \
+        "icd-source: [\$SNAP/icd]" \
+        "library-source: [\$SNAP/lib]"
+
+    # TODO: add snaps with other interfaces that do not support parallel
+    # instances only on slot side
+
+    ####################################################################
 
     check_parallel_install_allowed() {
         local snap_name="$1"
-        echo "Snap $snap_name can be installed as a parallel instance"
-        "$TESTSTOOLS"/snaps-state install-local "$snap_name"
+        local iface_name="$2"
+        shift 2
+        local -a attrs=("$@")
+        make_test_snap "$snap_name" "$iface_name" plug "${attrs[@]}"
+        echo "Snap $snap_name can be installed without an instance key"
+        snap install --dangerous "/tmp/${snap_name}.snap"
         tests.cleanup defer snap remove --purge "$snap_name"
-        "$TESTSTOOLS"/snaps-state install-local-as "$snap_name" "${snap_name}_foo"
+        snap list | MATCH "^${snap_name} "
+        echo "Snap $snap_name can be installed as a parallel instance"
+        snap install --dangerous --name "${snap_name}_foo" "/tmp/${snap_name}.snap"
         tests.cleanup defer snap remove --purge "${snap_name}_foo"
         snap list | MATCH "^${snap_name}_foo "
+        # cleanup now
+        snap remove --purge "${snap_name}_foo" "$snap_name"
+        rm -f "/tmp/${snap_name}.snap"
+        echo
     }
 
-    # TODO: add snaps with other interfaces that do not support parallel instances
-    check_parallel_install_rejected test-shm-no-private
-
-    check_parallel_install_allowed test-shm-private
+    check_parallel_install_allowed test-shared-memory-private shared-memory \
+        "private: true"
