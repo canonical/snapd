@@ -667,9 +667,9 @@ var (
 	coreRuntimePattern = regexp.MustCompile("^core([0-9][0-9])?$")
 )
 
-// isNonCoreBase reports whether base names a non-core base.
+// isCustomBase reports whether base names a snap outside the core* family.
 // An empty base is the implicit "core" base, so it returns false.
-func isNonCoreBase(base string) bool {
+func isCustomBase(base string) bool {
 	return base != "" && !coreRuntimePattern.MatchString(base)
 }
 
@@ -682,7 +682,7 @@ var baseRuntimeExtraRules = func(base string, suppressPycacheDeny bool) string {
 		pycacheDeny = ""
 	}
 	pythonRules := defaultPythonTemplateRules + pycacheDeny
-	if isNonCoreBase(base) {
+	if isCustomBase(base) {
 		return defaultPerlTemplateRules + pythonRules
 	}
 	// For base "" (implicit core) or "core" (explicit), TrimPrefix yields ""
@@ -691,7 +691,7 @@ var baseRuntimeExtraRules = func(base string, suppressPycacheDeny bool) string {
 	coreVer, _ := strconv.Atoi(strings.TrimPrefix(base, "core"))
 	if coreVer >= 26 {
 		return ""
-	} else if base == "core24" {
+	} else if coreVer == 24 {
 		return pythonRules + defaultCoreRuntimePythonTemplateRules
 	}
 	return defaultPerlTemplateRules + defaultCoreRuntimePerlTemplateRules + pythonRules + defaultCoreRuntimePythonTemplateRules
@@ -779,7 +779,7 @@ func (b *Backend) addContent(securityTag string, snapInfo *snap.Info, cmdName st
 	// case, the 'core' snap is used for the runtime), use the base
 	// apparmor template, otherwise use the default template.
 	var policy string
-	if isNonCoreBase(snapInfo.Base) {
+	if isCustomBase(snapInfo.Base) {
 		policy = defaultOtherBaseTemplate
 	} else {
 		policy = defaultCoreRuntimeTemplate
