@@ -507,6 +507,7 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 	}
 
 	// Reject oldest sequences when the LRU exceeds capacity.
+	rejected := make(map[string]bool)
 	excess := len(ms.SequenceLRU) - maxSequences
 	if excess > 0 {
 		toReject := append([]string(nil), ms.SequenceLRU[:excess]...)
@@ -515,10 +516,16 @@ func (m *DeviceMgmtManager) doDispatchMessages(t *state.Task, _ *tomb.Tomb) erro
 			if err != nil {
 				return err
 			}
+
+			rejected[baseID] = true
 		}
 	}
 
 	for baseID, seq := range ms.Sequences {
+		if rejected[baseID] {
+			continue
+		}
+
 		dispatched := m.dispatchSequence(t, seq)
 		// If nothing was dispatched, the sequence is stuck at a gap (one or more missing predecessors).
 		// Reject if too many messages have accumulated waiting on it.
@@ -609,6 +616,10 @@ func (m *DeviceMgmtManager) rejectSequence(ms *deviceMgmtState, dispatchTask *st
 	}
 
 	earliest := seq.Messages[0]
+	if earliest.ResponseStatus != "" {
+		return fmt.Errorf("internal error: rejectSequence called for sequence %q whose earliest message already has status %q", baseID, earliest.ResponseStatus)
+	}
+
 	earliest.ResponseStatus = asserts.MessageStatusRejected
 	earliest.ResponseBody = map[string]any{"message": reason}
 	seq.Messages = []*RequestMessage{earliest}

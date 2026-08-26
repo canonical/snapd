@@ -757,7 +757,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesUnsequenced(c *C) {
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 2)
 
-	ti := buildTaskIndex(changes[1])
+	ti := buildTaskIndex(c, changes[1])
 	assertMessagesDispatched(c, ti, []string{"msg2", "msg3"}, "unsequenced")
 	assertMessagesNotDispatched(c, ti, []string{"msg1"}, "unsequenced")
 
@@ -959,7 +959,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 			}
 		}
 
-		ti := buildTaskIndex(chg)
+		ti := buildTaskIndex(c, chg)
 		assertMessagesDispatched(c, ti, dispatched, tt.name)
 		assertMessagesNotDispatched(c, ti, notDispatched, tt.name)
 		assertMessagesWaitOn(c, ti, tt.expectedChain, tt.name)
@@ -1039,7 +1039,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 
 	// After exchange: nothing evicted yet, LRU reflects arrival order.
 	c.Assert(msAfterExchange, NotNil)
@@ -1135,7 +1135,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 	c.Check(ti.queue["seqA-2"], NotNil)
 	c.Check(ti.validate["seqA-2"], IsNil)
 	c.Check(ti.apply["seqA-2"], IsNil)
@@ -1207,7 +1207,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 	// 3 dispatch tasks + 2 messages * 3 tasks each = 9 tasks.
 	c.Assert(chg.Tasks(), HasLen, 9)
 
-	ti := buildTaskIndex(chg)
+	ti := buildTaskIndex(c, chg)
 	c.Check(ti.validate["msg1"], NotNil)
 	c.Check(ti.apply["msg1"], NotNil)
 	c.Check(ti.queue["msg1"], NotNil)
@@ -1275,7 +1275,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesLaneIsolation(c *C) {
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 
 	// msg1's chain is held due to the validate task's error.
 	c.Check(ti.validate["msg1"].Status(), Equals, state.ErrorStatus)
@@ -2628,7 +2628,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseSigningError(c *C) {
 
 	changes := changesOfKind(s.st.Changes(), "device-management-exchange")
 	c.Assert(changes, HasLen, 1)
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 
 	queueTask := ti.queue["mesg-1"]
 	c.Assert(queueTask, NotNil)
@@ -2780,7 +2780,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseRejectedSequenceEvicted(c *C) {
 	c.Check(changes[0].Status(), Equals, state.DoneStatus)
 
 	// Messages 3 & 4 aren't processed.
-	ti := buildTaskIndex(changes[0])
+	ti := buildTaskIndex(c, changes[0])
 	for _, msgID := range []string{"seqA-3", "seqA-4"} {
 		cmt := Commentf("tasks for %s should be held", msgID)
 		c.Check(ti.validate[msgID].Status(), Equals, state.HoldStatus, cmt)
@@ -2873,7 +2873,7 @@ type taskIndex struct {
 	queue    map[string]*state.Task
 }
 
-func buildTaskIndex(chg *state.Change) *taskIndex {
+func buildTaskIndex(c *C, chg *state.Change) *taskIndex {
 	ti := &taskIndex{
 		validate: make(map[string]*state.Task),
 		apply:    make(map[string]*state.Task),
@@ -2888,10 +2888,13 @@ func buildTaskIndex(chg *state.Change) *taskIndex {
 
 		switch t.Kind() {
 		case "validate-mgmt-message":
+			c.Assert(ti.validate[id], IsNil, Commentf("duplicate validate-mgmt-message task for message %q", id))
 			ti.validate[id] = t
 		case "apply-mgmt-message":
+			c.Assert(ti.apply[id], IsNil, Commentf("duplicate apply-mgmt-message task for message %q", id))
 			ti.apply[id] = t
 		case "queue-mgmt-response":
+			c.Assert(ti.queue[id], IsNil, Commentf("duplicate queue-mgmt-response task for message %q", id))
 			ti.queue[id] = t
 		}
 	}
