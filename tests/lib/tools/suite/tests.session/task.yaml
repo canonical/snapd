@@ -91,3 +91,111 @@ execute: |
         tests.session -u "$USER" -p /tmp/outer.pid exec python3 -c 'import os; print(os.getpid())' >/tmp/inner.pid
         test "$(cat /tmp/outer.pid)" = "$(cat /tmp/inner.pid)"
     done
+
+    # Check persistent session management. Only run this for the non-root
+    # user, as destroying sessions of the root user would interfere with the
+    # spread connection itself.
+    #
+    # Note on counting sessions: on systemd >= 256, "tests.session prepare"
+    # (linger) leaves a manager-class session of the user manager behind, and
+    # "loginctl list-sessions" shows a class column starting with the same
+    # release. Manager-class sessions are filtered out with "grep -v manager"
+    # when counting; on older systemd there are neither manager sessions nor
+    # a class column, so the filter is a no-op.
+    #
+    # Note on "loginctl show-user $USER -p Display": it uses systemd's display-
+    # eligible session election, which resolves to "the caller's own session if
+    # they have one, otherwise their user's display session". Only user- and
+    # greeter-class sessions are ever display-eligible, along with some user-*
+    # classes in systemd versions 256 and later; the display election prefers
+    # class user over greeter, then graphical types (x11/wayland/mir) over tty
+    # over unspecified. Background sessions (and manager-class sessions on
+    # systemd >= 256, when they were introduced) are never display-eligible, so
+    # they cannot shadow the session created here and the display session
+    # assertions below hold on both sides of the systemd 256 boundary.
+    if [ "$USER" != root ]; then
+        # "manager"-class sessions require systemd >= 256 (see the note above).
+        systemd_ver="$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }' | cut -f1 -d"~")"
+
+        # Check that there are no sessions for $USER when filtering out "manager"
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | NOMATCH \"$USER\""
+        if [ "$systemd_ver" -lt 256 ]; then
+            # Truly no sessions for $USER on < 256
+            loginctl list-sessions --no-legend | NOMATCH "$USER"
+        else
+            # One manager session on >= 256
+            loginctl list-sessions --no-legend | MATCH "$USER"
+            loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^1$'
+            loginctl list-sessions --no-legend | grep "$USER" | MATCH "manager"
+        fi
+
+        # There are no display-eligible sessions for $USER
+        loginctl show-user "$USER" -p Display | MATCH '^Display=$'
+
+        # Create session, check that it appears to loginctl
+        tests.session create-session -u "$USER" -c user -t wayland
+        loginctl list-sessions --no-legend | grep -v 'manager' | MATCH "$USER"
+
+        # There's just one active session for the user (ignoring "manager"
+        # sessions on systemd >= 256)
+        loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^1$'
+
+        # The new session is display-eligible, so there are one or more session ID characters
+        loginctl show-user "$USER" -p Display | MATCH '^Display=..*$'
+        session_id="$(loginctl show-user "$USER" -p Display | cut -d '=' -f 2)"
+        # And the session's class and type are correct
+        loginctl show-session "$session_id" -p Class | MATCH '^Class=user$'
+        loginctl show-session "$session_id" -p Type | MATCH '^Type=wayland$'
+
+        # Running `tests.session exec` executes in its own background session,
+        # so there are two sessions while `tests.session exec` is running
+        tests.session -u "$USER" exec loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^2$'
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | grep --count \"$USER\" | MATCH '^1$'"
+
+        # A second session with the same class/type but a distinct label can co-exist.
+        tests.session create-session -u "$USER" -c user -t wayland -l second
+        loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^2$'
+
+        # A third session with a different class, type, and label can co-exist.
+        tests.session create-session -u "$USER" -c greeter -t x11 -l third
+        loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^3$'
+
+        # A fourth session with an unspecified class and type but different label can co-exist.
+        tests.session create-session -u "$USER" -l fourth
+        loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^4$'
+
+        # Creating an already-existing session is an error.
+        not tests.session create-session -u "$USER" -c user
+        loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^4$'
+
+        # Cannot call tests.session create-session/destroy-session with root or
+        # other invalid users
+        for invalid_user in "" "root" "user1,user2" "foo," ",bar"; do
+            not tests.session create-session -u "$invalid_user"
+            tests.session create-session -u "$invalid_user" 2>&1 | MATCH 'invalid user, must be single non-root username'
+            loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^4$'
+            not tests.session destroy-session -u "$invalid_user"
+            tests.session destroy-session -u "$invalid_user" 2>&1 | MATCH 'invalid user, must be single non-root username'
+            loginctl list-sessions --no-legend | grep -v 'manager' | grep --count "$USER" | MATCH '^4$'
+        done
+
+        # Sessions can be destroyed individually
+        tests.session destroy-session -u "$USER" -l fourth
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | grep --count $USER | MATCH '^3$'"
+        tests.session destroy-session -u "$USER" -l third
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | grep --count $USER | MATCH '^2$'"
+        tests.session destroy-session -u "$USER" -l second
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | grep --count $USER | MATCH '^1$'"
+        tests.session destroy-session -u "$USER"
+        retry -n 10 --wait 1 sh -c "loginctl list-sessions --no-legend | grep -v 'manager' | NOMATCH $USER"
+
+        if [ "$systemd_ver" -lt 256 ]; then
+            # Stil no sessions for $USER on < 256
+            loginctl list-sessions --no-legend | NOMATCH "$USER"
+        else
+            # Still one manager session on >= 256
+            loginctl list-sessions --no-legend | MATCH "$USER"
+            loginctl list-sessions --no-legend | grep --count "$USER" | MATCH '^1$'
+            loginctl list-sessions --no-legend | grep "$USER" | MATCH "manager"
+        fi
+    fi
