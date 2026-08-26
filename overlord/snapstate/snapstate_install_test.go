@@ -1345,6 +1345,227 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallNotAllowed(c *C) {
 	c.Check(err, ErrorMatches, `cannot install snap of type snapd as "some-snapd_foo"`)
 }
 
+func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfacePlug(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	// register a test interface that rejects parallel instances on the plug side
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesPlugRejectingInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	// install a snap that plugs the rejecting interface
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-nok-plug": {
+					Snap:      info,
+					Name:      "pi-nok-plug",
+					Interface: "pi-nok-plug-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: plug "pi-nok-plug" with interface "pi-nok-plug-iface" is not supported for parallel instances`)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallRejectedByInterfaceSlot(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	// register a test interface that rejects parallel instances on the slot side
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesSlotRejectingInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	// install a snap that slots the rejecting interface
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Slots = map[string]*snap.SlotInfo{
+				"pi-nok-slot": {
+					Snap:      info,
+					Name:      "pi-nok-slot",
+					Interface: "pi-nok-slot-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap_foo" as parallel instance: slot "pi-nok-slot" with interface "pi-nok-slot-iface" is not supported for parallel instances`)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithImplicitlySupportedInterface(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	// register an interface that implicitly supports parallel instances (default for TestInterface)
+	err := repo.AddInterface(&ifacetest.TestInterface{
+		InterfaceName: "pi-ok-default-iface",
+	})
+	c.Assert(err, IsNil)
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-ok-plug": {
+					Snap:      info,
+					Name:      "pi-ok-plug",
+					Interface: "pi-ok-default-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestParallelInstanceInstallAllowedWithExplicitlySupportedInterface(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesSupportedInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-ok-plug": {
+					Snap:      info,
+					Name:      "pi-ok-plug",
+					Interface: "pi-ok-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap_foo", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestNonParallelInstanceInstallUnaffectedByUnsupportedInterface(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.parallel-instances", true)
+	tr.Commit()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	testIface := &testParallelInstancesPlugRejectingInterface{}
+	err := repo.AddInterface(testIface)
+	c.Assert(err, IsNil)
+
+	s.fakeStore.mutateSnapInfo = func(info *snap.Info) error {
+		if info.SnapName() == "some-snap" {
+			info.Plugs = map[string]*snap.PlugInfo{
+				"pi-nok-plug": {
+					Snap:      info,
+					Name:      "pi-nok-plug",
+					Interface: "pi-nok-plug-iface",
+				},
+			}
+		}
+		return nil
+	}
+
+	// non-parallel install (no instance key) should succeed
+	_, err = snapstate.Install(context.Background(), s.state, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+}
+
+// testParallelInstancesPlugRejectingInterface is a test interface that
+// rejects parallel instances on the plug side.
+type testParallelInstancesPlugRejectingInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *testParallelInstancesPlugRejectingInterface) Name() string {
+	return "pi-nok-plug-iface"
+}
+
+func (t *testParallelInstancesPlugRejectingInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
+	return false
+}
+
+// testParallelInstancesSlotRejectingInterface is a test interface that
+// rejects parallel instances on the slot side.
+type testParallelInstancesSlotRejectingInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *testParallelInstancesSlotRejectingInterface) Name() string {
+	return "pi-nok-slot-iface"
+}
+
+func (t *testParallelInstancesSlotRejectingInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
+	return false
+}
+
+// testParallelInstancesSupportedInterface is a test interface that
+// explicitly supports parallel instances on both plug and slot sides.
+type testParallelInstancesSupportedInterface struct {
+	ifacetest.TestInterface
+}
+
+func (t *testParallelInstancesSupportedInterface) Name() string {
+	return "pi-ok-iface"
+}
+
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
+	return true
+}
+
+func (t *testParallelInstancesSupportedInterface) ParallelInstancesSupportedForSlot(slot *snap.SlotInfo) bool {
+	return true
+}
+
 func (s *snapmgrTestSuite) TestInstallPathFailsEarlyOnEpochMismatch(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

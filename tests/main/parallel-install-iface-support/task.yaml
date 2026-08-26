@@ -1,0 +1,42 @@
+summary: Check that parallel install is blocked for interfaces that do not support parallel instances
+
+details: |
+    Some interfaces declare that they do not support parallel instances.
+    Installing a snap as a parallel instance when it has a plug or slot using
+    such an interface must be rejected, while a regular (non-instanced) install
+    of the same snap must still succeed.
+
+prepare: |
+    snap set system experimental.parallel-instances=true
+    tests.cleanup defer snap unset system experimental.parallel-instances
+
+execute: |
+    check_parallel_install_rejected() {
+        local snap_name="$1"
+        echo "Snap $snap_name can be installed without an instance key"
+        "$TESTSTOOLS"/snaps-state install-local "$snap_name"
+        tests.cleanup defer snap remove --purge "$snap_name"
+        snap list | MATCH "^${snap_name} "
+        echo "Installing $snap_name as a parallel instance is rejected"
+        if "$TESTSTOOLS"/snaps-state install-local-as "$snap_name" "${snap_name}_foo" 2>install.err; then
+            echo "installation of ${snap_name}_foo was expected to fail"
+            tests.cleanup defer snap remove --purge "${snap_name}_foo"
+            exit 1
+        fi
+        tr '\n' ' ' < install.err | tr -s ' ' | MATCH "cannot install snap \"${snap_name}_foo\" as parallel instance"
+    }
+
+    check_parallel_install_allowed() {
+        local snap_name="$1"
+        echo "Snap $snap_name can be installed as a parallel instance"
+        "$TESTSTOOLS"/snaps-state install-local "$snap_name"
+        tests.cleanup defer snap remove --purge "$snap_name"
+        "$TESTSTOOLS"/snaps-state install-local-as "$snap_name" "${snap_name}_foo"
+        tests.cleanup defer snap remove --purge "${snap_name}_foo"
+        snap list | MATCH "^${snap_name}_foo "
+    }
+
+    # TODO: add snaps with other interfaces that do not support parallel instances
+    check_parallel_install_rejected test-shm-no-private
+
+    check_parallel_install_allowed test-shm-private
