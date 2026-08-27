@@ -258,7 +258,7 @@ dbus (send)
 dbus (receive)
     bus=session
     interface=com.canonical.dbusmenu
-    path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}
+    path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}
     member={AboutToShow,GetLayout,Event}
     peer=(label=###SLOT_SECURITY_TAGS###),
 `
@@ -561,7 +561,7 @@ dbus (receive)
 dbus (send)
     bus=session
     interface=com.canonical.dbusmenu
-    path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}
+    path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}
     member={AboutToShow,GetLayout,Event}
     peer=(label=###PLUG_SECURITY_TAGS###),
 `

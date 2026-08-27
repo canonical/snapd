@@ -179,7 +179,7 @@ func (s *DesktopInterfaceSuite) TestChromiumStatusNotifierAppArmor(c *C) {
 	c.Check(plugSnippet, testutil.Contains, `interface=org.freedesktop.StatusNotifierItem
     path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
     member={Activate,ContextMenu,Scroll,SecondaryActivate}`)
-	c.Check(plugSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}`)
+	c.Check(plugSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}`)
 	c.Check(plugSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
     path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
     member="Get{,All}"`)
@@ -199,7 +199,7 @@ func (s *DesktopInterfaceSuite) TestChromiumStatusNotifierAppArmor(c *C) {
 	c.Check(slotSnippet, testutil.Contains, `interface=org.freedesktop.StatusNotifierItem
     path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
     member={Activate,ContextMenu,Scroll,SecondaryActivate}`)
-	c.Check(slotSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu/[0-9]*}`)
+	c.Check(slotSnippet, testutil.Contains, `path=/{MenuBar,org/chromium/DbusMenu{,/[0-9]*}}`)
 	c.Check(slotSnippet, testutil.Contains, `interface=org.freedesktop.DBus.Properties
     path=/{StatusNotifierItem{,/[0-9]*},org/chromium/StatusNotifierItem/[0-9]*}
     member="Get{,All}"`)

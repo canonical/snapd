@@ -378,14 +378,14 @@ dbus (send)
 
 dbus (send)
     bus=session
-    path=/{StatusNotifierItem/menu,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/*/Menu}
+    path=/{StatusNotifierItem/menu,org/chromium/DbusMenu{,/[0-9]*},org/ayatana/NotificationItem/*/Menu}
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
     peer=(label="{plasmashell,unconfined}"),
 
 dbus (receive)
     bus=session
-    path=/{StatusNotifierItem{,/[0-9]*},StatusNotifierItem/menu,org/chromium/StatusNotifierItem/[0-9]*,org/chromium/DbusMenu/[0-9]*,org/ayatana/NotificationItem/**}
+    path=/{StatusNotifierItem{,/[0-9]*},StatusNotifierItem/menu,org/chromium/StatusNotifierItem/[0-9]*,org/chromium/DbusMenu{,/[0-9]*},org/ayatana/NotificationItem/**}
     interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
     member={Get*,AboutTo*,Event*}
     peer=(label="{plasmashell,unconfined}"),
