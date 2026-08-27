@@ -52,6 +52,9 @@ jobs:
       GOROOT: ""
       GO_BUILD_TAGS: ${{ inputs.go-build-tags }}
       CC: ${{ inputs.c-compiler }}
+      GOPATH: /tmp/snapd-go
+      GOMODCACHE: /tmp/snapd-go/pkg/mod
+      GOCACHE: /tmp/snapd-go/build-cache
       
     steps:
     - name: Checkout code
@@ -76,6 +79,8 @@ jobs:
     - name: Get deps
       if: ${{ inputs.code == 'go' }}
       run: |
+          mkdir -p "$GOMODCACHE" "$GOCACHE"
+          chmod 0777 "$GOPATH" "$GOMODCACHE" "$GOCACHE"
           ./get-deps.sh
 
     - name: Build C
@@ -150,8 +155,7 @@ jobs:
     - name: Test Go (with network isolation)
       if: ${{ inputs.code == 'go' }}
       run: |
-        export SKIP_GET_DEPS=1
-        sudo --preserve-env=PATH,GOROOT,GO_BUILD_TAGS,SNAPD_DEBUG,GO_TEST_RACE,SKIP_COVERAGE,SKIP_GET_DEPS \
+        sudo --preserve-env=PATH,GOROOT,GO_BUILD_TAGS,SNAPD_DEBUG,GO_TEST_RACE,SKIP_COVERAGE,GOPATH,GOMODCACHE,GOCACHE \
           unshare --net -- bash -c 'ip link set lo up && runuser -u "$1" -- ./run-checks --unit' -- "$USER"
 
     - name: Create coverage results name

@@ -650,9 +650,7 @@ if [ "$STATIC" = 1 ]; then
 fi
 
 if [ "$UNIT" = 1 ]; then
-    if [ -z "${SKIP_GET_DEPS:-}" ]; then
-        ./get-deps.sh
-    fi
+    ./get-deps.sh
     echo "> Running unit tests"
 
     tags=
