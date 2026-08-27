@@ -15101,7 +15101,7 @@ func (s *mgrsSuite) TestDelayedSecurityBackendSideEffectsApplied(c *C) {
 			},
 		},
 		ApplyDelayedEffectsCallback: func(appSet *interfaces.SnapAppSet, effs []interfaces.DelayedSideEffect) error {
-			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName().TODOInstanceName())
+			effectsAppliedFor = append(effectsAppliedFor, appSet.InstanceName().String())
 			return nil
 		},
 	}

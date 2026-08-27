@@ -301,7 +301,7 @@ func parseSeedRefreshTaskSets(uts *snapstate.UpdateTaskSets) (map[string]*state.
 				continue
 			}
 
-			taskSetsBySnap[snapsup.InstanceName().TODOInstanceName()] = ts
+			taskSetsBySnap[snapsup.InstanceName().String()] = ts
 			break
 		}
 	}
@@ -317,7 +317,7 @@ func seedRefreshCandidateFromTaskSet(c *C, ts *state.TaskSet) snapstate.SeedRefr
 	c.Assert(err, IsNil)
 
 	candidate := snapstate.SeedRefreshCandidate{
-		InstanceName: snapsup.InstanceName().TODOInstanceName(),
+		InstanceName: snapsup.InstanceName().String(),
 	}
 	if !snapsup.ComponentExclusiveOperation {
 		candidate.SnapSetupTaskIDs = append(candidate.SnapSetupTaskIDs, t.ID())
@@ -360,7 +360,7 @@ func waitTasksContainKindForSnap(c *C, waiter *state.Task, instanceName, kind st
 
 		snapsup, err := snapstate.TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		if snapsup.InstanceName().TODOInstanceName() == instanceName {
+		if snapsup.InstanceName().String() == instanceName {
 			return true
 		}
 	}
@@ -4633,7 +4633,7 @@ func (s *snapmgrTestSuite) TestUpdateManyAutoAliasesScenarios(c *C) {
 				c.Assert(err, IsNil)
 				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
 				c.Assert(err, IsNil)
-				taskAliases[snapsup.InstanceName().TODOInstanceName()] = expectedSet(aliases)
+				taskAliases[snapsup.InstanceName().String()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
 			for _, instanceName := range scenario.prune {
@@ -4806,7 +4806,7 @@ func (s *snapmgrTestSuite) TestUpdateOneAutoAliasesScenarios(c *C) {
 				c.Assert(err, IsNil)
 				snapsup, err := snapstate.TaskSnapSetup(aliasTask)
 				c.Assert(err, IsNil)
-				taskAliases[snapsup.InstanceName().TODOInstanceName()] = expectedSet(aliases)
+				taskAliases[snapsup.InstanceName().String()] = expectedSet(aliases)
 			}
 			expectedPruned = make(map[string]map[string]bool)
 			for _, instanceName := range scenario.prune {
@@ -7754,7 +7754,7 @@ func findPrereqTasksForSnap(c *C, chg *state.Change, snapName string) (earlyPrer
 
 		snapsup, err := snapstate.TaskSnapSetup(task)
 		c.Assert(err, IsNil)
-		if snapsup.InstanceName().TODOInstanceName() != snapName {
+		if snapsup.InstanceName().String() != snapName {
 			continue
 		}
 
@@ -11164,7 +11164,7 @@ func (s *snapmgrTestSuite) testUpdateEssentialSnapsOrder(c *C, order []string) {
 				if tsk.Kind() == "prerequisites" {
 					snapsup, err := snapstate.TaskSnapSetup(tsk)
 					c.Assert(err, IsNil)
-					if snapsup.InstanceName().TODOInstanceName() == sn {
+					if snapsup.InstanceName().String() == sn {
 						return ts
 					}
 					break
@@ -15489,7 +15489,7 @@ func findTaskForSnap(c *C, chg *state.Change, kind, snap string) *state.Task {
 
 		snapsup, err := snapstate.TaskSnapSetup(t)
 		c.Assert(err, IsNil)
-		if snapsup.SnapName().TODOSnapName() == snap {
+		if snapsup.SnapName().String() == snap {
 			return t
 		}
 	}
@@ -20383,7 +20383,7 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshPrerequisitesUpdatesMode
 	c.Assert(err, IsNil)
 	c.Check(providerSnapSetup.InstanceName().String(), Equals, "content-provider")
 	c.Check(observed.prerequisites, testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{{
-		InstanceName:     providerSnapSetup.InstanceName().TODOInstanceName(),
+		InstanceName:     providerSnapSetup.InstanceName().String(),
 		SnapSetupTaskIDs: []string{providerSnapSetupTask.ID()},
 	}})
 
@@ -20573,11 +20573,11 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshRecursivePrerequisitesBe
 	// seed-relevant. nested-provider is intentionally outside the seed refresh.
 	c.Check(observed.prerequisites, testutil.DeepUnsortedMatches, []snapstate.SeedRefreshCandidate{
 		{
-			InstanceName:     providerSnapsup.InstanceName().TODOInstanceName(),
+			InstanceName:     providerSnapsup.InstanceName().String(),
 			SnapSetupTaskIDs: []string{providerSnapSetupTask.ID()},
 		},
 		{
-			InstanceName:     nestedSnapsup.InstanceName().TODOInstanceName(),
+			InstanceName:     nestedSnapsup.InstanceName().String(),
 			SnapSetupTaskIDs: []string{nestedSnapSetupTask.ID()},
 		},
 	})

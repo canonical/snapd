@@ -275,7 +275,7 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 
 	var names []string
 	for _, snapst := range snapStates {
-		names = append(names, snapst.InstanceName().TODOInstanceName())
+		names = append(names, snapst.InstanceName().String())
 	}
 
 	holds, err := SnapHolds(st, names)
@@ -706,7 +706,7 @@ func collectCurrentSnapsAndActions(
 		}
 
 		if !req.RevOpts.Revision.Unset() && snapst.LastIndex(req.RevOpts.Revision) != -1 {
-			hasLocalRevision[snapst.InstanceName().TODOInstanceName()] = snapst
+			hasLocalRevision[snapst.InstanceName().String()] = snapst
 			return nil
 		}
 
@@ -814,7 +814,7 @@ func installActionsForAmend(st *state.State, updates map[string]StoreUpdate, opt
 		// we allow changing snap revisions of a local-only snap without the
 		// --amend flag as long as we already have had the revision installed
 		if !up.RevOpts.Revision.Unset() && snapst.LastIndex(up.RevOpts.Revision) != -1 {
-			localAmends = append(localAmends, snapst.InstanceName().TODOInstanceName())
+			localAmends = append(localAmends, snapst.InstanceName().String())
 			continue
 		}
 

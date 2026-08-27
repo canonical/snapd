@@ -293,7 +293,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return fmt.Errorf("there was a snapd rollback across the restart")
 		}
 
-		snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName().TODOSnapName())
+		snapdInfo, err := snap.ReadCurrentInfo(snapsup.SnapName().String())
 		if err != nil {
 			return fmt.Errorf("cannot get current snapd snap info: %v", err)
 		}
@@ -375,7 +375,7 @@ func FinishRestart(task *state.Task, snapsup *SnapSetup, opts FinishRestartOptio
 			return err
 		}
 
-		if snapsup.InstanceName().TODOInstanceName() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
+		if snapsup.InstanceName().String() != current.SnapName() || snapsup.SideInfo.Revision != current.SnapRevision() {
 			// TODO: make sure this revision gets ignored for
 			//       automatic refreshes
 			return fmt.Errorf("cannot finish %s installation, there was a rollback across reboot", snapsup.InstanceName())
@@ -417,7 +417,7 @@ func FinishTaskWithRestart(task *state.Task, status state.Status, rt restart.Res
 		}
 	}
 
-	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap.TODOInstanceName(), rebootInfo)
+	return restart.FinishTaskWithRestart(task, status, rt, rebootRequiredSnap.String(), rebootInfo)
 }
 
 func isChangeRequestingSnapdRestart(chg *state.Change) bool {
@@ -1369,7 +1369,7 @@ func maybeFindTasksetForSnap(tss []*state.TaskSet, name string) (*state.TaskSet,
 				}
 				return nil, err
 			}
-			if snapsup.InstanceName().TODOInstanceName() != name {
+			if snapsup.InstanceName().String() != name {
 				break
 			}
 			return ts, nil
@@ -1609,7 +1609,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 		tss = append(tss, sts.ts)
 		snapInstallTSS = append(snapInstallTSS, sts)
 
-		scheduleUpdate(up.Setup.InstanceName().TODOInstanceName(), sts.ts)
+		scheduleUpdate(up.Setup.InstanceName().String(), sts.ts)
 	}
 
 	seedTS, err := arrangeRebootAndUpdateSeed(st, snapInstallTSS, SeedRefreshEvictionPolicy{SeedsToRetain: 1}, opts)
@@ -1651,7 +1651,7 @@ func doUpdate(st *state.State, requested []string, updates []update, opts Option
 
 		switchTs.JoinLane(generateLane(st, opts))
 		tss = append(tss, switchTs)
-		reportUpdated[up.Setup.InstanceName().TODOInstanceName()] = true
+		reportUpdated[up.Setup.InstanceName().String()] = true
 	}
 
 	updated := make([]string, 0, len(reportUpdated))
@@ -1681,7 +1681,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 		return nil, nil
 	}
 
-	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName().TODOInstanceName(), nil, opts.ConflictOptions); err != nil {
+	if err := checkChangeConflictIgnoringOneChange(st, snapst.InstanceName().String(), nil, opts.ConflictOptions); err != nil {
 		return nil, err
 	}
 
@@ -1689,7 +1689,7 @@ func maybeSwitchSnapMetadataTaskSet(st *state.State, snapsup SnapSetup, snapst S
 
 	var tasks []*state.Task
 	if switchChannel || switchCohortKey {
-		summary := switchSummary(snapsup.InstanceName().TODOInstanceName(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
+		summary := switchSummary(snapsup.InstanceName().String(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 		switchSnap := st.NewTask("switch-snap-channel", summary)
 		switchSnap.Set("snap-setup", &snapsup)
 		snapsupTask = switchSnap
@@ -1880,7 +1880,7 @@ func autoAliasesUpdate(st *state.State, requested []string, updates []update) (c
 			return nil, nil, nil, err
 		}
 
-		updating[up.Setup.InstanceName().TODOInstanceName()] = !ok
+		updating[up.Setup.InstanceName().String()] = !ok
 	}
 
 	// add explicitly auto-aliases only for snaps that are not updated
@@ -2077,7 +2077,7 @@ func Switch(st *state.State, name string, opts *RevisionOptions, prqt PrereqTrac
 	current.SideInfo.Channel = snapsup.Channel
 	prqt.Add(current)
 
-	summary := switchSummary(snapsup.InstanceName().TODOInstanceName(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
+	summary := switchSummary(snapsup.InstanceName().String(), snapst.TrackingChannel, snapsup.Channel, snapst.CohortKey, snapsup.CohortKey)
 	switchSnap := st.NewTask("switch-snap", summary)
 	switchSnap.Set("snap-setup", &snapsup)
 
@@ -2801,7 +2801,7 @@ func AddLinkNewBaseOrKernel(st *state.State, ts *state.TaskSet, deviceCtx Device
 	}
 
 	var snapst SnapState
-	if err := Get(st, snapsup.InstanceName().TODOInstanceName(), &snapst); err != nil {
+	if err := Get(st, snapsup.InstanceName().String(), &snapst); err != nil {
 		return nil, err
 	}
 
@@ -3116,7 +3116,7 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 		return nil, &snap.NotInstalledError{Snap: name, Rev: snap.R(0)}
 	}
 
-	removals := map[string]bool{snapst.InstanceName().TODOInstanceName(): true}
+	removals := map[string]bool{snapst.InstanceName().String(): true}
 	ts, snapshotSize, err := removeTasks(st, &snapst, removals, revision, flags)
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
@@ -3224,12 +3224,12 @@ func removeTasks(st *state.State, snapst *SnapState, removals map[string]bool, r
 	// only run remove hook if uninstalling the snap completely
 	if removeAll {
 		for _, comp := range snapst.Sequence.ComponentsForRevision(snapst.Current) {
-			removeCompHook := SetupRemoveComponentHook(st, snapsup.InstanceName().TODOInstanceName(), comp.SideInfo.Component.ComponentName)
+			removeCompHook := SetupRemoveComponentHook(st, snapsup.InstanceName().String(), comp.SideInfo.Component.ComponentName)
 			addNext(state.NewTaskSet(removeCompHook))
 			prev = removeCompHook
 		}
 
-		removeHook := SetupRemoveHook(st, snapsup.InstanceName().TODOInstanceName())
+		removeHook := SetupRemoveHook(st, snapsup.InstanceName().String())
 		addNext(state.NewTaskSet(removeHook))
 		if prev != nil {
 			removeHook.WaitFor(prev)
@@ -3932,14 +3932,14 @@ func InstalledSnaps(st *state.State) (snaps []*snapasserts.InstalledSnap, ignore
 		}
 
 		snaps = append(snaps, snapasserts.NewInstalledSnap(
-			snapState.InstanceName().TODOInstanceName(),
+			snapState.InstanceName().String(),
 			snapState.CurrentSideInfo().SnapID,
 			cur.Revision,
 			comps,
 		))
 
 		if snapState.IgnoreValidation {
-			ignoreValidation[snapState.InstanceName().TODOInstanceName()] = true
+			ignoreValidation[snapState.InstanceName().String()] = true
 		}
 	}
 	return snaps, ignoreValidation, nil
@@ -4268,7 +4268,7 @@ func downloadsToKeep(st *state.State) (map[string]bool, error) {
 				// download task runs, which may, or may not have run already.
 				if compsup.CompPath == "" {
 					cpi := snap.MinimalComponentContainerPlaceInfo(compsup.ComponentName(),
-						compsup.Revision(), snapsup.InstanceName().TODOInstanceName())
+						compsup.Revision(), snapsup.InstanceName().String())
 					keepBlob(cpi.MountFile())
 				} else {
 					keepBlob(compsup.CompPath)
@@ -4416,7 +4416,7 @@ func unmountSnap(snapst *SnapState) error {
 			cpi := snap.MinimalComponentContainerPlaceInfo(
 				compName,
 				c.SideInfo.Revision,
-				snapst.InstanceName().TODOInstanceName(),
+				snapst.InstanceName().String(),
 			)
 
 			mountDir := cpi.MountDir()
@@ -4434,7 +4434,7 @@ func unmountSnap(snapst *SnapState) error {
 			}
 		}
 
-		mountDir := snap.MountDir(snapst.InstanceName().TODOInstanceName(), rev.Snap.Revision)
+		mountDir := snap.MountDir(snapst.InstanceName().String(), rev.Snap.Revision)
 		logger.Debugf("unmounting snap %s at %s", snapst.InstanceName(), mountDir)
 		if _, err := exec.Command("umount", "-d", "-l", mountDir).CombinedOutput(); err != nil {
 			return err

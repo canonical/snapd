@@ -111,7 +111,7 @@ func (rc *refreshCandidate) DownloadSize() int64 {
 }
 
 func (rc *refreshCandidate) InstanceName() string {
-	return rc.SnapSetup.InstanceName().TODOInstanceName()
+	return rc.SnapSetup.InstanceName().String()
 }
 
 func (rc *refreshCandidate) Prereq(*state.State, PrereqTracker) []string {
@@ -462,7 +462,7 @@ func (m *autoRefresh) restoreMonitoring() error {
 
 		refreshCtx, abort := context.WithCancel(context.Background())
 		aborts[snapName.String()] = abort
-		go continueRefreshOnSnapClose(m.state, snap.InstanceName().TODOInstanceName(), done, refreshCtx)
+		go continueRefreshOnSnapClose(m.state, snap.InstanceName().String(), done, refreshCtx)
 	}
 
 	m.state.Cache("monitored-snaps", aborts)
@@ -689,7 +689,7 @@ func createPreDownloadChange(st *state.State, updateTss *UpdateTaskSets) (bool, 
 			if err := task.Get("snap-setup", &snapsup); err != nil {
 				return false, err
 			}
-			snapNames = append(snapNames, snapsup.InstanceName().TODOInstanceName())
+			snapNames = append(snapNames, snapsup.InstanceName().String())
 		}
 
 		chgSummary := fmt.Sprintf(i18n.G("Pre-download %s for auto-refresh"), strutil.Quoted(snapNames))
@@ -882,7 +882,7 @@ func maybeAddRefreshInhibitNotice(st *state.State) error {
 		if snapst.RefreshInhibitedTime == nil {
 			continue
 		}
-		curInhibitedSnaps[snapst.InstanceName().TODOInstanceName()] = true
+		curInhibitedSnaps[snapst.InstanceName().String()] = true
 	}
 
 	changed := len(lastRecordedInhibitedSnaps) != len(curInhibitedSnaps)
@@ -994,7 +994,7 @@ func MockRefreshCandidate(snapSetup *SnapSetup) any {
 
 func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity snap.RefreshFailureSeverity) error {
 	var snapst SnapState
-	err := Get(st, snapsup.InstanceName().TODOInstanceName(), &snapst)
+	err := Get(st, snapsup.InstanceName().String(), &snapst)
 	if err != nil {
 		return err
 	}
@@ -1011,7 +1011,7 @@ func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity 
 		}
 	}
 	snapst.RefreshFailures.LastFailureSeverity = severity
-	Set(st, snapsup.InstanceName().TODOInstanceName(), &snapst)
+	Set(st, snapsup.InstanceName().String(), &snapst)
 
 	delay := computeSnapRefreshRemainingDelay(snapst.RefreshFailures).Round(time.Hour)
 	logger.Noticef("snap %q auto-refresh to revision %s has failed, next auto-refresh attempt will be delayed by %v hours", snapsup.InstanceName(), snapsup.Revision(), delay.Hours())
@@ -1043,11 +1043,11 @@ func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task
 			logger.Debugf("internal error: failed to get snap associated with task %s: %v", t.ID(), err)
 			continue
 		}
-		if snapsup.InstanceName().TODOInstanceName() != snapName {
+		if snapsup.InstanceName().String() != snapName {
 			continue
 		}
 
-		if isEssentialSnap(snapsup.InstanceName().TODOInstanceName(), snapsup.Type, bootBase) {
+		if isEssentialSnap(snapsup.InstanceName().String(), snapsup.Type, bootBase) {
 			// Refresh failure happened after a reboot
 			return snap.RefreshFailureSeverityAfterReboot
 		}
@@ -1076,13 +1076,13 @@ func processFailedAutoRefresh(chg *state.Change, _ state.Status, new state.Statu
 			continue
 		}
 
-		failureSeverity := computeSnapRefreshFailureSeverity(chg, t, snapsup.InstanceName().TODOInstanceName())
+		failureSeverity := computeSnapRefreshFailureSeverity(chg, t, snapsup.InstanceName().String())
 		if err := incrementSnapRefreshFailures(t.State(), snapsup, failureSeverity); err != nil {
 			logger.Debugf("internal error: failed to increment failure count for snap %q: %v", snapsup.InstanceName(), err)
 			continue
 		}
 
-		failedSnapNames = append(failedSnapNames, snapsup.InstanceName().TODOInstanceName())
+		failedSnapNames = append(failedSnapNames, snapsup.InstanceName().String())
 	}
 
 	if len(failedSnapNames) == 0 {
@@ -1186,7 +1186,7 @@ func checkSnapRefreshFailures(st *state.State, snapst *SnapState, targetRevision
 			// Snap has new target revision not known to fail, let's reset RefreshFailures
 			// and continue refresh normally.
 			snapst.RefreshFailures = nil
-			Set(st, snapst.InstanceName().TODOInstanceName(), snapst)
+			Set(st, snapst.InstanceName().String(), snapst)
 		} else if shouldSkipSnapRefresh(snapst, targetRevision, opts) {
 			return errKnownBadRevision
 		}

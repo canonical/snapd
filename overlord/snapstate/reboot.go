@@ -81,7 +81,7 @@ func taskSetsByTypeForEssentialSnaps(tss []*state.TaskSet, bootBase string) (map
 			continue
 		}
 
-		if isEssentialSnap(snapsup.InstanceName().TODOInstanceName(), snapsup.Type, bootBase) {
+		if isEssentialSnap(snapsup.InstanceName().String(), snapsup.Type, bootBase) {
 			avail[snapsup.Type] = ts
 		}
 	}
@@ -240,12 +240,12 @@ func arrangeRebootAndUpdateSeed(
 	// categorize our snaps into a few different buckets
 	for _, sts := range stss {
 		switch {
-		case isEssentialSnap(sts.snapsup.InstanceName().TODOInstanceName(), sts.snapsup.Type, bootBase):
+		case isEssentialSnap(sts.snapsup.InstanceName().String(), sts.snapsup.Type, bootBase):
 			essentials[sts.snapsup.Type] = sts
 		case sts.snapsup.Type == snap.TypeBase || sts.snapsup.Type == snap.TypeOS:
-			nonEssentialBases[sts.snapsup.InstanceName().TODOInstanceName()] = sts
+			nonEssentialBases[sts.snapsup.InstanceName().String()] = sts
 		case sts.snapsup.Type == snap.TypeApp:
-			apps[sts.snapsup.InstanceName().TODOInstanceName()] = sts
+			apps[sts.snapsup.InstanceName().String()] = sts
 		}
 	}
 
@@ -422,7 +422,7 @@ func arrangeRebootAndUpdateSeed(
 			// for seed snaps, their before-local-modifications tasks also run
 			// before seed creation, so schedule the synchronization task as the
 			// first post-essential task.
-			if _, ok := seedSnapTaskSets[sts.snapsup.InstanceName().TODOInstanceName()]; ok {
+			if _, ok := seedSnapTaskSets[sts.snapsup.InstanceName().String()]; ok {
 				return sts.prerequisitesSync
 			}
 
@@ -485,7 +485,7 @@ func arrangeRebootAndUpdateSeed(
 		// for seed snaps, seed creation must also wait on the rest of the
 		// before-local-modifications phase so it can consume the selected
 		// snap/component setup tasks.
-		if _, ok := seedSnapTaskSets[sts.snapsup.InstanceName().TODOInstanceName()]; ok {
+		if _, ok := seedSnapTaskSets[sts.snapsup.InstanceName().String()]; ok {
 			waitForIfNeeded(seedTS.Create, tail(sts.beforeLocalSystemModificationsTasks))
 			continue
 		}
@@ -528,27 +528,27 @@ func mergeEssentialAndSeedLanes(
 ) {
 	merge := make(map[string]snapInstallTaskSet)
 	for _, sts := range seedUpdates {
-		merge[sts.snapsup.InstanceName().TODOInstanceName()] = sts
+		merge[sts.snapsup.InstanceName().String()] = sts
 	}
 
 	for _, sts := range essentials {
 		if sts.snapsup.Type == snap.TypeSnapd {
 			continue
 		}
-		merge[sts.snapsup.InstanceName().TODOInstanceName()] = sts
+		merge[sts.snapsup.InstanceName().String()] = sts
 	}
 
 	rebootLanes := make(map[string][]int, len(merge))
 	all := make([]int, 0, len(merge))
 	for _, sts := range merge {
 		lanes := unique(sts.upToLinkSnapAndBeforeReboot[len(sts.upToLinkSnapAndBeforeReboot)-1].Lanes())
-		rebootLanes[sts.snapsup.InstanceName().TODOInstanceName()] = lanes
+		rebootLanes[sts.snapsup.InstanceName().String()] = lanes
 		all = unique(append(all, lanes...))
 	}
 
 	for _, sts := range merge {
 		for _, l := range all {
-			if !contains(rebootLanes[sts.snapsup.InstanceName().TODOInstanceName()], l) {
+			if !contains(rebootLanes[sts.snapsup.InstanceName().String()], l) {
 				sts.ts.JoinLane(l)
 			}
 		}

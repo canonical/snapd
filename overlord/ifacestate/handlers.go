@@ -198,7 +198,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 	canDelay := delayedTask != nil
 	logger.Debugf("has delayed effects support? %v", canDelay)
 
-	snapInfo, err := snap.ReadInfo(snapsup.InstanceName().TODOInstanceName(), snapsup.SideInfo)
+	snapInfo, err := snap.ReadInfo(snapsup.InstanceName().String(), snapsup.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -257,7 +257,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 			// task, so their hook context still needs baseline confinement and
 			// backend artifacts such as snap device cgroup policy files.
 			sctxs := map[string]interfaces.SetupContext{
-				appSet.InstanceName().TODOInstanceName(): {
+				appSet.InstanceName().String(): {
 					Reason:          interfaces.SnapSetupReasonOwnUpdate,
 					CanDelayEffects: false,
 				},
@@ -269,7 +269,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 
 		// Keep PendingSecurity updated for restart durability while this
 		// revision remains inactive.
-		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().TODOInstanceName(), appSet)
+		return setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet)
 	}
 
 	delayedEffects, err := m.setupProfilesForAppSet(task, appSet, opts, newConns, canDelay, perfTimings)
@@ -277,7 +277,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 		return err
 	}
 
-	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().TODOInstanceName(), appSet); err != nil {
+	if err := setPendingProfilesSideInfo(task.State(), snapsup.InstanceName().String(), appSet); err != nil {
 		return err
 	}
 
@@ -367,7 +367,7 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 // that reloadConnections changed or dropped.
 func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
-	instanceName := appSet.InstanceName().TODOInstanceName()
+	instanceName := appSet.InstanceName().String()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -448,10 +448,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		// Snaps on the plug or slot side, other than the current one, are
 		// indirectly affected.
-		if connRef.PlugRef.Snap != instanceName.TODOInstanceName() {
+		if connRef.PlugRef.Snap != instanceName.String() {
 			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
 		}
-		if connRef.SlotRef.Snap != instanceName.TODOInstanceName() {
+		if connRef.SlotRef.Snap != instanceName.String() {
 			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
 		}
 	}
@@ -468,13 +468,13 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// back to a slice
 	affectedNames := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
-		if name != instanceName.TODOInstanceName() {
+		if name != instanceName.String() {
 			affectedNames = append(affectedNames, name)
 		}
 	}
 	sort.Strings(affectedNames)
 	// the snap for which profiles are being set up comes first
-	affectedNames = append([]string{instanceName.TODOInstanceName()}, affectedNames...)
+	affectedNames = append([]string{instanceName.String()}, affectedNames...)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.
@@ -485,7 +485,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// For the snap being setup we know exactly what was requested.
 	affectedSnapSets = append(affectedSnapSets, appSet)
 	confinementOpts = append(confinementOpts, opts)
-	setupContexts[appSet.InstanceName().TODOInstanceName()] = interfaces.SetupContext{
+	setupContexts[appSet.InstanceName().String()] = interfaces.SetupContext{
 		// We are being updated
 		Reason:          interfaces.SnapSetupReasonOwnUpdate,
 		CanDelayEffects: false,
@@ -666,7 +666,7 @@ func shouldUndoSetupProfiles(task *state.Task, instanceName string) bool {
 			continue
 		}
 		taskSnapSetup, err := snapstate.TaskSnapSetup(t)
-		if err != nil || taskSnapSetup.InstanceName().TODOInstanceName() != instanceName {
+		if err != nil || taskSnapSetup.InstanceName().String() != instanceName {
 			continue
 		}
 
@@ -1830,7 +1830,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 				// Only retry if the task that installs the
 				// content provider is not waiting for us
 				// (or this will just hang forever).
-				_, ok := defaultProviders[snapsup.InstanceName().TODOInstanceName()]
+				_, ok := defaultProviders[snapsup.InstanceName().String()]
 				if ok && !inSameChangeWaitChain(task, t) {
 					return &state.Retry{After: contentLinkRetryTimeout}
 				}
@@ -1918,7 +1918,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 					return fmt.Errorf("internal error: unexpected state of mark-preseeded task: %s", markPreseeded.Status())
 				}
 
-				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName().TODOInstanceName(), markPreseeded)
+				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName().String(), markPreseeded)
 				if err != nil {
 					return err
 				}
@@ -2608,7 +2608,7 @@ func (m *InterfaceManager) doProcessDelayedSecurityBackendEffects(task *state.Ta
 				if err != nil {
 					return fmt.Errorf("internal error: task snap setup not found through link-snap task")
 				}
-				seenSnaps = append(seenSnaps, sup.InstanceName().TODOInstanceName())
+				seenSnaps = append(seenSnaps, sup.InstanceName().String())
 			}
 		}
 		if laneFailed {
