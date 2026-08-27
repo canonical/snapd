@@ -151,7 +151,7 @@ jobs:
       if: ${{ inputs.code == 'go' }}
       run: |
         ./run-checks --verify-tools
-        echo "PATH=$(go env GOPATH)/bin:$PATH" >> "$GITHUB_ENV"
+        echo "PATH=$(go env GOPATH | sed 's|:|/bin:|g')/bin:$PATH" >> "$GITHUB_ENV"
 
     - name: Test Go (with network isolation)
       if: ${{ inputs.code == 'go' && !inputs.run-as-root }}
