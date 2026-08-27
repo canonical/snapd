@@ -1,16 +1,16 @@
 summary: Check that user service files have ExecCondition stanza and that it is honored
 
 details: |
-  Verifies that snapd generates ExecCondition=/usr/bin/snap routine
-  user-service-precondition in systemd user service files for user daemons,
-  and that --error-exit-code is correctly set.
+    Verifies that snapd generates ExecCondition=/usr/bin/snap routine
+    user-service-precondition in systemd user service files for user daemons,
+    and that --error-exit-code is correctly set.
 
-  Additionally, verifies at runtime that user services are skipped when the
-  user has no display-eligible session, started when a session of class
-  "user" exists, and skipped again when only a greeter session exists.
+    Additionally, verifies at runtime that user services are skipped when the
+    user has no display-eligible session, started when a session of class
+    "user" exists, and skipped again when only a greeter session exists.
 
-  ExecCondition requires systemd version 243, which is not supported by
-  Ubuntu LTS releases prior to 20.04.
+    ExecCondition requires systemd version 243, which is not supported by
+    Ubuntu LTS releases prior to 20.04.
 
 systems: [-ubuntu-1*, -ubuntu-core-1*]
 
