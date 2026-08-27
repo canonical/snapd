@@ -86,7 +86,11 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	snap.Stdout = s.stdout
 	snap.Stderr = s.stderr
 	snap.ReadPassword = s.readPassword
-	s.AuthFile = filepath.Join(c.MkDir(), "json")
+	authDir := c.MkDir()
+	// client.readAuthData may run under the real sudo user, so the test
+	// directory must be traversable even when created by root.
+	c.Assert(os.Chmod(authDir, 0755), IsNil)
+	s.AuthFile = filepath.Join(authDir, "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 
 	s.AddCleanup(interfaces.MockSystemKey(`
