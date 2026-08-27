@@ -2139,7 +2139,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (retErr error) {
 				if err != nil {
 					return err
 				}
-				if snapsup.InstanceName().TODOInstanceName() == otherSnapsup.InstanceName().TODOInstanceName() {
+				if snapsup.InstanceName() == otherSnapsup.InstanceName() {
 					if other.Kind() == "auto-connect" {
 						hasAutoConnect = true
 					} else {
