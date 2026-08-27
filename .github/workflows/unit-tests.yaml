@@ -80,7 +80,6 @@ jobs:
       if: ${{ inputs.code == 'go' }}
       run: |
           mkdir -p "$GOMODCACHE" "$GOCACHE"
-          chmod 0777 "$GOPATH" "$GOMODCACHE" "$GOCACHE"
           ./get-deps.sh
 
     - name: Build C
