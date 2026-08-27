@@ -615,14 +615,14 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, tomb *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
-	snapName := snapSetup.InstanceName()
+	instanceName := snapSetup.InstanceName()
 
-	if err := m.removeProfilesForSnap(task, tomb, snapName.String(), perfTimings); err != nil {
+	if err := m.removeProfilesForSnap(task, tomb, instanceName.String(), perfTimings); err != nil {
 		return err
 	}
 
 	// no pending profiles on disk
-	return setPendingProfilesSideInfo(task.State(), snapName.String(), nil)
+	return setPendingProfilesSideInfo(task.State(), instanceName.String(), nil)
 }
 
 func (m *InterfaceManager) removeProfilesForSnap(task *state.Task, _ *tomb.Tomb, snapName string, tm timings.Measurer) error {
@@ -715,8 +715,8 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		return err
 	}
 
-	snapName := snapsup.InstanceName()
-	if !shouldUndoSetupProfiles(task, snapName.String()) {
+	instanceName := snapsup.InstanceName()
+	if !shouldUndoSetupProfiles(task, instanceName.String()) {
 		logger.Debugf("skipping undo of setup-profiles for task %q", task.ID())
 		return nil
 	}
@@ -745,17 +745,17 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 	// Get the name from SnapSetup and use it to find the current SideInfo
 	// about the snap, if there is one.
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, snapName.String(), &snapst)
+	err = snapstate.Get(st, instanceName.String(), &snapst)
 	if err != nil && !errors.Is(err, state.ErrNoState) {
 		return err
 	}
 	sideInfo := snapst.CurrentSideInfo()
 	if sideInfo == nil {
 		// The snap was not installed before so undo should remove security profiles.
-		return m.removeProfilesForSnap(task, tomb, snapName.String(), perfTimings)
+		return m.removeProfilesForSnap(task, tomb, instanceName.String(), perfTimings)
 	} else {
 		// The snap was installed before so undo should setup the old security profiles.
-		snapInfo, err := snap.ReadInfo(snapName.String(), sideInfo)
+		snapInfo, err := snap.ReadInfo(instanceName.String(), sideInfo)
 		if err != nil {
 			return err
 		}
@@ -786,7 +786,7 @@ func (m *InterfaceManager) undoSetupProfiles(task *state.Task, tomb *tomb.Tomb) 
 		if _, err := m.setupProfilesForAppSet(task, appSet, opts, nil, canDefer, perfTimings); err != nil {
 			return err
 		}
-		return setPendingProfilesSideInfo(st, snapName.String(), appSet)
+		return setPendingProfilesSideInfo(st, instanceName.String(), appSet)
 	}
 }
 
@@ -1434,10 +1434,10 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 			continue
 		}
 
-		otherSnapName := snapsup.InstanceName()
+		otherInstanceName := snapsup.InstanceName()
 
 		// different snaps - no conflict
-		if otherSnapName.String() != plugSnap && otherSnapName.String() != slotSnap {
+		if otherInstanceName.String() != plugSnap && otherInstanceName.String() != slotSnap {
 			continue
 		}
 
@@ -1468,7 +1468,7 @@ func checkAutoconnectConflicts(st *state.State, autoconnectTask *state.Task, plu
 
 			// if snap is getting removed, we will retry but the snap will be gone and auto-connect becomes no-op
 			// if snap is getting installed/refreshed - temporary conflict, retry later
-			return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s with task %q", otherSnapName, k)}
+			return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s with task %q", otherInstanceName, k)}
 		}
 	}
 	return nil
@@ -1501,15 +1501,15 @@ func checkDisconnectConflicts(st *state.State, disconnectingSnap, plugSnap, slot
 			continue
 		}
 
-		otherSnapName := snapsup.InstanceName()
+		otherInstanceName := snapsup.InstanceName()
 
 		// different snaps - no conflict
-		if otherSnapName.String() != plugSnap && otherSnapName.String() != slotSnap {
+		if otherInstanceName.String() != plugSnap && otherInstanceName.String() != slotSnap {
 			continue
 		}
 
 		// another task related to same snap op (unrelated op would be blocked by snapstate conflict logic)
-		if otherSnapName.String() == disconnectingSnap {
+		if otherInstanceName.String() == disconnectingSnap {
 			continue
 		}
 
@@ -1550,16 +1550,16 @@ func checkHotplugDisconnectConflicts(st *state.State, plugSnap, slotSnap string)
 		if err != nil {
 			continue
 		}
-		otherSnapName := snapsup.InstanceName()
+		otherInstanceName := snapsup.InstanceName()
 
 		// different snaps - no conflict
-		if otherSnapName.String() != plugSnap && otherSnapName.String() != slotSnap {
+		if otherInstanceName.String() != plugSnap && otherInstanceName.String() != slotSnap {
 			continue
 		}
 
 		if k == "link-snap" || k == "setup-profiles" || k == "unlink-snap" {
 			// other snap is getting installed/refreshed/removed - temporary conflict
-			return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s with task %q", otherSnapName, k)}
+			return &state.Retry{After: connectRetryTimeout, Reason: fmt.Sprintf("conflicting snap %s with task %q", otherInstanceName, k)}
 		}
 	}
 	return nil
@@ -1796,14 +1796,14 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapName := snapsup.InstanceName()
+	instanceName := snapsup.InstanceName()
 
 	autochecker, err := newAutoConnectChecker(st, m.repo, deviceCtx)
 	if err != nil {
 		return err
 	}
 
-	gadgectConnect := newGadgetConnect(st, task, m.repo, snapName.String(), deviceCtx)
+	gadgectConnect := newGadgetConnect(st, task, m.repo, instanceName.String(), deviceCtx)
 
 	// wait for auto-install, started by prerequisites code, for
 	// the default-providers of content ifaces so we can
@@ -1814,7 +1814,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// forcefully wait for defaultProviders; we just retry for
 	// things in the intersection between defaultProviders here and
 	// snaps with not ready link-snap|setup-profiles tasks
-	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(snapName.String()))
+	defaultProviders := snap.DefaultContentProviders(m.repo.Plugs(instanceName.String()))
 	for _, chg := range st.Changes() {
 		if chg.IsReady() {
 			continue
@@ -1838,8 +1838,8 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	plugs := m.repo.Plugs(snapName.String())
-	slots := m.repo.Slots(snapName.String())
+	plugs := m.repo.Plugs(instanceName.String())
+	slots := m.repo.Slots(instanceName.String())
 	newconns := make(map[string]*interfaces.ConnRef, len(plugs)+len(slots))
 	var connOpts map[string]*connectOpts
 
@@ -1884,7 +1884,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 	// Auto-connect all the slots
 	for _, slot := range slots {
-		candidates := m.repo.AutoConnectCandidatePlugs(snapName.String(), slot.Name, autochecker.check)
+		candidates := m.repo.AutoConnectCandidatePlugs(instanceName.String(), slot.Name, autochecker.check)
 		if len(candidates) == 0 {
 			continue
 		}
@@ -1962,17 +1962,17 @@ func (m *InterfaceManager) doAutoDisconnect(task *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	snapName := snapsup.InstanceName()
-	connections, err := m.repo.Connections(snapName.String())
+	instanceName := snapsup.InstanceName()
+	connections, err := m.repo.Connections(instanceName.String())
 	if err != nil {
 		return err
 	}
 
 	// check for conflicts on all connections first before creating disconnect hooks
 	for _, connRef := range connections {
-		if err := checkDisconnectConflicts(st, snapName.String(), connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
+		if err := checkDisconnectConflicts(st, instanceName.String(), connRef.PlugRef.Snap, connRef.SlotRef.Snap); err != nil {
 			if _, retry := err.(*state.Retry); retry {
-				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", snapName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
+				logger.Debugf("disconnecting interfaces of snap %q will be retried because of %q - %q conflict", instanceName, connRef.PlugRef.Snap, connRef.SlotRef.Snap)
 				task.Logf("Waiting for conflicting change in progress...")
 				return err // will retry
 			}
