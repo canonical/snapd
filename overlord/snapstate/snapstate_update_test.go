@@ -22249,3 +22249,81 @@ func (s *snapmgrTestSuite) TestUpdateWithGoalSeedRefreshNoSeedRefreshOption(c *C
 	c.Check(observed.initial, HasLen, 0)
 	c.Check(observed.prerequisites, HasLen, 0)
 }
+
+func (s *snapmgrTestSuite) TestBaseRemovalPreventsRefreshUsingBase(c *C) {
+	appSI := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}
+	snaptest.MockSnap(c, "name: some-snap\nbase: core", appSI)
+	baseSI := &snap.SideInfo{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", baseSI)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{appSI}),
+		Current:         appSI.Revision,
+		SnapType:        string(snap.TypeApp),
+	})
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{baseSI}),
+		Current:  baseSI.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	removeTS, err := snapstate.Remove(s.state, "some-base", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	removeChg := s.state.NewChange("remove-snap", "...")
+	removeChg.AddAll(removeTS)
+
+	_, err = snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, s.user.ID, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `some-snap's base "some-base" has removal change \(1\) in progress. Please retry once it finishes`)
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+}
+
+func (s *snapmgrTestSuite) TestBaseRemovalDoesNotPreventPreDownloadUsingBase(c *C) {
+	restore := snapstate.MockRefreshAppsCheck(func(si *snap.Info) error {
+		return snapstate.NewBusySnapError(si, []int{123}, nil, nil)
+	})
+	defer restore()
+
+	appSI := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}
+	snaptest.MockSnap(c, "name: some-snap\nbase: core", appSI)
+	baseSI := &snap.SideInfo{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)}
+	snaptest.MockSnapCurrent(c, "name: some-base\nversion: 1.0\ntype: base\n", baseSI)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	appState := &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{appSI}),
+		Current:         appSI.Revision,
+		SnapType:        string(snap.TypeApp),
+	}
+	snapstate.Set(s.state, "some-snap", appState)
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active:   true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{baseSI}),
+		Current:  baseSI.Revision,
+		SnapType: string(snap.TypeBase),
+	})
+
+	removeTS, err := snapstate.Remove(s.state, "some-base", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	removeChg := s.state.NewChange("remove-snap", "...")
+	removeChg.AddAll(removeTS)
+
+	sts, err := snapstate.DoInstallOrPreDownload(s.state, appState, &snapstate.SnapSetup{
+		Base:     "some-base",
+		SideInfo: &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(11)},
+		Type:     snap.TypeApp,
+		Flags:    snapstate.Flags{IsAutoRefresh: true},
+	}, nil, snapstate.InstallContext{})
+	c.Assert(err, FitsTypeOf, &snapstate.TimedBusySnapError{})
+	c.Assert(sts.TaskSet().Tasks(), HasLen, 1)
+	c.Check(sts.TaskSet().Tasks()[0].Kind(), Equals, "pre-download-snap")
+}

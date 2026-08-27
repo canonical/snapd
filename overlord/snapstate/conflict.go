@@ -372,6 +372,66 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 	return nil
 }
 
+func checkBaseRemovalConflict(st *state.State, snapsup *SnapSetup) error {
+	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
+		return nil
+	}
+
+	base := snapsup.Base
+	switch base {
+	case "none":
+		return nil
+	case "":
+		base = defaultCoreSnapName
+	case "core16":
+		core16Installed, err := isInstalled(st, "core16")
+		if err != nil {
+			return err
+		}
+		if !core16Installed {
+			coreInstalled, err := isInstalled(st, defaultCoreSnapName)
+			if err != nil {
+				return err
+			}
+			if coreInstalled {
+				base = defaultCoreSnapName
+			}
+		}
+	}
+
+	for _, t := range st.Tasks() {
+		// auto-disconnect tasks are only created if all base revisions are being
+		// removed so we use them to skip removals of specific base revisions
+		if t.Kind() != "auto-disconnect" {
+			continue
+		}
+
+		// this isn't lane aware so an aborted lane could trigger a false positive.
+		// However, that seems like a very rare occurence and could just be retried
+		// so the simpler check is fine
+		chg := t.Change()
+		if chg.IsReady() {
+			continue
+		}
+
+		tsup, err := TaskSnapSetup(t)
+		if err != nil {
+			return err
+		}
+
+		if tsup.InstanceName() == base {
+			return &ChangeConflictError{
+				Snap:       base,
+				ChangeKind: chg.Kind(),
+				ChangeID:   chg.ID(),
+				Message:    fmt.Sprintf("%s's base %q has removal change (%s) in progress. Please retry once it finishes", snapsup.SnapName(), base, chg.ID()),
+			}
+		}
+	}
+
+	return nil
+}
+
 var resealingTaskKindCheckers = make(map[string]func(t *state.Task) bool)
 
 // RegisterResealingTaskKind marks a task kind as unconditionally causing a reseal.
