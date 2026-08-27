@@ -34,12 +34,14 @@ debug: |
     tests.session -u test exec journalctl --user || true
 
 execute: |
-    echo "When the user mode systemd instance is started and a session exists"
-    tests.session -u test prepare
-    tests.session -u test create-session -c user
-
-    echo "And the service snap is installed"
+    echo "When the service snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
+
+    echo "And the user session is started"
+    # do not run tests.session prepare first, as that would start services
+    # before the session with class "user" is created, and creating the session
+    # does not retry starting services
+    tests.session -u test create-session -c user
 
     echo "We can see the service running"
     retry -n 5 --wait 1 tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.test-snapd-user-service

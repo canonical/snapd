@@ -20,7 +20,6 @@ prepare: |
         # Ubuntu Core requires using extrausers db
         useradd --extrausers -m -d /home/test2 test2
     fi
-    tests.session -u test2 prepare
     tests.session -u test2 create-session -c user
 
     # rules are only supported from 23.10+
