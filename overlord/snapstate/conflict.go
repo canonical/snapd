@@ -407,7 +407,7 @@ func checkBaseRemovalConflict(st *state.State, snapsup *SnapSetup) error {
 		}
 
 		// this isn't lane aware so an aborted lane could trigger a false positive.
-		// However, that seems like a very rare occurence and could just be retried
+		// However, that seems like a very rare occurrence and could just be retried
 		// so the simpler check is fine
 		chg := t.Change()
 		if chg.IsReady() {
