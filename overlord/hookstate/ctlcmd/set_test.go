@@ -82,7 +82,7 @@ func (s *setSuite) TestInvalidArguments(c *C) {
 
 func (s *setSuite) TestSetInvalidValueKey(c *C) {
 	_, _, _, err := ctlcmd.Run(s.mockContext, []string{"set", `foo={"bad_key":1}`}, 0, nil)
-	c.Assert(err, ErrorMatches, `invalid option name: "bad_key"`)
+	c.Assert(err, ErrorMatches, `invalid JSON field name "bad_key": must only contain dashes and lowercase alphanumerics and may not begin nor end with a dash`)
 }
 
 func (s *setSuite) TestCommand(c *C) {
