@@ -5,9 +5,14 @@ on:
     inputs:
       run_id:
         required: true
+  workflow_run:
+    workflows: [Tests]
+    types:
+      - completed
 
 jobs:
   rerun:
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       actions: write
     runs-on: ubuntu-latest
@@ -19,3 +24,144 @@ jobs:
         run: |
           gh run watch ${{ inputs.run_id }} > /dev/null 2>&1
           gh run rerun ${{ inputs.run_id }} --failed
+
+  rerun-pr:
+    if: github.event.workflow_run && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 5
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    env:
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+      MAX_FAILED_TASKS: 30
+      PREDICTOR_REPORT_MAX_POLLS: 20
+      PREDICTOR_REPORT_POLL_SECONDS: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Get PR number
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let page = 1;
+            let per_page = 100;
+            let allArtifacts = [];
+            let response;
+            do {
+              response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.payload.workflow_run.id,
+                per_page: per_page,
+                page: page
+              });
+              allArtifacts = allArtifacts.concat(response.data.artifacts);
+              page++;
+            } while (allArtifacts.length < response.data.total_count);
+            let matchArtifact = allArtifacts.find((artifact) => artifact.name == "pr_number");
+            let download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: matchArtifact.id,
+              archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/pr_number.zip`, Buffer.from(download.data));
+
+      - name: Unzip PR number
+        run: unzip pr_number.zip
+
+      - name: Check for rerun eligibility
+        id: eligibility
+        run: |
+          source .github/scripts/common.sh
+
+          pr_number=$(cat pr_number)
+
+          GH_RETRY_CONTEXT="PR #$pr_number view lookup"
+          if ! pr_json=$(gh_retry pr view "$pr_number" --json number,isDraft,labels,reviews,baseRefName); then
+            echo "Failed to fetch PR details after retries"
+            echo "auto_rerun=false" >> "$GITHUB_OUTPUT"
+            GH_RETRY_CONTEXT=""
+            exit 0
+          fi
+          GH_RETRY_CONTEXT=""
+
+          if ! pr_is_rerun_eligible "$pr_json" 1 true; then
+            echo "Setting auto rerun to false because $NOT_RERUN_REASON"
+            echo "auto_rerun=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "auto_rerun=true" >> "$GITHUB_OUTPUT"
+          echo "PR_NUMBER=$pr_number" >> "$GITHUB_ENV"
+          echo "PR_BASE=$(echo "$pr_json" | jq -r '.baseRefName // empty')" >> "$GITHUB_ENV"
+          echo "RUN_ID=${{ github.event.workflow_run.id }}" >> "$GITHUB_ENV"
+
+      - name: Check number of required system failures
+        id: threshold
+        if: steps.eligibility.outputs.auto_rerun == 'true'
+        run: |
+          source .github/scripts/common.sh
+
+          if ! required_spread_failure_threshold_allows_rerun "$RUN_ID" "$PR_BASE" "$GH_REPO" "$MAX_FAILED_TASKS"; then
+            echo "Setting rerun to false because $NOT_RERUN_REASON"
+            echo "threshold_ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "threshold_ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check test predictor report
+        id: predictor
+        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true'
+        run: |
+          source .github/scripts/common.sh
+
+          for ((poll = 1; poll <= PREDICTOR_REPORT_MAX_POLLS; poll++)); do
+            if predictor_report_allows_rerun \
+              "$PR_NUMBER" \
+              "$RUN_ID" \
+              "${{ github.event.workflow_run.run_attempt }}"; then
+              echo "predictor_ok=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            else
+              decision_status=$?
+            fi
+
+            case "$decision_status" in
+              1)
+                echo "Setting rerun to false because $NOT_RERUN_REASON"
+                echo "predictor_ok=false" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+              2)
+                if ((poll < PREDICTOR_REPORT_MAX_POLLS)); then
+                  echo "$NOT_RERUN_REASON; waiting for the reporter ($poll/$PREDICTOR_REPORT_MAX_POLLS)"
+                  sleep "$PREDICTOR_REPORT_POLL_SECONDS"
+                  continue
+                fi
+                echo "Predictor report was not published in time; allowing rerun"
+                ;;
+              *)
+                echo "$NOT_RERUN_REASON; allowing rerun"
+                ;;
+            esac
+
+            echo "predictor_ok=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          done
+
+      - name: Rerun workflow
+        if: steps.eligibility.outputs.auto_rerun == 'true' && steps.threshold.outputs.threshold_ok == 'true' && steps.predictor.outputs.predictor_ok == 'true'
+        run: |
+          source .github/scripts/common.sh
+
+          GH_RETRY_CONTEXT="rerun workflow for run_id=$RUN_ID"
+          if ! gh_retry run rerun "$RUN_ID" --failed; then
+            GH_RETRY_CONTEXT=""
+            exit 1
+          fi
+          GH_RETRY_CONTEXT=""

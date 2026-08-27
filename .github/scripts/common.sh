@@ -244,24 +244,43 @@ predictor_report_allows_rerun() {
     local pr_number="$1"
     local workflow_run_id="$2"
     local workflow_run_attempt="$3"
-    local marker="<!-- test-predictor-rerun: run-id=$workflow_run_id run-attempt=$workflow_run_attempt allowed=true -->"
-    local comments_json
+    local marker_prefix="<!-- test-predictor-rerun: run-id=$workflow_run_id run-attempt=$workflow_run_attempt"
+    local allowed_marker="$marker_prefix allowed=true -->"
+    local denied_marker="$marker_prefix allowed=false -->"
+    local comments_json decision
 
     GH_RETRY_CONTEXT="PR #$pr_number predictor report lookup"
     if ! comments_json=$(gh_retry api --paginate --slurp \
         "repos/$GH_REPO/issues/$pr_number/comments?per_page=100"); then
         GH_RETRY_CONTEXT=""
         NOT_RERUN_REASON="could not fetch predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt"
-        return 1
+        return 3
     fi
     GH_RETRY_CONTEXT=""
 
-    if jq -e --arg marker "$marker" \
-        'any(.[][]?; .user.login == "github-actions[bot]" and ((.body // "") | contains($marker)))' \
-        <<<"$comments_json" >/dev/null; then
-        return 0
+    if ! decision=$(jq -r \
+        --arg allowed_marker "$allowed_marker" \
+        --arg denied_marker "$denied_marker" \
+        '[.[][]? | select(.user.login == "github-actions[bot]") | (.body // "")] as $bodies
+        | if any($bodies[]; contains($allowed_marker)) then "allow"
+          elif any($bodies[]; contains($denied_marker)) then "deny"
+          else "pending"
+          end' <<<"$comments_json"); then
+        NOT_RERUN_REASON="could not parse predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt"
+        return 3
     fi
 
-    NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt does not allow a rerun"
-    return 1
+    case "$decision" in
+        allow)
+            return 0
+            ;;
+        deny)
+            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt does not allow a rerun"
+            return 1
+            ;;
+        *)
+            NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt is not available yet"
+            return 2
+            ;;
+    esac
 }

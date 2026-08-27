@@ -8,7 +8,7 @@ workflow_run_attempt="$3"
 parser=".github/scripts/parse-results-predictor.py"
 test_predictor_url="${TEST_PREDICTOR_URL:-}"
 test_predictor_url="${test_predictor_url%/}"
-test_predictor_threshold="${TEST_PREDICTOR_THRESHOLD:-0.5}"
+test_predictor_threshold="${TEST_PREDICTOR_THRESHOLD:-0.3}"
 predictor_candidates=0
 predictor_allows_rerun=false
 
@@ -59,7 +59,7 @@ append_predictor_table() {
 			if [ -n "${test_predictor_url}" ]; then
 				response=$(curl -sf -G "${test_predictor_url}/predict" \
 					--connect-timeout 2 \
-					--max-time 10 \
+					--max-time 5 \
 					--data-urlencode "name=${full_name}" \
 					--data-urlencode "verb=${verb}" \
 					--data-urlencode "system=${system}" \
@@ -77,7 +77,7 @@ append_predictor_table() {
 					predictor_allows_rerun=true
 				fi
 				probability=$(awk -v probability="$probability" 'BEGIN {
-                    if (probability >= 0.8) marker = "🟢";
+                    if (probability >= 0.7) marker = "🟢";
                     else if (probability >= 0.3) marker = "🟡";
                     else marker = "🔴";
                     printf "%s %.1f%%", marker, probability * 100
