@@ -22,12 +22,12 @@ package backend_test
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/user"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
@@ -533,24 +533,27 @@ func (s *mountunitSuite) TestListNonSnapctlMountsAllInRootUserDir(c *C) {
 }
 
 func (s *mountunitSuite) testListNonSnapctlMountsInHomeUserDir(c *C, variant scope) {
-	var userSnapDir, mountPath string
+	var mountPath string
 	switch variant {
 	case scopeRev:
-		userSnapDir = fmt.Sprintf("%s/home/user1/snap/foo/3", dirs.GlobalRootDir)
-		mountPath = userSnapDir + "/data"
+		mountPath = fmt.Sprintf("%s/home/user1/snap/foo/3/data", dirs.GlobalRootDir)
 	case scopeAll:
-		userSnapDir = fmt.Sprintf("%s/home/user1/snap/foo", dirs.GlobalRootDir)
-		mountPath = userSnapDir + "/data"
+		mountPath = fmt.Sprintf("%s/home/user1/snap/foo/data", dirs.GlobalRootDir)
 	}
-	// Create the user's snap directory so that the glob in snapDataDirs /
-	// snapBaseDataDirs expands to it.
-	c.Assert(os.MkdirAll(userSnapDir, 0755), IsNil)
-	defer os.RemoveAll(userSnapDir)
 
-	restore := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
-		return &systemdtest.FakeSystemd{}
+	// Mock allUsers to return user1 with the expected home dir so that
+	// snapDataDirs / snapBaseDataDirs include the user's snap directory.
+	restore := backend.MockAllUsers(func(_ *dirs.SnapDirOptions) ([]*user.User, error) {
+		return []*user.User{
+			{Uid: "1000", HomeDir: fmt.Sprintf("%s/home/user1", dirs.GlobalRootDir)},
+		}, nil
 	})
 	defer restore()
+
+	restoreSysd := systemd.MockNewSystemd(func(be systemd.Backend, rootDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		return &systemdtest.FakeSystemd{}
+	})
+	defer restoreSysd()
 
 	mountInfoContent := fmt.Sprintf("36 1 8:1 / %s rw - ext4 /dev/sda1 rw\n", mountPath)
 	restoreMI := osutil.MockMountInfo(mountInfoContent)
