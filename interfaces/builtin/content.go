@@ -112,15 +112,10 @@ func parseComponentPath(path string) (compName, subPath string, isComponent bool
 		return "", "", false, nil
 	}
 	rest := path[len(componentPrefix):]
-	closeIdx := strings.IndexByte(rest, ')')
-	if closeIdx < 0 {
+	compName, tail, had := strings.Cut(rest, ")")
+	if !had || compName == "" {
 		return "", "", true, fmt.Errorf("invalid format in path %q", path)
 	}
-	compName = rest[:closeIdx]
-	if compName == "" {
-		return "", "", true, fmt.Errorf("invalid format in path %q", path)
-	}
-	tail := rest[closeIdx+1:]
 	if tail == "" || tail == "/" {
 		// Whole-component sharing: $SNAP_COMPONENT(foo) or $SNAP_COMPONENT(foo)/
 		return compName, "", true, nil
