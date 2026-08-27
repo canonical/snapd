@@ -16,7 +16,7 @@ prepare: |
     tests.session -u test prepare
 
     echo "There should be no display-eligible user session for 'test'"
-    systemctl show-user test -p Display | MATCH '^Display=$'
+    loginctl show-user test -p Display | MATCH '^Display=$'
 
 restore: |
     snap remove --purge test-snapd-user-service-exec-condition || true
@@ -25,7 +25,10 @@ restore: |
     snap unset system experimental.user-daemons
 
 debug: |
+    loginctl list-sessions
     tests.session dump
+    loginctl show-user test || true
+    systemctl status "user-$(id -u test).slice" "user@$(id -u test).service" --no-pager || true
     tests.session -u test exec journalctl --user || true
 
 execute: |

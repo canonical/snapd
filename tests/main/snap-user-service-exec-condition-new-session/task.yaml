@@ -27,6 +27,7 @@ restore: |
     snap unset system experimental.user-daemons
 
 debug: |
+    loginctl list-sessions
     tests.session dump
     loginctl show-user test || true
     systemctl status "user-$(id -u test).slice" "user@$(id -u test).service" --no-pager || true
