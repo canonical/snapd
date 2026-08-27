@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   scan-open-prs:
-    runs-on: [self-hosted, spread-enabled]
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
