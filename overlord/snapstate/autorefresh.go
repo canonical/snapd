@@ -454,14 +454,14 @@ func (m *autoRefresh) restoreMonitoring() error {
 	aborts := make(map[string]context.CancelFunc, len(monitored))
 	for _, snap := range monitored {
 		done := make(chan string, 1)
-		snapName := snap.InstanceName()
-		if err := cgroupMonitorSnapEnded(snapName.String(), done); err != nil {
-			logger.Noticef("cannot restore monitoring for snap %q closure: %v", snapName, err)
+		instanceName := snap.InstanceName()
+		if err := cgroupMonitorSnapEnded(instanceName.String(), done); err != nil {
+			logger.Noticef("cannot restore monitoring for snap %q closure: %v", instanceName, err)
 			continue
 		}
 
 		refreshCtx, abort := context.WithCancel(context.Background())
-		aborts[snapName.String()] = abort
+		aborts[instanceName.String()] = abort
 		go continueRefreshOnSnapClose(m.state, snap.InstanceName().String(), done, refreshCtx)
 	}
 
@@ -1018,7 +1018,7 @@ func incrementSnapRefreshFailures(st *state.State, snapsup *SnapSetup, severity 
 	return nil
 }
 
-func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task, snapName string) snap.RefreshFailureSeverity {
+func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task, instanceName string) snap.RefreshFailureSeverity {
 	// It is ok to pass nil for the DeviceContext as the situation here is auto-refresh and not remodel.
 	bootBase, err := deviceModelBootBase(chg.State(), nil)
 	if err != nil {
@@ -1043,7 +1043,7 @@ func computeSnapRefreshFailureSeverity(chg *state.Change, unlinkTask *state.Task
 			logger.Debugf("internal error: failed to get snap associated with task %s: %v", t.ID(), err)
 			continue
 		}
-		if snapsup.InstanceName().String() != snapName {
+		if snapsup.InstanceName().String() != instanceName {
 			continue
 		}
 

@@ -618,7 +618,7 @@ func prereqError(what, snapName string, err error) error {
 	return fmt.Errorf("cannot install %s %q: %v", what, snapName, err)
 }
 
-func maybeFindTaskInChangeForSnap(chg *state.Change, kind, snapName string) (*state.Task, error) {
+func maybeFindTaskInChangeForSnap(chg *state.Change, kind, instanceName string) (*state.Task, error) {
 	for _, t := range chg.Tasks() {
 		if t.Status().Ready() || t.Kind() != kind {
 			continue
@@ -628,7 +628,7 @@ func maybeFindTaskInChangeForSnap(chg *state.Change, kind, snapName string) (*st
 		if err != nil {
 			return nil, err
 		}
-		if snapsup.InstanceName().String() == snapName {
+		if snapsup.InstanceName().String() == instanceName {
 			return t, nil
 		}
 	}
