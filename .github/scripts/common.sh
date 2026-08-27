@@ -243,24 +243,25 @@ required_spread_failure_threshold_allows_rerun() {
 predictor_report_allows_rerun() {
     local pr_number="$1"
     local workflow_run_id="$2"
-    local run_url="https://github.com/$GH_REPO/actions/runs/$workflow_run_id"
+    local workflow_run_attempt="$3"
+    local marker="<!-- test-predictor-rerun: run-id=$workflow_run_id run-attempt=$workflow_run_attempt allowed=true -->"
     local comments_json
 
     GH_RETRY_CONTEXT="PR #$pr_number predictor report lookup"
     if ! comments_json=$(gh_retry api --paginate --slurp \
         "repos/$GH_REPO/issues/$pr_number/comments?per_page=100"); then
         GH_RETRY_CONTEXT=""
-        NOT_RERUN_REASON="could not fetch predictor report for run_id=$workflow_run_id"
+        NOT_RERUN_REASON="could not fetch predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt"
         return 1
     fi
     GH_RETRY_CONTEXT=""
 
-    if jq -e --arg run_url "$run_url" \
-        'any(.[][]?; ((.body // "") | contains($run_url) and (contains("🟢") or contains("unavailable"))))' \
+    if jq -e --arg marker "$marker" \
+        'any(.[][]?; .user.login == "github-actions[bot]" and ((.body // "") | contains($marker)))' \
         <<<"$comments_json" >/dev/null; then
         return 0
     fi
 
-    NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id has neither a green nor unavailable prediction"
+    NOT_RERUN_REASON="predictor report for run_id=$workflow_run_id attempt=$workflow_run_attempt does not allow a rerun"
     return 1
 }

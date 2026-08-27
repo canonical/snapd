@@ -16,6 +16,7 @@ jobs:
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
+      TEST_PREDICTOR_THRESHOLD: "0.5"
       TEST_PREDICTOR_URL: http://test-predictor.snapd.canonical.com:5000
     steps:
       - name: Checkout code

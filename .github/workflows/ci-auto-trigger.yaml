@@ -192,7 +192,7 @@ jobs:
             fi
 
             echo "PR #$pr_number | Step: predictor report eligibility"
-            if ! predictor_report_allows_rerun "$pr_number" "$last_run"; then
+            if ! predictor_report_allows_rerun "$pr_number" "$last_run" "$run_attempt"; then
               echo "PR #$pr_number | Skip: $NOT_RERUN_REASON"
               echo "----- End PR #$pr_number -----"
               continue
@@ -200,10 +200,7 @@ jobs:
 
             echo "PR #$pr_number | Action: triggering rerun workflow using run_id=$last_run (attempt $run_attempt)"
             GH_RETRY_CONTEXT="PR #$pr_number trigger rerun workflow for run_id=$last_run"
-            if ! gh_retry workflow run rerun.yaml \
-              -f run_id="$last_run" \
-              -f run_attempt="$run_attempt" \
-              -f pr_number="$pr_number"; then
+            if ! gh_retry workflow run rerun.yaml -f run_id="$last_run"; then
               echo "PR #$pr_number | Skip: failed to trigger rerun workflow after retries"
               GH_RETRY_CONTEXT=""
               echo "----- End PR #$pr_number -----"
