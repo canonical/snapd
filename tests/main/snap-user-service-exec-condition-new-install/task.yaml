@@ -1,0 +1,108 @@
+summary: Check that user services honor ExecCondition when new snap is installed
+
+details: |
+    Verifies that when a snap is installed, user services are skipped when the
+    user has no display-eligible session, started when a session of class
+    "user" exists, and skipped again when only a session of class "greeter"
+    exists.
+
+    ExecCondition requires systemd version 243, which is not supported by
+    Ubuntu LTS releases prior to 20.04.
+
+systems: [-ubuntu-1*, -ubuntu-core-1*]
+
+prepare: |
+    snap set system experimental.user-daemons=true
+    tests.session -u test prepare
+
+    echo "There should be no display-eligible user session for 'test'"
+    systemctl show-user test -p Display | MATCH '^Display=$'
+
+restore: |
+    snap remove --purge test-snapd-user-service-exec-condition || true
+    tests.session destroy-session -u test || true
+    tests.session -u test restore
+    snap unset system experimental.user-daemons
+
+debug: |
+    tests.session dump
+    tests.session -u test exec journalctl --user || true
+
+execute: |
+    SVC_NO_SE=snap.test-snapd-user-service-exec-condition.svc-no-success-exit.service
+    SVC_1_2=snap.test-snapd-user-service-exec-condition.svc-with-1-2.service
+
+    # Helper functions modeled after those found in tests/lib/tools/journal-state
+    user_journal_cursor() {
+        # Print the cursor of the newest entry in the test user's journal.
+        # Empty output means the journal is empty.
+        tests.session -u test exec journalctl --user --output=export -n 1 2>/dev/null \
+            | grep --binary-files=text -o '__CURSOR=.*' | sed -e 's/^__CURSOR=//' || true
+    }
+    user_journal_since() {
+        # $1: journal cursor (empty string means "from the beginning")
+        # remaining args: forwarded to journalctl (e.g. -u "$SVC")
+        local cursor="$1"; shift
+        if [ -n "$cursor" ]; then
+            tests.session -u test exec journalctl --user --no-pager --cursor "$cursor" "$@"
+        else
+            tests.session -u test exec journalctl --user --no-pager "$@"
+        fi
+    }
+
+    echo "Installing the user service snap with no display-eligible session present"
+    cursor="$(user_journal_cursor)"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-exec-condition
+
+    # The user has no display-eligible session yet (tests.session prepare only
+    # enables linger and starts the user manager), so the precondition cannot
+    # determine a session and the services must be skipped.
+    echo "With no session, the services are skipped due to the failed precondition"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | MATCH '^inactive$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | MATCH '^inactive$'"
+    # The is-active checks above pass trivially while snapd has not yet
+    # attempted to start the services, so wait for the ExecCondition to
+    # actually skip the services before asserting on the journal. A service
+    # skipped by its ExecCondition reports Result=exec-condition, and as the
+    # snap was just installed, the result cannot be left over from an
+    # earlier round.
+    retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_NO_SE\" -p Result --value | MATCH '^exec-condition$'"
+    retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_1_2\" -p Result --value | MATCH '^exec-condition$'"
+    if ! os.query is-core && ! os.query is-arch-linux ; then
+        # Core and Arch do not have journalctl logs for user prior to creating a user session
+        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
+        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "cannot determine session class"
+        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
+        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "cannot determine session class"
+    fi
+
+    echo "With a user session, the reinstalled services start"
+    cursor="$(user_journal_cursor)"
+    tests.session create-session -u test -c user
+    snap remove --purge test-snapd-user-service-exec-condition
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-exec-condition
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | MATCH '^active$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | MATCH '^active$'"
+    user_journal_since "$cursor" -u "$SVC_NO_SE" | NOMATCH "Skipped due to 'exec-condition'"
+    user_journal_since "$cursor" -u "$SVC_1_2" | NOMATCH "Skipped due to 'exec-condition'"
+    tests.session destroy-session -u test
+    systemctl daemon-reload
+
+    echo "With only a greeter session, the reinstalled services are skipped"
+    cursor="$(user_journal_cursor)"
+    tests.session create-session -u test -c greeter
+    snap remove --purge test-snapd-user-service-exec-condition
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-exec-condition
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | MATCH '^inactive$'"
+    retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | MATCH '^inactive$'"
+    # As above, wait for the ExecCondition to skip the services before
+    # asserting on the journal. The result cannot be left over from the
+    # first round, as the successful starts of the previous round reset it.
+    retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_NO_SE\" -p Result --value | MATCH '^exec-condition$'"
+    retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_1_2\" -p Result --value | MATCH '^exec-condition$'"
+    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
+    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "session is a greeter session"
+    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
+    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "session is a greeter session"
+    tests.session destroy-session -u test
+    systemctl daemon-reload
