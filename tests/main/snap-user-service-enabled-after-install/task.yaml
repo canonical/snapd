@@ -108,8 +108,11 @@ execute: |
 
     echo "Setup new user session and expect correct initial state"
     # make a new user session and verify that -two is enabled and running
-    # but the first one is not
-    tests.session -u test2 prepare
+    # but the first one is not. Do *not* run tests.session prepare before
+    # tests.session create-session, as the former will start services, which
+    # will see no display-eligible session, so they will be skipped, and
+    # creating a new user session for a user which already has the service
+    # manager started will not restart services.
     tests.session -u test2 create-session -c user
 
     # the first user-service that we started and enabled for just user
