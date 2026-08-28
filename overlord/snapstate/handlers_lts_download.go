@@ -233,8 +233,7 @@ func resolveSnapdLTSRevision(ctx context.Context, st *state.State, snapsup *Snap
 	// validation. Monitor and forgotten sets are not consulted: the same
 	// gate as install/refresh. Planned keys on snap-setup are the
 	// operation snapshot (remodel, explicit RevOpts, plan-time enforced
-	// sets). Missing keys (old in-flight tasks) fall back to currently
-	// enforced sets.
+	// sets). Omitted or empty keys mean this operation has no constraints.
 	var vsets *snapasserts.ValidationSets
 	action := "install"
 	if snapsup.IgnoreValidation {
@@ -250,12 +249,9 @@ func resolveSnapdLTSRevision(ctx context.Context, st *state.State, snapsup *Snap
 			action = "refresh"
 		}
 		var err error
-		switch {
-		case snapsup.ValidationSets == nil:
-			vsets, err = EnforcedValidationSets(st)
-		case len(snapsup.ValidationSets) == 0:
+		if len(snapsup.ValidationSets) == 0 {
 			vsets = snapasserts.NewValidationSets()
-		default:
+		} else {
 			vsets, err = ValidationSetsFromKeys(st, snapsup.ValidationSets)
 		}
 		st.Unlock()
