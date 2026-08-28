@@ -280,11 +280,18 @@ func (s *deviceMgmtMgrSuite) makeStoreRequestMessage(c *C, messageID, kind, toke
 	}
 }
 
-func (s *deviceMgmtMgrSuite) makeRequestMessage(baseID, kind string) *devicemgmtstate.RequestMessage {
+func (s *deviceMgmtMgrSuite) makeRequestMessage(messageID, kind string) *devicemgmtstate.RequestMessage {
+	baseID, seqStr, hasSeq := strings.Cut(messageID, "-")
+	seqNum := 0
+	if hasSeq {
+		seqNum, _ = strconv.Atoi(seqStr)
+	}
+
 	return &devicemgmtstate.RequestMessage{
 		AccountID:   testAccountID,
 		AuthorityID: testAccountID,
 		BaseID:      baseID,
+		SeqNum:      seqNum,
 		Kind:        kind,
 		Devices:     []string{testDeviceID},
 		ValidSince:  fixedTestTime,
@@ -802,14 +809,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesSequenced(c *C) {
 	defer s.st.Unlock()
 
 	makeRequestMessage := func(messageID, kind string, dispatched bool) *devicemgmtstate.RequestMessage {
-		baseID, seqStr, hasSeq := strings.Cut(messageID, "-")
-		seqNum := 0
-		if hasSeq {
-			seqNum, _ = strconv.Atoi(seqStr)
-		}
-
-		msg := s.makeRequestMessage(baseID, kind)
-		msg.SeqNum = seqNum
+		msg := s.makeRequestMessage(messageID, kind)
 		msg.ReceiveTime = fixedTestTime.Add(6 * time.Hour)
 		msg.Dispatched = dispatched
 		return msg
@@ -1031,14 +1031,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesEvictedSequenceRejected(c *C)
 		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
 			signed[messageID] = status
 
-			return assertstest.FakeAssertionWithBody(body, map[string]any{
-				"type":        "response-message",
-				"account-id":  accountID,
-				"message-id":  messageID,
-				"device":      "serial-1.my-model.my-brand",
-				"status":      string(status),
-				"body-length": strconv.Itoa(len(body)),
-			}).(*asserts.ResponseMessage), nil
+			return s.makeResponseMessage(accountID, messageID, status, body)
 		},
 	})
 
@@ -1125,14 +1118,7 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesBlockedSequenceRejected(c *C)
 		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
 			signed[messageID] = status
 
-			return assertstest.FakeAssertionWithBody(body, map[string]any{
-				"type":        "response-message",
-				"account-id":  accountID,
-				"message-id":  messageID,
-				"device":      "serial-1.my-model.my-brand",
-				"status":      string(status),
-				"body-length": strconv.Itoa(len(body)),
-			}).(*asserts.ResponseMessage), nil
+			return s.makeResponseMessage(accountID, messageID, status, body)
 		},
 	})
 
@@ -1192,28 +1178,8 @@ func (s *deviceMgmtMgrSuite) TestDoDispatchMessagesIdempotent(c *C) {
 			},
 			"seqA": {
 				Messages: []*devicemgmtstate.RequestMessage{
-					{
-						AccountID:   "my-brand",
-						AuthorityID: "my-brand",
-						BaseID:      "seqA",
-						SeqNum:      6,
-						Kind:        "test-kind",
-						Devices:     []string{"serial-1.my-model.my-brand"},
-						ValidSince:  fixedTestTime,
-						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
-						Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
-					},
-					{
-						AccountID:   "my-brand",
-						AuthorityID: "my-brand",
-						BaseID:      "seqA",
-						SeqNum:      7,
-						Kind:        "test-kind",
-						Devices:     []string{"serial-1.my-model.my-brand"},
-						ValidSince:  fixedTestTime,
-						ValidUntil:  fixedTestTime.Add(24 * time.Hour),
-						Body:        `{"action": "get", "account": "my-brand", "view": "network/wifi-state"}`,
-					},
+					s.makeRequestMessage("seqA-6", "test-kind"),
+					s.makeRequestMessage("seqA-7", "test-kind"),
 				},
 			},
 		},
@@ -1998,16 +1964,7 @@ func (s *deviceMgmtMgrSuite) TestDoApplyMessageMessageNotFound(c *C) {
 	ms := &devicemgmtstate.DeviceMgmtState{
 		Sequences: map[string]*devicemgmtstate.SequenceState{
 			"seqA": {
-				Messages: []*devicemgmtstate.RequestMessage{
-					{
-						AccountID:  testAccountID,
-						BaseID:     "seqA",
-						SeqNum:     1,
-						Kind:       "test-kind",
-						ValidSince: fixedTestTime,
-						ValidUntil: fixedTestTime.Add(24 * time.Hour),
-					},
-				},
+				Messages: []*devicemgmtstate.RequestMessage{s.makeRequestMessage("seqA-1", "test-kind")},
 			},
 		},
 		ReadyResponses: make(map[string]store.Message),
@@ -2571,14 +2528,7 @@ func (s *deviceMgmtMgrSuite) TestDoQueueResponseRejectedSequenceEvicted(c *C) {
 		sign: func(accountID, messageID string, status asserts.MessageStatus, body []byte) (*asserts.ResponseMessage, error) {
 			signed[messageID] = status
 
-			return assertstest.FakeAssertionWithBody(body, map[string]any{
-				"type":        "response-message",
-				"account-id":  accountID,
-				"message-id":  messageID,
-				"device":      "serial-1.my-model.my-brand",
-				"status":      string(status),
-				"body-length": strconv.Itoa(len(body)),
-			}).(*asserts.ResponseMessage), nil
+			return s.makeResponseMessage(accountID, messageID, status, body)
 		},
 	})
 
