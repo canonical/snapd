@@ -1,0 +1,204 @@
+summary: Redirect snapd onto the LTS track during an online remodel
+
+details: |
+    Online remodel downloads snapd from the store using the new model's
+    default-channel without treating that as an explicit --channel request, so
+    LTS intercept runs and DeviceCtx.Model() is the new model. Offline remodel
+    never hits download-snap.
+
+    UC18 models do not list snapd, so remodel always targets the implicit
+    latest/stable channel. UC20+ models list snapd with default-channel
+    latest/edge on the seed model and latest/stable on the remodel target.
+    The test seeds an asserted snapd, switches tracking to latest/edge when
+    needed, then remodels. The fakestore publishes a remapping candidate on
+    latest/stable and an LTS target on <base>/stable. After remodel, snapd
+    must track <base>/stable at the LTS revision. UC20+ also creates and
+    tries a recovery system from those downloaded blobs, so that seed must
+    contain the LTS snapd revision on the LTS channel in options.yaml
+    (not the new model's latest/stable).
+
+systems:
+    - ubuntu-18*
+    - ubuntu-20*
+    - ubuntu-22*
+    - ubuntu-24*
+
+kill-timeout: 30m
+
+environment:
+    INITIAL_MODEL_JSON: $TESTSLIB/assertions/test-snapd-lts-remodel-initial-pc-VERSION.json
+    NEW_MODEL_JSON: $TESTSLIB/assertions/test-snapd-lts-remodel-new-pc-VERSION.json
+    NESTED_IMAGE_ID: snapd-lts-remodel
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    NESTED_REPACK_GADGET_SNAP: false
+    NESTED_REPACK_KERNEL_SNAP: true
+    NESTED_REPACK_BASE_SNAP: true
+    NESTED_REPACK_FOR_FAKESTORE: true
+    NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
+    NESTED_SIGN_SNAPS_FAKESTORE: true
+    NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL: http://localhost:11028
+    SNAPD_SNAP_ID: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    CANDIDATE_REV: 200000
+    LTS_REV: 200001
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+    VERSION="$(tests.nested show version)"
+    if [ "$VERSION" -ge 20 ]; then
+        export NESTED_REPACK_GADGET_SNAP=true
+    fi
+
+    "${TESTSTOOLS}/store-state" setup-fake-store "${NESTED_FAKESTORE_BLOB_DIR}"
+
+    gendeveloper1 sign-model < "${INITIAL_MODEL_JSON/VERSION/${VERSION}}" > initial-model.assert
+
+    cp "${TESTSLIB}/assertions/testrootorg-store.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp "${TESTSLIB}/assertions/developer1.account-key" "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+    cp initial-model.assert "${NESTED_FAKESTORE_BLOB_DIR}/asserts"
+
+    tests.nested prepare-essential-snaps
+
+    orig_snapd=
+    for f in "${NESTED_FAKESTORE_BLOB_DIR}"/snapd_*.snap; do
+        orig_snapd=$f
+        break
+    done
+    if [ -z "$orig_snapd" ] || [ ! -f "$orig_snapd" ]; then
+        echo "cannot find snapd snap in fakestore blob dir"
+        ls -l "${NESTED_FAKESTORE_BLOB_DIR}" || true
+        exit 1
+    fi
+    cp "$orig_snapd" original-snapd.snap
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" original-snapd.snap latest/stable
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" original-snapd.snap latest/edge
+
+    export SNAPPY_FORCE_API_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL}"
+    ubuntu-image snap --image-size 10G ./initial-model.assert
+
+    image_dir=$(tests.nested get images-path)
+    image_name=$(tests.nested get image-name core)
+    cp ./pc.img "${image_dir}/${image_name}"
+    tests.nested configure-default-user
+
+    systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+
+    tests.nested build-image core
+    tests.nested create-vm core
+
+    remote.wait-for device-initialized
+
+    remote.exec 'sudo systemctl stop snapd snapd.socket'
+
+    remote.exec 'sudo cat /var/lib/snapd/state.json' | gojq '.data.auth.device."session-macaroon"="fake-session"' > state.json
+    remote.push state.json
+    remote.exec 'sudo mv state.json /var/lib/snapd/state.json'
+    remote.exec 'sudo systemctl start snapd snapd.socket'
+
+restore: |
+    systemctl stop fakedevicesvc || true
+    "${TESTSTOOLS}/store-state" teardown-fake-store "${NESTED_FAKESTORE_BLOB_DIR}" || true
+
+debug: |
+    remote.exec snap version || true
+    remote.exec snap model --assertion || true
+    remote.exec snap info snapd || true
+    remote.exec snap changes || true
+    if [ -f change.id ]; then
+        chg=
+        IFS= read -r chg < change.id
+        remote.exec snap tasks "$chg" || true
+    fi
+    remote.exec "sudo journalctl -u snapd -n 120" || true
+    remote.exec "sudo snap recovery" || true
+    remote.exec "sudo ls -l /run/mnt/ubuntu-seed/systems" || true
+    remote.exec 'sudo sh -c "cat /run/mnt/ubuntu-seed/systems/*/options.yaml"' || true
+    remote.exec "sudo ls -l /run/mnt/ubuntu-seed/snaps/snapd_*.snap" || true
+
+execute: |
+    VERSION="$(tests.nested show version)"
+    lts_channel="${VERSION}/stable"
+
+    echo "Precondition: snapd is asserted"
+    remote.exec "snap list snapd" | awk 'NR==2 { print $3 }' | NOMATCH '^x'
+
+    echo "Switch tracking to latest/edge so remodel will store-update snapd to latest/stable"
+    remote.exec "sudo snap switch snapd --channel=latest/edge"
+    remote.exec "snap info snapd" | MATCH '^tracking:.*latest/edge'
+
+    unpack="$PWD/snapd-unpack"
+    rm -rf "$unpack"
+    unsquashfs -no-progress -d "$unpack" original-snapd.snap
+
+    info_file="$unpack/usr/lib/snapd/info"
+    if [ ! -f "$info_file" ]; then
+        echo "unpacked snapd is missing $info_file"
+        exit 1
+    fi
+    sed -i '/^SNAPD_LTS_TRACKS=/d' "$info_file"
+    printf "SNAPD_LTS_TRACKS='{\"%s\":{\"latest\":\"%s\"}}'\n" "$VERSION" "$VERSION" >> "$info_file"
+
+    sed -i 's/^version:[[:space:]].*/version: 1.0+lts-latest/' "$unpack/meta/snap.yaml"
+    snap pack --filename=snapd-latest.snap "$unpack"
+
+    "$TESTSTOOLS"/store-state make-snap-installable --noack --revision "$CANDIDATE_REV" "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-latest.snap" "$SNAPD_SNAP_ID"
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-latest.snap" latest/stable
+
+    sed -i 's/^version:[[:space:]].*/version: 1.0+lts-target/' "$unpack/meta/snap.yaml"
+    printf 'lts-target\n' > "$unpack/lts-target-marker"
+    snap pack --filename=snapd-lts.snap "$unpack"
+
+    "$TESTSTOOLS"/store-state make-snap-installable --noack --revision "$LTS_REV" "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-lts.snap" "$SNAPD_SNAP_ID"
+    "$TESTSTOOLS"/store-state add-to-channel "${NESTED_FAKESTORE_BLOB_DIR}" "$PWD/snapd-lts.snap" "$lts_channel"
+    rm -rf "$unpack"
+
+    gendeveloper1 sign-model < "${NEW_MODEL_JSON/VERSION/${VERSION}}" > new-model.assert
+    remote.push new-model.assert
+
+    echo "Online remodel without --offline so snapd is downloaded from latest/stable"
+    change_id="$(remote.exec 'sudo snap remodel --no-wait new-model.assert')"
+    printf '%s\n' "$change_id" > change.id
+    test -n "$change_id"
+
+    echo "Wait for the remodel change to finish (UC20+ may reboot to test a recovery system)"
+    retry -n 120 --wait 5 sh -c "remote.exec sudo snap changes | MATCH '^${change_id}[[:space:]]+(Done|Undone|Error)'"
+    remote.exec "sudo snap changes" | MATCH "^${change_id}[[:space:]]+Done"
+
+    echo "Model revision must be 2"
+    remote.exec "snap model --assertion" | MATCH '^revision: 2$'
+
+    echo "Snapd must track the LTS channel at the LTS revision"
+    remote.exec "snap info snapd" | MATCH "^tracking:.*${lts_channel}"
+    remote.exec "snap list snapd" | awk 'NR==2 { print $3 }' | MATCH "^${LTS_REV}$"
+
+    echo "The download task must have logged the LTS redirect"
+    remote.exec "snap tasks ${change_id}" | MATCH 'LTS track'
+    remote.exec "sudo journalctl -u snapd --no-pager" | MATCH 'snapd LTS redirect'
+
+    if [ "$VERSION" -ge 20 ]; then
+        echo "UC20+ recovery system must contain the LTS snapd revision"
+        new_label=
+        labels="$(remote.exec sudo ls /run/mnt/ubuntu-seed/systems)"
+        for label in $labels; do
+            if remote.exec "sudo grep -qx 'revision: 2' /run/mnt/ubuntu-seed/systems/${label}/model"; then
+                new_label=$label
+                break
+            fi
+        done
+        test -n "$new_label"
+
+        assertions="/run/mnt/ubuntu-seed/systems/${new_label}/assertions/snaps"
+        remote.exec "sudo awk -v RS='\n\n' '/snap-id: ${SNAPD_SNAP_ID}/ && /snap-revision: ${LTS_REV}/' ${assertions}" | MATCH '.'
+        remote.exec "sudo awk -v RS='\n\n' '/snap-id: ${SNAPD_SNAP_ID}/ && /snap-revision: ${CANDIDATE_REV}/' ${assertions}" | NOMATCH '.'
+        remote.exec "sudo test -f /run/mnt/ubuntu-seed/snaps/snapd_${LTS_REV}.snap || sudo test -f /run/mnt/ubuntu-seed/systems/${new_label}/snaps/snapd_${LTS_REV}.snap"
+
+        echo "The remodel recovery system must record snapd on the LTS channel, not the model default-channel"
+        remote.exec "sudo cat /run/mnt/ubuntu-seed/systems/${new_label}/options.yaml" > options.yaml
+        gojq --yaml-input -r '.snaps[] | select(.name == "snapd") | .channel' options.yaml | MATCH "^${lts_channel}$"
+    fi
