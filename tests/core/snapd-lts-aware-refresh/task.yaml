@@ -1,0 +1,173 @@
+summary: Redirect a store snapd refresh onto the UC LTS track
+
+details: |
+    After a store download of snapd, snapd inspects the candidate LTS track map
+    and may rewrite the refresh onto this device's boot-base track. Production
+    maps are empty until a series is onboarded, and --dangerous sideloads skip
+    intercept, so this test publishes an asserted snapd revision on
+    latest/stable whose map remaps latest to the boot base.
+
+    The redirect variant also publishes a target on <base>/stable and uses
+    snap refresh --amend (no --channel) so intercept runs and tracking moves.
+    The redirect-fail variant omits that LTS channel so intercept fails at
+    store resolve; the download task must Error and the original snapd stay
+    current. The explicit-channel variant publishes the LTS target but uses
+    --amend --channel=latest/stable so intercept is skipped. --amend is
+    required because UC spread images typically carry an unasserted snapd; it
+    is not itself an explicit channel request.
+
+systems: [-ubuntu-core-16-*]
+
+kill-timeout: 15m
+
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+    SNAPD_NO_MEMORY_LIMIT: 1
+    SNAPD_SNAP_ID: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    CANDIDATE_REV: 200000
+    LTS_REV: 200001
+    VARIANT/redirect: redirect
+    VARIANT/explicit_channel: explicit-channel
+    VARIANT/redirect_fail: redirect-fail
+
+skip:
+    - reason: This test needs test keys to be trusted
+      if: |
+        [ "$TRUST_TEST_KEYS" = "false" ]
+
+prepare: |
+    snap set system refresh.hold=forever
+    snap set system refresh.retain=4
+
+    orig_rev="$(readlink /snap/snapd/current)"
+    orig_blob="/var/lib/snapd/snaps/snapd_${orig_rev}.snap"
+    if [ ! -f "$orig_blob" ]; then
+        echo "cannot find installed snapd blob $orig_blob"
+        exit 1
+    fi
+    cp "$orig_blob" original-snapd.snap
+    printf '%s\n' "$orig_rev" > original-rev
+
+    boot_base="$(sed -n 's/^VERSION_ID="\([0-9][0-9]*\)"$/\1/p' /etc/os-release)"
+    if [ -z "$boot_base" ]; then
+        echo "cannot determine UC boot base from /etc/os-release"
+        exit 1
+    fi
+    printf '%s\n' "$boot_base" > boot-base
+
+    mkdir -p "$BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/testrootorg-store.account-key "$BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account "$BLOB_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$BLOB_DIR/asserts"
+    snap ack "$BLOB_DIR/asserts/testrootorg-store.account-key"
+    snap ack "$BLOB_DIR/asserts/developer1.account"
+    snap ack "$BLOB_DIR/asserts/developer1.account-key"
+
+    "$TESTSTOOLS"/store-state setup-fake-store "$BLOB_DIR"
+
+    # Pin tracking so --amend without --channel resolves to latest/stable.
+    snap switch snapd --channel=latest/stable
+
+    unpack="$PWD/snapd-unpack"
+    rm -rf "$unpack"
+    unsquashfs -no-progress -d "$unpack" original-snapd.snap
+
+    info_file="$unpack/usr/lib/snapd/info"
+    if [ ! -f "$info_file" ]; then
+        echo "unpacked snapd is missing $info_file"
+        exit 1
+    fi
+    sed -i '/^SNAPD_LTS_TRACKS=/d' "$info_file"
+    printf "SNAPD_LTS_TRACKS='{\"%s\":{\"latest\":\"%s\"}}'\n" "$boot_base" "$boot_base" >> "$info_file"
+
+    sed -i 's/^version:[[:space:]].*/version: 1.0+lts-latest/' "$unpack/meta/snap.yaml"
+    snap pack --filename=snapd-latest.snap "$unpack"
+
+    "$TESTSTOOLS"/store-state make-snap-installable --revision "$CANDIDATE_REV" "$BLOB_DIR" "$PWD/snapd-latest.snap" "$SNAPD_SNAP_ID"
+    "$TESTSTOOLS"/store-state add-to-channel "$BLOB_DIR" "$PWD/snapd-latest.snap" latest/stable
+
+    if [ "$VARIANT" != redirect-fail ]; then
+        sed -i 's/^version:[[:space:]].*/version: 1.0+lts-target/' "$unpack/meta/snap.yaml"
+        printf 'lts-target\n' > "$unpack/lts-target-marker"
+        snap pack --filename=snapd-lts.snap "$unpack"
+
+        "$TESTSTOOLS"/store-state make-snap-installable --revision "$LTS_REV" "$BLOB_DIR" "$PWD/snapd-lts.snap" "$SNAPD_SNAP_ID"
+        "$TESTSTOOLS"/store-state add-to-channel "$BLOB_DIR" "$PWD/snapd-lts.snap" "${boot_base}/stable"
+    fi
+    rm -rf "$unpack"
+
+restore: |
+    "$TESTSTOOLS"/store-state teardown-fake-store "$BLOB_DIR" || true
+    rm -rf "$BLOB_DIR" snapd-unpack
+
+    snap set system refresh.hold! || true
+    snap set system refresh.retain! || true
+
+debug: |
+    snap version || true
+    snap changes || true
+    snap info snapd || true
+    if [ -f change.id ]; then
+        chg=
+        IFS= read -r chg < change.id
+        snap tasks "$chg" || true
+    fi
+    journalctl -u snapd -n 120 || true
+
+execute: |
+    boot_base=
+    IFS= read -r boot_base < boot-base
+    lts_channel="${boot_base}/stable"
+    orig_rev=
+    IFS= read -r orig_rev < original-rev
+
+    echo "Precondition: snapd tracks latest/stable"
+    snap info snapd | MATCH '^tracking:.*latest/stable'
+
+    "$TESTSTOOLS"/journal-state start-new-log
+
+    if [ "$VARIANT" = explicit-channel ]; then
+        echo "Refresh snapd with an explicit --channel so LTS intercept is skipped"
+        chg="$(snap refresh --amend --channel=latest/stable --no-wait snapd)"
+    else
+        echo "Refresh snapd from the store without an explicit channel"
+        chg="$(snap refresh --amend --no-wait snapd)"
+    fi
+    printf '%s\n' "$chg" > change.id
+
+    echo "Wait for the refresh change to finish (snapd may restart)"
+    retry -n 90 --wait 2 sh -c "snap changes | MATCH \"^${chg}[[:space:]]+(Done|Error)\""
+
+    if [ "$VARIANT" = redirect-fail ]; then
+        snap changes | MATCH "^${chg}[[:space:]]+Error"
+        echo "Intercept must fail resolving the empty LTS channel"
+        snap tasks "$chg" | MATCH 'cannot resolve snapd LTS redirect'
+        retry -n 30 --wait 2 sh -c 'snap version >/dev/null'
+        echo "Original snapd must still be current"
+        [ "$(readlink /snap/snapd/current)" = "$orig_rev" ]
+        snap list snapd | awk 'NR==2 { print $3 }' | MATCH "^${orig_rev}$"
+        snap info snapd | MATCH '^tracking:.*latest/stable'
+        exit 0
+    fi
+
+    if snap changes | MATCH "^${chg}[[:space:]]+Error"; then
+        echo "snapd refresh change $chg failed"
+        exit 1
+    fi
+
+    snap list snapd
+
+    if [ "$VARIANT" = redirect ]; then
+        echo "Tracking must move to the LTS channel and the LTS revision"
+        snap info snapd | MATCH "^tracking:.*${lts_channel}"
+        snap list snapd | awk 'NR==2 { print $3 }' | MATCH "^${LTS_REV}$"
+        echo "The download task must have logged the LTS redirect"
+        snap tasks "$chg" | MATCH 'LTS track'
+        "$TESTSTOOLS"/journal-state match-log -u snapd -n 20 --wait 1 'snapd LTS redirect'
+    else
+        echo "Explicit --channel= must keep latest/stable and the candidate revision"
+        snap info snapd | MATCH '^tracking:.*latest/stable'
+        snap list snapd | awk 'NR==2 { print $3 }' | MATCH "^${CANDIDATE_REV}$"
+        snap tasks "$chg" | NOMATCH 'LTS track'
+        "$TESTSTOOLS"/journal-state get-log -u snapd | NOMATCH 'snapd LTS redirect'
+    fi
