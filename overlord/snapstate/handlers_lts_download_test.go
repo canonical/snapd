@@ -239,6 +239,14 @@ func snapdInvalidPresenceValidationSets(c *C) *snapasserts.ValidationSets {
 	return sets
 }
 
+func (s *ltsDownloadSuite) mockPlannedValidationSets(c *C, vsets *snapasserts.ValidationSets) {
+	restore := snapstate.MockValidationSetsFromKeys(func(st *state.State, keys []snapasserts.ValidationSetKey) (*snapasserts.ValidationSets, error) {
+		c.Check(keys, DeepEquals, vsets.Keys())
+		return vsets, nil
+	})
+	s.AddCleanup(restore)
+}
+
 func (s *ltsDownloadSuite) snapdStoreAction(c *C) *store.SnapAction {
 	for _, op := range s.fakeBackend.ops {
 		if op.op == "storesvc-snap-action:action" && op.action.InstanceName == "snapd" {
@@ -645,18 +653,14 @@ func (s *ltsDownloadSuite) TestRedirectCohortUnsatisfiable(c *C) {
 
 func (s *ltsDownloadSuite) TestRedirectPassesValidationSets(c *C) {
 	snapsup := snapdSnapsup(c, `{"18":{"latest":"18"}}`, "latest/stable")
+	vsets := snapdPinnedValidationSets(c, "")
+	snapsup.ValidationSets = vsets.Keys()
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
-	var capturedVsets *snapasserts.ValidationSets
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		capturedVsets = snapasserts.NewValidationSets()
-		return capturedVsets, nil
-	})
-	s.AddCleanup(restore)
+	s.mockPlannedValidationSets(c, vsets)
 
 	c.Assert(s.callRedirect(snapsup, model), IsNil)
-	c.Check(capturedVsets, NotNil)
 	c.Check(snapsup.Channel, Equals, "18/stable")
 }
 
@@ -692,13 +696,12 @@ func (s *ltsDownloadSuite) TestRedirectHonoursIgnoreValidation(c *C) {
 
 func (s *ltsDownloadSuite) TestRedirectPinnedRevisionNotOnLTSTrack(c *C) {
 	snapsup := snapdSnapsup(c, `{"18":{"latest":"18"}}`, "latest/stable")
+	vsets := snapdPinnedValidationSets(c, "99")
+	snapsup.ValidationSets = vsets.Keys()
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return snapdPinnedValidationSets(c, "99"), nil
-	})
-	s.AddCleanup(restore)
+	s.mockPlannedValidationSets(c, vsets)
 
 	err := s.callRedirect(snapsup, model)
 	c.Assert(err, ErrorMatches, `cannot resolve snapd LTS redirect to channel "18/stable": cannot get revision 99 required by validation sets from that track \(got 11\)`)
@@ -709,13 +712,12 @@ func (s *ltsDownloadSuite) TestRedirectPinnedRevisionNotOnLTSTrack(c *C) {
 
 func (s *ltsDownloadSuite) TestRedirectPinnedRevisionOnLTSTrack(c *C) {
 	snapsup := snapdSnapsup(c, `{"18":{"latest":"18"}}`, "latest/stable")
+	vsets := snapdPinnedValidationSets(c, "11")
+	snapsup.ValidationSets = vsets.Keys()
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return snapdPinnedValidationSets(c, "11"), nil
-	})
-	s.AddCleanup(restore)
+	s.mockPlannedValidationSets(c, vsets)
 
 	c.Assert(s.callRedirect(snapsup, model), IsNil)
 	c.Check(snapsup.Channel, Equals, "18/stable")
@@ -728,13 +730,12 @@ func (s *ltsDownloadSuite) TestRedirectPinnedRevisionOnLTSTrack(c *C) {
 
 func (s *ltsDownloadSuite) TestRedirectInvalidPresenceOnInstall(c *C) {
 	snapsup := snapdSnapsup(c, `{"18":{"latest":"18"}}`, "latest/stable")
+	vsets := snapdInvalidPresenceValidationSets(c)
+	snapsup.ValidationSets = vsets.Keys()
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return snapdInvalidPresenceValidationSets(c), nil
-	})
-	s.AddCleanup(restore)
+	s.mockPlannedValidationSets(c, vsets)
 
 	err := s.callRedirect(snapsup, model)
 	c.Assert(err, ErrorMatches, `cannot resolve snapd LTS redirect to channel "18/stable": cannot install snap "snapd" due to enforcing rules of validation set 16/account-id/snapd-pin/1`)
@@ -744,13 +745,12 @@ func (s *ltsDownloadSuite) TestRedirectInvalidPresenceOnInstall(c *C) {
 func (s *ltsDownloadSuite) TestRedirectInvalidPresenceOnRefresh(c *C) {
 	s.installSnapd(c, "2.75")
 	snapsup := snapdSnapsup(c, `{"18":{"latest":"18"}}`, "latest/stable")
+	vsets := snapdInvalidPresenceValidationSets(c)
+	snapsup.ValidationSets = vsets.Keys()
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
 
-	restore := snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
-		return snapdInvalidPresenceValidationSets(c), nil
-	})
-	s.AddCleanup(restore)
+	s.mockPlannedValidationSets(c, vsets)
 
 	err := s.callRedirect(snapsup, model)
 	c.Assert(err, ErrorMatches, `cannot resolve snapd LTS redirect to channel "18/stable": cannot update snap "snapd" due to enforcing rules of validation set 16/account-id/snapd-pin/1`)
@@ -820,7 +820,7 @@ func (s *ltsDownloadSuite) TestRedirectEmptyPlannedValidationSetsIgnoreEnforced(
 	c.Check(snapsup.SideInfo.Revision, Equals, snap.R(11))
 }
 
-func (s *ltsDownloadSuite) TestRedirectNilValidationSetsFallsBackToEnforced(c *C) {
+func (s *ltsDownloadSuite) TestRedirectNilValidationSetsMeansNoConstraints(c *C) {
 	snapsup := snapdSnapsup(c, `{"18":{"latest":"18"}}`, "latest/stable")
 	c.Assert(snapsup.ValidationSets, IsNil)
 	model := ModelWithBase("core18")
@@ -832,15 +832,18 @@ func (s *ltsDownloadSuite) TestRedirectNilValidationSetsFallsBackToEnforced(c *C
 		return snapasserts.NewValidationSets(), nil
 	})
 	s.AddCleanup(restore)
+	enforced := false
 	restore = snapstate.MockEnforcedValidationSets(func(st *state.State, extraVss ...*asserts.ValidationSet) (*snapasserts.ValidationSets, error) {
+		enforced = true
 		return snapdPinnedValidationSets(c, "99"), nil
 	})
 	s.AddCleanup(restore)
 
-	err := s.callRedirect(snapsup, model)
-	c.Assert(err, ErrorMatches, `cannot resolve snapd LTS redirect to channel "18/stable": cannot get revision 99 required by validation sets from that track \(got 11\)`)
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
 	c.Check(fromKeys, Equals, false)
-	c.Check(snapsup.Channel, Equals, "latest/stable")
+	c.Check(enforced, Equals, false)
+	c.Check(snapsup.Channel, Equals, "18/stable")
+	c.Check(snapsup.SideInfo.Revision, Equals, snap.R(11))
 }
 
 func (s *ltsDownloadSuite) TestRedirectValidationSetsFromKeysError(c *C) {
@@ -863,19 +866,18 @@ func (s *ltsDownloadSuite) TestRedirectValidationSetsFromKeysError(c *C) {
 	c.Check(snapsup.Channel, Equals, "latest/stable")
 }
 
-func (s *ltsDownloadSuite) TestSnapSetupValidationSetsJSONNilVsEmpty(c *C) {
+func (s *ltsDownloadSuite) TestSnapSetupValidationSetsJSONOmitempty(c *C) {
 	var missing snapstate.SnapSetup
 	c.Assert(json.Unmarshal([]byte(`{}`), &missing), IsNil)
 	c.Check(missing.ValidationSets, IsNil)
 
 	b, err := json.Marshal(snapstate.SnapSetup{ValidationSets: []snapasserts.ValidationSetKey{}})
 	c.Assert(err, IsNil)
-	c.Assert(string(b), testutil.Contains, `"validation-sets":[]`)
+	c.Check(string(b), Not(testutil.Contains), `"validation-sets"`)
 
 	var empty snapstate.SnapSetup
 	c.Assert(json.Unmarshal(b, &empty), IsNil)
-	c.Assert(empty.ValidationSets, NotNil)
-	c.Check(empty.ValidationSets, HasLen, 0)
+	c.Check(empty.ValidationSets, IsNil)
 }
 
 // ---- Redirect failure paths -------------------------------------------
@@ -914,7 +916,7 @@ func (s *ltsDownloadSuite) TestRedirectDownloadError(c *C) {
 	c.Check(osutil.FileExists(snapsup.SnapPath), Equals, true)
 }
 
-func (s *ltsDownloadSuite) TestRedirectValidationSetsError(c *C) {
+func (s *ltsDownloadSuite) TestRedirectNilValidationSetsIgnoresEnforcedError(c *C) {
 	snapsup := snapdSnapsup(c, `{"18":{"latest":"18"}}`, "latest/stable")
 	model := ModelWithBase("core18")
 	s.AddCleanup(snapstatetest.MockDeviceModel(model))
@@ -924,9 +926,8 @@ func (s *ltsDownloadSuite) TestRedirectValidationSetsError(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	err := s.callRedirect(snapsup, model)
-	c.Assert(err, ErrorMatches, `cannot resolve snapd LTS redirect to channel "18/stable": validation sets db unavailable`)
-	c.Check(snapsup.Channel, Equals, "latest/stable")
+	c.Assert(s.callRedirect(snapsup, model), IsNil)
+	c.Check(snapsup.Channel, Equals, "18/stable")
 }
 
 func (s *ltsDownloadSuite) TestRedirectMissingInfoFileError(c *C) {
