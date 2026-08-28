@@ -363,6 +363,11 @@ prepare_memory_limit_override() {
             # similar issues have been observed on Amazon Linux 2
             set_limit=0
             ;;
+        centos-*)
+            # try to workaround xfs doing weird things with the page cache
+            # which is counted towards the cgroup memory limits
+            memlimit="600M"
+            ;;
         *)
             if [ "$SNAPD_NO_MEMORY_LIMIT" = 1 ]; then
                 set_limit=0
