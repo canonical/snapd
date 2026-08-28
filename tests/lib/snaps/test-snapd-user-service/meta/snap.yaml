@@ -1,7 +1,0 @@
-name: test-snapd-user-service
-version: 1.0
-apps:
-    test-snapd-user-service:
-        command: bin/start
-        daemon: simple
-        daemon-scope: user

@@ -1,6 +1,0 @@
-source lib.exp0
-
-chat "snap refresh \t\t" "core*test-snapd-tools"
-
-cancel
-brexit

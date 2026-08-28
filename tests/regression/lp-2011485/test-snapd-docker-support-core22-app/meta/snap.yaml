@@ -1,9 +1,0 @@
-name: test-snapd-docker-support-core22-app
-base: core22
-version: 1
-
-apps:
-    test-snapd-docker-support:
-        command: bin/test-snapd-docker-support
-        plugs:
-            - docker-support

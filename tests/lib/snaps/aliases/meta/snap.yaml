@@ -1,9 +1,0 @@
-name: aliases
-version: 1.0
-apps:
-    cmd1:
-        command: bin/cmd1
-        aliases: [alias1]
-    cmd2:
-        command: bin/cmd2
-        aliases: [alias2]

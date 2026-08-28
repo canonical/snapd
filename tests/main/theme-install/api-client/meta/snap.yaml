@@ -1,9 +1,0 @@
-name: api-client
-version: 1
-base: core18
-apps:
-  api-client:
-    command: bin/api-client.py
-    plugs:
-      - snapd-control
-      - snap-themes-control

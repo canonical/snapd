@@ -1,9 +1,0 @@
-[Unit]
-Description=Stop Boot Process Profiler
-DefaultDependencies=no
-Before=initrd-switch-root.service
-ConditionKernelCommandLine=ubuntu_core.bootchart
-
-[Service]
-Type=oneshot
-ExecStart=-/usr/bin/systemctl stop systemd-bootchart.service

@@ -1,5 +1,0 @@
-#!/bin/dash
-
-set -e
-
-echo "This hook is added to ensure that the environment is run at least once"

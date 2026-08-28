@@ -1,3 +1,0 @@
-#!/bin/sh
-
-iptables -t nat -"$1" OUTPUT -p tcp -d 172.26.0.15 --dport 8081 -j DNAT --to-destination 127.0.0.1:8081

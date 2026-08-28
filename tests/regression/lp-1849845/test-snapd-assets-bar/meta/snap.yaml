@@ -1,7 +1,0 @@
-name: test-snapd-assets-bar
-version: 1
-architectures: [all]
-slots:
-  package-assets:
-    interface: content
-    read: [$SNAP_DATA/package-assets]

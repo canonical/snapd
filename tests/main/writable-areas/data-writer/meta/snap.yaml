@@ -1,9 +1,0 @@
-name: data-writer
-version: 1.0
-apps:
- app:
-  command: bin/write-data from-app
- service:
-  command: bin/write-data from-service
-  daemon: oneshot
-  restart-condition: never

@@ -1,6 +1,0 @@
-#!/bin/sh
-
-set -e
-
-rm -f /dev/nvidiactl
-mknod -m 666 /dev/nvidiactl c 195 255

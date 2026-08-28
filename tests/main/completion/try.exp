@@ -1,6 +1,0 @@
-source lib.exp0
-
-chat "snap try \t" "testdir/"
-
-cancel
-brexit

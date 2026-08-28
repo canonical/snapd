@@ -1,7 +1,0 @@
-name: cups-provider
-version: 1.0
-summary: Basic cups-control provider snap
-description: A basic snap that provides a cups-control slot
-
-slots:
-  cups-control:

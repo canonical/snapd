@@ -1,7 +1,0 @@
-defaults:
-   system:
-     service:
-       ssh:
-         disable: true
-       rsyslog:
-         disable: true

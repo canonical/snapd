@@ -1,7 +1,0 @@
-source lib.exp0
-
-# change completes with change ids
-rechat "snap change \t\t" {[0-9]+( +[0-9]+)*}
-
-cancel
-brexit

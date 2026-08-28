@@ -1,4 +1,0 @@
-name: test-snapd-base
-version: 1.0
-type: base
-summary: A base snap for testing

@@ -1,9 +1,0 @@
-name: modem-manager-consumer
-version: 1.0
-summary: Basic modem-manager consumer snap
-description: A basic snap declaring a plug on modem-manager
-
-apps:
-    modem-manager-consumer:
-        command: bin/consumer
-        slots: [modem-manager]

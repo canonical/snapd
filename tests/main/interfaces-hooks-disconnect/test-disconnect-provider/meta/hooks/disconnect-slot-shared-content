@@ -1,3 +1,0 @@
-#!/bin/sh
-
-touch "$SNAP_COMMON/disconnect-slot-shared-content-done"

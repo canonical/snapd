@@ -1,7 +1,0 @@
-#!/bin/bash
-
-# run through wrapper provided by content snap
-# prepends desktop-launch to $@
-set -- "${SNAP}/connected-content/command-chain/desktop-launch" "$@"
-
-exec "$@"

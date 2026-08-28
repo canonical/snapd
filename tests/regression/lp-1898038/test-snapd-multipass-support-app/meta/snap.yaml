@@ -1,8 +1,0 @@
-name: test-snapd-multipass-support-app
-version: 1
-
-apps:
-    test-snapd-multipass-support:
-        command: bin/test-snapd-multipass-support
-        plugs:
-            - multipass-support

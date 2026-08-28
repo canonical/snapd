@@ -1,3 +1,0 @@
-#!/bin/sh
-
-snapctl set :consumer0 some-attribute=value

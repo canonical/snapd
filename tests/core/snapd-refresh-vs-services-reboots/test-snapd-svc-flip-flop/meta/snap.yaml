@@ -1,9 +1,0 @@
-name: test-snapd-svc-flip-flop
-version: "0.1"
-
-apps:
-  svc1:
-    command: bin/svc.sh
-    daemon: forking
-    # short start-timeout so the test finishes quickly
-    start-timeout: 5s

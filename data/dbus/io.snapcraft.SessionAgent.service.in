@@ -1,6 +1,0 @@
-[D-BUS Service]
-Name=io.snapcraft.SessionAgent
-# The session agent must be launched via systemd.
-Exec=/bin/false
-SystemdService=snapd.session-agent.service
-AssumedAppArmorLabel=unconfined

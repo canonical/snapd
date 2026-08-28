@@ -1,9 +1,0 @@
-name: gpio-consumer
-version: 1.0
-summary: Basic gpio consumer snap
-description: A basic snap declaring a plug on a gpio slot
-
-apps:
-  read:
-    command: bin/read
-    plugs: [gpio]

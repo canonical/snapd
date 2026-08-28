@@ -1,3 +1,0 @@
-name: test-snapd-number-version
-version: "2.10"
-architectures: ["all"]

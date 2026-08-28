@@ -1,2 +1,0 @@
-#!/bin/sh
-snapctl set device-service.url=http://localhost:11029

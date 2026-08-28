@@ -1,6 +1,0 @@
-name: disabled-svcs-kept
-version: THEVERSION
-apps:
-    THESVCNAME:
-        command: bin/service
-        THEDAEMON

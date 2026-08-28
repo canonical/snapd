@@ -1,7 +1,0 @@
-#!/bin/bash -exu
-
-cd "$SNAP_COMMON"
-mkdir -p mnt
-snapctl mount --persistent /dev/sda "$PWD"/mnt/
-
-stat mnt/lost+found

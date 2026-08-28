@@ -1,8 +1,0 @@
-#!/bin/sh -xe
-
-# save the previous value for test validation
-value=$(snapctl get --view :manage-wifi password)
-echo "$value" >> "$SNAP_COMMON"/query-view-manage-wifi-ran
-
-# add a suffix so we can check query-view can modify values
-snapctl set --view :manage-wifi password="$value-queried"

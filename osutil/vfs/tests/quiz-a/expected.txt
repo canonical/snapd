@@ -1,2 +1,0 @@
-/mnt/1 shared:42 -
-/mnt/1/1 shared:42 -

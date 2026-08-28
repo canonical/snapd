@@ -1,8 +1,0 @@
-name: test-snapd-user-service
-version: 2.0
-apps:
- service:
-  command: bin/bad
-  daemon: oneshot
-  daemon-scope: user
-  restart-condition: never

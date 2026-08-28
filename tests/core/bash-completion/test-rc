@@ -1,8 +1,0 @@
-export TERM=ansi
-export PS1='prompt$ '
-export XDG_DATA_DIRS="${XDG_DATA_DIRS:-}${XDG_DATA_DIRS:+:}/var/lib/snapd/desktop"
-
-# This removes escape bracket characters that clutter outputs
-bind 'set enable-bracketed-paste off'
-
-. /usr/share/bash-completion/bash_completion

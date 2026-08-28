@@ -1,8 +1,0 @@
-name: SNAPNAME
-summary: generic snap
-version: '1.0'
-base: core22
-
-apps:
-  test-app:
-    command: bin/sh

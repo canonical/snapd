@@ -1,6 +1,0 @@
-name: test-snapd-icon-theme
-version: 1.0
-
-apps:
-    echo:
-        command: bin/echo

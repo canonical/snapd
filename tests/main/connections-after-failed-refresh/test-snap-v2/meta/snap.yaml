@@ -1,7 +1,0 @@
-name: test-snap
-version: 2.0
-
-plugs:
-  home:
-  network:
-  hardware-observe:

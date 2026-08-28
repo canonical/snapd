@@ -1,9 +1,0 @@
-name: test-snapd-svcs-disable-install-hook
-version: 1.0
-apps:
-    simple:
-        daemon: simple
-        command: bin/simple.sh
-    forking:
-        daemon: forking
-        command: bin/forking.sh

@@ -1,9 +1,0 @@
-name: test-snapd-journal-quota
-version: 1.0
-summary: Test snap for the journal quota
-
-apps:
-    logger:
-        command: bin/logger
-        daemon: simple
-        restart-condition: always

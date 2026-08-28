@@ -1,7 +1,0 @@
-name: test-snapd-service-start-timeout
-version: 0.1
-apps:
-  svc:
-    daemon: forking
-    command: forking.sh
-    start-timeout: 10s

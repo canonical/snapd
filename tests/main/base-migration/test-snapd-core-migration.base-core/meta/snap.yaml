@@ -1,7 +1,0 @@
-name: test-snapd-core-migration
-version: 1
-# TODO: uncomment when "base: core" works.
-# base: core
-apps:
-  sh:
-    command: bin/sh
