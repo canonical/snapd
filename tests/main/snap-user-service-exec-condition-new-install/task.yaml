@@ -12,6 +12,14 @@ details: |
 systems: [-ubuntu-1*, -ubuntu-core-1*]
 
 prepare: |
+    # Ensure that snapd.session-agent.socket is enabled. This may not be
+    # the case on distributions where presets have been used to disable it.
+    if [ ! -L /usr/lib/systemd/user/sockets.target.wants/snapd.session-agent.socket ] &&
+            ! systemctl --user --global is-enabled snapd.session-agent.socket; then
+        systemctl --user --global enable snapd.session-agent.socket
+        touch agent-was-enabled
+    fi
+
     snap set system experimental.user-daemons=true
     tests.session -u test prepare
 
@@ -23,6 +31,10 @@ restore: |
     tests.session destroy-session -u test || true
     tests.session -u test restore
     snap unset system experimental.user-daemons
+    if [ -f agent-was-enabled ]; then
+        systemctl --user --global disable snapd.session-agent.socket
+        rm agent-was-enabled
+    fi
 
 debug: |
     loginctl list-sessions
@@ -71,8 +83,8 @@ execute: |
     # earlier round.
     retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_NO_SE\" -p Result --value | MATCH '^exec-condition$'"
     retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_1_2\" -p Result --value | MATCH '^exec-condition$'"
-    if ! os.query is-core && ! os.query is-arch-linux ; then
-        # Core and Arch do not have journalctl logs for user prior to creating a user session
+    if ! os.query is-core ; then
+        # Core does not have journalctl logs for user sessions
         user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
         user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "cannot determine session class"
         user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
@@ -86,8 +98,11 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-exec-condition
     retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_NO_SE\" | MATCH '^active$'"
     retry -n 5 --wait 1 sh -c "tests.session -u test exec systemctl --user is-active \"$SVC_1_2\" | MATCH '^active$'"
-    user_journal_since "$cursor" -u "$SVC_NO_SE" | NOMATCH "Skipped due to 'exec-condition'"
-    user_journal_since "$cursor" -u "$SVC_1_2" | NOMATCH "Skipped due to 'exec-condition'"
+    if ! os.query is-core ; then
+        # Core does not have journalctl logs for user sessions
+        user_journal_since "$cursor" -u "$SVC_NO_SE" | NOMATCH "Skipped due to 'exec-condition'"
+        user_journal_since "$cursor" -u "$SVC_1_2" | NOMATCH "Skipped due to 'exec-condition'"
+    fi
     tests.session destroy-session -u test
     systemctl daemon-reload
 
@@ -103,9 +118,12 @@ execute: |
     # first round, as the successful starts of the previous round reset it.
     retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_NO_SE\" -p Result --value | MATCH '^exec-condition$'"
     retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_1_2\" -p Result --value | MATCH '^exec-condition$'"
-    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
-    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "session is a greeter session"
-    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
-    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "session is a greeter session"
+    if ! os.query is-core ; then
+        # Core does not have journalctl logs for user sessions.
+        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
+        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "session is a greeter session"
+        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
+        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "session is a greeter session"
+    fi
     tests.session destroy-session -u test
     systemctl daemon-reload

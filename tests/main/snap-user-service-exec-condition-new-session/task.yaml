@@ -10,7 +10,7 @@ details: |
     ExecCondition requires systemd version 243, which is not supported by
     Ubuntu LTS releases prior to 20.04.
 
-systems: [-ubuntu-1*, -ubuntu-core-1*]
+systems: [-arch-linux*, -ubuntu-1*, -ubuntu-core-*] # arch and core have persistent user service managers in spread which can't be reliably stopped
 
 prepare: |
     snap set system experimental.user-daemons=true
@@ -92,13 +92,10 @@ execute: |
     # started, the result cannot be left over from an earlier round.
     retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_NO_SE\" -p Result --value | MATCH '^exec-condition$'"
     retry -n 10 --wait 1 sh -c "tests.session -u test exec systemctl --user show \"$SVC_1_2\" -p Result --value | MATCH '^exec-condition$'"
-    if ! os.query is-core && ! os.query is-arch-linux ; then
-        # Core and Arch do not have journalctl logs for user prior to creating a user session
-        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
-        user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "cannot determine session class"
-        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
-        user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "cannot determine session class"
-    fi
+    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "Skipped due to 'exec-condition'"
+    user_journal_since "$cursor" -u "$SVC_NO_SE" | MATCH "cannot determine session class"
+    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "Skipped due to 'exec-condition'"
+    user_journal_since "$cursor" -u "$SVC_1_2" | MATCH "cannot determine session class"
     tests.session -u test restore
     systemctl daemon-reload
     wait_user_manager_stopped
