@@ -509,6 +509,17 @@ func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
 }
 
+func (s *SharedMemoryInterfaceSuite) TestParallelInstancesSupportedForPlug(c *C) {
+	definer, ok := s.iface.(interfaces.ParallelInstancesPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// private=false does not support parallel instances
+	c.Check(definer.ParallelInstancesSupportedForPlug(s.plugInfo), Equals, false)
+
+	// private=true supports parallel instances
+	c.Check(definer.ParallelInstancesSupportedForPlug(s.privatePlugInfo), Equals, true)
+}
+
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

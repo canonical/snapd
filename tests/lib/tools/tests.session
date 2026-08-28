@@ -3,6 +3,8 @@
 show_help() {
 	echo "usage: tests.session [-u USER] [-p PID_FILE] exec <CMD>"
 	echo "       tests.session prepare | restore [-u USER | -u USER1,USER2,...]"
+	echo "       tests.session create-session -u USER [-c CLASS] [-t TYPE] [-l LABEL]"
+	echo "       tests.session destroy-session -u USER [-l LABEL]"
 	echo "       tests.session kill-leaked"
 	echo "       tests.session dump"
 	echo "       tests.session has-system-systemd-and-dbus"
@@ -16,6 +18,9 @@ main() {
 	fi
 	user=root
 	pid_file=
+	session_class=
+	session_type=
+	session_label=
 	action=
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -32,6 +37,30 @@ main() {
 				pid_file="$2"
 				shift 2
 				;;
+			-c)
+				if [ $# -eq 1 ]; then
+					echo "tests.session: option -c requires an argument" >&2
+					exit 1
+				fi
+				session_class="$2"
+				shift 2
+				;;
+			-t)
+				if [ $# -eq 1 ]; then
+					echo "tests.session: option -t requires an argument" >&2
+					exit 1
+				fi
+				session_type="$2"
+				shift 2
+				;;
+			-l)
+				if [ $# -eq 1 ]; then
+					echo "tests.session: option -l requires an argument" >&2
+					exit 1
+				fi
+				session_label="$2"
+				shift 2
+				;;
 			kill-leaked)
 				action=kill-leaked
 				shift
@@ -42,6 +71,14 @@ main() {
 				;;
 			restore)
 				action=restore
+				shift
+				;;
+			create-session)
+				action=create-session
+				shift
+				;;
+			destroy-session)
+				action=destroy-session
 				shift
 				;;
 			dump)
@@ -105,6 +142,19 @@ main() {
 			;;
 		prepare)
 			# Try to enable linger for the selected user(s).
+			#
+			# Note: enabling linger starts user@UID.service, which runs through
+			# the "systemd-user" PAM stack. On systemd <= 255 pam_systemd
+			# deliberately creates no logind session for that PAM service (it
+			# only sets up XDG_RUNTIME_DIR); starting with systemd 256 (commit
+			# 4cb4e6cf6dce, "pam_systemd: register systemd user service manager
+			# as class='manager'") the user service manager registers a
+			# manager-class session ("manager-early" for root and other system
+			# users), and "loginctl list-sessions" grew a class column in the
+			# same release. Tests that count sessions must filter manager-class
+			# sessions out, e.g. with "grep -v manager"; on older systems the
+			# filter matches nothing. Manager-class sessions never take part in
+			# the display session election, see create-session for details.
 			for u in $(echo "$user" | tr ',' ' '); do
 				if ! loginctl enable-linger "$u"; then
 					echo "tests.session requires external fix for //github.com/systemd/systemd/issues/12401" >&2
@@ -137,6 +187,14 @@ main() {
 			exit 0
 			;;
 		restore)
+			# Defensively stop any persistent sessions created with
+			# create-session but not destroyed with destroy-session, so that
+			# they cannot leak into subsequent tests. Stopping the unit kills
+			# the session payload and thereby the session itself.
+			systemctl stop "tests.session-persist-*.service" 2>/dev/null || true
+			systemctl reset-failed "tests.session-persist-*.service" 2>/dev/null || true
+			rm -f /run/tests.session/*.id
+
 			# Disable linger for the selected user(s).
 			for u in $(echo "$user" | tr ',' ' '); do
 
@@ -195,6 +253,149 @@ main() {
 					setsebool unconfined_service_transition_to_unconfined_user 0
 				;;
 			esac
+
+			exit 0
+			;;
+		create-session)
+			# Create a persistent logind session for the selected user. The
+			# session is backed by a detached systemd service whose payload is a
+			# "sleep infinity" process running as the user through "runuser -l",
+			# so pam_systemd registers a real session. The session class and type
+			# can be requested with -c and -t, which are passed to pam_systemd as
+			# XDG_SESSION_CLASS and XDG_SESSION_TYPE respectively.
+			#
+			# The session ID is stored in /run/tests.session/<user>[-<label>].id
+			# so that destroy-session can later find and stop the exact session.
+			if [ -z "$user" ] || [ "$user" = "root" ] || echo "$user" | grep -q ','; then
+				echo "tests.session: invalid user, must be single non-root username: '$user'" >&2
+				exit 1
+			fi
+			if [ -z "$session_label" ]; then
+				session_suffix=""
+			else
+				if ! echo "$session_label" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+					echo "tests.session: invalid session label $session_label" >&2
+					exit 1
+				fi
+				session_suffix="-$session_label"
+			fi
+			unit_name="tests.session-persist-$user$session_suffix.service"
+			id_file="/run/tests.session/$user$session_suffix.id"
+
+			# A failed leftover unit also occupies the unit name, but
+			# is-active returns false for failed units, so check is-failed
+			# too in order to report the problem instead of failing below
+			# with a confusing "unit was already loaded" error from
+			# systemd-run.
+			if systemctl is-active --quiet "$unit_name" || systemctl is-failed --quiet "$unit_name"; then
+				echo "tests.session: session for user $user$session_suffix already exists, run destroy-session first" >&2
+				exit 1
+			fi
+
+			env_args=""
+			if [ -n "$session_class" ]; then
+				env_args="XDG_SESSION_CLASS=$session_class"
+			fi
+			if [ -n "$session_type" ]; then
+				env_args="${env_args:+$env_args }XDG_SESSION_TYPE=$session_type"
+			fi
+
+			mkdir -p /run/tests.session
+			# pre-create the ID file owned by the user, so the payload running as
+			# the user can write its session ID into it
+			rm -f "$id_file"
+			touch "$id_file"
+			chown "$user:" "$id_file"
+
+			# The Environment= property places the requested session class and
+			# type in the environment of the runuser process itself. pam_systemd
+			# reads XDG_SESSION_CLASS/XDG_SESSION_TYPE via getenv() from the
+			# calling process when they are not set in the PAM environment, and
+			# runuser does not scrub its own environment before opening the PAM
+			# session, so this works even on runuser versions without
+			# --whitelist-environment support (e.g. Ubuntu Core 18).
+			#
+			# Note: unlike the exec path below, here we deliberately do not use
+			# "systemd-run --wait --pipe", which require systemd >= 253. This is a
+			# fire-and-forget transient service (we poll the ID file for readiness
+			# instead of waiting on stdio), so all the options used here predate
+			# systemd 237 and this works on the oldest supported systems.
+			# shellcheck disable=SC2086
+			systemd-run \
+			--system \
+			--quiet \
+			--unit="$unit_name" \
+			--description "tests.session persistent session for $user$session_suffix" \
+			${env_args:+--property "Environment=$env_args"} \
+			"$(command -v runuser)" -l "$user" -c "echo \"\$XDG_SESSION_ID\" >\"$id_file\"; exec sleep infinity"
+
+			# Wait for the session to be registered, then verify that the
+			# requested class and type were honored by pam_systemd.
+			if ! retry -n 10 --wait 1 test -s "$id_file"; then
+				# Stop and reset the unit so that its name is freed for a
+				# retry. A failed transient unit keeps occupying the name
+				# until reset-failed is called, even after being stopped.
+				systemctl stop "$unit_name" 2>/dev/null || true
+				systemctl reset-failed "$unit_name" 2>/dev/null || true
+				rm -f "$id_file"
+				echo "tests.session: timed out waiting for the session of user $user$session_suffix to be registered" >&2
+				exit 1
+			fi
+			session_id="$(cat "$id_file")"
+			if [ -n "$session_class" ]; then
+				got_class="$(loginctl show-session "$session_id" --property=Class | cut -d = -f 2-)"
+				if [ "$got_class" != "$session_class" ]; then
+					# Stop and reset the unit to free its name for a
+					# retry, see the comment above.
+					systemctl stop "$unit_name" 2>/dev/null || true
+					systemctl reset-failed "$unit_name" 2>/dev/null || true
+					rm -f "$id_file"
+					echo "tests.session: requested session class $session_class but got $got_class" >&2
+					exit 1
+				fi
+			fi
+			if [ -n "$session_type" ]; then
+				got_type="$(loginctl show-session "$session_id" --property=Type | cut -d = -f 2-)"
+				if [ "$got_type" != "$session_type" ]; then
+					# Stop and reset the unit to free its name for a
+					# retry, see the comment above.
+					systemctl stop "$unit_name" 2>/dev/null || true
+					systemctl reset-failed "$unit_name" 2>/dev/null || true
+					rm -f "$id_file"
+					echo "tests.session: requested session type $session_type but got $got_type" >&2
+					exit 1
+				fi
+			fi
+
+			exit 0
+			;;
+		destroy-session)
+			# Destroy the session previously created with create-session. The
+			# unit name and ID file are derived from the -u and -l arguments in
+			# the same way, so the exact session can be found without
+			# enumerating anything.
+			if [ -z "$user" ] || [ "$user" = "root" ] || echo "$user" | grep -q ','; then
+				echo "tests.session: invalid user, must be single non-root username: '$user'" >&2
+				exit 1
+			fi
+			if [ -z "$session_label" ]; then
+				session_suffix=""
+			else
+				if ! echo "$session_label" | grep -qE '^[a-zA-Z0-9_-]+$'; then
+					echo "tests.session: invalid session label $session_label" >&2
+					exit 1
+				fi
+				session_suffix="-$session_label"
+			fi
+			unit_name="tests.session-persist-$user$session_suffix.service"
+			id_file="/run/tests.session/$user$session_suffix.id"
+
+			# Best effort: the unit and its failure state may already be
+			# gone, e.g. when destroy-session is called more than once, so
+			# the systemctl noise is suppressed.
+			systemctl stop "$unit_name" 2>/dev/null || true
+			systemctl reset-failed "$unit_name" 2>/dev/null || true
+			rm -f "$id_file"
 
 			exit 0
 			;;

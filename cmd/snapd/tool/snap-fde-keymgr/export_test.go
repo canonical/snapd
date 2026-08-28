@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 
 /*
  * Copyright (C) 2022 Canonical Ltd
@@ -16,7 +17,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-package main
+package snap_fde_keymgr
 
 import (
 	"io"

@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/systemd"
 )
 
 // SnapdFeature is a named feature that may be on or off.
@@ -53,11 +52,6 @@ const (
 	CheckDiskSpaceRefresh
 	// GateAutoRefreshHook enables refresh control from snaps via gate-auto-refresh hook.
 	GateAutoRefreshHook
-	// QuotaGroups enables any current experimental features related to the Quota Groups API, on top of the features
-	// already graduated past experimental:
-	//  * journal quotas are still experimental
-	// while guota groups creation and management and memory, cpu, quotas are no longer experimental.
-	QuotaGroups
 	// RefreshAppAwarenessUX enables experimental UX improvements for refresh-app-awareness.
 	RefreshAppAwarenessUX
 	// Confdb enables experimental configuration based on confdb and views.
@@ -110,8 +104,6 @@ var featureNames = map[SnapdFeature]string{
 
 	GateAutoRefreshHook: "gate-auto-refresh-hook",
 
-	QuotaGroups: "quota-groups",
-
 	RefreshAppAwarenessUX: "refresh-app-awareness-ux",
 
 	Confdb:        "confdb",
@@ -130,7 +122,7 @@ var featureNames = map[SnapdFeature]string{
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
 var featuresEnabledWhenUnset = map[SnapdFeature]bool{
-	QuotaGroups: true,
+	RefreshAppAwarenessUX: true,
 }
 
 // featuresExported contains a set of features that are exported outside of snapd.
@@ -153,6 +145,7 @@ var featuresGraduated = map[string]bool{
 	"classic-preserves-xdg-runtime-dir": true,
 	"refresh-app-awareness":             true,
 	"dbus-activation":                   true,
+	"quota-groups":                      true,
 }
 
 var (
@@ -164,13 +157,6 @@ var (
 // with a reason why the feature is unsupported. If a function has no callback
 // defined, it should be assumed to be supported.
 var featuresSupportedCallbacks = map[SnapdFeature]func() (bool, string){
-	// QuotaGroups requires systemd version 230 or higher
-	QuotaGroups: func() (bool, string) {
-		if err := systemd.EnsureAtLeast(230); err != nil {
-			return false, err.Error()
-		}
-		return true, ""
-	},
 	// UserDaemons requires user units
 	UserDaemons: func() (bool, string) {
 		if !releaseSystemctlSupportsUserUnits() {

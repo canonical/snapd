@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+//go:build !nosecboot
 
 /*
  * Copyright (C) 2022 Canonical Ltd
@@ -17,7 +18,7 @@
  *
  */
 
-package main
+package snap_fde_keymgr
 
 import (
 	"encoding/json"
@@ -243,7 +244,7 @@ func run(osArgs1 []string) error {
 	return nil
 }
 
-func main() {
+func Main() {
 	logger.SimpleSetup(nil)
 
 	if err := run(os.Args[1:]); err != nil {

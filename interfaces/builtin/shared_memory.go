@@ -347,6 +347,12 @@ func (iface *sharedMemoryInterface) MountConnectedPlug(spec *mount.Specification
 	})
 }
 
+func (iface *sharedMemoryInterface) ParallelInstancesSupportedForPlug(plug *snap.PlugInfo) bool {
+	// only plugs with "private" attribute set to true are supported for parallel instances.
+	private, _ := plug.Attrs["private"].(bool)
+	return private
+}
+
 func (iface *sharedMemoryInterface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool {
 	// allow what declarations allowed
 	return true
