@@ -21,9 +21,6 @@ execute: |
     SVC_FILE_1_2=/etc/systemd/user/snap.test-snapd-user-service-exec-condition.svc-with-1-2.service
     SVC_FILE_42_250=/etc/systemd/user/snap.test-snapd-user-service-exec-condition.svc-with-42-250.service
 
-    SVC_NO_SE=snap.test-snapd-user-service-exec-condition.svc-no-success-exit.service
-    SVC_1_2=snap.test-snapd-user-service-exec-condition.svc-with-1-2.service
-
     "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-exec-condition
 
     if os.query is-ubuntu-lt 20.04 || os.query is-core-lt 20; then
