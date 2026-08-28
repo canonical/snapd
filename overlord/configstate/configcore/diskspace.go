@@ -34,7 +34,7 @@ func init() {
 
 // MigrateDiskSpaceReservation preserves disk space checks for systems that
 // enabled one of the legacy experimental feature flags. It can be removed with
-// those flags after one release.
+// those flags in a later release.
 func MigrateDiskSpaceReservation(tr RunTransaction) error {
 	var reservation any
 	err := tr.Get("core", "disk-reservation.size", &reservation)

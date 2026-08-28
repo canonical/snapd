@@ -53,6 +53,7 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	// ensure that graduated features are cleared from the state
 	rt := configcore.NewRunTransaction(tr, nil)
 
+	// Migrate disk space reservation prior to graduated feature pruning
 	if err := configcore.MigrateDiskSpaceReservation(rt); err != nil {
 		return err
 	}
