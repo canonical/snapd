@@ -1680,16 +1680,17 @@ EOF
         # so for now, don't include snapd.debug=1, but eventually it would be
         # nice to have this on
 
+        cmdlinefeat=""
         if [[ "$SPREAD_BACKEND" =~ openstack ]] || [[ "$SPREAD_BACKEND" =~ garden ]]; then
-        if [ -n "$TAG_FEATURES" ]; then
-            cmdlinefeat=" tag.features=1"
-            cat >> pc-gadget/meta/gadget.yaml << EOF
+            if [ -n "$TAG_FEATURES" ]; then
+                cmdlinefeat=" tag.features=1"
+                cat >> pc-gadget/meta/gadget.yaml << EOF
 defaults:
   system:
     journal:
       persistent: true
 EOF
-        fi
+            fi
 
             # the default console settings for snapd aren't super useful in GCE,
             # instead it's more useful to have all console go to ttyS0 which we 

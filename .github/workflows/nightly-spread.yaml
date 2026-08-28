@@ -52,12 +52,6 @@ jobs:
       rules: ''
       use-snapd-snap-from-master: true
 
-  spread-nightly-garden:
-    if: ${{ github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-nightly-openstack') }}
-      runs-on: ubuntu-latest
-            backend: garden
-          - group: garden
-            backend: garden
   spread-test-build-from-current:
     if: ${{ github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'spread-test-build-from-current') }}
     uses: ./.github/workflows/spread-tests.yaml
