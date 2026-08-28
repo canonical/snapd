@@ -69,6 +69,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/ltstrack"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
@@ -8633,6 +8634,151 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(11))
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdRedirectsToLTSTrack(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dest, ltsDest := s.setupSnapdLTSAwareRefresh(c)
+
+	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
+	ts, err := snapstate.Update(s.state, "snapd", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	s.settle(c)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(11))
+	c.Check(snapst.TrackingChannel, Equals, "18/stable")
+
+	c.Assert(s.fakeStore.downloads, HasLen, 2)
+	c.Check(s.fakeStore.downloads[0].name, Equals, "snapd")
+	c.Check(s.fakeStore.downloads[0].target, Equals, dest)
+	c.Check(s.fakeStore.downloads[0].revision(), Equals, snap.R(100))
+	c.Check(s.fakeStore.downloads[1].name, Equals, "snapd")
+	c.Check(s.fakeStore.downloads[1].target, Equals, ltsDest)
+	c.Check(s.fakeStore.downloads[1].revision(), Equals, snap.R(11))
+
+	setup := s.fakeBackend.ops.First("setup-snap")
+	c.Assert(setup, NotNil)
+	c.Check(setup.revno, Equals, snap.R(11))
+	c.Check(setup.path, Equals, ltsDest)
+
+	c.Check(osutil.FileExists(dest), Equals, false)
+}
+
+func (s *snapmgrTestSuite) setupSnapdLTSAwareRefresh(c *C) (dest, ltsDest string) {
+	s.AddCleanup(ltstrack.MockSnapdLTSTrackMap(map[int]map[string]string{}))
+	s.AddCleanup(snapstatetest.MockDeviceModel(ModelWithBase("core18")))
+
+	blobPath := makeSnapdBlobWithLTSTracks(c, `{"18":{"latest":"18"}}`)
+	dest = filepath.Join(dirs.SnapBlobDir, "snapd_100.snap")
+	ltsDest = filepath.Join(dirs.SnapBlobDir, "snapd_11.snap")
+	c.Assert(os.MkdirAll(dirs.SnapBlobDir, 0755), IsNil)
+	s.fakeStore.refreshRevnos["snapd-snap-id"] = snap.R(100)
+	s.fakeStore.downloadCallback = func() {
+		c.Assert(osutil.CopyFile(blobPath, dest, osutil.CopyFlagOverwrite), IsNil)
+	}
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: snapstatetest.NewSequenceFromSnapSideInfos([]*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
+		}),
+		Current:         snap.R(1),
+		SnapType:        "snapd",
+		TrackingChannel: "latest/stable",
+	})
+
+	// SetUpTest only plants snapd info files for revisions 1 and 11.
+	infoFile := filepath.Join(dirs.SnapMountDir, "snapd", "100", dirs.CoreLibExecDir, "info")
+	c.Assert(os.MkdirAll(filepath.Dir(infoFile), 0755), IsNil)
+	c.Assert(os.WriteFile(infoFile, []byte("VERSION=2.54.3+g1.479e745-dirty\nSNAPD_APPARMOR_REEXEC=1\n"), 0644), IsNil)
+	return dest, ltsDest
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdIsExplicitChannelSkipsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dest, ltsDest := s.setupSnapdLTSAwareRefresh(c)
+
+	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
+	ts, err := snapstate.Update(s.state, "snapd", &snapstate.RevisionOptions{Channel: "latest/stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitChannel, Equals, true)
+	c.Check(snapsup.IsExplicitRevision, Equals, false)
+
+	s.settle(c)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(100))
+	c.Check(snapst.TrackingChannel, Equals, "latest/stable")
+
+	c.Assert(s.fakeStore.downloads, HasLen, 1)
+	c.Check(s.fakeStore.downloads[0].target, Equals, dest)
+	c.Check(osutil.FileExists(dest), Equals, true)
+	c.Check(osutil.FileExists(ltsDest), Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestUpdateSnapdIsExplicitRevisionSkipsLTSRedirect(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	dest, ltsDest := s.setupSnapdLTSAwareRefresh(c)
+
+	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
+	ts, err := snapstate.Update(s.state, "snapd", &snapstate.RevisionOptions{Revision: snap.R(100)}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	var snapsup snapstate.SnapSetup
+	c.Assert(ts.Tasks()[0].Get("snap-setup", &snapsup), IsNil)
+	c.Check(snapsup.IsExplicitRevision, Equals, true)
+	c.Check(snapsup.IsExplicitChannel, Equals, false)
+
+	s.settle(c)
+	c.Check(restart.Pending(s.state), Equals, restart.RestartDaemon)
+	restart.MockPending(s.state, restart.RestartUnset)
+	s.settle(c)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.R(100))
+	c.Check(snapst.TrackingChannel, Equals, "latest/stable")
+
+	c.Assert(s.fakeStore.downloads, HasLen, 1)
+	c.Check(s.fakeStore.downloads[0].target, Equals, dest)
+	c.Check(osutil.FileExists(dest), Equals, true)
+	c.Check(osutil.FileExists(ltsDest), Equals, false)
 }
 
 func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
