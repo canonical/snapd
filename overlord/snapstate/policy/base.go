@@ -88,7 +88,7 @@ func validateBaseOnlyUsedByRemoved(st *state.State, baseName string, removals ma
 	return nil
 }
 
-func skipBaseUsageCheck(chg *state.Change) bool {
+func changeCannotIntroduceBaseUsage(chg *state.Change) bool {
 	// we don't strictly need to skip some of these types of changes because they
 	// require an installed snap which would then get picked up when we check
 	// snapstate for snaps that use the base. However, conceptually they still
@@ -146,7 +146,7 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 	}
 
 	for _, chg := range st.Changes() {
-		if chg.IsReady() || skipBaseUsageCheck(chg) {
+		if chg.IsReady() || changeCannotIntroduceBaseUsage(chg) {
 			continue
 		}
 
@@ -159,6 +159,8 @@ func baseUsedBy(st *state.State, baseName string) ([]string, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			// only apps and gadgets have bases
 			if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
 				continue
 			}
