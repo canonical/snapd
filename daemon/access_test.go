@@ -881,7 +881,16 @@ func reqWithAction(c *C, action string, isJSON, malformed bool) *http.Request {
 	if isJSON {
 		req.Header.Add("Content-Type", "application/json")
 	}
-	return req
+	return withCachedAction(c, req)
+}
+
+// withCachedAction reads the body once and caches the action on the request
+// context, matching Command.ServeHTTP before CheckAccess.
+func withCachedAction(c *C, req *http.Request) *http.Request {
+	action, err := daemon.ExtractRequestAction(req)
+	// ServeHTTP answers 400 first, so an unusable body never reaches a checker.
+	c.Assert(daemon.IsBodyUnusable(err), Equals, false)
+	return req.WithContext(daemon.WithActionResult(req.Context(), action, err))
 }
 
 func (s *accessSuite) TestByActionAccess(c *C) {
@@ -1031,6 +1040,7 @@ func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
 		req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 		c.Assert(err, IsNil)
 		req.Header.Add("Content-Type", "application/json")
+		req = withCachedAction(c, req)
 
 		ac := daemon.ByActionAccess{Default: tc.ac}
 
@@ -1045,28 +1055,43 @@ func (s *accessSuite) TestByActionAccessDefaultMustBeRoot(c *C) {
 
 }
 
-func (s *accessSuite) TestByActionAccessLargeJSON(c *C) {
-	body := strings.NewReader(fmt.Sprintf(`{"action": "%s"}`, strings.Repeat("a", 4*1024*1024)))
+func (s *accessSuite) TestByActionAccessDataAfterJSON(c *C) {
+	// Trailing data is refused by ServeHTTP; the checker still 400s if reached
+	// with a cached parse error, even though the action was decoded.
+	body := strings.NewReader(`{"action": "some-action"} data`)
 	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
 	c.Assert(err, IsNil)
 	req.Header.Add("Content-Type", "application/json")
-
-	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
-
-	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-	err = ac.CheckAccess(nil, req, &ucred, nil)
-	c.Assert(err, DeepEquals, daemon.BadRequest("body size limit exceeded"))
-}
-
-func (s *accessSuite) TestByActionAccessDataAfterJOSN(c *C) {
-	body := strings.NewReader(fmt.Sprintf(`{"action": "some-action"} data`))
-	req, err := http.NewRequest("POST", "/v2/system-volumes", body)
-	c.Assert(err, IsNil)
-	req.Header.Add("Content-Type", "application/json")
+	req = withCachedAction(c, req)
 
 	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
 
 	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
 	err = ac.CheckAccess(nil, req, &ucred, nil)
 	c.Assert(err, DeepEquals, daemon.BadRequest("unexpected data after request body"))
+}
+
+func (s *accessSuite) TestByActionAccessEmptyBody(c *C) {
+	req, err := http.NewRequest("POST", "/v2/system-volumes", strings.NewReader(""))
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+	req = withCachedAction(c, req)
+
+	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
+
+	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+	err = ac.CheckAccess(nil, req, &ucred, nil)
+	c.Assert(err, DeepEquals, daemon.BadRequest("empty request body"))
+}
+
+func (s *accessSuite) TestByActionAccessMissingContext(c *C) {
+	req, err := http.NewRequest("POST", "/v2/system-volumes", strings.NewReader(`{"action":"some-action"}`))
+	c.Assert(err, IsNil)
+	req.Header.Add("Content-Type", "application/json")
+
+	ac := daemon.ByActionAccess{Default: daemon.RootAccess{}}
+
+	ucred := daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
+	err = ac.CheckAccess(nil, req, &ucred, nil)
+	c.Assert(err, DeepEquals, daemon.InternalError("internal error: request action not cached"))
 }

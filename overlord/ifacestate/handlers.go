@@ -257,7 +257,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, tomb *tomb.Tomb) er
 			// task, so their hook context still needs baseline confinement and
 			// backend artifacts such as snap device cgroup policy files.
 			sctxs := map[string]interfaces.SetupContext{
-				appSet.InstanceName(): {
+				appSet.InstanceName().TODOInstanceName(): {
 					Reason:          interfaces.SnapSetupReasonOwnUpdate,
 					CanDelayEffects: false,
 				},
@@ -367,7 +367,7 @@ func (d delayedEffectsForSnaps) EnqueueFor(snapName affectedSnap, backend interf
 // that reloadConnections changed or dropped.
 func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *interfaces.SnapAppSet) ([]string, []string, error) {
 	snapInfo := appSet.Info()
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName().TODOInstanceName()
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -379,14 +379,14 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 	// - restore connections based on what is kept in the state
 	//   - if a connection cannot be restored then remove it from the state
 	// - setup the security of all the affected snaps
-	disconnectedSnaps, err := m.repo.DisconnectSnap(snapName)
+	disconnectedSnaps, err := m.repo.DisconnectSnap(instanceName)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// XXX: what about snap renames? We should remove the old name (or switch
 	// to IDs in the interfaces repository)
-	if err := m.repo.RemoveSnap(snapName); err != nil {
+	if err := m.repo.RemoveSnap(instanceName); err != nil {
 		return nil, nil, err
 	}
 	if err := m.repo.AddAppSet(appSet); err != nil {
@@ -397,7 +397,7 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 		task.Logf("%s", snap.BadInterfacesSummary(snapInfo))
 	}
 
-	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(snapName)
+	reloadedConns, changedOrDroppedConns, err := m.reloadConnections(instanceName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -406,7 +406,7 @@ func (m *InterfaceManager) refreshAppSetConnections(task *state.Task, appSet *in
 	// original connections so that setup-profiles' undo can restore them, if
 	// needed
 	if task.Status() != state.UndoingStatus {
-		if err := snapshotChangedConnectionsForUndo(task, snapName, changedOrDroppedConns); err != nil {
+		if err := snapshotChangedConnectionsForUndo(task, instanceName, changedOrDroppedConns); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -422,7 +422,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 ) (delayedEffects delayedEffectsForSnaps, err error) {
 	st := task.State()
 
-	snapName := appSet.InstanceName()
+	instanceName := appSet.InstanceName()
 	disconnectedSnaps, reloadedConns, err := m.refreshAppSetConnections(task, appSet)
 	if err != nil {
 		return nil, err
@@ -448,10 +448,10 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 
 		// Snaps on the plug or slot side, other than the current one, are
 		// indirectly affected.
-		if connRef.PlugRef.Snap != snapName {
+		if connRef.PlugRef.Snap != instanceName.TODOInstanceName() {
 			snapsWithConnectedPlugs[connRef.PlugRef.Snap] = true
 		}
-		if connRef.SlotRef.Snap != snapName {
+		if connRef.SlotRef.Snap != instanceName.TODOInstanceName() {
 			snapsWithConnectedSlots[connRef.SlotRef.Snap] = true
 		}
 	}
@@ -468,13 +468,13 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// back to a slice
 	affectedNames := make([]string, 0, len(affectedSet))
 	for name := range affectedSet {
-		if name != snapName {
+		if name != instanceName.TODOInstanceName() {
 			affectedNames = append(affectedNames, name)
 		}
 	}
 	sort.Strings(affectedNames)
 	// the snap for which profiles are being set up comes first
-	affectedNames = append([]string{snapName}, affectedNames...)
+	affectedNames = append([]string{instanceName.TODOInstanceName()}, affectedNames...)
 
 	// Obtain interfaces.SnapAppSet for each affected snap, skipping those that
 	// cannot be found and compute the confinement options that apply to it.
@@ -485,7 +485,7 @@ func (m *InterfaceManager) setupProfilesForAppSet(
 	// For the snap being setup we know exactly what was requested.
 	affectedSnapSets = append(affectedSnapSets, appSet)
 	confinementOpts = append(confinementOpts, opts)
-	setupContexts[appSet.InstanceName()] = interfaces.SetupContext{
+	setupContexts[appSet.InstanceName().TODOInstanceName()] = interfaces.SetupContext{
 		// We are being updated
 		Reason:          interfaces.SnapSetupReasonOwnUpdate,
 		CanDelayEffects: false,

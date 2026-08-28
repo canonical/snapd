@@ -1868,7 +1868,7 @@ func (s *RunSuite) TestSnapRunXauthorityMigration(c *check.C) {
 	})
 	defer restorer()
 
-	xauthPath, err := x11.MockXauthority(2)
+	xauthPath, err := x11.MockXauthorityAt("/tmp", 2)
 	c.Assert(err, check.IsNil)
 	defer os.Remove(xauthPath)
 

@@ -53,15 +53,17 @@ type (
 
 var ComponentSetupTask = componentSetupTask
 var RemoveComponentTasks = removeComponentTasks
+var DiskSpaceReservation = diskSpaceReservation
 
 const (
-	None         = none
-	Full         = full
-	Hidden       = hidden
-	Home         = home
-	RevertHidden = revertHidden
-	DisableHome  = disableHome
-	RevertFull   = revertFull
+	None                        = none
+	Full                        = full
+	Hidden                      = hidden
+	Home                        = home
+	RevertHidden                = revertHidden
+	DisableHome                 = disableHome
+	RevertFull                  = revertFull
+	DefaultDiskSpaceReservation = defaultDiskSpaceReservation
 )
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
@@ -128,8 +130,6 @@ var (
 	CurrentSnaps = currentSnaps
 
 	HasOtherInstances = hasOtherInstances
-
-	SafetyMarginDiskSpace = safetyMarginDiskSpace
 
 	AffectedByRefresh = affectedByRefresh
 
@@ -431,7 +431,7 @@ func MockRefreshAppsCheck(fn func(info *snap.Info) error) (restore func()) {
 	return func() { refreshAppsCheck = old }
 }
 
-func MockCheckSeedRefreshRemove(fn func(st *state.State, si *snap.Info, dctx DeviceContext) error) (restore func()) {
+func MockCheckSeedRefreshRemove(fn func(st *state.State, candidate SeedRefreshCandidate, dctx DeviceContext) error) (restore func()) {
 	r := testutil.Backup(&CheckSeedRefreshRemove)
 	CheckSeedRefreshRemove = fn
 	return r

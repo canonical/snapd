@@ -17,7 +17,7 @@
  *
  */
 
-package main
+package snap_recovery_chooser
 
 import (
 	"io"

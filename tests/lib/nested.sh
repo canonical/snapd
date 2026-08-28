@@ -1323,7 +1323,7 @@ nested_create_vm_service() {
     elif [[ "$SPREAD_BACKEND" = openstack-arm-ext* ]]; then
         PARAM_MEM="-m ${NESTED_MEM:-8192}"
         PARAM_SMP="-smp ${NESTED_CPUS:-6}"
-    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]]; then
+    elif [[ "$SPREAD_BACKEND" = openstack-ext* ]] || [[ "$SPREAD_BACKEND" = "openstack-validation" ]]; then
         PARAM_MEM="-m ${NESTED_MEM:-4096}"
         PARAM_SMP="-smp ${NESTED_CPUS:-3}"
     else

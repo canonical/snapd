@@ -308,6 +308,28 @@ apps:
 			`shared-memory interface path is invalid: "mem\*\*" contains \*\* which is unsupported.*`,
 		},
 		{
+			`read: ["mem?"]`,
+			`shared-memory interface path is invalid: "mem\?" contains a reserved apparmor char`,
+		},
+		{
+			`read: ["m[em]"]`,
+			`shared-memory interface path is invalid: "m\[em\]" contains a reserved apparmor char`,
+		},
+		{
+			`read: ['me"m']`,
+			`shared-memory interface path is invalid: "me\\"m" contains a reserved apparmor char`,
+		},
+		{
+			// a single "*" is fine, but other AARE chars are still
+			// rejected even in its presence
+			`read: ["m*em?"]`,
+			`shared-memory interface path is invalid: "m\*em\?" contains a reserved apparmor char`,
+		},
+		{
+			`read: ["mem{"]`,
+			`shared-memory interface path is invalid: "mem{" contains a reserved apparmor char`,
+		},
+		{
 			`read: [..]`,
 			`shared-memory interface path is not clean: ".."`,
 		},
@@ -485,6 +507,17 @@ func (s *SharedMemoryInterfaceSuite) TestMountSpec(c *C) {
 
 func (s *SharedMemoryInterfaceSuite) TestAutoConnect(c *C) {
 	c.Assert(s.iface.AutoConnect(s.plugInfo, s.slotInfo), Equals, true)
+}
+
+func (s *SharedMemoryInterfaceSuite) TestParallelInstancesSupportedForPlug(c *C) {
+	definer, ok := s.iface.(interfaces.ParallelInstancesPlugDefiner)
+	c.Assert(ok, Equals, true)
+
+	// private=false does not support parallel instances
+	c.Check(definer.ParallelInstancesSupportedForPlug(s.plugInfo), Equals, false)
+
+	// private=true supports parallel instances
+	c.Check(definer.ParallelInstancesSupportedForPlug(s.privatePlugInfo), Equals, true)
 }
 
 func (s *SharedMemoryInterfaceSuite) TestInterfaces(c *C) {

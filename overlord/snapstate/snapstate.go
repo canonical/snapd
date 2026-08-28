@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,7 +40,9 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -90,6 +93,8 @@ var userDaemonsOverrides = []string{
 var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
+
+const defaultDiskSpaceReservation = 5 * 1024 * 1024
 
 // TestingLeaveOutKernelUpdateGadgetAssets can be used to simulate an upgrade
 // from a broken snapd that does not generate a "update-gadget-assets" task.
@@ -172,9 +177,31 @@ func ShouldSendNotificationsToTheUser(st *state.State) (bool, error) {
 	return true, nil
 }
 
-// safetyMarginDiskSpace returns size plus a safety margin (5Mb)
-func safetyMarginDiskSpace(size uint64) uint64 {
-	return size + 5*1024*1024
+func diskSpaceReservation(size uint64, tr *config.Transaction) (uint64, error) {
+	addReservation := func(reservation uint64) (uint64, error) {
+		if size > math.MaxUint64-reservation {
+			return 0, fmt.Errorf("cannot calculate required disk space: size overflow")
+		}
+		return size + reservation, nil
+	}
+
+	// the value may be a string (e.g. "5M") or a plain number of bytes
+	// (e.g. 0), as snap set stores valid JSON values in their parsed form
+	var reservation any
+	err := tr.Get("core", "disk-reservation.size", &reservation)
+	if config.IsNoOption(err) {
+		return addReservation(defaultDiskSpaceReservation)
+	}
+	if err != nil {
+		return addReservation(defaultDiskSpaceReservation)
+	}
+
+	parsedReservation, err := quantity.ParseSize(fmt.Sprintf("%v", reservation))
+	if err != nil {
+		return addReservation(defaultDiskSpaceReservation)
+	}
+
+	return addReservation(uint64(parsedReservation))
 }
 
 // ConfigureSnap returns a set of tasks to configure snapName as done during installation/refresh.
@@ -569,6 +596,44 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
+// checkParallelInstancesSupport checks that a snap installed as a parallel
+// instance only uses interfaces that support parallel instances.
+func checkParallelInstancesSupport(st *state.State, info *snap.Info) error {
+	if info.InstanceKey == "" {
+		return nil
+	}
+
+	repo := ifacerepo.Get(st)
+
+	for plugName, plugInfo := range info.Plugs {
+		definer, ok := repo.Interface(plugInfo.Interface).(interfaces.ParallelInstancesPlugDefiner)
+		if !ok {
+			// non-definer interfaces are assumed to support parallel instances
+			continue
+		}
+		if !definer.ParallelInstancesSupportedForPlug(plugInfo) {
+			return fmt.Errorf("cannot install snap %q as parallel instance: "+
+				"plug %q with interface %q is not supported for parallel instances",
+				info.InstanceName(), plugName, plugInfo.Interface)
+		}
+	}
+
+	for slotName, slotInfo := range info.Slots {
+		definer, ok := repo.Interface(slotInfo.Interface).(interfaces.ParallelInstancesSlotDefiner)
+		if !ok {
+			// non-definer interfaces are assumed to support parallel instances
+			continue
+		}
+		if !definer.ParallelInstancesSupportedForSlot(slotInfo) {
+			return fmt.Errorf("cannot install snap %q as parallel instance: "+
+				"slot %q with interface %q is not supported for parallel instances",
+				info.InstanceName(), slotName, slotInfo.Interface)
+		}
+	}
+
+	return nil
+}
+
 func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) (Flags, error) {
 	// if snap is allowed to be devmode via the dangerous model and it's
 	// confinement is indeed devmode, promote the flags.DevMode to true
@@ -601,6 +666,9 @@ func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, s
 	}
 	if err := validateFeatureFlags(st, info); err != nil {
 		return flags, fmt.Errorf("feature flag validation failed for snap %q: %w", info.InstanceName(), err)
+	}
+	if err := checkParallelInstancesSupport(st, info); err != nil {
+		return flags, err
 	}
 	// TODO: if we implement a --disabled flag for install we should skip the
 	// dbus and desktop-file-ids checks below.
@@ -868,7 +936,7 @@ func downloadTasks(
 	if !skipSnapDownload {
 		// TODO:COMPS: support checking for available space for components
 		toDownloadTo := filepath.Dir(snapsup.BlobPath())
-		if err := checkDiskSpaceDownload([]minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
+		if err := checkDiskSpaceDownload(st, []minimalInstallInfo{installSnapInfo{info}}, toDownloadTo); err != nil {
 			return nil, nil, err
 		}
 
@@ -2483,13 +2551,13 @@ func autoRefreshPhase2(st *state.State, candidates []*refreshCandidate, flags *F
 	return updateTss, nil
 }
 
-func checkDiskSpaceDownload(infos []minimalInstallInfo, rootDir string) error {
+func checkDiskSpaceDownload(st *state.State, infos []minimalInstallInfo, rootDir string) error {
 	var totalSize uint64
 	for _, info := range infos {
 		totalSize += uint64(info.DownloadSize())
 	}
 
-	return checkForAvailableSpace(totalSize, infos, "download", rootDir)
+	return checkForAvailableSpace(totalSize, config.NewTransaction(st), infos, "download", rootDir)
 }
 
 // checkDiskSpace checks if there is enough space for the requested snaps and their prerequisites
@@ -2520,11 +2588,15 @@ func checkDiskSpace(st *state.State, changeKind string, infos []minimalInstallIn
 		return err
 	}
 
-	return checkForAvailableSpace(totalSize, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
+	return checkForAvailableSpace(totalSize, tr, infos, changeKind, dirs.SnapdStateDir(dirs.GlobalRootDir))
 }
 
-func checkForAvailableSpace(totalSize uint64, infos []minimalInstallInfo, changeKind string, rootDir string) error {
-	requiredSpace := safetyMarginDiskSpace(totalSize)
+func checkForAvailableSpace(totalSize uint64, transaction *config.Transaction, infos []minimalInstallInfo, changeKind string, rootDir string) error {
+	requiredSpace, err := diskSpaceReservation(totalSize, transaction)
+	if err != nil {
+		return err
+	}
+
 	if err := osutilCheckFreeSpace(rootDir, requiredSpace); err != nil {
 		snaps := make([]string, len(infos))
 		for i, up := range infos {
@@ -3053,7 +3125,8 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		return err
 	}
 	if seedRefresh && removeAll {
-		if err := CheckSeedRefreshRemove(st, si, deviceCtx); err != nil {
+		candidate := SeedRefreshCandidate{InstanceName: si.InstanceName()}
+		if err := CheckSeedRefreshRemove(st, candidate, deviceCtx); err != nil {
 			return err
 		}
 	}
@@ -3121,7 +3194,11 @@ func Remove(st *state.State, name string, revision snap.Revision, flags *RemoveF
 	// removeTasks() checks check-disk-space-remove feature flag, so snapshotSize
 	// will only be greater than 0 if the feature is enabled.
 	if snapshotSize > 0 {
-		requiredSpace := safetyMarginDiskSpace(snapshotSize)
+		requiredSpace, err := diskSpaceReservation(snapshotSize, config.NewTransaction(st))
+		if err != nil {
+			return nil, err
+		}
+
 		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
@@ -3556,7 +3633,11 @@ func RemoveMany(st *state.State, names []string, flags *RemoveFlags) ([]string, 
 	// removeTasks() checks check-disk-space-remove feature flag, so totalSnapshotsSize
 	// will only be greater than 0 if the feature is enabled.
 	if totalSnapshotsSize > 0 {
-		requiredSpace := safetyMarginDiskSpace(totalSnapshotsSize)
+		requiredSpace, err := diskSpaceReservation(totalSnapshotsSize, config.NewTransaction(st))
+		if err != nil {
+			return nil, nil, err
+		}
+
 		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
 			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
 				return nil, nil, &InsufficientSpaceError{

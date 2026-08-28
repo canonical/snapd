@@ -286,7 +286,7 @@ func (s *reexecSuite) SetUpTest(c *C) {
 // re-exec from the system snapd into the snapd snap at s.snapdPath.
 func (s *reexecSuite) mockReExecEnv(c *C) {
 	s.AddCleanup(snapdtool.MockCoreSnapdPaths(filepath.Join(dirs.SnapMountDir, "core", "21"), s.snapdPath))
-	s.AddCleanup(snapdtool.MockVersion("2"))
+	s.AddCleanup(snapdtool.MockVersion("2", ""))
 
 	// Create a fake snapd snap with a newer version.
 	infoDir := filepath.Join(s.snapdPath, "usr", "lib", "snapd")

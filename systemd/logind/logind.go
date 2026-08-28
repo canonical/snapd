@@ -23,7 +23,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -82,21 +84,59 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("loginctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
-// SessionClass returns the class of the current session as reported by
-// loginctl. It invokes "loginctl show-session auto -p Class" and parses
-// the "Class=<value>" output. An error is returned if loginctl fails,
-// for example when there is no session for the current process.
+// SessionClass returns the class of the display session of the current
+// user as reported by loginctl.
+//
+// It first invokes "loginctl show-user <uid> --all -p Display" to resolve the
+// display session of the current user, and then "loginctl show-session <id>
+// --all -p Class" to get the class of that session, parsing the "Class=<value>"
+// output.
+//
+// Note that the class of the display session of the current user is returned,
+// which may be a different session than the one the current process is part of
+// (if any). User sessions are display-eligible if and only if they are of
+// class "user", "greeter", or "user-early" (on systemd >= 256), "user-light"
+// or "user-early-light" (on systemd >= 259). User sessions of class
+// "background" or "manager", for example, are never display-eligible.
+//
+// An error is returned if loginctl fails, if no session for the current
+// user could be found, or if the output is malformed or class empty.
 func SessionClass(ctx context.Context) (string, error) {
-	out, err := loginctlCmd(ctx, "show-session", "auto", "-p", "Class")
+	uid := os.Getuid()
+	// Note: --value is not passed to loginctl as it is only available
+	// since systemd 230, and the "Name=value" output is parsed instead.
+	out, err := loginctlCmd(ctx, "show-user", strconv.Itoa(uid), "--all", "-p", "Display")
 	if err != nil {
 		return "", err
 	}
 
-	// strip the "Class=" prefix from the output
-	orig := strings.TrimSpace(string(out))
+	// Using --all implies that empty properties are shown too, so an empty
+	// "Display=" is printed when the user has no display session, in
+	// which case no session can be determined for the user.
+	sessionID, err := parseProperty(string(out), "Display", true)
+	if err != nil {
+		return "", err
+	}
+	if sessionID == "" {
+		return "", fmt.Errorf("cannot find display-eligible session for the current user: %d", uid)
+	}
+
+	out, err = loginctlCmd(ctx, "show-session", sessionID, "--all", "-p", "Class")
+	if err != nil {
+		return "", err
+	}
+
+	return parseProperty(string(out), "Class", false)
+}
+
+// parseProperty parses the "Name=value" output of loginctl's -p option. A
+// malformed output results in an error. An empty value (e.g. "Foo=") is not
+// treated as an error.
+func parseProperty(output string, name string, allowEmpty bool) (string, error) {
+	orig := strings.TrimSpace(output)
 	propName, propValue, ok := strings.Cut(orig, "=")
-	if !ok || propName != "Class" || propValue == "" || strings.Contains(propValue, "=") {
-		return "", fmt.Errorf("invalid property format from loginctl for Class: %q", orig)
+	if !ok || propName != name || strings.Contains(propValue, "=") || !allowEmpty && propValue == "" {
+		return "", fmt.Errorf("cannot parse value from loginctl output for property %q: %q", name, orig)
 	}
 
 	return strings.TrimSpace(propValue), nil
