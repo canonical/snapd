@@ -757,10 +757,6 @@ func (s *seed20) UsesSnapdSnap() bool {
 }
 
 func (s *seed20) loadOptions() error {
-	if s.model.Grade() != asserts.ModelDangerous {
-		// options.yaml is not supported for grade > dangerous
-		return nil
-	}
 	optionsFn := filepath.Join(s.systemDir, "options.yaml")
 	if !osutil.FileExists(optionsFn) {
 		// missing
@@ -769,6 +765,23 @@ func (s *seed20) loadOptions() error {
 	options20, err := internal.ReadOptions20(optionsFn)
 	if err != nil {
 		return err
+	}
+	if s.model.Grade() != asserts.ModelDangerous {
+		// Channel remaps of model snaps (LTS / store redirect) may be
+		// recorded here. Unasserted snaps, extra snaps, and extra
+		// components remain dangerous-only.
+		filtered := make([]*internal.Snap20, 0, len(options20.Snaps))
+		for _, sn := range options20.Snaps {
+			if sn.Unasserted != "" || len(sn.Components) != 0 {
+				continue
+			}
+			_, inModel := s.modelSnaps[sn.Name]
+			if !inModel && sn.Name != "snapd" {
+				continue
+			}
+			filtered = append(filtered, sn)
+		}
+		options20.Snaps = filtered
 	}
 	s.optSnaps = options20.Snaps
 	return nil
