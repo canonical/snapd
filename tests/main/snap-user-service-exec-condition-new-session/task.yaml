@@ -55,21 +55,21 @@ execute: |
         fi
     }
 
-    # Wait until the user manager for user 'test' is fully torn down, so that
+    # Wait until the user manager for user 'test' is fully stopped, so that
     # creating a session afterwards starts it again. Waiting for "not
     # systemctl is-active user@UID.service" is not sufficient, as is-active
     # also fails for the "activating" and "deactivating" states, and logind
     # keeps user@UID.service around for UserStopDelaySec (10s by default)
-    # after the last session of the user closes. The user slice has
-    # StopWhenUnneeded=yes, so it is only inactive once user@UID.service,
-    # user-runtime-dir@UID.service and all session scopes have stopped, and
-    # once logind has released the user record, creating a session is
-    # guaranteed to start a fresh user manager. The latter matters because
-    # user services skipped by their ExecCondition are not started again
-    # while the manager which skipped them keeps running.
+    # after the last session of the user closes.
+    #
+    # On systemd before v256, logind removes the user record and the user
+    # slice when the manager stops. Newer systemd keeps the runtime directory,
+    # user slice and a closing user record alive without a user manager. A
+    # closing record with an inactive user@UID.service is settled: creating a
+    # session clears its stopping state and starts the manager.
     wait_user_manager_stopped() {
-        retry -n 30 --wait 1 sh -c "systemctl show \"user-$(id -u test).slice\" -p ActiveState --value | MATCH '^inactive$'"
-        retry -n 30 --wait 1 sh -c "not loginctl show-user test >/dev/null 2>&1"
+        retry -n 30 --wait 1 sh -c "systemctl show \"user@$(id -u test).service\" -p ActiveState --value | MATCH '^inactive$'"
+        retry -n 30 --wait 1 sh -c "not loginctl show-user test >/dev/null 2>&1 || loginctl show-user test -p State | MATCH '^State=closing$'"
     }
 
     echo "Installing the user service"
