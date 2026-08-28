@@ -373,6 +373,7 @@ func checkChangeConflictIgnoringOneChange(st *state.State, instanceName string, 
 }
 
 func checkBaseRemovalConflict(st *state.State, snapsup *SnapSetup) error {
+	// only apps and gadgets have bases
 	if snapsup.Type != snap.TypeApp && snapsup.Type != snap.TypeGadget {
 		return nil
 	}
@@ -401,7 +402,8 @@ func checkBaseRemovalConflict(st *state.State, snapsup *SnapSetup) error {
 
 	for _, t := range st.Tasks() {
 		// auto-disconnect tasks are only created if all base revisions are being
-		// removed so we use them to skip removals of specific base revisions
+		// removed so we use them to skip removals of specific base revisions that
+		// are not the current revision
 		if t.Kind() != "auto-disconnect" {
 			continue
 		}
