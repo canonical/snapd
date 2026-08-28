@@ -658,3 +658,8 @@ func MockProcessDelayedSecurityBackendEffects(f func(st *state.State, lanes []in
 func (s *catalogRefresh) GetCatalogRefreshDelayWithDelta() time.Duration {
 	return s.catalogRefreshDelayWithDelta
 }
+
+var (
+	NeedsSnapdLTSTrackResolve    = needsSnapdLTSTrackResolve
+	MaybeRedirectSnapdToLTSTrack = maybeRedirectSnapdToLTSTrack
+)
