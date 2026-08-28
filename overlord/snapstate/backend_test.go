@@ -170,6 +170,14 @@ type fakeDownload struct {
 	opts     *store.DownloadOptions
 }
 
+func (d fakeDownload) revision() snap.Revision {
+	pi, err := snap.ParsePlaceInfoFromSnapFileName(filepath.Base(d.target))
+	if err != nil {
+		return snap.Revision{}
+	}
+	return pi.SnapRevision()
+}
+
 type fakeIconDownload struct {
 	name   string
 	target string
