@@ -118,7 +118,7 @@ func SessionClass(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if sessionID == "" {
-		return "", fmt.Errorf("cannot find session for the current user: %d", uid)
+		return "", fmt.Errorf("cannot find display-eligible session for the current user: %d", uid)
 	}
 
 	out, err = loginctlCmd(ctx, "show-session", sessionID, "--all", "-p", "Class")

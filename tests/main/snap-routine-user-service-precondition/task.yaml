@@ -1,0 +1,76 @@
+summary: The user-service-precondition command correctly reacts to user sessions
+
+details: |
+    The "snap routine user-service-precondition" command is intended to be a
+    helper called by ExecCondition stanzas in systemd user service unit files
+    for snap user daemons. We want to avoid running user daemons when there is
+    no display-eligible user session present for the user, or when the
+    display-eligible session has class "greeter".
+
+    The command exits 0 (success) if the display-eligible user session elected
+    by systemd does not have class "greeter". Otherwise, it exits with the
+    given "--error-exit-code" value if given, else 1.
+
+    This test verifies that behavior is as expected when there are no user
+    sessions, just a "greeter" session, just a "user" session, and multiple
+    sessions.
+
+prepare: |
+    tests.session -u test prepare
+
+restore: |
+    tests.session destroy-session -u test || true
+    tests.session -u test restore
+
+debug: |
+    tests.session dump
+    loginctl list-sessions
+    loginctl show-user test --all
+    loginctl show-session --all "$(loginctl list-sessions | grep 'test' | awk '{print $1}'| head -1)"
+
+execute: |
+    # Run a command as the test user, propagating its exit status. Note that
+    # tests.session exec cannot be used as it collapses exit codes to 0/1;
+    # runuser -l does not create a display-eligible session.
+    as_test_user() {
+        runuser -l test -c "$*"
+    }
+
+    # No user session, should exit with error
+    exit_code=0
+    as_test_user "snap routine user-service-precondition" 2>"$TESTSTMP/err" || exit_code=$?
+    test "$exit_code" -eq 1
+    MATCH "cannot determine session class: cannot find display-eligible session for the current user: $(id -u test)" < "$TESTSTMP/err"
+
+    exit_code=0
+    as_test_user "snap routine user-service-precondition --error-exit-code 42" 2>/dev/null || exit_code=$?
+    test "$exit_code" -eq 42
+
+    echo "Greeter session, should exit with error"
+    tests.session create-session -u test -c greeter
+    exit_code=0
+    as_test_user "snap routine user-service-precondition" 2>"$TESTSTMP/err" || exit_code=$?
+    test "$exit_code" -eq 1
+    if os.query is-ubuntu-le 18.04 || os.query is-core-le 18; then
+        # 18.04 doesn't seem to treat "greeter" class as display-eligible
+        MATCH "cannot determine session class: cannot find display-eligible session for the current user: $(id -u test)" < "$TESTSTMP/err"
+    else
+        MATCH "session is a greeter session" < "$TESTSTMP/err"
+    fi
+    exit_code=0
+    as_test_user "snap routine user-service-precondition --error-exit-code 42" 2>/dev/null || exit_code=$?
+    test "$exit_code" -eq 42
+    tests.session destroy-session -u test
+
+    echo "User session, should exit 0"
+    tests.session create-session -u test -c user
+    as_test_user "snap routine user-service-precondition"
+    as_test_user "snap routine user-service-precondition --error-exit-code 42"
+    tests.session destroy-session -u test
+
+    echo "Greeter and user sessions coexist, the user session is elected, should exit 0"
+    tests.session create-session -u test -l greeter -c greeter
+    tests.session create-session -u test -l user -c user
+    as_test_user "snap routine user-service-precondition"
+    tests.session destroy-session -u test -l greeter
+    tests.session destroy-session -u test -l user

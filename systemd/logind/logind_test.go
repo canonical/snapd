@@ -110,7 +110,7 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 		defer restore()
 
 		_, err := logind.SessionClass(context.Background())
-		c.Assert(err, ErrorMatches, "cannot find session for the current user: .*")
+		c.Assert(err, ErrorMatches, "cannot find display-eligible session for the current user: .*")
 	}
 
 	// the display session may vanish between the two calls
