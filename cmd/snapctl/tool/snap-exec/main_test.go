@@ -641,6 +641,14 @@ func (s *snapExecSuite) TestSnapExecCompleteClassicReexec(c *C) {
 }
 
 func (s *snapExecSuite) TestSnapExecCompleteClassicNoReexec(c *C) {
+	// snap-exec normally receives SNAP_SAVED_TMPDIR without TMPDIR after passing
+	// through setuid snap-confine. remove the test runner's TMPDIR to simulate that.
+	tmpDir, tmpDirSet := os.LookupEnv("TMPDIR")
+	c.Assert(os.Unsetenv("TMPDIR"), IsNil)
+	if tmpDirSet {
+		defer os.Setenv("TMPDIR", tmpDir)
+	}
+
 	restore := release.MockReleaseInfo(&release.OS{ID: "centos"})
 	defer restore()
 	dirs.SetRootDir(c.MkDir())

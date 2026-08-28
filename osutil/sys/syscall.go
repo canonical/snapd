@@ -97,7 +97,7 @@ func FchownAt(dirfd uintptr, path string, uid UserID, gid GroupID, flags int) er
 }
 
 // As of Go 1.9, the O_PATH constant does not seem to be declared
-// uniformly over all archtiectures.
+// uniformly over all architectures.
 const O_PATH = 0x200000
 
 func FcntlGetFl(fd int) (int, error) {
@@ -106,4 +106,13 @@ func FcntlGetFl(fd int) (int, error) {
 		return 0, errno
 	}
 	return int(flags), nil
+}
+
+func MemfdSecret(flags int) (fd int, err error) {
+	r0, _, errno := syscall.Syscall(_SYS_MEMFD_SECRET, uintptr(flags), 0, 0)
+	fd = int(r0)
+	if errno == 0 {
+		return fd, nil
+	}
+	return -1, errno
 }

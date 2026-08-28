@@ -22,6 +22,10 @@ package snapdtool
 
 import (
 	"errors"
+	"fmt"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var errUnsupported = errors.New("unsupported on non-Linux systems")
@@ -31,6 +35,17 @@ var errUnsupported = errors.New("unsupported on non-Linux systems")
 // On this OS this is a stub.
 func ExecInSnapdOrCoreSnap() {
 	return
+}
+
+// InternalLibExecDir returns the libexec directory for the currently executing
+// process.
+//
+// On this OS this falls back to the distro libexec directory.
+func InternalLibExecDir() (string, error) {
+	if osutil.IsDirectory(dirs.DistroLibExecDir) {
+		return dirs.DistroLibExecDir, nil
+	}
+	return "", fmt.Errorf("cannot find internal libexec directory")
 }
 
 // InternalToolPath returns the path of an internal snapd tool. The tool
