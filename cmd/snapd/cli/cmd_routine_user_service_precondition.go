@@ -67,7 +67,7 @@ func init() {
 		return &cmdRoutineUserServicePrecondition{}
 	}, map[string]string{
 		// TRANSLATORS: This should not start with a lowercase letter.
-		"error-exit-code": i18n.G(`Exit code to use when the display session has class "greeter" session or no display-eligible session is found`),
+		"error-exit-code": i18n.G(`Exit code to use when the display session has class "greeter" or no display-eligible session is found`),
 	}, nil)
 	c.hidden = true
 }

@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/systemd/logind"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -111,6 +112,7 @@ func (s *logindSuite) TestSessionClassNoSession(c *C) {
 
 		_, err := logind.SessionClass(context.Background())
 		c.Assert(err, ErrorMatches, "cannot find display-eligible session for the current user: .*")
+		c.Assert(err, testutil.ErrorIs, logind.ErrNoDisplayEligibleSession)
 	}
 
 	// the display session may vanish between the two calls
